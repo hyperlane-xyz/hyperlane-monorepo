@@ -161,7 +161,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(protocolCalls).to.equal(1);
     } finally {
       ownableStub.restore();
@@ -219,8 +221,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => safeOwner,
     } as any);
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeOwner.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -229,8 +232,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
 
     const context = {
       multiProvider: {
@@ -304,7 +306,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
   it('matches explicit target-only override with mixed-case target address', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-overrides-target-case-${Date.now()}.yaml`;
-    const overrideTargetMixedCase = '0xAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAa';
+    const overrideTargetMixedCase =
+      '0xAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAa';
     writeYamlOrJson(strategyPath, {
       [CHAIN]: {
         submitter: {
@@ -322,7 +325,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       },
     });
 
-    const txOverride = { ...TX, to: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' };
+    const txOverride = {
+      ...TX,
+      to: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    };
 
     const batches = await resolveSubmitterBatchesForTransactions({
       chain: CHAIN,
@@ -449,7 +455,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       },
     });
 
-    const txOverride = { ...TX, to: '  0Xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  ' };
+    const txOverride = {
+      ...TX,
+      to: '  0Xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  ',
+    };
 
     const batches = await resolveSubmitterBatchesForTransactions({
       chain: CHAIN,
@@ -527,9 +536,15 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       },
     });
 
-    const txDefaultFirst = { ...TX, to: '0x1111111111111111111111111111111111111111' };
+    const txDefaultFirst = {
+      ...TX,
+      to: '0x1111111111111111111111111111111111111111',
+    };
     const txOverride = { ...TX, to: overrideTarget };
-    const txDefaultLast = { ...TX, to: '0x2222222222222222222222222222222222222222' };
+    const txDefaultLast = {
+      ...TX,
+      to: '0x2222222222222222222222222222222222222222',
+    };
 
     const batches = await resolveSubmitterBatchesForTransactions({
       chain: CHAIN,
@@ -577,7 +592,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       },
     });
 
-    const txDefaultFirst = { ...TX, to: '0x1111111111111111111111111111111111111111' };
+    const txDefaultFirst = {
+      ...TX,
+      to: '0x1111111111111111111111111111111111111111',
+    };
     const txDefaultSecond = {
       ...TX,
       to: '0x2222222222222222222222222222222222222222',
@@ -588,7 +606,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       to: overrideTarget,
       data: '0xdeadbeef',
     };
-    const txDefaultLast = { ...TX, to: '0x3333333333333333333333333333333333333333' };
+    const txDefaultLast = {
+      ...TX,
+      to: '0x3333333333333333333333333333333333333333',
+    };
 
     const batches = await resolveSubmitterBatchesForTransactions({
       chain: CHAIN,
@@ -1412,7 +1433,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(ownableStub.callCount).to.equal(1);
       expect(safeStub.callCount).to.equal(1);
       expect(timelockStub.callCount).to.equal(1);
@@ -1481,7 +1504,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(ownableStub.callCount).to.equal(1);
       expect(safeStub.callCount).to.equal(0);
       expect(timelockStub.callCount).to.equal(0);
@@ -1528,7 +1553,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(ownableStub.callCount).to.equal(1);
       expect(safeStub.callCount).to.equal(0);
       expect(timelockStub.callCount).to.equal(0);
@@ -1575,7 +1602,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(ownableStub.callCount).to.equal(1);
       expect(safeStub.callCount).to.equal(0);
       expect(timelockStub.callCount).to.equal(0);
@@ -1590,8 +1619,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
   it('uses transaction from fallback when transaction target is malformed', async () => {
     const fromSafe = '0x4444444444444444444444444444444444444444';
     const ownableStub = sinon.stub(Ownable__factory, 'connect');
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== fromSafe.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -1600,8 +1630,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
 
     const context = {
       multiProvider: {
@@ -1643,8 +1672,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => 'not-an-evm-address',
     } as any);
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== fromSafe.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -1653,8 +1683,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
 
     const context = {
       multiProvider: {
@@ -1696,8 +1725,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => ethersConstants.AddressZero,
     } as any);
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== fromSafe.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -1706,8 +1736,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
 
     const context = {
       multiProvider: {
@@ -1753,8 +1782,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         throw new Error('owner read failed');
       },
     } as any);
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== fromSafe.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -1763,8 +1793,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
       .throws(new Error('not timelock'));
@@ -1820,8 +1849,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         return ethersConstants.AddressZero;
       },
     } as any);
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== fromSafe.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -1830,8 +1860,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
       .throws(new Error('not timelock'));
@@ -1883,8 +1912,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => '  0X4444444444444444444444444444444444444444  ',
     } as any);
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeOwner.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -1893,8 +1923,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
 
     const context = {
       multiProvider: {
@@ -1960,7 +1989,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(ownerReads).to.equal(1);
       expect(safeStub.callCount).to.equal(0);
       expect(timelockStub.callCount).to.equal(0);
@@ -1980,8 +2011,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         return safeOwner;
       },
     } as any);
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeOwner.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -1990,8 +2022,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
       .throws(new Error('not timelock'));
@@ -2062,7 +2093,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(ownerReads).to.equal(1);
       expect(safeStub.callCount).to.equal(1);
       expect(timelockStub.callCount).to.equal(1);
@@ -2622,8 +2655,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
               : safeOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeOwner.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -2632,8 +2666,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
 
     const context = {
       multiProvider: {
@@ -2692,8 +2725,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
               : SIGNER,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeOwner.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -2702,8 +2736,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
 
     const context = {
       multiProvider: {
@@ -2779,8 +2812,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
               : SIGNER,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeOwner.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -2789,8 +2823,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
 
     const context = {
       multiProvider: {
@@ -2846,8 +2879,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const ownableStub = sinon
       .stub(Ownable__factory, 'connect')
       .throws(new Error('not ownable'));
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== fromSafe.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -2856,8 +2890,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
 
     const context = {
       multiProvider: {
@@ -2892,8 +2925,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const ownableStub = sinon
       .stub(Ownable__factory, 'connect')
       .throws(new Error('not ownable'));
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== fromSafe.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -2902,8 +2936,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
 
     const context = {
       multiProvider: {
@@ -2919,7 +2952,12 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     try {
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
-        transactions: [{ ...TX, from: '  0X4444444444444444444444444444444444444444  ' } as any],
+        transactions: [
+          {
+            ...TX,
+            from: '  0X4444444444444444444444444444444444444444  ',
+          } as any,
+        ],
         context,
       });
 
@@ -2941,8 +2979,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => safeOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeOwner.toLowerCase()) {
           throw new Error('not safe');
         }
@@ -2951,8 +2990,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           getThreshold: async () => 1,
           nonce: async () => 0,
         } as any;
-      },
-    );
+      });
 
     const context = {
       multiProvider: {
@@ -2968,7 +3006,12 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     try {
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
-        transactions: [{ ...TX, to: '  0Xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  ' } as any],
+        transactions: [
+          {
+            ...TX,
+            to: '  0Xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  ',
+          } as any,
+        ],
         context,
       });
 
@@ -3050,7 +3093,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -3140,7 +3185,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(signerAddressCalls).to.equal(2);
       expect(providerCalls).to.equal(1);
@@ -3246,7 +3293,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(signerAddressCalls).to.equal(2);
       expect(providerCalls).to.equal(1);
@@ -3300,10 +3349,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwner;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwner;
+              },
           } as any;
         }
 
@@ -3361,7 +3411,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originDerivationCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -3459,7 +3511,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -3529,7 +3583,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
     } finally {
       ownableStub.restore();
@@ -3544,10 +3600,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -3657,10 +3713,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -3777,10 +3833,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -3897,10 +3953,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -4017,10 +4073,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -4143,10 +4199,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -4263,10 +4319,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -4383,11 +4439,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
     const zeroBytes32 = `0x${'0'.repeat(64)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -4504,11 +4560,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
     const zeroBytes32 = `0x${'0'.repeat(64)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -4625,10 +4681,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -4745,10 +4801,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -4934,7 +4990,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
     } finally {
       ownableStub.restore();
@@ -5015,7 +5073,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(chainNameCalls).to.equal(0);
     } finally {
@@ -5097,7 +5157,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(chainNameCalls).to.equal(0);
     } finally {
@@ -5174,7 +5236,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
     } finally {
       ownableStub.restore();
@@ -5251,7 +5315,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
     } finally {
       ownableStub.restore();
@@ -5328,7 +5394,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
     } finally {
       ownableStub.restore();
@@ -5404,7 +5472,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
     } finally {
       ownableStub.restore();
@@ -5504,7 +5574,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(providerCalls).to.equal(1);
@@ -5521,10 +5593,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -5637,10 +5709,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -5753,10 +5825,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -5870,10 +5942,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -5986,10 +6058,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -6102,10 +6174,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -6146,12 +6218,14 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       logIndex: 999,
     };
     const provider = {
-      getLogs: sinon.stub().resolves([
-        malformedInfinityTxIndexLog,
-        malformedNaNTxIndexLog,
-        malformedNegativeInfinityTxIndexLog,
-        validLog,
-      ]),
+      getLogs: sinon
+        .stub()
+        .resolves([
+          malformedInfinityTxIndexLog,
+          malformedNaNTxIndexLog,
+          malformedNegativeInfinityTxIndexLog,
+          validLog,
+        ]),
     };
 
     const icaRouterStub = sinon
@@ -6237,10 +6311,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -6353,10 +6427,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -6470,10 +6544,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -6586,10 +6660,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -6702,10 +6776,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -6746,12 +6820,14 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       logIndex: Number.NEGATIVE_INFINITY,
     };
     const provider = {
-      getLogs: sinon.stub().resolves([
-        malformedInfinityLogIndexLog,
-        malformedNaNLogIndexLog,
-        malformedNegativeInfinityLogIndexLog,
-        validLog,
-      ]),
+      getLogs: sinon
+        .stub()
+        .resolves([
+          malformedInfinityLogIndexLog,
+          malformedNaNLogIndexLog,
+          malformedNegativeInfinityLogIndexLog,
+          validLog,
+        ]),
     };
 
     const icaRouterStub = sinon
@@ -6837,10 +6913,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -6953,10 +7029,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -7070,10 +7146,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -7186,10 +7262,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9292929292929292929292929292929292929292';
     const originRouterAddress = '0x9393939393939393939393939393939393939393';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -7302,10 +7378,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -7419,10 +7495,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
     const asBigNumberLike = (value: string) =>
       ({
         toString: () => value,
@@ -7540,10 +7616,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -7657,10 +7733,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -7773,10 +7849,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9191919191919191919191919191919191919191';
     const originRouterAddress = '0x9292929292929292929292929292929292929292';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -7889,10 +7965,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9292929292929292929292929292929292929292';
     const originRouterAddress = '0x9393939393939393939393939393939393939393';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -8005,10 +8081,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1';
     const originRouterAddress = '0xa2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -8122,10 +8198,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xa4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4';
     const originRouterAddress = '0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -8239,10 +8315,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7';
     const originRouterAddress = '0xa8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -8356,10 +8432,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
     const originRouterAddress = '0x9191919191919191919191919191919191919191';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -8473,10 +8549,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdfdf';
     const originRouterAddress = '0xe0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -8591,10 +8667,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xe4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4';
     const originRouterAddress = '0xe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -8709,10 +8785,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     const originRouterAddress = '0xabababababababababababababababababababab';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -8826,10 +8902,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xc6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6';
     const originRouterAddress = '0xc7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -8877,13 +8953,15 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       logIndex: '0',
     };
     const provider = {
-      getLogs: sinon.stub().resolves([
-        validLog,
-        malformedPlusHexLog,
-        malformedUppercasePlusHexLog,
-        malformedRawBoundaryPlusHexLog,
-        malformedRawPlusOnePlusHexLog,
-      ]),
+      getLogs: sinon
+        .stub()
+        .resolves([
+          validLog,
+          malformedPlusHexLog,
+          malformedUppercasePlusHexLog,
+          malformedRawBoundaryPlusHexLog,
+          malformedRawPlusOnePlusHexLog,
+        ]),
     };
 
     const icaRouterStub = sinon
@@ -8969,10 +9047,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xc9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9';
     const originRouterAddress = '0xcacacacacacacacacacacacacacacacacacacaca';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -9020,13 +9098,15 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       logIndex: '0',
     };
     const provider = {
-      getLogs: sinon.stub().resolves([
-        validLog,
-        malformedMinusHexLog,
-        malformedUppercaseMinusHexLog,
-        malformedRawBoundaryMinusHexLog,
-        malformedRawPlusOneMinusHexLog,
-      ]),
+      getLogs: sinon
+        .stub()
+        .resolves([
+          validLog,
+          malformedMinusHexLog,
+          malformedUppercaseMinusHexLog,
+          malformedRawBoundaryMinusHexLog,
+          malformedRawPlusOneMinusHexLog,
+        ]),
     };
 
     const icaRouterStub = sinon
@@ -9112,10 +9192,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xd0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0';
     const originRouterAddress = '0xd1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -9163,13 +9243,15 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       logIndex: '0',
     };
     const provider = {
-      getLogs: sinon.stub().resolves([
-        validLog,
-        malformedPlusEmptyHexLog,
-        malformedMinusEmptyHexLog,
-        malformedUppercasePlusEmptyHexLog,
-        malformedUppercaseMinusEmptyHexLog,
-      ]),
+      getLogs: sinon
+        .stub()
+        .resolves([
+          validLog,
+          malformedPlusEmptyHexLog,
+          malformedMinusEmptyHexLog,
+          malformedUppercasePlusEmptyHexLog,
+          malformedUppercaseMinusEmptyHexLog,
+        ]),
     };
 
     const icaRouterStub = sinon
@@ -9255,10 +9337,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2';
     const originRouterAddress = '0xb3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -9371,10 +9453,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xb5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5';
     const originRouterAddress = '0xb6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -9487,10 +9569,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc';
     const originRouterAddress = '0xbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbd';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -9603,10 +9685,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbf';
     const originRouterAddress = '0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -9719,10 +9801,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xadadadadadadadadadadadadadadadadadadadad';
     const originRouterAddress = '0xaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeae';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -9836,10 +9918,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc';
     const originRouterAddress = '0xbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbd';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -9952,10 +10034,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xd1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1';
     const originRouterAddress = '0xd2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -10068,10 +10150,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xc2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2';
     const originRouterAddress = '0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -10184,10 +10266,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xdddddddddddddddddddddddddddddddddddddddd';
     const originRouterAddress = '0xdededededededededededededededededededede';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -10300,10 +10382,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xe3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3';
     const originRouterAddress = '0xe4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -10416,10 +10498,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xe0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0';
     const originRouterAddress = '0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -10532,10 +10614,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xe6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6';
     const originRouterAddress = '0xe7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -10648,10 +10730,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xc8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8';
     const originRouterAddress = '0xc9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -10764,10 +10846,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcb';
     const originRouterAddress = '0xcccccccccccccccccccccccccccccccccccccccc';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -10880,10 +10962,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xd7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7';
     const originRouterAddress = '0xd8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -10996,10 +11078,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xb6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6';
     const originRouterAddress = '0xb7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -11112,10 +11194,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xb0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0';
     const originRouterAddress = '0xb1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -11228,10 +11310,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xb9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9';
     const originRouterAddress = '0xbabababababababababababababababababababa';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -11344,10 +11426,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbf';
     const originRouterAddress = '0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -11460,10 +11542,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xedededededededededededededededededededed';
     const originRouterAddress = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -11576,10 +11658,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xf0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0';
     const originRouterAddress = '0xf1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -11692,10 +11774,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xb3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3';
     const originRouterAddress = '0xb4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -11810,10 +11892,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xc5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5';
     const originRouterAddress = '0xc6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -11928,10 +12010,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xcececececececececececececececececececece';
     const originRouterAddress = '0xcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcf';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -12048,10 +12130,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xd4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4';
     const originRouterAddress = '0xd5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -12168,10 +12250,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xdadadadadadadadadadadadadadadadadadadada';
     const originRouterAddress = '0xdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdb';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -12286,10 +12368,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xe9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9';
     const originRouterAddress = '0xeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaea';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -12404,10 +12486,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xd5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5';
     const originRouterAddress = '0xd6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -12463,13 +12545,15 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       logIndex: '0',
     };
     const provider = {
-      getLogs: sinon.stub().resolves([
-        validLog,
-        malformedPlusLog,
-        malformedMinusLog,
-        malformedPlusEmptyHexLog,
-        malformedMinusEmptyHexLog,
-      ]),
+      getLogs: sinon
+        .stub()
+        .resolves([
+          validLog,
+          malformedPlusLog,
+          malformedMinusLog,
+          malformedPlusEmptyHexLog,
+          malformedMinusEmptyHexLog,
+        ]),
     };
 
     const icaRouterStub = sinon
@@ -12555,10 +12639,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9191919191919191919191919191919191919191';
     const originRouterAddress = '0x9292929292929292929292929292929292929292';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -12673,10 +12757,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xdadadadadadadadadadadadadadadadadadadada';
     const originRouterAddress = '0xdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdb';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -12791,10 +12875,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9595959595959595959595959595959595959595';
     const originRouterAddress = '0x9696969696969696969696969696969696969696';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -12911,10 +12995,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9494949494949494949494949494949494949494';
     const originRouterAddress = '0x9595959595959595959595959595959595959595';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -13027,10 +13111,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xf3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3';
     const originRouterAddress = '0xf4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -13071,12 +13155,14 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       logIndex: 999,
     };
     const provider = {
-      getLogs: sinon.stub().resolves([
-        malformedInfinityLog,
-        malformedNaNLog,
-        malformedNegativeInfinityLog,
-        validLog,
-      ]),
+      getLogs: sinon
+        .stub()
+        .resolves([
+          malformedInfinityLog,
+          malformedNaNLog,
+          malformedNegativeInfinityLog,
+          validLog,
+        ]),
     };
 
     const icaRouterStub = sinon
@@ -13162,10 +13248,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xe9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9';
     const originRouterAddress = '0xeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaea';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -13278,10 +13364,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
     const originRouterAddress = '0xefefefefefefefefefefefefefefefefefefefef';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -13394,10 +13480,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const destinationRouterAddress =
       '0x9898989898989898989898989898989898989898';
     const originRouterAddress = '0x9999999999999999999999999999999999999999';
-    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
-    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
-      2,
-    )}` as const;
+    const signerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 =
+      `0x000000000000000000000000${originRouterAddress.slice(2)}` as const;
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => inferredIcaOwner,
@@ -13570,7 +13656,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           if (domainId === 31347) return 'anvil3';
           throw new Error('unknown domain');
         },
-        tryGetSigner: (chainName: string) => (chainName === 'anvil3' ? {} : null),
+        tryGetSigner: (chainName: string) =>
+          chainName === 'anvil3' ? {} : null,
       },
       registry: {
         getAddresses: async () => ({
@@ -13589,7 +13676,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(safeStub.callCount).to.equal(1);
       expect(timelockStub.callCount).to.equal(1);
@@ -13707,7 +13796,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(originOwner);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -14156,7 +14247,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
@@ -14460,7 +14553,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(1);
@@ -14558,7 +14653,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(1);
@@ -14658,7 +14755,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(1);
@@ -14778,7 +14877,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -14900,7 +15001,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -15022,7 +15125,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -15150,7 +15255,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -15252,7 +15359,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(1);
@@ -15547,7 +15656,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(1);
@@ -15656,7 +15767,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(2);
@@ -15765,7 +15878,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(2);
@@ -15874,7 +15989,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(2);
@@ -15989,7 +16106,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(2);
@@ -16098,7 +16217,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(2);
@@ -16207,7 +16328,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(2);
@@ -16316,7 +16439,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(2);
@@ -17315,7 +17440,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(originOwner);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -17445,7 +17572,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(originOwner);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -17554,7 +17683,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -17664,7 +17795,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -17774,7 +17907,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -17884,7 +18019,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -17994,7 +18131,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerGetAddressGetterCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -18104,7 +18243,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerGetAddressGetterCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -18209,7 +18350,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -18318,7 +18461,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -18440,7 +18585,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -18562,7 +18709,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -18685,7 +18834,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -18808,7 +18959,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerGetAddressGetterCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -18931,7 +19084,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerGetAddressGetterCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -19040,7 +19195,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -19150,7 +19307,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -19260,7 +19419,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -19369,7 +19530,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -19478,7 +19641,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerGetAddressGetterCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -19574,7 +19739,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
@@ -19690,7 +19857,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -19793,7 +19962,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -19898,7 +20069,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -19996,7 +20169,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
@@ -20093,7 +20268,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
@@ -20212,7 +20389,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(chainNameCalls).to.equal(1);
@@ -20340,7 +20519,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(originOwner);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(submitter.internalSubmitter.chain).to.equal('anvil3');
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
@@ -20461,7 +20642,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -20587,7 +20770,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -20707,7 +20892,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -20827,7 +21014,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -20947,7 +21136,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -21070,7 +21261,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originTryGetSignerGetterCalls).to.equal(1);
@@ -21187,7 +21380,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originTryGetSignerGetterCalls).to.equal(1);
@@ -21304,7 +21499,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originTryGetSignerGetterCalls).to.equal(1);
@@ -21421,7 +21618,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originTryGetSignerGetterCalls).to.equal(1);
@@ -21547,7 +21746,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -21667,7 +21868,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -21787,7 +21990,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -21907,7 +22112,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -22027,7 +22234,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -22147,7 +22356,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -22267,7 +22478,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -22386,7 +22599,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -22505,7 +22720,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -22625,7 +22842,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -22745,7 +22964,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -22865,7 +23086,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -22977,7 +23200,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(chainNameCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -23288,10 +23513,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              derivationCalls += 1;
-              return 'not-an-evm-address';
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                derivationCalls += 1;
+                return 'not-an-evm-address';
+              },
           } as any;
         }
 
@@ -23303,7 +23529,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         getProtocol: () => ProtocolType.Ethereum,
         getSignerAddress: async () => SIGNER,
         getProvider: () => provider,
-        tryGetSigner: (chainName: string) => (chainName === 'anvil3' ? {} : null),
+        tryGetSigner: (chainName: string) =>
+          chainName === 'anvil3' ? {} : null,
       },
       registry: {
         getAddresses: async () => ({
@@ -23326,7 +23553,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(derivationCalls).to.equal(1);
     } finally {
@@ -23371,10 +23600,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              derivationCalls += 1;
-              return ethersConstants.AddressZero;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                derivationCalls += 1;
+                return ethersConstants.AddressZero;
+              },
           } as any;
         }
 
@@ -23386,7 +23616,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         getProtocol: () => ProtocolType.Ethereum,
         getSignerAddress: async () => SIGNER,
         getProvider: () => provider,
-        tryGetSigner: (chainName: string) => (chainName === 'anvil3' ? {} : null),
+        tryGetSigner: (chainName: string) =>
+          chainName === 'anvil3' ? {} : null,
       },
       registry: {
         getAddresses: async () => ({
@@ -23409,7 +23640,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(derivationCalls).to.equal(1);
     } finally {
@@ -23571,7 +23804,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(0);
       expect(registryReads).to.equal(1);
     } finally {
@@ -23621,7 +23856,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(0);
       expect(registryReads).to.equal(1);
     } finally {
@@ -23675,7 +23912,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(0);
       expect(registryReads).to.equal(1);
     } finally {
@@ -23729,7 +23968,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(0);
       expect(registryReads).to.equal(1);
     } finally {
@@ -23805,7 +24046,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       // first tx resolves signer once, ICA fallback reuses cached signer
       // second tx also reuses cache, so no additional signer lookups
       expect(signerAddressCalls).to.equal(1);
@@ -23889,7 +24132,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(destinationProvider.getLogs.callCount).to.equal(1);
       expect(providerCalls[CHAIN]).to.equal(1);
       expect(providerCalls.anvil3).to.equal(1);
@@ -23939,10 +24184,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              throw new Error('origin router derivation failed');
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                throw new Error('origin router derivation failed');
+              },
           } as any;
         }
 
@@ -23986,7 +24232,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(destinationProvider.getLogs.callCount).to.equal(1);
       expect(originDerivationCalls).to.equal(1);
       expect(providerCalls[CHAIN]).to.equal(1);
@@ -24056,7 +24304,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
     } finally {
       ownableStub.restore();
@@ -24140,7 +24390,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -24240,9 +24492,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       );
       expect((batches[0].config.submitter as any).chain).to.equal('anvil3');
       expect((batches[0].config.submitter as any).owner).to.equal(SIGNER);
-      expect((batches[0].config.submitter as any).internalSubmitter.type).to.equal(
-        TxSubmitterType.JSON_RPC,
-      );
+      expect(
+        (batches[0].config.submitter as any).internalSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
       expect(originSignerAddressLookups).to.equal(1);
@@ -24333,7 +24585,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
       expect(originSignerAddressLookups).to.equal(1);
@@ -24388,10 +24642,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwnerA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwnerA;
+              },
           } as any;
         }
 
@@ -24439,7 +24694,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(originSignerAddressLookups).to.equal(1);
@@ -24495,10 +24752,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwnerA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwnerA;
+              },
           } as any;
         }
 
@@ -24545,7 +24803,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originTryGetSignerGetterCalls).to.equal(1);
       expect(originSignerAddressLookups).to.equal(1);
@@ -24601,10 +24861,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwnerA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwnerA;
+              },
           } as any;
         }
 
@@ -24651,7 +24912,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originTryGetSignerGetterCalls).to.equal(1);
       expect(originSignerAddressLookups).to.equal(1);
@@ -24707,10 +24970,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwnerA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwnerA;
+              },
           } as any;
         }
 
@@ -24757,7 +25021,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originTryGetSignerGetterCalls).to.equal(1);
       expect(originSignerAddressLookups).to.equal(1);
@@ -24812,10 +25078,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwner;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwner;
+              },
           } as any;
         }
 
@@ -24872,7 +25139,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originDerivationCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -24928,10 +25197,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwner;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwner;
+              },
           } as any;
         }
 
@@ -24987,7 +25257,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originDerivationCalls).to.equal(1);
       expect(originTryGetSignerGetterCalls).to.equal(1);
@@ -25043,10 +25315,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwner;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwner;
+              },
           } as any;
         }
 
@@ -25098,7 +25371,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originDerivationCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -25153,10 +25428,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwner;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwner;
+              },
           } as any;
         }
 
@@ -25217,7 +25493,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originDerivationCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -25273,10 +25551,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwner;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwner;
+              },
           } as any;
         }
 
@@ -25331,7 +25610,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originDerivationCalls).to.equal(0);
       expect(originSignerProbeCalls).to.equal(1);
@@ -25387,10 +25668,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwner;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwner;
+              },
           } as any;
         }
 
@@ -25445,7 +25727,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originDerivationCalls).to.equal(0);
       expect(originSignerProbeCalls).to.equal(1);
@@ -25501,10 +25785,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwner;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwner;
+              },
           } as any;
         }
 
@@ -25559,7 +25844,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originDerivationCalls).to.equal(0);
       expect(originSignerProbeCalls).to.equal(1);
@@ -25616,10 +25903,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwnerA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwnerA;
+              },
           } as any;
         }
 
@@ -25667,7 +25955,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(originSignerAddressLookups).to.equal(1);
@@ -25781,7 +26071,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -25896,7 +26188,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -26011,7 +26305,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -26121,7 +26417,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -26230,7 +26528,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -26339,7 +26639,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -26395,10 +26697,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwnerA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwnerA;
+              },
           } as any;
         }
 
@@ -26446,7 +26749,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(originSignerAddressLookups).to.equal(1);
@@ -26502,10 +26807,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwnerA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwnerA;
+              },
           } as any;
         }
 
@@ -26553,7 +26859,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(originSignerAddressLookups).to.equal(1);
@@ -26609,10 +26917,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwnerA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwnerA;
+              },
           } as any;
         }
 
@@ -26660,7 +26969,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(originSignerAddressLookups).to.equal(1);
@@ -26715,10 +27026,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwner;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwner;
+              },
           } as any;
         }
 
@@ -26775,7 +27087,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const submitter = batches[0].config.submitter as any;
       expect(submitter.chain).to.equal('anvil3');
       expect(submitter.owner).to.equal(SIGNER);
-      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(submitter.internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originDerivationCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
@@ -26832,10 +27146,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwnerA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwnerA;
+              },
           } as any;
         }
 
@@ -26894,7 +27209,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(2);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -26952,10 +27269,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return inferredIcaOwnerA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return inferredIcaOwnerA;
+              },
           } as any;
         }
 
@@ -27014,7 +27332,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].transactions).to.have.length(2);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
@@ -27101,7 +27421,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(originSignerAddressLookups).to.equal(0);
     } finally {
       ownableStub.restore();
@@ -27209,7 +27531,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(tryGetSignerCalls).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(2);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
@@ -27278,7 +27602,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
     } finally {
       ownableStub.restore();
@@ -27622,9 +27948,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(provider.getLogs.callCount).to.equal(0);
       expect(hasRoleStub.callCount).to.equal(2);
       expect(hasRoleAccounts).to.have.length(2);
-      expect(eqAddress(hasRoleAccounts[0], ethersConstants.AddressZero)).to.equal(
-        true,
-      );
+      expect(
+        eqAddress(hasRoleAccounts[0], ethersConstants.AddressZero),
+      ).to.equal(true);
       expect(eqAddress(hasRoleAccounts[1], normalizedSigner)).to.equal(true);
     } finally {
       ownableStub.restore();
@@ -27908,16 +28234,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const malformedLog = { topics: ['0xmalformed'], data: '0x' };
     const validGrantedLog = { topics: ['0xvalid-granted'], data: '0x' };
@@ -27970,8 +28296,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
-      expect((batches[0].config.submitter as any).proposerSubmitter.safeAddress)
-        .to.equal(safeProposer);
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.safeAddress,
+      ).to.equal(safeProposer);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -27989,16 +28316,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const grantedEarly = {
       topics: ['0xgranted-early'],
@@ -28090,16 +28417,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const earlyGrant = {
       topics: ['0xgrant-early'],
@@ -28169,8 +28496,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
-      expect((batches[0].config.submitter as any).proposerSubmitter.safeAddress)
-        .to.equal(safeProposer.toLowerCase());
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.safeAddress,
+      ).to.equal(safeProposer.toLowerCase());
       expect(provider.getLogs.callCount).to.equal(2);
     } finally {
       ownableStub.restore();
@@ -28189,16 +28517,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const earlyGrant = {
       topics: ['0xgrant-early'],
@@ -28291,16 +28619,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -28392,16 +28720,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -28493,16 +28821,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -28594,16 +28922,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -28714,16 +29042,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -28815,16 +29143,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const earlyGrant = {
       topics: ['0xgrant-early'],
@@ -28917,16 +29245,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -29018,16 +29346,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -29119,16 +29447,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -29239,16 +29567,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -29340,16 +29668,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const olderGrant = {
       topics: ['0xgrant-older'],
@@ -29441,16 +29769,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -29542,16 +29870,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const newerGrant = {
       topics: ['0xgrant-newer'],
@@ -29640,16 +29968,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const olderGrant = {
       topics: ['0xgrant-older'],
@@ -29741,16 +30069,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const olderGrant = {
       topics: ['0xgrant-older'],
@@ -29842,16 +30170,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const olderGrant = {
       topics: ['0xgrant-older'],
@@ -29943,16 +30271,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const olderGrant = {
       topics: ['0xgrant-older'],
@@ -30044,16 +30372,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const olderGrant = {
       topics: ['0xgrant-older'],
@@ -30145,16 +30473,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const newerGrant = {
       topics: ['0xgrant-newer'],
@@ -30239,16 +30567,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -30341,16 +30669,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -30443,16 +30771,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -30545,16 +30873,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -30646,16 +30974,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -30682,7 +31010,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (filter.topics?.[0] === 'RoleGranted') {
-          return [validGrant, malformedWhitespacePaddedObjectDefaultStringGrant];
+          return [
+            validGrant,
+            malformedWhitespacePaddedObjectDefaultStringGrant,
+          ];
         }
         return [revoke];
       }),
@@ -30747,16 +31078,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -30848,16 +31179,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -30976,16 +31307,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -31104,16 +31435,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -31232,16 +31563,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -31333,16 +31664,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -31434,16 +31765,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -31535,16 +31866,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -31636,16 +31967,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -31737,16 +32068,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -31831,16 +32162,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -31925,16 +32256,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -32019,16 +32350,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -32113,16 +32444,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -32208,16 +32539,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -32314,16 +32645,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -32419,16 +32750,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -32520,16 +32851,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -32614,16 +32945,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -32709,16 +33040,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -32814,16 +33145,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -32916,16 +33247,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -33021,16 +33352,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -33116,16 +33447,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -33221,16 +33552,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -33315,16 +33646,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -33418,16 +33749,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -33521,16 +33852,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -33619,16 +33950,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -33718,16 +34049,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -33826,16 +34157,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -33933,16 +34264,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -34069,16 +34400,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -34172,16 +34503,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -34275,16 +34606,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -34380,16 +34711,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -34481,16 +34812,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -34601,16 +34932,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const higherGrant = {
       topics: ['0xgrant-higher'],
@@ -34695,16 +35026,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -34796,16 +35127,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           owner: async () => timelockOwner,
         }) as any,
     );
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
         }
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const validGrant = {
       topics: ['0xgrant-valid'],
@@ -34899,8 +35230,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     );
 
     const checkedSafeAddresses: string[] = [];
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         checkedSafeAddresses.push(address.toLowerCase());
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
@@ -34908,8 +35240,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const invalidAccountLog = { topics: ['0xinvalid-account'], data: '0x' };
     const validGrantedLog = { topics: ['0xvalid-granted'], data: '0x' };
@@ -34962,8 +35293,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
-      expect((batches[0].config.submitter as any).proposerSubmitter.safeAddress)
-        .to.equal(safeProposer);
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.safeAddress,
+      ).to.equal(safeProposer);
       expect(checkedSafeAddresses).to.deep.equal([
         timelockOwner.toLowerCase(),
         safeProposer.toLowerCase(),
@@ -34988,8 +35320,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     );
 
     const checkedSafeAddresses: string[] = [];
-    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
-      (address: string) => {
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
         checkedSafeAddresses.push(address.toLowerCase());
         if (address.toLowerCase() !== safeProposer.toLowerCase()) {
           throw new Error('not safe');
@@ -34997,8 +35330,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         return {
           getThreshold: async () => 1,
         } as any;
-      },
-    );
+      });
 
     const zeroAccountLog = { topics: ['0xzero-account'], data: '0x' };
     const validGrantedLog = { topics: ['0xvalid-granted'], data: '0x' };
@@ -35051,8 +35383,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
-      expect((batches[0].config.submitter as any).proposerSubmitter.safeAddress)
-        .to.equal(safeProposer);
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.safeAddress,
+      ).to.equal(safeProposer);
       expect(checkedSafeAddresses).to.deep.equal([
         timelockOwner.toLowerCase(),
         safeProposer.toLowerCase(),
@@ -35197,7 +35530,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     try {
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
-        transactions: [TX as any, { ...TX, to: '0x9999999999999999999999999999999999999999' } as any],
+        transactions: [
+          TX as any,
+          { ...TX, to: '0x9999999999999999999999999999999999999999' } as any,
+        ],
         context,
       });
 
@@ -35276,7 +35612,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     try {
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
-        transactions: [TX as any, { ...TX, to: '0x9999999999999999999999999999999999999999' } as any],
+        transactions: [
+          TX as any,
+          { ...TX, to: '0x9999999999999999999999999999999999999999' } as any,
+        ],
         context,
       });
 
@@ -35392,9 +35731,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
-      expect((batches[0].config.submitter as any).proposerSubmitter.owner).to.equal(
-        SIGNER,
-      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.owner,
+      ).to.equal(SIGNER);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -35454,10 +35793,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              derivationCalls += 1;
-              return ethersConstants.AddressZero;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                derivationCalls += 1;
+                return ethersConstants.AddressZero;
+              },
           } as any;
         }
 
@@ -35522,7 +35862,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -35554,10 +35897,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              derivationCalls += 1;
-              return 'not-an-evm-address';
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                derivationCalls += 1;
+                return 'not-an-evm-address';
+              },
           } as any;
         }
 
@@ -35689,9 +36033,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
-      expect((batches[0].config.submitter as any).proposerSubmitter.owner).to.equal(
-        SIGNER,
-      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.owner,
+      ).to.equal(SIGNER);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -35744,10 +36088,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return derivedIcaProposer;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return derivedIcaProposer;
+              },
           } as any;
         }
 
@@ -35798,9 +36143,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
-      expect((batches[0].config.submitter as any).proposerSubmitter.owner).to.equal(
-        SIGNER,
-      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.owner,
+      ).to.equal(SIGNER);
       expect(originSignerProbeCalls).to.equal(1);
       expect(originSignerAddressLookups).to.equal(1);
       expect(originDerivationCalls).to.equal(2);
@@ -35855,10 +36200,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              derivationCalls += 1;
-              return ethersConstants.AddressZero;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                derivationCalls += 1;
+                return ethersConstants.AddressZero;
+              },
           } as any;
         }
 
@@ -35949,10 +36295,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              derivationCalls += 1;
-              return 'not-an-evm-address';
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                derivationCalls += 1;
+                return 'not-an-evm-address';
+              },
           } as any;
         }
 
@@ -36093,9 +36440,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
-      expect((batches[0].config.submitter as any).proposerSubmitter.owner).to.equal(
-        SIGNER,
-      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.owner,
+      ).to.equal(SIGNER);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -36190,9 +36537,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
-      expect((batches[0].config.submitter as any).proposerSubmitter.owner).to.equal(
-        SIGNER,
-      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.owner,
+      ).to.equal(SIGNER);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -36287,9 +36634,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
-      expect((batches[0].config.submitter as any).proposerSubmitter.owner).to.equal(
-        SIGNER,
-      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.owner,
+      ).to.equal(SIGNER);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -36327,15 +36674,18 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake(() => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === derivedIcaProposer.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (_log: unknown) => ({ args: { account: SIGNER } }),
-        },
-      }) as any);
+      .callsFake(
+        () =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === derivedIcaProposer.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (_log: unknown) => ({ args: { account: SIGNER } }),
+            },
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -36429,7 +36779,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -36525,7 +36878,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -36629,7 +36985,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -36720,7 +37079,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       );
       const proposerSubmitter = (batches[0].config.submitter as any)
         .proposerSubmitter;
-      expect(proposerSubmitter.type).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
+      expect(proposerSubmitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
       expect(proposerSubmitter.chain).to.equal('anvil3');
       expect(proposerSubmitter.owner).to.equal(SIGNER);
       expect(proposerSubmitter.internalSubmitter.type).to.equal(
@@ -36754,7 +37115,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -36845,7 +37209,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       );
       const proposerSubmitter = (batches[0].config.submitter as any)
         .proposerSubmitter;
-      expect(proposerSubmitter.type).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
+      expect(proposerSubmitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
@@ -36969,7 +37335,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       );
       const proposerSubmitter = (batches[0].config.submitter as any)
         .proposerSubmitter;
-      expect(proposerSubmitter.type).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
+      expect(proposerSubmitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
@@ -36998,7 +37366,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -37092,7 +37463,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       );
       const proposerSubmitter = (batches[0].config.submitter as any)
         .proposerSubmitter;
-      expect(proposerSubmitter.type).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
+      expect(proposerSubmitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
       expect(originSignerObjectAddressCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
@@ -37247,7 +37620,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -37335,7 +37711,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       );
       const proposerSubmitter = (batches[0].config.submitter as any)
         .proposerSubmitter;
-      expect(proposerSubmitter.type).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
+      expect(proposerSubmitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
       expect(originSignerObjectAddressCalls).to.equal(0);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
@@ -37364,7 +37742,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -37442,7 +37823,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       );
       const proposerSubmitter = (batches[0].config.submitter as any)
         .proposerSubmitter;
-      expect(proposerSubmitter.type).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
+      expect(proposerSubmitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(3);
@@ -37558,7 +37941,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       );
       const proposerSubmitter = (batches[0].config.submitter as any)
         .proposerSubmitter;
-      expect(proposerSubmitter.type).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
+      expect(proposerSubmitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(3);
@@ -37935,7 +38320,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -37946,21 +38332,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -37976,10 +38365,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -38089,7 +38479,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -38100,18 +38491,21 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (_log: any) => ({
-            args: {
-              account: proposerIca,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (_log: any) => ({
+                args: {
+                  account: proposerIca,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -38127,10 +38521,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIca;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIca;
+              },
           } as any;
         }
 
@@ -38249,7 +38644,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -38260,21 +38656,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -38290,10 +38689,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -38404,7 +38804,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -38415,21 +38816,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -38445,10 +38849,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -38783,7 +39188,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -38794,21 +39200,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -38824,10 +39233,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -38930,7 +39340,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -38941,21 +39352,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -38971,10 +39385,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -39077,7 +39492,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -39088,21 +39504,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -39118,10 +39537,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -39223,7 +39643,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -39234,19 +39655,22 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIca.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (_log: any) => ({
-            args: {
-              account: proposerIca,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIca.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (_log: any) => ({
+                args: {
+                  account: proposerIca,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -39262,10 +39686,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIca;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIca;
+              },
           } as any;
         }
 
@@ -39374,7 +39799,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -39385,23 +39811,26 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIcaA.toLowerCase() ||
-          account.toLowerCase() === proposerIcaB.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIcaA.toLowerCase() ||
+              account.toLowerCase() === proposerIcaB.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -39526,7 +39955,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -39537,23 +39967,26 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIcaA.toLowerCase() ||
-          account.toLowerCase() === proposerIcaB.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIcaA.toLowerCase() ||
+              account.toLowerCase() === proposerIcaB.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -39678,7 +40111,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -39689,23 +40123,26 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIcaA.toLowerCase() ||
-          account.toLowerCase() === proposerIcaB.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIcaA.toLowerCase() ||
+              account.toLowerCase() === proposerIcaB.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -39831,7 +40268,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -39842,23 +40280,26 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIcaA.toLowerCase() ||
-          account.toLowerCase() === proposerIcaB.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIcaA.toLowerCase() ||
+              account.toLowerCase() === proposerIcaB.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -39983,7 +40424,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -39994,23 +40436,26 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIcaA.toLowerCase() ||
-          account.toLowerCase() === proposerIcaB.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIcaA.toLowerCase() ||
+              account.toLowerCase() === proposerIcaB.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -40136,7 +40581,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -40147,23 +40593,26 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIcaA.toLowerCase() ||
-          account.toLowerCase() === proposerIcaB.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIcaA.toLowerCase() ||
+              account.toLowerCase() === proposerIcaB.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -40289,7 +40738,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -40300,23 +40750,26 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIcaA.toLowerCase() ||
-          account.toLowerCase() === proposerIcaB.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIcaA.toLowerCase() ||
+              account.toLowerCase() === proposerIcaB.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -40442,7 +40895,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -40453,23 +40907,26 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIcaA.toLowerCase() ||
-          account.toLowerCase() === proposerIcaB.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIcaA.toLowerCase() ||
+              account.toLowerCase() === proposerIcaB.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -40601,7 +41058,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -40612,23 +41070,26 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIcaA.toLowerCase() ||
-          account.toLowerCase() === proposerIcaB.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIcaA.toLowerCase() ||
+              account.toLowerCase() === proposerIcaB.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -40749,7 +41210,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -40869,7 +41333,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -40990,7 +41457,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -41111,7 +41581,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -41232,7 +41705,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -41353,7 +41829,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -41474,7 +41953,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -41601,7 +42083,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -41612,23 +42095,26 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIcaA.toLowerCase() ||
-          account.toLowerCase() === proposerIcaB.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIcaA.toLowerCase() ||
+              account.toLowerCase() === proposerIcaB.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -41749,7 +42235,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -41760,21 +42247,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -41899,7 +42389,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -41910,21 +42401,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -42049,7 +42543,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -42060,21 +42555,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -42200,7 +42698,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -42211,21 +42710,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -42351,7 +42853,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -42362,21 +42865,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     const icaRouterStub = sinon
       .stub(InterchainAccountRouter__factory, 'connect')
@@ -42491,7 +42997,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -42611,7 +43120,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -42732,7 +43244,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -42853,7 +43368,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -42973,7 +43491,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -43093,7 +43614,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -43207,7 +43731,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -43508,10 +44035,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIca;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIca;
+              },
           } as any;
         }
 
@@ -47808,6 +48336,483 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('caches event-derived malformed bad-thenable signer probe fallback across timelock ICA inferences', async () => {
+    const timelockOwnerA = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacf';
+    const timelockOwnerB = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad0';
+    const proposerIca = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad1';
+    const destinationRouterAddress =
+      '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad2';
+    const originOwner = SIGNER.toLowerCase();
+    const originOwnerBytes32 =
+      `0x000000000000000000000000${originOwner.slice(2)}` as const;
+    const originRouterBytes32 =
+      '0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad3';
+
+    const ownerByTarget: Record<string, string> = {
+      '0x1111111111111111111111111111111111111111': timelockOwnerA,
+      '0x2222222222222222222222222222222222222222': timelockOwnerB,
+    };
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      (targetAddress: string) =>
+        ({
+          owner: async () => ownerByTarget[targetAddress.toLowerCase()],
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        const normalizedAddress =
+          typeof filter.address === 'string'
+            ? filter.address.toLowerCase()
+            : filter.address;
+        if (
+          (normalizedAddress === timelockOwnerA.toLowerCase() ||
+            normalizedAddress === timelockOwnerB.toLowerCase()) &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
+          return [{ topics: [], data: normalizedAddress }];
+        }
+        if (normalizedAddress === destinationRouterAddress.toLowerCase()) {
+          return [{ topics: [], data: '0x' }];
+        }
+        return [];
+      }),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: (_log: unknown) => ({ args: { account: proposerIca } }),
+        },
+      } as any);
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({
+                address: destinationRouterAddress,
+              }),
+            },
+            interface: {
+              parseLog: () => ({
+                args: {
+                  origin: 31347,
+                  router: originRouterBytes32,
+                  owner: originOwnerBytes32,
+                  ism: ethersConstants.AddressZero,
+                },
+              }),
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    let chainNameCalls = 0;
+    let originSignerProbeCalls = 0;
+    const signerAddressCallsByChain: Record<string, number> = {};
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async (chainName: string) => {
+          signerAddressCallsByChain[chainName] =
+            (signerAddressCallsByChain[chainName] ?? 0) + 1;
+          if (chainName === CHAIN) {
+            return SIGNER;
+          }
+          return 'not-an-evm-address';
+        },
+        getProvider: () => provider,
+        getChainName: (domainId: number) => {
+          chainNameCalls += 1;
+          if (domainId === 31347) return 'anvil3';
+          throw new Error(`unknown domain ${domainId}`);
+        },
+        tryGetSigner: (chainName: string) => {
+          if (chainName === CHAIN) return {};
+          originSignerProbeCalls += 1;
+          return {
+            then: {},
+          };
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
+          { ...TX, to: '0x2222222222222222222222222222222222222222' } as any,
+        ],
+        context,
+      });
+
+      expect(batches).to.have.length(2);
+      expect(batches[0].transactions).to.have.length(1);
+      expect(batches[1].transactions).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[1].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[1].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
+      expect(originSignerProbeCalls).to.equal(1);
+      expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
+      expect(signerAddressCallsByChain.anvil3).to.equal(1);
+      expect(chainNameCalls).to.equal(1);
+      expect(provider.getLogs.callCount).to.equal(5);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
+  it('caches event-derived zero-address bad-thenable signer probe fallback across timelock ICA inferences', async () => {
+    const timelockOwnerA = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad4';
+    const timelockOwnerB = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad5';
+    const proposerIca = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad6';
+    const destinationRouterAddress =
+      '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad7';
+    const originOwner = SIGNER.toLowerCase();
+    const originOwnerBytes32 =
+      `0x000000000000000000000000${originOwner.slice(2)}` as const;
+    const originRouterBytes32 =
+      '0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad8';
+
+    const ownerByTarget: Record<string, string> = {
+      '0x1111111111111111111111111111111111111111': timelockOwnerA,
+      '0x2222222222222222222222222222222222222222': timelockOwnerB,
+    };
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      (targetAddress: string) =>
+        ({
+          owner: async () => ownerByTarget[targetAddress.toLowerCase()],
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        const normalizedAddress =
+          typeof filter.address === 'string'
+            ? filter.address.toLowerCase()
+            : filter.address;
+        if (
+          (normalizedAddress === timelockOwnerA.toLowerCase() ||
+            normalizedAddress === timelockOwnerB.toLowerCase()) &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
+          return [{ topics: [], data: normalizedAddress }];
+        }
+        if (normalizedAddress === destinationRouterAddress.toLowerCase()) {
+          return [{ topics: [], data: '0x' }];
+        }
+        return [];
+      }),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: (_log: unknown) => ({ args: { account: proposerIca } }),
+        },
+      } as any);
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({
+                address: destinationRouterAddress,
+              }),
+            },
+            interface: {
+              parseLog: () => ({
+                args: {
+                  origin: 31347,
+                  router: originRouterBytes32,
+                  owner: originOwnerBytes32,
+                  ism: ethersConstants.AddressZero,
+                },
+              }),
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    let chainNameCalls = 0;
+    let originSignerProbeCalls = 0;
+    const signerAddressCallsByChain: Record<string, number> = {};
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async (chainName: string) => {
+          signerAddressCallsByChain[chainName] =
+            (signerAddressCallsByChain[chainName] ?? 0) + 1;
+          if (chainName === CHAIN) {
+            return SIGNER;
+          }
+          return ethersConstants.AddressZero;
+        },
+        getProvider: () => provider,
+        getChainName: (domainId: number) => {
+          chainNameCalls += 1;
+          if (domainId === 31347) return 'anvil3';
+          throw new Error(`unknown domain ${domainId}`);
+        },
+        tryGetSigner: (chainName: string) => {
+          if (chainName === CHAIN) return {};
+          originSignerProbeCalls += 1;
+          return {
+            then: {},
+          };
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
+          { ...TX, to: '0x2222222222222222222222222222222222222222' } as any,
+        ],
+        context,
+      });
+
+      expect(batches).to.have.length(2);
+      expect(batches[0].transactions).to.have.length(1);
+      expect(batches[1].transactions).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[1].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[1].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
+      expect(originSignerProbeCalls).to.equal(1);
+      expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
+      expect(signerAddressCallsByChain.anvil3).to.equal(1);
+      expect(chainNameCalls).to.equal(1);
+      expect(provider.getLogs.callCount).to.equal(5);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
+  it('caches event-derived throwing bad-thenable signer probe fallback across timelock ICA inferences', async () => {
+    const timelockOwnerA = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad9';
+    const timelockOwnerB = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaada';
+    const proposerIca = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadb';
+    const destinationRouterAddress =
+      '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadc';
+    const originOwner = SIGNER.toLowerCase();
+    const originOwnerBytes32 =
+      `0x000000000000000000000000${originOwner.slice(2)}` as const;
+    const originRouterBytes32 =
+      '0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaadd';
+
+    const ownerByTarget: Record<string, string> = {
+      '0x1111111111111111111111111111111111111111': timelockOwnerA,
+      '0x2222222222222222222222222222222222222222': timelockOwnerB,
+    };
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      (targetAddress: string) =>
+        ({
+          owner: async () => ownerByTarget[targetAddress.toLowerCase()],
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        const normalizedAddress =
+          typeof filter.address === 'string'
+            ? filter.address.toLowerCase()
+            : filter.address;
+        if (
+          (normalizedAddress === timelockOwnerA.toLowerCase() ||
+            normalizedAddress === timelockOwnerB.toLowerCase()) &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
+          return [{ topics: [], data: normalizedAddress }];
+        }
+        if (normalizedAddress === destinationRouterAddress.toLowerCase()) {
+          return [{ topics: [], data: '0x' }];
+        }
+        return [];
+      }),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: (_log: unknown) => ({ args: { account: proposerIca } }),
+        },
+      } as any);
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({
+                address: destinationRouterAddress,
+              }),
+            },
+            interface: {
+              parseLog: () => ({
+                args: {
+                  origin: 31347,
+                  router: originRouterBytes32,
+                  owner: originOwnerBytes32,
+                  ism: ethersConstants.AddressZero,
+                },
+              }),
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    let chainNameCalls = 0;
+    let originSignerProbeCalls = 0;
+    const signerAddressCallsByChain: Record<string, number> = {};
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async (chainName: string) => {
+          signerAddressCallsByChain[chainName] =
+            (signerAddressCallsByChain[chainName] ?? 0) + 1;
+          if (chainName === CHAIN) {
+            return SIGNER;
+          }
+          throw new Error(`origin signer unavailable for ${chainName}`);
+        },
+        getProvider: () => provider,
+        getChainName: (domainId: number) => {
+          chainNameCalls += 1;
+          if (domainId === 31347) return 'anvil3';
+          throw new Error(`unknown domain ${domainId}`);
+        },
+        tryGetSigner: (chainName: string) => {
+          if (chainName === CHAIN) return {};
+          originSignerProbeCalls += 1;
+          return {
+            then: {},
+          };
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
+          { ...TX, to: '0x2222222222222222222222222222222222222222' } as any,
+        ],
+        context,
+      });
+
+      expect(batches).to.have.length(2);
+      expect(batches[0].transactions).to.have.length(1);
+      expect(batches[1].transactions).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[1].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[1].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
+      expect(originSignerProbeCalls).to.equal(1);
+      expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
+      expect(signerAddressCallsByChain.anvil3).to.equal(1);
+      expect(chainNameCalls).to.equal(1);
+      expect(provider.getLogs.callCount).to.equal(5);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('caches unavailable origin signer probes across timelock ICA inferences', async () => {
     const timelockOwnerA = '0x8686868686868686868686868686868686868686';
     const timelockOwnerB = '0x8787878787878787878787878787878787878787';
@@ -47834,7 +48839,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: '0x' }];
@@ -47966,7 +48972,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: '0x' }];
@@ -48098,7 +49105,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: '0x' }];
@@ -48230,7 +49238,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: '0x' }];
@@ -48362,7 +49371,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: '0x' }];
@@ -48494,7 +49504,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: '0x' }];
@@ -48627,7 +49638,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -48638,21 +49650,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -48668,10 +49683,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -48783,7 +49799,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -48794,21 +49811,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -48824,10 +49844,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -48926,7 +49947,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -49028,7 +50052,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
-        if (filter.address === timelockOwner && filter.topics?.[0] === 'RoleGranted') {
+        if (
+          filter.address === timelockOwner &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
           return [{ topics: [], data: '0x' }];
         }
         return [];
@@ -49147,7 +50174,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: '0x' }];
@@ -49280,7 +50308,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -49291,21 +50320,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -49321,10 +50353,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -49431,7 +50464,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -49442,21 +50476,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -49472,10 +50509,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -49581,7 +50619,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -49592,21 +50631,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -49622,10 +50664,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -49731,7 +50774,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -49742,21 +50786,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((_address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (_address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -49772,10 +50819,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -49878,7 +50926,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -49889,19 +50938,22 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async (_role: string, account: string) =>
-          account.toLowerCase() === proposerIca.toLowerCase(),
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (_log: any) => ({
-            args: {
-              account: proposerIca,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async (_role: string, account: string) =>
+              account.toLowerCase() === proposerIca.toLowerCase(),
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (_log: any) => ({
+                args: {
+                  account: proposerIca,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -49917,10 +50969,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIca;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIca;
+              },
           } as any;
         }
 
@@ -50034,7 +51087,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -50045,21 +51099,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -50075,10 +51132,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -50184,7 +51242,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -50195,18 +51254,21 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (_log: any) => ({
-            args: {
-              account: proposerIca,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (_log: any) => ({
+                args: {
+                  account: proposerIca,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -50222,10 +51284,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIca;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIca;
+              },
           } as any;
         }
 
@@ -50339,7 +51402,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -50350,18 +51414,21 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (_log: any) => ({
-            args: {
-              account: proposerIca,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (_log: any) => ({
+                args: {
+                  account: proposerIca,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -50377,10 +51444,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIca;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIca;
+              },
           } as any;
         }
 
@@ -50495,7 +51563,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -50506,21 +51575,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -50536,10 +51608,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -50646,7 +51719,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -50657,21 +51731,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -50687,10 +51764,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
@@ -50797,7 +51875,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (filter.address === timelockOwnerA ||
+            filter.address === timelockOwnerB) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: filter.address }];
@@ -50808,21 +51887,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
-      .callsFake((address: string) => ({
-        getMinDelay: async () => 0,
-        hasRole: async () => false,
-        interface: {
-          getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account:
-                log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
-                  ? proposerIcaA
-                  : proposerIcaB,
+      .callsFake(
+        (address: string) =>
+          ({
+            getMinDelay: async () => 0,
+            hasRole: async () => false,
+            interface: {
+              getEventTopic: (name: string) => name,
+              parseLog: (log: any) => ({
+                args: {
+                  account:
+                    log.data?.toLowerCase() === timelockOwnerA.toLowerCase()
+                      ? proposerIcaA
+                      : proposerIcaB,
+                },
+              }),
             },
-          }),
-        },
-      }) as any);
+          }) as any,
+      );
 
     let originDerivationCalls = 0;
     const icaRouterStub = sinon
@@ -50838,10 +51920,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
         if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
           return {
-            ['getRemoteInterchainAccount(address,address,address)']: async () => {
-              originDerivationCalls += 1;
-              return proposerIcaA;
-            },
+            ['getRemoteInterchainAccount(address,address,address)']:
+              async () => {
+                originDerivationCalls += 1;
+                return proposerIcaA;
+              },
           } as any;
         }
 
