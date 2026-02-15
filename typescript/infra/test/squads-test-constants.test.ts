@@ -8,6 +8,23 @@ import {
 } from './squads-test-constants.js';
 
 describe('squads test constants', () => {
+  it('keeps expected canonical squads script paths', () => {
+    expect(SQUADS_SCRIPT_PATHS).to.deep.equal([
+      'scripts/squads/cli-helpers.ts',
+      'scripts/squads/get-pending-txs.ts',
+      'scripts/squads/parse-txs.ts',
+      'scripts/squads/read-proposal.ts',
+      'scripts/squads/cancel-proposal.ts',
+      'scripts/sealevel-helpers/update-multisig-ism-config.ts',
+    ]);
+  });
+
+  it('keeps expected non-executable squads helper allowlist', () => {
+    expect(NON_EXECUTABLE_SQUADS_SCRIPT_FILES).to.deep.equal([
+      'cli-helpers.ts',
+    ]);
+  });
+
   it('exports frozen constants', () => {
     expect(Object.isFrozen(NON_EXECUTABLE_SQUADS_SCRIPT_FILES)).to.equal(true);
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
