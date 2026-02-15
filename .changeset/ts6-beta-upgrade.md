@@ -429,3 +429,5 @@ Regression coverage also now confirms json-escaped single-quoted and mixed-quote
 `String(error)` placeholder normalization now also handles multi-escaped quote wrappers (for example `\\\"[object Array]\\\"`) so doubly escaped placeholder outputs are treated as non-informative and still fall through to `Object.prototype.toString`.
 
 Regression coverage also now confirms double-escaped quoted object-tag object placeholder outputs from `String(error)` (for example `\\\"[object Object]\\\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
+
+Regression coverage also now confirms double-escaped single-quoted and mixed-quoted object-tag/object-tag-object placeholder outputs from `String(error)` (for example `\\'[object Array]\\'`, `\\\"'[object Array]'\\\"`, `\\'[object Object]\\'`, and `\\\"'[object Object]'\\\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
