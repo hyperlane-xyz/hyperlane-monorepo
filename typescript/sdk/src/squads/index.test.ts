@@ -42,7 +42,8 @@ const SDK_PACKAGE_JSON_PATH = path.resolve(
 );
 const SDK_SQUADS_TEST_COMMAND_PREFIX = 'mocha --config .mocharc.json';
 const SDK_SQUADS_TEST_GLOB = 'src/squads/*.test.ts';
-const EXPECTED_SDK_SQUADS_TEST_SCRIPT = `${SDK_SQUADS_TEST_COMMAND_PREFIX} '${SDK_SQUADS_TEST_GLOB}'`;
+const SDK_SQUADS_TEST_TOKEN_PATHS = Object.freeze([SDK_SQUADS_TEST_GLOB]);
+const EXPECTED_SDK_SQUADS_TEST_SCRIPT = `${SDK_SQUADS_TEST_COMMAND_PREFIX} ${SDK_SQUADS_TEST_TOKEN_PATHS.map((tokenPath) => `'${tokenPath}'`).join(' ')}`;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function countOccurrences(haystack: string, needle: string): number {
   if (needle.length === 0) {
@@ -142,6 +143,10 @@ describe('squads barrel exports', () => {
     expect(SDK_SQUADS_TEST_COMMAND_PREFIX.endsWith(' ')).to.equal(false);
     expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes('"')).to.equal(false);
     expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes("'")).to.equal(false);
+    expect(Object.isFrozen(SDK_SQUADS_TEST_TOKEN_PATHS)).to.equal(true);
+    expect(new Set(SDK_SQUADS_TEST_TOKEN_PATHS).size).to.equal(
+      SDK_SQUADS_TEST_TOKEN_PATHS.length,
+    );
 
     expect(SDK_SQUADS_TEST_GLOB).to.equal(SDK_SQUADS_TEST_GLOB.trim());
     expect(SDK_SQUADS_TEST_GLOB.startsWith('src/squads/')).to.equal(true);
@@ -326,19 +331,19 @@ describe('squads barrel exports', () => {
       EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('typescript/infra'),
     ).to.equal(false);
     const quotedTestTokens = getQuotedSdkSquadsTestTokens();
-    expect(quotedTestTokens).to.deep.equal([SDK_SQUADS_TEST_GLOB]);
+    expect(quotedTestTokens).to.deep.equal([...SDK_SQUADS_TEST_TOKEN_PATHS]);
     for (const quotedTestToken of quotedTestTokens) {
       assertSdkSquadsTestTokenShape(
         quotedTestToken,
         'quoted sdk squads test token',
       );
+      expect(
+        countOccurrences(
+          EXPECTED_SDK_SQUADS_TEST_SCRIPT,
+          `'${quotedTestToken}'`,
+        ),
+      ).to.equal(1);
     }
-    expect(
-      countOccurrences(
-        EXPECTED_SDK_SQUADS_TEST_SCRIPT,
-        `'${SDK_SQUADS_TEST_GLOB}'`,
-      ),
-    ).to.equal(1);
     expect(sdkPackageJson.exports?.['.']).to.equal('./dist/index.js');
     expect(sdkPackageJson.exports?.['./squads']).to.equal(undefined);
     expect(sdkPackageJson.exports?.['./squads/*']).to.equal(undefined);
