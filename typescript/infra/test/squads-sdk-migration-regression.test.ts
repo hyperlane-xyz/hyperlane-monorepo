@@ -161,6 +161,10 @@ describe('squads sdk migration regression', () => {
         fs.existsSync(absolutePath),
         `Expected guarded script path to exist: ${scriptPath}`,
       ).to.equal(true);
+      expect(
+        fs.statSync(absolutePath).isFile(),
+        `Expected guarded script path to reference a file: ${scriptPath}`,
+      ).to.equal(true);
     }
 
     const squadsScriptSet = new Set(SQUADS_SCRIPT_PATHS);
