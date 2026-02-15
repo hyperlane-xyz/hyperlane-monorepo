@@ -418,7 +418,41 @@ export class SquadsTransactionReader {
         continue;
       }
 
-      for (const token of routeTokens) {
+      let routeTokensLengthValue: unknown;
+      try {
+        routeTokensLengthValue = routeTokens.length;
+      } catch (error) {
+        rootLogger.warn(
+          `Failed to read warp route tokens length for ${routeName}: ${stringifyUnknownSquadsError(error)}`,
+        );
+        continue;
+      }
+
+      if (
+        typeof routeTokensLengthValue !== 'number' ||
+        !Number.isSafeInteger(routeTokensLengthValue) ||
+        routeTokensLengthValue < 0
+      ) {
+        rootLogger.warn(
+          `Skipping malformed warp route tokens for ${routeName}: expected non-negative safe integer length, got ${formatIntegerValidationValue(routeTokensLengthValue)}`,
+        );
+        continue;
+      }
+
+      for (
+        let tokenIndex = 0;
+        tokenIndex < routeTokensLengthValue;
+        tokenIndex += 1
+      ) {
+        let token: unknown;
+        try {
+          token = routeTokens[tokenIndex];
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read warp route token at index ${tokenIndex} for ${routeName}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          continue;
+        }
         this.indexWarpRouteToken(routeName, token);
       }
     }

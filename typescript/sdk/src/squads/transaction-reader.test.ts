@@ -1719,6 +1719,104 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('skips malformed warp-route token containers when tokens length accessor throws', async () => {
+    let protocolLookupCount = 0;
+    const mpp = {
+      tryGetProtocol: () => {
+        protocolLookupCount += 1;
+        return ProtocolType.Sealevel;
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const hostileTokens = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('tokens length unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    await reader.init({
+      malformedRoute: {
+        tokens: hostileTokens,
+      },
+      validRoute: {
+        tokens: [
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 'GOOD003-LEN',
+            symbol: 'GOOD',
+            name: 'Good Token',
+          },
+        ],
+      },
+    });
+
+    expect(protocolLookupCount).to.equal(1);
+    expect(
+      reader.warpRouteIndex.get('solanamainnet')?.get('good003-len'),
+    ).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Good Token',
+      routeName: 'validRoute',
+    });
+  });
+
+  it('skips malformed warp-route token containers when tokens length is malformed', async () => {
+    let protocolLookupCount = 0;
+    const mpp = {
+      tryGetProtocol: () => {
+        protocolLookupCount += 1;
+        return ProtocolType.Sealevel;
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const hostileTokens = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          return 1n;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    await reader.init({
+      malformedRoute: {
+        tokens: hostileTokens,
+      },
+      validRoute: {
+        tokens: [
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 'GOOD003-LEN-TYPE',
+            symbol: 'GOOD',
+            name: 'Good Token',
+          },
+        ],
+      },
+    });
+
+    expect(protocolLookupCount).to.equal(1);
+    expect(
+      reader.warpRouteIndex.get('solanamainnet')?.get('good003-len-type'),
+    ).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Good Token',
+      routeName: 'validRoute',
+    });
+  });
+
   it('skips malformed warp-route tokens when chain-name accessor throws', async () => {
     let protocolLookupCount = 0;
     const mpp = {
@@ -1765,6 +1863,61 @@ describe('squads transaction reader', () => {
     const chainIndex = reader.warpRouteIndex.get('solanamainnet');
     expect(chainIndex?.has('bad004')).to.equal(false);
     expect(chainIndex?.get('good004')).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Good Token',
+      routeName: 'routeA',
+    });
+  });
+
+  it('skips malformed warp-route tokens when indexed token access throws', async () => {
+    let protocolLookupCount = 0;
+    const mpp = {
+      tryGetProtocol: () => {
+        protocolLookupCount += 1;
+        return ProtocolType.Sealevel;
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const hostileTokens = new Proxy(
+      [
+        {
+          chainName: 'solanamainnet',
+          addressOrDenom: 'BAD004-IDX',
+          symbol: 'BAD',
+          name: 'Bad Token',
+        },
+        {
+          chainName: 'solanamainnet',
+          addressOrDenom: 'GOOD004-IDX',
+          symbol: 'GOOD',
+          name: 'Good Token',
+        },
+      ],
+      {
+        get(target, property, receiver) {
+          if (property === '0') {
+            throw new Error('token unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    await reader.init({
+      routeA: {
+        tokens: hostileTokens,
+      },
+    });
+
+    expect(protocolLookupCount).to.equal(1);
+    const chainIndex = reader.warpRouteIndex.get('solanamainnet');
+    expect(chainIndex?.has('bad004-idx')).to.equal(false);
+    expect(chainIndex?.get('good004-idx')).to.deep.equal({
       symbol: 'GOOD',
       name: 'Good Token',
       routeName: 'routeA',
