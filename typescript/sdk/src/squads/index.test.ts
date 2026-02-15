@@ -151,6 +151,48 @@ function assertSdkSquadsTestTokenShape(
   ).to.equal(true);
 }
 
+function assertSdkSquadsNonTestSourcePathShape(
+  sourcePath: string,
+  sourcePathLabel: string,
+): void {
+  expect(
+    sourcePath.startsWith('src/'),
+    `Expected ${sourcePathLabel} to start with src/: ${sourcePath}`,
+  ).to.equal(true);
+  expect(
+    sourcePath.includes('/squads/'),
+    `Expected ${sourcePathLabel} to stay squads-scoped: ${sourcePath}`,
+  ).to.equal(true);
+  expect(
+    sourcePath.endsWith('.ts'),
+    `Expected ${sourcePathLabel} to end with .ts: ${sourcePath}`,
+  ).to.equal(true);
+  expect(
+    sourcePath.endsWith('.test.ts'),
+    `Expected ${sourcePathLabel} to remain non-test scoped: ${sourcePath}`,
+  ).to.equal(false);
+  expect(
+    sourcePath.startsWith('/'),
+    `Expected ${sourcePathLabel} to be relative: ${sourcePath}`,
+  ).to.equal(false);
+  expect(
+    sourcePath.includes('..'),
+    `Expected ${sourcePathLabel} to avoid parent traversal: ${sourcePath}`,
+  ).to.equal(false);
+  expect(
+    sourcePath.includes('\\'),
+    `Expected ${sourcePathLabel} to avoid backslash separators: ${sourcePath}`,
+  ).to.equal(false);
+  expect(
+    /\s/.test(sourcePath),
+    `Expected ${sourcePathLabel} to avoid whitespace characters: ${sourcePath}`,
+  ).to.equal(false);
+  expect(
+    sourcePath,
+    `Expected ${sourcePathLabel} to remain normalized: ${sourcePath}`,
+  ).to.equal(path.posix.normalize(sourcePath));
+}
+
 function assertSingleAsteriskGlobShape(
   globPattern: string,
   globLabel: string,
@@ -695,10 +737,10 @@ describe('squads barrel exports', () => {
     ).to.be.greaterThan(0);
 
     for (const nonTestPath of nonTestSquadsSourcePaths) {
-      expect(nonTestPath.startsWith('src/')).to.equal(true);
-      expect(nonTestPath.includes('/squads/')).to.equal(true);
-      expect(nonTestPath.endsWith('.ts')).to.equal(true);
-      expect(nonTestPath.endsWith('.test.ts')).to.equal(false);
+      assertSdkSquadsNonTestSourcePathShape(
+        nonTestPath,
+        'discovered sdk squads non-test source path',
+      );
       expect(
         SDK_SQUADS_TEST_TOKEN_PATHS.some((globPattern) =>
           matchesSingleAsteriskGlob(nonTestPath, globPattern),
@@ -752,6 +794,12 @@ describe('squads barrel exports', () => {
     const testPathSet = new Set(recursivelyDiscoveredTestPaths);
     const nonTestPathSet = new Set(recursivelyDiscoveredNonTestSourcePaths);
 
+    for (const nonTestPath of nonTestPathSet) {
+      assertSdkSquadsNonTestSourcePathShape(
+        nonTestPath,
+        'recursively discovered sdk squads non-test source path',
+      );
+    }
     for (const testPath of testPathSet) {
       expect(nonTestPathSet.has(testPath)).to.equal(false);
     }
