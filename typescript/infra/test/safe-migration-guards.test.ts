@@ -3754,6 +3754,28 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('inner@./fixtures/guard-module.js');
   });
 
+  it('does not leak switch-case class module-source alias declarations to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'switch (1) {',
+      '  case 1: {',
+      '    class moduleAlias {}',
+      '    const postDeclarationSymbol = moduleAlias.inner;',
+      '    void postDeclarationSymbol;',
+      '    break;',
+      '  }',
+      '  default:',
+      '    break;',
+      '}',
+      'const postCaseDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
   it('does not leak switch-case enum module-source alias shadowing before declaration to outer symbol sources', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
@@ -4471,6 +4493,25 @@ describe('Safe migration guards', () => {
       '    const preDeclarationSymbol = moduleAlias.inner;',
       '    class moduleAlias {}',
       '    void preDeclarationSymbol;',
+      '  }',
+      '}',
+      'const postStaticDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('does not leak class static-block class module-source alias declarations to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'class ShadowContainer {',
+      '  static {',
+      '    class moduleAlias {}',
+      '    const postDeclarationSymbol = moduleAlias.inner;',
+      '    void postDeclarationSymbol;',
       '  }',
       '}',
       'const postStaticDefault = moduleAlias.default;',
