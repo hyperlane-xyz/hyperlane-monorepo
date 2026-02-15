@@ -192,7 +192,7 @@ describe('Safe migration guards', () => {
 
   it('prevents direct @safe-global imports in infra source', () => {
     expectNoRipgrepMatches(
-      String.raw`from ['"]@safe-global|require\(['"]@safe-global`,
+      String.raw`from ['"]@safe-global|require\(['"]@safe-global|import\(['"]@safe-global`,
       '@safe-global imports in infra sources',
       INFRA_SOURCE_AND_TEST_PATHS,
     );
