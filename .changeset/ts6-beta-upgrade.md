@@ -473,3 +473,5 @@ Regression coverage now also confirms whitespace-padded bare-colon `String(error
 Regression coverage now also confirms non-`Error` wrappers with non-string `message` values still fall through correctly when `String(error)` throws, preserving matcher/formatter `Object.prototype.toString` behavior and runtime-signal detection through `toStringTag`.
 
 Regression coverage now also confirms non-`Error` `String(error)` fallback output is whitespace-trimmed for matcher/formatter behavior, preserving runtime detection for trimmed runtime signals and keeping trimmed informative non-runtime outputs authoritative over runtime-like `toStringTag` values.
+
+Regression coverage now also confirms whitespace-padded placeholder `String(error)` outputs (for example `'   [Object]   '`) are treated as non-informative for non-`Error` wrappers, preserving `Object.prototype.toString` fallback behavior and runtime detection precision.
