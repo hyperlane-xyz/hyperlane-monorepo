@@ -193,6 +193,10 @@ function getTrackedSourceFileSnapshot(): readonly string[] {
   return listTrackedSourceFilesRecursively('.');
 }
 
+function getTrackedSourceFileSet(): ReadonlySet<string> {
+  return new Set(getTrackedSourceFileSnapshot());
+}
+
 describe('squads sdk migration regression', () => {
   it('keeps squads script constants immutable', () => {
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
@@ -421,8 +425,7 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps guarded squads script paths included in tracked source scan', () => {
-    const trackedSourceFiles = getTrackedSourceFileSnapshot();
-    const trackedSourceFileSet = new Set(trackedSourceFiles);
+    const trackedSourceFileSet = getTrackedSourceFileSet();
 
     for (const scriptPath of SQUADS_SCRIPT_PATHS) {
       expect(
@@ -440,8 +443,7 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps squads regression tests included in tracked source scan', () => {
-    const trackedSourceFiles = getTrackedSourceFileSnapshot();
-    const trackedSourceFileSet = new Set(trackedSourceFiles);
+    const trackedSourceFileSet = getTrackedSourceFileSet();
 
     for (const regressionTestPath of SQUADS_REGRESSION_TEST_PATHS) {
       expect(
@@ -464,8 +466,7 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps squads test-support source paths included in tracked source scan', () => {
-    const trackedSourceFiles = getTrackedSourceFileSnapshot();
-    const trackedSourceFileSet = new Set(trackedSourceFiles);
+    const trackedSourceFileSet = getTrackedSourceFileSet();
 
     for (const supportPath of SQUADS_TRACKED_TEST_SUPPORT_PATHS) {
       expect(
