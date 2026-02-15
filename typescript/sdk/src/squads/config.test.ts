@@ -312,6 +312,23 @@ describe('squads config', () => {
     expect(firstKeys.vault.toBase58()).to.equal(secondKeys.vault.toBase58());
   });
 
+  it('keeps resolved-chain and string-chain key lookups aligned for every squads chain', () => {
+    for (const chain of getSquadsChains()) {
+      const resolvedLookup = getSquadsKeysForResolvedChain(chain);
+      const stringLookup = getSquadsKeys(chain);
+
+      expect(resolvedLookup.multisigPda.toBase58()).to.equal(
+        stringLookup.multisigPda.toBase58(),
+      );
+      expect(resolvedLookup.programId.toBase58()).to.equal(
+        stringLookup.programId.toBase58(),
+      );
+      expect(resolvedLookup.vault.toBase58()).to.equal(
+        stringLookup.vault.toBase58(),
+      );
+    }
+  });
+
   it('rejects malformed runtime values in resolved-chain key lookups', () => {
     type ResolvedSquadsChainName = Parameters<
       typeof getSquadsKeysForResolvedChain
