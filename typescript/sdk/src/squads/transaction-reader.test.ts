@@ -267,6 +267,70 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(1);
   });
 
+  it('reuses cached expected configuration across repeated verification checks', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(() => {
+      resolveConfigCallCount += 1;
+      return {
+        solanatestnet: {
+          threshold: 2,
+          validators: ['validator-a', 'validator-b'],
+        },
+      };
+    });
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const firstResult = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a', 'validator-b'],
+    );
+    const secondResult = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a', 'validator-b'],
+    );
+
+    expect(firstResult).to.deep.equal({ matches: true, issues: [] });
+    expect(secondResult).to.deep.equal({ matches: true, issues: [] });
+    expect(resolveConfigCallCount).to.equal(1);
+  });
+
+  it('matches validator sets case-insensitively during verification', () => {
+    const reader = createReaderForVerification(() => ({
+      solanatestnet: {
+        threshold: 2,
+        validators: ['VALidator-A', 'validator-b'],
+      },
+    }));
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a', 'VALIDATOR-B'],
+    );
+
+    expect(result).to.deep.equal({ matches: true, issues: [] });
+  });
+
   it('returns unknown-domain issue before loading expected configuration', () => {
     let resolveConfigCallCount = 0;
     const reader = createReaderForVerification(
