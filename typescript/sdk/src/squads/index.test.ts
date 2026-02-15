@@ -71,6 +71,11 @@ const EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS = Object.freeze([
   'src/squads/provider.ts',
   'src/squads/validation.ts',
 ]);
+const INFRA_REFERENCE_PATTERN =
+  /(?:@hyperlane-xyz\/infra|typescript\/infra|(?:\.\.\/)+infra\/)/;
+const FILESYSTEM_IMPORT_PATTERN =
+  /(?:from\s+['"]node:(?:fs|path)['"]|from\s+['"](?:fs|path)['"])/;
+const PROCESS_ENV_REFERENCE_PATTERN = /\bprocess\.env\b/;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
@@ -1108,6 +1113,31 @@ describe('squads barrel exports', () => {
     expect(
       listSdkSquadsSubdirectoryPathsRecursively(SDK_SQUADS_SOURCE_DIR),
     ).to.deep.equal([]);
+  });
+
+  it('keeps sdk squads runtime sources decoupled from infra and filesystem env wiring', () => {
+    const runtimeSourcePaths = listSdkSquadsNonTestSourceFilePaths();
+    expect(runtimeSourcePaths.length).to.be.greaterThan(0);
+
+    for (const runtimeSourcePath of runtimeSourcePaths) {
+      const runtimeSource = fs.readFileSync(
+        path.join(SDK_PACKAGE_ROOT, runtimeSourcePath),
+        'utf8',
+      );
+
+      expect(
+        INFRA_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid infra references: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        FILESYSTEM_IMPORT_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid filesystem imports: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        PROCESS_ENV_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid process.env coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+    }
   });
 
   it('keeps recursive sdk squads discovery helpers isolated from caller mutation', () => {
