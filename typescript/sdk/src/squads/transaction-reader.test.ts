@@ -412,6 +412,79 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(0);
   });
 
+  it('returns malformed-chain-resolution issue when resolver returns non-string values', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => ({ chain: 'solanatestnet' } as unknown as string),
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed chain resolution for domain 1000: Error: Expected resolved chain name for domain 1000 to be a string, got object',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
+  it('normalizes padded chain-resolution values before route lookup', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => '  solanatestnet  ',
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({ matches: true, issues: [] });
+    expect(resolveConfigCallCount).to.equal(1);
+  });
+
   it('returns malformed-domain issue before chain resolution and config loading', () => {
     let tryGetChainNameCallCount = 0;
     let resolveConfigCallCount = 0;
