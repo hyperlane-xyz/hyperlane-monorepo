@@ -846,7 +846,7 @@ export const SquadsProposalStatus = {
 export type SquadsProposalStatus =
   (typeof SquadsProposalStatus)[keyof typeof SquadsProposalStatus];
 
-export function isTerminalSquadsProposalStatus(statusKind: string): boolean {
+export function isTerminalSquadsProposalStatus(statusKind: unknown): boolean {
   const normalizedStatusKind = normalizeStatusKind(statusKind);
   return (
     normalizedStatusKind === SquadsProposalStatus.Executed ||
@@ -855,7 +855,7 @@ export function isTerminalSquadsProposalStatus(statusKind: string): boolean {
   );
 }
 
-export function canModifySquadsProposalStatus(statusKind: string): boolean {
+export function canModifySquadsProposalStatus(statusKind: unknown): boolean {
   const normalizedStatusKind = normalizeStatusKind(statusKind);
   return (
     normalizedStatusKind === SquadsProposalStatus.Active ||
@@ -869,7 +869,7 @@ export type SquadsProposalModification = Readonly<{
 }>;
 
 export function deriveSquadsProposalModification(
-  statusKind: string,
+  statusKind: unknown,
 ): SquadsProposalModification | undefined {
   const normalizedStatusKind = normalizeStatusKind(statusKind);
   if (normalizedStatusKind === SquadsProposalStatus.Active) {
@@ -889,7 +889,7 @@ export function deriveSquadsProposalModification(
 }
 
 export function isStaleSquadsProposal(
-  statusKind: string,
+  statusKind: unknown,
   transactionIndex: number,
   staleTransactionIndex: number,
 ): boolean {
@@ -910,7 +910,7 @@ export function isStaleSquadsProposal(
 }
 
 export function shouldTrackPendingSquadsProposal(
-  statusKind: string,
+  statusKind: unknown,
   transactionIndex: number,
   staleTransactionIndex: number,
   rejections: number,
@@ -927,7 +927,7 @@ export function shouldTrackPendingSquadsProposal(
 }
 
 export function getSquadTxStatus(
-  statusKind: string,
+  statusKind: unknown,
   approvals: number,
   threshold: number,
   transactionIndex: number,

@@ -825,7 +825,7 @@ describe('squads utils', () => {
 
     it('throws for non-string status values', () => {
       expect(() =>
-        getSquadTxStatus(1 as unknown as string, 0, 1, 1, 0),
+        getSquadTxStatus(1, 0, 1, 1, 0),
       ).to.throw('Expected status kind to be a string, got number');
     });
   });
@@ -5225,7 +5225,7 @@ describe('squads utils', () => {
       'Expected status kind to be a non-empty string',
     );
     expect(() =>
-      isTerminalSquadsProposalStatus(1 as unknown as string),
+      isTerminalSquadsProposalStatus(1),
     ).to.throw('Expected status kind to be a string, got number');
   });
 
@@ -5246,8 +5246,9 @@ describe('squads utils', () => {
     expect(() => canModifySquadsProposalStatus('')).to.throw(
       'Expected status kind to be a non-empty string',
     );
-    expect(() => canModifySquadsProposalStatus(null as unknown as string)).to
-      .throw('Expected status kind to be a string, got object');
+    expect(() => canModifySquadsProposalStatus(null)).to.throw(
+      'Expected status kind to be a string, got object',
+    );
   });
 
   it('derives proposal modification actions from status', () => {
@@ -5273,7 +5274,7 @@ describe('squads utils', () => {
       'Expected status kind to be a non-empty string',
     );
     expect(() =>
-      deriveSquadsProposalModification(null as unknown as string),
+      deriveSquadsProposalModification(null),
     ).to.throw('Expected status kind to be a string, got object');
   });
 
