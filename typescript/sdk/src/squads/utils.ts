@@ -564,20 +564,16 @@ export async function getSquadProposal(
   assertValidTransactionIndexInput(transactionIndex, normalizedChain);
 
   try {
-    const { svmProvider } = getSquadAndProviderForResolvedChain(
-      normalizedChain,
-      mpp,
-      svmProviderOverride,
-    );
-    const proposalData = await getSquadProposalAccount(
+    const proposalAccountData = await getSquadProposalAccountForResolvedChain(
       normalizedChain,
       mpp,
       transactionIndex,
-      svmProvider,
+      svmProviderOverride,
     );
-    if (!proposalData) {
+    if (!proposalAccountData) {
       return undefined;
     }
+    const { svmProvider, ...proposalData } = proposalAccountData;
 
     const squadsProvider = toSquadsProvider(svmProvider);
 
@@ -613,12 +609,41 @@ export async function getSquadProposalAccount(
   const normalizedChain = resolveSquadsChainName(chain);
   assertValidTransactionIndexInput(transactionIndex, normalizedChain);
 
+  const proposalAccountData = await getSquadProposalAccountForResolvedChain(
+    normalizedChain,
+    mpp,
+    transactionIndex,
+    svmProviderOverride,
+  );
+  if (!proposalAccountData) {
+    return undefined;
+  }
+
+  const { svmProvider: _ignoredSvmProvider, ...proposalData } =
+    proposalAccountData;
+  return proposalData;
+}
+
+type SquadProposalAccountWithProvider = {
+  proposal: accounts.Proposal;
+  proposalPda: PublicKey;
+  multisigPda: PublicKey;
+  programId: PublicKey;
+  svmProvider: SolanaWeb3Provider;
+};
+
+async function getSquadProposalAccountForResolvedChain(
+  chain: SquadsChainName,
+  mpp: MultiProtocolProvider,
+  transactionIndex: number,
+  svmProviderOverride?: SolanaWeb3Provider,
+): Promise<SquadProposalAccountWithProvider | undefined> {
   try {
     const { svmProvider, multisigPda, programId } =
       getSquadAndProviderForResolvedChain(
-      normalizedChain,
-      mpp,
-      svmProviderOverride,
+        chain,
+        mpp,
+        svmProviderOverride,
       );
     const squadsProvider = toSquadsProvider(svmProvider);
 
@@ -633,18 +658,18 @@ export async function getSquadProposalAccount(
       proposalPda,
     );
 
-    return { proposal, proposalPda, multisigPda, programId };
+    return { proposal, proposalPda, multisigPda, programId, svmProvider };
   } catch (error) {
     const errorText = formatUnknownErrorForMessage(error);
     if (isLikelyMissingSquadsAccountError(error)) {
       rootLogger.debug(
-        `Proposal ${transactionIndex} on ${normalizedChain} was not found: ${errorText}`,
+        `Proposal ${transactionIndex} on ${chain} was not found: ${errorText}`,
       );
       return undefined;
     }
 
     rootLogger.warn(
-      `Failed to fetch proposal ${transactionIndex} on ${normalizedChain}: ${errorText}`,
+      `Failed to fetch proposal ${transactionIndex} on ${chain}: ${errorText}`,
     );
     return undefined;
   }
