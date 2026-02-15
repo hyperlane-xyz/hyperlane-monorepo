@@ -3487,6 +3487,26 @@ describe('squads utils', () => {
     });
   });
 
+  it('keeps squads chain config table deeply frozen and mutation-safe', () => {
+    expect(Object.isFrozen(squadsConfigs)).to.equal(true);
+    for (const chain of getSquadsChains()) {
+      expect(Object.isFrozen(squadsConfigs[chain])).to.equal(true);
+    }
+
+    const originalProgramId = squadsConfigs.solanamainnet.programId;
+    const mutableConfigs = squadsConfigs as {
+      solanamainnet: { programId: string };
+    };
+    let threwOnMutation = false;
+    try {
+      mutableConfigs.solanamainnet.programId = 'mutated-value';
+    } catch {
+      threwOnMutation = true;
+    }
+    expect(threwOnMutation).to.equal(true);
+    expect(squadsConfigs.solanamainnet.programId).to.equal(originalProgramId);
+  });
+
   it('returns configured squads chains', () => {
     const chains = getSquadsChains();
     expect(chains).to.include('solanamainnet');
