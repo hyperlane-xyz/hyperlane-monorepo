@@ -654,6 +654,16 @@ describe('squads utils', () => {
       ).to.throw(
         'Expected transaction index to be a non-negative safe integer for solanamainnet, got array',
       );
+      expect(() =>
+        assertValidTransactionIndexInput(1n, 'solanamainnet'),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got bigint',
+      );
+      expect(() =>
+        assertValidTransactionIndexInput(Symbol('index'), 'solanamainnet'),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got symbol',
+      );
     });
   });
 
