@@ -1,8 +1,6 @@
 import type { accounts } from '@sqds/multisig';
 import { assert } from '@hyperlane-xyz/utils';
 
-import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-
 export type SquadsProvider = Parameters<
   typeof accounts.Multisig.fromAccountAddress
 >[0];
@@ -31,7 +29,7 @@ function isGetAccountInfoFunction(
 }
 
 export function toSquadsProvider(
-  provider: ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>,
+  provider: unknown,
 ): SquadsProvider {
   const getAccountInfo = getProviderGetAccountInfo(provider);
 
@@ -42,5 +40,5 @@ export function toSquadsProvider(
     )} (provider: ${formatValueType(provider)})`,
   );
 
-  return provider;
+  return provider as SquadsProvider;
 }

@@ -1,44 +1,39 @@
 import { expect } from 'chai';
 import { Connection } from '@solana/web3.js';
 
-import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { toSquadsProvider } from './provider.js';
-
-type SolanaProvider = ReturnType<
-  MultiProtocolProvider['getSolanaWeb3Provider']
->;
 
 function expectInvalidProvider(
   provider: unknown,
   getAccountInfoType: string,
   providerType: string,
 ) {
-  expect(() => toSquadsProvider(provider as SolanaProvider)).to.throw(
+  expect(() => toSquadsProvider(provider)).to.throw(
     `Invalid Solana provider: expected getAccountInfo function, got ${getAccountInfoType} (provider: ${providerType})`,
   );
 }
 
 function createGetterBackedProvider(
   getGetAccountInfo: () => unknown,
-): SolanaProvider {
+): unknown {
   return Object.create(null, {
     getAccountInfo: {
       get: getGetAccountInfo,
       enumerable: true,
     },
-  }) as SolanaProvider;
+  });
 }
 
 describe('squads provider bridge', () => {
   it('returns the same provider for valid solana connection', () => {
     const provider = new Connection('http://localhost:8899');
-    expect(toSquadsProvider(provider as SolanaProvider)).to.equal(provider);
+    expect(toSquadsProvider(provider)).to.equal(provider);
   });
 
   it('accepts provider-like objects with callable getAccountInfo', () => {
     const providerLike = {
       getAccountInfo: async () => null,
-    } as unknown as SolanaProvider;
+    };
 
     expect(toSquadsProvider(providerLike)).to.equal(providerLike);
   });
@@ -47,7 +42,7 @@ describe('squads provider bridge', () => {
     const providerPrototype = {
       getAccountInfo: async () => null,
     };
-    const providerLike = Object.create(providerPrototype) as SolanaProvider;
+    const providerLike = Object.create(providerPrototype);
 
     expect(toSquadsProvider(providerLike)).to.equal(providerLike);
   });
@@ -55,7 +50,7 @@ describe('squads provider bridge', () => {
   it('accepts null-prototype provider-like objects with callable getAccountInfo', () => {
     const providerLike = Object.assign(Object.create(null), {
       getAccountInfo: async () => null,
-    }) as SolanaProvider;
+    });
 
     expect(toSquadsProvider(providerLike)).to.equal(providerLike);
   });
