@@ -765,6 +765,40 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
 
+    it('matches runtime AggregateError causes when message accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      error.cause = new Error('No Docker client strategy found');
+      Object.defineProperty(error, 'errors', {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime AggregateError causes when message accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      error.cause = new Error('unrelated nested startup warning');
+      Object.defineProperty(error, 'errors', {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('handles cyclic cause chains safely', () => {
       const first = new Error('outer startup error');
       const second = new Error(
