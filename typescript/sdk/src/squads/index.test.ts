@@ -216,6 +216,11 @@ describe('squads barrel exports', () => {
     ).to.equal(true);
     expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('  ')).to.equal(false);
     expect(/[\n\r\t]/.test(EXPECTED_SDK_SQUADS_TEST_SCRIPT)).to.equal(false);
+    expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('"')).to.equal(false);
+    expect(countOccurrences(EXPECTED_SDK_SQUADS_TEST_SCRIPT, "'")).to.equal(2);
+    expect(
+      EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('typescript/infra'),
+    ).to.equal(false);
     const quotedTestTokens = listSingleQuotedTokens(
       EXPECTED_SDK_SQUADS_TEST_SCRIPT,
     );
@@ -229,6 +234,8 @@ describe('squads barrel exports', () => {
       expect(quotedTestToken).to.equal(quotedTestToken.trim());
       expect(/\s/.test(quotedTestToken)).to.equal(false);
       expect(quotedTestToken).to.equal(path.posix.normalize(quotedTestToken));
+      expect(quotedTestToken.includes('/squads/')).to.equal(true);
+      expect(quotedTestToken.endsWith('.test.ts')).to.equal(true);
     }
     expect(
       countOccurrences(
