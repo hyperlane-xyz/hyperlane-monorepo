@@ -267,3 +267,5 @@ Regression coverage now also confirms boxed-string-valued `AggregateError.cause`
 Regression coverage now also confirms `AggregateError` instances remain detectable/ignorable when hostile `cause` or `errors` accessors throw, as long as the remaining field still carries runtime/non-runtime signals.
 
 Regression coverage now also confirms `AggregateError` runtime matching remains stable when `message` accessors throw and detection must rely on `cause`/`errors` payloads.
+
+Regression coverage now also confirms `AggregateError` runtime matching remains stable when `message` plus `cause` or `errors` accessors throw simultaneously, as long as the remaining field still carries runtime/non-runtime signals.
