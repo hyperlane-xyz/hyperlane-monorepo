@@ -93,9 +93,9 @@ const PROCESS_DESTRUCTURE_REFERENCE_PATTERN =
 const PROCESS_ALIAS_REFERENCE_PATTERN =
   /\b(?:const|let|var)\s+\w+\s*=\s*process\b/;
 const PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN =
-  /\bprocess\s*\?\.\s*(?:env|argv|cwd|exit|stdin|stdout|stderr)\b/;
+  /\bprocess\s*\?\.\s*(?:(?:env|argv|cwd|exit|stdin|stdout|stderr)\b|\[\s*['"](?:env|argv|cwd|exit|stdin|stdout|stderr)['"]\s*\])/;
 const PARENTHESIZED_PROCESS_REFERENCE_PATTERN =
-  /\(\s*process\s*\)\s*\.\s*(?:env|argv|cwd|exit|stdin|stdout|stderr)\b/;
+  /\(\s*process\s*\)\s*(?:\.\s*(?:env|argv|cwd|exit|stdin|stdout|stderr)\b|\[\s*['"](?:env|argv|cwd|exit|stdin|stdout|stderr)['"]\s*\])/;
 const GLOBAL_PROCESS_REFERENCE_PATTERN =
   /\b(?:globalThis|global)\s*\.\s*process\b/;
 const GLOBAL_PROCESS_BRACKET_REFERENCE_PATTERN =
@@ -110,9 +110,9 @@ const CONSOLE_DESTRUCTURE_REFERENCE_PATTERN =
 const CONSOLE_ALIAS_REFERENCE_PATTERN =
   /\b(?:const|let|var)\s+\w+\s*=\s*console\b/;
 const CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN =
-  /\bconsole\s*\?\.\s*(?:log|info|warn|error|debug|trace|table)\s*\(/;
+  /\bconsole\s*\?\.\s*(?:(?:log|info|warn|error|debug|trace|table)\s*\(|\[\s*['"](?:log|info|warn|error|debug|trace|table)['"]\s*\]\s*\()/;
 const PARENTHESIZED_CONSOLE_REFERENCE_PATTERN =
-  /\(\s*console\s*\)\s*\.\s*(?:log|info|warn|error|debug|trace|table)\s*\(/;
+  /\(\s*console\s*\)\s*(?:\.\s*(?:log|info|warn|error|debug|trace|table)\s*\(|\[\s*['"](?:log|info|warn|error|debug|trace|table)['"]\s*\]\s*\()/;
 const GLOBAL_CONSOLE_REFERENCE_PATTERN =
   /\b(?:globalThis|global)\s*\.\s*console\b/;
 const GLOBAL_CONSOLE_BRACKET_REFERENCE_PATTERN =
@@ -1163,6 +1163,29 @@ describe('squads barrel exports', () => {
     expect(
       listSdkSquadsSubdirectoryPathsRecursively(SDK_SQUADS_SOURCE_DIR),
     ).to.deep.equal([]);
+  });
+
+  it('keeps process and console decoupling patterns covering bracket optional and parenthesized access', () => {
+    expect(PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test("process?.['env']"))
+      .to.equal(true);
+    expect(
+      PARENTHESIZED_PROCESS_REFERENCE_PATTERN.test("(process)['stdout']"),
+    ).to.equal(true);
+    expect(
+      CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test("console?.['warn']('x')"),
+    ).to.equal(true);
+    expect(
+      PARENTHESIZED_CONSOLE_REFERENCE_PATTERN.test("(console)['log']('x')"),
+    ).to.equal(true);
+
+    expect(PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test('processor?.env')).to
+      .equal(false);
+    expect(PARENTHESIZED_PROCESS_REFERENCE_PATTERN.test('(processes).env')).to
+      .equal(false);
+    expect(CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test("consoles?.['warn']"))
+      .to.equal(false);
+    expect(PARENTHESIZED_CONSOLE_REFERENCE_PATTERN.test("(consoles)['log']"))
+      .to.equal(false);
   });
 
   it('keeps sdk squads runtime sources decoupled from infra and filesystem env wiring', () => {
