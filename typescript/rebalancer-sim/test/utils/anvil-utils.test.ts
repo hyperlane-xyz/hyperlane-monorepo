@@ -25372,6 +25372,7 @@ describe('Anvil utils', () => {
   });
 
   describe('Symbol.toPrimitive descriptor parity guards', () => {
+    const expectedDescriptorSetSize = 40;
     const parseDescriptors = (
       source: string,
       matcher: RegExp,
@@ -25421,9 +25422,9 @@ describe('Anvil utils', () => {
       );
       const { triple, json, double } = splitByEscapeLevel(matcherDescriptors);
 
-      expect(triple.size).to.equal(40);
-      expect(json.size).to.equal(40);
-      expect(double.size).to.equal(40);
+      expect(triple.size).to.equal(expectedDescriptorSetSize);
+      expect(json.size).to.equal(expectedDescriptorSetSize);
+      expect(double.size).to.equal(expectedDescriptorSetSize);
       expect(sortedDifference(triple, json)).to.deep.equal([]);
       expect(sortedDifference(json, triple)).to.deep.equal([]);
       expect(sortedDifference(triple, double)).to.deep.equal([]);
@@ -25438,13 +25439,42 @@ describe('Anvil utils', () => {
       );
       const { triple, json, double } = splitByEscapeLevel(formatterDescriptors);
 
-      expect(triple.size).to.equal(40);
-      expect(json.size).to.equal(40);
-      expect(double.size).to.equal(40);
+      expect(triple.size).to.equal(expectedDescriptorSetSize);
+      expect(json.size).to.equal(expectedDescriptorSetSize);
+      expect(double.size).to.equal(expectedDescriptorSetSize);
       expect(sortedDifference(triple, json)).to.deep.equal([]);
       expect(sortedDifference(json, triple)).to.deep.equal([]);
       expect(sortedDifference(triple, double)).to.deep.equal([]);
       expect(sortedDifference(double, triple)).to.deep.equal([]);
+    });
+
+    it('keeps matcher and formatter descriptor bases aligned', () => {
+      const source = readFileSync(new URL(import.meta.url), 'utf8');
+      const matcherDescriptors = parseDescriptors(
+        source,
+        /it\('(?:matches runtime toStringTag signals|ignores non-runtime toStringTag signals) when non-Error Symbol\.toPrimitive String\(error\) is a ([^']+)'/g,
+      );
+      const formatterDescriptors = parseDescriptors(
+        source,
+        /it\('falls back to Object\.prototype\.toString for non-Error objects when Symbol\.toPrimitive String\(error\) is a ([^']+)'/g,
+      );
+      const matcherByEscape = splitByEscapeLevel(matcherDescriptors);
+      const formatterByEscape = splitByEscapeLevel(formatterDescriptors);
+
+      for (const escapeLevel of ['triple', 'json', 'double'] as const) {
+        expect(
+          sortedDifference(
+            matcherByEscape[escapeLevel],
+            formatterByEscape[escapeLevel],
+          ),
+        ).to.deep.equal([]);
+        expect(
+          sortedDifference(
+            formatterByEscape[escapeLevel],
+            matcherByEscape[escapeLevel],
+          ),
+        ).to.deep.equal([]);
+      }
     });
   });
 });
