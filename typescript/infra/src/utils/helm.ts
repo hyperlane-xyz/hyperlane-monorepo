@@ -12,6 +12,14 @@ import {
 
 import { execCmd, execCmdAndParseJson } from './utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export enum HelmCommand {
   InstallOrUpgrade = 'upgrade --install',
   UpgradeDiff = 'template --debug',
@@ -340,7 +348,7 @@ export abstract class HelmManager<T = HelmValues> {
       return values;
     } catch (error) {
       rootLogger.warn(
-        `Failed to get deployed helm values for ${this.helmReleaseName}: ${error}`,
+        `Failed to get deployed helm values for ${this.helmReleaseName}: ${stringifyValueForError(error)}`,
       );
       return null;
     }

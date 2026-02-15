@@ -21,6 +21,14 @@ import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs, withChainsRequired } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const {
@@ -139,7 +147,7 @@ async function main() {
           // get metadata.
           const logLevel = isDefaultIsmValidator ? 'error' : 'debug';
           rootLogger[logLevel](
-            `Error getting reorg status for ${validator} on chain ${chain}: ${error}`,
+            `Error getting reorg status for ${validator} on chain ${chain}: ${stringifyValueForError(error)}`,
           );
         }
       }
@@ -184,4 +192,6 @@ async function main() {
   process.exit(0);
 }
 
-main().catch(rootLogger.error);
+main().catch((error) => {
+  rootLogger.error(stringifyValueForError(error));
+});

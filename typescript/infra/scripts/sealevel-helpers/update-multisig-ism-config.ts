@@ -39,6 +39,14 @@ import { chainIsProtocol } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 /**
  * Fetch on-chain MultisigIsm state for all configured domains
  */
@@ -239,7 +247,11 @@ async function logAndSubmitMultisigIsmUpdateTransaction(
 
     await submitProposalToSquads(chain, instructions, mpp, signerAdapter, memo);
   } catch (error) {
-    rootLogger.error(chalk.red(`Failed to log/submit transaction: ${error}`));
+    rootLogger.error(
+      chalk.red(
+        `Failed to log/submit transaction: ${stringifyValueForError(error)}`,
+      ),
+    );
     throw error;
   }
 }
@@ -474,7 +486,9 @@ async function main() {
       );
       results.push(result);
     } catch (error) {
-      rootLogger.error(`Failed to process ${chain}:`, error);
+      rootLogger.error(
+        `Failed to process ${chain}: ${stringifyValueForError(error)}`,
+      );
       results.push({ chain, updated: 0, matched: 0 });
     }
   }
@@ -484,6 +498,8 @@ async function main() {
 }
 
 main().catch((err) => {
-  rootLogger.error('Error configuring MultisigIsm:', err);
+  rootLogger.error(
+    `Error configuring MultisigIsm: ${stringifyValueForError(err)}`,
+  );
   process.exit(1);
 });

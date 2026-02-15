@@ -11,6 +11,14 @@ import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 // prettier-ignore
 const acceptableValidatorVersions: Record<string, string> = {
   // Aug 27 deploy
@@ -163,7 +171,7 @@ async function main() {
           }
         } catch (error) {
           console.warn(
-            `Error getting metadata for ${validator} on chain ${chain}: ${error}`,
+            `Error getting metadata for ${validator} on chain ${chain}: ${stringifyValueForError(error)}`,
           );
           mismatchedValidators.push({
             chain,
@@ -206,4 +214,6 @@ async function main() {
   process.exit(0);
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(stringifyValueForError(error));
+});

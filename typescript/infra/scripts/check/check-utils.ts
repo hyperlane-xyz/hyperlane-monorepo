@@ -51,6 +51,14 @@ import {
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 import { withRegistryUris } from '../github-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export function getCheckBaseArgs() {
   return withAsDeployer(
     withGovern(withChains(withFork(withContext(getRootArgs())))),
@@ -236,7 +244,7 @@ export async function getGovernor(
       forceRegistryConfig,
     ).catch((error) => {
       console.log(
-        `Fetching warp route deploy config failed for ${warpRouteId}. Exiting with error: ${error}`,
+        `Fetching warp route deploy config failed for ${warpRouteId}. Exiting with error: ${stringifyValueForError(error)}`,
       );
       process.exit(0);
     });

@@ -36,6 +36,14 @@ import { DeployEnvironment } from '../config/environment.js';
 import { getValidatorAlias } from './consts.js';
 import { getMonorepoRoot } from './utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 // ============================================================================
 // Solana Data Structure Sizes
 // ============================================================================
@@ -656,7 +664,7 @@ export async function fetchMultisigIsmState(
   } catch (error) {
     // Log deserialization errors with account data for debugging
     rootLogger.info(
-      `Failed to deserialize domain ${domain} (PDA: ${domainDataPda.toBase58()}): ${error}`,
+      `Failed to deserialize domain ${domain} (PDA: ${domainDataPda.toBase58()}): ${stringifyValueForError(error)}`,
     );
     rootLogger.info(
       `Account data (hex): ${accountInfo.data.toString('hex').slice(0, 200)}...`,
