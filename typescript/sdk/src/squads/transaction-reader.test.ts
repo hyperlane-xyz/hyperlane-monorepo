@@ -3050,6 +3050,131 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('handles throwing warp router alias access while formatting single-router instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const malformedRouterData = new Proxy(
+      {
+        domain: 1000,
+        router: '   ',
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'chainName') {
+            throw new Error('chain alias unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'WarpRoute',
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.EnrollRemoteRouter
+        ],
+      data: malformedRouterData as unknown as Record<string, unknown>,
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(result.args).to.deep.equal({
+      'domain 1000': 'unenrolled',
+    });
+  });
+
+  it('handles throwing warp router-list access while formatting multi-router instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const malformedRoutersData = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'routers') {
+            throw new Error('routers unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'WarpRoute',
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.EnrollRemoteRouters
+        ],
+      data: malformedRoutersData as unknown as Record<string, unknown>,
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(result.args).to.deep.equal({});
+  });
+
+  it('handles throwing warp gas-config access while formatting destination-gas instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const malformedGasConfigData = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'configs') {
+            throw new Error('configs unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'WarpRoute',
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.SetDestinationGasConfigs
+        ],
+      data: malformedGasConfigData as unknown as Record<string, unknown>,
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(result.args).to.deep.equal({});
+  });
+
   it('does not misclassify multisig validator instructions when chain lookup throws during parse', () => {
     const mpp = {
       tryGetChainName: () => {
