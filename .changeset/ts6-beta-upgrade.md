@@ -391,3 +391,5 @@ Regression coverage also now confirms bare-colon `String(error)` outputs are tre
 Regression coverage also now confirms quoted bracketed placeholder outputs from `String(error)` (for example `"[Array]"`) are treated as non-informative and continue through to `Object.prototype.toString`.
 
 Regression coverage also now confirms object-tag placeholder outputs from `String(error)` (for example `[object Array]`) are treated as non-informative and continue through to `Object.prototype.toString`.
+
+Regression coverage also now confirms single-quoted object-tag placeholder outputs from `String(error)` (for example `'[object Array]'`) are treated as non-informative and continue through to `Object.prototype.toString`.
