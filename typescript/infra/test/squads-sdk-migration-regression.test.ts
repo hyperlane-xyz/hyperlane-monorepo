@@ -8,6 +8,7 @@ import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
+  SQUADS_SCRIPT_FILE_EXTENSIONS,
   SQUADS_SCRIPT_PATHS,
 } from './squads-test-constants.js';
 import { listSquadsDirectoryScripts } from './squads-test-utils.js';
@@ -128,8 +129,21 @@ describe('squads sdk migration regression', () => {
   it('keeps squads script constants immutable', () => {
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
     expect(Object.isFrozen(NON_EXECUTABLE_SQUADS_SCRIPT_FILES)).to.equal(true);
+    expect(Object.isFrozen(SQUADS_SCRIPT_FILE_EXTENSIONS)).to.equal(true);
     expect(Object.isFrozen(EXECUTABLE_SQUADS_SCRIPT_PATHS)).to.equal(true);
     expect(Object.isFrozen(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS)).to.equal(true);
+  });
+
+  it('keeps tracked-source extension policy deduplicated and squads-compatible', () => {
+    expect(new Set(SOURCE_FILE_EXTENSIONS).size).to.equal(
+      SOURCE_FILE_EXTENSIONS.length,
+    );
+    for (const squadsScriptExtension of SQUADS_SCRIPT_FILE_EXTENSIONS) {
+      expect(
+        SOURCE_FILE_EXTENSIONS.includes(squadsScriptExtension),
+        `Expected tracked source extension policy to include squads script extension: ${squadsScriptExtension}`,
+      ).to.equal(true);
+    }
   });
 
   it('keeps guarded squads script path lists valid and deduplicated', () => {
