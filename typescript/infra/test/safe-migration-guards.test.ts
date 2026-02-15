@@ -1106,6 +1106,7 @@ describe('Safe migration guards', () => {
       "import { default as SafeAlias } from '@fixtures/guard-module';",
       "import { type default as SafeTypeAlias } from '@fixtures/guard-module';",
       "import type { default as SafeTypeClauseAlias } from '@fixtures/guard-module';",
+      "import { default } from '@fixtures/guard-module';",
       "import { getSafe } from '@fixtures/guard-module';",
       "import SafeOther from '@fixtures/other-module';",
     ].join('\n');
@@ -1120,6 +1121,7 @@ describe('Safe migration guards', () => {
       'SafeAlias',
       'SafeTypeAlias',
       'SafeTypeClauseAlias',
+      'default',
     ]);
   });
 
