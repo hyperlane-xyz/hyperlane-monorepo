@@ -396,6 +396,23 @@ describe('squads sdk migration regression', () => {
     }
   });
 
+  it('keeps tracked infra source file scan excluding skipped directories', () => {
+    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    for (const trackedSourceFilePath of trackedSourceFiles) {
+      for (const skippedDirectory of SKIPPED_DIRECTORIES) {
+        const skippedSegment = `/${skippedDirectory}/`;
+        expect(
+          trackedSourceFilePath.includes(skippedSegment),
+          `Expected tracked source scan to skip directory segment "${skippedSegment}" in: ${trackedSourceFilePath}`,
+        ).to.equal(false);
+        expect(
+          trackedSourceFilePath.startsWith(`${skippedDirectory}/`),
+          `Expected tracked source scan to skip leading directory "${skippedDirectory}" in: ${trackedSourceFilePath}`,
+        ).to.equal(false);
+      }
+    }
+  });
+
   it('keeps squads-related scripts using shared formatScriptError helper', () => {
     for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
       const scriptContents = readInfraFile(scriptPath);
