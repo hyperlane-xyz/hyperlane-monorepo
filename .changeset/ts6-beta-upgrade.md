@@ -345,3 +345,5 @@ Regression coverage now also confirms `toJSON`-returns-`undefined` paths continu
 Inspect-placeholder filtering now also covers bracketed placeholders (`[Object]`, `[Array]`), with regression coverage confirming matcher/formatter paths still fall through to `Object.prototype.toString` for runtime and non-runtime structural signal handling.
 
 Inspect-placeholder filtering now also normalizes case and covers object-tag placeholders such as `[object Object]`/`[object Array]`, preventing these inert representations from masking runtime signals carried in `Object.prototype.toString` fallbacks.
+
+Regression coverage now also confirms uppercase object-tag inspect placeholders (for example `[OBJECT OBJECT]`) are treated as non-informative and still fall through to tag-sensitive `Object.prototype.toString` fallback handling.
