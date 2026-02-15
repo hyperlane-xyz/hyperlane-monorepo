@@ -210,6 +210,17 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps formatting-guarded script paths executable', () => {
+    for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
+      expect(
+        NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
+          scriptPath.endsWith(`/${fileName}`),
+        ),
+        `Expected formatting-guarded script path to be executable: ${scriptPath}`,
+      ).to.equal(false);
+    }
+  });
+
   it('keeps infra squads regression script stable', () => {
     const infraPackageJson = readInfraPackageJson();
 
