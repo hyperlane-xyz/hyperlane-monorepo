@@ -8,6 +8,7 @@ import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   isAllowlistedNonExecutableSquadsScriptPath,
   isExecutableSquadsScriptPath,
+  isFormattingGuardedSquadsScriptPath,
   isGuardedSquadsScriptPath,
   isNormalizedGuardedScriptPath,
   isSquadsDirectoryScriptPath,
@@ -230,6 +231,10 @@ describe('squads sdk migration regression', () => {
 
   it('keeps formatting-guarded script paths executable', () => {
     for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
+      expect(
+        isFormattingGuardedSquadsScriptPath(scriptPath),
+        `Expected formatting-guarded classifier to accept path: ${scriptPath}`,
+      ).to.equal(true);
       expect(
         isExecutableSquadsScriptPath(scriptPath),
         `Expected formatting-guarded script path to be executable: ${scriptPath}`,

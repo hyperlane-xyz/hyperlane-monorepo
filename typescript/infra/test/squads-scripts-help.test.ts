@@ -9,6 +9,7 @@ import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   hasAllowedSquadsScriptExtension,
   isExecutableSquadsScriptPath,
+  isFormattingGuardedSquadsScriptPath,
   isGuardedSquadsScriptPath,
   isNormalizedGuardedScriptPath,
   isSquadsDirectoryScriptPath,
@@ -78,6 +79,7 @@ describe('squads scripts --help smoke', function () {
       expect(isNormalizedGuardedScriptPath(scriptPath)).to.equal(true);
       expect(isGuardedSquadsScriptPath(scriptPath)).to.equal(true);
       expect(isExecutableSquadsScriptPath(scriptPath)).to.equal(true);
+      expect(isFormattingGuardedSquadsScriptPath(scriptPath)).to.equal(true);
       expect(hasAllowedSquadsScriptExtension(scriptPath)).to.equal(true);
       expect(
         fs.existsSync(absoluteScriptPath),

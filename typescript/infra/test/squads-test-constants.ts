@@ -71,3 +71,12 @@ export const EXECUTABLE_SQUADS_SCRIPT_PATHS = Object.freeze(
 export const SQUADS_ERROR_FORMATTING_SCRIPT_PATHS = Object.freeze([
   ...EXECUTABLE_SQUADS_SCRIPT_PATHS,
 ]);
+const FORMATTING_GUARDED_SQUADS_SCRIPT_PATH_SET = new Set(
+  SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
+);
+
+export function isFormattingGuardedSquadsScriptPath(
+  scriptPath: string,
+): boolean {
+  return FORMATTING_GUARDED_SQUADS_SCRIPT_PATH_SET.has(scriptPath);
+}

@@ -5,6 +5,7 @@ import {
   hasAllowedSquadsScriptExtension,
   isAllowlistedNonExecutableSquadsScriptPath,
   isExecutableSquadsScriptPath,
+  isFormattingGuardedSquadsScriptPath,
   isGuardedSquadsScriptPath,
   isNormalizedGuardedScriptPath,
   isSquadsDirectoryScriptPath,
@@ -85,6 +86,25 @@ describe('squads test constants', () => {
     expect(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS).to.deep.equal(
       EXECUTABLE_SQUADS_SCRIPT_PATHS,
     );
+  });
+
+  it('classifies formatting-guarded script paths consistently', () => {
+    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
+      const expectedIsFormattingGuarded =
+        isGuardedSquadsScriptPath(scriptPath) &&
+        isExecutableSquadsScriptPath(scriptPath);
+      expect(isFormattingGuardedSquadsScriptPath(scriptPath)).to.equal(
+        expectedIsFormattingGuarded,
+      );
+    }
+    expect(
+      isFormattingGuardedSquadsScriptPath('scripts/squads/cli-helpers.ts'),
+    ).to.equal(false);
+    expect(
+      isFormattingGuardedSquadsScriptPath(
+        'scripts/squads/not-real-formatting-script.ts',
+      ),
+    ).to.equal(false);
   });
 
   it('keeps non-executable helper list represented in squads script paths', () => {
