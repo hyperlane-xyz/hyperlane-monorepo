@@ -411,14 +411,31 @@ function resolveModuleSourceFromExpression(
   return [];
 }
 
-function readBindingElementSymbol(element: ts.BindingElement): string {
+function collectBindingElementSymbols(element: ts.BindingElement): string[] {
+  const symbols = new Set<string>();
   if (element.propertyName) {
-    if (ts.isIdentifier(element.propertyName)) return element.propertyName.text;
-    if (ts.isStringLiteralLike(element.propertyName))
-      return element.propertyName.text;
+    if (ts.isIdentifier(element.propertyName)) {
+      symbols.add(normalizeNamedSymbol(element.propertyName.text));
+    } else if (ts.isStringLiteralLike(element.propertyName)) {
+      symbols.add(normalizeNamedSymbol(element.propertyName.text));
+    }
   }
-  if (ts.isIdentifier(element.name)) return element.name.text;
-  return '';
+  if (ts.isIdentifier(element.name)) {
+    symbols.add(normalizeNamedSymbol(element.name.text));
+  } else if (
+    ts.isObjectBindingPattern(element.name) ||
+    ts.isArrayBindingPattern(element.name)
+  ) {
+    for (const nestedElement of element.name.elements) {
+      if (!ts.isBindingElement(nestedElement) || nestedElement.dotDotDotToken) {
+        continue;
+      }
+      for (const symbol of collectBindingElementSymbols(nestedElement)) {
+        symbols.add(symbol);
+      }
+    }
+  }
+  return [...symbols].filter(Boolean);
 }
 
 function readImportTypeQualifierSymbol(
@@ -620,7 +637,8 @@ function collectSymbolSourceReferences(
 
     if (
       ts.isVariableDeclaration(node) &&
-      ts.isObjectBindingPattern(node.name)
+      (ts.isObjectBindingPattern(node.name) ||
+        ts.isArrayBindingPattern(node.name))
     ) {
       const initializer = node.initializer
         ? unwrapInitializerExpression(node.initializer)
@@ -633,13 +651,18 @@ function collectSymbolSourceReferences(
         : [];
       for (const source of sources) {
         for (const bindingElement of node.name.elements) {
-          if (bindingElement.dotDotDotToken) continue;
-          references.push({
-            symbol: normalizeNamedSymbol(
-              readBindingElementSymbol(bindingElement),
-            ),
-            source,
-          });
+          if (
+            !ts.isBindingElement(bindingElement) ||
+            bindingElement.dotDotDotToken
+          ) {
+            continue;
+          }
+          for (const symbol of collectBindingElementSymbols(bindingElement)) {
+            references.push({
+              symbol,
+              source,
+            });
+          }
         }
       }
     }
@@ -1266,6 +1289,29 @@ describe('Gnosis Safe migration guards', () => {
       'const templateAlias = require(`./fixtures/guard-module.js`);',
       'const templateDefault = templateAlias.default;',
       "const inlineTemplateDefault = require(`./fixtures/guard-module.js`)['default'];",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through nested binding patterns', () => {
+    const source = [
+      "const { nested: { default: nestedDefault }, default: topDefault } = require('./fixtures/guard-module.js');",
+      'void nestedDefault;',
+      'void topDefault;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through array binding patterns', () => {
+    const source = [
+      "const [{ default: arrayDefault }] = require('./fixtures/guard-module.js');",
+      'void arrayDefault;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
