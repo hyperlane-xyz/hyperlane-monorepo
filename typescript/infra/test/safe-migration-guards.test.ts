@@ -670,6 +670,111 @@ function restoreStringSet(target: Set<string>, snapshot: Set<string>): void {
   }
 }
 
+function stringArraysEqual(
+  left: string[] | undefined,
+  right: string[],
+): boolean {
+  if (!left || left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    if (left[i] !== right[i]) return false;
+  }
+  return true;
+}
+
+function collectStatementLexicalScopeBindings(
+  statement: ts.Statement,
+  declaredIdentifiers: Set<string>,
+): void {
+  if (ts.isLabeledStatement(statement)) {
+    collectStatementLexicalScopeBindings(
+      statement.statement,
+      declaredIdentifiers,
+    );
+    return;
+  }
+
+  if (ts.isVariableStatement(statement)) {
+    const declarationList = statement.declarationList;
+    if (
+      (declarationList.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const)) ===
+      0
+    ) {
+      return;
+    }
+    for (const declaration of declarationList.declarations) {
+      for (const localName of collectBindingLocalNames(declaration.name)) {
+        declaredIdentifiers.add(localName);
+      }
+    }
+    return;
+  }
+
+  if (
+    (ts.isFunctionDeclaration(statement) ||
+      ts.isClassDeclaration(statement) ||
+      ts.isEnumDeclaration(statement)) &&
+    statement.name &&
+    !isAmbientContextNode(statement)
+  ) {
+    declaredIdentifiers.add(normalizeNamedSymbol(statement.name.text));
+  }
+}
+
+function collectLexicalScopeDeclaredIdentifiers(node: ts.Node): Set<string> {
+  const declaredIdentifiers = new Set<string>();
+
+  if (
+    ts.isForStatement(node) &&
+    node.initializer &&
+    ts.isVariableDeclarationList(node.initializer) &&
+    (node.initializer.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const)) !== 0
+  ) {
+    for (const declaration of node.initializer.declarations) {
+      for (const localName of collectBindingLocalNames(declaration.name)) {
+        declaredIdentifiers.add(localName);
+      }
+    }
+    return declaredIdentifiers;
+  }
+
+  if (
+    (ts.isForInStatement(node) || ts.isForOfStatement(node)) &&
+    ts.isVariableDeclarationList(node.initializer) &&
+    (node.initializer.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const)) !== 0
+  ) {
+    for (const declaration of node.initializer.declarations) {
+      for (const localName of collectBindingLocalNames(declaration.name)) {
+        declaredIdentifiers.add(localName);
+      }
+    }
+    return declaredIdentifiers;
+  }
+
+  if (ts.isCatchClause(node)) {
+    const variableDeclaration = node.variableDeclaration;
+    if (variableDeclaration) {
+      for (const localName of collectBindingLocalNames(
+        variableDeclaration.name,
+      )) {
+        declaredIdentifiers.add(localName);
+      }
+    }
+    return declaredIdentifiers;
+  }
+
+  const statements = ts.isCaseBlock(node)
+    ? node.clauses.flatMap((clause) => clause.statements)
+    : ts.isBlock(node) || ts.isModuleBlock(node)
+      ? [...node.statements]
+      : [];
+
+  for (const statement of statements) {
+    collectStatementLexicalScopeBindings(statement, declaredIdentifiers);
+  }
+
+  return declaredIdentifiers;
+}
+
 function resolveModuleSourceFromEntityName(
   name: ts.EntityName,
   moduleAliasByIdentifier: Map<string, string[]>,
@@ -713,6 +818,7 @@ function collectSymbolSourceReferences(
       ? {
           moduleAliases: cloneStringArrayMap(moduleAliasByIdentifier),
           requireLikeIdentifiers: new Set(requireLikeIdentifiers),
+          declaredIdentifiers: collectLexicalScopeDeclaredIdentifiers(node),
         }
       : undefined;
     const functionScopeSnapshot = ts.isFunctionLike(node)
@@ -906,8 +1012,10 @@ function collectSymbolSourceReferences(
         const assignmentLocalNames = collectAssignmentPatternLocalNames(
           node.left,
         );
-        for (const localName of assignmentLocalNames) {
-          requireLikeIdentifiers.delete(localName);
+        if (!ts.isIdentifier(node.left)) {
+          for (const localName of assignmentLocalNames) {
+            requireLikeIdentifiers.delete(localName);
+          }
         }
         if (sources.length > 0) {
           for (const localName of assignmentLocalNames) {
@@ -1002,6 +1110,11 @@ function collectSymbolSourceReferences(
     ts.forEachChild(node, visit);
 
     if (scopeSnapshot) {
+      const postScopeModuleAliases = cloneStringArrayMap(
+        moduleAliasByIdentifier,
+      );
+      const postScopeRequireLikeIdentifiers = new Set(requireLikeIdentifiers);
+
       restoreStringArrayMap(
         moduleAliasByIdentifier,
         scopeSnapshot.moduleAliases,
@@ -1010,6 +1123,35 @@ function collectSymbolSourceReferences(
         requireLikeIdentifiers,
         scopeSnapshot.requireLikeIdentifiers,
       );
+
+      for (const [identifier, sources] of postScopeModuleAliases.entries()) {
+        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+        const previousSources = scopeSnapshot.moduleAliases.get(identifier);
+        if (!stringArraysEqual(previousSources, sources)) {
+          moduleAliasByIdentifier.set(identifier, [...sources]);
+        }
+      }
+
+      for (const identifier of scopeSnapshot.moduleAliases.keys()) {
+        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+        if (!postScopeModuleAliases.has(identifier)) {
+          moduleAliasByIdentifier.delete(identifier);
+        }
+      }
+
+      for (const identifier of postScopeRequireLikeIdentifiers) {
+        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+        if (!scopeSnapshot.requireLikeIdentifiers.has(identifier)) {
+          requireLikeIdentifiers.add(identifier);
+        }
+      }
+
+      for (const identifier of scopeSnapshot.requireLikeIdentifiers) {
+        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+        if (!postScopeRequireLikeIdentifiers.has(identifier)) {
+          requireLikeIdentifiers.delete(identifier);
+        }
+      }
     } else if (functionScopeSnapshot) {
       restoreStringArrayMap(
         moduleAliasByIdentifier,
@@ -1114,7 +1256,10 @@ function collectModuleSpecifierReferences(
 
   const visit = (node: ts.Node) => {
     const scopeSnapshot = isLexicalScopeBoundary(node)
-      ? new Set(requireLikeIdentifiers)
+      ? {
+          requireLikeIdentifiers: new Set(requireLikeIdentifiers),
+          declaredIdentifiers: collectLexicalScopeDeclaredIdentifiers(node),
+        }
       : undefined;
     const functionScopeSnapshot = ts.isFunctionLike(node)
       ? new Set(requireLikeIdentifiers)
@@ -1234,7 +1379,10 @@ function collectModuleSpecifierReferences(
         }
       }
 
-      if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      if (
+        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        !ts.isIdentifier(node.left)
+      ) {
         for (const localName of collectAssignmentPatternLocalNames(node.left)) {
           requireLikeIdentifiers.delete(localName);
         }
@@ -1244,7 +1392,26 @@ function collectModuleSpecifierReferences(
     ts.forEachChild(node, visit);
 
     if (scopeSnapshot) {
-      restoreStringSet(requireLikeIdentifiers, scopeSnapshot);
+      const postScopeRequireLikeIdentifiers = new Set(requireLikeIdentifiers);
+
+      restoreStringSet(
+        requireLikeIdentifiers,
+        scopeSnapshot.requireLikeIdentifiers,
+      );
+
+      for (const identifier of postScopeRequireLikeIdentifiers) {
+        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+        if (!scopeSnapshot.requireLikeIdentifiers.has(identifier)) {
+          requireLikeIdentifiers.add(identifier);
+        }
+      }
+
+      for (const identifier of scopeSnapshot.requireLikeIdentifiers) {
+        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+        if (!postScopeRequireLikeIdentifiers.has(identifier)) {
+          requireLikeIdentifiers.delete(identifier);
+        }
+      }
     } else if (functionScopeSnapshot) {
       restoreStringSet(requireLikeIdentifiers, functionScopeSnapshot);
     }
@@ -2102,6 +2269,33 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('keeps module-source alias assignments made inside block scopes', () => {
+    const source = [
+      'let moduleAlias: any;',
+      '{',
+      "  moduleAlias = require('./fixtures/guard-module.js');",
+      '}',
+      'const postBlockDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps module-source alias var declarations made inside block scopes', () => {
+    const source = [
+      '{',
+      "  var moduleAlias = require('./fixtures/guard-module.js');",
+      '}',
+      'const postBlockDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
   it('does not treat top-level function declaration named require as module-sourced', () => {
     const source = [
       "const preShadowDefault = require('./fixtures/guard-module.js').default;",
@@ -2663,6 +2857,39 @@ describe('Safe migration guards', () => {
     );
     expect(moduleReferences).to.not.include(
       './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps require alias assignments made inside block scopes', () => {
+    const source = [
+      'let reqAlias: any;',
+      '{',
+      '  reqAlias = require;',
+      '}',
+      "const postBlockCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps require alias var declarations made inside block scopes', () => {
+    const source = [
+      '{',
+      '  var reqAlias = require;',
+      '}',
+      "const postBlockCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
     );
   });
 
