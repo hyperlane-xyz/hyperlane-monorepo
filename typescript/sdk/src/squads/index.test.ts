@@ -88,6 +88,10 @@ const PROCESS_STDOUT_REFERENCE_PATTERN = /\bprocess\.stdout\b/;
 const PROCESS_STDERR_REFERENCE_PATTERN = /\bprocess\.stderr\b/;
 const PROCESS_BRACKET_REFERENCE_PATTERN =
   /\bprocess\s*\[\s*['"](?:env|argv|cwd|exit|stdin|stdout|stderr)['"]\s*\](?:\s*\(|\b)/;
+const PROCESS_DESTRUCTURE_REFERENCE_PATTERN =
+  /\{[^}]*\b(?:env|argv|cwd|exit|stdin|stdout|stderr)\b[^}]*\}\s*=\s*process\b/;
+const PROCESS_ALIAS_REFERENCE_PATTERN =
+  /\b(?:const|let|var)\s+\w+\s*=\s*process\b/;
 const GLOBAL_PROCESS_REFERENCE_PATTERN =
   /\b(?:globalThis|global)\s*\.\s*process\b/;
 const GLOBAL_PROCESS_BRACKET_REFERENCE_PATTERN =
@@ -97,6 +101,10 @@ const WINDOW_PROCESS_BRACKET_REFERENCE_PATTERN =
   /\bwindow\s*\[\s*['"]process['"]\s*\]/;
 const CONSOLE_REFERENCE_PATTERN =
   /\bconsole\s*(?:\.\s*(?:log|info|warn|error|debug|trace|table)\s*\(|\[\s*['"](?:log|info|warn|error|debug|trace|table)['"]\s*\]\s*\()/;
+const CONSOLE_DESTRUCTURE_REFERENCE_PATTERN =
+  /\{[^}]*\b(?:log|info|warn|error|debug|trace|table)\b[^}]*\}\s*=\s*console\b/;
+const CONSOLE_ALIAS_REFERENCE_PATTERN =
+  /\b(?:const|let|var)\s+\w+\s*=\s*console\b/;
 const GLOBAL_CONSOLE_REFERENCE_PATTERN =
   /\b(?:globalThis|global)\s*\.\s*console\b/;
 const GLOBAL_CONSOLE_BRACKET_REFERENCE_PATTERN =
@@ -1200,6 +1208,14 @@ describe('squads barrel exports', () => {
         `Expected sdk squads runtime source to avoid process['*'] coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
+        PROCESS_DESTRUCTURE_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid process destructuring coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        PROCESS_ALIAS_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid process alias coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
         GLOBAL_PROCESS_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid global process coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
@@ -1218,6 +1234,14 @@ describe('squads barrel exports', () => {
       expect(
         CONSOLE_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid direct console usage: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid console destructuring coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        CONSOLE_ALIAS_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid console alias coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
         GLOBAL_CONSOLE_REFERENCE_PATTERN.test(runtimeSource),
