@@ -1205,6 +1205,20 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('tracks default symbol references for mixed-source conditional wrappers', () => {
+    const source = [
+      "import * as otherModule from './fixtures/other-module.js';",
+      'declare const useOtherModule: boolean;',
+      "const mixedAlias = useOtherModule ? otherModule : require('./fixtures/guard-module.js');",
+      'const mixedDefault = mixedAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('tracks default symbol references through conditional wrappers', () => {
     const source = [
       'declare const useModuleAlias: boolean;',
@@ -1240,6 +1254,18 @@ describe('Gnosis Safe migration guards', () => {
       "import * as infra from './fixtures/guard-module.js';",
       'const optionalDefault = infra?.default;',
       "const optionalElementDefault = infra?.['default'];",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references from template-literal specifiers', () => {
+    const source = [
+      'const templateAlias = require(`./fixtures/guard-module.js`);',
+      'const templateDefault = templateAlias.default;',
+      "const inlineTemplateDefault = require(`./fixtures/guard-module.js`)['default'];",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
