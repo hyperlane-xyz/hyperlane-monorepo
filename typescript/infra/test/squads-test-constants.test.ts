@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
+  hasAllowedSquadsScriptExtension,
   isAllowlistedNonExecutableSquadsScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_SCRIPT_FILE_EXTENSIONS,
@@ -173,20 +174,32 @@ describe('squads test constants', () => {
 
   it('keeps configured squads script paths constrained to allowed extensions', () => {
     for (const scriptPath of SQUADS_SCRIPT_PATHS) {
-      expect(
-        SQUADS_SCRIPT_FILE_EXTENSIONS.some((extension) =>
-          scriptPath.endsWith(extension),
-        ),
-      ).to.equal(true);
+      expect(hasAllowedSquadsScriptExtension(scriptPath)).to.equal(true);
     }
 
     for (const scriptPath of EXECUTABLE_SQUADS_SCRIPT_PATHS) {
-      expect(
-        SQUADS_SCRIPT_FILE_EXTENSIONS.some((extension) =>
-          scriptPath.endsWith(extension),
-        ),
-      ).to.equal(true);
+      expect(hasAllowedSquadsScriptExtension(scriptPath)).to.equal(true);
     }
+  });
+
+  it('classifies allowed squads script extensions consistently', () => {
+    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
+      const expectedIsAllowed = SQUADS_SCRIPT_FILE_EXTENSIONS.some((extension) =>
+        scriptPath.endsWith(extension),
+      );
+      expect(hasAllowedSquadsScriptExtension(scriptPath)).to.equal(
+        expectedIsAllowed,
+      );
+    }
+  });
+
+  it('rejects non-allowlisted squads script extensions', () => {
+    expect(
+      hasAllowedSquadsScriptExtension('scripts/squads/example.js'),
+    ).to.equal(false);
+    expect(
+      hasAllowedSquadsScriptExtension('scripts/squads/example.tsx'),
+    ).to.equal(false);
   });
 
   it('keeps executable and non-executable script partitions complete and disjoint', () => {

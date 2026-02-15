@@ -5,8 +5,8 @@ import { expect } from 'chai';
 
 import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
+  hasAllowedSquadsScriptExtension,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
-  SQUADS_SCRIPT_FILE_EXTENSIONS,
   SQUADS_SCRIPT_PATHS,
 } from './squads-test-constants.js';
 import {
@@ -48,11 +48,7 @@ describe('squads test utils', () => {
     expect(squadsScripts).to.deep.equal(configuredSquadsScripts);
     for (const scriptPath of squadsScripts) {
       expect(scriptPath.includes('\\')).to.equal(false);
-      expect(
-        SQUADS_SCRIPT_FILE_EXTENSIONS.some((extension) =>
-          scriptPath.endsWith(extension),
-        ),
-      ).to.equal(true);
+      expect(hasAllowedSquadsScriptExtension(scriptPath)).to.equal(true);
     }
   });
 

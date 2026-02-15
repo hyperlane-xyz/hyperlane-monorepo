@@ -8,6 +8,12 @@ export const SQUADS_SCRIPT_FILE_EXTENSIONS = Object.freeze([
   '.cts',
 ]);
 
+export function hasAllowedSquadsScriptExtension(scriptPath: string): boolean {
+  return SQUADS_SCRIPT_FILE_EXTENSIONS.some((extension) =>
+    scriptPath.endsWith(extension),
+  );
+}
+
 export const SQUADS_SCRIPT_PATHS = Object.freeze([
   'scripts/squads/cli-helpers.ts',
   'scripts/squads/get-pending-txs.ts',
