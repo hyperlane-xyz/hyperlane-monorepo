@@ -37,6 +37,13 @@ describe('Safe migration guards', () => {
     );
   });
 
+  it('prevents direct @safe-global imports in infra source', () => {
+    expectNoRipgrepMatches(
+      String.raw`from ['"]@safe-global|require\(['"]@safe-global`,
+      '@safe-global imports in infra sources',
+    );
+  });
+
   it('keeps @safe-global dependencies out of infra package.json', () => {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     const packageJson: InfraPackageJson = JSON.parse(
@@ -53,5 +60,32 @@ describe('Safe migration guards', () => {
     );
 
     expect(safeGlobalDeps).to.deep.equal([]);
+  });
+
+  it('ensures sdk index continues exporting core safe helpers', () => {
+    const sdkIndexPath = path.resolve(process.cwd(), '../sdk/src/index.ts');
+    const sdkIndexText = fs.readFileSync(sdkIndexPath, 'utf8');
+
+    const requiredExports = [
+      'getSafeAndService',
+      'getPendingTxsForChains',
+      'createSafeDeploymentTransaction',
+      'updateSafeOwner',
+      'deleteSafeTx',
+      'deleteAllPendingSafeTxs',
+      'parseSafeTx',
+      'decodeMultiSendData',
+      'createSafeTransaction',
+      'proposeSafeTransaction',
+      'executeTx',
+      'SafeTxStatus',
+    ];
+
+    for (const exportedSymbol of requiredExports) {
+      expect(
+        sdkIndexText.includes(exportedSymbol),
+        `Expected sdk index to export ${exportedSymbol}`,
+      ).to.equal(true);
+    }
   });
 });
