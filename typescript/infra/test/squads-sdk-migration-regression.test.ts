@@ -351,6 +351,32 @@ function partitionTrackedTestAssetsByRole(paths: readonly string[]): {
   };
 }
 
+function assertTrackedTestAssetPartitionShape(
+  partitionedPaths: {
+    readonly regressionPaths: readonly string[];
+    readonly supportPaths: readonly string[];
+  },
+  partitionLabel: string,
+): void {
+  const { regressionPaths, supportPaths } = partitionedPaths;
+  for (const regressionPath of regressionPaths) {
+    assertRegressionTestPathShape(
+      regressionPath,
+      `${partitionLabel} regression-like asset path`,
+    );
+  }
+  for (const supportPath of supportPaths) {
+    assertSupportSourcePathShape(
+      supportPath,
+      `${partitionLabel} support-like asset path`,
+    );
+  }
+  expect(regressionPaths.length).to.equal(SQUADS_REGRESSION_TEST_PATHS.length);
+  expect(supportPaths.length).to.equal(
+    SQUADS_TRACKED_TEST_SUPPORT_PATHS.length,
+  );
+}
+
 describe('squads sdk migration regression', () => {
   it('keeps squads script constants immutable', () => {
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
@@ -750,45 +776,19 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps squads tracked test assets scoped to test directory', () => {
-    const { regressionPaths, supportPaths } = partitionTrackedTestAssetsByRole(
-      SQUADS_TRACKED_TEST_ASSET_PATHS,
+    assertTrackedTestAssetPartitionShape(
+      partitionTrackedTestAssetsByRole(SQUADS_TRACKED_TEST_ASSET_PATHS),
+      'squads tracked scoped',
     );
-    for (const regressionPath of regressionPaths) {
-      assertRegressionTestPathShape(
-        regressionPath,
-        'squads tracked regression-like scoped path',
-      );
-    }
-    for (const supportPath of supportPaths) {
-      assertSupportSourcePathShape(
-        supportPath,
-        'squads tracked support-like scoped path',
-      );
-    }
   });
 
   it('keeps squads tracked test assets partitioned between regression and support path shapes', () => {
-    const { regressionPaths, supportPaths } = partitionTrackedTestAssetsByRole(
+    const partitionedPaths = partitionTrackedTestAssetsByRole(
       SQUADS_TRACKED_TEST_ASSET_PATHS,
     );
-    for (const regressionPath of regressionPaths) {
-      assertRegressionTestPathShape(
-        regressionPath,
-        'squads tracked regression-like asset path',
-      );
-    }
-    for (const supportPath of supportPaths) {
-      assertSupportSourcePathShape(
-        supportPath,
-        'squads tracked support-like asset path',
-      );
-    }
-
-    expect(regressionPaths.length).to.equal(
-      SQUADS_REGRESSION_TEST_PATHS.length,
-    );
-    expect(supportPaths.length).to.equal(
-      SQUADS_TRACKED_TEST_SUPPORT_PATHS.length,
+    assertTrackedTestAssetPartitionShape(
+      partitionedPaths,
+      'squads tracked partitioned',
     );
   });
 
@@ -804,6 +804,14 @@ describe('squads sdk migration regression', () => {
 
     const subsequentPartition = partitionTrackedTestAssetsByRole(
       SQUADS_TRACKED_TEST_ASSET_PATHS,
+    );
+    assertTrackedTestAssetPartitionShape(
+      baselinePartition,
+      'baseline squads tracked partition',
+    );
+    assertTrackedTestAssetPartitionShape(
+      subsequentPartition,
+      'subsequent squads tracked partition',
     );
     expect(mutableRegressionPaths).to.not.deep.equal(
       baselinePartition.regressionPaths,
