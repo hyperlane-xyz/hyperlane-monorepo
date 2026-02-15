@@ -424,7 +424,12 @@ function collectSymbolSourceReferences(
 
     if (
       ts.isBinaryExpression(node) &&
-      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      [
+        ts.SyntaxKind.EqualsToken,
+        ts.SyntaxKind.BarBarEqualsToken,
+        ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+        ts.SyntaxKind.QuestionQuestionEqualsToken,
+      ].includes(node.operatorToken.kind) &&
       ts.isIdentifier(node.left)
     ) {
       const rightExpression = unwrapInitializerExpression(node.right);
@@ -434,7 +439,7 @@ function collectSymbolSourceReferences(
       );
       if (source) {
         moduleAliasByIdentifier.set(node.left.text, source);
-      } else {
+      } else if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
         moduleAliasByIdentifier.delete(node.left.text);
       }
     }
@@ -1258,6 +1263,22 @@ describe('Safe migration guards', () => {
       "const conditionalAlias = useModuleAlias ? require('./fixtures/guard-module.js') : fallbackAlias;",
       'const conditionalDefault = conditionalAlias.default;',
       "const inlineConditionalDefault = (useModuleAlias ? require('./fixtures/guard-module.js') : fallbackAlias)['default'];",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through logical assignment aliases', () => {
+    const source = [
+      'let alias: unknown;',
+      "alias ||= require('./fixtures/guard-module.js');",
+      'const orAssignmentDefault = alias.default;',
+      "alias &&= require('./fixtures/guard-module.js');",
+      "const andAssignmentDefault = alias['default'];",
+      "alias ??= require('./fixtures/guard-module.js');",
+      'const nullishAssignmentDefault = alias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
