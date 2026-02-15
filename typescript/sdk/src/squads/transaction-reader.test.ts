@@ -276,6 +276,36 @@ describe('squads transaction reader', () => {
     expect(reader.errors).to.deep.equal([]);
   });
 
+  it('normalizes padded chain names before provider lookup and recorded errors', async () => {
+    let providerLookupChain: string | undefined;
+    const mpp = {
+      getSolanaWeb3Provider: (chain: string) => {
+        providerLookupChain = chain;
+        throw new Error('provider lookup failed');
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('  solanamainnet  ', 0),
+    );
+
+    expect(thrownError?.message).to.equal('provider lookup failed');
+    expect(providerLookupChain).to.equal('solanamainnet');
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error: 'Error: provider lookup failed',
+      },
+    ]);
+  });
+
   it('uses requested transaction index when reading config transaction', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
