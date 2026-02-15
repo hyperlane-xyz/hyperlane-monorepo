@@ -1,9 +1,31 @@
 #!/usr/bin/env bash
 set -e
 
+ANVIL_PIDS=()
+
+function kill_listeners_on_port() {
+  local port="$1"
+  local pids
+  pids=$(
+    ss -ltnp "sport = :${port}" 2>/dev/null \
+      | rg -o "pid=[0-9]+" \
+      | sed 's/pid=//' \
+      | sort -u
+  )
+
+  for pid in $pids; do
+    kill "${pid}" 2>/dev/null || true
+  done
+}
+
 function cleanup() {
   set +e
-  pkill -f anvil
+  for pid in "${ANVIL_PIDS[@]}"; do
+    kill "${pid}" 2>/dev/null || true
+  done
+  for port in 8555 8600 8601; do
+    kill_listeners_on_port "${port}"
+  done
   rm -rf /tmp/anvil2
   rm -rf /tmp/anvil3
   rm -rf /tmp/anvil4
@@ -20,10 +42,32 @@ trap cleanup EXIT
 
 cleanup
 
+function wait_for_port() {
+  local port="$1"
+  local name="$2"
+
+  for _ in {1..50}; do
+    if (echo >"/dev/tcp/127.0.0.1/${port}") >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.2
+  done
+
+  echo "Timed out waiting for ${name} on port ${port}" >&2
+  return 1
+}
+
 echo "Starting anvil2, anvil3 and anvil4 chains for E2E tests"
 anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --gas-price 1 > /dev/null &
+ANVIL_PIDS+=($!)
 anvil --chain-id 31347 -p 8600 --state /tmp/anvil3/state --gas-price 1 > /dev/null &
+ANVIL_PIDS+=($!)
 anvil --chain-id 31348 -p 8601 --state /tmp/anvil4/state --gas-price 1 > /dev/null &
+ANVIL_PIDS+=($!)
+
+wait_for_port 8555 anvil2
+wait_for_port 8600 anvil3
+wait_for_port 8601 anvil4
 
 echo "Running E2E tests"
 if [ -n "${CLI_E2E_TEST}" ]; then
