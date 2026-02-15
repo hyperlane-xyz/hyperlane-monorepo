@@ -121,8 +121,10 @@ function assertInstructionDiscriminator(discriminator: unknown): number {
   assert(
     typeof discriminator === 'number' &&
       Number.isInteger(discriminator) &&
-      discriminator >= 0,
-    `Expected discriminator to be a non-negative integer, got ${typeof discriminator === 'number' ? discriminator : discriminatorType}`,
+      Number.isSafeInteger(discriminator) &&
+      discriminator >= 0 &&
+      discriminator <= 255,
+    `Expected discriminator to be a non-negative safe integer in byte range [0, 255], got ${typeof discriminator === 'number' ? discriminator : discriminatorType}`,
   );
   return discriminator;
 }

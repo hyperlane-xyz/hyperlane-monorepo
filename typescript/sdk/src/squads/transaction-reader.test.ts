@@ -181,13 +181,21 @@ describe('squads transaction reader warning formatters', () => {
       'Expected program name to be a string, got null',
     );
     expect(() => formatUnknownInstructionWarning('Mailbox', '1')).to.throw(
-      'Expected discriminator to be a non-negative integer, got string',
+      'Expected discriminator to be a non-negative safe integer in byte range [0, 255], got string',
     );
     expect(() => formatUnknownInstructionWarning('Mailbox', -1)).to.throw(
-      'Expected discriminator to be a non-negative integer, got -1',
+      'Expected discriminator to be a non-negative safe integer in byte range [0, 255], got -1',
     );
     expect(() => formatUnknownInstructionWarning('Mailbox', 1.5)).to.throw(
-      'Expected discriminator to be a non-negative integer, got 1.5',
+      'Expected discriminator to be a non-negative safe integer in byte range [0, 255], got 1.5',
+    );
+    expect(() => formatUnknownInstructionWarning('Mailbox', 256)).to.throw(
+      'Expected discriminator to be a non-negative safe integer in byte range [0, 255], got 256',
+    );
+    expect(() =>
+      formatUnknownInstructionWarning('Mailbox', Number.POSITIVE_INFINITY),
+    ).to.throw(
+      'Expected discriminator to be a non-negative safe integer in byte range [0, 255], got Infinity',
     );
     expect(() => formatUnknownInstructionWarning('  ', 1)).to.throw(
       'Expected program name to be a non-empty string, got empty string',
