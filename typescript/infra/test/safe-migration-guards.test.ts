@@ -205,10 +205,27 @@ function readModuleSourceFromInitializer(
   return undefined;
 }
 
+function uniqueSources(
+  ...sourceGroups: readonly (readonly string[] | string | undefined)[]
+): string[] {
+  const sources = new Set<string>();
+  for (const sourceGroup of sourceGroups) {
+    if (!sourceGroup) continue;
+    if (typeof sourceGroup === 'string') {
+      sources.add(sourceGroup);
+      continue;
+    }
+    for (const source of sourceGroup) {
+      if (source) sources.add(source);
+    }
+  }
+  return [...sources];
+}
+
 function resolveModuleSourceFromExpression(
   expression: ts.Expression,
-  moduleAliasByIdentifier: Map<string, string>,
-): string | undefined {
+  moduleAliasByIdentifier: Map<string, string[]>,
+): string[] {
   const unwrapped = unwrapInitializerExpression(expression);
   if (
     ts.isBinaryExpression(unwrapped) &&
@@ -235,7 +252,7 @@ function resolveModuleSourceFromExpression(
       unwrapped.right,
       moduleAliasByIdentifier,
     );
-    return leftSource ?? rightSource;
+    return uniqueSources(leftSource, rightSource);
   }
   if (ts.isConditionalExpression(unwrapped)) {
     const whenTrueSource = resolveModuleSourceFromExpression(
@@ -246,12 +263,12 @@ function resolveModuleSourceFromExpression(
       unwrapped.whenFalse,
       moduleAliasByIdentifier,
     );
-    return whenTrueSource ?? whenFalseSource;
+    return uniqueSources(whenTrueSource, whenFalseSource);
   }
   const directSource = readModuleSourceFromInitializer(unwrapped);
-  if (directSource) return directSource;
+  if (directSource) return [directSource];
   if (ts.isIdentifier(unwrapped)) {
-    return moduleAliasByIdentifier.get(unwrapped.text);
+    return moduleAliasByIdentifier.get(unwrapped.text) ?? [];
   }
   if (ts.isPropertyAccessExpression(unwrapped)) {
     return resolveModuleSourceFromExpression(
@@ -265,7 +282,7 @@ function resolveModuleSourceFromExpression(
       moduleAliasByIdentifier,
     );
   }
-  return undefined;
+  return [];
 }
 
 function readBindingElementSymbol(element: ts.BindingElement): string {
@@ -288,9 +305,11 @@ function readImportTypeQualifierSymbol(
 
 function resolveModuleSourceFromEntityName(
   name: ts.EntityName,
-  moduleAliasByIdentifier: Map<string, string>,
-): string | undefined {
-  if (ts.isIdentifier(name)) return moduleAliasByIdentifier.get(name.text);
+  moduleAliasByIdentifier: Map<string, string[]>,
+): string[] {
+  if (ts.isIdentifier(name)) {
+    return moduleAliasByIdentifier.get(name.text) ?? [];
+  }
   return resolveModuleSourceFromEntityName(name.left, moduleAliasByIdentifier);
 }
 
@@ -299,7 +318,7 @@ function collectSymbolSourceReferences(
   filePath: string,
 ): SymbolSourceReference[] {
   const references: SymbolSourceReference[] = [];
-  const moduleAliasByIdentifier = new Map<string, string>();
+  const moduleAliasByIdentifier = new Map<string, string[]>();
   const sourceFile = ts.createSourceFile(
     filePath,
     contents,
@@ -325,7 +344,7 @@ function collectSymbolSourceReferences(
         ? node.moduleSpecifier.text
         : undefined;
       if (source && node.importClause?.name) {
-        moduleAliasByIdentifier.set(node.importClause.name.text, source);
+        moduleAliasByIdentifier.set(node.importClause.name.text, [source]);
         references.push({
           symbol: normalizeNamedSymbol(node.importClause.name.text),
           source,
@@ -334,7 +353,7 @@ function collectSymbolSourceReferences(
       const namedBindings = node.importClause?.namedBindings;
       if (source && namedBindings) {
         if (ts.isNamespaceImport(namedBindings)) {
-          moduleAliasByIdentifier.set(namedBindings.name.text, source);
+          moduleAliasByIdentifier.set(namedBindings.name.text, [source]);
         }
         if (ts.isNamedImports(namedBindings)) {
           for (const importSpecifier of namedBindings.elements) {
@@ -379,11 +398,11 @@ function collectSymbolSourceReferences(
     }
 
     if (ts.isQualifiedName(node)) {
-      const source = resolveModuleSourceFromEntityName(
+      const sources = resolveModuleSourceFromEntityName(
         node.left,
         moduleAliasByIdentifier,
       );
-      if (source) {
+      for (const source of sources) {
         references.push({
           symbol: normalizeNamedSymbol(node.right.text),
           source,
@@ -397,10 +416,9 @@ function collectSymbolSourceReferences(
       node.moduleReference.expression &&
       ts.isStringLiteralLike(node.moduleReference.expression)
     ) {
-      moduleAliasByIdentifier.set(
-        node.name.text,
+      moduleAliasByIdentifier.set(node.name.text, [
         node.moduleReference.expression.text,
-      );
+      ]);
       references.push({
         symbol: normalizeNamedSymbol(node.name.text),
         source: node.moduleReference.expression.text,
@@ -411,14 +429,14 @@ function collectSymbolSourceReferences(
       const initializer = node.initializer
         ? unwrapInitializerExpression(node.initializer)
         : undefined;
-      const source = initializer
+      const sources = initializer
         ? resolveModuleSourceFromExpression(
             initializer,
             moduleAliasByIdentifier,
           )
-        : undefined;
-      if (source) {
-        moduleAliasByIdentifier.set(node.name.text, source);
+        : [];
+      if (sources.length > 0) {
+        moduleAliasByIdentifier.set(node.name.text, sources);
       }
     }
 
@@ -433,23 +451,23 @@ function collectSymbolSourceReferences(
       ts.isIdentifier(node.left)
     ) {
       const rightExpression = unwrapInitializerExpression(node.right);
-      const source = resolveModuleSourceFromExpression(
+      const sources = resolveModuleSourceFromExpression(
         rightExpression,
         moduleAliasByIdentifier,
       );
-      if (source) {
-        moduleAliasByIdentifier.set(node.left.text, source);
+      if (sources.length > 0) {
+        moduleAliasByIdentifier.set(node.left.text, sources);
       } else if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
         moduleAliasByIdentifier.delete(node.left.text);
       }
     }
 
     if (ts.isPropertyAccessExpression(node)) {
-      const source = resolveModuleSourceFromExpression(
+      const sources = resolveModuleSourceFromExpression(
         node.expression,
         moduleAliasByIdentifier,
       );
-      if (source) {
+      for (const source of sources) {
         references.push({
           symbol: normalizeNamedSymbol(node.name.text),
           source,
@@ -462,11 +480,11 @@ function collectSymbolSourceReferences(
       node.argumentExpression &&
       ts.isStringLiteralLike(node.argumentExpression)
     ) {
-      const source = resolveModuleSourceFromExpression(
+      const sources = resolveModuleSourceFromExpression(
         node.expression,
         moduleAliasByIdentifier,
       );
-      if (source) {
+      for (const source of sources) {
         references.push({
           symbol: normalizeNamedSymbol(node.argumentExpression.text),
           source,
@@ -481,13 +499,13 @@ function collectSymbolSourceReferences(
       const initializer = node.initializer
         ? unwrapInitializerExpression(node.initializer)
         : undefined;
-      const source = initializer
+      const sources = initializer
         ? resolveModuleSourceFromExpression(
             initializer,
             moduleAliasByIdentifier,
           )
-        : undefined;
-      if (source) {
+        : [];
+      for (const source of sources) {
         for (const bindingElement of node.name.elements) {
           if (bindingElement.dotDotDotToken) continue;
           references.push({
@@ -504,7 +522,14 @@ function collectSymbolSourceReferences(
   };
 
   visit(sourceFile);
-  return references.filter((reference) => reference.symbol.length > 0);
+  const seenReferences = new Set<string>();
+  return references.filter((reference) => {
+    if (!reference.symbol.length) return false;
+    const key = `${reference.symbol}@${reference.source}`;
+    if (seenReferences.has(key)) return false;
+    seenReferences.add(key);
+    return true;
+  });
 }
 
 function collectDeclaredSymbols(contents: string, filePath: string): string[] {
@@ -1254,6 +1279,19 @@ describe('Safe migration guards', () => {
       (reference) => `${reference.symbol}@${reference.source}`,
     );
     expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references for mixed-source logical wrappers', () => {
+    const source = [
+      "import * as otherModule from './fixtures/other-module.js';",
+      "const mixedAlias = otherModule || require('./fixtures/guard-module.js');",
+      'const mixedDefault = mixedAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
   });
 
   it('tracks default symbol references through conditional wrappers', () => {
