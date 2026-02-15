@@ -2281,16 +2281,46 @@ export class SquadsTransactionReader {
     chain: SquadsChainName,
     inst: ParsedInstruction,
   ): SquadsGovernTransaction {
+    const instructionTypeValue = this.readParsedInstructionField(
+      chain,
+      'instruction type',
+      () => inst.instructionType,
+      undefined,
+    );
+    const programNameValue = this.readParsedInstructionField(
+      chain,
+      'instruction program name',
+      () => inst.programName,
+      undefined,
+    );
+    const programIdValue = this.readParsedInstructionField(
+      chain,
+      'instruction program id',
+      () => inst.programId,
+      undefined,
+    );
+    const insightValue = this.readParsedInstructionField(
+      chain,
+      'instruction insight',
+      () => inst.insight,
+      undefined,
+    );
+    const dataValue = this.readParsedInstructionField(
+      chain,
+      'instruction data',
+      () => inst.data,
+      undefined,
+    );
+
     const instructionTypeForDisplay =
-      this.normalizeOptionalNonEmptyString(inst.instructionType) ??
+      this.normalizeOptionalNonEmptyString(instructionTypeValue) ??
       InstructionType.UNKNOWN;
     const programNameForDisplay =
-      this.normalizeOptionalNonEmptyString(inst.programName) ??
+      this.normalizeOptionalNonEmptyString(programNameValue) ??
       ProgramName.UNKNOWN;
-    const to = `${programNameForDisplay} (${this.formatProgramIdForDisplay(inst.programId)})`;
-    const normalizedInsight = this.normalizeOptionalNonEmptyString(
-      inst.insight,
-    );
+    const to = `${programNameForDisplay} (${this.formatProgramIdForDisplay(programIdValue)})`;
+    const normalizedInsight =
+      this.normalizeOptionalNonEmptyString(insightValue);
     const tx: SquadsGovernTransaction = {
       chain,
       to,
@@ -2298,11 +2328,11 @@ export class SquadsTransactionReader {
       insight: normalizedInsight ?? `${instructionTypeForDisplay} instruction`,
     };
 
-    switch (inst.instructionType) {
+    switch (instructionTypeForDisplay) {
       case SealevelMultisigIsmInstructionName[
         SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
       ]: {
-        const data = inst.data as MultisigSetValidatorsData;
+        const data = dataValue as MultisigSetValidatorsData;
         let domainValue: unknown;
         try {
           domainValue = data.domain;
@@ -2370,7 +2400,7 @@ export class SquadsTransactionReader {
       case SealevelMailboxInstructionName[
         SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
       ]: {
-        const data = inst.data as MailboxSetDefaultIsmData;
+        const data = dataValue as MailboxSetDefaultIsmData;
         let moduleValue: unknown;
         try {
           moduleValue = data.newDefaultIsm;
@@ -2392,7 +2422,7 @@ export class SquadsTransactionReader {
       case SealevelMultisigIsmInstructionName[
         SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP
       ]: {
-        const data = inst.data as OwnershipTransferData;
+        const data = dataValue as OwnershipTransferData;
         let newOwnerValue: unknown;
         try {
           newOwnerValue = data.newOwner;
@@ -2409,7 +2439,7 @@ export class SquadsTransactionReader {
       }
 
       case SquadsInstructionName[SquadsInstructionType.ADD_MEMBER]: {
-        const data = inst.data as SquadsAddMemberData;
+        const data = dataValue as SquadsAddMemberData;
         let memberValue: unknown;
         try {
           memberValue = data.newMember;
@@ -2465,7 +2495,7 @@ export class SquadsTransactionReader {
       }
 
       case SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER]: {
-        const data = inst.data as SquadsRemoveMemberData;
+        const data = dataValue as SquadsRemoveMemberData;
         let memberValue: unknown;
         try {
           memberValue = data.memberToRemove;
@@ -2480,7 +2510,7 @@ export class SquadsTransactionReader {
       }
 
       case SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD]: {
-        const data = inst.data as SquadsChangeThresholdData;
+        const data = dataValue as SquadsChangeThresholdData;
         let thresholdValue: unknown;
         try {
           thresholdValue = data.newThreshold;
@@ -2500,7 +2530,7 @@ export class SquadsTransactionReader {
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.EnrollRemoteRouter
       ]: {
-        const data = inst.data as WarpEnrollRemoteRouterData;
+        const data = dataValue as WarpEnrollRemoteRouterData;
         let domainValue: unknown;
         try {
           domainValue = data.domain;
@@ -2539,7 +2569,7 @@ export class SquadsTransactionReader {
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.EnrollRemoteRouters
       ]: {
-        const data = inst.data as WarpEnrollRemoteRoutersData;
+        const data = dataValue as WarpEnrollRemoteRoutersData;
         const routers: Record<string, string> = {};
         let routersCandidate: unknown;
         try {
@@ -2601,7 +2631,7 @@ export class SquadsTransactionReader {
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.SetDestinationGasConfigs
       ]: {
-        const data = inst.data as WarpSetDestinationGasConfigsData;
+        const data = dataValue as WarpSetDestinationGasConfigsData;
         const gasConfigs: Record<string, string> = {};
         let configsCandidate: unknown;
         try {
@@ -2664,7 +2694,7 @@ export class SquadsTransactionReader {
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.SetInterchainSecurityModule
       ]: {
-        const data = inst.data as WarpSetIsmData;
+        const data = dataValue as WarpSetIsmData;
         let ismValue: unknown;
         try {
           ismValue = data.ism;
@@ -2681,7 +2711,7 @@ export class SquadsTransactionReader {
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.SetInterchainGasPaymaster
       ]: {
-        const data = inst.data as WarpSetIgpData;
+        const data = dataValue as WarpSetIgpData;
         let igpValue: unknown;
         try {
           igpValue = data.igp;
@@ -2698,7 +2728,7 @@ export class SquadsTransactionReader {
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.TransferOwnership
       ]: {
-        const data = inst.data as OwnershipTransferData;
+        const data = dataValue as OwnershipTransferData;
         let newOwnerValue: unknown;
         try {
           newOwnerValue = data.newOwner;
@@ -2716,5 +2746,21 @@ export class SquadsTransactionReader {
     }
 
     return tx;
+  }
+
+  private readParsedInstructionField(
+    chain: SquadsChainName,
+    label: string,
+    readValue: () => unknown,
+    fallbackValue: unknown,
+  ): unknown {
+    try {
+      return readValue();
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read ${label} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return fallbackValue;
+    }
   }
 }

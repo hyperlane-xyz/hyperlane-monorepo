@@ -3200,6 +3200,102 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('falls back to stable display labels when instruction metadata getters throw', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const hostileInstruction = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (
+            property === 'instructionType' ||
+            property === 'programName' ||
+            property === 'programId' ||
+            property === 'insight'
+          ) {
+            throw new Error(`${String(property)} unavailable`);
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const result = readerAny.formatInstruction(
+      'solanamainnet',
+      hostileInstruction as unknown as Record<string, unknown>,
+    );
+
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Unknown ([invalid program id])',
+      type: 'Unknown',
+      insight: 'Unknown instruction',
+    });
+  });
+
+  it('formats known instructions when instruction data getter throws', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const hostileInstruction = new Proxy(
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'Mailbox',
+        instructionType:
+          SealevelMailboxInstructionName[
+            SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
+          ],
+        accounts: [],
+        warnings: [],
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'data') {
+            throw new Error('data unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const result = readerAny.formatInstruction(
+      'solanamainnet',
+      hostileInstruction as unknown as Record<string, unknown>,
+    );
+
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Mailbox (11111111111111111111111111111111)',
+      type: SealevelMailboxInstructionName[
+        SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
+      ],
+      insight:
+        SealevelMailboxInstructionName[
+          SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
+        ] + ' instruction',
+      args: { module: null },
+    });
+  });
+
   it('handles throwing warp router alias access while formatting single-router instructions', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
