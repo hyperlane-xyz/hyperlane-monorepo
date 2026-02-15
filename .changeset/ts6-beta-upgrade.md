@@ -419,3 +419,5 @@ Regression coverage also now confirms quoted object-tag object placeholder outpu
 Regression coverage also now confirms json-escaped quoted object-tag object placeholder outputs from `String(error)` (for example `\"[object Object]\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
 
 Regression coverage also now confirms json-escaped single-quoted object-tag object placeholder outputs from `String(error)` (for example `\'[object Object]\'`) are treated as non-informative and continue through to `Object.prototype.toString`.
+
+Regression coverage also now confirms json-escaped mixed-quoted object-tag object placeholder outputs from `String(error)` (for example `\"'[object Object]'\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
