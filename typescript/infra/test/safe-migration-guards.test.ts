@@ -775,6 +775,20 @@ describe('Safe migration guards', () => {
     expect(references).to.deep.equal([{ symbol: 'getSafe', isTypeOnly: true }]);
   });
 
+  it('tracks mixed value and type named export specifiers', () => {
+    const source =
+      "export { type ParseableSafeTx, getSafe } from './fixtures/guard-module.js';";
+    const references = extractNamedExportSymbolReferences(
+      source,
+      './fixtures/guard-module.js',
+      'fixture.ts',
+    );
+    expect(references).to.deep.equal([
+      { symbol: 'ParseableSafeTx', isTypeOnly: true },
+      { symbol: 'getSafe', isTypeOnly: false },
+    ]);
+  });
+
   it('ignores type-only wildcard module re-exports for fallback symbols', () => {
     const source = "export type * from './fixtures/guard-module.js';";
     const symbols = extractNamedExportSymbols(
