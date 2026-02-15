@@ -155,8 +155,18 @@ describe('Safe migration guards', () => {
         const importAndExportMatches = contents.matchAll(
           /(?:import|export)\s+(?:type\s+)?{([^}]*)}\s*from\s*['"]([^'"]+)['"]/g,
         );
+        const requireDestructureMatches = contents.matchAll(
+          /(?:const|let|var)\s*{([^}]*)}\s*=\s*require\(\s*['"]([^'"]+)['"]\s*\)/g,
+        );
+        const dynamicImportDestructureMatches = contents.matchAll(
+          /(?:const|let|var)\s*{([^}]*)}\s*=\s*(?:await\s+)?import\(\s*['"]([^'"]+)['"]\s*\)/g,
+        );
 
-        for (const [, imported, source] of importAndExportMatches) {
+        for (const [, imported, source] of [
+          ...importAndExportMatches,
+          ...requireDestructureMatches,
+          ...dynamicImportDestructureMatches,
+        ]) {
           const importedSymbols = imported
             .split(',')
             .map((s) => s.trim().replace(/\s+as\s+\w+$/, ''));
