@@ -195,7 +195,7 @@ describe('squads sdk migration regression', () => {
   it('keeps non-executable squads script allowlist synchronized with scripts/squads', () => {
     const configuredNonExecutableSquadsScripts =
       NON_EXECUTABLE_SQUADS_SCRIPT_FILES.map((fileName) =>
-        path.join('scripts/squads', fileName),
+        path.posix.join('scripts/squads', fileName),
       ).sort();
     const discoveredSquadsScripts = listSquadsDirectoryScripts(INFRA_ROOT);
     const discoveredNonExecutableSquadsScripts = discoveredSquadsScripts.filter(

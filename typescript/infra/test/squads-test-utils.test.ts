@@ -47,6 +47,7 @@ describe('squads test utils', () => {
     ).sort();
     expect(squadsScripts).to.deep.equal(configuredSquadsScripts);
     for (const scriptPath of squadsScripts) {
+      expect(scriptPath.includes('\\')).to.equal(false);
       expect(
         SQUADS_SCRIPT_FILE_EXTENSIONS.some((extension) =>
           scriptPath.endsWith(extension),
@@ -78,6 +79,9 @@ describe('squads test utils', () => {
       ),
       'Expected squads-directory executable helper list to remain scoped to scripts/squads',
     ).to.equal(false);
+    expect(executableScripts.some((scriptPath) => scriptPath.includes('\\'))).to.equal(
+      false,
+    );
   });
 
   it('returns fresh executable squads script arrays per call', () => {

@@ -17,7 +17,7 @@ export function listSquadsDirectoryScripts(infraRoot: string): string[] {
           entry.name.endsWith(extension),
         ),
     )
-    .map((entry) => path.join('scripts/squads', entry.name))
+    .map((entry) => path.posix.join('scripts/squads', entry.name))
     .sort();
 }
 
