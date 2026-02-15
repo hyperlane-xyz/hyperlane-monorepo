@@ -156,6 +156,15 @@ describe('squads test constants', () => {
     expect(
       isNormalizedGuardedScriptPath('scripts/squads/../cli-helpers.ts'),
     ).to.equal(false);
+    expect(
+      isNormalizedGuardedScriptPath('scripts/squads/cli-helpers.ts '),
+    ).to.equal(false);
+    expect(
+      isNormalizedGuardedScriptPath(' scripts/squads/cli-helpers.ts'),
+    ).to.equal(false);
+    expect(
+      isNormalizedGuardedScriptPath('scripts/squads/cli helpers.ts'),
+    ).to.equal(false);
   });
 
   it('keeps exactly one squads-adjacent non-squads script path', () => {

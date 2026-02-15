@@ -30,6 +30,8 @@ export function isGuardedSquadsScriptPath(scriptPath: string): boolean {
 
 export function isNormalizedGuardedScriptPath(scriptPath: string): boolean {
   return (
+    scriptPath === scriptPath.trim() &&
+    !/\s/.test(scriptPath) &&
     scriptPath.startsWith('scripts/') &&
     !scriptPath.startsWith('/') &&
     !scriptPath.includes('\\') &&
