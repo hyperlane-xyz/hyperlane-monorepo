@@ -78,6 +78,51 @@ function assertCanonicalCliCommandShape(
   ).to.equal(false);
 }
 
+function assertSdkSquadsTestTokenShape(
+  token: string,
+  tokenLabel: string,
+): void {
+  expect(
+    token.startsWith('src/'),
+    `Expected ${tokenLabel} to start with src/: ${token}`,
+  ).to.equal(true);
+  expect(
+    token.startsWith('test/'),
+    `Expected ${tokenLabel} to avoid test/ prefix: ${token}`,
+  ).to.equal(false);
+  expect(
+    token.startsWith('/'),
+    `Expected ${tokenLabel} to be relative: ${token}`,
+  ).to.equal(false);
+  expect(
+    token.includes('..'),
+    `Expected ${tokenLabel} to avoid parent traversal: ${token}`,
+  ).to.equal(false);
+  expect(
+    token.includes('\\'),
+    `Expected ${tokenLabel} to avoid backslash separators: ${token}`,
+  ).to.equal(false);
+  expect(token, `Expected ${tokenLabel} to be trimmed: ${token}`).to.equal(
+    token.trim(),
+  );
+  expect(
+    /\s/.test(token),
+    `Expected ${tokenLabel} to avoid whitespace characters: ${token}`,
+  ).to.equal(false);
+  expect(
+    token,
+    `Expected ${tokenLabel} to remain normalized: ${token}`,
+  ).to.equal(path.posix.normalize(token));
+  expect(
+    token.includes('/squads/'),
+    `Expected ${tokenLabel} to stay squads-scoped: ${token}`,
+  ).to.equal(true);
+  expect(
+    token.endsWith('.test.ts'),
+    `Expected ${tokenLabel} to stay test-file scoped: ${token}`,
+  ).to.equal(true);
+}
+
 describe('squads barrel exports', () => {
   it('keeps sdk squads test command constants normalized and scoped', () => {
     assertCanonicalCliCommandShape(
@@ -281,16 +326,10 @@ describe('squads barrel exports', () => {
     );
     expect(quotedTestTokens).to.deep.equal([SDK_SQUADS_TEST_GLOB]);
     for (const quotedTestToken of quotedTestTokens) {
-      expect(quotedTestToken.startsWith('src/')).to.equal(true);
-      expect(quotedTestToken.startsWith('test/')).to.equal(false);
-      expect(quotedTestToken.startsWith('/')).to.equal(false);
-      expect(quotedTestToken.includes('..')).to.equal(false);
-      expect(quotedTestToken.includes('\\')).to.equal(false);
-      expect(quotedTestToken).to.equal(quotedTestToken.trim());
-      expect(/\s/.test(quotedTestToken)).to.equal(false);
-      expect(quotedTestToken).to.equal(path.posix.normalize(quotedTestToken));
-      expect(quotedTestToken.includes('/squads/')).to.equal(true);
-      expect(quotedTestToken.endsWith('.test.ts')).to.equal(true);
+      assertSdkSquadsTestTokenShape(
+        quotedTestToken,
+        'quoted sdk squads test token',
+      );
     }
     expect(
       countOccurrences(
