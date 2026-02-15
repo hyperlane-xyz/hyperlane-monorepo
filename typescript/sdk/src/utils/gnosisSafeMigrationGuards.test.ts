@@ -28,6 +28,14 @@ function extractNamedExportSymbols(
     .map((s) => s.replace(/\s+as\s+\w+$/, ''));
 }
 
+function extractTopLevelDeclarationExports(sourceText: string): string[] {
+  return [
+    ...sourceText.matchAll(
+      /^export\s+(?:async\s+)?(?:type\s+)?(?:const|function|enum|interface|class|type)\s+([A-Za-z0-9_]+)/gm,
+    ),
+  ].map(([, symbol]) => symbol);
+}
+
 function expectNoRipgrepMatches(pattern: string, description: string): void {
   try {
     const output = execFileSync('rg', [pattern, 'src', '--glob', '*.ts'], {
@@ -55,7 +63,12 @@ describe('Gnosis Safe migration guards', () => {
 
   it('keeps gnosis safe helpers exported from sdk index', () => {
     const indexPath = path.resolve(process.cwd(), 'src/index.ts');
+    const gnosisSafePath = path.resolve(
+      process.cwd(),
+      'src/utils/gnosisSafe.ts',
+    );
     const indexText = fs.readFileSync(indexPath, 'utf8');
+    const gnosisSafeText = fs.readFileSync(gnosisSafePath, 'utf8');
     const gnosisSafeExports = extractNamedExportSymbols(
       indexText,
       './utils/gnosisSafe.js',
@@ -111,5 +124,14 @@ describe('Gnosis Safe migration guards', () => {
         `Expected sdk index gnosisSafe export list to include ${exportedSymbol}`,
       ).to.equal(true);
     }
+
+    const moduleExports = extractTopLevelDeclarationExports(gnosisSafeText);
+    const missingExports = moduleExports.filter(
+      (symbol) => !gnosisSafeExports.includes(symbol),
+    );
+    expect(
+      missingExports,
+      'Expected sdk index to re-export all top-level gnosisSafe module exports',
+    ).to.deep.equal([]);
   });
 });
