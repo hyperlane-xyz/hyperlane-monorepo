@@ -379,3 +379,5 @@ Mixed-case bracketed placeholder variants (for example `[oBjEcT]` and `[aRrAy]`)
 When `JSON.stringify` and `inspect` are both non-informative, `getErrorMessage` now also considers `String(error)` before `Object.prototype.toString`, while still treating placeholder-like string outputs as non-informative.
 
 `String(error)` fallback handling also treats bare `":"` outputs (from hostile `Error` wrappers with inaccessible name/message fields) as non-informative so diagnostics can continue to `Object.prototype.toString`.
+
+Regression coverage also now confirms mixed-quoted placeholder outputs from `String(error)` are treated as non-informative and do not block `Object.prototype.toString` fallback behavior.
