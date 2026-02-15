@@ -66,6 +66,10 @@ function normalizeNamedSymbol(symbol: string): string {
     .trim();
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function expectNoRipgrepMatches(
   pattern: string,
   description: string,
@@ -94,29 +98,13 @@ function extractNamedExportSymbols(
   sourceText: string,
   modulePath: string,
 ): string[] {
-  const fromNeedles = [`from '${modulePath}';`, `from "${modulePath}";`];
-  const fromIndex = fromNeedles
-    .map((needle) => sourceText.indexOf(needle))
-    .find((index) => index >= 0);
-  if (fromIndex === undefined) return [];
-
-  const exportStartIndex = Math.max(
-    sourceText.lastIndexOf('export {', fromIndex),
-    sourceText.lastIndexOf('export type {', fromIndex),
+  const exportClausePattern = new RegExp(
+    `export(?:\\s+type)?\\s*\\{([^}]*)\\}\\s*from\\s*['"]${escapeRegExp(modulePath)}['"]\\s*;`,
+    'g',
   );
-  if (exportStartIndex < 0) return [];
-
-  const exportPrefixLength = sourceText.startsWith(
-    'export type {',
-    exportStartIndex,
-  )
-    ? 'export type {'.length
-    : 'export {'.length;
-  const exportedBlock = sourceText.slice(
-    exportStartIndex + exportPrefixLength,
-    fromIndex,
+  return [...sourceText.matchAll(exportClausePattern)].flatMap((match) =>
+    match[1].split(',').map(normalizeNamedSymbol).filter(Boolean),
   );
-  return exportedBlock.split(',').map(normalizeNamedSymbol).filter(Boolean);
 }
 
 function getSdkGnosisSafeExports(): string[] {
