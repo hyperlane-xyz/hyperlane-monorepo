@@ -885,6 +885,42 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps sdk squads source-path constants isolated from caller mutation', () => {
+    const baselineBarrelExportedPaths = [
+      ...EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS,
+    ];
+    const callerMutatedBarrelExportedPaths = [
+      ...EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS,
+    ];
+    callerMutatedBarrelExportedPaths.pop();
+    const subsequentBarrelExportedPaths = [
+      ...EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS,
+    ];
+    expect(callerMutatedBarrelExportedPaths).to.not.deep.equal(
+      baselineBarrelExportedPaths,
+    );
+    expect(subsequentBarrelExportedPaths).to.deep.equal(
+      baselineBarrelExportedPaths,
+    );
+
+    const baselineInternalSourcePaths = [
+      ...EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS,
+    ];
+    const callerMutatedInternalSourcePaths = [
+      ...EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS,
+    ];
+    callerMutatedInternalSourcePaths.pop();
+    const subsequentInternalSourcePaths = [
+      ...EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS,
+    ];
+    expect(callerMutatedInternalSourcePaths).to.not.deep.equal(
+      baselineInternalSourcePaths,
+    );
+    expect(subsequentInternalSourcePaths).to.deep.equal(
+      baselineInternalSourcePaths,
+    );
+  });
+
   it('keeps recursive sdk squads discovery helpers isolated from caller mutation', () => {
     assertPathSnapshotIsolation(
       listSdkSquadsTestFilePaths,
