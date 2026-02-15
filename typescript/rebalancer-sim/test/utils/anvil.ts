@@ -89,6 +89,37 @@ const getTrimmedNonEmptyString = (value: unknown): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
+const getEscapedQuoteWrapperLength = (value: string): number | undefined => {
+  let leadingEscapeCount = 0;
+  while (
+    leadingEscapeCount < value.length &&
+    value.charAt(leadingEscapeCount) === '\\'
+  ) {
+    leadingEscapeCount += 1;
+  }
+  if (leadingEscapeCount === 0) return undefined;
+
+  const openingQuote = value.charAt(leadingEscapeCount);
+  if (openingQuote !== '"' && openingQuote !== "'") return undefined;
+
+  if (value.charAt(value.length - 1) !== openingQuote) return undefined;
+
+  let trailingEscapeCount = 0;
+  let trailingIndex = value.length - 2;
+  while (trailingIndex >= 0 && value.charAt(trailingIndex) === '\\') {
+    trailingEscapeCount += 1;
+    trailingIndex -= 1;
+  }
+  if (trailingEscapeCount !== leadingEscapeCount) return undefined;
+
+  const closingQuoteIndex = value.length - 1;
+  if (closingQuoteIndex - trailingEscapeCount <= leadingEscapeCount) {
+    return undefined;
+  }
+
+  return leadingEscapeCount + 1;
+};
+
 const normalizeStructuredPlaceholderCandidate = (
   value: unknown,
 ): string | undefined => {
@@ -96,25 +127,21 @@ const normalizeStructuredPlaceholderCandidate = (
   if (!normalizedValue) return undefined;
 
   while (normalizedValue.length >= 2) {
-    const hasEscapedDoubleQuoteWrapper =
-      normalizedValue.startsWith('\\"') && normalizedValue.endsWith('\\"');
-    const hasEscapedSingleQuoteWrapper =
-      normalizedValue.startsWith("\\'") && normalizedValue.endsWith("\\'");
+    const escapedQuoteWrapperLength =
+      getEscapedQuoteWrapperLength(normalizedValue);
     const hasDoubleQuoteWrapper =
       normalizedValue.startsWith('"') && normalizedValue.endsWith('"');
     const hasSingleQuoteWrapper =
       normalizedValue.startsWith("'") && normalizedValue.endsWith("'");
     if (
-      !hasEscapedDoubleQuoteWrapper &&
-      !hasEscapedSingleQuoteWrapper &&
+      escapedQuoteWrapperLength === undefined &&
       !hasDoubleQuoteWrapper &&
       !hasSingleQuoteWrapper
     ) {
       break;
     }
 
-    const wrapperLength =
-      hasEscapedDoubleQuoteWrapper || hasEscapedSingleQuoteWrapper ? 2 : 1;
+    const wrapperLength = escapedQuoteWrapperLength ?? 1;
 
     const unwrappedValue = getTrimmedNonEmptyString(
       normalizedValue.slice(wrapperLength, -wrapperLength),
