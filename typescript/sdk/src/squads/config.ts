@@ -56,6 +56,7 @@ export type SquadsChainName = keyof typeof squadsConfigs;
 const SQUADS_CHAINS = Object.freeze(
   Object.keys(squadsConfigs),
 ) as readonly SquadsChainName[];
+const SQUADS_CHAINS_DISPLAY_LIST = SQUADS_CHAINS.join(', ');
 
 export function getSquadsChains(): SquadsChainName[] {
   return [...SQUADS_CHAINS];
@@ -154,7 +155,7 @@ function formatUniqueChainNamesForDisplay(chains: readonly string[]): string[] {
 
 export function getUnsupportedSquadsChainsErrorMessage(
   nonSquadsChains: readonly unknown[],
-  configuredSquadsChains: readonly unknown[] = getSquadsChains(),
+  configuredSquadsChains: readonly unknown[] = SQUADS_CHAINS,
 ): string {
   const normalizedNonSquadsChains = normalizeChainListValues(
     nonSquadsChains,
@@ -218,7 +219,7 @@ export function assertIsSquadsChain(
   if (isSquadsChain(chainName)) return;
 
   throw new Error(
-    `Squads config not found on chain ${chainName}. Available Squads chains: ${getSquadsChains().join(', ')}`,
+    `Squads config not found on chain ${chainName}. Available Squads chains: ${SQUADS_CHAINS_DISPLAY_LIST}`,
   );
 }
 
