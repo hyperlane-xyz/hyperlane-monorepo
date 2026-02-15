@@ -92,6 +92,21 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps sdk root index with a single squads export statement', () => {
+    const rootIndexSource = fs.readFileSync(SDK_ROOT_INDEX_PATH, 'utf8');
+    const squadsExportStatements = rootIndexSource
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(
+        (line) =>
+          line.startsWith('export') && line.includes("from './squads/"),
+      );
+
+    expect(squadsExportStatements).to.deep.equal([
+      "export * from './squads/index.js';",
+    ]);
+  });
+
   it('keeps expected squads submodule exports in squads barrel source', () => {
     const squadsBarrelSource = fs.readFileSync(SQUADS_BARREL_INDEX_PATH, 'utf8');
     const expectedSubmoduleExportStatements = [
