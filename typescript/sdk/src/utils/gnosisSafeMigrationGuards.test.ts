@@ -30,29 +30,91 @@ function normalizeNamedSymbol(symbol: string): string {
     .trim();
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function hasExportModifier(node: ts.Node): boolean {
+  if (!ts.canHaveModifiers(node)) return false;
+  const modifiers = ts.getModifiers(node);
+  return !!modifiers?.some(
+    (modifier: ts.Modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+  );
 }
 
 function extractNamedExportSymbols(
   sourceText: string,
   modulePath: string,
+  filePath: string,
 ): string[] {
-  const exportClausePattern = new RegExp(
-    `export(?:\\s+type)?\\s*\\{([^}]*)\\}\\s*from\\s*['"]${escapeRegExp(modulePath)}['"]\\s*;`,
-    'g',
+  const symbols: string[] = [];
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
   );
-  return [...sourceText.matchAll(exportClausePattern)].flatMap((match) =>
-    match[1].split(',').map(normalizeNamedSymbol).filter(Boolean),
-  );
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      node.moduleSpecifier.text === modulePath &&
+      node.exportClause &&
+      ts.isNamedExports(node.exportClause)
+    ) {
+      for (const exportSpecifier of node.exportClause.elements) {
+        symbols.push(
+          normalizeNamedSymbol(
+            exportSpecifier.propertyName?.text ?? exportSpecifier.name.text,
+          ),
+        );
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return symbols.filter(Boolean);
 }
 
-function extractTopLevelDeclarationExports(sourceText: string): string[] {
-  return [
-    ...sourceText.matchAll(
-      /^export\s+(?:async\s+)?(?:type\s+)?(?:const|function|enum|interface|class|type)\s+([A-Za-z0-9_]+)/gm,
-    ),
-  ].map(([, symbol]) => symbol);
+function extractTopLevelDeclarationExports(
+  sourceText: string,
+  filePath: string,
+): string[] {
+  const symbols: string[] = [];
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
+  );
+
+  for (const statement of sourceFile.statements) {
+    if (!hasExportModifier(statement)) continue;
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      symbols.push(statement.name.text);
+      continue;
+    }
+    if (
+      (ts.isClassDeclaration(statement) ||
+        ts.isInterfaceDeclaration(statement) ||
+        ts.isTypeAliasDeclaration(statement) ||
+        ts.isEnumDeclaration(statement)) &&
+      statement.name
+    ) {
+      symbols.push(statement.name.text);
+      continue;
+    }
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name)) {
+          symbols.push(declaration.name.text);
+        }
+      }
+    }
+  }
+
+  return symbols.map(normalizeNamedSymbol).filter(Boolean);
 }
 
 function getScriptKind(filePath: string): ts.ScriptKind {
@@ -232,6 +294,7 @@ describe('Gnosis Safe migration guards', () => {
     const gnosisSafeExports = extractNamedExportSymbols(
       indexText,
       './utils/gnosisSafe.js',
+      indexPath,
     );
     expect(gnosisSafeExports.length).to.be.greaterThan(
       0,
@@ -285,7 +348,10 @@ describe('Gnosis Safe migration guards', () => {
       ).to.equal(true);
     }
 
-    const moduleExports = extractTopLevelDeclarationExports(gnosisSafeText);
+    const moduleExports = extractTopLevelDeclarationExports(
+      gnosisSafeText,
+      gnosisSafePath,
+    );
     const missingExports = moduleExports.filter(
       (symbol) => !gnosisSafeExports.includes(symbol),
     );
