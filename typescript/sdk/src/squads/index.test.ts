@@ -40,8 +40,21 @@ const SDK_PACKAGE_JSON_PATH = path.resolve(
   '..',
   'package.json',
 );
+const SDK_SQUADS_TEST_COMMAND_PREFIX = 'mocha --config .mocharc.json';
+const SDK_SQUADS_TEST_GLOB = 'src/squads/*.test.ts';
+const EXPECTED_SDK_SQUADS_TEST_SCRIPT = `${SDK_SQUADS_TEST_COMMAND_PREFIX} '${SDK_SQUADS_TEST_GLOB}'`;
+const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function countOccurrences(haystack: string, needle: string): number {
+  if (needle.length === 0) {
+    return 0;
+  }
   return haystack.split(needle).length - 1;
+}
+
+function listSingleQuotedTokens(command: string): readonly string[] {
+  return [...command.matchAll(SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN)].map(
+    (match) => match[1],
+  );
 }
 
 describe('squads barrel exports', () => {
@@ -194,8 +207,24 @@ describe('squads barrel exports', () => {
       undefined,
     );
     expect(sdkPackageJson.scripts?.['test:squads']).to.equal(
-      "mocha --config .mocharc.json 'src/squads/*.test.ts'",
+      EXPECTED_SDK_SQUADS_TEST_SCRIPT,
     );
+    expect(
+      EXPECTED_SDK_SQUADS_TEST_SCRIPT.startsWith(
+        `${SDK_SQUADS_TEST_COMMAND_PREFIX} `,
+      ),
+    ).to.equal(true);
+    expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('  ')).to.equal(false);
+    expect(/[\n\r\t]/.test(EXPECTED_SDK_SQUADS_TEST_SCRIPT)).to.equal(false);
+    expect(
+      listSingleQuotedTokens(EXPECTED_SDK_SQUADS_TEST_SCRIPT),
+    ).to.deep.equal([SDK_SQUADS_TEST_GLOB]);
+    expect(
+      countOccurrences(
+        EXPECTED_SDK_SQUADS_TEST_SCRIPT,
+        `'${SDK_SQUADS_TEST_GLOB}'`,
+      ),
+    ).to.equal(1);
     expect(sdkPackageJson.exports?.['.']).to.equal('./dist/index.js');
     expect(sdkPackageJson.exports?.['./squads']).to.equal(undefined);
     expect(sdkPackageJson.exports?.['./squads/*']).to.equal(undefined);
