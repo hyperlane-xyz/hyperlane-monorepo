@@ -373,3 +373,5 @@ JSON-escaped single-quoted placeholder payloads (for example `"'[object Object]'
 Lowercase bracketed placeholder variants (`[object]`, `[array]`) are now also covered across JSON/inspect fallback paths.
 
 Uppercase bracketed placeholder variants (`[OBJECT]`, `[ARRAY]`) are now also covered across JSON/inspect fallback paths.
+
+Mixed-case bracketed placeholder variants (for example `[oBjEcT]` and `[aRrAy]`) are now also covered across JSON/inspect fallback paths.
