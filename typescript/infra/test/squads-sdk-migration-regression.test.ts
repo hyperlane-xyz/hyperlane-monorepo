@@ -434,11 +434,20 @@ describe('squads sdk migration regression', () => {
       'Expected squads test command to avoid duplicate spaces',
     ).to.equal(false);
     expect(/[\n\r\t]/.test(EXPECTED_INFRA_SQUADS_TEST_SCRIPT)).to.equal(false);
+    expect(EXPECTED_INFRA_SQUADS_TEST_SCRIPT.includes("'")).to.equal(false);
+    expect(
+      countSubstringOccurrences(EXPECTED_INFRA_SQUADS_TEST_SCRIPT, '"'),
+    ).to.equal(SQUADS_REGRESSION_TEST_PATHS.length * 2);
+    expect(EXPECTED_INFRA_SQUADS_TEST_SCRIPT.includes('\\')).to.equal(false);
     const quotedScriptPaths = listQuotedScriptPaths(
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
     );
     expect(quotedScriptPaths).to.deep.equal([...SQUADS_REGRESSION_TEST_PATHS]);
     expect(new Set(quotedScriptPaths).size).to.equal(quotedScriptPaths.length);
+    for (const quotedScriptPath of quotedScriptPaths) {
+      expect(quotedScriptPath.startsWith('test/squads-')).to.equal(true);
+      expect(quotedScriptPath.endsWith('.test.ts')).to.equal(true);
+    }
     for (const scriptPath of SQUADS_REGRESSION_TEST_PATHS) {
       const quotedScriptPath = `"${scriptPath}"`;
       expect(
