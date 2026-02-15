@@ -28,4 +28,4 @@ Error-message extraction and formatting paths were hardened to avoid crashes and
 
 `String(error)` and `Symbol.toPrimitive` placeholder handling was extensively normalized (including quoted, escaped, and case-variant placeholder forms) so non-informative outputs continue to structural fallbacks while informative outputs remain authoritative.
 
-Regression guard tests were added to assert descriptor-matrix parity across triple/json/double escaped `Symbol.toPrimitive` placeholder suites, preventing future drift in matcher and formatter coverage.
+Regression guard tests were added to assert descriptor-matrix parity and exact descriptor-set cardinality across triple/json/double escaped `Symbol.toPrimitive` placeholder suites, preventing future drift in matcher and formatter coverage.

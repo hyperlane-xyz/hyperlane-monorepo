@@ -25421,6 +25421,9 @@ describe('Anvil utils', () => {
       );
       const { triple, json, double } = splitByEscapeLevel(matcherDescriptors);
 
+      expect(triple.size).to.equal(40);
+      expect(json.size).to.equal(40);
+      expect(double.size).to.equal(40);
       expect(sortedDifference(triple, json)).to.deep.equal([]);
       expect(sortedDifference(json, triple)).to.deep.equal([]);
       expect(sortedDifference(triple, double)).to.deep.equal([]);
@@ -25435,6 +25438,9 @@ describe('Anvil utils', () => {
       );
       const { triple, json, double } = splitByEscapeLevel(formatterDescriptors);
 
+      expect(triple.size).to.equal(40);
+      expect(json.size).to.equal(40);
+      expect(double.size).to.equal(40);
       expect(sortedDifference(triple, json)).to.deep.equal([]);
       expect(sortedDifference(json, triple)).to.deep.equal([]);
       expect(sortedDifference(triple, double)).to.deep.equal([]);
