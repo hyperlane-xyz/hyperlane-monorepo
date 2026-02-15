@@ -209,6 +209,10 @@ function listQuotedScriptPaths(command: string): readonly string[] {
   );
 }
 
+function getQuotedInfraSquadsRegressionPaths(): readonly string[] {
+  return listQuotedScriptPaths(EXPECTED_INFRA_SQUADS_TEST_SCRIPT);
+}
+
 function countSubstringOccurrences(haystack: string, needle: string): number {
   if (needle.length === 0) {
     return 0;
@@ -512,9 +516,7 @@ describe('squads sdk migration regression', () => {
         INFRA_SQUADS_TEST_COMMAND_PREFIX,
       ),
     ).to.equal(1);
-    const quotedScriptPaths = listQuotedScriptPaths(
-      EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
-    );
+    const quotedScriptPaths = getQuotedInfraSquadsRegressionPaths();
     expect(quotedScriptPaths).to.deep.equal([...SQUADS_REGRESSION_TEST_PATHS]);
     expect(new Set(quotedScriptPaths).size).to.equal(quotedScriptPaths.length);
     for (const quotedScriptPath of quotedScriptPaths) {
@@ -540,12 +542,27 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps infra squads test command excluding support-module paths', () => {
-    const quotedScriptPaths = listQuotedScriptPaths(
-      EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
-    );
+    const quotedScriptPaths = getQuotedInfraSquadsRegressionPaths();
     for (const supportPath of SQUADS_TRACKED_TEST_SUPPORT_PATHS) {
       expect(quotedScriptPaths.includes(supportPath)).to.equal(false);
     }
+  });
+
+  it('keeps quoted infra squads regression command tokens isolated from caller mutation', () => {
+    const baselineQuotedScriptPaths = getQuotedInfraSquadsRegressionPaths();
+    const callerMutatedQuotedScriptPaths = [
+      ...getQuotedInfraSquadsRegressionPaths(),
+    ];
+    callerMutatedQuotedScriptPaths.pop();
+
+    const subsequentQuotedScriptPaths = getQuotedInfraSquadsRegressionPaths();
+    expect(callerMutatedQuotedScriptPaths).to.not.deep.equal(
+      baselineQuotedScriptPaths,
+    );
+    expect(subsequentQuotedScriptPaths).to.deep.equal(
+      baselineQuotedScriptPaths,
+    );
+    expect(subsequentQuotedScriptPaths).to.not.equal(baselineQuotedScriptPaths);
   });
 
   it('keeps infra package explicitly depending on sdk squads surface', () => {
