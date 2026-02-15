@@ -105,6 +105,15 @@ describe('squads scripts --help smoke', function () {
     );
   });
 
+  it('keeps help smoke case ordering aligned with executable script constants', () => {
+    const configuredScriptPaths = SQUADS_SCRIPT_HELP_CASES.map(
+      ({ scriptPath }) => scriptPath,
+    );
+    expect(configuredScriptPaths).to.deep.equal([
+      ...EXECUTABLE_SQUADS_SCRIPT_PATHS,
+    ]);
+  });
+
   for (const { scriptPath, expectedOutput } of SQUADS_SCRIPT_HELP_CASES) {
     it(`prints help for ${scriptPath}`, () => {
       const result = runScriptHelp(scriptPath);
