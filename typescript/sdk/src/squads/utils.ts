@@ -2197,8 +2197,13 @@ async function getRecentBlockhashForProposalBuild(
     typeof blockhashValue === 'string' && blockhashValue.trim().length > 0,
     `Malformed latest blockhash value for ${chain}: expected non-empty string, got ${getUnknownValueTypeName(blockhashValue)}`,
   );
+  const normalizedBlockhash = blockhashValue.trim();
+  assert(
+    !isGenericObjectStringifiedValue(normalizedBlockhash),
+    `Malformed latest blockhash value for ${chain}: expected meaningful string, got generic object label`,
+  );
 
-  return blockhashValue.trim();
+  return normalizedBlockhash;
 }
 
 function createVaultTransactionInstruction(

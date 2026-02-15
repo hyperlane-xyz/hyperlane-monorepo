@@ -5688,6 +5688,52 @@ describe('squads utils', () => {
       }
     });
 
+    it('throws stable error when latest blockhash value is a generic object label during proposal build', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+        const mpp = {
+          getSolanaWeb3Provider: () => ({
+            getAccountInfo: async () => ({
+              owner: getSquadsKeys('solanamainnet').programId,
+            }),
+            getLatestBlockhash: async () => ({
+              blockhash: '[object Object]',
+            }),
+          }),
+        };
+
+        const thrownError = await captureAsyncError(() =>
+          buildSquadsVaultTransactionProposal(
+            'solanamainnet',
+            mpp,
+            [],
+            PublicKey.default,
+          ),
+        );
+
+        expect(thrownError?.message).to.equal(
+          'Malformed latest blockhash value for solanamainnet: expected meaningful string, got generic object label',
+        );
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
+
     it('continues proposal build when multisig owner comparison throws', async () => {
       const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
       try {
