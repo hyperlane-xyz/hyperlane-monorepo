@@ -27,8 +27,9 @@ describe('Environment', () => {
   for (const env of [environments.testnet4, environments.mainnet3]) {
     describe(`Core config for ${env.environment}`, () => {
       it('should generate core config for all supported chains', async () => {
-        const { core, supportedChainNames, getMultiProvider } = env;
-        const multiProvider = await getMultiProvider();
+        const { core, supportedChainNames, getRegistry } = env;
+        // Use public registry metadata in tests to avoid requiring secrets/credentials.
+        const registry = await getRegistry(false, supportedChainNames);
 
         const ethereumCoreConfigs = objFilter(
           core,
@@ -42,7 +43,8 @@ describe('Environment', () => {
           }
 
           const defaultIsm = core[chain].defaultIsm;
-          const chainMetadata = multiProvider.getChainMetadata(chain);
+          const chainMetadata = await registry.getChainMetadata(chain);
+          assert(chainMetadata, `Missing chain metadata for ${chain}`);
 
           // Verify the default ISM is not a string
           assert(
