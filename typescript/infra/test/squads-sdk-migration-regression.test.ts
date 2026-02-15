@@ -259,6 +259,9 @@ describe('squads sdk migration regression', () => {
     expect(Object.isFrozen(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS)).to.equal(
       true,
     );
+    expect(Object.isFrozen(SQUADS_REGRESSION_TEST_PATHS)).to.equal(true);
+    expect(Object.isFrozen(SQUADS_TRACKED_TEST_SUPPORT_PATHS)).to.equal(true);
+    expect(Object.isFrozen(SQUADS_TRACKED_TEST_ASSET_PATHS)).to.equal(true);
   });
 
   it('keeps tracked-source extension policy deduplicated and squads-compatible', () => {
