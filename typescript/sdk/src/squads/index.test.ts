@@ -138,6 +138,23 @@ function assertSdkSquadsTokenPathSetNormalizedAndDeduplicated(
   }
 }
 
+function assertSdkQuotedCommandTokenSet(
+  tokenPaths: readonly string[],
+  tokenSetLabel: string,
+): void {
+  expect(tokenPaths).to.deep.equal([...SDK_SQUADS_TEST_TOKEN_PATHS]);
+  assertSdkSquadsTokenPathSetNormalizedAndDeduplicated(
+    tokenPaths,
+    tokenSetLabel,
+  );
+  for (const tokenPath of tokenPaths) {
+    expect(
+      countOccurrences(EXPECTED_SDK_SQUADS_TEST_SCRIPT, `'${tokenPath}'`),
+      `Expected ${tokenSetLabel} token path to appear exactly once in command: ${tokenPath}`,
+    ).to.equal(1);
+  }
+}
+
 describe('squads barrel exports', () => {
   it('keeps sdk squads test command constants normalized and scoped', () => {
     assertCanonicalCliCommandShape(
@@ -322,7 +339,9 @@ describe('squads barrel exports', () => {
       ),
     ).to.equal(true);
     expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('"')).to.equal(false);
-    expect(countOccurrences(EXPECTED_SDK_SQUADS_TEST_SCRIPT, "'")).to.equal(2);
+    expect(countOccurrences(EXPECTED_SDK_SQUADS_TEST_SCRIPT, "'")).to.equal(
+      SDK_SQUADS_TEST_TOKEN_PATHS.length * 2,
+    );
     expect(
       countOccurrences(
         EXPECTED_SDK_SQUADS_TEST_SCRIPT,
@@ -333,19 +352,10 @@ describe('squads barrel exports', () => {
       EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('typescript/infra'),
     ).to.equal(false);
     const quotedTestTokens = getQuotedSdkSquadsTestTokens();
-    expect(quotedTestTokens).to.deep.equal([...SDK_SQUADS_TEST_TOKEN_PATHS]);
-    assertSdkSquadsTokenPathSetNormalizedAndDeduplicated(
+    assertSdkQuotedCommandTokenSet(
       quotedTestTokens,
       'quoted sdk squads test command',
     );
-    for (const quotedTestToken of quotedTestTokens) {
-      expect(
-        countOccurrences(
-          EXPECTED_SDK_SQUADS_TEST_SCRIPT,
-          `'${quotedTestToken}'`,
-        ),
-      ).to.equal(1);
-    }
     expect(sdkPackageJson.exports?.['.']).to.equal('./dist/index.js');
     expect(sdkPackageJson.exports?.['./squads']).to.equal(undefined);
     expect(sdkPackageJson.exports?.['./squads/*']).to.equal(undefined);
@@ -358,11 +368,19 @@ describe('squads barrel exports', () => {
 
   it('keeps quoted sdk squads command tokens isolated from caller mutation', () => {
     const baselineQuotedTokens = getQuotedSdkSquadsTestTokens();
+    assertSdkQuotedCommandTokenSet(
+      baselineQuotedTokens,
+      'baseline quoted sdk squads command',
+    );
     const callerMutatedQuotedTokens = [...getQuotedSdkSquadsTestTokens()];
     callerMutatedQuotedTokens.pop();
 
     const subsequentQuotedTokens = getQuotedSdkSquadsTestTokens();
     expect(callerMutatedQuotedTokens).to.not.deep.equal(baselineQuotedTokens);
+    assertSdkQuotedCommandTokenSet(
+      subsequentQuotedTokens,
+      'subsequent quoted sdk squads command',
+    );
     expect(subsequentQuotedTokens).to.deep.equal(baselineQuotedTokens);
     expect(subsequentQuotedTokens).to.not.equal(baselineQuotedTokens);
   });
