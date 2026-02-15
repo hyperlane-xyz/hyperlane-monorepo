@@ -58,6 +58,33 @@ function listSingleQuotedTokens(command: string): readonly string[] {
 }
 
 describe('squads barrel exports', () => {
+  it('keeps sdk squads test command constants normalized and scoped', () => {
+    expect(SDK_SQUADS_TEST_COMMAND_PREFIX).to.equal(
+      SDK_SQUADS_TEST_COMMAND_PREFIX.trim(),
+    );
+    expect(
+      SDK_SQUADS_TEST_COMMAND_PREFIX.startsWith('mocha --config '),
+    ).to.equal(true);
+    expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes('.mocharc.json')).to.equal(
+      true,
+    );
+    expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes('  ')).to.equal(false);
+    expect(SDK_SQUADS_TEST_COMMAND_PREFIX.endsWith(' ')).to.equal(false);
+    expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes('"')).to.equal(false);
+    expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes("'")).to.equal(false);
+    expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes('\\')).to.equal(false);
+
+    expect(SDK_SQUADS_TEST_GLOB).to.equal(SDK_SQUADS_TEST_GLOB.trim());
+    expect(SDK_SQUADS_TEST_GLOB.startsWith('src/squads/')).to.equal(true);
+    expect(SDK_SQUADS_TEST_GLOB.endsWith('.test.ts')).to.equal(true);
+    expect(SDK_SQUADS_TEST_GLOB.includes('..')).to.equal(false);
+    expect(SDK_SQUADS_TEST_GLOB.includes('\\')).to.equal(false);
+    expect(/\s/.test(SDK_SQUADS_TEST_GLOB)).to.equal(false);
+    expect(SDK_SQUADS_TEST_GLOB).to.equal(
+      path.posix.normalize(SDK_SQUADS_TEST_GLOB),
+    );
+  });
+
   it('re-exports squads config/constants', () => {
     expect(squadsConfigs).to.equal(directSquadsConfigs);
     expect(getSquadsChains).to.equal(directGetSquadsChains);
