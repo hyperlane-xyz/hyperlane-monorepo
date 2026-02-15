@@ -209,6 +209,13 @@ function listQuotedScriptPaths(command: string): readonly string[] {
   );
 }
 
+function countSubstringOccurrences(haystack: string, needle: string): number {
+  if (needle.length === 0) {
+    return 0;
+  }
+  return haystack.split(needle).length - 1;
+}
+
 function assertTrackedSourcePathSetNormalizedAndDeduplicated(
   paths: readonly string[],
   pathSetLabel: string,
@@ -419,11 +426,22 @@ describe('squads sdk migration regression', () => {
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT.includes('  '),
       'Expected squads test command to avoid duplicate spaces',
     ).to.equal(false);
+    expect(/[\n\r\t]/.test(EXPECTED_INFRA_SQUADS_TEST_SCRIPT)).to.equal(false);
     const quotedScriptPaths = listQuotedScriptPaths(
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
     );
     expect(quotedScriptPaths).to.deep.equal([...SQUADS_REGRESSION_TEST_PATHS]);
     expect(new Set(quotedScriptPaths).size).to.equal(quotedScriptPaths.length);
+    for (const scriptPath of SQUADS_REGRESSION_TEST_PATHS) {
+      const quotedScriptPath = `"${scriptPath}"`;
+      expect(
+        countSubstringOccurrences(
+          EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
+          quotedScriptPath,
+        ),
+        `Expected squads test command to include quoted regression path exactly once: ${scriptPath}`,
+      ).to.equal(1);
+    }
     assertTrackedSourcePathSetNormalizedAndDeduplicated(
       quotedScriptPaths,
       'quoted squads regression test command',
