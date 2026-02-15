@@ -2931,6 +2931,48 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('keeps switch-case type-alias declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'switch (1) {',
+      '  case 1:',
+      "    reqAlias('./fixtures/other-module.js').default;",
+      '    type reqAlias = (_value: unknown) => unknown;',
+      '    break;',
+      '  default:',
+      '    break;',
+      '}',
+      "const postCaseDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps switch-case interface declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'switch (1) {',
+      '  case 1:',
+      "    reqAlias('./fixtures/other-module.js').default;",
+      '    interface reqAlias {',
+      '      value: string;',
+      '    }',
+      '    break;',
+      '  default:',
+      '    break;',
+      '}',
+      "const postCaseDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak hoisted switch-case function alias shadowing to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -3011,6 +3053,50 @@ describe('Safe migration guards', () => {
     );
     expect(references).to.include('default@./fixtures/guard-module.js');
     expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps switch-case type-alias declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'switch (1) {',
+      '  case 1:',
+      '    const preDeclarationSymbol = moduleAlias.inner;',
+      '    type moduleAlias = { inner: unknown };',
+      '    void preDeclarationSymbol;',
+      '    break;',
+      '  default:',
+      '    break;',
+      '}',
+      'const postCaseDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps switch-case interface declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'switch (1) {',
+      '  case 1:',
+      '    const preDeclarationSymbol = moduleAlias.inner;',
+      '    interface moduleAlias {',
+      '      inner: unknown;',
+      '    }',
+      '    void preDeclarationSymbol;',
+      '    break;',
+      '  default:',
+      '    break;',
+      '}',
+      'const postCaseDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
   });
 
   it('does not leak hoisted switch-case function module-source alias shadowing to outer symbol sources', () => {
@@ -4880,6 +4966,58 @@ describe('Safe migration guards', () => {
       './fixtures/guard-module.js@fixture.ts',
     );
     expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps switch-case type-alias declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'switch (1) {',
+      '  case 1:',
+      "    reqAlias('./fixtures/other-module.js');",
+      '    type reqAlias = (_value: unknown) => unknown;',
+      '    break;',
+      '  default:',
+      '    break;',
+      '}',
+      "const postCaseCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps switch-case interface declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'switch (1) {',
+      '  case 1:',
+      "    reqAlias('./fixtures/other-module.js');",
+      '    interface reqAlias {',
+      '      value: string;',
+      '    }',
+      '    break;',
+      '  default:',
+      '    break;',
+      '}',
+      "const postCaseCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
       './fixtures/other-module.js@fixture.ts',
     );
   });
