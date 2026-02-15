@@ -1680,6 +1680,28 @@ export class SquadsTransactionReader {
     }
   }
 
+  private normalizeValidatorsForDisplay(
+    chain: SquadsChainName,
+    remoteDomainForDisplay: string,
+    validators: unknown,
+  ): string[] {
+    try {
+      const normalizedValidators = normalizeValidatorSet(validators);
+      if (!normalizedValidators) {
+        rootLogger.warn(
+          `Malformed validator display set for ${chain} domain ${remoteDomainForDisplay}: expected array of non-empty strings`,
+        );
+        return [];
+      }
+      return normalizedValidators;
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to normalize validator display set for ${chain} domain ${remoteDomainForDisplay}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return [];
+    }
+  }
+
   private formatInstruction(
     chain: SquadsChainName,
     inst: ParsedInstruction,
@@ -1700,12 +1722,17 @@ export class SquadsTransactionReader {
         const remoteDomainForDisplay = formatIntegerValidationValue(
           data.domain,
         );
+        const validatorsForDisplay = this.normalizeValidatorsForDisplay(
+          chain,
+          remoteDomainForDisplay,
+          data.validators,
+        );
         const remoteChain = this.tryResolveRemoteChainNameForDisplay(
           data.domain,
         );
         const validatorsWithAliases = remoteChain
-          ? formatValidatorsWithAliases(remoteChain, data.validators)
-          : data.validators;
+          ? formatValidatorsWithAliases(remoteChain, validatorsForDisplay)
+          : validatorsForDisplay;
 
         tx.args = {
           domain: data.domain,

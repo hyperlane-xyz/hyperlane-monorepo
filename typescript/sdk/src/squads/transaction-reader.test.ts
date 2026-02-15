@@ -2891,6 +2891,68 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('handles malformed validator display values while formatting validator instructions', () => {
+    let chainLookupCount = 0;
+    const mpp = {
+      tryGetChainName: () => {
+        chainLookupCount += 1;
+        return 'solanatestnet';
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+      resolveExpectedMultisigConfig: () => ({
+        solanatestnet: {
+          threshold: 2,
+          validators: ['validator-a'],
+        },
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const malformedValidators = new Proxy(['validator-a'], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error('validators unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'MultisigIsmMessageId',
+      instructionType:
+        SealevelMultisigIsmInstructionName[
+          SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+        ],
+      data: {
+        domain: 1000,
+        threshold: 2,
+        validators: malformedValidators as unknown as readonly string[],
+      },
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(chainLookupCount).to.equal(2);
+    expect(result.args).to.deep.equal({
+      domain: 1000,
+      threshold: 2,
+      validators: [],
+    });
+    expect(result.insight).to.equal(
+      '❌ fatal mismatch: Malformed validator set for route solanamainnet -> solanatestnet: failed to read validators (Error: validators unavailable)',
+    );
+  });
+
   it('does not misclassify multisig validator instructions when chain lookup throws during parse', () => {
     const mpp = {
       tryGetChainName: () => {
