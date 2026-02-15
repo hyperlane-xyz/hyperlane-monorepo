@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
+  isAllowlistedNonExecutableSquadsScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_SCRIPT_FILE_EXTENSIONS,
   SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
@@ -112,10 +113,7 @@ describe('squads test constants', () => {
 
   it('keeps executable constant derived from script allowlist partition', () => {
     const derivedExecutableScriptPaths = SQUADS_SCRIPT_PATHS.filter(
-      (scriptPath) =>
-        !NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
-          scriptPath.endsWith(`/${fileName}`),
-        ),
+      (scriptPath) => !isAllowlistedNonExecutableSquadsScriptPath(scriptPath),
     );
     expect(EXECUTABLE_SQUADS_SCRIPT_PATHS).to.deep.equal(
       derivedExecutableScriptPaths,
@@ -124,9 +122,7 @@ describe('squads test constants', () => {
 
   it('keeps allowlisted non-executable squads script paths canonical', () => {
     const allowlistedScriptPaths = SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
-      NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
-        scriptPath.endsWith(`/${fileName}`),
-      ),
+      isAllowlistedNonExecutableSquadsScriptPath(scriptPath),
     );
     expect(allowlistedScriptPaths).to.deep.equal([
       'scripts/squads/cli-helpers.ts',
@@ -146,6 +142,17 @@ describe('squads test constants', () => {
           (scriptPath) => scriptPath === `scripts/squads/${fileName}`,
         ),
       ).to.equal(true);
+    }
+  });
+
+  it('classifies allowlisted non-executable script paths consistently', () => {
+    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
+      const expectedIsAllowlisted = NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some(
+        (fileName) => scriptPath.endsWith(`/${fileName}`),
+      );
+      expect(isAllowlistedNonExecutableSquadsScriptPath(scriptPath)).to.equal(
+        expectedIsAllowlisted,
+      );
     }
   });
 
@@ -170,9 +177,7 @@ describe('squads test constants', () => {
   it('keeps executable and non-executable script partitions complete and disjoint', () => {
     const executableScriptSet = new Set(EXECUTABLE_SQUADS_SCRIPT_PATHS);
     const allowlistedScriptPaths = SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
-      NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
-        scriptPath.endsWith(`/${fileName}`),
-      ),
+      isAllowlistedNonExecutableSquadsScriptPath(scriptPath),
     );
 
     expect(
@@ -184,9 +189,8 @@ describe('squads test constants', () => {
     }
 
     for (const scriptPath of SQUADS_SCRIPT_PATHS) {
-      const isAllowlisted = NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
-        scriptPath.endsWith(`/${fileName}`),
-      );
+      const isAllowlisted =
+        isAllowlistedNonExecutableSquadsScriptPath(scriptPath);
       expect(executableScriptSet.has(scriptPath)).to.equal(!isAllowlisted);
     }
   });

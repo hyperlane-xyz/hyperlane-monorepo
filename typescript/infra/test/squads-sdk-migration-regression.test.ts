@@ -6,6 +6,7 @@ import { expect } from 'chai';
 
 import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
+  isAllowlistedNonExecutableSquadsScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
   SQUADS_SCRIPT_FILE_EXTENSIONS,
@@ -199,10 +200,7 @@ describe('squads sdk migration regression', () => {
       ).sort();
     const discoveredSquadsScripts = listSquadsDirectoryScripts(INFRA_ROOT);
     const discoveredNonExecutableSquadsScripts = discoveredSquadsScripts.filter(
-      (scriptPath) =>
-        NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
-          scriptPath.endsWith(`/${fileName}`),
-        ),
+      (scriptPath) => isAllowlistedNonExecutableSquadsScriptPath(scriptPath),
     );
 
     expect(configuredNonExecutableSquadsScripts).to.deep.equal(
@@ -213,9 +211,7 @@ describe('squads sdk migration regression', () => {
   it('keeps formatting-guarded script paths executable', () => {
     for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
       expect(
-        NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
-          scriptPath.endsWith(`/${fileName}`),
-        ),
+        isAllowlistedNonExecutableSquadsScriptPath(scriptPath),
         `Expected formatting-guarded script path to be executable: ${scriptPath}`,
       ).to.equal(false);
     }

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import {
-  NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
+  isAllowlistedNonExecutableSquadsScriptPath,
   SQUADS_SCRIPT_FILE_EXTENSIONS,
 } from './squads-test-constants.js';
 
@@ -25,9 +25,6 @@ export function listExecutableSquadsDirectoryScripts(
   infraRoot: string,
 ): string[] {
   return listSquadsDirectoryScripts(infraRoot).filter(
-    (scriptPath) =>
-      !NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
-        scriptPath.endsWith(`/${fileName}`),
-      ),
+    (scriptPath) => !isAllowlistedNonExecutableSquadsScriptPath(scriptPath),
   );
 }

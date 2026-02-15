@@ -17,12 +17,17 @@ export const SQUADS_SCRIPT_PATHS = Object.freeze([
   'scripts/sealevel-helpers/update-multisig-ism-config.ts',
 ]);
 
+export function isAllowlistedNonExecutableSquadsScriptPath(
+  scriptPath: string,
+): boolean {
+  return NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
+    scriptPath.endsWith(`/${fileName}`),
+  );
+}
+
 export const EXECUTABLE_SQUADS_SCRIPT_PATHS = Object.freeze(
   SQUADS_SCRIPT_PATHS.filter(
-    (scriptPath) =>
-      !NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
-        scriptPath.endsWith(`/${fileName}`),
-      ),
+    (scriptPath) => !isAllowlistedNonExecutableSquadsScriptPath(scriptPath),
   ),
 );
 
