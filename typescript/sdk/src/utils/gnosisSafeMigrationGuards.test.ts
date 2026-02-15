@@ -1055,7 +1055,22 @@ function readStaticPrimitiveValue(
   }
 
   if (ts.isTypeOfExpression(unwrapped)) {
-    const operandValue = readStaticPrimitiveValue(unwrapped.expression);
+    const operand = unwrapInitializerExpression(unwrapped.expression);
+    if (
+      ts.isObjectLiteralExpression(operand) ||
+      ts.isArrayLiteralExpression(operand) ||
+      ts.isRegularExpressionLiteral(operand)
+    ) {
+      return 'object';
+    }
+    if (
+      ts.isFunctionExpression(operand) ||
+      ts.isArrowFunction(operand) ||
+      ts.isClassExpression(operand)
+    ) {
+      return 'function';
+    }
+    const operandValue = readStaticPrimitiveValue(operand);
     if (operandValue === STATIC_PRIMITIVE_UNKNOWN) {
       return STATIC_PRIMITIVE_UNKNOWN;
     }
@@ -6008,6 +6023,52 @@ describe('Gnosis Safe migration guards', () => {
       './fixtures/guard-module.js@fixture.ts',
     );
     expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality typeof object literals as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if (((typeof ({ value: 1 })) === 'object')) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-inequality typeof function expressions as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if (((typeof (() => 1)) !== 'object')) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
       './fixtures/other-module.js@fixture.ts',
     );
   });
@@ -14938,6 +14999,42 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality typeof object literals as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if (((typeof ({ value: 1 })) === 'object')) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats strict-inequality typeof function expressions as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if (((typeof (() => 1)) !== 'object')) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('treats relational true conditions as true branches for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -18191,6 +18288,40 @@ describe('Gnosis Safe migration guards', () => {
       (reference) => `${reference.symbol}@${reference.source}`,
     );
     expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality typeof object literals as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "if (((typeof ({ value: 1 })) === 'object')) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-inequality typeof function expressions as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "if (((typeof (() => 1)) !== 'object')) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
   });
 
   it('treats relational true conditions as true branches for module-source aliases in symbol sources', () => {
