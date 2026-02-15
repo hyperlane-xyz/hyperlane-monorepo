@@ -1089,17 +1089,66 @@ export class SquadsTransactionReader {
     vaultTransaction: accounts.VaultTransaction,
     svmProvider: SolanaWeb3Provider,
   ): Promise<PublicKey[]> {
-    const accountKeys = [...vaultTransaction.message.accountKeys];
-    const lookups = vaultTransaction.message.addressTableLookups;
+    const accountKeysValue = this.readVaultTransactionField(
+      chain,
+      'vault message account keys',
+      () => vaultTransaction.message.accountKeys,
+      [],
+    );
+    if (!Array.isArray(accountKeysValue)) {
+      rootLogger.warn(
+        `Malformed vault account keys on ${chain}: expected array, got ${getUnknownValueTypeName(accountKeysValue)}`,
+      );
+      return [];
+    }
+    const accountKeys = [...accountKeysValue] as PublicKey[];
+    const lookupsValue = this.readVaultTransactionField(
+      chain,
+      'vault address lookup tables',
+      () => vaultTransaction.message.addressTableLookups,
+      [],
+    );
+    if (!Array.isArray(lookupsValue)) {
+      rootLogger.warn(
+        `Malformed vault address lookup tables on ${chain}: expected array, got ${getUnknownValueTypeName(lookupsValue)}`,
+      );
+      return accountKeys;
+    }
+    const lookups = lookupsValue;
 
     if (!lookups || lookups.length === 0) return accountKeys;
 
     for (const lookup of lookups) {
+      const lookupAccountKeyValue = this.readVaultTransactionField(
+        chain,
+        'lookup table account key',
+        () => (lookup as { accountKey?: unknown }).accountKey,
+        undefined,
+      );
       try {
         const lookupTableAccount = await svmProvider.getAccountInfo(
-          lookup.accountKey,
+          lookupAccountKeyValue as PublicKey,
         );
         if (!lookupTableAccount) continue;
+
+        const writableIndexesValue = this.readVaultTransactionField(
+          chain,
+          'lookup table writable indexes',
+          () => (lookup as { writableIndexes?: unknown }).writableIndexes,
+          [],
+        );
+        const readonlyIndexesValue = this.readVaultTransactionField(
+          chain,
+          'lookup table readonly indexes',
+          () => (lookup as { readonlyIndexes?: unknown }).readonlyIndexes,
+          [],
+        );
+        const writableIndexes = Array.isArray(writableIndexesValue)
+          ? writableIndexesValue
+          : [];
+        const readonlyIndexes = Array.isArray(readonlyIndexesValue)
+          ? readonlyIndexesValue
+          : [];
 
         const data = lookupTableAccount.data;
         const LOOKUP_TABLE_META_SIZE = 56;
@@ -1112,16 +1161,30 @@ export class SquadsTransactionReader {
           }
         }
 
-        for (const idx of lookup.writableIndexes) {
-          if (idx < addresses.length) accountKeys.push(addresses[idx]);
+        for (const idx of writableIndexes) {
+          if (
+            typeof idx === 'number' &&
+            Number.isInteger(idx) &&
+            idx >= 0 &&
+            idx < addresses.length
+          ) {
+            accountKeys.push(addresses[idx]);
+          }
         }
-        for (const idx of lookup.readonlyIndexes) {
-          if (idx < addresses.length) accountKeys.push(addresses[idx]);
+        for (const idx of readonlyIndexes) {
+          if (
+            typeof idx === 'number' &&
+            Number.isInteger(idx) &&
+            idx >= 0 &&
+            idx < addresses.length
+          ) {
+            accountKeys.push(addresses[idx]);
+          }
         }
       } catch (error) {
         const formattedError = stringifyUnknownSquadsError(error);
         const lookupTableAddress = this.formatProgramIdForDisplay(
-          lookup.accountKey,
+          lookupAccountKeyValue,
         );
         rootLogger.warn(
           `Failed to resolve address lookup table ${lookupTableAddress} on ${chain}: ${formattedError}`,
@@ -1146,12 +1209,21 @@ export class SquadsTransactionReader {
       vaultTransaction,
       svmProvider,
     );
+    const instructionsValue = this.readVaultTransactionField(
+      chain,
+      'vault instructions',
+      () => vaultTransaction.message.instructions,
+      [],
+    );
+    if (!Array.isArray(instructionsValue)) {
+      const warning = `Malformed vault instructions on ${chain}: expected array, got ${getUnknownValueTypeName(instructionsValue)}`;
+      warnings.push(warning);
+      return { instructions: parsedInstructions, warnings };
+    }
+    const instructions = instructionsValue;
     const computeBudgetProgramId = ComputeBudgetProgram.programId;
 
-    for (const [
-      idx,
-      instruction,
-    ] of vaultTransaction.message.instructions.entries()) {
+    for (const [idx, instruction] of instructions.entries()) {
       try {
         if (
           instruction.programIdIndex >= accountKeys.length ||
@@ -1303,6 +1375,22 @@ export class SquadsTransactionReader {
     }
 
     return { instructions: parsedInstructions, warnings };
+  }
+
+  private readVaultTransactionField(
+    chain: SquadsChainName,
+    label: string,
+    readValue: () => unknown,
+    fallbackValue: unknown,
+  ): unknown {
+    try {
+      return readValue();
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read ${label} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return fallbackValue;
+    }
   }
 
   private resolveCorePrograms(chain: SquadsChainName): {

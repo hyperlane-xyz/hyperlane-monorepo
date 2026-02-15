@@ -5611,6 +5611,95 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('keeps parsing when vault account-keys getter throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const vaultTransaction = {
+      message: new Proxy(
+        { instructions: [] },
+        {
+          get(target, property, receiver) {
+            if (property === 'accountKeys') {
+              throw new Error('account keys unavailable');
+            }
+            if (property === 'addressTableLookups') {
+              return [];
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ),
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction as unknown as Record<string, unknown>,
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed).to.deep.equal({
+      instructions: [],
+      warnings: [],
+    });
+  });
+
+  it('keeps parsing when vault instructions getter throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const vaultTransaction = {
+      message: new Proxy(
+        { accountKeys: [SYSTEM_PROGRAM_ID], addressTableLookups: [] },
+        {
+          get(target, property, receiver) {
+            if (property === 'instructions') {
+              throw new Error('instructions unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ),
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction as unknown as Record<string, unknown>,
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed).to.deep.equal({
+      instructions: [],
+      warnings: [],
+    });
+  });
+
   it('formats unstringifiable instruction parse errors safely', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
