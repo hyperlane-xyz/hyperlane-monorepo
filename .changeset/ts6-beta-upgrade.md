@@ -403,3 +403,5 @@ Regression coverage also now confirms uppercase object-tag placeholder outputs f
 Regression coverage also now confirms lowercase object-tag placeholder outputs from `String(error)` (for example `[object array]`) are treated as non-informative and continue through to `Object.prototype.toString`.
 
 Regression coverage also now confirms quoted object-tag placeholder outputs from `String(error)` (for example `"[object Array]"`) are treated as non-informative and continue through to `Object.prototype.toString`.
+
+Regression coverage also now confirms object-tag object placeholder outputs from `String(error)` (for example `[object object]`) are treated as non-informative and continue through to `Object.prototype.toString`.
