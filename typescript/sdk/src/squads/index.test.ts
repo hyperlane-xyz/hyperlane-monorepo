@@ -57,10 +57,32 @@ function listSingleQuotedTokens(command: string): readonly string[] {
   );
 }
 
+function assertCanonicalCliCommandShape(
+  command: string,
+  commandLabel: string,
+): void {
+  expect(command, `Expected ${commandLabel} to be trimmed`).to.equal(
+    command.trim(),
+  );
+  expect(
+    command.includes('  '),
+    `Expected ${commandLabel} to avoid duplicate spaces`,
+  ).to.equal(false);
+  expect(
+    /[\n\r\t]/.test(command),
+    `Expected ${commandLabel} to be single-line without tab/newline characters`,
+  ).to.equal(false);
+  expect(
+    command.includes('\\'),
+    `Expected ${commandLabel} to avoid backslash separators`,
+  ).to.equal(false);
+}
+
 describe('squads barrel exports', () => {
   it('keeps sdk squads test command constants normalized and scoped', () => {
-    expect(SDK_SQUADS_TEST_COMMAND_PREFIX).to.equal(
-      SDK_SQUADS_TEST_COMMAND_PREFIX.trim(),
+    assertCanonicalCliCommandShape(
+      SDK_SQUADS_TEST_COMMAND_PREFIX,
+      'sdk squads test command prefix',
     );
     expect(
       SDK_SQUADS_TEST_COMMAND_PREFIX.startsWith('mocha --config '),
@@ -68,11 +90,9 @@ describe('squads barrel exports', () => {
     expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes('.mocharc.json')).to.equal(
       true,
     );
-    expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes('  ')).to.equal(false);
     expect(SDK_SQUADS_TEST_COMMAND_PREFIX.endsWith(' ')).to.equal(false);
     expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes('"')).to.equal(false);
     expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes("'")).to.equal(false);
-    expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes('\\')).to.equal(false);
 
     expect(SDK_SQUADS_TEST_GLOB).to.equal(SDK_SQUADS_TEST_GLOB.trim());
     expect(SDK_SQUADS_TEST_GLOB.startsWith('src/squads/')).to.equal(true);
@@ -236,16 +256,15 @@ describe('squads barrel exports', () => {
     expect(sdkPackageJson.scripts?.['test:squads']).to.equal(
       EXPECTED_SDK_SQUADS_TEST_SCRIPT,
     );
-    expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT).to.equal(
-      EXPECTED_SDK_SQUADS_TEST_SCRIPT.trim(),
+    assertCanonicalCliCommandShape(
+      EXPECTED_SDK_SQUADS_TEST_SCRIPT,
+      'expected sdk squads test command',
     );
     expect(
       EXPECTED_SDK_SQUADS_TEST_SCRIPT.startsWith(
         `${SDK_SQUADS_TEST_COMMAND_PREFIX} `,
       ),
     ).to.equal(true);
-    expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('  ')).to.equal(false);
-    expect(/[\n\r\t]/.test(EXPECTED_SDK_SQUADS_TEST_SCRIPT)).to.equal(false);
     expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('"')).to.equal(false);
     expect(countOccurrences(EXPECTED_SDK_SQUADS_TEST_SCRIPT, "'")).to.equal(2);
     expect(
@@ -254,7 +273,6 @@ describe('squads barrel exports', () => {
         SDK_SQUADS_TEST_COMMAND_PREFIX,
       ),
     ).to.equal(1);
-    expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('\\')).to.equal(false);
     expect(
       EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('typescript/infra'),
     ).to.equal(false);
