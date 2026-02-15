@@ -3258,6 +3258,123 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('caches successful origin signer lookup without tryGetSigner across direct ICA inferences', async () => {
+    const inferredIcaOwner = '0x0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a';
+    const destinationRouterAddress =
+      '0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b';
+    const originRouterAddress = '0x0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c';
+
+    const ownerByTarget: Record<string, string> = {
+      '0x1111111111111111111111111111111111111111': inferredIcaOwner,
+      '0x2222222222222222222222222222222222222222': inferredIcaOwner,
+    };
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      (targetAddress: string) =>
+        ({
+          owner: async () => ownerByTarget[targetAddress.toLowerCase()],
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+
+    let originDerivationCalls = 0;
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+          } as any;
+        }
+
+        if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
+          return {
+            ['getRemoteInterchainAccount(address,address,address)']: async () => {
+              originDerivationCalls += 1;
+              return inferredIcaOwner;
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    const signerAddressCallsByChain: Record<string, number> = {};
+    let providerCalls = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async (chainName: string) => {
+          signerAddressCallsByChain[chainName] =
+            (signerAddressCallsByChain[chainName] ?? 0) + 1;
+          if (chainName === CHAIN || chainName === 'anvil3') {
+            return SIGNER;
+          }
+          throw new Error(`unknown signer lookup for ${chainName}`);
+        },
+        getProvider: (chainName: string) => {
+          providerCalls += 1;
+          if (chainName === CHAIN || chainName === 'anvil3') {
+            return provider;
+          }
+          throw new Error(`unexpected provider lookup for ${chainName}`);
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+          anvil3: {
+            interchainAccountRouter: originRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
+          { ...TX, to: '0x2222222222222222222222222222222222222222' } as any,
+        ],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].transactions).to.have.length(2);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      const submitter = batches[0].config.submitter as any;
+      expect(submitter.chain).to.equal('anvil3');
+      expect(submitter.owner).to.equal(SIGNER);
+      expect(submitter.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(provider.getLogs.callCount).to.equal(1);
+      expect(originDerivationCalls).to.equal(1);
+      expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
+      expect(signerAddressCallsByChain.anvil3).to.equal(1);
+      expect(providerCalls).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when event-derived ICA origin signer is unavailable', async () => {
     const inferredIcaOwner = '0x1212121212121212121212121212121212121212';
     const destinationRouterAddress =
@@ -35203,11 +35320,17 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       }),
     };
 
+    const hasRoleStub = sinon
+      .stub()
+      .callsFake(async (_role: string, account: string) => {
+        return account.toLowerCase() === proposerIca.toLowerCase();
+      });
+
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
       .returns({
         getMinDelay: async () => 0,
-        hasRole: async () => false,
+        hasRole: hasRoleStub,
         interface: {
           getEventTopic: (name: string) => name,
           parseLog: (_log: unknown) => ({ args: { account: proposerIca } }),
@@ -43205,8 +43328,13 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
+        const normalizedAddress =
+          typeof filter.address === 'string'
+            ? filter.address.toLowerCase()
+            : filter.address;
         if (
-          (filter.address === timelockOwnerA || filter.address === timelockOwnerB) &&
+          (normalizedAddress === timelockOwnerA.toLowerCase() ||
+            normalizedAddress === timelockOwnerB.toLowerCase()) &&
           filter.topics?.[0] === 'RoleGranted'
         ) {
           return [{ topics: [], data: '0x' }];
@@ -43298,6 +43426,161 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         (batches[1].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.JSON_RPC);
       expect(signerAddressCalls).to.equal(2);
+      expect(provider.getLogs.callCount).to.equal(5);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
+  it('caches successful origin signer lookup without tryGetSigner across timelock ICA inferences', async () => {
+    const timelockOwnerA = '0x8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b';
+    const timelockOwnerB = '0x8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c';
+    const proposerIca = '0x8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d';
+    const destinationRouterAddress =
+      '0x8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e';
+    const originRouterAddress = '0x8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f';
+
+    const ownerByTarget: Record<string, string> = {
+      '0x1111111111111111111111111111111111111111': timelockOwnerA,
+      '0x2222222222222222222222222222222222222222': timelockOwnerB,
+    };
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      (targetAddress: string) =>
+        ({
+          owner: async () => ownerByTarget[targetAddress.toLowerCase()],
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        const normalizedAddress =
+          typeof filter.address === 'string'
+            ? filter.address.toLowerCase()
+            : filter.address;
+        if (
+          (normalizedAddress === timelockOwnerA.toLowerCase() ||
+            normalizedAddress === timelockOwnerB.toLowerCase()) &&
+          filter.topics?.[0] === 'RoleGranted'
+        ) {
+          return [{ topics: [], data: '0x' }];
+        }
+        return [];
+      }),
+    };
+
+    const hasRoleStub = sinon
+      .stub()
+      .callsFake(async (_role: string, account: string) => {
+        return account.toLowerCase() === proposerIca.toLowerCase();
+      });
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: hasRoleStub,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: (_log: unknown) => ({ args: { account: proposerIca } }),
+        },
+      } as any);
+
+    let originDerivationCalls = 0;
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+          } as any;
+        }
+
+        if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
+          return {
+            ['getRemoteInterchainAccount(address,address,address)']: async () => {
+              originDerivationCalls += 1;
+              return proposerIca;
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    const signerAddressCallsByChain: Record<string, number> = {};
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async (chainName: string) => {
+          signerAddressCallsByChain[chainName] =
+            (signerAddressCallsByChain[chainName] ?? 0) + 1;
+          if (chainName === CHAIN || chainName === 'anvil3') {
+            return SIGNER;
+          }
+          throw new Error(`unknown signer lookup for ${chainName}`);
+        },
+        getProvider: (chainName: string) => {
+          if (chainName === CHAIN || chainName === 'anvil3') {
+            return provider;
+          }
+          throw new Error(`unexpected provider lookup for ${chainName}`);
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+          anvil3: {
+            interchainAccountRouter: originRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
+          { ...TX, to: '0x2222222222222222222222222222222222222222' } as any,
+        ],
+        context,
+      });
+
+      expect(batches).to.have.length(2);
+      expect(batches[0].transactions).to.have.length(1);
+      expect(batches[1].transactions).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.owner,
+      ).to.equal(SIGNER);
+      expect(batches[1].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[1].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
+      expect(
+        (batches[1].config.submitter as any).proposerSubmitter.owner,
+      ).to.equal(SIGNER);
+      expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
+      expect(signerAddressCallsByChain.anvil3).to.equal(1);
+      expect(originDerivationCalls).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(5);
     } finally {
       ownableStub.restore();
