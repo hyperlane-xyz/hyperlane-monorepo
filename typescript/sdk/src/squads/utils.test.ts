@@ -2584,13 +2584,14 @@ describe('squads utils', () => {
         provider: 'solana-override',
       } as unknown as ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>;
 
-      const { svmProvider } = getSquadAndProvider(
-        'solanamainnet',
+      const { chain, svmProvider } = getSquadAndProvider(
+        '  solanamainnet  ',
         mpp,
         providerOverride,
       );
 
       expect(providerLookupCalled).to.equal(false);
+      expect(chain).to.equal('solanamainnet');
       expect(svmProvider).to.equal(providerOverride);
     });
   });
