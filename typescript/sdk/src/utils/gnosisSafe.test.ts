@@ -5565,6 +5565,24 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('throws deterministic message when chain metadata accessor throws unstringifiable error', () => {
+      const unstringifiableError = {
+        [Symbol.toPrimitive]() {
+          throw new Error('metadata to-primitive boom');
+        },
+      };
+      const multiProviderMock = {
+        getChainMetadata: () => {
+          throw unstringifiableError;
+        },
+        getEvmChainId: () => 1,
+      } as unknown as Parameters<typeof getSafeService>[1];
+
+      expect(() => getSafeService('test', multiProviderMock)).to.throw(
+        'Failed to read chain metadata for test: <unstringifiable>',
+      );
+    });
+
     it('throws when tx-service url is missing', () => {
       const multiProviderMock = {
         getChainMetadata: () => ({}),
