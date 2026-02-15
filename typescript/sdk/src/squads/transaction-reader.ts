@@ -90,11 +90,34 @@ export enum WarningMessage {
   OWNERSHIP_RENUNCIATION = '⚠️  OWNERSHIP RENUNCIATION DETECTED',
 }
 
+const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
+
+function inspectArrayValue(value: unknown): {
+  isArray: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      isArray: Array.isArray(value),
+      readFailed: false,
+    };
+  } catch {
+    return {
+      isArray: false,
+      readFailed: true,
+    };
+  }
+}
+
 function getUnknownValueTypeName(value: unknown): string {
   if (value === null) {
     return 'null';
   }
-  if (Array.isArray(value)) {
+  const { isArray, readFailed } = inspectArrayValue(value);
+  if (readFailed) {
+    return UNREADABLE_VALUE_TYPE;
+  }
+  if (isArray) {
     return 'array';
   }
   return typeof value;
@@ -143,7 +166,8 @@ function formatIntegerValidationValue(value: unknown): string {
 }
 
 function isRecordObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  const { isArray, readFailed } = inspectArrayValue(value);
+  return typeof value === 'object' && value !== null && !readFailed && !isArray;
 }
 
 function getThenValue(value: unknown): {

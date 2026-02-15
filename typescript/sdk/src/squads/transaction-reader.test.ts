@@ -322,6 +322,15 @@ describe('squads transaction reader warning formatters', () => {
     );
   });
 
+  it('labels unreadable unknown-program warning program ids deterministically', () => {
+    const { proxy: revokedProgramId, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    expect(() => formatUnknownProgramWarning(revokedProgramId)).to.throw(
+      'Expected program id to be a string, got [unreadable value type]',
+    );
+  });
+
   it('formats unknown instruction warnings using normalized inputs', () => {
     expect(formatUnknownInstructionWarning(' Mailbox ', 1)).to.equal(
       'Unknown Mailbox instruction (discriminator: 1)',
@@ -365,6 +374,26 @@ describe('squads transaction reader warning formatters', () => {
     );
     expect(() => formatUnknownInstructionWarning('  ', 1)).to.throw(
       'Expected program name to be a non-empty string, got empty string',
+    );
+  });
+
+  it('labels unreadable unknown-instruction warning inputs deterministically', () => {
+    const { proxy: revokedProgramName, revoke: revokeProgramName } =
+      Proxy.revocable({}, {});
+    revokeProgramName();
+    expect(() =>
+      formatUnknownInstructionWarning(revokedProgramName, 1),
+    ).to.throw(
+      'Expected program name to be a string, got [unreadable value type]',
+    );
+
+    const { proxy: revokedDiscriminator, revoke: revokeDiscriminator } =
+      Proxy.revocable({}, {});
+    revokeDiscriminator();
+    expect(() =>
+      formatUnknownInstructionWarning('Mailbox', revokedDiscriminator),
+    ).to.throw(
+      'Expected discriminator to be a non-negative safe integer in byte range [0, 255], got [unreadable value type]',
     );
   });
 });
@@ -1067,6 +1096,38 @@ describe('squads transaction reader multisig verification', () => {
       matches: false,
       issues: [
         'Malformed expected config for solanamainnet: expected route map object',
+      ],
+    });
+  });
+
+  it('returns malformed route-entry issue when resolver returns unreadable route objects', () => {
+    const reader = createReaderForVerification(() => {
+      const { proxy: revokedRouteEntry, revoke } = Proxy.revocable({}, {});
+      revoke();
+      return {
+        solanatestnet: revokedRouteEntry,
+      } as unknown as Record<
+        string,
+        { threshold: number; validators: readonly string[] }
+      >;
+    });
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed expected config for route solanamainnet -> solanatestnet: expected route entry object',
       ],
     });
   });
