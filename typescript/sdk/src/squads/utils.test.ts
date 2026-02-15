@@ -3922,6 +3922,30 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast for unsupported chain names before malformed rejection index type validation', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsProposalRejection(
+          'unsupported-chain',
+          mpp,
+          1,
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('normalizes padded chain names before rejection provider lookup', async () => {
       let providerLookupChain: string | undefined;
       const mpp = {
@@ -4145,6 +4169,30 @@ describe('squads utils', () => {
           'unsupported-chain',
           mpp,
           -1n,
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for unsupported chain names before malformed cancellation index type validation', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsProposalCancellation(
+          'unsupported-chain',
+          mpp,
+          1,
           PublicKey.default,
         ),
       );
