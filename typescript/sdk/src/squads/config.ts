@@ -94,6 +94,23 @@ function formatChainNameForDisplay(chain: string): string {
   return trimmedChain.length > 0 ? trimmedChain : '<empty>';
 }
 
+function formatUniqueChainNamesForDisplay(chains: readonly string[]): string[] {
+  const seenChainNames = new Set<string>();
+  const formattedUniqueChainNames: string[] = [];
+
+  for (const chain of chains) {
+    const formattedChain = formatChainNameForDisplay(chain);
+    if (seenChainNames.has(formattedChain)) {
+      continue;
+    }
+
+    seenChainNames.add(formattedChain);
+    formattedUniqueChainNames.push(formattedChain);
+  }
+
+  return formattedUniqueChainNames;
+}
+
 export function getUnsupportedSquadsChainsErrorMessage(
   nonSquadsChains: readonly string[],
   configuredSquadsChains: readonly string[] = getSquadsChains(),
@@ -104,19 +121,14 @@ export function getUnsupportedSquadsChainsErrorMessage(
     );
   }
 
-  const uniqueConfiguredSquadsChains = Array.from(
-    new Set(configuredSquadsChains),
-  );
-  if (uniqueConfiguredSquadsChains.length === 0) {
+  if (configuredSquadsChains.length === 0) {
     throw new Error('Expected at least one configured squads chain');
   }
 
-  const formattedUnsupportedChains = Array.from(
-    new Set(nonSquadsChains.map(formatChainNameForDisplay)),
-  );
-  const formattedConfiguredChains = Array.from(
-    new Set(uniqueConfiguredSquadsChains.map(formatChainNameForDisplay)),
-  );
+  const formattedUnsupportedChains =
+    formatUniqueChainNamesForDisplay(nonSquadsChains);
+  const formattedConfiguredChains =
+    formatUniqueChainNamesForDisplay(configuredSquadsChains);
 
   return (
     `Squads configuration not found for chains: ${formattedUnsupportedChains.join(', ')}. ` +

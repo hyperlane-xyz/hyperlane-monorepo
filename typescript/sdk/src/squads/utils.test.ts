@@ -3702,6 +3702,17 @@ describe('squads utils', () => {
     );
   });
 
+  it('keeps formatter dedupe and ordering canonical after chain-name normalization', () => {
+    expect(
+      getUnsupportedSquadsChainsErrorMessage(
+        ['  ethereum  ', '', 'ethereum', '  ', 'soon'],
+        ['', ' solanamainnet ', 'solanamainnet', ''],
+      ),
+    ).to.equal(
+      'Squads configuration not found for chains: ethereum, <empty>, soon. Available Squads chains: <empty>, solanamainnet',
+    );
+  });
+
   it('fails fast when unsupported-chain formatter receives empty inputs', () => {
     expect(() => getUnsupportedSquadsChainsErrorMessage([])).to.throw(
       'Expected at least one unsupported squads chain to format error message',
