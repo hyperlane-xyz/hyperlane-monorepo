@@ -77,6 +77,19 @@ describe('squads error-format', () => {
         '  rpc failed  ',
       );
     });
+
+    it('returns undefined for non-string values', () => {
+      expect(normalizeStringifiedSquadsError(null)).to.equal(undefined);
+      expect(normalizeStringifiedSquadsError(1)).to.equal(undefined);
+      expect(normalizeStringifiedSquadsError(false)).to.equal(undefined);
+      expect(normalizeStringifiedSquadsError(Symbol('err'))).to.equal(
+        undefined,
+      );
+      expect(normalizeStringifiedSquadsError(['Error'])).to.equal(undefined);
+      expect(normalizeStringifiedSquadsError({ error: 'Error' })).to.equal(
+        undefined,
+      );
+    });
   });
 
   describe(isGenericObjectStringifiedValue.name, () => {
@@ -91,6 +104,19 @@ describe('squads error-format', () => {
       expect(isGenericObjectStringifiedValue('[objectObject]')).to.equal(false);
       expect(isGenericObjectStringifiedValue('object Object')).to.equal(false);
       expect(isGenericObjectStringifiedValue('Error: boom')).to.equal(false);
+    });
+
+    it('returns false for non-string values', () => {
+      expect(isGenericObjectStringifiedValue(null)).to.equal(false);
+      expect(isGenericObjectStringifiedValue(1)).to.equal(false);
+      expect(isGenericObjectStringifiedValue(false)).to.equal(false);
+      expect(isGenericObjectStringifiedValue(Symbol('obj'))).to.equal(false);
+      expect(isGenericObjectStringifiedValue(['[object Object]'])).to.equal(
+        false,
+      );
+      expect(
+        isGenericObjectStringifiedValue({ value: '[object Object]' }),
+      ).to.equal(false);
     });
   });
 

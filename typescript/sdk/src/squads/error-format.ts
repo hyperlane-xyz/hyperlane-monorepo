@@ -15,13 +15,20 @@ const GENERIC_ERROR_LABELS = new Set(
   BUILTIN_SQUADS_ERROR_LABELS.map((label) => label.toLowerCase()),
 );
 
-export function isGenericObjectStringifiedValue(value: string): boolean {
-  return GENERIC_OBJECT_STRING_PATTERN.test(value.trim());
+export function isGenericObjectStringifiedValue(value: unknown): boolean {
+  return (
+    typeof value === 'string' &&
+    GENERIC_OBJECT_STRING_PATTERN.test(value.trim())
+  );
 }
 
 export function normalizeStringifiedSquadsError(
-  formattedError: string,
+  formattedError: unknown,
 ): string | undefined {
+  if (typeof formattedError !== 'string') {
+    return undefined;
+  }
+
   const trimmedFormattedError = formattedError.trim();
   const normalizedErrorLabel = trimmedFormattedError
     .replace(TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN, '')
