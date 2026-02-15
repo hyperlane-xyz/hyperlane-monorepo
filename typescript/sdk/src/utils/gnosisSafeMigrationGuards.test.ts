@@ -15104,6 +15104,40 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('keeps require alias assignments made inside switch case scopes in symbol sources', () => {
+    const source = [
+      'let reqAlias: any;',
+      'switch (1) {',
+      '  case 1:',
+      '    reqAlias = require;',
+      '    break;',
+      '}',
+      "const postCaseDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('clears require alias assignments to non-require values inside switch case scopes in symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'switch (1) {',
+      '  case 1:',
+      '    reqAlias = () => undefined;',
+      '    break;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('applies switch-case destructuring assignments to outer require aliases for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
