@@ -5056,6 +5056,114 @@ describe('squads transaction reader', () => {
     }
   });
 
+  it('throws contextual error when vault transaction loader accessor throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readVaultTransaction: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+        proposalData: Record<string, unknown>,
+        transactionPda: unknown,
+      ) => Promise<Record<string, unknown>>;
+    };
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      accounts.VaultTransaction,
+      'fromAccountAddress',
+    );
+
+    Object.defineProperty(accounts.VaultTransaction, 'fromAccountAddress', {
+      configurable: true,
+      get() {
+        throw new Error('vault loader unavailable');
+      },
+    });
+
+    try {
+      const thrownError = await captureAsyncError(() =>
+        readerAny.readVaultTransaction(
+          'solanamainnet',
+          5,
+          { getAccountInfo: async () => null },
+          {
+            proposal: {},
+            proposalPda: new PublicKey('11111111111111111111111111111111'),
+            multisigPda: new PublicKey('11111111111111111111111111111111'),
+          },
+          new PublicKey('11111111111111111111111111111111'),
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read VaultTransaction account loader for solanamainnet: Error: vault loader unavailable',
+      );
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          accounts.VaultTransaction,
+          'fromAccountAddress',
+          originalDescriptor,
+        );
+      }
+    }
+  });
+
+  it('throws contextual error when vault transaction loader is missing', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readVaultTransaction: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+        proposalData: Record<string, unknown>,
+        transactionPda: unknown,
+      ) => Promise<Record<string, unknown>>;
+    };
+    const originalFromAccountAddress =
+      accounts.VaultTransaction.fromAccountAddress;
+    (
+      accounts.VaultTransaction as unknown as {
+        fromAccountAddress?: unknown;
+      }
+    ).fromAccountAddress = undefined;
+
+    try {
+      const thrownError = await captureAsyncError(() =>
+        readerAny.readVaultTransaction(
+          'solanamainnet',
+          5,
+          { getAccountInfo: async () => null },
+          {
+            proposal: {},
+            proposalPda: new PublicKey('11111111111111111111111111111111'),
+            multisigPda: new PublicKey('11111111111111111111111111111111'),
+          },
+          new PublicKey('11111111111111111111111111111111'),
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid VaultTransaction account loader for solanamainnet: expected fromAccountAddress function, got undefined',
+      );
+    } finally {
+      (
+        accounts.VaultTransaction as unknown as {
+          fromAccountAddress: typeof originalFromAccountAddress;
+        }
+      ).fromAccountAddress = originalFromAccountAddress;
+    }
+  });
+
   it('uses fallback transaction address in vault fetch failures', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({

@@ -1856,22 +1856,11 @@ export class SquadsTransactionReader {
     transactionPda: PublicKey,
   ): Promise<SquadsTransaction> {
     const squadsProvider = toSquadsProvider(svmProvider);
-
-    let vaultTransaction: accounts.VaultTransaction;
-    try {
-      vaultTransaction = await accounts.VaultTransaction.fromAccountAddress(
-        squadsProvider,
-        transactionPda,
-      );
-    } catch (error) {
-      const transactionPdaForDisplay = this.formatAddressLikeForDisplay(
-        chain,
-        'vault transaction PDA',
-        transactionPda,
-      );
-      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPdaForDisplay}: ${stringifyUnknownSquadsError(error)}`;
-      throw new Error(errorMsg);
-    }
+    const vaultTransaction = await this.fetchVaultTransactionForRead(
+      chain,
+      transactionPda,
+      squadsProvider,
+    );
 
     const { instructions: parsedInstructions, warnings } =
       await this.parseVaultInstructions(chain, vaultTransaction, svmProvider);
@@ -1910,6 +1899,44 @@ export class SquadsTransactionReader {
         this.formatInstruction(chain, inst),
       ),
     };
+  }
+
+  private async fetchVaultTransactionForRead(
+    chain: SquadsChainName,
+    transactionPda: PublicKey,
+    squadsProvider: ReturnType<typeof toSquadsProvider>,
+  ): Promise<accounts.VaultTransaction> {
+    let fromAccountAddressValue: unknown;
+    try {
+      fromAccountAddressValue = (
+        accounts.VaultTransaction as { fromAccountAddress?: unknown }
+      ).fromAccountAddress;
+    } catch (error) {
+      throw new Error(
+        `Failed to read VaultTransaction account loader for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    assert(
+      typeof fromAccountAddressValue === 'function',
+      `Invalid VaultTransaction account loader for ${chain}: expected fromAccountAddress function, got ${getUnknownValueTypeName(fromAccountAddressValue)}`,
+    );
+
+    try {
+      return await fromAccountAddressValue.call(
+        accounts.VaultTransaction,
+        squadsProvider,
+        transactionPda,
+      );
+    } catch (error) {
+      const transactionPdaForDisplay = this.formatAddressLikeForDisplay(
+        chain,
+        'vault transaction PDA',
+        transactionPda,
+      );
+      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPdaForDisplay}: ${stringifyUnknownSquadsError(error)}`;
+      throw new Error(errorMsg);
+    }
   }
 
   async read(
