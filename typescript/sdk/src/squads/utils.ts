@@ -688,7 +688,7 @@ function normalizeSafeIntegerValue(value: unknown): {
 export function getSquadAndProvider(
   chain: unknown,
   mpp: unknown,
-  svmProviderOverride?: SolanaWeb3Provider,
+  svmProviderOverride?: unknown,
 ): SquadAndProvider {
   const normalizedChain = resolveSquadsChainName(chain);
   return getSquadAndProviderForResolvedChain(
@@ -701,12 +701,14 @@ export function getSquadAndProvider(
 function getSquadAndProviderForResolvedChain(
   chain: SquadsChainName,
   mpp: unknown,
-  svmProviderOverride?: SolanaWeb3Provider,
+  svmProviderOverride?: unknown,
 ): SquadAndProvider {
   const { vault, multisigPda, programId } =
     getSquadsKeysForResolvedChain(chain);
   const svmProvider =
-    svmProviderOverride ?? getSolanaWeb3ProviderForChain(mpp, chain);
+    typeof svmProviderOverride === 'undefined'
+      ? getSolanaWeb3ProviderForChain(mpp, chain)
+      : validateSolanaWeb3ProviderForChain(svmProviderOverride, chain);
 
   return { chain, svmProvider, vault, multisigPda, programId };
 }
@@ -739,6 +741,13 @@ function getSolanaWeb3ProviderForChain(
     );
   }
 
+  return validateSolanaWeb3ProviderForChain(providerValue, chain);
+}
+
+function validateSolanaWeb3ProviderForChain(
+  providerValue: unknown,
+  chain: SquadsChainName,
+): SolanaWeb3Provider {
   let thenValue: unknown;
   try {
     thenValue = (providerValue as { then?: unknown } | null | undefined)?.then;
@@ -751,6 +760,21 @@ function getSolanaWeb3ProviderForChain(
   assert(
     typeof thenValue !== 'function',
     `Invalid solana provider for ${chain}: expected synchronous provider, got promise-like value`,
+  );
+
+  let getAccountInfoValue: unknown;
+  try {
+    getAccountInfoValue = (providerValue as { getAccountInfo?: unknown })
+      .getAccountInfo;
+  } catch (error) {
+    throw new Error(
+      `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof getAccountInfoValue === 'function',
+    `Invalid solana provider for ${chain}: expected getAccountInfo function, got ${getUnknownValueTypeName(getAccountInfoValue)}`,
   );
 
   return providerValue as SolanaWeb3Provider;
@@ -920,7 +944,7 @@ export async function getSquadProposal(
   chain: unknown,
   mpp: unknown,
   transactionIndex: unknown,
-  svmProviderOverride?: SolanaWeb3Provider,
+  svmProviderOverride?: unknown,
 ): Promise<
   | {
       proposal: accounts.Proposal;
@@ -968,7 +992,7 @@ export async function getSquadProposalAccount(
   chain: unknown,
   mpp: unknown,
   transactionIndex: unknown,
-  svmProviderOverride?: SolanaWeb3Provider,
+  svmProviderOverride?: unknown,
 ): Promise<
   | {
       proposal: accounts.Proposal;
@@ -1011,7 +1035,7 @@ async function getSquadProposalAccountForResolvedChain(
   chain: SquadsChainName,
   mpp: unknown,
   transactionIndex: number,
-  svmProviderOverride?: SolanaWeb3Provider,
+  svmProviderOverride?: unknown,
 ): Promise<SquadProposalAccountWithProvider | undefined> {
   try {
     const { svmProvider, multisigPda, programId } =
@@ -1710,7 +1734,7 @@ export function decodePermissions(mask: unknown): string {
 async function getNextSquadsTransactionIndex(
   chain: SquadsChainName,
   mpp: unknown,
-  svmProviderOverride?: SolanaWeb3Provider,
+  svmProviderOverride?: unknown,
 ): Promise<bigint> {
   const { svmProvider, multisigPda, programId } =
     getSquadAndProviderForResolvedChain(chain, mpp, svmProviderOverride);
@@ -1883,7 +1907,7 @@ export async function buildSquadsVaultTransactionProposal(
   ixs: unknown,
   creator: unknown,
   memo?: unknown,
-  svmProviderOverride?: SolanaWeb3Provider,
+  svmProviderOverride?: unknown,
 ): Promise<{
   instructions: TransactionInstruction[];
   transactionIndex: bigint;
@@ -1946,7 +1970,7 @@ export async function buildSquadsProposalRejection(
   mpp: unknown,
   transactionIndex: unknown,
   member: unknown,
-  svmProviderOverride?: SolanaWeb3Provider,
+  svmProviderOverride?: unknown,
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
@@ -1982,7 +2006,7 @@ export async function buildSquadsProposalCancellation(
   mpp: unknown,
   transactionIndex: unknown,
   member: unknown,
-  svmProviderOverride?: SolanaWeb3Provider,
+  svmProviderOverride?: unknown,
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
@@ -2175,7 +2199,7 @@ export async function getTransactionType(
   chain: unknown,
   mpp: unknown,
   transactionIndex: unknown,
-  svmProviderOverride?: SolanaWeb3Provider,
+  svmProviderOverride?: unknown,
 ): Promise<SquadsAccountType> {
   const normalizedChain = resolveSquadsChainName(chain);
   const normalizedTransactionIndex = assertValidTransactionIndexInput(

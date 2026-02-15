@@ -3331,7 +3331,9 @@ describe('squads utils', () => {
   describe(getSquadAndProvider.name, () => {
     it('returns provider and squads keys for supported chains', async () => {
       const supportedChain = 'solanamainnet';
-      const provider = { provider: 'solana' };
+      const provider = {
+        getAccountInfo: async () => null,
+      };
       let providerLookupChain: string | undefined;
       const mpp = {
         getSolanaWeb3Provider: (chain: string) => {
@@ -3359,7 +3361,9 @@ describe('squads utils', () => {
     });
 
     it('normalizes padded chain names before provider lookup', () => {
-      const provider = { provider: 'solana' };
+      const provider = {
+        getAccountInfo: async () => null,
+      };
       let providerLookupChain: string | undefined;
       const mpp = {
         getSolanaWeb3Provider: (chain: string) => {
@@ -3591,10 +3595,8 @@ describe('squads utils', () => {
         },
       };
       const providerOverride = {
-        provider: 'solana-override',
-      } as unknown as ReturnType<
-        MultiProtocolProvider['getSolanaWeb3Provider']
-      >;
+        getAccountInfo: async () => null,
+      };
 
       const { chain, svmProvider } = getSquadAndProvider(
         '  solanamainnet  ',
@@ -3605,6 +3607,50 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
       expect(chain).to.equal('solanamainnet');
       expect(svmProvider).to.equal(providerOverride);
+    });
+
+    it('rejects malformed provider overrides before multiprovider lookup', () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      };
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp, {}),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid solana provider for solanamainnet: expected getAccountInfo function, got undefined',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('rejects promise-like provider overrides before multiprovider lookup', () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      };
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider(
+          'solanamainnet',
+          mpp,
+          Promise.resolve({
+            getAccountInfo: async () => null,
+          }),
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid solana provider for solanamainnet: expected synchronous provider, got promise-like value',
+      );
+      expect(providerLookupCalled).to.equal(false);
     });
   });
 
@@ -4732,7 +4778,9 @@ describe('squads utils', () => {
         ),
       );
 
-      expect(thrownError?.message).to.include('Invalid Solana provider');
+      expect(thrownError?.message).to.equal(
+        'Invalid solana provider for solanamainnet: expected getAccountInfo function, got undefined',
+      );
       expect(providerLookupCount).to.equal(1);
     });
 
@@ -4752,13 +4800,13 @@ describe('squads utils', () => {
           [],
           PublicKey.default,
           undefined,
-          {} as unknown as ReturnType<
-            MultiProtocolProvider['getSolanaWeb3Provider']
-          >,
+          {},
         ),
       );
 
-      expect(thrownError?.message).to.include('Invalid Solana provider');
+      expect(thrownError?.message).to.equal(
+        'Invalid solana provider for solanamainnet: expected getAccountInfo function, got undefined',
+      );
       expect(providerLookupCalled).to.equal(false);
     });
   });
@@ -4841,7 +4889,9 @@ describe('squads utils', () => {
       const mpp = {
         getSolanaWeb3Provider: (chain: string) => {
           providerLookupChain = chain;
-          return {};
+          return {
+            getAccountInfo: async () => null,
+          };
         },
       } as unknown as MultiProtocolProvider;
 
@@ -5107,7 +5157,9 @@ describe('squads utils', () => {
       const mpp = {
         getSolanaWeb3Provider: (chain: string) => {
           providerLookupChain = chain;
-          return {};
+          return {
+            getAccountInfo: async () => null,
+          };
         },
       } as unknown as MultiProtocolProvider;
 
