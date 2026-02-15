@@ -1101,7 +1101,11 @@ export class SquadsTransactionReader {
       );
       return [];
     }
-    const accountKeys = [...accountKeysValue] as PublicKey[];
+    const accountKeys = this.normalizeVaultArrayField(
+      chain,
+      'vault account keys',
+      accountKeysValue,
+    ) as PublicKey[];
     const lookupsValue = this.readVaultTransactionField(
       chain,
       'vault address lookup tables',
@@ -1114,7 +1118,11 @@ export class SquadsTransactionReader {
       );
       return accountKeys;
     }
-    const lookups = lookupsValue;
+    const lookups = this.normalizeVaultArrayField(
+      chain,
+      'vault address lookup tables',
+      lookupsValue,
+    );
 
     if (!lookups || lookups.length === 0) return accountKeys;
 
@@ -1144,10 +1152,18 @@ export class SquadsTransactionReader {
           [],
         );
         const writableIndexes = Array.isArray(writableIndexesValue)
-          ? writableIndexesValue
+          ? this.normalizeVaultArrayField(
+              chain,
+              'lookup table writable indexes',
+              writableIndexesValue,
+            )
           : [];
         const readonlyIndexes = Array.isArray(readonlyIndexesValue)
-          ? readonlyIndexesValue
+          ? this.normalizeVaultArrayField(
+              chain,
+              'lookup table readonly indexes',
+              readonlyIndexesValue,
+            )
           : [];
 
         const data = lookupTableAccount.data;
@@ -1220,7 +1236,11 @@ export class SquadsTransactionReader {
       warnings.push(warning);
       return { instructions: parsedInstructions, warnings };
     }
-    const instructions = instructionsValue;
+    const instructions = this.normalizeVaultArrayField(
+      chain,
+      'vault instructions',
+      instructionsValue,
+    );
     const computeBudgetProgramId = ComputeBudgetProgram.programId;
 
     for (const [idx, instruction] of instructions.entries()) {
@@ -1390,6 +1410,21 @@ export class SquadsTransactionReader {
         `Failed to read ${label} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
       );
       return fallbackValue;
+    }
+  }
+
+  private normalizeVaultArrayField(
+    chain: SquadsChainName,
+    label: string,
+    values: unknown[],
+  ): unknown[] {
+    try {
+      return Array.from(values);
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to normalize ${label} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return [];
     }
   }
 
