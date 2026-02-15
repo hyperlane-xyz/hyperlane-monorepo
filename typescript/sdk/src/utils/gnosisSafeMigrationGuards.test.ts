@@ -1087,13 +1087,21 @@ function collectModuleSpecifierReferences(
 
     if (
       ts.isBinaryExpression(node) &&
-      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      [
+        ts.SyntaxKind.EqualsToken,
+        ts.SyntaxKind.BarBarEqualsToken,
+        ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+        ts.SyntaxKind.QuestionQuestionEqualsToken,
+      ].includes(node.operatorToken.kind) &&
       ts.isIdentifier(node.left)
     ) {
       const rightExpression = unwrapInitializerExpression(node.right);
       if (isRequireLikeExpression(rightExpression, requireLikeIdentifiers)) {
         requireLikeIdentifiers.add(node.left.text);
-      } else if (node.left.text !== 'require') {
+      } else if (
+        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        node.left.text !== 'require'
+      ) {
         requireLikeIdentifiers.delete(node.left.text);
       }
     }
@@ -1529,6 +1537,28 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('collects module specifiers from logical-assignment require aliases', () => {
+    const source = [
+      'let reqAlias: any;',
+      'reqAlias ||= require;',
+      "const orAssignedRequire = reqAlias('./fixtures/guard-module.js');",
+      'reqAlias &&= require;',
+      "const andAssignedRequire = reqAlias('./fixtures/other-module.js');",
+      'reqAlias ??= require;',
+      "const nullishAssignedRequire = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('tracks default symbol references from namespace and require access', () => {
     const source = [
       "import * as infra from './fixtures/guard-module.js';",
@@ -1604,6 +1634,22 @@ describe('Gnosis Safe migration guards', () => {
       'const aliasDefault = aliasTarget.default;',
       'reqAlias = reqAlias;',
       "const wrappedAliasDefault = (0, reqAlias)('./fixtures/guard-module.js')['default'];",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through logical-assignment require aliases', () => {
+    const source = [
+      'let reqAlias: any;',
+      'reqAlias ||= require;',
+      "const orAssignedDefault = reqAlias('./fixtures/guard-module.js').default;",
+      'reqAlias &&= require;',
+      "const andAssignedDefault = reqAlias('./fixtures/guard-module.js')['default'];",
+      'reqAlias ??= require;',
+      "const nullishAssignedDefault = reqAlias('./fixtures/guard-module.js').default;",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
