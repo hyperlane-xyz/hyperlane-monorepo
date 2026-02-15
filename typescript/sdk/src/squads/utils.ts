@@ -17,7 +17,6 @@ import { SvmMultiProtocolSignerAdapter } from '../signers/svm/solana-web3js.js';
 import { ChainName } from '../types.js';
 
 import {
-  getSquadsKeys,
   getSquadsKeysForResolvedChain,
   partitionSquadsChains,
   resolveSquadsChainName,
@@ -702,7 +701,7 @@ export async function getPendingProposalsForChains(
     squadsChains.map(async (chain) => {
       try {
         const { svmProvider, vault, multisigPda, programId } =
-          getSquadAndProvider(chain, mpp);
+          getSquadAndProviderForResolvedChain(chain, mpp);
         const squadsProvider = toSquadsProvider(svmProvider);
 
         const multisig = await accounts.Multisig.fromAccountAddress(
@@ -1263,11 +1262,8 @@ async function getNextSquadsTransactionIndex(
   mpp: MultiProtocolProvider,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<bigint> {
-  const { svmProvider, multisigPda, programId } = getSquadAndProvider(
-    chain,
-    mpp,
-    svmProviderOverride,
-  );
+  const { svmProvider, multisigPda, programId } =
+    getSquadAndProviderForResolvedChain(chain, mpp, svmProviderOverride);
   const squadsProvider = toSquadsProvider(svmProvider);
 
   const multisig = await accounts.Multisig.fromAccountAddress(
@@ -1362,11 +1358,8 @@ export async function buildSquadsVaultTransactionProposal(
   instructions: TransactionInstruction[];
   transactionIndex: bigint;
 }> {
-  const { svmProvider, vault, multisigPda, programId } = getSquadAndProvider(
-    chain,
-    mpp,
-    svmProviderOverride,
-  );
+  const { svmProvider, vault, multisigPda, programId } =
+    getSquadAndProviderForResolvedChain(chain, mpp, svmProviderOverride);
 
   const transactionIndex = await getNextSquadsTransactionIndex(
     chain,
@@ -1413,7 +1406,7 @@ export async function buildSquadsProposalRejection(
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
-  const { multisigPda, programId } = getSquadAndProvider(
+  const { multisigPda, programId } = getSquadAndProviderForResolvedChain(
     chain,
     mpp,
     svmProviderOverride,
@@ -1440,7 +1433,7 @@ export async function buildSquadsProposalCancellation(
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
-  const { multisigPda, programId } = getSquadAndProvider(
+  const { multisigPda, programId } = getSquadAndProviderForResolvedChain(
     chain,
     mpp,
     svmProviderOverride,
@@ -1485,7 +1478,7 @@ export async function submitProposalToSquads(
     rootLogger.info(`Proposal created: ${createSignature}`);
     rootLogger.info(`Transaction index: ${transactionIndex}`);
 
-    const { multisigPda, programId } = getSquadsKeys(chain);
+    const { multisigPda, programId } = getSquadsKeysForResolvedChain(chain);
     const approveIx = instructions.proposalApprove({
       multisigPda,
       transactionIndex,
@@ -1532,11 +1525,8 @@ export async function getTransactionType(
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<SquadsAccountType> {
   assertValidTransactionIndexInput(transactionIndex, chain);
-  const { svmProvider, multisigPda, programId } = getSquadAndProvider(
-    chain,
-    mpp,
-    svmProviderOverride,
-  );
+  const { svmProvider, multisigPda, programId } =
+    getSquadAndProviderForResolvedChain(chain, mpp, svmProviderOverride);
 
   const [transactionPda] = getTransactionPda({
     multisigPda,
@@ -1573,10 +1563,8 @@ export async function executeProposal(
   signerAdapter: SvmMultiProtocolSignerAdapter,
 ): Promise<void> {
   assertValidTransactionIndexInput(transactionIndex, chain);
-  const { svmProvider, multisigPda, programId } = getSquadAndProvider(
-    chain,
-    mpp,
-  );
+  const { svmProvider, multisigPda, programId } =
+    getSquadAndProviderForResolvedChain(chain, mpp);
 
   const proposalData = await getSquadProposal(
     chain,
