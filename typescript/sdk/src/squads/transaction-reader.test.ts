@@ -3089,6 +3089,93 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('records exactly one error when fetched transaction account bytes getter throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: unknown,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => ({
+      accountInfo: { data: Buffer.alloc(0) },
+      get accountData() {
+        throw new Error('account bytes unavailable');
+      },
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to read fetched transaction account bytes on solanamainnet: Error: account bytes unavailable',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error:
+          'Error: Failed to read fetched transaction account bytes on solanamainnet: Error: account bytes unavailable',
+      },
+    ]);
+  });
+
+  it('records exactly one error when fetched transaction account container is malformed', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: unknown,
+        svmProvider: unknown,
+      ) => Promise<unknown>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => 7;
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Malformed fetched transaction account on solanamainnet: expected object, got number',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error:
+          'Error: Malformed fetched transaction account on solanamainnet: expected object, got number',
+      },
+    ]);
+  });
+
   it('looks up solana provider once per read attempt', async () => {
     let providerLookupCount = 0;
     const provider = {
