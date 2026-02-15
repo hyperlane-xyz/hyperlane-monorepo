@@ -312,6 +312,18 @@ describe('squads config', () => {
     expect(firstKeys.vault.toBase58()).to.equal(secondKeys.vault.toBase58());
   });
 
+  it('rejects malformed runtime values in resolved-chain key lookups', () => {
+    type ResolvedSquadsChainName = Parameters<
+      typeof getSquadsKeysForResolvedChain
+    >[0];
+    expect(() =>
+      getSquadsKeysForResolvedChain('unknown-chain' as ResolvedSquadsChainName),
+    ).to.throw('Squads config not found on chain unknown-chain');
+    expect(() =>
+      getSquadsKeysForResolvedChain(1 as unknown as ResolvedSquadsChainName),
+    ).to.throw('Expected chain name to be a string, got number');
+  });
+
   it('throws for unknown chain key lookups', () => {
     expect(() => getSquadsKeys('unknown-chain')).to.throw(
       'Squads config not found on chain unknown-chain',

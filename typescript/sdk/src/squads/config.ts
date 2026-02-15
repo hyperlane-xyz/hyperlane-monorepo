@@ -247,6 +247,7 @@ export function resolveSquadsChainName(chainName: unknown): SquadsChainName {
 export function getSquadsKeysForResolvedChain(
   chainName: SquadsChainName,
 ): SquadsKeys {
+  assertIsSquadsChain(chainName);
   const keys = SQUADS_KEYS_BY_CHAIN[chainName];
 
   return Object.freeze({
