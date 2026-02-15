@@ -216,6 +216,27 @@ function countSubstringOccurrences(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
 
+function assertCanonicalCliCommandShape(
+  command: string,
+  commandLabel: string,
+): void {
+  expect(command, `Expected ${commandLabel} to be trimmed`).to.equal(
+    command.trim(),
+  );
+  expect(
+    command.includes('  '),
+    `Expected ${commandLabel} to avoid duplicate spaces`,
+  ).to.equal(false);
+  expect(
+    /[\n\r\t]/.test(command),
+    `Expected ${commandLabel} to be single-line without tab/newline characters`,
+  ).to.equal(false);
+  expect(
+    command.includes('\\'),
+    `Expected ${commandLabel} to avoid backslash separators`,
+  ).to.equal(false);
+}
+
 function assertTrackedSourcePathSetNormalizedAndDeduplicated(
   paths: readonly string[],
   pathSetLabel: string,
@@ -424,8 +445,9 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps infra squads test command prefix normalized and stable', () => {
-    expect(INFRA_SQUADS_TEST_COMMAND_PREFIX).to.equal(
-      INFRA_SQUADS_TEST_COMMAND_PREFIX.trim(),
+    assertCanonicalCliCommandShape(
+      INFRA_SQUADS_TEST_COMMAND_PREFIX,
+      'infra squads test command prefix',
     );
     expect(
       INFRA_SQUADS_TEST_COMMAND_PREFIX.startsWith('mocha --config '),
@@ -433,27 +455,21 @@ describe('squads sdk migration regression', () => {
     expect(
       INFRA_SQUADS_TEST_COMMAND_PREFIX.includes('../sdk/.mocharc.json'),
     ).to.equal(true);
-    expect(INFRA_SQUADS_TEST_COMMAND_PREFIX.includes('  ')).to.equal(false);
     expect(INFRA_SQUADS_TEST_COMMAND_PREFIX.endsWith(' ')).to.equal(false);
     expect(INFRA_SQUADS_TEST_COMMAND_PREFIX.includes('"')).to.equal(false);
     expect(INFRA_SQUADS_TEST_COMMAND_PREFIX.includes("'")).to.equal(false);
-    expect(INFRA_SQUADS_TEST_COMMAND_PREFIX.includes('\\')).to.equal(false);
   });
 
   it('keeps expected infra squads test command derived from regression path list', () => {
-    expect(EXPECTED_INFRA_SQUADS_TEST_SCRIPT).to.equal(
-      EXPECTED_INFRA_SQUADS_TEST_SCRIPT.trim(),
+    assertCanonicalCliCommandShape(
+      EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
+      'expected infra squads test command',
     );
     expect(
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT.startsWith(
         `${INFRA_SQUADS_TEST_COMMAND_PREFIX} `,
       ),
     ).to.equal(true);
-    expect(
-      EXPECTED_INFRA_SQUADS_TEST_SCRIPT.includes('  '),
-      'Expected squads test command to avoid duplicate spaces',
-    ).to.equal(false);
-    expect(/[\n\r\t]/.test(EXPECTED_INFRA_SQUADS_TEST_SCRIPT)).to.equal(false);
     expect(EXPECTED_INFRA_SQUADS_TEST_SCRIPT.includes("'")).to.equal(false);
     expect(
       countSubstringOccurrences(EXPECTED_INFRA_SQUADS_TEST_SCRIPT, '"'),
@@ -464,7 +480,6 @@ describe('squads sdk migration regression', () => {
         INFRA_SQUADS_TEST_COMMAND_PREFIX,
       ),
     ).to.equal(1);
-    expect(EXPECTED_INFRA_SQUADS_TEST_SCRIPT.includes('\\')).to.equal(false);
     const quotedScriptPaths = listQuotedScriptPaths(
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
     );
