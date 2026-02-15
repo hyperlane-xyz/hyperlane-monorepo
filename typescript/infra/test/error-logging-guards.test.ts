@@ -6,7 +6,7 @@ function expectNoRipgrepMatches(pattern: string, description: string): void {
   try {
     const output = execFileSync(
       'rg',
-      [pattern, 'scripts', 'src', '--glob', '*.ts'],
+      [pattern, 'scripts', 'src', 'config', '--glob', '*.ts'],
       { encoding: 'utf8' },
     );
     expect.fail(`Found disallowed ${description}:\n${output}`);
@@ -39,6 +39,13 @@ describe('Error logging hardening guards', () => {
     expectNoRipgrepMatches(
       String.raw`rootLogger\.error\([^\n]*,\s*(err|error|e)\)|console\.error\([^\n]*,\s*(err|error|e)\)|rootLogger\.warn\([^\n]*,\s*(err|error|e)\)`,
       'comma-style raw error arguments in logs',
+    );
+  });
+
+  it('prevents direct .message/.stack error accessor usage', () => {
+    expectNoRipgrepMatches(
+      String.raw`\berror\.message\b|\berr\.message\b|\be\.message\b|\berror\.stack\b|\berr\.stack\b|\be\.stack\b`,
+      'direct .message/.stack error accessor usage',
     );
   });
 });

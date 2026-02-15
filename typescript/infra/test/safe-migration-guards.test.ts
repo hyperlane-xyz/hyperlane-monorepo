@@ -9,6 +9,26 @@ type InfraPackageJson = {
   devDependencies?: Record<string, string>;
 };
 
+const SAFE_HELPER_SYMBOLS = [
+  'createSafeDeploymentTransaction',
+  'createSafeTransaction',
+  'createSafeTransactionData',
+  'decodeMultiSendData',
+  'deleteAllPendingSafeTxs',
+  'deleteSafeTx',
+  'executeTx',
+  'getPendingTxsForChains',
+  'getSafe',
+  'getSafeAndService',
+  'getSafeDelegates',
+  'getSafeService',
+  'getSafeTx',
+  'getSafeTxServiceUrl',
+  'parseSafeTx',
+  'proposeSafeTransaction',
+  'updateSafeOwner',
+] as const;
+
 function expectNoRipgrepMatches(pattern: string, description: string): void {
   try {
     const output = execFileSync(
@@ -30,11 +50,61 @@ function expectNoRipgrepMatches(pattern: string, description: string): void {
 }
 
 describe('Safe migration guards', () => {
+  it('keeps legacy infra safe utility module deleted', () => {
+    const legacySafeUtilPath = path.join(process.cwd(), 'src/utils/safe.ts');
+    expect(fs.existsSync(legacySafeUtilPath)).to.equal(false);
+  });
+
   it('prevents reintroducing infra local safe util imports', () => {
     expectNoRipgrepMatches(
       String.raw`src/utils/safe\.ts|src/utils/safe|from ['"].*utils/safe`,
       'legacy infra safe util import path usage',
     );
+  });
+
+  it('ensures migrated safe helper symbols are only imported from sdk', () => {
+    const rootsToScan = ['scripts', 'src', 'config'];
+    const disallowedImports: string[] = [];
+
+    const walk = (currentPath: string) => {
+      const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const entryPath = path.join(currentPath, entry.name);
+        if (entry.isDirectory()) {
+          walk(entryPath);
+          continue;
+        }
+        if (!entry.isFile() || !entry.name.endsWith('.ts')) continue;
+
+        const contents = fs.readFileSync(entryPath, 'utf8');
+        const importMatches = contents.matchAll(
+          /import\s*{([^}]*)}\s*from\s*['"]([^'"]+)['"]/g,
+        );
+
+        for (const [, imported, source] of importMatches) {
+          const importedSymbols = imported
+            .split(',')
+            .map((s) => s.trim().replace(/\s+as\s+\w+$/, ''));
+
+          for (const safeSymbol of SAFE_HELPER_SYMBOLS) {
+            if (
+              importedSymbols.includes(safeSymbol) &&
+              source !== '@hyperlane-xyz/sdk'
+            ) {
+              disallowedImports.push(
+                `${path.relative(process.cwd(), entryPath)} -> ${safeSymbol} from ${source}`,
+              );
+            }
+          }
+        }
+      }
+    };
+
+    for (const root of rootsToScan) {
+      walk(path.join(process.cwd(), root));
+    }
+
+    expect(disallowedImports).to.deep.equal([]);
   });
 
   it('prevents direct @safe-global imports in infra source', () => {
