@@ -3,7 +3,11 @@ import path from 'path';
 
 import { expect } from 'chai';
 
-import { DEFAULT_REGISTRY_URI, getRegistry } from '../config/registry.js';
+import {
+  DEFAULT_REGISTRY_URI,
+  getChain,
+  getRegistry,
+} from '../config/registry.js';
 
 describe('Registry path defaults', () => {
   it('resolves to the repo-local hyperlane-registry directory', () => {
@@ -23,5 +27,16 @@ describe('Registry path defaults', () => {
 
     const chainMetadata = getRegistry().getChainMetadata('abstract');
     expect(chainMetadata?.name).to.equal('abstract');
+  });
+
+  it('resolves abstract through infra getChain helper', function () {
+    if (!fs.existsSync(DEFAULT_REGISTRY_URI)) {
+      this.skip();
+      return;
+    }
+
+    const chainMetadata = getChain('abstract');
+    expect(chainMetadata.name).to.equal('abstract');
+    expect(chainMetadata.domainId).to.equal(2741);
   });
 });
