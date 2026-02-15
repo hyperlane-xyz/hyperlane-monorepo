@@ -13,9 +13,7 @@ import {
   squadsConfigs,
   stringifyUnknownSquadsError,
 } from './index.js';
-import {
-  SquadsTransactionReader as DirectSquadsTransactionReader,
-} from './transaction-reader.js';
+import { SquadsTransactionReader as DirectSquadsTransactionReader } from './transaction-reader.js';
 import {
   BUILTIN_SQUADS_ERROR_LABELS as directBuiltinSquadsErrorLabels,
   DEFAULT_SQUADS_ERROR_PLACEHOLDER as directDefaultSquadsErrorPlaceholder,
@@ -75,7 +73,9 @@ describe('squads barrel exports', () => {
     const rootIndexSource = fs.readFileSync(SDK_ROOT_INDEX_PATH, 'utf8');
     const squadsExportStatement = "export * from './squads/index.js';";
     expect(rootIndexSource).to.include(squadsExportStatement);
-    expect(countOccurrences(rootIndexSource, squadsExportStatement)).to.equal(1);
+    expect(countOccurrences(rootIndexSource, squadsExportStatement)).to.equal(
+      1,
+    );
   });
 
   it('keeps sdk root index squads exports routed only through squads barrel', () => {
@@ -98,8 +98,7 @@ describe('squads barrel exports', () => {
       .split('\n')
       .map((line) => line.trim())
       .filter(
-        (line) =>
-          line.startsWith('export') && line.includes("from './squads/"),
+        (line) => line.startsWith('export') && line.includes("from './squads/"),
       );
 
     expect(squadsExportStatements).to.deep.equal([
@@ -117,10 +116,14 @@ describe('squads barrel exports', () => {
     expect(squadsReferenceLines).to.deep.equal([
       "export * from './squads/index.js';",
     ]);
+    expect(countOccurrences(rootIndexSource, './squads/')).to.equal(1);
   });
 
   it('keeps expected squads submodule exports in squads barrel source', () => {
-    const squadsBarrelSource = fs.readFileSync(SQUADS_BARREL_INDEX_PATH, 'utf8');
+    const squadsBarrelSource = fs.readFileSync(
+      SQUADS_BARREL_INDEX_PATH,
+      'utf8',
+    );
     const expectedSubmoduleExportStatements = [
       "export * from './config.js';",
       "export * from './utils.js';",
@@ -135,7 +138,10 @@ describe('squads barrel exports', () => {
   });
 
   it('keeps squads barrel export statement set exact and ordered', () => {
-    const squadsBarrelSource = fs.readFileSync(SQUADS_BARREL_INDEX_PATH, 'utf8');
+    const squadsBarrelSource = fs.readFileSync(
+      SQUADS_BARREL_INDEX_PATH,
+      'utf8',
+    );
     const exportStatements = squadsBarrelSource
       .split('\n')
       .map((line) => line.trim())
@@ -162,7 +168,9 @@ describe('squads barrel exports', () => {
     expect(sdkPackageJson.dependencies?.['@sqds/multisig']).to.not.equal(
       undefined,
     );
-    expect(sdkPackageJson.dependencies?.['@sqds/multisig']).to.equal('catalog:');
+    expect(sdkPackageJson.dependencies?.['@sqds/multisig']).to.equal(
+      'catalog:',
+    );
     expect(sdkPackageJson.devDependencies?.['@sqds/multisig']).to.equal(
       undefined,
     );
@@ -174,7 +182,8 @@ describe('squads barrel exports', () => {
     expect(sdkPackageJson.exports?.['./squads/*']).to.equal(undefined);
     const sdkExportKeys = Object.keys(sdkPackageJson.exports ?? {});
     expect(sdkExportKeys).to.deep.equal(['.']);
-    expect(sdkExportKeys.some((exportKey) => exportKey.startsWith('./squads'))).to
-      .equal(false);
+    expect(
+      sdkExportKeys.some((exportKey) => exportKey.startsWith('./squads')),
+    ).to.equal(false);
   });
 });
