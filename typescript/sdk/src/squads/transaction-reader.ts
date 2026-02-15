@@ -877,13 +877,7 @@ export class SquadsTransactionReader {
     vaultTransaction: accounts.VaultTransaction,
     svmProvider: SolanaWeb3Provider,
   ): Promise<{ instructions: ParsedInstruction[]; warnings: string[] }> {
-    const coreProgramIds = this.options.resolveCoreProgramIds(chain);
-    const corePrograms = {
-      mailbox: new PublicKey(coreProgramIds.mailbox),
-      multisigIsmMessageId: new PublicKey(
-        coreProgramIds.multisig_ism_message_id,
-      ),
-    };
+    const corePrograms = this.resolveCorePrograms(chain);
 
     const parsedInstructions: ParsedInstruction[] = [];
     const warnings: string[] = [];
@@ -1036,6 +1030,64 @@ export class SquadsTransactionReader {
     }
 
     return { instructions: parsedInstructions, warnings };
+  }
+
+  private resolveCorePrograms(chain: SquadsChainName): {
+    mailbox: PublicKey;
+    multisigIsmMessageId: PublicKey;
+  } {
+    let resolveCoreProgramIds:
+      | SquadsTransactionReaderOptions['resolveCoreProgramIds']
+      | undefined;
+    try {
+      resolveCoreProgramIds = this.options.resolveCoreProgramIds;
+    } catch (error) {
+      throw new Error(
+        `Failed to access core program resolver for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    assert(
+      typeof resolveCoreProgramIds === 'function',
+      `Invalid core program resolver for ${chain}: expected function, got ${getUnknownValueTypeName(
+        resolveCoreProgramIds,
+      )}`,
+    );
+
+    let coreProgramIds: unknown;
+    try {
+      coreProgramIds = resolveCoreProgramIds(chain);
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve core program ids for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    const coreProgramIdsType = getUnknownValueTypeName(coreProgramIds);
+    assert(
+      isRecordObject(coreProgramIds),
+      `Invalid core program ids for ${chain}: expected object, got ${coreProgramIdsType}`,
+    );
+
+    const mailboxProgramId = assertNonEmptyStringValue(
+      coreProgramIds.mailbox,
+      `mailbox program id for ${chain}`,
+    );
+    const multisigIsmMessageIdProgramId = assertNonEmptyStringValue(
+      coreProgramIds.multisig_ism_message_id,
+      `multisig_ism_message_id program id for ${chain}`,
+    );
+
+    try {
+      return {
+        mailbox: new PublicKey(mailboxProgramId),
+        multisigIsmMessageId: new PublicKey(multisigIsmMessageIdProgramId),
+      };
+    } catch (error) {
+      throw new Error(
+        `Invalid core program id for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
   }
 
   private async readConfigTransaction(
