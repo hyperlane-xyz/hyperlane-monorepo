@@ -1476,6 +1476,48 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
     });
 
+    it('matches runtime causes on top-level Error objects when errors accessor throws', () => {
+      const wrappedError = new Error('hidden message') as Error & {
+        cause?: unknown;
+      };
+      wrappedError.cause = new Error('No Docker client strategy found');
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime causes on top-level Error objects when errors accessor throws', () => {
+      const wrappedError = new Error('hidden message') as Error & {
+        cause?: unknown;
+      };
+      wrappedError.cause = new Error('unrelated nested startup warning');
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('matches runtime errors payloads on top-level Error objects when cause accessor throws', () => {
+      const wrappedError = new Error('hidden message') as Error & {
+        errors?: unknown;
+      };
+      wrappedError.errors = [{ message: 'No Docker client strategy found' }];
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('matches runtime boxed-string errors payloads on top-level Error objects when message and cause accessors throw', () => {
       const wrappedError = new Error('hidden message');
       Object.defineProperty(wrappedError, 'message', {
@@ -1509,6 +1551,44 @@ describe('Anvil utils', () => {
       });
       Object.defineProperty(wrappedError, 'errors', {
         value: new String('unrelated nested startup warning'),
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('ignores uncoercible spoofed boxed-string errors payloads on top-level Error objects when message and cause accessors throw', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'errors', {
+        value: buildUncoercibleSpoofedBoxedString(),
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('ignores string-prototype impostor errors payloads on top-level Error objects when message and cause accessors throw', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'errors', {
+        value: buildStringPrototypeImpostor('No Docker client strategy found'),
       });
 
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);

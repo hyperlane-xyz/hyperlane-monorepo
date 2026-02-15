@@ -283,3 +283,5 @@ Regression coverage now also confirms malformed `AggregateError.cause` payloads 
 Regression coverage now also confirms same-realm and cross-realm boxed-string `AggregateError.cause` payloads remain detectable/ignorable under combined `message`+`errors` accessor failures both with and without hostile `Symbol.toStringTag` accessors.
 
 Runtime-unavailable extraction now also traverses `errors` payloads on non-`AggregateError` `Error` instances, with regression coverage for runtime/non-runtime and hostile-accessor top-level `Error` wrappers.
+
+Regression coverage now also confirms top-level `Error` wrappers preserve detect/ignore behavior when `errors` or `cause` accessors throw, and malformed boxed-string impostor `Error.errors` payloads remain ignored under combined `message`+`cause` accessor failures.
