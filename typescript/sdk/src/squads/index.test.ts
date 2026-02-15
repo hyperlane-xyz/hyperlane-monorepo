@@ -107,6 +107,9 @@ const PARENTHESIZED_GLOBAL_PROCESS_REFERENCE_PATTERN =
 const WINDOW_PROCESS_REFERENCE_PATTERN = /\bwindow\s*\.\s*process\b/;
 const WINDOW_PROCESS_BRACKET_REFERENCE_PATTERN =
   /\bwindow\s*\[\s*['"]process['"]\s*\]/;
+const SELF_PROCESS_REFERENCE_PATTERN = /\bself\s*\.\s*process\b/;
+const SELF_PROCESS_BRACKET_REFERENCE_PATTERN =
+  /\bself\s*\[\s*['"]process['"]\s*\]/;
 const GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN =
   /\{[^}]*\bprocess\b[^}]*\}\s*=\s*(?:globalThis|global|window)\b/;
 const CONSOLE_REFERENCE_PATTERN =
@@ -130,6 +133,9 @@ const PARENTHESIZED_GLOBAL_CONSOLE_REFERENCE_PATTERN =
 const WINDOW_CONSOLE_REFERENCE_PATTERN = /\bwindow\s*\.\s*console\b/;
 const WINDOW_CONSOLE_BRACKET_REFERENCE_PATTERN =
   /\bwindow\s*\[\s*['"]console['"]\s*\]/;
+const SELF_CONSOLE_REFERENCE_PATTERN = /\bself\s*\.\s*console\b/;
+const SELF_CONSOLE_BRACKET_REFERENCE_PATTERN =
+  /\bself\s*\[\s*['"]console['"]\s*\]/;
 const GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN =
   /\{[^}]*\bconsole\b[^}]*\}\s*=\s*(?:globalThis|global|window)\b/;
 const CLI_GLUE_IMPORT_PATTERN =
@@ -1204,6 +1210,9 @@ describe('squads barrel exports', () => {
         "(window)['process']",
       ),
     ).to.equal(true);
+    expect(SELF_PROCESS_REFERENCE_PATTERN.test('self.process')).to.equal(true);
+    expect(SELF_PROCESS_BRACKET_REFERENCE_PATTERN.test("self['process']")).to
+      .equal(true);
     expect(
       GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(
         'const { console } = window',
@@ -1219,6 +1228,9 @@ describe('squads barrel exports', () => {
         '(globalThis).console',
       ),
     ).to.equal(true);
+    expect(SELF_CONSOLE_REFERENCE_PATTERN.test('self.console')).to.equal(true);
+    expect(SELF_CONSOLE_BRACKET_REFERENCE_PATTERN.test('self["console"]')).to
+      .equal(true);
 
     expect(PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test('processor?.env')).to
       .equal(false);
@@ -1243,6 +1255,9 @@ describe('squads barrel exports', () => {
         '(windows).process',
       ),
     ).to.equal(false);
+    expect(SELF_PROCESS_REFERENCE_PATTERN.test('shelf.process')).to.equal(false);
+    expect(SELF_PROCESS_BRACKET_REFERENCE_PATTERN.test("shelf['process']")).to
+      .equal(false);
     expect(
       GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(
         'const { consoles } = window',
@@ -1256,6 +1271,11 @@ describe('squads barrel exports', () => {
         '(globalThiss).console',
       ),
     ).to.equal(false);
+    expect(SELF_CONSOLE_REFERENCE_PATTERN.test('shelf.console')).to.equal(
+      false,
+    );
+    expect(SELF_CONSOLE_BRACKET_REFERENCE_PATTERN.test('shelf["console"]')).to
+      .equal(false);
   });
 
   it('keeps sdk squads runtime sources decoupled from infra and filesystem env wiring', () => {
@@ -1349,6 +1369,14 @@ describe('squads barrel exports', () => {
         `Expected sdk squads runtime source to avoid window['process'] coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
+        SELF_PROCESS_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid self.process coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        SELF_PROCESS_BRACKET_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid self['process'] coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
         GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid global/window process destructuring coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
@@ -1395,6 +1423,14 @@ describe('squads barrel exports', () => {
       expect(
         WINDOW_CONSOLE_BRACKET_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid window['console'] coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        SELF_CONSOLE_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid self.console coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        SELF_CONSOLE_BRACKET_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid self['console'] coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
         GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(runtimeSource),
