@@ -3555,6 +3555,30 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast for empty chain names before rejection provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsProposalRejection(
+          '   ' as unknown as Parameters<typeof buildSquadsProposalRejection>[0],
+          mpp,
+          1n,
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a non-empty string',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('fails fast for non-bigint transaction index before rejection provider lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -3673,6 +3697,32 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for empty chain names before cancellation provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsProposalCancellation(
+          '   ' as unknown as Parameters<
+            typeof buildSquadsProposalCancellation
+          >[0],
+          mpp,
+          1n,
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a non-empty string',
       );
       expect(providerLookupCalled).to.equal(false);
     });
@@ -3957,6 +4007,29 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast for empty chain names before account lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType(
+          '   ' as unknown as Parameters<typeof getTransactionType>[0],
+          mpp,
+          0,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a non-empty string',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('fails fast for malformed chain names before transaction index validation', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -4144,6 +4217,30 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for empty chain names before proposal execution setup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal(
+          '   ' as unknown as Parameters<typeof executeProposal>[0],
+          mpp,
+          0,
+          {} as Parameters<typeof executeProposal>[3],
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a non-empty string',
       );
       expect(providerLookupCalled).to.equal(false);
     });
