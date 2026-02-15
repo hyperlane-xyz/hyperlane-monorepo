@@ -6141,6 +6141,61 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('records warnings when instruction account-indexes type is malformed', async () => {
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const vaultTransaction = {
+      message: {
+        accountKeys: [SYSTEM_PROGRAM_ID],
+        addressTableLookups: [],
+        instructions: [
+          {
+            programIdIndex: 0,
+            accountIndexes: 7,
+            data: Buffer.from([1, 2, 3]),
+          },
+        ],
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction as unknown as Record<string, unknown>,
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed.instructions).to.deep.equal([
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'System Program',
+        instructionType: 'System Call',
+        data: {},
+        accounts: [],
+        warnings: [],
+      },
+    ]);
+    expect(parsed.warnings).to.deep.equal([
+      'Malformed instruction account indexes on solanamainnet at 0: expected array, got number',
+    ]);
+  });
+
   it('keeps system-instruction parsing when instruction data has malformed type', async () => {
     const nonSystemProgramId = new PublicKey(
       new Uint8Array(32).fill(7),
@@ -6181,19 +6236,19 @@ describe('squads transaction reader', () => {
       { getAccountInfo: async () => null },
     );
 
-    expect(parsed).to.deep.equal({
-      warnings: [],
-      instructions: [
-        {
-          programId: SYSTEM_PROGRAM_ID,
-          programName: 'System Program',
-          instructionType: 'System Call',
-          data: {},
-          accounts: [],
-          warnings: [],
-        },
-      ],
-    });
+    expect(parsed.instructions).to.deep.equal([
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'System Program',
+        instructionType: 'System Call',
+        data: {},
+        accounts: [],
+        warnings: [],
+      },
+    ]);
+    expect(parsed.warnings).to.deep.equal([
+      'Malformed instruction 0 data on solanamainnet: expected bytes, got number',
+    ]);
   });
 
   it('keeps system-instruction parsing when instruction data array cannot normalize', async () => {
@@ -6236,19 +6291,21 @@ describe('squads transaction reader', () => {
       { getAccountInfo: async () => null },
     );
 
-    expect(parsed).to.deep.equal({
-      warnings: [],
-      instructions: [
-        {
-          programId: SYSTEM_PROGRAM_ID,
-          programName: 'System Program',
-          instructionType: 'System Call',
-          data: {},
-          accounts: [],
-          warnings: [],
-        },
-      ],
-    });
+    expect(parsed.instructions).to.deep.equal([
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'System Program',
+        instructionType: 'System Call',
+        data: {},
+        accounts: [],
+        warnings: [],
+      },
+    ]);
+    expect(parsed.warnings).to.have.lengthOf(1);
+    expect(parsed.warnings[0]).to.contain(
+      'Failed to normalize instruction 0 data on solanamainnet:',
+    );
+    expect(parsed.warnings[0]).to.contain('BigInt');
   });
 
   it('formats unstringifiable instruction parse errors safely', async () => {

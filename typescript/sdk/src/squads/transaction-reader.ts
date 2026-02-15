@@ -1279,9 +1279,9 @@ export class SquadsTransactionReader {
           [],
         );
         if (!Array.isArray(accountIndexesValue)) {
-          rootLogger.warn(
-            `Malformed instruction account indexes on ${chain} at ${idx}: expected array, got ${getUnknownValueTypeName(accountIndexesValue)}`,
-          );
+          const warning = `Malformed instruction account indexes on ${chain} at ${idx}: expected array, got ${getUnknownValueTypeName(accountIndexesValue)}`;
+          rootLogger.warn(warning);
+          warnings.push(warning);
         }
         const accountIndexes = Array.isArray(accountIndexesValue)
           ? this.normalizeVaultArrayField(
@@ -1324,6 +1324,7 @@ export class SquadsTransactionReader {
           chain,
           idx,
           instructionDataValue,
+          warnings,
         );
         const accounts: PublicKey[] = [];
         for (const accountIdxValue of accountIndexes) {
@@ -1484,6 +1485,7 @@ export class SquadsTransactionReader {
     chain: SquadsChainName,
     instructionIndex: number,
     value: unknown,
+    warnings: string[],
   ): Buffer {
     if (Buffer.isBuffer(value)) {
       return Buffer.from(value);
@@ -1498,16 +1500,16 @@ export class SquadsTransactionReader {
       try {
         return Buffer.from(value);
       } catch (error) {
-        rootLogger.warn(
-          `Failed to normalize instruction ${instructionIndex} data on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-        );
+        const warning = `Failed to normalize instruction ${instructionIndex} data on ${chain}: ${stringifyUnknownSquadsError(error)}`;
+        rootLogger.warn(warning);
+        warnings.push(warning);
         return Buffer.alloc(0);
       }
     }
 
-    rootLogger.warn(
-      `Malformed instruction ${instructionIndex} data on ${chain}: expected bytes, got ${getUnknownValueTypeName(value)}`,
-    );
+    const warning = `Malformed instruction ${instructionIndex} data on ${chain}: expected bytes, got ${getUnknownValueTypeName(value)}`;
+    rootLogger.warn(warning);
+    warnings.push(warning);
     return Buffer.alloc(0);
   }
 
