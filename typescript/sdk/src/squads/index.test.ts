@@ -121,6 +121,7 @@ describe('squads barrel exports', () => {
     expect(sdkPackageJson.dependencies?.['@sqds/multisig']).to.not.equal(
       undefined,
     );
+    expect(sdkPackageJson.dependencies?.['@sqds/multisig']).to.equal('catalog:');
     expect(sdkPackageJson.devDependencies?.['@sqds/multisig']).to.equal(
       undefined,
     );
