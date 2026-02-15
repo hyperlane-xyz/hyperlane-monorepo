@@ -85,4 +85,27 @@ describe('squads test constants', () => {
       'scripts/sealevel-helpers/update-multisig-ism-config.ts',
     ]);
   });
+
+  it('keeps executable constant derived from script allowlist partition', () => {
+    const derivedExecutableScriptPaths = SQUADS_SCRIPT_PATHS.filter(
+      (scriptPath) =>
+        !NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
+          scriptPath.endsWith(`/${fileName}`),
+        ),
+    );
+    expect(EXECUTABLE_SQUADS_SCRIPT_PATHS).to.deep.equal(
+      derivedExecutableScriptPaths,
+    );
+  });
+
+  it('keeps allowlisted non-executable squads script paths canonical', () => {
+    const allowlistedScriptPaths = SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
+      NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
+        scriptPath.endsWith(`/${fileName}`),
+      ),
+    );
+    expect(allowlistedScriptPaths).to.deep.equal([
+      'scripts/squads/cli-helpers.ts',
+    ]);
+  });
 });
