@@ -334,7 +334,7 @@ describe('squads sdk migration regression', () => {
 
   it('keeps guarded squads script paths included in tracked source scan', () => {
     const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
-    const trackedSourceFileSet = new Set(trackedSourceFiles.map(toPosixPath));
+    const trackedSourceFileSet = new Set(trackedSourceFiles);
 
     for (const scriptPath of SQUADS_SCRIPT_PATHS) {
       expect(
@@ -355,6 +355,14 @@ describe('squads sdk migration regression', () => {
     const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
     expect(trackedSourceFiles).to.deep.equal(
       [...trackedSourceFiles].sort(compareLexicographically),
+    );
+  });
+
+  it('keeps tracked infra source file scan non-empty and deduplicated', () => {
+    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    expect(trackedSourceFiles.length).to.be.greaterThan(0);
+    expect(new Set(trackedSourceFiles).size).to.equal(
+      trackedSourceFiles.length,
     );
   });
 
