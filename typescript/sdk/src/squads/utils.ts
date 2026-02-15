@@ -1730,7 +1730,7 @@ export async function buildSquadsVaultTransactionProposal(
   chain: unknown,
   mpp: MultiProtocolProvider,
   ixs: readonly TransactionInstruction[],
-  creator: PublicKey,
+  creator: unknown,
   memo?: string,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<{
@@ -1738,6 +1738,10 @@ export async function buildSquadsVaultTransactionProposal(
   transactionIndex: bigint;
 }> {
   const normalizedChain = resolveSquadsChainName(chain);
+  const normalizedCreator = assertPublicKeyValue(
+    creator,
+    `proposal creator for ${normalizedChain}`,
+  );
   const { svmProvider, vault, multisigPda, programId } =
     getSquadAndProviderForResolvedChain(
       normalizedChain,
@@ -1761,7 +1765,7 @@ export async function buildSquadsVaultTransactionProposal(
   const vaultTxIx = createVaultTransactionInstruction(
     multisigPda,
     transactionIndex,
-    creator,
+    normalizedCreator,
     0,
     transactionMessage,
     programId,
@@ -1771,7 +1775,7 @@ export async function buildSquadsVaultTransactionProposal(
   const proposalIx = createProposalInstruction(
     multisigPda,
     transactionIndex,
-    creator,
+    normalizedCreator,
     programId,
   );
 

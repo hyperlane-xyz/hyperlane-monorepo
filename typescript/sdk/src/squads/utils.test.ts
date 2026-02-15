@@ -4466,6 +4466,30 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast for malformed proposal creators before provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          [],
+          'malformed-creator',
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal creator for solanamainnet to be a PublicKey, got string',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('looks up provider once when proposal build fails during provider validation', async () => {
       let providerLookupCount = 0;
       const mpp = {
