@@ -493,6 +493,18 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps expected canonical sdk squads test command prefix', () => {
+    expect(SDK_SQUADS_TEST_COMMAND_PREFIX).to.equal(
+      'mocha --config .mocharc.json',
+    );
+  });
+
+  it('keeps expected canonical sdk squads test command', () => {
+    expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT).to.equal(
+      "mocha --config .mocharc.json 'src/squads/*.test.ts'",
+    );
+  });
+
   it('re-exports squads config/constants', () => {
     expect(squadsConfigs).to.equal(directSquadsConfigs);
     expect(getSquadsChains).to.equal(directGetSquadsChains);

@@ -661,6 +661,18 @@ describe('squads sdk migration regression', () => {
     expect(INFRA_SQUADS_TEST_COMMAND_PREFIX.includes("'")).to.equal(false);
   });
 
+  it('keeps expected canonical infra squads test command prefix', () => {
+    expect(INFRA_SQUADS_TEST_COMMAND_PREFIX).to.equal(
+      'mocha --config ../sdk/.mocharc.json',
+    );
+  });
+
+  it('keeps expected canonical infra squads test command', () => {
+    expect(EXPECTED_INFRA_SQUADS_TEST_SCRIPT).to.equal(
+      'mocha --config ../sdk/.mocharc.json "test/squads-cli-helpers.test.ts" "test/squads-scripts-help.test.ts" "test/squads-sdk-migration-regression.test.ts" "test/squads-test-ordering.test.ts" "test/squads-test-utils.test.ts" "test/squads-test-constants.test.ts"',
+    );
+  });
+
   it('keeps expected infra squads test command derived from regression path list', () => {
     assertCanonicalCliCommandShape(
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
