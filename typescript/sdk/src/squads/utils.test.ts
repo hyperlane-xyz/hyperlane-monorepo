@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { PublicKey, TransactionInstruction } from '@solana/web3.js';
+import { accounts } from '@sqds/multisig';
 
 import {
   SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
@@ -4892,6 +4893,103 @@ describe('squads utils', () => {
         'on solanamainnet: [unstringifiable error]',
       );
       expect(providerLookupCount).to.equal(1);
+    });
+
+    it('throws stable error when provider lacks getLatestBlockhash during proposal build', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+        const mpp = {
+          getSolanaWeb3Provider: () => ({
+            getAccountInfo: async () => ({
+              owner: getSquadsKeys('solanamainnet').programId,
+            }),
+          }),
+        };
+
+        const thrownError = await captureAsyncError(() =>
+          buildSquadsVaultTransactionProposal(
+            'solanamainnet',
+            mpp,
+            [],
+            PublicKey.default,
+          ),
+        );
+
+        expect(thrownError?.message).to.equal(
+          'Invalid solana provider for solanamainnet: expected getLatestBlockhash function, got undefined',
+        );
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
+
+    it('throws contextual error when getLatestBlockhash accessor fails during proposal build', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+        const mpp = {
+          getSolanaWeb3Provider: () =>
+            new Proxy(
+              {
+                getAccountInfo: async () => ({
+                  owner: getSquadsKeys('solanamainnet').programId,
+                }),
+              },
+              {
+                get(target, property, receiver) {
+                  if (property === 'getLatestBlockhash') {
+                    throw new Error('blockhash unavailable');
+                  }
+                  return Reflect.get(target, property, receiver);
+                },
+              },
+            ),
+        };
+
+        const thrownError = await captureAsyncError(() =>
+          buildSquadsVaultTransactionProposal(
+            'solanamainnet',
+            mpp,
+            [],
+            PublicKey.default,
+          ),
+        );
+
+        expect(thrownError?.message).to.equal(
+          'Failed to read getLatestBlockhash for solanamainnet: blockhash unavailable',
+        );
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
     });
 
     it('uses provided provider override without multiprovider lookup', async () => {

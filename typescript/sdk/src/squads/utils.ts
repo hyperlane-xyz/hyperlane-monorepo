@@ -1912,6 +1912,57 @@ function normalizeProposalMemoForBuild(
   return normalizedMemo.length > 0 ? normalizedMemo : undefined;
 }
 
+async function getRecentBlockhashForProposalBuild(
+  chain: SquadsChainName,
+  svmProvider: SolanaWeb3Provider,
+): Promise<string> {
+  let getLatestBlockhashValue: unknown;
+  try {
+    getLatestBlockhashValue = (svmProvider as { getLatestBlockhash?: unknown })
+      .getLatestBlockhash;
+  } catch (error) {
+    throw new Error(
+      `Failed to read getLatestBlockhash for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof getLatestBlockhashValue === 'function',
+    `Invalid solana provider for ${chain}: expected getLatestBlockhash function, got ${getUnknownValueTypeName(getLatestBlockhashValue)}`,
+  );
+
+  let latestBlockhashResult: unknown;
+  try {
+    latestBlockhashResult = await getLatestBlockhashValue.call(svmProvider);
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch latest blockhash for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof latestBlockhashResult === 'object' && latestBlockhashResult !== null,
+    `Malformed latest blockhash result for ${chain}: expected object, got ${getUnknownValueTypeName(latestBlockhashResult)}`,
+  );
+
+  let blockhashValue: unknown;
+  try {
+    blockhashValue = (latestBlockhashResult as { blockhash?: unknown })
+      .blockhash;
+  } catch (error) {
+    throw new Error(
+      `Failed to read latest blockhash value for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof blockhashValue === 'string' && blockhashValue.trim().length > 0,
+    `Malformed latest blockhash value for ${chain}: expected non-empty string, got ${getUnknownValueTypeName(blockhashValue)}`,
+  );
+
+  return blockhashValue.trim();
+}
+
 function createVaultTransactionInstruction(
   multisigPda: PublicKey,
   transactionIndex: bigint,
@@ -1997,7 +2048,10 @@ export async function buildSquadsVaultTransactionProposal(
     svmProvider,
   );
 
-  const { blockhash } = await svmProvider.getLatestBlockhash();
+  const blockhash = await getRecentBlockhashForProposalBuild(
+    normalizedChain,
+    svmProvider,
+  );
   const transactionMessage = buildVaultTransactionMessage(
     vault,
     normalizedInstructions,
