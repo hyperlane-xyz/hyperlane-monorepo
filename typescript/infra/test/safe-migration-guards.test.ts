@@ -53,7 +53,7 @@ const DISALLOWED_LOCAL_SAFE_DECLARATIONS = [
 
 const INFRA_SOURCE_PATHS = ['scripts', 'src', 'config'] as const;
 const INFRA_SOURCE_AND_TEST_PATHS = [...INFRA_SOURCE_PATHS, 'test'] as const;
-const SOURCE_FILE_GLOB = '*.{ts,js,mts,cts,mjs,cjs}' as const;
+const SOURCE_FILE_GLOB = '*.{ts,tsx,js,jsx,mts,mtsx,cts,ctsx,mjs,cjs}' as const;
 
 function normalizeNamedSymbol(symbol: string): string {
   const trimmed = symbol.trim();
@@ -144,7 +144,7 @@ describe('Safe migration guards', () => {
           walk(entryPath);
           continue;
         }
-        if (!entry.isFile() || !/\.(?:[cm]?ts|[cm]?js)$/.test(entry.name)) {
+        if (!entry.isFile() || !/\.(?:[cm]?[jt]sx?)$/.test(entry.name)) {
           continue;
         }
 

@@ -4,7 +4,7 @@ import path from 'path';
 
 import { expect } from 'chai';
 
-const SOURCE_FILE_GLOB = '*.{ts,js,mts,cts,mjs,cjs}' as const;
+const SOURCE_FILE_GLOB = '*.{ts,tsx,js,jsx,mts,mtsx,cts,ctsx,mjs,cjs}' as const;
 
 type SdkPackageJson = {
   dependencies?: Record<string, string>;
