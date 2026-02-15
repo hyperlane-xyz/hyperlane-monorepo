@@ -601,6 +601,73 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(1);
   });
 
+  it('caches null expected config when resolver accessor throws', () => {
+    let resolverAccessorReadCount = 0;
+    const mpp = {
+      tryGetChainName: (domain: number) =>
+        domain === 1000 ? 'solanatestnet' : undefined,
+      getSolanaWeb3Provider: () => ({
+        getAccountInfo: async () => null,
+      }),
+    } as unknown as MultiProtocolProvider;
+
+    const reader = new SquadsTransactionReader(
+      mpp,
+      new Proxy(
+        {
+          resolveCoreProgramIds: () => ({
+            mailbox: 'mailbox-program-id',
+            multisig_ism_message_id: 'multisig-ism-program-id',
+          }),
+          resolveExpectedMultisigConfig: () => ({
+            solanatestnet: {
+              threshold: 2,
+              validators: ['validator-a'],
+            },
+          }),
+        },
+        {
+          get(target, property, receiver) {
+            if (property === 'resolveExpectedMultisigConfig') {
+              resolverAccessorReadCount += 1;
+              throw new Error('resolver accessor failed');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ),
+    );
+
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const firstResult = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+    const secondResult = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(firstResult).to.deep.equal({
+      matches: false,
+      issues: ['No expected config found for solanamainnet'],
+    });
+    expect(secondResult).to.deep.equal(firstResult);
+    expect(resolverAccessorReadCount).to.equal(1);
+  });
+
   it('surfaces missing route-specific expected configuration', () => {
     const reader = createReaderForVerification(() => ({
       solanadevnet: {

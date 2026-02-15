@@ -1190,13 +1190,26 @@ export class SquadsTransactionReader {
       return this.multisigConfigs.get(chain) ?? null;
     }
 
-    if (!this.options.resolveExpectedMultisigConfig) {
+    let resolveExpectedMultisigConfig:
+      | SquadsTransactionReaderOptions['resolveExpectedMultisigConfig']
+      | undefined;
+    try {
+      resolveExpectedMultisigConfig = this.options.resolveExpectedMultisigConfig;
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to load multisig config resolver for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      this.multisigConfigs.set(chain, null);
+      return null;
+    }
+
+    if (!resolveExpectedMultisigConfig) {
       this.multisigConfigs.set(chain, null);
       return null;
     }
 
     try {
-      const config = this.options.resolveExpectedMultisigConfig(chain);
+      const config = resolveExpectedMultisigConfig(chain);
       this.multisigConfigs.set(chain, config);
       return config;
     } catch (error) {
