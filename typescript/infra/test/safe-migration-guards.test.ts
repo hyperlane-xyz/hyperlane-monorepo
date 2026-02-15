@@ -759,6 +759,9 @@ function collectLexicalScopeDeclaredIdentifiers(node: ts.Node): Set<string> {
         declaredIdentifiers.add(localName);
       }
     }
+    for (const statement of node.block.statements) {
+      collectStatementLexicalScopeBindings(statement, declaredIdentifiers);
+    }
     return declaredIdentifiers;
   }
 
@@ -2166,6 +2169,24 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not leak catch-block lexical alias declarations to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      "  throw new Error('boom');",
+      '} catch (error) {',
+      '  const reqAlias = () => undefined;',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '}',
+      "const postCatchDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak symbol-source shadowing across lexical for-loop scopes', () => {
     const source = [
       'const reqAlias = require;',
@@ -2730,6 +2751,29 @@ describe('Safe migration guards', () => {
       "  require('./fixtures/other-module.js');",
       '}',
       "const postCatchCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak catch-block lexical alias declarations to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      "  throw new Error('boom');",
+      '} catch (error) {',
+      '  const reqAlias = () => undefined;',
+      "  reqAlias('./fixtures/other-module.js');",
+      '}',
+      "const postCatchCall = reqAlias('./fixtures/guard-module.js');",
     ].join('\n');
     const moduleReferences = collectModuleSpecifierReferences(
       source,

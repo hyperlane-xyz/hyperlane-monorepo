@@ -885,6 +885,9 @@ function collectLexicalScopeDeclaredIdentifiers(node: ts.Node): Set<string> {
         declaredIdentifiers.add(localName);
       }
     }
+    for (const statement of node.block.statements) {
+      collectStatementLexicalScopeBindings(statement, declaredIdentifiers);
+    }
     return declaredIdentifiers;
   }
 
@@ -2060,6 +2063,29 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('does not leak catch-block lexical alias declarations to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      "  throw new Error('boom');",
+      '} catch (error) {',
+      '  const reqAlias = () => undefined;',
+      "  reqAlias('./fixtures/other-module.js');",
+      '}',
+      "const postCatchCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('does not leak require shadowing across lexical for-loop scopes', () => {
     const source = [
       'const reqAlias = require;',
@@ -2507,6 +2533,24 @@ describe('Gnosis Safe migration guards', () => {
       "  require('./fixtures/other-module.js').default;",
       '}',
       "const postCatchDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak catch-block lexical alias declarations to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      "  throw new Error('boom');",
+      '} catch (error) {',
+      '  const reqAlias = () => undefined;',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '}',
+      "const postCatchDefault = reqAlias('./fixtures/guard-module.js').default;",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
