@@ -92,6 +92,7 @@ describe('squads barrel exports', () => {
     ) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
+      exports?: Record<string, string>;
       scripts?: Record<string, string>;
     };
 
@@ -104,5 +105,6 @@ describe('squads barrel exports', () => {
     expect(sdkPackageJson.scripts?.['test:squads']).to.equal(
       "mocha --config .mocharc.json 'src/squads/*.test.ts'",
     );
+    expect(sdkPackageJson.exports?.['.']).to.equal('./dist/index.js');
   });
 });
