@@ -277,6 +277,31 @@ function listSdkSquadsDirectoryEntries(
     .sort((left, right) => compareLexicographically(left.name, right.name));
 }
 
+function listSdkSquadsSubdirectoryPathsRecursively(
+  absoluteDirectoryPath: string,
+  relativeDirectoryPath: string = '',
+): readonly string[] {
+  const discoveredSubdirectories: string[] = [];
+  for (const entry of listSdkSquadsDirectoryEntries(absoluteDirectoryPath)) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const nextRelativePath =
+      relativeDirectoryPath.length === 0
+        ? entry.name
+        : path.posix.join(relativeDirectoryPath, entry.name);
+    const nextAbsolutePath = path.join(absoluteDirectoryPath, entry.name);
+    discoveredSubdirectories.push(`src/squads/${nextRelativePath}`);
+    discoveredSubdirectories.push(
+      ...listSdkSquadsSubdirectoryPathsRecursively(
+        nextAbsolutePath,
+        nextRelativePath,
+      ),
+    );
+  }
+  return discoveredSubdirectories.sort(compareLexicographically);
+}
+
 function listSdkSquadsTestFilePaths(): readonly string[] {
   return listSdkSquadsDirectoryEntries(SDK_SQUADS_SOURCE_DIR)
     .filter((entry) => entry.isFile() && entry.name.endsWith('.test.ts'))
@@ -918,6 +943,12 @@ describe('squads barrel exports', () => {
     expect(subsequentInternalSourcePaths).to.deep.equal(
       baselineInternalSourcePaths,
     );
+  });
+
+  it('keeps sdk squads source directory flat without nested subdirectories', () => {
+    expect(
+      listSdkSquadsSubdirectoryPathsRecursively(SDK_SQUADS_SOURCE_DIR),
+    ).to.deep.equal([]);
   });
 
   it('keeps recursive sdk squads discovery helpers isolated from caller mutation', () => {
