@@ -4291,6 +4291,65 @@ describe('squads transaction reader', () => {
     }
   });
 
+  it('uses fallback addresses when config transaction PDA getters throw', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readConfigTransaction: (
+        chain: string,
+        transactionIndex: number,
+        proposalData: Record<string, unknown>,
+        accountInfo: Record<string, unknown>,
+      ) => Promise<Record<string, unknown>>;
+    };
+    const originalFromAccountInfo = accounts.ConfigTransaction.fromAccountInfo;
+    (
+      accounts.ConfigTransaction as unknown as {
+        fromAccountInfo: (...args: unknown[]) => unknown;
+      }
+    ).fromAccountInfo = () => [{ actions: [] }];
+    const hostileProposalData = new Proxy(
+      {
+        proposal: {},
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'proposalPda' || property === 'multisigPda') {
+            throw new Error(`${String(property)} unavailable`);
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    try {
+      const result = await readerAny.readConfigTransaction(
+        'solanamainnet',
+        5,
+        hostileProposalData as unknown as Record<string, unknown>,
+        { data: Buffer.alloc(0) },
+      );
+
+      expect(result).to.deep.equal({
+        chain: 'solanamainnet',
+        proposalPda: '[invalid address]',
+        transactionIndex: 5,
+        multisig: '[invalid address]',
+        instructions: [],
+      });
+    } finally {
+      (
+        accounts.ConfigTransaction as unknown as {
+          fromAccountInfo: typeof originalFromAccountInfo;
+        }
+      ).fromAccountInfo = originalFromAccountInfo;
+    }
+  });
+
   it('uses fallback transaction address in vault fetch failures', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
@@ -4396,6 +4455,77 @@ describe('squads transaction reader', () => {
           proposalPda: malformedAddressLike,
           multisigPda: malformedAddressLike,
         },
+        new PublicKey('11111111111111111111111111111111'),
+      );
+
+      expect(result).to.deep.equal({
+        chain: 'solanamainnet',
+        proposalPda: '[invalid address]',
+        transactionIndex: 5,
+        multisig: '[invalid address]',
+        instructions: [],
+      });
+    } finally {
+      (
+        accounts.VaultTransaction as unknown as {
+          fromAccountAddress: typeof originalFromAccountAddress;
+        }
+      ).fromAccountAddress = originalFromAccountAddress;
+    }
+  });
+
+  it('uses fallback addresses when vault transaction PDA getters throw', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readVaultTransaction: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+        proposalData: Record<string, unknown>,
+        transactionPda: unknown,
+      ) => Promise<Record<string, unknown>>;
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: unknown,
+        svmProvider: unknown,
+      ) => Promise<{ instructions: unknown[]; warnings: string[] }>;
+    };
+    const originalFromAccountAddress =
+      accounts.VaultTransaction.fromAccountAddress;
+    (
+      accounts.VaultTransaction as unknown as {
+        fromAccountAddress: (...args: unknown[]) => unknown;
+      }
+    ).fromAccountAddress = async () => ({ message: { instructions: [] } });
+    readerAny.parseVaultInstructions = async () => ({
+      instructions: [],
+      warnings: [],
+    });
+    const hostileProposalData = new Proxy(
+      {
+        proposal: {},
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'proposalPda' || property === 'multisigPda') {
+            throw new Error(`${String(property)} unavailable`);
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    try {
+      const result = await readerAny.readVaultTransaction(
+        'solanamainnet',
+        5,
+        { getAccountInfo: async () => null },
+        hostileProposalData as unknown as Record<string, unknown>,
         new PublicKey('11111111111111111111111111111111'),
       );
 

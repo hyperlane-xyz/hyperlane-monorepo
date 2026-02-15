@@ -1565,18 +1565,31 @@ export class SquadsTransactionReader {
       if (instruction) instructions.push(instruction);
     }
 
+    const proposalPdaValue = this.readProposalDataField(
+      chain,
+      'proposal PDA',
+      () => proposalData.proposalPda,
+      undefined,
+    );
+    const multisigPdaValue = this.readProposalDataField(
+      chain,
+      'multisig PDA',
+      () => proposalData.multisigPda,
+      undefined,
+    );
+
     return {
       chain,
       proposalPda: this.formatAddressLikeForDisplay(
         chain,
         'proposal PDA',
-        proposalData.proposalPda,
+        proposalPdaValue,
       ),
       transactionIndex,
       multisig: this.formatAddressLikeForDisplay(
         chain,
         'multisig PDA',
-        proposalData.multisigPda,
+        multisigPdaValue,
       ),
       instructions,
     };
@@ -1618,18 +1631,31 @@ export class SquadsTransactionReader {
       this.errors.push({ chain, transactionIndex, warnings });
     }
 
+    const proposalPdaValue = this.readProposalDataField(
+      chain,
+      'proposal PDA',
+      () => proposalData.proposalPda,
+      undefined,
+    );
+    const multisigPdaValue = this.readProposalDataField(
+      chain,
+      'multisig PDA',
+      () => proposalData.multisigPda,
+      undefined,
+    );
+
     return {
       chain,
       proposalPda: this.formatAddressLikeForDisplay(
         chain,
         'proposal PDA',
-        proposalData.proposalPda,
+        proposalPdaValue,
       ),
       transactionIndex,
       multisig: this.formatAddressLikeForDisplay(
         chain,
         'multisig PDA',
-        proposalData.multisigPda,
+        multisigPdaValue,
       ),
       instructions: parsedInstructions.map((inst) =>
         this.formatInstruction(chain, inst),
@@ -2168,6 +2194,22 @@ export class SquadsTransactionReader {
   }
 
   private readConfigActionField(
+    chain: SquadsChainName,
+    label: string,
+    readValue: () => unknown,
+    fallbackValue: unknown,
+  ): unknown {
+    try {
+      return readValue();
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read ${label} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return fallbackValue;
+    }
+  }
+
+  private readProposalDataField(
     chain: SquadsChainName,
     label: string,
     readValue: () => unknown,
