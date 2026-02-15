@@ -714,7 +714,12 @@ function readImportTypeQualifierSymbol(
 }
 
 function isLexicalScopeBoundary(node: ts.Node): boolean {
-  return ts.isBlock(node) || ts.isModuleBlock(node) || ts.isCaseBlock(node);
+  return (
+    ts.isBlock(node) ||
+    ts.isModuleBlock(node) ||
+    ts.isCaseBlock(node) ||
+    ts.isCatchClause(node)
+  );
 }
 
 function collectFunctionScopeShadowedIdentifiers(node: ts.Node): string[] {
@@ -1760,6 +1765,27 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('does not leak require shadowing across catch clause scopes', () => {
+    const source = [
+      'try {',
+      "  throw new Error('boom');",
+      '} catch (require) {',
+      "  require('./fixtures/other-module.js');",
+      '}',
+      "const postCatchCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('does not treat top-level function declaration named require as module specifier source', () => {
     const source = [
       "const preShadowCall = require('./fixtures/guard-module.js');",
@@ -1977,6 +2003,22 @@ describe('Gnosis Safe migration guards', () => {
       "  return require('./fixtures/other-module.js').default;",
       '}',
       'void outerDefault;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak symbol-source shadowing across catch clause scopes', () => {
+    const source = [
+      'try {',
+      "  throw new Error('boom');",
+      '} catch (require) {',
+      "  require('./fixtures/other-module.js').default;",
+      '}',
+      "const postCatchDefault = require('./fixtures/guard-module.js').default;",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
