@@ -96,14 +96,28 @@ const normalizeStructuredPlaceholderCandidate = (
   if (!normalizedValue) return undefined;
 
   while (normalizedValue.length >= 2) {
+    const hasEscapedDoubleQuoteWrapper =
+      normalizedValue.startsWith('\\"') && normalizedValue.endsWith('\\"');
+    const hasEscapedSingleQuoteWrapper =
+      normalizedValue.startsWith("\\'") && normalizedValue.endsWith("\\'");
     const hasDoubleQuoteWrapper =
       normalizedValue.startsWith('"') && normalizedValue.endsWith('"');
     const hasSingleQuoteWrapper =
       normalizedValue.startsWith("'") && normalizedValue.endsWith("'");
-    if (!hasDoubleQuoteWrapper && !hasSingleQuoteWrapper) break;
+    if (
+      !hasEscapedDoubleQuoteWrapper &&
+      !hasEscapedSingleQuoteWrapper &&
+      !hasDoubleQuoteWrapper &&
+      !hasSingleQuoteWrapper
+    ) {
+      break;
+    }
+
+    const wrapperLength =
+      hasEscapedDoubleQuoteWrapper || hasEscapedSingleQuoteWrapper ? 2 : 1;
 
     const unwrappedValue = getTrimmedNonEmptyString(
-      normalizedValue.slice(1, -1),
+      normalizedValue.slice(wrapperLength, -wrapperLength),
     );
     if (!unwrappedValue) return undefined;
     normalizedValue = unwrappedValue;

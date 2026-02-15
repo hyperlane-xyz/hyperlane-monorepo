@@ -415,3 +415,5 @@ Regression coverage also now confirms uppercase object-tag object placeholder ou
 Regression coverage also now confirms mixed-case object-tag object placeholder outputs from `String(error)` (for example `[oBjEcT oBjEcT]`) are treated as non-informative and continue through to `Object.prototype.toString`.
 
 Regression coverage also now confirms quoted object-tag object placeholder outputs from `String(error)` (for example `"[object Object]"`) are treated as non-informative and continue through to `Object.prototype.toString`.
+
+Regression coverage also now confirms json-escaped quoted object-tag object placeholder outputs from `String(error)` (for example `\"[object Object]\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
