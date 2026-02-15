@@ -107,11 +107,12 @@ describe('squads config', () => {
     expect(
       partitionSquadsChains([
         'unknown-b',
-        'solanamainnet',
+        ' solanamainnet ',
         'unknown-a',
         'soon',
         'unknown-b',
         'solanamainnet',
+        '  unknown-a',
       ]),
     ).to.deep.equal({
       squadsChains: ['solanamainnet', 'soon'],

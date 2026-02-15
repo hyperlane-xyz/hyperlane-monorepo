@@ -114,15 +114,16 @@ function partitionNormalizedSquadsChains(chains: readonly string[]): {
   const seenChains = new Set<string>();
 
   for (const chain of chains) {
-    if (seenChains.has(chain)) {
+    const normalizedChain = chain.trim();
+    if (seenChains.has(normalizedChain)) {
       continue;
     }
-    seenChains.add(chain);
+    seenChains.add(normalizedChain);
 
-    if (isSquadsChain(chain)) {
-      squadsChains.push(chain);
+    if (isSquadsChain(normalizedChain)) {
+      squadsChains.push(normalizedChain);
     } else {
-      nonSquadsChains.push(chain);
+      nonSquadsChains.push(normalizedChain);
     }
   }
 

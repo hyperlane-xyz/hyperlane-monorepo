@@ -3581,6 +3581,17 @@ describe('squads utils', () => {
     expect(nonSquadsChains).to.deep.equal(['unknown-chain']);
   });
 
+  it('normalizes whitespace while partitioning chains', () => {
+    const { squadsChains, nonSquadsChains } = partitionSquadsChains([
+      ' solanamainnet ',
+      'unknown-chain',
+      ' unknown-chain ',
+      '   ',
+    ]);
+    expect(squadsChains).to.deep.equal(['solanamainnet']);
+    expect(nonSquadsChains).to.deep.equal(['unknown-chain', '']);
+  });
+
   it('preserves first-seen chain ordering while partitioning', () => {
     const { squadsChains, nonSquadsChains } = partitionSquadsChains([
       'unknown-b',
