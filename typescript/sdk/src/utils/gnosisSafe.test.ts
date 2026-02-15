@@ -5887,6 +5887,58 @@ describe('gnosisSafe utils', () => {
       expect(statuses).to.deep.equal([]);
     });
 
+    it('returns empty when pending tx fetch throws unstringifiable error after retries', async () => {
+      const unstringifiableError = {
+        [Symbol.toPrimitive]() {
+          throw new Error('pending tx to-primitive boom');
+        },
+      };
+      let pendingCalls = 0;
+      safeModule.init = (async () => ({
+        getThreshold: async () => 1,
+        getBalance: async () => BigNumber.from(1),
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => {
+        pendingCalls += 1;
+        throw unstringifiableError;
+      }) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const clock = sinon.useFakeTimers();
+      const randomStub = sinon.stub(Math, 'random').returns(0);
+      try {
+        const statusesPromise = getPendingTxsForChains(
+          ['test'],
+          multiProviderMock,
+          { test: '0x52908400098527886e0f7030069857d2e4169ee7' },
+        );
+        await clock.tickAsync(20_000);
+        const statuses = await statusesPromise;
+
+        expect(statuses).to.deep.equal([]);
+        expect(pendingCalls).to.equal(10);
+      } finally {
+        randomStub.restore();
+        clock.restore();
+      }
+    });
+
     it('returns empty when safe threshold is zero', async () => {
       safeModule.init = (async () => ({
         getThreshold: async () => 0,
