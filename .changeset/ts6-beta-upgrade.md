@@ -469,3 +469,5 @@ Regression coverage now also confirms non-`Error` object wrappers continue throu
 Regression coverage now also confirms non-`Error` object wrappers treat bare-colon `String(error)` outputs as non-informative (including non-string `message` payloads), preserving matcher and formatter `Object.prototype.toString` fallback behavior while keeping informative non-runtime `String(error)` outputs authoritative even when `toStringTag` looks runtime-like.
 
 Regression coverage now also confirms whitespace-padded bare-colon `String(error)` outputs from non-`Error` wrappers are normalized as non-informative for both matcher and formatter paths, preserving `Object.prototype.toString` fallback behavior and runtime-signal precision.
+
+Regression coverage now also confirms non-`Error` wrappers with non-string `message` values still fall through correctly when `String(error)` throws, preserving matcher/formatter `Object.prototype.toString` behavior and runtime-signal detection through `toStringTag`.
