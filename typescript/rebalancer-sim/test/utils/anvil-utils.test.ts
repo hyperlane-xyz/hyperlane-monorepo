@@ -293,6 +293,27 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches runtime signals from non-Error objects via trimmed String(error) fallback', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        toString() {
+          return '  No Docker client strategy found  ';
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('ignores runtime-like toStringTag signals when non-Error String(error) is informative and non-runtime', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const error = {
@@ -305,6 +326,27 @@ describe('Anvil utils', () => {
         },
         toString() {
           return 'unrelated primitive-style wrapper failure';
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('ignores runtime-like toStringTag signals when non-Error trimmed String(error) is informative and non-runtime', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        toString() {
+          return '  unrelated primitive-style wrapper failure  ';
         },
       };
       Object.defineProperty(error, Symbol.toStringTag, {
@@ -13470,6 +13512,52 @@ describe('Anvil utils', () => {
 
       expect(formatLocalAnvilStartError(problematic)).to.equal(
         'Failed to start local anvil: No Docker client strategy found',
+      );
+    });
+
+    it('trims String(error) fallback output for non-Error objects', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        toString() {
+          return '  No Docker client strategy found  ';
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: No Docker client strategy found',
+      );
+    });
+
+    it('prefers informative trimmed non-runtime String(error) for non-Error objects over runtime-like toStringTag values', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        toString() {
+          return '  unrelated primitive-style wrapper failure  ';
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: unrelated primitive-style wrapper failure',
       );
     });
 
