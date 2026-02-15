@@ -169,6 +169,20 @@ describe('squads sdk migration regression', () => {
     }
   });
 
+  it('keeps guarded squads script paths normalized and relative', () => {
+    const guardedScriptPaths = new Set([
+      ...SQUADS_SCRIPT_PATHS,
+      ...SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
+    ]);
+
+    for (const scriptPath of guardedScriptPaths) {
+      expect(path.isAbsolute(scriptPath)).to.equal(false);
+      expect(scriptPath.includes('\\')).to.equal(false);
+      expect(scriptPath.split('/').includes('..')).to.equal(false);
+      expect(scriptPath.startsWith('scripts/')).to.equal(true);
+    }
+  });
+
   it('keeps guarded squads script list synchronized with scripts/squads directory', () => {
     const discoveredSquadsScripts = listSquadsDirectoryScripts(INFRA_ROOT);
     const configuredSquadsScripts = SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
