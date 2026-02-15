@@ -13,9 +13,30 @@ type ProviderWithOptionalGetAccountInfo =
   | null
   | undefined;
 
+const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
+
+function getArrayInspection(value: unknown): {
+  isArray: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      isArray: Array.isArray(value),
+      readFailed: false,
+    };
+  } catch {
+    return {
+      isArray: false,
+      readFailed: true,
+    };
+  }
+}
+
 function formatValueType(value: unknown): string {
   if (value === null) return 'null';
-  if (Array.isArray(value)) return 'array';
+  const { isArray, readFailed } = getArrayInspection(value);
+  if (readFailed) return UNREADABLE_VALUE_TYPE;
+  if (isArray) return 'array';
   return typeof value;
 }
 
@@ -61,10 +82,17 @@ function isGetAccountInfoFunction(
 }
 
 export function toSquadsProvider(provider: unknown): SquadsProvider {
+  const { isArray: providerIsArray, readFailed: providerTypeReadFailed } =
+    getArrayInspection(provider);
   assert(
-    typeof provider === 'object' &&
-      provider !== null &&
-      !Array.isArray(provider),
+    !providerTypeReadFailed,
+    `Invalid Solana provider: failed to inspect provider type (provider: ${formatValueType(
+      provider,
+    )})`,
+  );
+
+  assert(
+    typeof provider === 'object' && provider !== null && !providerIsArray,
     `Invalid Solana provider: expected object, got ${formatValueType(provider)}`,
   );
 

@@ -144,6 +144,15 @@ describe('squads provider bridge', () => {
     );
   });
 
+  it('fails with stable malformed-provider error when provider array inspection throws', () => {
+    const { proxy: providerLike, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to inspect provider type (provider: [unreadable value type])',
+    );
+  });
+
   it('reads malformed getter-backed getAccountInfo once during validation', () => {
     let getAccountInfoReadCount = 0;
     const providerLike = createGetterBackedProvider(() => {
