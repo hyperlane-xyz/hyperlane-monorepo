@@ -108,6 +108,14 @@ function readBindingElementSymbol(element: ts.BindingElement): string {
   return '';
 }
 
+function readImportTypeQualifierSymbol(
+  qualifier: ts.EntityName | undefined,
+): string {
+  if (!qualifier) return '';
+  if (ts.isIdentifier(qualifier)) return qualifier.text;
+  return readImportTypeQualifierSymbol(qualifier.left);
+}
+
 function collectSymbolSourceReferences(
   contents: string,
   filePath: string,
@@ -164,6 +172,21 @@ function collectSymbolSourceReferences(
             ),
             source: source.text,
           });
+        }
+      }
+    }
+
+    if (ts.isImportTypeNode(node)) {
+      const argument = node.argument;
+      if (
+        ts.isLiteralTypeNode(argument) &&
+        ts.isStringLiteralLike(argument.literal)
+      ) {
+        const symbol = normalizeNamedSymbol(
+          readImportTypeQualifierSymbol(node.qualifier),
+        );
+        if (symbol) {
+          references.push({ symbol, source: argument.literal.text });
         }
       }
     }
