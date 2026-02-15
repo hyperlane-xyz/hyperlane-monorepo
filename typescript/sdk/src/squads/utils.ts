@@ -1010,8 +1010,8 @@ export async function getSquadProposal(
     const { svmProvider, ...proposalData } = proposalAccountData;
 
     const squadsProvider = toSquadsProvider(svmProvider);
-
-    const multisig = await accounts.Multisig.fromAccountAddress(
+    const multisig = await getMultisigAccountForNextIndex(
+      normalizedChain,
       squadsProvider,
       proposalData.multisigPda,
     );
@@ -1069,6 +1069,78 @@ type SquadProposalAccountWithProvider = {
   svmProvider: SolanaWeb3Provider;
 };
 
+function deriveProposalPdaForResolvedChain(
+  chain: SquadsChainName,
+  transactionIndex: number,
+  multisigPda: PublicKey,
+  programId: PublicKey,
+): PublicKey {
+  let proposalPdaTuple: unknown;
+  try {
+    proposalPdaTuple = getProposalPda({
+      multisigPda,
+      transactionIndex: BigInt(transactionIndex),
+      programId,
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to derive proposal PDA for ${chain} at index ${transactionIndex}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    Array.isArray(proposalPdaTuple) && proposalPdaTuple.length > 0,
+    `Malformed proposal PDA derivation for ${chain} at index ${transactionIndex}: expected non-empty tuple result`,
+  );
+
+  const [proposalPda] = proposalPdaTuple;
+  assert(
+    proposalPda instanceof PublicKey,
+    `Malformed proposal PDA derivation for ${chain} at index ${transactionIndex}: expected PublicKey at tuple index 0, got ${getUnknownValueTypeName(proposalPda)}`,
+  );
+
+  return proposalPda;
+}
+
+async function getProposalAccountForResolvedChain(
+  chain: SquadsChainName,
+  squadsProvider: ReturnType<typeof toSquadsProvider>,
+  proposalPda: PublicKey,
+): Promise<accounts.Proposal> {
+  let fromAccountAddressValue: unknown;
+  try {
+    fromAccountAddressValue = (
+      accounts.Proposal as { fromAccountAddress?: unknown }
+    ).fromAccountAddress;
+  } catch (error) {
+    throw new Error(
+      `Failed to read proposal account loader for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof fromAccountAddressValue === 'function',
+    `Invalid proposal account loader for ${chain}: expected fromAccountAddress function, got ${getUnknownValueTypeName(fromAccountAddressValue)}`,
+  );
+
+  let proposalPdaForDisplay = '[invalid address]';
+  try {
+    proposalPdaForDisplay = proposalPda.toBase58();
+  } catch {}
+
+  try {
+    return await fromAccountAddressValue.call(
+      accounts.Proposal,
+      squadsProvider,
+      proposalPda,
+    );
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch proposal ${proposalPdaForDisplay} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+}
+
 async function getSquadProposalAccountForResolvedChain(
   chain: SquadsChainName,
   mpp: unknown,
@@ -1080,13 +1152,14 @@ async function getSquadProposalAccountForResolvedChain(
       getSquadAndProviderForResolvedChain(chain, mpp, svmProviderOverride);
     const squadsProvider = toSquadsProvider(svmProvider);
 
-    const [proposalPda] = getProposalPda({
+    const proposalPda = deriveProposalPdaForResolvedChain(
+      chain,
+      transactionIndex,
       multisigPda,
-      transactionIndex: BigInt(transactionIndex),
       programId,
-    });
-
-    const proposal = await accounts.Proposal.fromAccountAddress(
+    );
+    const proposal = await getProposalAccountForResolvedChain(
+      chain,
       squadsProvider,
       proposalPda,
     );
@@ -1137,7 +1210,8 @@ export async function getPendingProposalsForChains(
           getSquadAndProviderForResolvedChain(chain, mpp);
         const squadsProvider = toSquadsProvider(svmProvider);
 
-        const multisig = await accounts.Multisig.fromAccountAddress(
+        const multisig = await getMultisigAccountForNextIndex(
+          chain,
           squadsProvider,
           multisigPda,
         );

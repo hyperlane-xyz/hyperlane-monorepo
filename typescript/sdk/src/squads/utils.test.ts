@@ -4148,6 +4148,70 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(true);
     });
 
+    it('returns undefined when proposal account loader accessor throws', async () => {
+      const originalDescriptor = Object.getOwnPropertyDescriptor(
+        accounts.Proposal,
+        'fromAccountAddress',
+      );
+      Object.defineProperty(accounts.Proposal, 'fromAccountAddress', {
+        configurable: true,
+        get() {
+          throw new Error('proposal loader unavailable');
+        },
+      });
+
+      try {
+        const proposal = await getSquadProposalAccount(
+          'solanamainnet',
+          {
+            getSolanaWeb3Provider: () => ({
+              getAccountInfo: async () => null,
+            }),
+          } as unknown as MultiProtocolProvider,
+          1,
+        );
+
+        expect(proposal).to.equal(undefined);
+      } finally {
+        if (originalDescriptor) {
+          Object.defineProperty(
+            accounts.Proposal,
+            'fromAccountAddress',
+            originalDescriptor,
+          );
+        }
+      }
+    });
+
+    it('returns undefined when proposal account loader is missing', async () => {
+      const originalFromAccountAddress = accounts.Proposal.fromAccountAddress;
+      (
+        accounts.Proposal as unknown as {
+          fromAccountAddress?: unknown;
+        }
+      ).fromAccountAddress = undefined;
+
+      try {
+        const proposal = await getSquadProposalAccount(
+          'solanamainnet',
+          {
+            getSolanaWeb3Provider: () => ({
+              getAccountInfo: async () => null,
+            }),
+          } as unknown as MultiProtocolProvider,
+          1,
+        );
+
+        expect(proposal).to.equal(undefined);
+      } finally {
+        (
+          accounts.Proposal as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
+
     it('uses provided provider override without multiprovider lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
