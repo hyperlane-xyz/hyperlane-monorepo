@@ -55,6 +55,7 @@ import {
 import { stringifyUnknownSquadsError } from './error-format.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
+import { resolveSquadsChainName } from './config.js';
 
 export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
 export const MAILBOX_DISCRIMINATOR_SIZE = 1;
@@ -1004,12 +1005,13 @@ export class SquadsTransactionReader {
     chain: ChainName,
     transactionIndex: number,
   ): Promise<SquadsTransaction> {
-    assertValidTransactionIndexInput(transactionIndex, chain);
+    const normalizedChain = resolveSquadsChainName(chain);
+    assertValidTransactionIndexInput(transactionIndex, normalizedChain);
 
     try {
-      const svmProvider = this.mpp.getSolanaWeb3Provider(chain);
+      const svmProvider = this.mpp.getSolanaWeb3Provider(normalizedChain);
       const proposalData = await this.fetchProposalData(
-        chain,
+        normalizedChain,
         transactionIndex,
         svmProvider,
       );
@@ -1018,7 +1020,7 @@ export class SquadsTransactionReader {
       );
       assert(
         proposalTransactionIndex === transactionIndex,
-        `Expected proposal index ${transactionIndex} for ${chain}, got ${proposalTransactionIndex}`,
+        `Expected proposal index ${transactionIndex} for ${normalizedChain}, got ${proposalTransactionIndex}`,
       );
 
       const [transactionPda] = getTransactionPda({
@@ -1028,7 +1030,7 @@ export class SquadsTransactionReader {
       });
 
       const accountInfo = await this.fetchTransactionAccount(
-        chain,
+        normalizedChain,
         transactionIndex,
         transactionPda,
         svmProvider,
@@ -1036,7 +1038,7 @@ export class SquadsTransactionReader {
 
       if (isConfigTransaction(accountInfo.data)) {
         return await this.readConfigTransaction(
-          chain,
+          normalizedChain,
           transactionIndex,
           proposalData,
           accountInfo,
@@ -1054,7 +1056,7 @@ export class SquadsTransactionReader {
       }
 
       return await this.readVaultTransaction(
-        chain,
+        normalizedChain,
         transactionIndex,
         svmProvider,
         proposalData,
@@ -1062,7 +1064,7 @@ export class SquadsTransactionReader {
       );
     } catch (error) {
       this.errors.push({
-        chain,
+        chain: normalizedChain,
         transactionIndex,
         error: stringifyUnknownSquadsError(error),
       });
