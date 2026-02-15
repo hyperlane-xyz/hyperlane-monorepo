@@ -101,15 +101,19 @@ export function partitionSquadsChains(chains: readonly unknown[]): {
   squadsChains: SquadsChainName[];
   nonSquadsChains: string[];
 } {
-  const normalizedChains = normalizeChainListValues(
-    chains,
-    'partitioned squads chains',
-  );
+  const normalizedChains = normalizeChainListValues(chains, 'partitioned squads chains');
+  return partitionNormalizedSquadsChains(normalizedChains);
+}
+
+function partitionNormalizedSquadsChains(chains: readonly string[]): {
+  squadsChains: SquadsChainName[];
+  nonSquadsChains: string[];
+} {
   const squadsChains: SquadsChainName[] = [];
   const nonSquadsChains: string[] = [];
   const seenChains = new Set<string>();
 
-  for (const chain of normalizedChains) {
+  for (const chain of chains) {
     if (seenChains.has(chain)) {
       continue;
     }
@@ -195,7 +199,7 @@ export function resolveSquadsChains(
     return getSquadsChains();
   }
   const { squadsChains, nonSquadsChains } =
-    partitionSquadsChains(normalizedChains);
+    partitionNormalizedSquadsChains(normalizedChains);
   if (nonSquadsChains.length > 0) {
     throw new Error(getUnsupportedSquadsChainsErrorMessage(nonSquadsChains));
   }
