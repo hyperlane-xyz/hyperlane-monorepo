@@ -446,11 +446,13 @@ export class SquadsTransactionReader {
           const instruction =
             wrapper.data as SealevelEnrollRemoteRouterInstruction;
           const domain = instruction.config.domain;
-          const chainName = this.mpp.tryGetChainName(domain);
+          const domainForDisplay = formatIntegerValidationValue(domain);
+          const chainName =
+            this.tryResolveRemoteChainNameForDisplay(domain) ?? undefined;
           const router = instruction.config.routerAddress;
           const chainInfo = chainName
-            ? `${chainName} (${domain})`
-            : `${domain}`;
+            ? `${chainName} (${domainForDisplay})`
+            : domainForDisplay;
 
           return {
             instructionType:
@@ -475,7 +477,9 @@ export class SquadsTransactionReader {
             wrapper.data as SealevelEnrollRemoteRoutersInstruction;
           const routers = instruction.configs.map((config) => ({
             domain: config.domain,
-            chainName: this.mpp.tryGetChainName(config.domain) ?? undefined,
+            chainName:
+              this.tryResolveRemoteChainNameForDisplay(config.domain) ??
+              undefined,
             router: config.routerAddress,
           }));
 
@@ -500,7 +504,9 @@ export class SquadsTransactionReader {
             wrapper.data as SealevelSetDestinationGasConfigsInstruction;
           const configs = instruction.configs.map((config) => ({
             domain: config.domain,
-            chainName: this.mpp.tryGetChainName(config.domain) ?? undefined,
+            chainName:
+              this.tryResolveRemoteChainNameForDisplay(config.domain) ??
+              undefined,
             gas: config.gas,
           }));
 

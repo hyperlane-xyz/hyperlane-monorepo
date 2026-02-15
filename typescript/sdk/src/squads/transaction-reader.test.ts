@@ -15,6 +15,18 @@ import {
   SealevelMultisigIsmInstructionType,
   SealevelMultisigIsmSetValidatorsInstructionSchema,
 } from '../ism/serialization.js';
+import {
+  SealevelEnrollRemoteRouterInstruction,
+  SealevelEnrollRemoteRouterInstructionSchema,
+  SealevelEnrollRemoteRoutersInstruction,
+  SealevelEnrollRemoteRoutersInstructionSchema,
+  SealevelGasRouterConfig,
+  SealevelHypTokenInstruction,
+  SealevelHypTokenInstructionName,
+  SealevelRemoteRouterConfig,
+  SealevelSetDestinationGasConfigsInstruction,
+  SealevelSetDestinationGasConfigsInstructionSchema,
+} from '../token/adapters/serialization.js';
 import { SealevelInstructionWrapper } from '../utils/sealevelSerialization.js';
 import { SquadsAccountType, SQUADS_ACCOUNT_DISCRIMINATORS } from './utils.js';
 
@@ -176,6 +188,52 @@ function createSetValidatorsAndThresholdInstructionData(
         domain,
         validators: [validator],
         threshold: 1,
+      }),
+    }),
+  );
+  return Buffer.concat([Buffer.alloc(8), Buffer.from(payload)]);
+}
+
+function createEnrollRemoteRouterInstructionData(
+  domain: number,
+  routerByteValue: number,
+): Buffer {
+  const router = new Uint8Array(32).fill(routerByteValue);
+  const payload = serialize(
+    SealevelEnrollRemoteRouterInstructionSchema,
+    new SealevelInstructionWrapper({
+      instruction: SealevelHypTokenInstruction.EnrollRemoteRouter,
+      data: new SealevelEnrollRemoteRouterInstruction({
+        config: new SealevelRemoteRouterConfig({ domain, router }),
+      }),
+    }),
+  );
+  return Buffer.concat([Buffer.alloc(8), Buffer.from(payload)]);
+}
+
+function createEnrollRemoteRoutersInstructionData(domain: number): Buffer {
+  const payload = serialize(
+    SealevelEnrollRemoteRoutersInstructionSchema,
+    new SealevelInstructionWrapper({
+      instruction: SealevelHypTokenInstruction.EnrollRemoteRouters,
+      data: new SealevelEnrollRemoteRoutersInstruction({
+        configs: [new SealevelRemoteRouterConfig({ domain, router: null })],
+      }),
+    }),
+  );
+  return Buffer.concat([Buffer.alloc(8), Buffer.from(payload)]);
+}
+
+function createSetDestinationGasConfigsInstructionData(
+  domain: number,
+  gas: bigint,
+): Buffer {
+  const payload = serialize(
+    SealevelSetDestinationGasConfigsInstructionSchema,
+    new SealevelInstructionWrapper({
+      instruction: SealevelHypTokenInstruction.SetDestinationGasConfigs,
+      data: new SealevelSetDestinationGasConfigsInstruction({
+        configs: [new SealevelGasRouterConfig({ domain, gas })],
       }),
     }),
   );
@@ -2820,6 +2878,138 @@ describe('squads transaction reader', () => {
     expect((parsedInstruction.data as Record<string, unknown>).error).to.equal(
       undefined,
     );
+  });
+
+  it('does not misclassify warp enroll-remote-router instructions when chain lookup throws during parse', () => {
+    const mpp = {
+      tryGetChainName: () => {
+        throw new Error('chain lookup failed');
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readWarpRouteInstruction: (
+        chain: string,
+        instructionData: Buffer,
+        metadata: Record<string, string>,
+      ) => Record<string, unknown>;
+    };
+    const router = `0x${Buffer.from(new Uint8Array(32).fill(0xaa)).toString('hex')}`;
+
+    const parsedInstruction = readerAny.readWarpRouteInstruction(
+      'solanamainnet',
+      createEnrollRemoteRouterInstructionData(1000, 0xaa),
+      { symbol: 'TEST', name: 'Test Token', routeName: 'test-route' },
+    );
+
+    expect(parsedInstruction).to.deep.equal({
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.EnrollRemoteRouter
+        ],
+      data: {
+        domain: 1000,
+        chainName: undefined,
+        router,
+      },
+      insight: `Enroll remote router for 1000: ${router}`,
+      warnings: [],
+    });
+  });
+
+  it('does not misclassify warp enroll-remote-routers instructions when chain lookup returns malformed aliases', () => {
+    let chainLookupCount = 0;
+    const mpp = {
+      tryGetChainName: () => {
+        chainLookupCount += 1;
+        return { alias: 'solanatestnet' };
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readWarpRouteInstruction: (
+        chain: string,
+        instructionData: Buffer,
+        metadata: Record<string, string>,
+      ) => Record<string, unknown>;
+    };
+
+    const parsedInstruction = readerAny.readWarpRouteInstruction(
+      'solanamainnet',
+      createEnrollRemoteRoutersInstructionData(1000),
+      { symbol: 'TEST', name: 'Test Token', routeName: 'test-route' },
+    );
+
+    expect(chainLookupCount).to.equal(1);
+    expect(parsedInstruction).to.deep.equal({
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.EnrollRemoteRouters
+        ],
+      data: {
+        count: 1,
+        routers: [{ domain: 1000, chainName: undefined, router: null }],
+      },
+      insight: 'Enroll 1 remote router(s)',
+      warnings: [],
+    });
+  });
+
+  it('does not misclassify warp destination-gas instructions when chain lookup throws during parse', () => {
+    let chainLookupCount = 0;
+    const mpp = {
+      tryGetChainName: () => {
+        chainLookupCount += 1;
+        throw new Error('chain lookup failed');
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readWarpRouteInstruction: (
+        chain: string,
+        instructionData: Buffer,
+        metadata: Record<string, string>,
+      ) => Record<string, unknown>;
+    };
+
+    const parsedInstruction = readerAny.readWarpRouteInstruction(
+      'solanamainnet',
+      createSetDestinationGasConfigsInstructionData(1000, 5n),
+      { symbol: 'TEST', name: 'Test Token', routeName: 'test-route' },
+    );
+
+    expect(chainLookupCount).to.equal(1);
+    expect(parsedInstruction.instructionType).to.equal(
+      SealevelHypTokenInstructionName[
+        SealevelHypTokenInstruction.SetDestinationGasConfigs
+      ],
+    );
+    expect(parsedInstruction.insight).to.equal(
+      'Set destination gas for 1 chain(s)',
+    );
+    expect(parsedInstruction.warnings).to.deep.equal([]);
+    const parsedConfigs = (
+      parsedInstruction.data as { configs: Array<Record<string, unknown>> }
+    ).configs as Array<Record<string, unknown>>;
+    expect(parsedConfigs).to.have.lengthOf(1);
+    expect(parsedConfigs[0].domain).to.equal(1000);
+    expect(parsedConfigs[0].chainName).to.equal(undefined);
+    expect(String(parsedConfigs[0].gas)).to.equal('5');
   });
 
   it('does not require full proposal status shape when index is valid', async () => {
