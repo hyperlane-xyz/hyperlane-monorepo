@@ -57,6 +57,10 @@ function listSingleQuotedTokens(command: string): readonly string[] {
   );
 }
 
+function getQuotedSdkSquadsTestTokens(): readonly string[] {
+  return listSingleQuotedTokens(EXPECTED_SDK_SQUADS_TEST_SCRIPT);
+}
+
 function assertCanonicalCliCommandShape(
   command: string,
   commandLabel: string,
@@ -321,9 +325,7 @@ describe('squads barrel exports', () => {
     expect(
       EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('typescript/infra'),
     ).to.equal(false);
-    const quotedTestTokens = listSingleQuotedTokens(
-      EXPECTED_SDK_SQUADS_TEST_SCRIPT,
-    );
+    const quotedTestTokens = getQuotedSdkSquadsTestTokens();
     expect(quotedTestTokens).to.deep.equal([SDK_SQUADS_TEST_GLOB]);
     for (const quotedTestToken of quotedTestTokens) {
       assertSdkSquadsTestTokenShape(
@@ -345,5 +347,16 @@ describe('squads barrel exports', () => {
     expect(
       sdkExportKeys.some((exportKey) => exportKey.startsWith('./squads')),
     ).to.equal(false);
+  });
+
+  it('keeps quoted sdk squads command tokens isolated from caller mutation', () => {
+    const baselineQuotedTokens = getQuotedSdkSquadsTestTokens();
+    const callerMutatedQuotedTokens = [...getQuotedSdkSquadsTestTokens()];
+    callerMutatedQuotedTokens.pop();
+
+    const subsequentQuotedTokens = getQuotedSdkSquadsTestTokens();
+    expect(callerMutatedQuotedTokens).to.not.deep.equal(baselineQuotedTokens);
+    expect(subsequentQuotedTokens).to.deep.equal(baselineQuotedTokens);
+    expect(subsequentQuotedTokens).to.not.equal(baselineQuotedTokens);
   });
 });
