@@ -189,13 +189,58 @@ describe('squads config', () => {
   });
 
   it('rejects malformed partition inputs with index-aware types', () => {
-    expect(() =>
-      partitionSquadsChains('solanamainnet'),
-    ).to.throw('Expected partitioned squads chains to be an array, got string');
+    expect(() => partitionSquadsChains('solanamainnet')).to.throw(
+      'Expected partitioned squads chains to be an array, got string',
+    );
 
-    expect(() =>
-      partitionSquadsChains(['solanamainnet', null]),
-    ).to.throw('Expected partitioned squads chains[1] to be a string, got null');
+    expect(() => partitionSquadsChains(['solanamainnet', null])).to.throw(
+      'Expected partitioned squads chains[1] to be a string, got null',
+    );
+  });
+
+  it('throws contextual errors when partition list length accessor fails', () => {
+    const hostilePartitionList = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('length unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
+      'Failed to read partitioned squads chains length: length unavailable',
+    );
+  });
+
+  it('throws contextual errors when partition list index access fails', () => {
+    const hostilePartitionList = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('entry unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
+      'Failed to read partitioned squads chains[0]: entry unavailable',
+    );
+  });
+
+  it('rejects malformed partition list lengths', () => {
+    const hostilePartitionList = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          return 1n;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
+      'Malformed partitioned squads chains length: expected non-negative safe integer, got bigint',
+    );
   });
 
   it('formats unsupported chain errors with normalized deduped values', () => {
@@ -210,39 +255,70 @@ describe('squads config', () => {
   });
 
   it('rejects malformed formatter inputs', () => {
-    expect(() =>
-      getUnsupportedSquadsChainsErrorMessage('ethereum'),
-    ).to.throw('Expected unsupported squads chains to be an array, got string');
-    expect(() =>
-      getUnsupportedSquadsChainsErrorMessage(null),
-    ).to.throw('Expected unsupported squads chains to be an array, got null');
+    expect(() => getUnsupportedSquadsChainsErrorMessage('ethereum')).to.throw(
+      'Expected unsupported squads chains to be an array, got string',
+    );
+    expect(() => getUnsupportedSquadsChainsErrorMessage(null)).to.throw(
+      'Expected unsupported squads chains to be an array, got null',
+    );
 
     expect(() =>
       getUnsupportedSquadsChainsErrorMessage(['ethereum'], []),
     ).to.throw('Expected at least one configured squads chain');
 
-    expect(() =>
-      getUnsupportedSquadsChainsErrorMessage([]),
-    ).to.throw(
+    expect(() => getUnsupportedSquadsChainsErrorMessage([])).to.throw(
       'Expected at least one unsupported squads chain to format error message',
+    );
+  });
+
+  it('throws contextual formatter errors when unsupported-chain list length getter fails', () => {
+    const hostileUnsupportedChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('length unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
+    ).to.throw(
+      'Failed to read unsupported squads chains length: length unavailable',
     );
   });
 
   it('resolves explicit chains and defaults while validating runtime input', () => {
     expect(resolveSquadsChains()).to.deep.equal(getSquadsChains());
     expect(resolveSquadsChains([])).to.deep.equal(getSquadsChains());
-    expect(resolveSquadsChains([' solanamainnet ', 'solanamainnet'])).to.deep
-      .equal(['solanamainnet']);
+    expect(
+      resolveSquadsChains([' solanamainnet ', 'solanamainnet']),
+    ).to.deep.equal(['solanamainnet']);
 
-    expect(() =>
-      resolveSquadsChains('solanamainnet'),
-    ).to.throw('Expected squads chains to be an array, got string');
+    expect(() => resolveSquadsChains('solanamainnet')).to.throw(
+      'Expected squads chains to be an array, got string',
+    );
     expect(() => resolveSquadsChains(null)).to.throw(
       'Expected squads chains to be an array, got null',
     );
-    expect(() =>
-      resolveSquadsChains(['solanamainnet', 1]),
-    ).to.throw('Expected squads chains[1] to be a string, got number');
+    expect(() => resolveSquadsChains(['solanamainnet', 1])).to.throw(
+      'Expected squads chains[1] to be a string, got number',
+    );
+  });
+
+  it('throws contextual resolve errors when squads-chain list index access fails', () => {
+    const hostileResolveChains = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('entry unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
+      'Failed to read squads chains[0]: entry unavailable',
+    );
   });
 
   it('returns frozen squads key containers with canonical addresses', () => {

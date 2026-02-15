@@ -62,7 +62,9 @@ export function getSquadsChains(): SquadsChainName[] {
   return [...SQUADS_CHAINS];
 }
 
-export function isSquadsChain(chainName: unknown): chainName is SquadsChainName {
+export function isSquadsChain(
+  chainName: unknown,
+): chainName is SquadsChainName {
   return (
     typeof chainName === 'string' &&
     Object.prototype.hasOwnProperty.call(squadsConfigs, chainName)
@@ -77,6 +79,56 @@ function getUnknownValueTypeName(value: unknown): string {
   return Array.isArray(value) ? 'array' : typeof value;
 }
 
+function formatLengthValue(value: unknown): string {
+  return typeof value === 'number'
+    ? String(value)
+    : getUnknownValueTypeName(value);
+}
+
+function formatUnknownListError(error: unknown): string {
+  if (error instanceof Error) {
+    const errorMessage = error.message.trim();
+    if (errorMessage.length > 0) {
+      return errorMessage;
+    }
+  }
+
+  try {
+    const normalizedError = String(error).trim();
+    return normalizedError.length > 0
+      ? normalizedError
+      : '[unstringifiable error]';
+  } catch {
+    return '[unstringifiable error]';
+  }
+}
+
+function getArrayLengthOrThrow(
+  values: readonly unknown[],
+  listLabel: string,
+): number {
+  let lengthValue: unknown;
+  try {
+    lengthValue = values.length;
+  } catch (error) {
+    throw new Error(
+      `Failed to read ${listLabel} length: ${formatUnknownListError(error)}`,
+    );
+  }
+
+  if (
+    typeof lengthValue !== 'number' ||
+    !Number.isSafeInteger(lengthValue) ||
+    lengthValue < 0
+  ) {
+    throw new Error(
+      `Malformed ${listLabel} length: expected non-negative safe integer, got ${formatLengthValue(lengthValue)}`,
+    );
+  }
+
+  return lengthValue;
+}
+
 function normalizeChainListValues(
   chains: readonly unknown[] | unknown,
   listLabel: string,
@@ -88,8 +140,16 @@ function normalizeChainListValues(
   }
 
   const normalizedChains: string[] = [];
-
-  for (const [index, chain] of chains.entries()) {
+  const chainCount = getArrayLengthOrThrow(chains, listLabel);
+  for (let index = 0; index < chainCount; index += 1) {
+    let chain: unknown;
+    try {
+      chain = chains[index];
+    } catch (error) {
+      throw new Error(
+        `Failed to read ${listLabel}[${index}]: ${formatUnknownListError(error)}`,
+      );
+    }
     if (typeof chain !== 'string') {
       throw new Error(
         `Expected ${listLabel}[${index}] to be a string, got ${getUnknownValueTypeName(chain)}`,
@@ -105,7 +165,10 @@ export function partitionSquadsChains(chains: unknown): {
   squadsChains: SquadsChainName[];
   nonSquadsChains: string[];
 } {
-  const normalizedChains = normalizeChainListValues(chains, 'partitioned squads chains');
+  const normalizedChains = normalizeChainListValues(
+    chains,
+    'partitioned squads chains',
+  );
   return partitionNormalizedSquadsChains(normalizedChains);
 }
 
@@ -179,10 +242,12 @@ export function getUnsupportedSquadsChainsErrorMessage(
     throw new Error('Expected at least one configured squads chain');
   }
 
-  const formattedUnsupportedChains =
-    formatUniqueChainNamesForDisplay(normalizedNonSquadsChains);
-  const formattedConfiguredChains =
-    formatUniqueChainNamesForDisplay(normalizedConfiguredSquadsChains);
+  const formattedUnsupportedChains = formatUniqueChainNamesForDisplay(
+    normalizedNonSquadsChains,
+  );
+  const formattedConfiguredChains = formatUniqueChainNamesForDisplay(
+    normalizedConfiguredSquadsChains,
+  );
 
   return (
     `Squads configuration not found for chains: ${formattedUnsupportedChains.join(', ')}. ` +
@@ -190,9 +255,7 @@ export function getUnsupportedSquadsChainsErrorMessage(
   );
 }
 
-export function resolveSquadsChains(
-  chains?: unknown,
-): SquadsChainName[] {
+export function resolveSquadsChains(chains?: unknown): SquadsChainName[] {
   if (typeof chains === 'undefined') {
     return getSquadsChains();
   }
