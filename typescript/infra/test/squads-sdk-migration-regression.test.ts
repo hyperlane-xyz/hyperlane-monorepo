@@ -455,6 +455,15 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps infra squads test command excluding support-module paths', () => {
+    const quotedScriptPaths = listQuotedScriptPaths(
+      EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
+    );
+    for (const supportPath of SQUADS_TRACKED_TEST_SUPPORT_PATHS) {
+      expect(quotedScriptPaths.includes(supportPath)).to.equal(false);
+    }
+  });
+
   it('keeps infra package explicitly depending on sdk squads surface', () => {
     const infraPackageJson = readInfraPackageJson();
 
