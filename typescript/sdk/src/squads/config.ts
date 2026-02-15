@@ -65,6 +65,32 @@ export function isSquadsChain(chainName: string): chainName is SquadsChainName {
   return Object.prototype.hasOwnProperty.call(squadsConfigs, chainName);
 }
 
+function getUnknownValueTypeName(value: unknown): string {
+  if (value === null) {
+    return 'null';
+  }
+
+  return Array.isArray(value) ? 'array' : typeof value;
+}
+
+function normalizeChainListValues(
+  chains: readonly string[],
+  listLabel: string,
+): string[] {
+  const normalizedChains: string[] = [];
+
+  for (const [index, chain] of chains.entries()) {
+    if (typeof chain !== 'string') {
+      throw new Error(
+        `Expected ${listLabel}[${index}] to be a string, got ${getUnknownValueTypeName(chain)}`,
+      );
+    }
+    normalizedChains.push(chain);
+  }
+
+  return normalizedChains;
+}
+
 export function partitionSquadsChains(chains: readonly string[]): {
   squadsChains: SquadsChainName[];
   nonSquadsChains: string[];
@@ -121,14 +147,23 @@ export function getUnsupportedSquadsChainsErrorMessage(
     );
   }
 
-  if (configuredSquadsChains.length === 0) {
+  const normalizedNonSquadsChains = normalizeChainListValues(
+    nonSquadsChains,
+    'unsupported squads chains',
+  );
+  const normalizedConfiguredSquadsChains = normalizeChainListValues(
+    configuredSquadsChains,
+    'configured squads chains',
+  );
+
+  if (normalizedConfiguredSquadsChains.length === 0) {
     throw new Error('Expected at least one configured squads chain');
   }
 
   const formattedUnsupportedChains =
-    formatUniqueChainNamesForDisplay(nonSquadsChains);
+    formatUniqueChainNamesForDisplay(normalizedNonSquadsChains);
   const formattedConfiguredChains =
-    formatUniqueChainNamesForDisplay(configuredSquadsChains);
+    formatUniqueChainNamesForDisplay(normalizedConfiguredSquadsChains);
 
   return (
     `Squads configuration not found for chains: ${formattedUnsupportedChains.join(', ')}. ` +
@@ -143,7 +178,9 @@ export function resolveSquadsChains(
     return getSquadsChains();
   }
 
-  const normalizedChains = chains.map((chain) => chain.trim());
+  const normalizedChains = normalizeChainListValues(chains, 'squads chains').map(
+    (chain) => chain.trim(),
+  );
   const { squadsChains, nonSquadsChains } =
     partitionSquadsChains(normalizedChains);
   if (nonSquadsChains.length > 0) {

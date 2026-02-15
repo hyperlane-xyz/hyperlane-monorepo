@@ -3667,6 +3667,15 @@ describe('squads utils', () => {
     );
   });
 
+  it('throws for explicit non-string squads chain entries', () => {
+    expect(() =>
+      resolveSquadsChains([
+        'solanamainnet',
+        1 as unknown as string,
+      ] as readonly string[]),
+    ).to.throw('Expected squads chains[1] to be a string, got number');
+  });
+
   it('surfaces empty chain names as unsupported entries after trimming', () => {
     expect(() => resolveSquadsChains(['   '])).to.throw(
       'Squads configuration not found for chains: <empty>',
@@ -3700,6 +3709,24 @@ describe('squads utils', () => {
     ).to.equal(
       'Squads configuration not found for chains: ethereum. Available Squads chains: solanamainnet',
     );
+  });
+
+  it('throws for non-string unsupported chain entries in formatter input', () => {
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage([
+        'ethereum',
+        null as unknown as string,
+      ] as readonly string[]),
+    ).to.throw('Expected unsupported squads chains[1] to be a string, got null');
+  });
+
+  it('throws for non-string configured chain entries in formatter input', () => {
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(['ethereum'], [
+        'solanamainnet',
+        {} as unknown as string,
+      ] as readonly string[]),
+    ).to.throw('Expected configured squads chains[1] to be a string, got object');
   });
 
   it('keeps formatter dedupe and ordering canonical after chain-name normalization', () => {
