@@ -592,6 +592,24 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
     });
 
+    it('matches runtime causes when top-level Error cross-realm boxed-string causes', () => {
+      const wrappedError = new Error('hidden message');
+      (wrappedError as Error & { cause?: unknown }).cause = runInNewContext(
+        'new String("No Docker client strategy found")',
+      );
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime top-level Error cross-realm boxed-string causes', () => {
+      const wrappedError = new Error('hidden message');
+      (wrappedError as Error & { cause?: unknown }).cause = runInNewContext(
+        'new String("unrelated nested warning")',
+      );
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
     it('matches runtime causes when top-level Error cross-realm boxed-string causes throw on toStringTag access', () => {
       const wrappedError = new Error('hidden message');
       (wrappedError as Error & { cause?: unknown }).cause =

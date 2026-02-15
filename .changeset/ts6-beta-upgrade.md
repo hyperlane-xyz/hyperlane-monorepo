@@ -251,3 +251,5 @@ Regression coverage now also confirms boxed-string-valued wrapper `cause` fields
 Regression coverage now also confirms spoofed boxed-string and `String.prototype` impostor wrapper `cause` payloads are ignored for runtime matching, while wrapper-level runtime `errors` fallbacks remain detectable when those malformed `cause` payloads are present.
 
 Regression coverage now also confirms boxed-string-valued `Error.cause` payloads (same-realm and cross-realm, including hostile `Symbol.toStringTag` accessors) remain detectable/ignorable for runtime-unavailable matching.
+
+Regression coverage now also confirms cross-realm boxed-string-valued `Error.cause` payloads remain detectable/ignorable both with and without hostile `Symbol.toStringTag` accessors.
