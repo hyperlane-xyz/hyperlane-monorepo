@@ -75,6 +75,7 @@ const SQUADS_TRACKED_TEST_SUPPORT_PATHS = Object.freeze([
   'test/squads-test-utils.ts',
 ]);
 const EXPECTED_INFRA_SQUADS_TEST_SCRIPT = `mocha --config ../sdk/.mocharc.json ${SQUADS_REGRESSION_TEST_PATHS.map((scriptPath) => `"${scriptPath}"`).join(' ')}`;
+const QUOTED_SCRIPT_PATH_PATTERN = /"([^"]+)"/g;
 
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
@@ -195,6 +196,12 @@ function getTrackedSourceFileSnapshot(): readonly string[] {
 
 function getTrackedSourceFileSet(): ReadonlySet<string> {
   return new Set(getTrackedSourceFileSnapshot());
+}
+
+function listQuotedScriptPaths(command: string): readonly string[] {
+  return [...command.matchAll(QUOTED_SCRIPT_PATH_PATTERN)].map(
+    (match) => match[1],
+  );
 }
 
 describe('squads sdk migration regression', () => {
@@ -365,6 +372,19 @@ describe('squads sdk migration regression', () => {
     expect(infraPackageJson.scripts?.['test:squads']).to.equal(
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
     );
+  });
+
+  it('keeps expected infra squads test command derived from regression path list', () => {
+    expect(
+      EXPECTED_INFRA_SQUADS_TEST_SCRIPT.startsWith(
+        'mocha --config ../sdk/.mocharc.json ',
+      ),
+    ).to.equal(true);
+    const quotedScriptPaths = listQuotedScriptPaths(
+      EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
+    );
+    expect(quotedScriptPaths).to.deep.equal([...SQUADS_REGRESSION_TEST_PATHS]);
+    expect(new Set(quotedScriptPaths).size).to.equal(quotedScriptPaths.length);
   });
 
   it('keeps infra package explicitly depending on sdk squads surface', () => {
