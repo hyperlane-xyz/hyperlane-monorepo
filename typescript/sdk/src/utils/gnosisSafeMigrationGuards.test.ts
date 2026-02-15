@@ -4649,6 +4649,48 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not leak class static-block do-while var module-source aliases to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'class ShadowContainer {',
+      '  static {',
+      '    do {',
+      "      var moduleAlias = require('./fixtures/other-module.js');",
+      '      void moduleAlias;',
+      '      break;',
+      '    } while (false);',
+      '  }',
+      '}',
+      'const postStaticDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak class static-block while var module-source aliases to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'class ShadowContainer {',
+      '  static {',
+      '    while (true) {',
+      "      var moduleAlias = require('./fixtures/other-module.js');",
+      '      void moduleAlias;',
+      '      break;',
+      '    }',
+      '  }',
+      '}',
+      'const postStaticDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak namespace lexical alias declarations to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
