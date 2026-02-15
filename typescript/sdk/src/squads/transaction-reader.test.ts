@@ -215,7 +215,7 @@ describe('squads transaction reader', () => {
 
   const invalidTransactionIndexCases: Array<{
     title: string;
-    transactionIndex: number;
+    transactionIndex: unknown;
     expectedMessage: string;
   }> = [
     {
@@ -248,6 +248,30 @@ describe('squads transaction reader', () => {
       transactionIndex: Number.POSITIVE_INFINITY,
       expectedMessage:
         'Expected transaction index to be a non-negative safe integer for solanamainnet, got Infinity',
+    },
+    {
+      title: 'fails fast for string transaction index',
+      transactionIndex: '1',
+      expectedMessage:
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got string',
+    },
+    {
+      title: 'fails fast for null transaction index',
+      transactionIndex: null,
+      expectedMessage:
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got null',
+    },
+    {
+      title: 'fails fast for array transaction index',
+      transactionIndex: [],
+      expectedMessage:
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got array',
+    },
+    {
+      title: 'fails fast for bigint transaction index',
+      transactionIndex: 1n,
+      expectedMessage:
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got bigint',
     },
   ];
 
@@ -301,6 +325,20 @@ describe('squads transaction reader', () => {
 
     const thrownError = await captureAsyncError(() =>
       reader.read('unsupported-chain', -1),
+    );
+
+    expect(thrownError?.message).to.include(
+      'Squads config not found on chain unsupported-chain',
+    );
+    expect(getLookupCount()).to.equal(0);
+    expect(reader.errors).to.deep.equal([]);
+  });
+
+  it('fails fast for unsupported chains before malformed transaction-index type validation', async () => {
+    const { reader, getLookupCount } = createReaderWithLookupCounter();
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('unsupported-chain', '1'),
     );
 
     expect(thrownError?.message).to.include(

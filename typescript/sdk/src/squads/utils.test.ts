@@ -599,6 +599,7 @@ describe('squads utils', () => {
       expect(() =>
         assertValidTransactionIndexInput(42, 'solanamainnet'),
       ).to.not.throw();
+      expect(assertValidTransactionIndexInput(7, 'solanamainnet')).to.equal(7);
     });
 
     it('throws for invalid transaction indices', () => {
@@ -611,6 +612,21 @@ describe('squads utils', () => {
         assertValidTransactionIndexInput(Number.NaN, 'solanamainnet'),
       ).to.throw(
         'Expected transaction index to be a non-negative safe integer for solanamainnet, got NaN',
+      );
+      expect(() =>
+        assertValidTransactionIndexInput('1', 'solanamainnet'),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got string',
+      );
+      expect(() =>
+        assertValidTransactionIndexInput(null, 'solanamainnet'),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got null',
+      );
+      expect(() =>
+        assertValidTransactionIndexInput([], 'solanamainnet'),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got array',
       );
     });
   });
