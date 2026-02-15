@@ -1286,6 +1286,13 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
+    if (!isRecordObject(expectedConfig)) {
+      issues.push(
+        `Malformed expected config for route ${route}: expected route entry object`,
+      );
+      return { matches: false, issues };
+    }
+
     let expectedThreshold: unknown;
     try {
       expectedThreshold = expectedConfig.threshold;
