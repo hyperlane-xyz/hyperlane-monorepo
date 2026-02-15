@@ -493,3 +493,5 @@ Regression coverage now also confirms non-`Error` `Symbol.toPrimitive` outputs o
 Regression coverage now also confirms non-`Error` `Symbol.toPrimitive` outputs of `null` are treated as non-informative while numeric primitive outputs remain informative, preserving fallback/precedence semantics for matcher and formatter paths.
 
 Regression coverage now also confirms `Symbol.toPrimitive` placeholder-style outputs (`'   [Object]   '`, `':'`, and whitespace-only strings) preserve both runtime and non-runtime matcher outcomes by falling through to `Object.prototype.toString`.
+
+Regression coverage now also confirms bracketed-array placeholder outputs from `Symbol.toPrimitive` (for example `[Array]`) are treated as non-informative and preserve runtime/non-runtime matcher plus formatter `Object.prototype.toString` fallback behavior.
