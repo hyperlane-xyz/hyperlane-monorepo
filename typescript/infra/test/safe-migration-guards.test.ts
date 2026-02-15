@@ -688,6 +688,46 @@ function stringArraysEqual(
   return true;
 }
 
+function mergeModuleAliasMaps(
+  left: Map<string, string[]>,
+  right: Map<string, string[]>,
+): Map<string, string[]> {
+  const merged = new Map<string, string[]>();
+  const identifiers = new Set<string>([...left.keys(), ...right.keys()]);
+
+  for (const identifier of identifiers) {
+    const mergedSources = [
+      ...(left.get(identifier) ?? []),
+      ...(right.get(identifier) ?? []),
+    ].filter((source, index, sources) => sources.indexOf(source) === index);
+    if (mergedSources.length > 0) {
+      merged.set(identifier, mergedSources);
+    }
+  }
+
+  return merged;
+}
+
+function readStaticBooleanCondition(
+  expression: ts.Expression,
+): boolean | undefined {
+  const unwrapped = unwrapInitializerExpression(expression);
+
+  if (unwrapped.kind === ts.SyntaxKind.TrueKeyword) return true;
+  if (unwrapped.kind === ts.SyntaxKind.FalseKeyword) return false;
+
+  if (
+    ts.isPrefixUnaryExpression(unwrapped) &&
+    unwrapped.operator === ts.SyntaxKind.ExclamationToken
+  ) {
+    const operandCondition = readStaticBooleanCondition(unwrapped.operand);
+    if (operandCondition === undefined) return undefined;
+    return !operandCondition;
+  }
+
+  return undefined;
+}
+
 function collectVarScopeStatementBindings(
   statement: ts.Statement,
   declaredIdentifiers: Set<string>,
@@ -1267,7 +1307,60 @@ function collectSymbolSourceReferences(
       }
     }
 
-    ts.forEachChild(node, visit);
+    let handledChildren = false;
+    if (ts.isIfStatement(node)) {
+      handledChildren = true;
+      visit(node.expression);
+      const condition = readStaticBooleanCondition(node.expression);
+      if (condition === true) {
+        visit(node.thenStatement);
+      } else if (condition === false) {
+        if (node.elseStatement) {
+          visit(node.elseStatement);
+        }
+      } else {
+        const preBranchModuleAliases = cloneStringArrayMap(
+          moduleAliasByIdentifier,
+        );
+        const preBranchRequireLikeIdentifiers = new Set(requireLikeIdentifiers);
+
+        restoreStringArrayMap(moduleAliasByIdentifier, preBranchModuleAliases);
+        restoreStringSet(
+          requireLikeIdentifiers,
+          preBranchRequireLikeIdentifiers,
+        );
+        visit(node.thenStatement);
+        const thenModuleAliases = cloneStringArrayMap(moduleAliasByIdentifier);
+        const thenRequireLikeIdentifiers = new Set(requireLikeIdentifiers);
+
+        restoreStringArrayMap(moduleAliasByIdentifier, preBranchModuleAliases);
+        restoreStringSet(
+          requireLikeIdentifiers,
+          preBranchRequireLikeIdentifiers,
+        );
+        if (node.elseStatement) {
+          visit(node.elseStatement);
+        }
+        const elseModuleAliases = cloneStringArrayMap(moduleAliasByIdentifier);
+        const elseRequireLikeIdentifiers = new Set(requireLikeIdentifiers);
+
+        restoreStringArrayMap(
+          moduleAliasByIdentifier,
+          mergeModuleAliasMaps(thenModuleAliases, elseModuleAliases),
+        );
+        restoreStringSet(
+          requireLikeIdentifiers,
+          new Set([
+            ...thenRequireLikeIdentifiers,
+            ...elseRequireLikeIdentifiers,
+          ]),
+        );
+      }
+    }
+
+    if (!handledChildren) {
+      ts.forEachChild(node, visit);
+    }
 
     if (scopeSnapshot) {
       const postScopeModuleAliases = cloneStringArrayMap(
@@ -1557,8 +1650,49 @@ function collectModuleSpecifierReferences(
         }
       }
     }
+    let handledChildren = false;
+    if (ts.isIfStatement(node)) {
+      handledChildren = true;
+      visit(node.expression);
+      const condition = readStaticBooleanCondition(node.expression);
+      if (condition === true) {
+        visit(node.thenStatement);
+      } else if (condition === false) {
+        if (node.elseStatement) {
+          visit(node.elseStatement);
+        }
+      } else {
+        const preBranchRequireLikeIdentifiers = new Set(requireLikeIdentifiers);
 
-    ts.forEachChild(node, visit);
+        restoreStringSet(
+          requireLikeIdentifiers,
+          preBranchRequireLikeIdentifiers,
+        );
+        visit(node.thenStatement);
+        const thenRequireLikeIdentifiers = new Set(requireLikeIdentifiers);
+
+        restoreStringSet(
+          requireLikeIdentifiers,
+          preBranchRequireLikeIdentifiers,
+        );
+        if (node.elseStatement) {
+          visit(node.elseStatement);
+        }
+        const elseRequireLikeIdentifiers = new Set(requireLikeIdentifiers);
+
+        restoreStringSet(
+          requireLikeIdentifiers,
+          new Set([
+            ...thenRequireLikeIdentifiers,
+            ...elseRequireLikeIdentifiers,
+          ]),
+        );
+      }
+    }
+
+    if (!handledChildren) {
+      ts.forEachChild(node, visit);
+    }
 
     if (scopeSnapshot) {
       const postScopeRequireLikeIdentifiers = new Set(requireLikeIdentifiers);
@@ -5603,6 +5737,22 @@ describe('Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
+  it('keeps possible branch require aliases in symbol sources for unknown if conditions', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (Math.random() > 0.5) {',
+      '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak hoisted if-branch function alias shadowing to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -7305,6 +7455,20 @@ describe('Safe migration guards', () => {
     );
     expect(references).to.include('default@./fixtures/other-module.js');
     expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps possible branch module-source aliases in symbol sources for unknown if conditions', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'if (Math.random() > 0.5) {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
   it('does not leak if-branch class module-source alias shadowing before declaration to outer symbol sources', () => {
@@ -15380,6 +15544,27 @@ describe('Safe migration guards', () => {
     ).map((reference) => `${reference.source}@${reference.filePath}`);
     expect(moduleReferences).to.include(
       './fixtures/guard-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps possible branch require aliases in module specifiers for unknown if conditions', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (Math.random() > 0.5) {',
+      '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
     );
   });
 
