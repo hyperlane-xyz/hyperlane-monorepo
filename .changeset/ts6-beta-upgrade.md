@@ -349,3 +349,5 @@ Inspect-placeholder filtering now also normalizes case and covers object-tag pla
 Regression coverage now also confirms uppercase object-tag inspect placeholders (for example `[OBJECT OBJECT]`) are treated as non-informative and still fall through to tag-sensitive `Object.prototype.toString` fallback handling.
 
 `getErrorMessage` now also treats JSON structural placeholders (`{}`, `[]`) as non-informative so they no longer short-circuit tag-sensitive fallback extraction.
+
+Inspect-placeholder filtering coverage now also explicitly includes array placeholder variants (`[Array]` and `[object Array]`) to ensure they cannot mask runtime signals carried by `Object.prototype.toString` fallbacks.
