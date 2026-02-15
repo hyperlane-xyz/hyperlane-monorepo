@@ -5085,6 +5085,135 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('uses fallback unknown-program labels when instruction program id toBase58 returns generic object label', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const malformedProgramId = {
+      equals: () => false,
+      toBase58: () => '[object PublicKey]',
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      {
+        message: {
+          accountKeys: [malformedProgramId as unknown as PublicKey],
+          addressTableLookups: [],
+          instructions: [
+            {
+              programIdIndex: 0,
+              accountIndexes: [],
+              data: Buffer.from([1, 2, 3]),
+            },
+          ],
+        },
+      },
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed.warnings).to.deep.equal([
+      '⚠️  UNKNOWN PROGRAM: [invalid program id]',
+      'This instruction could not be verified!',
+    ]);
+    expect(parsed.instructions).to.deep.equal([
+      {
+        programId: malformedProgramId,
+        programName: 'Unknown',
+        instructionType: 'Unknown',
+        data: {
+          programId: '[invalid program id]',
+          rawData: '010203',
+        },
+        accounts: [],
+        warnings: [
+          '⚠️  UNKNOWN PROGRAM: [invalid program id]',
+          'This instruction could not be verified!',
+        ],
+      },
+    ]);
+  });
+
+  it('does not classify warp routes when program id stringifies to generic object label', async () => {
+    const mpp = {
+      tryGetProtocol: () => ProtocolType.Sealevel,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    await reader.init({
+      routeA: {
+        tokens: [
+          {
+            chainName: 'solanamainnet',
+            standard: 'SealevelHypNative',
+            addressOrDenom: '[object PublicKey]',
+            symbol: 'TEST',
+            name: 'Test Token',
+            collateralAddressOrDenom: '',
+            decimals: 9,
+            connections: [],
+          },
+        ],
+      },
+    } as unknown as WarpCoreConfig);
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const malformedProgramId = {
+      equals: () => false,
+      toBase58: () => '[object PublicKey]',
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      {
+        message: {
+          accountKeys: [malformedProgramId as unknown as PublicKey],
+          addressTableLookups: [],
+          instructions: [
+            {
+              programIdIndex: 0,
+              accountIndexes: [],
+              data: Buffer.from([1, 2, 3]),
+            },
+          ],
+        },
+      },
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed.instructions[0]?.programName).to.equal('Unknown');
+    expect(parsed.instructions[0]?.instructionType).to.equal('Unknown');
+    expect(parsed.warnings).to.deep.equal([
+      '⚠️  UNKNOWN PROGRAM: [invalid program id]',
+      'This instruction could not be verified!',
+    ]);
+  });
+
   it('keeps unknown-program parsing when program-id equals throws', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({

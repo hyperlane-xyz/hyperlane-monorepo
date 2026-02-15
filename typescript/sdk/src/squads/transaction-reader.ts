@@ -544,6 +544,12 @@ export class SquadsTransactionReader {
       );
       return undefined;
     }
+    if (isGenericObjectStringifiedValue(normalizedProgramId)) {
+      rootLogger.warn(
+        `Malformed warp route program id on ${chain}: received generic object label`,
+      );
+      return undefined;
+    }
 
     return this.warpRouteIndex
       .get(chain)
@@ -2175,10 +2181,15 @@ export class SquadsTransactionReader {
 
     try {
       const displayValue = toBase58Value.call(programId);
-      return (
-        this.normalizeOptionalNonEmptyString(displayValue) ??
-        '[invalid program id]'
-      );
+      const normalizedDisplayValue =
+        this.normalizeOptionalNonEmptyString(displayValue);
+      if (!normalizedDisplayValue) {
+        return '[invalid program id]';
+      }
+      if (isGenericObjectStringifiedValue(normalizedDisplayValue)) {
+        return '[invalid program id]';
+      }
+      return normalizedDisplayValue;
     } catch {
       return '[invalid program id]';
     }
