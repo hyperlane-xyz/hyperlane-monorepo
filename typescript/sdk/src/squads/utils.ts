@@ -219,6 +219,33 @@ function getRecordFieldOrThrow(
   }
 }
 
+function getArrayLengthOrThrow(
+  values: readonly unknown[],
+  label: string,
+): number {
+  try {
+    return values.length;
+  } catch (error) {
+    throw new Error(
+      `Failed to read ${label} length: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+}
+
+function getArrayElementOrThrow(
+  values: readonly unknown[],
+  index: number,
+  label: string,
+): unknown {
+  try {
+    return values[index];
+  } catch (error) {
+    throw new Error(
+      `Failed to read ${label}[${index}]: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+}
+
 function formatUnknownErrorForMessage(error: unknown): string {
   return stringifyUnknownSquadsError(error, {
     preferErrorMessageForErrorInstances: true,
@@ -1242,7 +1269,10 @@ function getProposalVoteCount(
     Array.isArray(fieldValue),
     `Squads proposal ${fieldName} votes must be an array`,
   );
-  return fieldValue.length;
+  return getArrayLengthOrThrow(
+    fieldValue,
+    `Squads proposal ${fieldName} votes`,
+  );
 }
 
 export function parseSquadMultisig(
@@ -1329,8 +1359,16 @@ function getMultisigMemberCount(
     `Squads ${fieldPrefix} members must be an array when provided`,
   );
 
-  for (let index = 0; index < members.length; index += 1) {
-    const member: unknown = members[index];
+  const memberCount = getArrayLengthOrThrow(
+    members,
+    `Squads ${fieldPrefix} members`,
+  );
+  for (let index = 0; index < memberCount; index += 1) {
+    const member: unknown = getArrayElementOrThrow(
+      members,
+      index,
+      `Squads ${fieldPrefix} members`,
+    );
     assert(
       member && typeof member === 'object',
       `Squads ${fieldPrefix} members[${index}] must be an object`,
@@ -1377,7 +1415,7 @@ function getMultisigMemberCount(
     }
   }
 
-  return members.length;
+  return memberCount;
 }
 
 /**

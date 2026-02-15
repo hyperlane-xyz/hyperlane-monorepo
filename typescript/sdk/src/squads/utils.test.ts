@@ -1377,6 +1377,28 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws contextual error when approved votes length getter throws', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: { __kind: SquadsProposalStatus.Active },
+          approved: new Proxy([], {
+            get(target, property, receiver) {
+              if (property === 'length') {
+                throw new Error('approved length unavailable');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }),
+          rejected: [],
+          cancelled: [],
+          transactionIndex: 1,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Failed to read Squads proposal approved votes length: approved length unavailable',
+      );
+    });
+
     it('throws when rejected votes field is not an array', () => {
       const parseInvalidProposal = () =>
         parseSquadProposal({
@@ -1660,6 +1682,50 @@ describe('squads utils', () => {
 
       expect(parseInvalidMultisig).to.throw(
         'Failed to read Squads multisig members: members unavailable',
+      );
+    });
+
+    it('throws contextual error when members length getter throws', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 0n,
+          timeLock: 0n,
+          members: new Proxy([{ key: 'member-1' }], {
+            get(target, property, receiver) {
+              if (property === 'length') {
+                throw new Error('members length unavailable');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }),
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Failed to read Squads multisig members length: members length unavailable',
+      );
+    });
+
+    it('throws contextual error when member index access throws', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 0n,
+          timeLock: 0n,
+          members: new Proxy([{ key: 'member-1' }], {
+            get(target, property, receiver) {
+              if (property === '0') {
+                throw new Error('member entry unavailable');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          }),
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Failed to read Squads multisig members[0]: member entry unavailable',
       );
     });
 
