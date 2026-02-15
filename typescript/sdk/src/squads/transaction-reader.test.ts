@@ -206,6 +206,11 @@ describe('squads transaction reader warning formatters', () => {
     ).to.throw(
       'Expected discriminator to be a non-negative safe integer in byte range [0, 255], got Infinity',
     );
+    expect(() =>
+      formatUnknownInstructionWarning('Mailbox', Number.NaN),
+    ).to.throw(
+      'Expected discriminator to be a non-negative safe integer in byte range [0, 255], got NaN',
+    );
     expect(() => formatUnknownInstructionWarning('  ', 1)).to.throw(
       'Expected program name to be a non-empty string, got empty string',
     );
