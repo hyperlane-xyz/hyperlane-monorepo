@@ -2019,6 +2019,67 @@ export class SquadsTransactionReader {
     }
   }
 
+  private deriveTransactionPdaForRead(
+    chain: SquadsChainName,
+    transactionIndex: number,
+    proposalData: {
+      multisigPda: PublicKey;
+      programId: PublicKey;
+    },
+  ): PublicKey {
+    let multisigPdaValue: unknown;
+    try {
+      multisigPdaValue = proposalData.multisigPda;
+    } catch (error) {
+      throw new Error(
+        `Failed to read proposal multisig PDA for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+    assert(
+      multisigPdaValue instanceof PublicKey,
+      `Malformed proposal multisig PDA for ${chain} at index ${transactionIndex}: expected PublicKey, got ${getUnknownValueTypeName(multisigPdaValue)}`,
+    );
+
+    let programIdValue: unknown;
+    try {
+      programIdValue = proposalData.programId;
+    } catch (error) {
+      throw new Error(
+        `Failed to read proposal program id for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+    assert(
+      programIdValue instanceof PublicKey,
+      `Malformed proposal program id for ${chain} at index ${transactionIndex}: expected PublicKey, got ${getUnknownValueTypeName(programIdValue)}`,
+    );
+
+    let transactionPdaTuple: unknown;
+    try {
+      transactionPdaTuple = getTransactionPda({
+        multisigPda: multisigPdaValue,
+        index: BigInt(transactionIndex),
+        programId: programIdValue,
+      });
+    } catch (error) {
+      throw new Error(
+        `Failed to derive transaction PDA for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    assert(
+      Array.isArray(transactionPdaTuple) && transactionPdaTuple.length > 0,
+      `Malformed transaction PDA derivation for ${chain} at index ${transactionIndex}: expected non-empty tuple result`,
+    );
+
+    const [transactionPda] = transactionPdaTuple;
+    assert(
+      transactionPda instanceof PublicKey,
+      `Malformed transaction PDA derivation for ${chain} at index ${transactionIndex}: expected PublicKey at tuple index 0, got ${getUnknownValueTypeName(transactionPda)}`,
+    );
+
+    return transactionPda;
+  }
+
   async read(
     chain: unknown,
     transactionIndex: unknown,
@@ -2044,11 +2105,11 @@ export class SquadsTransactionReader {
         `Expected proposal index ${normalizedTransactionIndex} for ${normalizedChain}, got ${proposalTransactionIndex}`,
       );
 
-      const [transactionPda] = getTransactionPda({
-        multisigPda: proposalData.multisigPda,
-        index: BigInt(normalizedTransactionIndex),
-        programId: proposalData.programId,
-      });
+      const transactionPda = this.deriveTransactionPdaForRead(
+        normalizedChain,
+        normalizedTransactionIndex,
+        proposalData,
+      );
 
       const fetchedTransactionAccount = await this.fetchTransactionAccount(
         normalizedChain,
