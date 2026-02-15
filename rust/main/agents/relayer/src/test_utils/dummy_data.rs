@@ -46,6 +46,8 @@ pub fn dummy_chain_conf(domain: &HyperlaneDomain) -> ChainConf {
         metrics_conf: Default::default(),
         index: Default::default(),
         ignore_reorg_reports: false,
+        origin_init_timeout_millis: Duration::from_millis(30_000),
+        destination_init_timeout_millis: Duration::from_millis(30_000),
     }
 }
 
