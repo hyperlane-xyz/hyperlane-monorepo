@@ -726,6 +726,35 @@ describe('squads sdk migration regression', () => {
     }
   });
 
+  it('keeps squads tracked test assets partitioned between regression and support path shapes', () => {
+    let regressionLikePathCount = 0;
+    let supportLikePathCount = 0;
+
+    for (const testAssetPath of SQUADS_TRACKED_TEST_ASSET_PATHS) {
+      if (testAssetPath.endsWith('.test.ts')) {
+        assertRegressionTestPathShape(
+          testAssetPath,
+          'squads tracked regression-like asset path',
+        );
+        regressionLikePathCount += 1;
+        continue;
+      }
+
+      assertSupportSourcePathShape(
+        testAssetPath,
+        'squads tracked support-like asset path',
+      );
+      supportLikePathCount += 1;
+    }
+
+    expect(regressionLikePathCount).to.equal(
+      SQUADS_REGRESSION_TEST_PATHS.length,
+    );
+    expect(supportLikePathCount).to.equal(
+      SQUADS_TRACKED_TEST_SUPPORT_PATHS.length,
+    );
+  });
+
   it('keeps tracked infra source file scan ordering deterministic', () => {
     const trackedSourceFiles = getTrackedSourceFileSnapshot();
     expect(trackedSourceFiles).to.deep.equal(
