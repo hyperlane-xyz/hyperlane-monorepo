@@ -499,6 +499,10 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps expected canonical sdk squads test glob', () => {
+    expect(SDK_SQUADS_TEST_GLOB).to.equal('src/squads/*.test.ts');
+  });
+
   it('keeps expected canonical sdk squads test command', () => {
     expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT).to.equal(
       "mocha --config .mocharc.json 'src/squads/*.test.ts'",

@@ -473,6 +473,12 @@ function assertTrackedTestAssetPartitionShape(
 }
 
 describe('squads sdk migration regression', () => {
+  it('keeps expected canonical infra test directory location', () => {
+    expect(path.relative(INFRA_ROOT, INFRA_TEST_DIRECTORY_PATH)).to.equal(
+      'test',
+    );
+  });
+
   it('keeps squads script constants immutable', () => {
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
     expect(Object.isFrozen(NON_EXECUTABLE_SQUADS_SCRIPT_FILES)).to.equal(true);
