@@ -376,6 +376,40 @@ function collectSdkSourceFilePaths(dirPath: string): string[] {
   return filePaths;
 }
 
+function collectDefaultImportsFromModule(
+  sourceFilePaths: readonly string[],
+  moduleName: string,
+): string[] {
+  const defaultImports: string[] = [];
+  for (const sourceFilePath of sourceFilePaths) {
+    const contents = fs.readFileSync(sourceFilePath, 'utf8');
+    const sourceFile = ts.createSourceFile(
+      sourceFilePath,
+      contents,
+      ts.ScriptTarget.Latest,
+      true,
+      getScriptKind(sourceFilePath),
+    );
+
+    const visit = (node: ts.Node) => {
+      if (
+        ts.isImportDeclaration(node) &&
+        ts.isStringLiteralLike(node.moduleSpecifier) &&
+        node.moduleSpecifier.text === moduleName &&
+        node.importClause?.name
+      ) {
+        defaultImports.push(
+          `${path.relative(process.cwd(), sourceFilePath)} -> ${node.importClause.name.text}`,
+        );
+      }
+      ts.forEachChild(node, visit);
+    };
+
+    visit(sourceFile);
+  }
+  return defaultImports;
+}
+
 function isInfraModuleSpecifier(source: string): boolean {
   return (
     source === '@hyperlane-xyz/infra' ||
@@ -605,6 +639,22 @@ describe('Gnosis Safe migration guards', () => {
     expectNoRipgrepMatches(
       String.raw`(?:from ['"]|require\(['"]|import\(['"])(?:@hyperlane-xyz/infra|.*typescript/infra|.*\/infra\/|\.\.\/\.\.\/infra)`,
       'sdk imports that reference infra paths or packages',
+    );
+  });
+
+  it('prevents default imports from infra package entrypoint', () => {
+    const sourceFilePaths = collectSdkSourceFilePaths(
+      path.resolve(process.cwd(), 'src'),
+    );
+    const defaultInfraImports = collectDefaultImportsFromModule(
+      sourceFilePaths,
+      '@hyperlane-xyz/infra',
+    );
+    expect(defaultInfraImports).to.deep.equal([]);
+
+    expectNoRipgrepMatches(
+      String.raw`import\s+[A-Za-z_$][A-Za-z0-9_$]*\s+from\s+['"]@hyperlane-xyz/infra['"]`,
+      'default imports from @hyperlane-xyz/infra',
     );
   });
 
