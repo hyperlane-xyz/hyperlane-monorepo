@@ -6039,6 +6039,51 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('returns empty when safe service initialization fails with unstringifiable error', async () => {
+      const unstringifiableError = {
+        [Symbol.toPrimitive]() {
+          throw new Error('chain-id to-primitive boom');
+        },
+      };
+      let pendingCalls = 0;
+      safeModule.init = (async () => ({
+        getThreshold: async () => 1,
+        getBalance: async () => BigNumber.from(1),
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => {
+        pendingCalls += 1;
+        return { results: [] };
+      }) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => {
+          throw unstringifiableError;
+        },
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const statuses = await getPendingTxsForChains(
+        ['test'],
+        multiProviderMock,
+        { test: '0x52908400098527886e0f7030069857d2e4169ee7' },
+      );
+
+      expect(statuses).to.deep.equal([]);
+      expect(pendingCalls).to.equal(0);
+    });
+
     it('returns empty when safe threshold is zero', async () => {
       safeModule.init = (async () => ({
         getThreshold: async () => 0,
