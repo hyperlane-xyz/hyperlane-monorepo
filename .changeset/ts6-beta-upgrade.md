@@ -355,3 +355,5 @@ Inspect-placeholder filtering coverage now also explicitly includes array placeh
 JSON fallback handling now also treats quoted structural placeholders (for example `"{}"`, `"[]"`, or `"[Object]"` payload strings) as non-informative when they normalize to inert placeholders, preserving downstream inspect/toString runtime-signal extraction.
 
 Inspect fallback handling now also treats quoted placeholder strings (for example `"{}"` and `"[Array]"`) as non-informative, so custom inspect implementations cannot mask runtime signals that should be surfaced by `Object.prototype.toString`.
+
+Quoted object-tag placeholder variants (for example `"[object Object]"` and `"[object Array]"`) are now also covered across both JSON and inspect fallback paths, ensuring these inert serialized forms cannot short-circuit runtime-signal extraction.
