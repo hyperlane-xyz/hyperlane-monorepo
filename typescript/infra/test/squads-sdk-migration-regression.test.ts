@@ -384,6 +384,15 @@ function assertInfraRegressionCommandTokenSet(
   expect(new Set(tokenPaths).size).to.equal(tokenPaths.length);
   for (const tokenPath of tokenPaths) {
     assertRegressionTestPathShape(tokenPath, `${tokenSetLabel} token path`);
+    const absoluteTokenPath = path.join(INFRA_ROOT, tokenPath);
+    expect(
+      fs.existsSync(absoluteTokenPath),
+      `Expected ${tokenSetLabel} token path to exist: ${tokenPath}`,
+    ).to.equal(true);
+    expect(
+      fs.statSync(absoluteTokenPath).isFile(),
+      `Expected ${tokenSetLabel} token path to resolve to file: ${tokenPath}`,
+    ).to.equal(true);
   }
   assertTrackedSourcePathSetNormalizedAndDeduplicated(
     tokenPaths,
