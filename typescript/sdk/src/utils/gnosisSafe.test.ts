@@ -5732,6 +5732,58 @@ describe('gnosisSafe utils', () => {
         clock.restore();
       }
     });
+
+    it('throws deterministic message when safe sdk init fails with unstringifiable error', async () => {
+      const unstringifiableError = {
+        [Symbol.toPrimitive]() {
+          throw new Error('safe-init to-primitive boom');
+        },
+      };
+      let safeInitCalls = 0;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeModule.init = (async () => {
+        safeInitCalls += 1;
+        throw unstringifiableError;
+      }) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+      } as unknown as Parameters<typeof getSafeAndService>[1];
+
+      const clock = sinon.useFakeTimers();
+      const randomStub = sinon.stub(Math, 'random').returns(0);
+      try {
+        const errorPromise: Promise<Error> = getSafeAndService(
+          'test',
+          multiProviderMock,
+          '0x52908400098527886e0f7030069857d2e4169ee7',
+        ).then(
+          () => new Error('Expected getSafeAndService to throw'),
+          (error) => error as Error,
+        );
+        await clock.tickAsync(20_000);
+        const error = await errorPromise;
+
+        expect(error.message).to.equal(
+          'Failed to initialize Safe for chain test: Error: Failed to initialize Safe SDK for 0x52908400098527886E0F7030069857D2E4169EE7 on test: <unstringifiable>',
+        );
+        expect(safeInitCalls).to.equal(10);
+      } finally {
+        randomStub.restore();
+        clock.restore();
+      }
+    });
   });
 
   describe(getPendingTxsForChains.name, () => {
