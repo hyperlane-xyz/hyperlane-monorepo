@@ -539,6 +539,13 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps squads regression test paths constrained to squads test naming', () => {
+    for (const regressionTestPath of SQUADS_REGRESSION_TEST_PATHS) {
+      expect(regressionTestPath.startsWith('test/squads-')).to.equal(true);
+      expect(regressionTestPath.endsWith('.test.ts')).to.equal(true);
+    }
+  });
+
   it('keeps squads tracked test path sets disjoint and fully represented', () => {
     const regressionTestPathSet = new Set(SQUADS_REGRESSION_TEST_PATHS);
     const supportPathSet = new Set(SQUADS_TRACKED_TEST_SUPPORT_PATHS);
@@ -557,6 +564,14 @@ describe('squads sdk migration regression', () => {
       SQUADS_TRACKED_TEST_SUPPORT_PATHS,
       'squads test-support',
     );
+  });
+
+  it('keeps squads test-support paths source-only and squads-scoped', () => {
+    for (const supportPath of SQUADS_TRACKED_TEST_SUPPORT_PATHS) {
+      expect(supportPath.startsWith('test/squads-')).to.equal(true);
+      expect(supportPath.endsWith('.ts')).to.equal(true);
+      expect(supportPath.endsWith('.test.ts')).to.equal(false);
+    }
   });
 
   it('keeps squads tracked test-asset path set normalized and deduplicated', () => {
