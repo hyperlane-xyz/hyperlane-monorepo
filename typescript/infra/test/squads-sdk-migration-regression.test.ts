@@ -208,6 +208,23 @@ function listQuotedScriptPaths(command: string): readonly string[] {
   );
 }
 
+function assertTrackedSourcePathSetNormalizedAndDeduplicated(
+  paths: readonly string[],
+  pathSetLabel: string,
+): void {
+  expect(new Set(paths).size).to.equal(paths.length);
+  for (const pathValue of paths) {
+    expect(
+      isNormalizedTrackedSourceRelativePath(pathValue),
+      `Expected ${pathSetLabel} path to be normalized and relative: ${pathValue}`,
+    ).to.equal(true);
+    expect(
+      hasTrackedSourceExtension(pathValue),
+      `Expected ${pathSetLabel} path to match tracked source extension policy: ${pathValue}`,
+    ).to.equal(true);
+  }
+}
+
 describe('squads sdk migration regression', () => {
   it('keeps squads script constants immutable', () => {
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
@@ -478,15 +495,10 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps squads regression test path set normalized and deduplicated', () => {
-    expect(new Set(SQUADS_REGRESSION_TEST_PATHS).size).to.equal(
-      SQUADS_REGRESSION_TEST_PATHS.length,
+    assertTrackedSourcePathSetNormalizedAndDeduplicated(
+      SQUADS_REGRESSION_TEST_PATHS,
+      'squads regression test',
     );
-    for (const regressionTestPath of SQUADS_REGRESSION_TEST_PATHS) {
-      expect(
-        isNormalizedTrackedSourceRelativePath(regressionTestPath),
-      ).to.equal(true);
-      expect(hasTrackedSourceExtension(regressionTestPath)).to.equal(true);
-    }
   });
 
   it('keeps squads tracked test path sets disjoint and fully represented', () => {
@@ -503,13 +515,17 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps squads test-support path set normalized and deduplicated', () => {
-    expect(new Set(SQUADS_TRACKED_TEST_SUPPORT_PATHS).size).to.equal(
-      SQUADS_TRACKED_TEST_SUPPORT_PATHS.length,
+    assertTrackedSourcePathSetNormalizedAndDeduplicated(
+      SQUADS_TRACKED_TEST_SUPPORT_PATHS,
+      'squads test-support',
     );
-    for (const supportPath of SQUADS_TRACKED_TEST_SUPPORT_PATHS) {
-      expect(isNormalizedTrackedSourceRelativePath(supportPath)).to.equal(true);
-      expect(hasTrackedSourceExtension(supportPath)).to.equal(true);
-    }
+  });
+
+  it('keeps squads tracked test-asset path set normalized and deduplicated', () => {
+    assertTrackedSourcePathSetNormalizedAndDeduplicated(
+      SQUADS_TRACKED_TEST_ASSET_PATHS,
+      'squads tracked test-asset',
+    );
   });
 
   it('keeps tracked infra source file scan ordering deterministic', () => {
