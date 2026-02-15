@@ -74,6 +74,10 @@ const SQUADS_TRACKED_TEST_SUPPORT_PATHS = Object.freeze([
   'test/squads-test-constants.ts',
   'test/squads-test-utils.ts',
 ]);
+const SQUADS_TRACKED_TEST_ASSET_PATHS = Object.freeze([
+  ...SQUADS_REGRESSION_TEST_PATHS,
+  ...SQUADS_TRACKED_TEST_SUPPORT_PATHS,
+]);
 const EXPECTED_INFRA_SQUADS_TEST_SCRIPT = `mocha --config ../sdk/.mocharc.json ${SQUADS_REGRESSION_TEST_PATHS.map((scriptPath) => `"${scriptPath}"`).join(' ')}`;
 const QUOTED_SCRIPT_PATH_PATTERN = /"([^"]+)"/g;
 
@@ -462,13 +466,13 @@ describe('squads sdk migration regression', () => {
     }
   });
 
-  it('keeps squads regression tests included in tracked source scan', () => {
+  it('keeps squads tracked test assets included in tracked source scan', () => {
     const trackedSourceFileSet = getTrackedSourceFileSet();
 
-    for (const regressionTestPath of SQUADS_REGRESSION_TEST_PATHS) {
+    for (const testAssetPath of SQUADS_TRACKED_TEST_ASSET_PATHS) {
       expect(
-        trackedSourceFileSet.has(regressionTestPath),
-        `Expected tracked source scan to include squads regression test file: ${regressionTestPath}`,
+        trackedSourceFileSet.has(testAssetPath),
+        `Expected tracked source scan to include squads test asset file: ${testAssetPath}`,
       ).to.equal(true);
     }
   });
@@ -485,15 +489,17 @@ describe('squads sdk migration regression', () => {
     }
   });
 
-  it('keeps squads test-support source paths included in tracked source scan', () => {
-    const trackedSourceFileSet = getTrackedSourceFileSet();
+  it('keeps squads tracked test path sets disjoint and fully represented', () => {
+    const regressionTestPathSet = new Set(SQUADS_REGRESSION_TEST_PATHS);
+    const supportPathSet = new Set(SQUADS_TRACKED_TEST_SUPPORT_PATHS);
+    const allTestAssetPathSet = new Set(SQUADS_TRACKED_TEST_ASSET_PATHS);
 
-    for (const supportPath of SQUADS_TRACKED_TEST_SUPPORT_PATHS) {
-      expect(
-        trackedSourceFileSet.has(supportPath),
-        `Expected tracked source scan to include squads test support file: ${supportPath}`,
-      ).to.equal(true);
+    for (const regressionTestPath of regressionTestPathSet) {
+      expect(supportPathSet.has(regressionTestPath)).to.equal(false);
     }
+    expect(allTestAssetPathSet.size).to.equal(
+      regressionTestPathSet.size + supportPathSet.size,
+    );
   });
 
   it('keeps squads test-support path set normalized and deduplicated', () => {
