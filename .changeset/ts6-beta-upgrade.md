@@ -359,3 +359,5 @@ Inspect fallback handling now also treats quoted placeholder strings (for exampl
 Quoted object-tag placeholder variants (for example `"[object Object]"` and `"[object Array]"`) are now also covered across both JSON and inspect fallback paths, ensuring these inert serialized forms cannot short-circuit runtime-signal extraction.
 
 Single-quoted placeholder strings (for example `'[Object]'` and `'[object Object]'`) are now also normalized as non-informative placeholder forms across JSON/inspect fallback handling.
+
+Mixed quote-wrapper placeholder strings (for example `"'[Object]'"` and `"'[object Object]'"`) are now also covered so repeated quote wrapping cannot bypass placeholder filtering.
