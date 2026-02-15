@@ -9,43 +9,23 @@ type InfraPackageJson = {
   devDependencies?: Record<string, string>;
 };
 
-const SAFE_HELPER_SYMBOLS = [
-  'asHex',
-  'canProposeSafeTransactions',
+const REQUIRED_SAFE_HELPER_EXPORTS = [
   'createSafeDeploymentTransaction',
   'createSafeTransaction',
   'createSafeTransactionData',
-  'DEFAULT_SAFE_DEPLOYMENT_VERSIONS',
   'decodeMultiSendData',
   'deleteAllPendingSafeTxs',
   'deleteSafeTx',
   'executeTx',
-  'getKnownMultiSendAddresses',
-  'getOwnerChanges',
   'getPendingTxsForChains',
   'getSafe',
   'getSafeAndService',
   'getSafeDelegates',
   'getSafeService',
   'getSafeTx',
-  'hasSafeServiceTransactionPayload',
-  'isLegacySafeApi',
-  'normalizeSafeServiceUrl',
-  'getSafeTxServiceUrl',
   'parseSafeTx',
   'proposeSafeTransaction',
-  'resolveSafeSigner',
-  'retrySafeApi',
-  'safeApiKeyRequired',
   'updateSafeOwner',
-  'SafeAndService',
-  'SafeCallData',
-  'SafeDeploymentConfig',
-  'SafeDeploymentTransaction',
-  'SafeOwnerUpdateCall',
-  'SafeServiceTransaction',
-  'SafeServiceTransactionWithPayload',
-  'SafeStatus',
   'SafeTxStatus',
 ] as const;
 
@@ -69,6 +49,36 @@ function expectNoRipgrepMatches(pattern: string, description: string): void {
   }
 }
 
+function extractNamedExportSymbols(
+  sourceText: string,
+  modulePath: string,
+): string[] {
+  const fromNeedles = [`from '${modulePath}';`, `from "${modulePath}";`];
+  const fromIndex = fromNeedles
+    .map((needle) => sourceText.indexOf(needle))
+    .find((index) => index >= 0);
+  if (fromIndex === undefined) return [];
+
+  const exportStartIndex = sourceText.lastIndexOf('export {', fromIndex);
+  if (exportStartIndex < 0) return [];
+
+  const exportedBlock = sourceText.slice(
+    exportStartIndex + 'export {'.length,
+    fromIndex,
+  );
+  return exportedBlock
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => s.replace(/\s+as\s+\w+$/, ''));
+}
+
+function getSdkGnosisSafeExports(): string[] {
+  const sdkIndexPath = path.resolve(process.cwd(), '../sdk/src/index.ts');
+  const sdkIndexText = fs.readFileSync(sdkIndexPath, 'utf8');
+  return extractNamedExportSymbols(sdkIndexText, './utils/gnosisSafe.js');
+}
+
 describe('Safe migration guards', () => {
   it('keeps legacy infra safe utility module deleted', () => {
     const legacySafeUtilPath = path.join(process.cwd(), 'src/utils/safe.ts');
@@ -85,6 +95,11 @@ describe('Safe migration guards', () => {
   it('ensures migrated safe helper symbols are only imported from sdk', () => {
     const rootsToScan = ['scripts', 'src', 'config'];
     const disallowedImports: string[] = [];
+    const sdkSafeHelperExports = new Set(getSdkGnosisSafeExports());
+    expect(sdkSafeHelperExports.size).to.be.greaterThan(
+      0,
+      'Expected sdk index to export symbols from ./utils/gnosisSafe.js',
+    );
 
     const walk = (currentPath: string) => {
       const entries = fs.readdirSync(currentPath, { withFileTypes: true });
@@ -106,9 +121,9 @@ describe('Safe migration guards', () => {
             .split(',')
             .map((s) => s.trim().replace(/\s+as\s+\w+$/, ''));
 
-          for (const safeSymbol of SAFE_HELPER_SYMBOLS) {
+          for (const safeSymbol of importedSymbols) {
             if (
-              importedSymbols.includes(safeSymbol) &&
+              sdkSafeHelperExports.has(safeSymbol) &&
               source !== '@hyperlane-xyz/sdk'
             ) {
               disallowedImports.push(
@@ -153,27 +168,11 @@ describe('Safe migration guards', () => {
   });
 
   it('ensures sdk index continues exporting core safe helpers', () => {
-    const sdkIndexPath = path.resolve(process.cwd(), '../sdk/src/index.ts');
-    const sdkIndexText = fs.readFileSync(sdkIndexPath, 'utf8');
+    const sdkSafeHelperExports = new Set(getSdkGnosisSafeExports());
 
-    const requiredExports = [
-      'getSafeAndService',
-      'getPendingTxsForChains',
-      'createSafeDeploymentTransaction',
-      'updateSafeOwner',
-      'deleteSafeTx',
-      'deleteAllPendingSafeTxs',
-      'parseSafeTx',
-      'decodeMultiSendData',
-      'createSafeTransaction',
-      'proposeSafeTransaction',
-      'executeTx',
-      'SafeTxStatus',
-    ];
-
-    for (const exportedSymbol of requiredExports) {
+    for (const exportedSymbol of REQUIRED_SAFE_HELPER_EXPORTS) {
       expect(
-        sdkIndexText.includes(exportedSymbol),
+        sdkSafeHelperExports.has(exportedSymbol),
         `Expected sdk index to export ${exportedSymbol}`,
       ).to.equal(true);
     }
