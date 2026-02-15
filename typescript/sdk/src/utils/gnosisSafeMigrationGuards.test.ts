@@ -814,6 +814,127 @@ function stringArraysEqual(
   return true;
 }
 
+function collectVarScopeStatementBindings(
+  statement: ts.Statement,
+  declaredIdentifiers: Set<string>,
+): void {
+  if (ts.isLabeledStatement(statement)) {
+    collectVarScopeStatementBindings(statement.statement, declaredIdentifiers);
+    return;
+  }
+
+  if (ts.isVariableStatement(statement)) {
+    const declarationList = statement.declarationList;
+    const hasLexicalBindings =
+      (declarationList.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const)) !== 0;
+    if (hasLexicalBindings) return;
+    for (const declaration of declarationList.declarations) {
+      for (const localName of collectBindingLocalNames(declaration.name)) {
+        declaredIdentifiers.add(localName);
+      }
+    }
+    return;
+  }
+
+  if (
+    ts.isFunctionDeclaration(statement) ||
+    ts.isClassDeclaration(statement) ||
+    ts.isEnumDeclaration(statement)
+  ) {
+    return;
+  }
+
+  if (ts.isBlock(statement)) {
+    for (const nestedStatement of statement.statements) {
+      collectVarScopeStatementBindings(nestedStatement, declaredIdentifiers);
+    }
+    return;
+  }
+
+  if (ts.isIfStatement(statement)) {
+    collectVarScopeStatementBindings(
+      statement.thenStatement,
+      declaredIdentifiers,
+    );
+    if (statement.elseStatement) {
+      collectVarScopeStatementBindings(
+        statement.elseStatement,
+        declaredIdentifiers,
+      );
+    }
+    return;
+  }
+
+  if (
+    ts.isDoStatement(statement) ||
+    ts.isWhileStatement(statement) ||
+    ts.isWithStatement(statement)
+  ) {
+    collectVarScopeStatementBindings(statement.statement, declaredIdentifiers);
+    return;
+  }
+
+  if (ts.isForStatement(statement)) {
+    if (
+      statement.initializer &&
+      ts.isVariableDeclarationList(statement.initializer) &&
+      (statement.initializer.flags &
+        (ts.NodeFlags.Let | ts.NodeFlags.Const)) ===
+        0
+    ) {
+      for (const declaration of statement.initializer.declarations) {
+        for (const localName of collectBindingLocalNames(declaration.name)) {
+          declaredIdentifiers.add(localName);
+        }
+      }
+    }
+    collectVarScopeStatementBindings(statement.statement, declaredIdentifiers);
+    return;
+  }
+
+  if (ts.isForInStatement(statement) || ts.isForOfStatement(statement)) {
+    if (
+      ts.isVariableDeclarationList(statement.initializer) &&
+      (statement.initializer.flags &
+        (ts.NodeFlags.Let | ts.NodeFlags.Const)) ===
+        0
+    ) {
+      for (const declaration of statement.initializer.declarations) {
+        for (const localName of collectBindingLocalNames(declaration.name)) {
+          declaredIdentifiers.add(localName);
+        }
+      }
+    }
+    collectVarScopeStatementBindings(statement.statement, declaredIdentifiers);
+    return;
+  }
+
+  if (ts.isSwitchStatement(statement)) {
+    for (const clause of statement.caseBlock.clauses) {
+      for (const nestedStatement of clause.statements) {
+        collectVarScopeStatementBindings(nestedStatement, declaredIdentifiers);
+      }
+    }
+    return;
+  }
+
+  if (ts.isTryStatement(statement)) {
+    for (const nestedStatement of statement.tryBlock.statements) {
+      collectVarScopeStatementBindings(nestedStatement, declaredIdentifiers);
+    }
+    if (statement.catchClause) {
+      for (const nestedStatement of statement.catchClause.block.statements) {
+        collectVarScopeStatementBindings(nestedStatement, declaredIdentifiers);
+      }
+    }
+    if (statement.finallyBlock) {
+      for (const nestedStatement of statement.finallyBlock.statements) {
+        collectVarScopeStatementBindings(nestedStatement, declaredIdentifiers);
+      }
+    }
+  }
+}
+
 function collectStatementLexicalScopeBindings(
   statement: ts.Statement,
   declaredIdentifiers: Set<string>,
@@ -851,6 +972,10 @@ function collectStatementLexicalScopeBindings(
     !isAmbientContextNode(statement)
   ) {
     declaredIdentifiers.add(normalizeNamedSymbol(statement.name.text));
+  }
+
+  if (includeVarDeclarations) {
+    collectVarScopeStatementBindings(statement, declaredIdentifiers);
   }
 }
 
@@ -2595,6 +2720,31 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('does not leak nested class static-block var alias shadowing to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      '    if (true) {',
+      '      var reqAlias = () => undefined;',
+      "      reqAlias('./fixtures/other-module.js');",
+      '    }',
+      '  }',
+      '}',
+      "const postStaticCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('applies class static-block assignments to outer require aliases for module specifiers', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -3378,6 +3528,26 @@ describe('Gnosis Safe migration guards', () => {
       '  static {',
       '    var reqAlias = () => undefined;',
       "    reqAlias('./fixtures/other-module.js').default;",
+      '  }',
+      '}',
+      "const postStaticDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak nested class static-block var alias shadowing to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      '    if (true) {',
+      '      var reqAlias = () => undefined;',
+      "      reqAlias('./fixtures/other-module.js').default;",
+      '    }',
       '  }',
       '}',
       "const postStaticDefault = reqAlias('./fixtures/guard-module.js').default;",
