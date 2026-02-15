@@ -25,6 +25,8 @@ const SOURCE_FILE_EXTENSIONS = Object.freeze([
   '.mts',
   '.cts',
   '.js',
+  '.mjs',
+  '.cjs',
 ]);
 
 const LEGACY_SQUADS_SPECIFIER =
