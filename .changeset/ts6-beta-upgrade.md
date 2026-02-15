@@ -465,3 +465,5 @@ Regression coverage now also confirms json-escaped quoted/single-quoted/mixed-qu
 Regression coverage now also confirms non-`Error` object wrappers still match runtime-unavailable signatures through `String(error)` when `message` is non-string and `JSON.stringify`/`inspect` outputs are non-informative, while informative non-runtime `String(error)` values still take precedence over runtime-like `Object.prototype.toString` tags.
 
 Regression coverage now also confirms non-`Error` object wrappers continue through `Object.prototype.toString` when `String(error)` is a non-informative placeholder, preserving runtime/non-runtime matching based on `toStringTag` wrapper signatures.
+
+Regression coverage now also confirms non-`Error` object wrappers treat bare-colon `String(error)` outputs as non-informative (including non-string `message` payloads), preserving matcher and formatter `Object.prototype.toString` fallback behavior while keeping informative non-runtime `String(error)` outputs authoritative even when `toStringTag` looks runtime-like.
