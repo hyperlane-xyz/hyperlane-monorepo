@@ -224,6 +224,19 @@ describe('squads sdk migration regression', () => {
     expect(hasTrackedSourceExtension('src/example.jsx')).to.equal(false);
   });
 
+  it('keeps guarded squads script paths aligned with tracked extension policy', () => {
+    const guardedScriptPaths = new Set([
+      ...SQUADS_SCRIPT_PATHS,
+      ...SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
+    ]);
+    for (const scriptPath of guardedScriptPaths) {
+      expect(
+        hasTrackedSourceExtension(scriptPath),
+        `Expected guarded squads script path to match tracked extension policy: ${scriptPath}`,
+      ).to.equal(true);
+    }
+  });
+
   it('keeps skipped tracked-source directory policy normalized and deduplicated', () => {
     const skippedDirectoryNames = [...SKIPPED_DIRECTORIES];
     expect(new Set(skippedDirectoryNames).size).to.equal(
