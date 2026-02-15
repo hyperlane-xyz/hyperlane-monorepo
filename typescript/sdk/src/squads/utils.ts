@@ -528,11 +528,23 @@ export function getSquadAndProvider(
   svmProviderOverride?: SolanaWeb3Provider,
 ): SquadAndProvider {
   const normalizedChain = resolveSquadsChainName(chain);
-  const { vault, multisigPda, programId } = getSquadsKeys(normalizedChain);
-  const svmProvider =
-    svmProviderOverride ?? mpp.getSolanaWeb3Provider(normalizedChain);
+  return getSquadAndProviderForResolvedChain(
+    normalizedChain,
+    mpp,
+    svmProviderOverride,
+  );
+}
 
-  return { chain: normalizedChain, svmProvider, vault, multisigPda, programId };
+function getSquadAndProviderForResolvedChain(
+  chain: SquadsChainName,
+  mpp: MultiProtocolProvider,
+  svmProviderOverride?: SolanaWeb3Provider,
+): SquadAndProvider {
+  const { vault, multisigPda, programId } = getSquadsKeys(chain);
+  const svmProvider =
+    svmProviderOverride ?? mpp.getSolanaWeb3Provider(chain);
+
+  return { chain, svmProvider, vault, multisigPda, programId };
 }
 
 export async function getSquadProposal(
@@ -552,7 +564,7 @@ export async function getSquadProposal(
   assertValidTransactionIndexInput(transactionIndex, normalizedChain);
 
   try {
-    const { svmProvider } = getSquadAndProvider(
+    const { svmProvider } = getSquadAndProviderForResolvedChain(
       normalizedChain,
       mpp,
       svmProviderOverride,
@@ -602,11 +614,12 @@ export async function getSquadProposalAccount(
   assertValidTransactionIndexInput(transactionIndex, normalizedChain);
 
   try {
-    const { svmProvider, multisigPda, programId } = getSquadAndProvider(
+    const { svmProvider, multisigPda, programId } =
+      getSquadAndProviderForResolvedChain(
       normalizedChain,
       mpp,
       svmProviderOverride,
-    );
+      );
     const squadsProvider = toSquadsProvider(svmProvider);
 
     const [proposalPda] = getProposalPda({
