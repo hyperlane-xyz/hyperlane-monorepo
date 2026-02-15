@@ -1936,11 +1936,55 @@ export class SquadsTransactionReader {
 
       case SquadsInstructionName[SquadsInstructionType.ADD_MEMBER]: {
         const data = inst.data as SquadsAddMemberData;
+        let memberValue: unknown;
+        try {
+          memberValue = data.newMember;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read squads add-member target on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          memberValue = undefined;
+        }
+        let permissionsValue: unknown;
+        try {
+          permissionsValue = data.permissions;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read squads add-member permissions on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          permissionsValue = undefined;
+        }
+        let permissionsMaskValue: unknown;
+        if (isRecordObject(permissionsValue)) {
+          try {
+            permissionsMaskValue = permissionsValue.mask;
+          } catch (error) {
+            rootLogger.warn(
+              `Failed to read squads add-member permission mask on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+            );
+            permissionsMaskValue = undefined;
+          }
+        } else {
+          permissionsMaskValue = undefined;
+        }
+        let decodedPermissions = 'Unknown';
+        if (typeof permissionsMaskValue !== 'undefined') {
+          try {
+            decodedPermissions = decodePermissions(permissionsMaskValue);
+          } catch (error) {
+            rootLogger.warn(
+              `Failed to decode squads add-member permissions on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+            );
+          }
+        }
         tx.args = {
-          member: data.newMember,
+          member: this.normalizeOptionalNonEmptyString(memberValue),
           permissions: {
-            mask: data.permissions.mask,
-            decoded: decodePermissions(data.permissions.mask),
+            mask:
+              typeof permissionsMaskValue === 'undefined'
+                ? null
+                : permissionsMaskValue,
+            decoded: decodedPermissions,
           },
         };
         break;
@@ -1948,13 +1992,31 @@ export class SquadsTransactionReader {
 
       case SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER]: {
         const data = inst.data as SquadsRemoveMemberData;
-        tx.args = { member: data.memberToRemove };
+        let memberValue: unknown;
+        try {
+          memberValue = data.memberToRemove;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read squads remove-member target on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          memberValue = undefined;
+        }
+        tx.args = { member: this.normalizeOptionalNonEmptyString(memberValue) };
         break;
       }
 
       case SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD]: {
         const data = inst.data as SquadsChangeThresholdData;
-        tx.args = { newThreshold: data.newThreshold };
+        let thresholdValue: unknown;
+        try {
+          thresholdValue = data.newThreshold;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read squads threshold change on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          thresholdValue = undefined;
+        }
+        tx.args = { newThreshold: thresholdValue ?? null };
         break;
       }
 

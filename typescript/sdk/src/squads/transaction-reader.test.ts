@@ -34,7 +34,12 @@ import {
 } from '../token/adapters/serialization.js';
 import type { WarpCoreConfig } from '../warp/types.js';
 import { SealevelInstructionWrapper } from '../utils/sealevelSerialization.js';
-import { SquadsAccountType, SQUADS_ACCOUNT_DISCRIMINATORS } from './utils.js';
+import {
+  SQUADS_ACCOUNT_DISCRIMINATORS,
+  SquadsAccountType,
+  SquadsInstructionName,
+  SquadsInstructionType,
+} from './utils.js';
 
 function createReaderWithLookupCounter(): {
   reader: SquadsTransactionReader;
@@ -3334,6 +3339,139 @@ describe('squads transaction reader', () => {
 
     expect(ismResult.args).to.deep.equal({ ism: null });
     expect(igpResult.args).to.deep.equal({ igp: null });
+  });
+
+  it('handles malformed squads add-member permissions while formatting instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const malformedAddMemberData = new Proxy(
+      {
+        newMember: 'member-a',
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'permissions') {
+            throw new Error('permissions unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    const undecodablePermissionData = {
+      newMember: 'member-b',
+      permissions: {
+        mask: 'bad-mask',
+      },
+    };
+
+    const missingPermissionsResult = readerAny.formatInstruction(
+      'solanamainnet',
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'Squads',
+        instructionType:
+          SquadsInstructionName[SquadsInstructionType.ADD_MEMBER],
+        data: malformedAddMemberData as unknown as Record<string, unknown>,
+        accounts: [],
+        warnings: [],
+      },
+    );
+    const undecodablePermissionsResult = readerAny.formatInstruction(
+      'solanamainnet',
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'Squads',
+        instructionType:
+          SquadsInstructionName[SquadsInstructionType.ADD_MEMBER],
+        data: undecodablePermissionData as unknown as Record<string, unknown>,
+        accounts: [],
+        warnings: [],
+      },
+    );
+
+    expect(missingPermissionsResult.args).to.deep.equal({
+      member: 'member-a',
+      permissions: {
+        mask: null,
+        decoded: 'Unknown',
+      },
+    });
+    expect(undecodablePermissionsResult.args).to.deep.equal({
+      member: 'member-b',
+      permissions: {
+        mask: 'bad-mask',
+        decoded: 'Unknown',
+      },
+    });
+  });
+
+  it('handles malformed squads remove-member and threshold-change fields while formatting instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const malformedRemoveMemberData = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'memberToRemove') {
+            throw new Error('member unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    const malformedChangeThresholdData = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'newThreshold') {
+            throw new Error('threshold unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const removeMemberResult = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'Squads',
+      instructionType:
+        SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER],
+      data: malformedRemoveMemberData as unknown as Record<string, unknown>,
+      accounts: [],
+      warnings: [],
+    });
+    const changeThresholdResult = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'Squads',
+      instructionType:
+        SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD],
+      data: malformedChangeThresholdData as unknown as Record<string, unknown>,
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(removeMemberResult.args).to.deep.equal({ member: null });
+    expect(changeThresholdResult.args).to.deep.equal({ newThreshold: null });
   });
 
   it('does not misclassify multisig validator instructions when chain lookup throws during parse', () => {
