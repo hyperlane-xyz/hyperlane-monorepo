@@ -1908,7 +1908,9 @@ export class SquadsTransactionReader {
           );
           moduleValue = null;
         }
-        tx.args = { module: moduleValue };
+        tx.args = {
+          module: this.normalizeOptionalNonEmptyString(moduleValue),
+        };
         break;
       }
 
@@ -2016,7 +2018,10 @@ export class SquadsTransactionReader {
           );
           thresholdValue = undefined;
         }
-        tx.args = { newThreshold: thresholdValue ?? null };
+        tx.args = {
+          newThreshold:
+            typeof thresholdValue === 'number' ? thresholdValue : null,
+        };
         break;
       }
 
@@ -2214,7 +2219,7 @@ export class SquadsTransactionReader {
           );
           igpValue = undefined;
         }
-        tx.args = igpValue || { igp: null };
+        tx.args = isRecordObject(igpValue) ? igpValue : { igp: null };
         break;
       }
 

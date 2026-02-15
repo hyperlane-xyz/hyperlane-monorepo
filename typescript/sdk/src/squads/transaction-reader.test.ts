@@ -3341,6 +3341,47 @@ describe('squads transaction reader', () => {
     expect(igpResult.args).to.deep.equal({ igp: null });
   });
 
+  it('normalizes malformed mailbox module and non-object IGP values while formatting instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+
+    const mailboxResult = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'Mailbox',
+      instructionType:
+        SealevelMailboxInstructionName[
+          SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
+        ],
+      data: { newDefaultIsm: 1 as unknown as string },
+      accounts: [],
+      warnings: [],
+    });
+    const igpResult = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'WarpRoute',
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.SetInterchainGasPaymaster
+        ],
+      data: { igp: 'bad-igp' as unknown as Record<string, unknown> },
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(mailboxResult.args).to.deep.equal({ module: null });
+    expect(igpResult.args).to.deep.equal({ igp: null });
+  });
+
   it('handles malformed squads add-member permissions while formatting instructions', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
@@ -3472,6 +3513,33 @@ describe('squads transaction reader', () => {
 
     expect(removeMemberResult.args).to.deep.equal({ member: null });
     expect(changeThresholdResult.args).to.deep.equal({ newThreshold: null });
+  });
+
+  it('normalizes non-numeric squads threshold values while formatting instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'Squads',
+      instructionType:
+        SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD],
+      data: { newThreshold: '3' as unknown as number },
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(result.args).to.deep.equal({ newThreshold: null });
   });
 
   it('does not misclassify multisig validator instructions when chain lookup throws during parse', () => {
