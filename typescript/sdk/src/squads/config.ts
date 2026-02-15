@@ -299,9 +299,7 @@ export function resolveSquadsChainName(chainName: unknown): SquadsChainName {
   return normalizedChainName;
 }
 
-export function getSquadsKeysForResolvedChain(
-  chainName: SquadsChainName,
-): SquadsKeys {
+export function getSquadsKeysForResolvedChain(chainName: unknown): SquadsKeys {
   assertIsSquadsChain(chainName);
   const keys = SQUADS_KEYS_BY_CHAIN[chainName];
 
