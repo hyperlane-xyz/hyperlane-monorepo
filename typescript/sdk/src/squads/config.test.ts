@@ -43,6 +43,28 @@ describe('squads config', () => {
     });
   });
 
+  it('keeps squads chain config map deeply frozen', () => {
+    expect(Object.isFrozen(squadsConfigs)).to.equal(true);
+    for (const chain of getSquadsChains()) {
+      expect(Object.isFrozen(squadsConfigs[chain])).to.equal(true);
+    }
+  });
+
+  it('keeps canonical squads config addresses parseable as Solana public keys', () => {
+    for (const chain of getSquadsChains()) {
+      const chainConfig = squadsConfigs[chain];
+      expect(new PublicKey(chainConfig.programId).toBase58()).to.equal(
+        chainConfig.programId,
+      );
+      expect(new PublicKey(chainConfig.multisigPda).toBase58()).to.equal(
+        chainConfig.multisigPda,
+      );
+      expect(new PublicKey(chainConfig.vault).toBase58()).to.equal(
+        chainConfig.vault,
+      );
+    }
+  });
+
   it('returns canonical squads chain ordering and defensive copies', () => {
     expect(getSquadsChains()).to.deep.equal([
       'solanamainnet',
