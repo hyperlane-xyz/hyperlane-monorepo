@@ -212,6 +212,198 @@ describe('squads transaction reader warning formatters', () => {
   });
 });
 
+describe('squads transaction reader multisig verification', () => {
+  function createReaderForVerification(
+    resolveExpectedMultisigConfig?: (
+      chain: string,
+    ) => Record<string, { threshold: number; validators: readonly string[] }> | null,
+    tryGetChainName?: (domain: number) => string | undefined,
+  ): SquadsTransactionReader {
+    const mpp = {
+      tryGetChainName:
+        tryGetChainName ?? ((domain: number) => (domain === 1000 ? 'solanatestnet' : undefined)),
+      getSolanaWeb3Provider: () => ({
+        getAccountInfo: async () => null,
+      }),
+    } as unknown as MultiProtocolProvider;
+
+    return new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+      resolveExpectedMultisigConfig,
+    });
+  }
+
+  it('matches expected route configuration when threshold and validators align', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(() => {
+      resolveConfigCallCount += 1;
+      return {
+        solanatestnet: {
+          threshold: 2,
+          validators: ['validator-a', 'validator-b'],
+        },
+      };
+    });
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a', 'validator-b'],
+    );
+
+    expect(result).to.deep.equal({ matches: true, issues: [] });
+    expect(resolveConfigCallCount).to.equal(1);
+  });
+
+  it('returns unknown-domain issue before loading expected configuration', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => undefined,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      999,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: ['Unknown domain 999'],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
+  it('caches null expected config when resolver throws', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(() => {
+      resolveConfigCallCount += 1;
+      throw new Error('resolver failed');
+    });
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const firstResult = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+    const secondResult = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(firstResult).to.deep.equal({
+      matches: false,
+      issues: ['No expected config found for solanamainnet'],
+    });
+    expect(secondResult).to.deep.equal(firstResult);
+    expect(resolveConfigCallCount).to.equal(1);
+  });
+
+  it('surfaces missing route-specific expected configuration', () => {
+    const reader = createReaderForVerification(() => ({
+      solanadevnet: {
+        threshold: 2,
+        validators: ['validator-a'],
+      },
+    }));
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: ['No expected config for route solanamainnet -> solanatestnet'],
+    });
+  });
+
+  it('reports threshold and validator-set mismatches with detailed issues', () => {
+    const reader = createReaderForVerification(() => ({
+      solanatestnet: {
+        threshold: 3,
+        validators: ['validator-a', 'validator-b', 'validator-c'],
+      },
+    }));
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a', 'validator-d'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Threshold mismatch: expected 3, got 2',
+        'Validator count mismatch: expected 3, got 2',
+        'Missing validators: validator-b, validator-c',
+        'Unexpected validators: validator-d',
+      ],
+    });
+  });
+});
+
 describe('squads transaction reader', () => {
   function createMockProposalData(
     transactionIndex: unknown,
