@@ -420,6 +420,20 @@ function listSquadsBarrelExportedSourcePaths(): readonly string[] {
   return exportedSourcePaths.sort(compareLexicographically);
 }
 
+function assertPathSnapshotIsolation(
+  listPaths: () => readonly string[],
+  pathSetLabel: string,
+): void {
+  const baselinePaths = listPaths();
+  const callerMutableSnapshot = [...listPaths()];
+  callerMutableSnapshot.pop();
+  const subsequentPaths = listPaths();
+
+  expect(callerMutableSnapshot).to.not.deep.equal(baselinePaths);
+  expect(subsequentPaths).to.deep.equal(baselinePaths);
+  expect(subsequentPaths).to.not.equal(baselinePaths);
+}
+
 describe('squads barrel exports', () => {
   it('keeps sdk squads test command constants normalized and scoped', () => {
     assertCanonicalCliCommandShape(
@@ -833,6 +847,22 @@ describe('squads barrel exports', () => {
       ].sort(compareLexicographically),
     ).to.deep.equal(
       [...discoveredNonTestSourcePaths].sort(compareLexicographically),
+    );
+  });
+
+  it('keeps recursive sdk squads discovery helpers isolated from caller mutation', () => {
+    assertPathSnapshotIsolation(
+      () => listSdkSquadsTestFilePathsRecursively(SDK_SQUADS_SOURCE_DIR),
+      'sdk squads recursive test-path discovery',
+    );
+    assertPathSnapshotIsolation(
+      () =>
+        listSdkSquadsNonTestSourceFilePathsRecursively(SDK_SQUADS_SOURCE_DIR),
+      'sdk squads recursive non-test source discovery',
+    );
+    assertPathSnapshotIsolation(
+      () => listSdkSquadsTypeScriptPathsRecursively(SDK_SQUADS_SOURCE_DIR),
+      'sdk squads recursive TypeScript discovery',
     );
   });
 });
