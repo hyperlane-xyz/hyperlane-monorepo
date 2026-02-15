@@ -3217,6 +3217,42 @@ describe('Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('keeps lexical for-loop ambient class declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'for (const iteration of [1]) {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare class reqAlias {}',
+      '  void iteration;',
+      '}',
+      "const postLoopDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps lexical for-loop ambient enum declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'for (const iteration of [1]) {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      '  void iteration;',
+      '}',
+      "const postLoopDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak lexical for-loop enum alias shadowing before declaration to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -3314,6 +3350,44 @@ describe('Safe migration guards', () => {
       '  const preDeclarationSymbol = moduleAlias.inner;',
       '  interface moduleAlias {',
       '    inner: unknown;',
+      '  }',
+      '  void preDeclarationSymbol;',
+      '  void iteration;',
+      '}',
+      'const postLoopDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps lexical for-loop ambient class declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'for (const iteration of [1]) {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare class moduleAlias {}',
+      '  void preDeclarationSymbol;',
+      '  void iteration;',
+      '}',
+      'const postLoopDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps lexical for-loop ambient enum declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'for (const iteration of [1]) {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare enum moduleAlias {',
+      '    Marker = 0,',
       '  }',
       '  void preDeclarationSymbol;',
       '  void iteration;',
@@ -6837,6 +6911,52 @@ describe('Safe migration guards', () => {
       "  reqAlias('./fixtures/other-module.js');",
       '  interface reqAlias {',
       '    value: string;',
+      '  }',
+      '  void iteration;',
+      '}',
+      "const postLoopCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps lexical for-loop ambient class declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'for (const iteration of [1]) {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare class reqAlias {}',
+      '  void iteration;',
+      '}',
+      "const postLoopCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps lexical for-loop ambient enum declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'for (const iteration of [1]) {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
       '  }',
       '  void iteration;',
       '}',
