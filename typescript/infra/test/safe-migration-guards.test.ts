@@ -6200,6 +6200,36 @@ describe('Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('keeps top-level type-alias declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      "const preTypeAliasDefault = reqAlias('./fixtures/guard-module.js').default;",
+      'type reqAlias = (_value: unknown) => unknown;',
+      "const postTypeAliasDefault = reqAlias('./fixtures/other-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps top-level interface declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      "const preInterfaceDefault = reqAlias('./fixtures/guard-module.js').default;",
+      'interface reqAlias {',
+      '  marker: unknown;',
+      '}',
+      "const postInterfaceDefault = reqAlias('./fixtures/other-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('keeps top-level ambient class declarations from shadowing module-source aliases in symbol sources', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
@@ -6298,6 +6328,42 @@ describe('Safe migration guards', () => {
       'void preAmbientInner;',
       'void postAmbientInner;',
       'const postAmbientDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps top-level type-alias declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const preTypeAliasInner = moduleAlias.inner;',
+      'type moduleAlias = { inner: unknown };',
+      'const postTypeAliasInner = moduleAlias.inner;',
+      'void preTypeAliasInner;',
+      'void postTypeAliasInner;',
+      'const postTypeAliasDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps top-level interface declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const preInterfaceInner = moduleAlias.inner;',
+      'interface moduleAlias {',
+      '  marker: unknown;',
+      '}',
+      'const postInterfaceInner = moduleAlias.inner;',
+      'void preInterfaceInner;',
+      'void postInterfaceInner;',
+      'const postInterfaceDefault = moduleAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
@@ -9497,6 +9563,46 @@ describe('Safe migration guards', () => {
       '  const marker: unknown;',
       '}',
       "const postAmbientCall = reqAlias('./fixtures/other-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps top-level type-alias declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      "const preTypeAliasCall = reqAlias('./fixtures/guard-module.js');",
+      'type reqAlias = (_value: unknown) => unknown;',
+      "const postTypeAliasCall = reqAlias('./fixtures/other-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps top-level interface declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      "const preInterfaceCall = reqAlias('./fixtures/guard-module.js');",
+      'interface reqAlias {',
+      '  marker: unknown;',
+      '}',
+      "const postInterfaceCall = reqAlias('./fixtures/other-module.js');",
     ].join('\n');
     const moduleReferences = collectModuleSpecifierReferences(
       source,
