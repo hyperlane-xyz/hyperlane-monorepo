@@ -969,6 +969,36 @@ describe('Gnosis Safe migration guards', () => {
     ).to.equal(false);
   });
 
+  it('tracks aliased named import and export symbols from module specifiers', () => {
+    const source = [
+      "import { SafeApiKit as SafeApiAlias } from './fixtures/guard-module.js';",
+      "export { getSafe as getSafeAlias } from './fixtures/guard-module.js';",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('SafeApiKit@./fixtures/guard-module.js');
+    expect(references).to.include('SafeApiAlias@./fixtures/guard-module.js');
+    expect(references).to.include('getSafe@./fixtures/guard-module.js');
+    expect(references).to.include('getSafeAlias@./fixtures/guard-module.js');
+  });
+
+  it('tracks default import local symbol names from module specifiers', () => {
+    const source = "import SafeSdk from './fixtures/guard-module.js';";
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('SafeSdk@./fixtures/guard-module.js');
+  });
+
+  it('tracks import-equals local symbol names from module specifiers', () => {
+    const source = "import getSafe = require('./fixtures/guard-module.js');";
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('getSafe@./fixtures/guard-module.js');
+  });
+
   it('collects value and type-only default imports from source text', () => {
     const source = [
       "import SafeSdk from '@fixtures/guard-module';",
