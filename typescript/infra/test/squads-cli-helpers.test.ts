@@ -290,6 +290,65 @@ describe('squads cli helpers', () => {
     );
   });
 
+  const invalidProvidedChainsContainerCases: Array<{
+    title: string;
+    chainsValue: unknown;
+    expectedType: string;
+  }> = [
+    {
+      title: 'throws for non-array explicit chains input when provided',
+      chainsValue: 'solanamainnet',
+      expectedType: 'string',
+    },
+    {
+      title: 'labels null explicit chains input clearly in error output',
+      chainsValue: null,
+      expectedType: 'null',
+    },
+    {
+      title: 'labels numeric explicit chains input clearly in error output',
+      chainsValue: 1,
+      expectedType: 'number',
+    },
+    {
+      title: 'labels boolean explicit chains input clearly in error output',
+      chainsValue: false,
+      expectedType: 'boolean',
+    },
+    {
+      title: 'labels bigint explicit chains input clearly in error output',
+      chainsValue: 1n,
+      expectedType: 'bigint',
+    },
+    {
+      title: 'labels symbol explicit chains input clearly in error output',
+      chainsValue: Symbol('invalid-chains'),
+      expectedType: 'symbol',
+    },
+    {
+      title: 'labels function explicit chains input clearly in error output',
+      chainsValue: () => ['invalid-chains'],
+      expectedType: 'function',
+    },
+    {
+      title: 'labels object explicit chains input clearly in error output',
+      chainsValue: {},
+      expectedType: 'object',
+    },
+  ];
+
+  for (const {
+    title,
+    chainsValue,
+    expectedType,
+  } of invalidProvidedChainsContainerCases) {
+    it(title, () => {
+      expect(
+        () => resolveSquadsChains(chainsValue as unknown as readonly unknown[]),
+      ).to.throw(`Expected chains to be an array, but received ${expectedType}`);
+    });
+  }
+
   it('resolves to provided chains when explicitly set', () => {
     const squadsChains = getSquadsChains();
     const selectedChains = [squadsChains[0]];

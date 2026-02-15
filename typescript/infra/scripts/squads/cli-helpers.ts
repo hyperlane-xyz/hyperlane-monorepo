@@ -93,11 +93,21 @@ export function withSquadsChains<T>(args: Argv<T>) {
 export function resolveSquadsChains(
   chains?: readonly unknown[],
 ): SquadsChainName[] {
-  if (chains && chains.length > 0) {
-    const normalizedChains = normalizeProvidedChains(chains);
-    return resolveSquadsChainsFromSdk(normalizedChains);
+  if (typeof chains === 'undefined') {
+    return resolveSquadsChainsFromSdk();
   }
-  return resolveSquadsChainsFromSdk();
+
+  assert(
+    Array.isArray(chains),
+    `Expected chains to be an array, but received ${getArgTypeName(chains)}`,
+  );
+
+  if (chains.length === 0) {
+    return resolveSquadsChainsFromSdk();
+  }
+
+  const normalizedChains = normalizeProvidedChains(chains);
+  return resolveSquadsChainsFromSdk(normalizedChains);
 }
 
 function getArgTypeName(value: unknown): string {
