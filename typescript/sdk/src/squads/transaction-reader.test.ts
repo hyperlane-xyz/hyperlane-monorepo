@@ -1561,6 +1561,32 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('uses placeholder when warp-route entries accessor throws opaque object', async () => {
+    const mpp = {
+      tryGetProtocol: () => ProtocolType.Sealevel,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const hostileWarpRoutes = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw {};
+        },
+      },
+    );
+
+    const error = await captureAsyncError(() => reader.init(hostileWarpRoutes));
+
+    expect(error?.message).to.equal(
+      'Failed to read warp routes entries: [unstringifiable error]',
+    );
+  });
+
   it('skips warp-route tokens when protocol lookup throws during initialization', async () => {
     let protocolLookupCount = 0;
     const mpp = {
