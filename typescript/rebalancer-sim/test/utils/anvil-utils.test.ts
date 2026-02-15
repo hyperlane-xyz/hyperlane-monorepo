@@ -882,6 +882,72 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
     });
 
+    it('matches cross-realm boxed-string message fields when wrapper formatting is non-informative', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const wrappedError = {
+        message: runInNewContext(
+          'new String("No Docker client strategy found")',
+        ),
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string message fields when wrapper formatting is non-informative', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const wrappedError = {
+        message: runInNewContext('new String("unrelated nested warning")'),
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('matches cross-realm boxed-string message fields when wrapper formatting is non-informative and toStringTag accessor throws', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const wrappedError = {
+        message: buildCrossRealmBoxedStringWithThrowingToStringTag(
+          'No Docker client strategy found',
+        ),
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string message fields when wrapper formatting is non-informative and toStringTag accessor throws', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const wrappedError = {
+        message: buildCrossRealmBoxedStringWithThrowingToStringTag(
+          'unrelated nested warning',
+        ),
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
     it('matches docker runtime errors in cross-realm boxed-string-valued errors fields', () => {
       expect(
         isContainerRuntimeUnavailable({

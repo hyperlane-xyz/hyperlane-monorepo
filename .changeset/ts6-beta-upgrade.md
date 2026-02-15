@@ -239,3 +239,5 @@ Regression coverage now also confirms `String.prototype` impostor payloads (obje
 Regression coverage now also confirms cross-realm boxed-string payloads remain detectable/ignorable across throw values, wrapper `errors`, `AggregateError.errors`, and formatter `code`/`message` extraction even when boxed-string `Symbol.toStringTag` accessors throw.
 
 Regression coverage now also confirms cross-realm boxed-string-valued wrapper `errors` fields continue to detect runtime signals (and ignore non-runtime signals) when `Symbol.toStringTag` accessors throw.
+
+Regression coverage now also confirms wrapper-level cross-realm boxed-string `message` fields remain detectable/ignorable under non-informative serialization, including hostile `Symbol.toStringTag` accessor failures.
