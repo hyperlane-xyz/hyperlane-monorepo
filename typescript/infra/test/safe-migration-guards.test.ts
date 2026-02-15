@@ -3475,6 +3475,26 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('inner@./fixtures/guard-module.js');
   });
 
+  it('does not leak block enum module-source alias declarations to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      '{',
+      '  enum moduleAlias {',
+      '    Marker = 0,',
+      '  }',
+      '  const postDeclarationSymbol = moduleAlias.inner;',
+      '  void postDeclarationSymbol;',
+      '  void moduleAlias;',
+      '}',
+      'const postBlockDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
   it('does not leak block lexical alias shadowing before declaration to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -3517,6 +3537,25 @@ describe('Safe migration guards', () => {
       '  enum reqAlias {',
       '    Marker = 0,',
       '  }',
+      '  void reqAlias;',
+      '}',
+      "const postBlockDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak block enum alias declarations to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      '{',
+      '  enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      "  reqAlias('./fixtures/other-module.js').default;",
       '  void reqAlias;',
       '}',
       "const postBlockDefault = reqAlias('./fixtures/guard-module.js').default;",
@@ -6661,6 +6700,29 @@ describe('Safe migration guards', () => {
       '    Marker = 0,',
       '  }',
       '  void reqAlias;',
+      '}',
+      "const postBlockCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak block enum alias declarations to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      '{',
+      '  enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      "  reqAlias('./fixtures/other-module.js');",
       '}',
       "const postBlockCall = reqAlias('./fixtures/guard-module.js');",
     ].join('\n');
