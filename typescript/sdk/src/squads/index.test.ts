@@ -45,6 +45,14 @@ const SDK_PACKAGE_JSON_PATH = path.resolve(
 const SDK_SQUADS_TEST_COMMAND_PREFIX = 'mocha --config .mocharc.json';
 const SDK_SQUADS_TEST_GLOB = 'src/squads/*.test.ts';
 const SDK_SQUADS_TEST_TOKEN_PATHS = Object.freeze([SDK_SQUADS_TEST_GLOB]);
+const EXPECTED_SDK_SQUADS_TEST_FILE_PATHS = Object.freeze([
+  'src/squads/config.test.ts',
+  'src/squads/error-format.test.ts',
+  'src/squads/index.test.ts',
+  'src/squads/provider.test.ts',
+  'src/squads/transaction-reader.test.ts',
+  'src/squads/utils.test.ts',
+]);
 const EXPECTED_SDK_SQUADS_TEST_SCRIPT = `${SDK_SQUADS_TEST_COMMAND_PREFIX} ${SDK_SQUADS_TEST_TOKEN_PATHS.map((tokenPath) => `'${tokenPath}'`).join(' ')}`;
 const EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS = Object.freeze([
   "export * from './config.js';",
@@ -770,6 +778,24 @@ describe('squads barrel exports', () => {
         `Expected sdk squads test glob to match at least one discovered squads test file: ${globPattern}`,
       ).to.be.greaterThan(0);
     }
+  });
+
+  it('keeps expected canonical sdk squads test file paths', () => {
+    expect(EXPECTED_SDK_SQUADS_TEST_FILE_PATHS).to.deep.equal([
+      'src/squads/config.test.ts',
+      'src/squads/error-format.test.ts',
+      'src/squads/index.test.ts',
+      'src/squads/provider.test.ts',
+      'src/squads/transaction-reader.test.ts',
+      'src/squads/utils.test.ts',
+    ]);
+  });
+
+  it('keeps sdk discovered squads test files aligned with canonical test file paths', () => {
+    const discoveredSquadsTestPaths = listSdkSquadsTestFilePaths();
+    expect(discoveredSquadsTestPaths).to.deep.equal([
+      ...EXPECTED_SDK_SQUADS_TEST_FILE_PATHS,
+    ]);
   });
 
   it('keeps sdk squads test globs excluding non-test squads source files', () => {
