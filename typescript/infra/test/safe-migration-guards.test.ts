@@ -98,9 +98,7 @@ function hasDefaultExportInSourceFile(
     if (ts.isExportDeclaration(statement) && statement.exportClause) {
       if (ts.isNamedExports(statement.exportClause)) {
         return statement.exportClause.elements.some(
-          (specifier) =>
-            specifier.name.text === 'default' ||
-            specifier.propertyName?.text === 'default',
+          (specifier) => specifier.name.text === 'default',
         );
       }
       if (ts.isNamespaceExport(statement.exportClause)) {
@@ -1012,6 +1010,17 @@ describe('Safe migration guards', () => {
       'type SafeType = { safe: true };',
       'export { type SafeType as default };',
     ].join('\n');
+    expect(hasDefaultExportInSourceFile(source, 'fixture.ts')).to.equal(true);
+  });
+
+  it('does not treat aliased default re-exports as module default export', () => {
+    const source =
+      "export { default as SafeDefault } from './fixtures/guard-module.js';";
+    expect(hasDefaultExportInSourceFile(source, 'fixture.ts')).to.equal(false);
+  });
+
+  it('detects direct default re-exports as module default export', () => {
+    const source = "export { default } from './fixtures/guard-module.js';";
     expect(hasDefaultExportInSourceFile(source, 'fixture.ts')).to.equal(true);
   });
 
