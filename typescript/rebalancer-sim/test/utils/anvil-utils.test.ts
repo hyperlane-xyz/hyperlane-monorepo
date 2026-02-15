@@ -875,6 +875,90 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
 
+    it('matches runtime boxed-string causes when message and errors accessors throw', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      error.cause = buildRealBoxedStringWithThrowingToStringTag(
+        'No Docker client strategy found',
+      );
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime boxed-string causes when message and errors accessors throw', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      error.cause = buildRealBoxedStringWithThrowingToStringTag(
+        'unrelated nested startup warning',
+      );
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('matches runtime cross-realm boxed-string causes when message and errors accessors throw', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      error.cause = buildCrossRealmBoxedStringWithThrowingToStringTag(
+        'No Docker client strategy found',
+      );
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string causes when message and errors accessors throw', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      error.cause = buildCrossRealmBoxedStringWithThrowingToStringTag(
+        'unrelated nested startup warning',
+      );
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('matches runtime boxed-string errors payloads when message and cause accessors throw', () => {
       const error = new AggregateError([], 'failed to initialize runtime');
       Object.defineProperty(error, 'message', {
