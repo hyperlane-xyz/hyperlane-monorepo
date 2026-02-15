@@ -178,6 +178,18 @@ function normalizeValidatorSet(validators: unknown): string[] | null {
   return normalizedValidators;
 }
 
+function findDuplicateValidator(validators: readonly string[]): string | null {
+  const seen = new Set<string>();
+  for (const validator of validators) {
+    const normalizedValidator = validator.toLowerCase();
+    if (seen.has(normalizedValidator)) {
+      return validator;
+    }
+    seen.add(normalizedValidator);
+  }
+  return null;
+}
+
 export function formatUnknownProgramWarning(programId: unknown): string {
   const normalizedProgramId = assertNonEmptyStringValue(programId, 'program id');
   return `⚠️  UNKNOWN PROGRAM: ${normalizedProgramId}`;
@@ -1316,6 +1328,15 @@ export class SquadsTransactionReader {
       );
       return { matches: false, issues };
     }
+    const duplicateExpectedValidator = findDuplicateValidator(
+      normalizedExpectedValidators,
+    );
+    if (duplicateExpectedValidator) {
+      issues.push(
+        `Malformed expected config for route ${route}: validators must be unique (duplicate: ${duplicateExpectedValidator})`,
+      );
+      return { matches: false, issues };
+    }
 
     let normalizedActualValidators: string[] | null;
     try {
@@ -1329,6 +1350,14 @@ export class SquadsTransactionReader {
     if (!normalizedActualValidators) {
       issues.push(
         `Malformed validator set for route ${route}: validators must be an array of non-empty strings`,
+      );
+      return { matches: false, issues };
+    }
+    const duplicateActualValidator =
+      findDuplicateValidator(normalizedActualValidators);
+    if (duplicateActualValidator) {
+      issues.push(
+        `Malformed validator set for route ${route}: validators must be unique (duplicate: ${duplicateActualValidator})`,
       );
       return { matches: false, issues };
     }

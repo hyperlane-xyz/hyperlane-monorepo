@@ -831,6 +831,43 @@ describe('squads transaction reader multisig verification', () => {
     });
   });
 
+  it('reports malformed expected validator arrays when duplicates exist', () => {
+    const reader = createReaderForVerification(
+      () =>
+        ({
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a', 'VALIDATOR-A'],
+          },
+        }) as unknown as Record<
+          string,
+          { threshold: number; validators: readonly string[] }
+        >,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed expected config for route solanamainnet -> solanatestnet: validators must be unique (duplicate: VALIDATOR-A)',
+      ],
+    });
+  });
+
   it('reports malformed validator sets from instruction payloads', () => {
     const reader = createReaderForVerification(() => ({
       solanatestnet: {
@@ -858,6 +895,37 @@ describe('squads transaction reader multisig verification', () => {
       matches: false,
       issues: [
         'Malformed validator set for route solanamainnet -> solanatestnet: validators must be an array of non-empty strings',
+      ],
+    });
+  });
+
+  it('reports malformed runtime validator arrays when duplicates exist', () => {
+    const reader = createReaderForVerification(() => ({
+      solanatestnet: {
+        threshold: 2,
+        validators: ['validator-a', 'validator-b'],
+      },
+    }));
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a', 'VALIDATOR-A'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed validator set for route solanamainnet -> solanatestnet: validators must be unique (duplicate: VALIDATOR-A)',
       ],
     });
   });
