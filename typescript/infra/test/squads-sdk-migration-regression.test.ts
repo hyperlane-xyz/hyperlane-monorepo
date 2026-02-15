@@ -78,7 +78,8 @@ const SQUADS_TRACKED_TEST_ASSET_PATHS = Object.freeze([
   ...SQUADS_REGRESSION_TEST_PATHS,
   ...SQUADS_TRACKED_TEST_SUPPORT_PATHS,
 ]);
-const EXPECTED_INFRA_SQUADS_TEST_SCRIPT = `mocha --config ../sdk/.mocharc.json ${SQUADS_REGRESSION_TEST_PATHS.map((scriptPath) => `"${scriptPath}"`).join(' ')}`;
+const INFRA_SQUADS_TEST_COMMAND_PREFIX = 'mocha --config ../sdk/.mocharc.json';
+const EXPECTED_INFRA_SQUADS_TEST_SCRIPT = `${INFRA_SQUADS_TEST_COMMAND_PREFIX} ${SQUADS_REGRESSION_TEST_PATHS.map((scriptPath) => `"${scriptPath}"`).join(' ')}`;
 const QUOTED_SCRIPT_PATH_PATTERN = /"([^"]+)"/g;
 
 function compareLexicographically(left: string, right: string): number {
@@ -411,9 +412,13 @@ describe('squads sdk migration regression', () => {
   it('keeps expected infra squads test command derived from regression path list', () => {
     expect(
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT.startsWith(
-        'mocha --config ../sdk/.mocharc.json ',
+        `${INFRA_SQUADS_TEST_COMMAND_PREFIX} `,
       ),
     ).to.equal(true);
+    expect(
+      EXPECTED_INFRA_SQUADS_TEST_SCRIPT.includes('  '),
+      'Expected squads test command to avoid duplicate spaces',
+    ).to.equal(false);
     const quotedScriptPaths = listQuotedScriptPaths(
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
     );
