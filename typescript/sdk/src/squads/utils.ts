@@ -1459,9 +1459,9 @@ export async function submitProposalToSquads(
   memo?: string,
 ): Promise<void> {
   try {
-    const creatorPublicKey = signerAdapter.publicKey();
     const { svmProvider, multisigPda, programId } =
       getSquadAndProviderForResolvedChain(chain, mpp);
+    const creatorPublicKey = signerAdapter.publicKey();
 
     const { instructions: proposalInstructions, transactionIndex } =
       await buildSquadsVaultTransactionProposal(

@@ -3412,7 +3412,7 @@ describe('squads utils', () => {
         'Squads config not found on chain unsupported-chain',
       );
       expect(providerLookupCalled).to.equal(false);
-      expect(signerPublicKeyCalled).to.equal(true);
+      expect(signerPublicKeyCalled).to.equal(false);
     });
 
     it('fails fast for malformed runtime chains before provider lookup', async () => {
@@ -3444,7 +3444,29 @@ describe('squads utils', () => {
         'Expected chain name to be a string, got number',
       );
       expect(providerLookupCalled).to.equal(false);
-      expect(signerPublicKeyCalled).to.equal(true);
+      expect(signerPublicKeyCalled).to.equal(false);
+    });
+
+    it('does not request signer public key when provider lookup fails', async () => {
+      let signerPublicKeyCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () => {
+          signerPublicKeyCalled = true;
+          return PublicKey.default;
+        },
+      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal('provider lookup failed');
+      expect(signerPublicKeyCalled).to.equal(false);
     });
   });
 
