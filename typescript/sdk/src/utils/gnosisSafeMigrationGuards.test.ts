@@ -816,9 +816,7 @@ function collectSymbolSourceReferences(
         node,
       )) {
         moduleAliasByIdentifier.delete(shadowedIdentifier);
-        if (shadowedIdentifier !== 'require') {
-          requireLikeIdentifiers.delete(shadowedIdentifier);
-        }
+        requireLikeIdentifiers.delete(shadowedIdentifier);
       }
     }
 
@@ -915,10 +913,10 @@ function collectSymbolSourceReferences(
       if (initializer) {
         if (isRequireLikeExpression(initializer, requireLikeIdentifiers)) {
           requireLikeIdentifiers.add(node.name.text);
-        } else if (node.name.text !== 'require') {
+        } else {
           requireLikeIdentifiers.delete(node.name.text);
         }
-      } else if (node.name.text !== 'require') {
+      } else {
         requireLikeIdentifiers.delete(node.name.text);
       }
       const sources = initializer
@@ -956,10 +954,7 @@ function collectSymbolSourceReferences(
       if (ts.isIdentifier(node.left)) {
         if (rightIsRequireLike) {
           requireLikeIdentifiers.add(node.left.text);
-        } else if (
-          node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-          node.left.text !== 'require'
-        ) {
+        } else if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
           requireLikeIdentifiers.delete(node.left.text);
         }
         if (sources.length > 0) {
@@ -1125,9 +1120,7 @@ function collectModuleSpecifierReferences(
       for (const shadowedIdentifier of collectFunctionScopeShadowedIdentifiers(
         node,
       )) {
-        if (shadowedIdentifier !== 'require') {
-          requireLikeIdentifiers.delete(shadowedIdentifier);
-        }
+        requireLikeIdentifiers.delete(shadowedIdentifier);
       }
     }
 
@@ -1184,10 +1177,10 @@ function collectModuleSpecifierReferences(
       if (initializer) {
         if (isRequireLikeExpression(initializer, requireLikeIdentifiers)) {
           requireLikeIdentifiers.add(node.name.text);
-        } else if (node.name.text !== 'require') {
+        } else {
           requireLikeIdentifiers.delete(node.name.text);
         }
-      } else if (node.name.text !== 'require') {
+      } else {
         requireLikeIdentifiers.delete(node.name.text);
       }
     }
@@ -1205,10 +1198,7 @@ function collectModuleSpecifierReferences(
       const rightExpression = unwrapInitializerExpression(node.right);
       if (isRequireLikeExpression(rightExpression, requireLikeIdentifiers)) {
         requireLikeIdentifiers.add(node.left.text);
-      } else if (
-        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-        node.left.text !== 'require'
-      ) {
+      } else if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
         requireLikeIdentifiers.delete(node.left.text);
       }
     }
@@ -1710,6 +1700,26 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('does not treat shadowed require parameter calls as module specifiers', () => {
+    const source = [
+      "const outerRequire = require('./fixtures/guard-module.js');",
+      'function run(require: any) {',
+      "  return require('./fixtures/other-module.js');",
+      '}',
+      'void outerRequire;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('tracks default symbol references from namespace and require access', () => {
     const source = [
       "import * as infra from './fixtures/guard-module.js';",
@@ -1831,6 +1841,21 @@ describe('Gnosis Safe migration guards', () => {
       "  return reqAlias('./fixtures/other-module.js').default;",
       '}',
       "const outerDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not treat shadowed require parameter default access as module-sourced', () => {
+    const source = [
+      "const outerDefault = require('./fixtures/guard-module.js').default;",
+      'function run(require: any) {',
+      "  return require('./fixtures/other-module.js').default;",
+      '}',
+      'void outerDefault;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
