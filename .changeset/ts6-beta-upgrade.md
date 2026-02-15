@@ -383,3 +383,5 @@ When `JSON.stringify` and `inspect` are both non-informative, `getErrorMessage` 
 Regression coverage also now confirms mixed-quoted placeholder outputs from `String(error)` are treated as non-informative and do not block `Object.prototype.toString` fallback behavior.
 
 Regression coverage also now confirms uppercase bracketed placeholder outputs from `String(error)` are treated as non-informative and continue through to `Object.prototype.toString`.
+
+Regression coverage also now confirms lowercase bracketed placeholder outputs from `String(error)` are treated as non-informative and continue through to `Object.prototype.toString`.
