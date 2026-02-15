@@ -486,6 +486,20 @@ function collectBindingElementSymbols(element: ts.BindingElement): string[] {
   return [...symbols].filter(Boolean);
 }
 
+function collectBindingLocalNames(name: ts.BindingName): string[] {
+  if (ts.isIdentifier(name)) {
+    return [normalizeNamedSymbol(name.text)].filter(Boolean);
+  }
+  const localNames = new Set<string>();
+  for (const element of name.elements) {
+    if (!ts.isBindingElement(element)) continue;
+    for (const localName of collectBindingLocalNames(element.name)) {
+      localNames.add(localName);
+    }
+  }
+  return [...localNames].filter(Boolean);
+}
+
 function unwrapAssignmentTargetExpression(
   expression: ts.Expression,
 ): ts.Expression {
@@ -570,6 +584,66 @@ function collectAssignmentPatternSymbols(expression: ts.Expression): string[] {
     unwrapped.operatorToken.kind === ts.SyntaxKind.EqualsToken
   ) {
     return collectAssignmentPatternSymbols(unwrapped.left);
+  }
+
+  return [];
+}
+
+function collectAssignmentPatternLocalNames(
+  expression: ts.Expression,
+): string[] {
+  const unwrapped = unwrapAssignmentTargetExpression(expression);
+
+  if (ts.isIdentifier(unwrapped)) {
+    return [normalizeNamedSymbol(unwrapped.text)].filter(Boolean);
+  }
+
+  if (ts.isObjectLiteralExpression(unwrapped)) {
+    const localNames = new Set<string>();
+    for (const property of unwrapped.properties) {
+      if (ts.isPropertyAssignment(property)) {
+        for (const localName of collectAssignmentPatternLocalNames(
+          property.initializer,
+        )) {
+          localNames.add(localName);
+        }
+      } else if (ts.isShorthandPropertyAssignment(property)) {
+        localNames.add(normalizeNamedSymbol(property.name.text));
+      } else if (ts.isSpreadAssignment(property)) {
+        for (const localName of collectAssignmentPatternLocalNames(
+          property.expression,
+        )) {
+          localNames.add(localName);
+        }
+      }
+    }
+    return [...localNames].filter(Boolean);
+  }
+
+  if (ts.isArrayLiteralExpression(unwrapped)) {
+    const localNames = new Set<string>();
+    for (const element of unwrapped.elements) {
+      if (ts.isOmittedExpression(element)) continue;
+      if (ts.isSpreadElement(element)) {
+        for (const localName of collectAssignmentPatternLocalNames(
+          element.expression,
+        )) {
+          localNames.add(localName);
+        }
+        continue;
+      }
+      for (const localName of collectAssignmentPatternLocalNames(element)) {
+        localNames.add(localName);
+      }
+    }
+    return [...localNames].filter(Boolean);
+  }
+
+  if (
+    ts.isBinaryExpression(unwrapped) &&
+    unwrapped.operatorToken.kind === ts.SyntaxKind.EqualsToken
+  ) {
+    return collectAssignmentPatternLocalNames(unwrapped.left);
   }
 
   return [];
@@ -750,6 +824,19 @@ function collectSymbolSourceReferences(
             references.push({ symbol, source });
           }
         }
+
+        const assignmentLocalNames = collectAssignmentPatternLocalNames(
+          node.left,
+        );
+        if (sources.length > 0) {
+          for (const localName of assignmentLocalNames) {
+            moduleAliasByIdentifier.set(localName, sources);
+          }
+        } else {
+          for (const localName of assignmentLocalNames) {
+            moduleAliasByIdentifier.delete(localName);
+          }
+        }
       }
     }
 
@@ -797,6 +884,12 @@ function collectSymbolSourceReferences(
             moduleAliasByIdentifier,
           )
         : [];
+      const bindingLocalNames = collectBindingLocalNames(node.name);
+      if (sources.length > 0) {
+        for (const localName of bindingLocalNames) {
+          moduleAliasByIdentifier.set(localName, sources);
+        }
+      }
       for (const source of sources) {
         for (const bindingElement of node.name.elements) {
           if (
@@ -1471,8 +1564,8 @@ describe('Gnosis Safe migration guards', () => {
   it('tracks default symbol references through nested binding patterns', () => {
     const source = [
       "const { nested: { default: nestedDefault }, default: topDefault } = require('./fixtures/guard-module.js');",
-      'void nestedDefault;',
-      'void topDefault;',
+      'const nestedAliasDefault = nestedDefault.default;',
+      "const topAliasDefault = topDefault['default'];",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
@@ -1483,7 +1576,7 @@ describe('Gnosis Safe migration guards', () => {
   it('tracks default symbol references through array binding patterns', () => {
     const source = [
       "const [{ default: arrayDefault }] = require('./fixtures/guard-module.js');",
-      'void arrayDefault;',
+      'const arrayAliasDefault = arrayDefault.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
@@ -1497,8 +1590,8 @@ describe('Gnosis Safe migration guards', () => {
       'let nestedAlias: unknown;',
       "({ default: directAlias, nested: { default: nestedAlias } } = require('./fixtures/guard-module.js'));",
       "([{ default: directAlias }] = require('./fixtures/guard-module.js'));",
-      'void directAlias;',
-      'void nestedAlias;',
+      'const directAliasDefault = directAlias.default;',
+      "const nestedAliasDefault = nestedAlias['default'];",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
