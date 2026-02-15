@@ -591,6 +591,12 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps squads tracked test assets scoped to test directory', () => {
+    for (const testAssetPath of SQUADS_TRACKED_TEST_ASSET_PATHS) {
+      expect(testAssetPath.startsWith('test/')).to.equal(true);
+    }
+  });
+
   it('keeps tracked infra source file scan ordering deterministic', () => {
     const trackedSourceFiles = getTrackedSourceFileSnapshot();
     expect(trackedSourceFiles).to.deep.equal(
