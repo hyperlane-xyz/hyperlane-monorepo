@@ -128,6 +128,16 @@ function assertSdkSquadsTestTokenShape(
   ).to.equal(true);
 }
 
+function assertSdkSquadsTokenPathSetNormalizedAndDeduplicated(
+  tokenPaths: readonly string[],
+  tokenSetLabel: string,
+): void {
+  expect(new Set(tokenPaths).size).to.equal(tokenPaths.length);
+  for (const tokenPath of tokenPaths) {
+    assertSdkSquadsTestTokenShape(tokenPath, `${tokenSetLabel} token path`);
+  }
+}
+
 describe('squads barrel exports', () => {
   it('keeps sdk squads test command constants normalized and scoped', () => {
     assertCanonicalCliCommandShape(
@@ -144,18 +154,10 @@ describe('squads barrel exports', () => {
     expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes('"')).to.equal(false);
     expect(SDK_SQUADS_TEST_COMMAND_PREFIX.includes("'")).to.equal(false);
     expect(Object.isFrozen(SDK_SQUADS_TEST_TOKEN_PATHS)).to.equal(true);
-    expect(new Set(SDK_SQUADS_TEST_TOKEN_PATHS).size).to.equal(
-      SDK_SQUADS_TEST_TOKEN_PATHS.length,
-    );
-
-    expect(SDK_SQUADS_TEST_GLOB).to.equal(SDK_SQUADS_TEST_GLOB.trim());
-    expect(SDK_SQUADS_TEST_GLOB.startsWith('src/squads/')).to.equal(true);
-    expect(SDK_SQUADS_TEST_GLOB.endsWith('.test.ts')).to.equal(true);
-    expect(SDK_SQUADS_TEST_GLOB.includes('..')).to.equal(false);
-    expect(SDK_SQUADS_TEST_GLOB.includes('\\')).to.equal(false);
-    expect(/\s/.test(SDK_SQUADS_TEST_GLOB)).to.equal(false);
-    expect(SDK_SQUADS_TEST_GLOB).to.equal(
-      path.posix.normalize(SDK_SQUADS_TEST_GLOB),
+    expect(SDK_SQUADS_TEST_TOKEN_PATHS).to.deep.equal([SDK_SQUADS_TEST_GLOB]);
+    assertSdkSquadsTokenPathSetNormalizedAndDeduplicated(
+      SDK_SQUADS_TEST_TOKEN_PATHS,
+      'sdk squads test-token constant set',
     );
   });
 
@@ -332,11 +334,11 @@ describe('squads barrel exports', () => {
     ).to.equal(false);
     const quotedTestTokens = getQuotedSdkSquadsTestTokens();
     expect(quotedTestTokens).to.deep.equal([...SDK_SQUADS_TEST_TOKEN_PATHS]);
+    assertSdkSquadsTokenPathSetNormalizedAndDeduplicated(
+      quotedTestTokens,
+      'quoted sdk squads test command',
+    );
     for (const quotedTestToken of quotedTestTokens) {
-      assertSdkSquadsTestTokenShape(
-        quotedTestToken,
-        'quoted sdk squads test token',
-      );
       expect(
         countOccurrences(
           EXPECTED_SDK_SQUADS_TEST_SCRIPT,
