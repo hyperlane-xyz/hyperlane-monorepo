@@ -959,6 +959,67 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
 
+    it('ignores uncoercible spoofed boxed-string causes when message and errors accessors throw', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      error.cause = buildUncoercibleSpoofedBoxedString();
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('ignores coercible spoofed boxed-string causes when message and errors accessors throw', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      error.cause = buildCoercibleSpoofedBoxedString(
+        'No Docker client strategy found',
+      );
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('ignores string-prototype impostor causes when message and errors accessors throw', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      error.cause = buildStringPrototypeImpostor(
+        'No Docker client strategy found',
+      );
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('matches runtime boxed-string errors payloads when message and cause accessors throw without hostile toStringTag accessors', () => {
       const error = new AggregateError([], 'failed to initialize runtime');
       Object.defineProperty(error, 'message', {
