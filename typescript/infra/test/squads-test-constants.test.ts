@@ -152,4 +152,28 @@ describe('squads test constants', () => {
       ).to.equal(true);
     }
   });
+
+  it('keeps executable and non-executable script partitions complete and disjoint', () => {
+    const executableScriptSet = new Set(EXECUTABLE_SQUADS_SCRIPT_PATHS);
+    const allowlistedScriptPaths = SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
+      NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
+        scriptPath.endsWith(`/${fileName}`),
+      ),
+    );
+
+    expect(
+      new Set(allowlistedScriptPaths).size + executableScriptSet.size,
+    ).to.equal(SQUADS_SCRIPT_PATHS.length);
+
+    for (const allowlistedPath of allowlistedScriptPaths) {
+      expect(executableScriptSet.has(allowlistedPath)).to.equal(false);
+    }
+
+    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
+      const isAllowlisted = NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
+        scriptPath.endsWith(`/${fileName}`),
+      );
+      expect(executableScriptSet.has(scriptPath)).to.equal(!isAllowlisted);
+    }
+  });
 });
