@@ -451,3 +451,5 @@ Regression coverage now also confirms triple-escaped uppercase/mixed-case/lowerc
 Regression coverage now also confirms triple-escaped bracketed-object placeholder outputs from `String(error)` (for example `\\\\\\\"[Object]\\\\\\\"`, `\\\\\\\"[OBJECT]\\\\\\\"`, and `\\\\\\\"[object]\\\\\\\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
 
 Regression coverage now also confirms triple-escaped single-quoted/mixed-quoted/mixed-case bracketed-object placeholder outputs from `String(error)` (for example `\\\\\\'[Object]\\\\\\'`, `\\\\\\\"'[Object]'\\\\\\\"`, and `\\\\\\\"[oBjEcT]\\\\\\\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
+
+Regression coverage now also confirms double-escaped quoted/single-quoted/mixed-quoted bracketed-object placeholder outputs from `String(error)` (for example `\\\"[Object]\\\"`, `\\'[Object]\\'`, and `\\\"'[Object]'\\\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
