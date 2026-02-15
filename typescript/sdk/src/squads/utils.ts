@@ -2177,7 +2177,9 @@ async function getRecentBlockhashForProposalBuild(
   }
 
   assert(
-    typeof latestBlockhashResult === 'object' && latestBlockhashResult !== null,
+    typeof latestBlockhashResult === 'object' &&
+      latestBlockhashResult !== null &&
+      !Array.isArray(latestBlockhashResult),
     `Malformed latest blockhash result for ${chain}: expected object, got ${getUnknownValueTypeName(latestBlockhashResult)}`,
   );
 
