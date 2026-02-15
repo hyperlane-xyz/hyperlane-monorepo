@@ -340,6 +340,12 @@ function readModuleSourceFromInitializer(
   return undefined;
 }
 
+function readModuleSourceFromCallExpression(
+  callExpression: ts.CallExpression,
+): string | undefined {
+  return readModuleSourceFromInitializer(callExpression);
+}
+
 function uniqueSources(
   ...sourceGroups: readonly (readonly string[] | string | undefined)[]
 ): string[] {
@@ -984,17 +990,8 @@ function collectModuleSpecifierReferences(
     }
 
     if (ts.isCallExpression(node)) {
-      if (
-        ts.isIdentifier(node.expression) &&
-        node.expression.text === 'require'
-      ) {
-        const source = readModuleSourceArg(node);
-        if (source) references.push({ source, filePath });
-      }
-      if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-        const source = readModuleSourceArg(node);
-        if (source) references.push({ source, filePath });
-      }
+      const source = readModuleSourceFromCallExpression(node);
+      if (source) references.push({ source, filePath });
     }
 
     ts.forEachChild(node, visit);
@@ -1390,6 +1387,23 @@ describe('Gnosis Safe migration guards', () => {
       '@fixtures/guard-module',
     );
     expect(defaultImports).to.deep.equal(['SafeSdk']);
+  });
+
+  it('collects module specifiers from comma-wrapped require call targets', () => {
+    const source = [
+      "const directRequire = require('./fixtures/guard-module.js');",
+      "const wrappedRequire = (0, require)('./fixtures/other-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
   });
 
   it('tracks default symbol references from namespace and require access', () => {
