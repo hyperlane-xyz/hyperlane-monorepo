@@ -60,10 +60,11 @@ export async function setRpcUrlsInteractive(
       environment as DeployEnvironment,
       chain,
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error(
-      `Error occurred while setting RPC URLs for ${chain}:`,
-      error.message,
+      `Error occurred while setting RPC URLs for ${chain}: ${stringifyValueForError(
+        error,
+      )}`,
     );
     return;
   }

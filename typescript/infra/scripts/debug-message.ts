@@ -153,7 +153,7 @@ async function checkMessage(
     });
     console.error(`Error calling recipient \`handle\` function from the inbox`);
     if (err.reason) {
-      console.error('Reason: ', err.reason);
+      console.error(`Reason: ${stringifyValueForError(err.reason)}`);
     } else {
       console.error(stringifyValueForError(err));
     }

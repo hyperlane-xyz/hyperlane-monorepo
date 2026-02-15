@@ -233,8 +233,14 @@ export async function baseDeploy<
             `Deployment failed on ${chain}. ${stringifyValueForError(error)}`,
           ),
         );
-        if (error?.stack) {
-          console.error(chalk.gray(error.stack));
+        let stack: unknown;
+        try {
+          stack = (error as { stack?: unknown })?.stack;
+        } catch {
+          stack = undefined;
+        }
+        if (stack !== undefined) {
+          console.error(chalk.gray(stringifyValueForError(stack)));
         }
       });
   };

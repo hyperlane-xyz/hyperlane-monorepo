@@ -16,6 +16,14 @@ import { setTurnkeySignerForEvmChains } from '../../src/utils/turnkey.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 function withForce(args: any) {
   return args
     .describe('force', 'Force claim even if below threshold')
@@ -229,7 +237,7 @@ async function main() {
           }
         }
 
-        const errorMsg = error instanceof Error ? error.message : String(error);
+        const errorMsg = stringifyValueForError(error);
         // Extract just the key error info, not the full stack
         const shortError = errorMsg.split('\n')[0];
         rootLogger.error(
@@ -308,6 +316,8 @@ async function main() {
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    rootLogger.error(chalk.red('Fatal error:', error.message));
+    rootLogger.error(
+      chalk.red(`Fatal error: ${stringifyValueForError(error)}`),
+    );
     process.exit(1);
   });

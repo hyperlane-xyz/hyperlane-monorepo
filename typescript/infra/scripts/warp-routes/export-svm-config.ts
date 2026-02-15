@@ -10,6 +10,14 @@ import { readFileAtPath } from '@hyperlane-xyz/utils/fs';
 import { getChain, getRegistry } from '../../config/registry.js';
 import { getArgs, withWarpRouteId } from '../agent-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { warpRouteId } = await withWarpRouteId(getArgs()).argv;
   const registry = getRegistry();
@@ -129,8 +137,10 @@ export function queryMintAuthority(rpcUrl: string, programId: string): string {
       encoding: 'utf8',
       cwd: clientDir,
     });
-  } catch (err: any) {
-    throw new Error(`Failed to execute cargo command: ${err.message}`);
+  } catch (err) {
+    throw new Error(
+      `Failed to execute cargo command: ${stringifyValueForError(err)}`,
+    );
   }
 
   const match = output.match(
@@ -143,4 +153,6 @@ export function queryMintAuthority(rpcUrl: string, programId: string): string {
   return match[1];
 }
 
-main().catch((err) => rootLogger.error(`Error: ${err.message}`));
+main().catch((err) => {
+  rootLogger.error(`Error: ${stringifyValueForError(err)}`);
+});

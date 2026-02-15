@@ -29,6 +29,14 @@ import {
 } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export class AgentCli {
   roles!: Role[];
   envConfig!: EnvironmentConfig;
@@ -162,7 +170,7 @@ export class AgentCli {
       ...fulfilled.values(),
     ];
     const failures: string[] = [...rejected.entries()].map(
-      ([key, error]) => `${key}: ${error.message || 'Unknown error'}`,
+      ([key, error]) => `${key}: ${stringifyValueForError(error)}`,
     );
 
     if (failures.length > 0) {
