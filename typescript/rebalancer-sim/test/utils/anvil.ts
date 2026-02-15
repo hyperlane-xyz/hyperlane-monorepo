@@ -89,24 +89,58 @@ const getTrimmedNonEmptyString = (value: unknown): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
-const isNonInformativeStructuredOutput = (value: string): boolean => {
-  const trimmedValue = getTrimmedNonEmptyString(value);
-  if (!trimmedValue) return true;
+const normalizeStructuredPlaceholderCandidate = (
+  value: unknown,
+): string | undefined => {
+  let normalizedValue = getTrimmedNonEmptyString(value);
+  if (!normalizedValue) return undefined;
 
-  if (NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(trimmedValue.toLowerCase())) {
+  while (normalizedValue.length >= 2) {
+    const hasDoubleQuoteWrapper =
+      normalizedValue.startsWith('"') && normalizedValue.endsWith('"');
+    const hasSingleQuoteWrapper =
+      normalizedValue.startsWith("'") && normalizedValue.endsWith("'");
+    if (!hasDoubleQuoteWrapper && !hasSingleQuoteWrapper) break;
+
+    const unwrappedValue = getTrimmedNonEmptyString(
+      normalizedValue.slice(1, -1),
+    );
+    if (!unwrappedValue) return undefined;
+    normalizedValue = unwrappedValue;
+  }
+
+  return normalizedValue.toLowerCase();
+};
+
+const isNonInformativeStructuredOutput = (value: string): boolean => {
+  const normalizedValue = normalizeStructuredPlaceholderCandidate(value);
+  if (!normalizedValue) return true;
+
+  if (NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(normalizedValue)) {
     return true;
   }
 
-  try {
-    const parsedValue = JSON.parse(trimmedValue);
-    const parsedStringValue = getTrimmedNonEmptyString(parsedValue);
-    return (
-      parsedStringValue !== undefined &&
-      NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(parsedStringValue.toLowerCase())
-    );
-  } catch {
-    return false;
+  let parsedValue: unknown = value;
+  for (let parseDepth = 0; parseDepth < 2; parseDepth += 1) {
+    if (typeof parsedValue !== 'string') break;
+
+    try {
+      parsedValue = JSON.parse(parsedValue);
+    } catch {
+      break;
+    }
+
+    const normalizedParsedValue =
+      normalizeStructuredPlaceholderCandidate(parsedValue);
+    if (
+      normalizedParsedValue &&
+      NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(normalizedParsedValue)
+    ) {
+      return true;
+    }
   }
+
+  return false;
 };
 
 function getErrorMessage(error: unknown): string {
