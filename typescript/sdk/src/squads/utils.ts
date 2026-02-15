@@ -1345,17 +1345,21 @@ async function getNextSquadsTransactionIndex(
 }
 
 function assertValidBigintTransactionIndex(
-  transactionIndex: bigint,
-  chain: SquadsChainName,
-): void {
+  transactionIndex: unknown,
+  chain: unknown,
+): bigint {
+  const chainLabel =
+    typeof chain === 'string' && chain.trim().length > 0 ? chain.trim() : 'unknown chain';
   assert(
     typeof transactionIndex === 'bigint',
-    `Expected transaction index to be a bigint for ${chain}, got ${getUnknownValueTypeName(transactionIndex)}`,
+    `Expected transaction index to be a bigint for ${chainLabel}, got ${getUnknownValueTypeName(transactionIndex)}`,
   );
   assert(
     transactionIndex >= 0n,
-    `Expected transaction index to be a non-negative bigint for ${chain}, got ${transactionIndex.toString()}`,
+    `Expected transaction index to be a non-negative bigint for ${chainLabel}, got ${transactionIndex.toString()}`,
   );
+
+  return transactionIndex;
 }
 
 function buildVaultTransactionMessage(
@@ -1479,14 +1483,17 @@ export async function buildSquadsVaultTransactionProposal(
 export async function buildSquadsProposalRejection(
   chain: unknown,
   mpp: MultiProtocolProvider,
-  transactionIndex: bigint,
+  transactionIndex: unknown,
   member: PublicKey,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
   const normalizedChain = resolveSquadsChainName(chain);
-  assertValidBigintTransactionIndex(transactionIndex, normalizedChain);
+  const normalizedTransactionIndex = assertValidBigintTransactionIndex(
+    transactionIndex,
+    normalizedChain,
+  );
   const { multisigPda, programId } = getSquadAndProviderForResolvedChain(
     normalizedChain,
     mpp,
@@ -1495,7 +1502,7 @@ export async function buildSquadsProposalRejection(
 
   const rejectIx = instructions.proposalReject({
     multisigPda,
-    transactionIndex,
+    transactionIndex: normalizedTransactionIndex,
     member,
     programId,
   });
@@ -1508,14 +1515,17 @@ export async function buildSquadsProposalRejection(
 export async function buildSquadsProposalCancellation(
   chain: unknown,
   mpp: MultiProtocolProvider,
-  transactionIndex: bigint,
+  transactionIndex: unknown,
   member: PublicKey,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
   const normalizedChain = resolveSquadsChainName(chain);
-  assertValidBigintTransactionIndex(transactionIndex, normalizedChain);
+  const normalizedTransactionIndex = assertValidBigintTransactionIndex(
+    transactionIndex,
+    normalizedChain,
+  );
   const { multisigPda, programId } = getSquadAndProviderForResolvedChain(
     normalizedChain,
     mpp,
@@ -1524,7 +1534,7 @@ export async function buildSquadsProposalCancellation(
 
   const cancelIx = createProposalCancelInstruction(
     multisigPda,
-    transactionIndex,
+    normalizedTransactionIndex,
     member,
     programId,
   );
@@ -1629,11 +1639,14 @@ export function isConfigTransaction(accountData: unknown): boolean {
 export async function getTransactionType(
   chain: unknown,
   mpp: MultiProtocolProvider,
-  transactionIndex: number,
+  transactionIndex: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<SquadsAccountType> {
   const normalizedChain = resolveSquadsChainName(chain);
-  assertValidTransactionIndexInput(transactionIndex, normalizedChain);
+  const normalizedTransactionIndex = assertValidTransactionIndexInput(
+    transactionIndex,
+    normalizedChain,
+  );
   const { svmProvider, multisigPda, programId } =
     getSquadAndProviderForResolvedChain(
       normalizedChain,
@@ -1643,7 +1656,7 @@ export async function getTransactionType(
 
   const [transactionPda] = getTransactionPda({
     multisigPda,
-    index: BigInt(transactionIndex),
+    index: BigInt(normalizedTransactionIndex),
     programId,
   });
 
@@ -1672,23 +1685,26 @@ export async function getTransactionType(
 export async function executeProposal(
   chain: unknown,
   mpp: MultiProtocolProvider,
-  transactionIndex: number,
+  transactionIndex: unknown,
   signerAdapter: SvmMultiProtocolSignerAdapter,
 ): Promise<void> {
   const normalizedChain = resolveSquadsChainName(chain);
-  assertValidTransactionIndexInput(transactionIndex, normalizedChain);
+  const normalizedTransactionIndex = assertValidTransactionIndexInput(
+    transactionIndex,
+    normalizedChain,
+  );
   const { svmProvider, multisigPda, programId } =
     getSquadAndProviderForResolvedChain(normalizedChain, mpp);
 
   const proposalData = await getSquadProposal(
     normalizedChain,
     mpp,
-    transactionIndex,
+    normalizedTransactionIndex,
     svmProvider,
   );
   if (!proposalData) {
     throw new Error(
-      `Failed to fetch proposal ${transactionIndex} on ${normalizedChain}`,
+      `Failed to fetch proposal ${normalizedTransactionIndex} on ${normalizedChain}`,
     );
   }
 
@@ -1696,18 +1712,18 @@ export async function executeProposal(
 
   if (proposal.status.__kind !== SquadsProposalStatus.Approved) {
     throw new Error(
-      `Proposal ${transactionIndex} on ${normalizedChain} is not approved (status: ${proposal.status.__kind})`,
+      `Proposal ${normalizedTransactionIndex} on ${normalizedChain} is not approved (status: ${proposal.status.__kind})`,
     );
   }
 
   const txType = await getTransactionType(
     normalizedChain,
     mpp,
-    transactionIndex,
+    normalizedTransactionIndex,
     svmProvider,
   );
   rootLogger.info(
-    `Executing ${txType} proposal ${transactionIndex} on ${normalizedChain}`,
+    `Executing ${txType} proposal ${normalizedTransactionIndex} on ${normalizedChain}`,
   );
 
   const executorPublicKey = signerAdapter.publicKey();
@@ -1720,7 +1736,7 @@ export async function executeProposal(
         await instructions.vaultTransactionExecute({
           connection: svmProvider,
           multisigPda,
-          transactionIndex: BigInt(transactionIndex),
+          transactionIndex: BigInt(normalizedTransactionIndex),
           member: executorPublicKey,
           programId,
         });
@@ -1735,7 +1751,7 @@ export async function executeProposal(
     } else {
       instruction = instructions.configTransactionExecute({
         multisigPda,
-        transactionIndex: BigInt(transactionIndex),
+        transactionIndex: BigInt(normalizedTransactionIndex),
         member: executorPublicKey,
         programId,
       });
@@ -1746,11 +1762,11 @@ export async function executeProposal(
     ]);
 
     rootLogger.info(
-      `Executed proposal ${transactionIndex} on ${normalizedChain}: ${signature}`,
+      `Executed proposal ${normalizedTransactionIndex} on ${normalizedChain}: ${signature}`,
     );
   } catch (error) {
     rootLogger.error(
-      `Error executing proposal ${transactionIndex} on ${normalizedChain}: ${formatUnknownErrorForMessage(error)}`,
+      `Error executing proposal ${normalizedTransactionIndex} on ${normalizedChain}: ${formatUnknownErrorForMessage(error)}`,
     );
     throw error;
   }
