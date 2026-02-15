@@ -36,6 +36,8 @@ const LEGACY_SQUADS_REFERENCE_PATTERN = new RegExp(
 );
 const SQDS_MULTISIG_REFERENCE_PATTERN =
   /(?:from\s+['"]@sqds\/multisig['"]|import\(\s*['"]@sqds\/multisig['"]\s*\)|require\(\s*['"]@sqds\/multisig['"]\s*\))/;
+const SDK_DEEP_IMPORT_PATTERN =
+  /(?:from\s+['"]@hyperlane-xyz\/sdk\/src\/|import\(\s*['"]@hyperlane-xyz\/sdk\/src\/|require\(\s*['"]@hyperlane-xyz\/sdk\/src\/)/;
 const SDK_SQUADS_IMPORT_PATTERN =
   /from\s+['"]@hyperlane-xyz\/sdk['"]/;
 const FORMATTED_ERROR_USAGE_PATTERN = /formatScriptError\(/;
@@ -71,6 +73,11 @@ function assertNoForbiddenSquadsReferences(
   expect(
     SQDS_MULTISIG_REFERENCE_PATTERN.test(fileContents),
     `Expected file to avoid direct @sqds/multisig references: ${relativePath}`,
+  ).to.equal(false);
+
+  expect(
+    SDK_DEEP_IMPORT_PATTERN.test(fileContents),
+    `Expected file to avoid deep SDK source imports: ${relativePath}`,
   ).to.equal(false);
 }
 
