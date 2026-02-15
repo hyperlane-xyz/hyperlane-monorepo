@@ -4837,6 +4837,17 @@ describe('squads utils', () => {
       expect(() => isConfigTransaction('not-bytes')).to.throw(
         'Expected account data to be a Uint8Array, got string',
       );
+      expect(() => isVaultTransaction([])).to.throw(
+        'Expected account data to be a Uint8Array, got array',
+      );
+      expect(() => isConfigTransaction(1)).to.throw(
+        'Expected account data to be a Uint8Array, got number',
+      );
+    });
+
+    it('returns false for truncated discriminator payloads', () => {
+      expect(isVaultTransaction(Buffer.from([1, 2, 3]))).to.equal(false);
+      expect(isConfigTransaction(Buffer.from([1, 2, 3]))).to.equal(false);
     });
   });
 
