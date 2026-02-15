@@ -211,6 +211,19 @@ describe('squads sdk migration regression', () => {
     }
   });
 
+  it('keeps tracked-source extension helper strict and suffix-based', () => {
+    for (const extension of SOURCE_FILE_EXTENSIONS) {
+      expect(hasTrackedSourceExtension(`src/example${extension}`)).to.equal(
+        true,
+      );
+    }
+
+    expect(hasTrackedSourceExtension('src/example')).to.equal(false);
+    expect(hasTrackedSourceExtension('src/example.ts.bak')).to.equal(false);
+    expect(hasTrackedSourceExtension('src/example.TS')).to.equal(false);
+    expect(hasTrackedSourceExtension('src/example.jsx')).to.equal(false);
+  });
+
   it('keeps skipped tracked-source directory policy normalized and deduplicated', () => {
     const skippedDirectoryNames = [...SKIPPED_DIRECTORIES];
     expect(new Set(skippedDirectoryNames).size).to.equal(
