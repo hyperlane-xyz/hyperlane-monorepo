@@ -1247,7 +1247,16 @@ export enum SquadsPermission {
   ALL_PERMISSIONS = 7,
 }
 
-export function decodePermissions(mask: number): string {
+export function decodePermissions(mask: unknown): string {
+  assert(
+    typeof mask === 'number',
+    `Expected permission mask to be a number, got ${getUnknownValueTypeName(mask)}`,
+  );
+  assert(
+    Number.isSafeInteger(mask) && mask >= 0,
+    `Expected permission mask to be a non-negative safe integer, got ${String(mask)}`,
+  );
+
   const permissions: string[] = [];
   if (mask & SquadsPermission.PROPOSER) permissions.push('Proposer');
   if (mask & SquadsPermission.VOTER) permissions.push('Voter');

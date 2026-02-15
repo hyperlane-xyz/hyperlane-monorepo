@@ -1991,6 +1991,30 @@ describe('squads utils', () => {
     it('returns none for empty mask', () => {
       expect(decodePermissions(0)).to.equal('None');
     });
+
+    it('throws for malformed permission masks', () => {
+      expect(() => decodePermissions('7')).to.throw(
+        'Expected permission mask to be a number, got string',
+      );
+      expect(() => decodePermissions(null)).to.throw(
+        'Expected permission mask to be a number, got null',
+      );
+      expect(() => decodePermissions(-1)).to.throw(
+        'Expected permission mask to be a non-negative safe integer, got -1',
+      );
+      expect(() => decodePermissions(1.5)).to.throw(
+        'Expected permission mask to be a non-negative safe integer, got 1.5',
+      );
+      expect(() => decodePermissions(Number.NaN)).to.throw(
+        'Expected permission mask to be a non-negative safe integer, got NaN',
+      );
+      expect(() => decodePermissions(Number.POSITIVE_INFINITY)).to.throw(
+        'Expected permission mask to be a non-negative safe integer, got Infinity',
+      );
+      expect(() => decodePermissions(Number.MAX_SAFE_INTEGER + 1)).to.throw(
+        `Expected permission mask to be a non-negative safe integer, got ${Number.MAX_SAFE_INTEGER + 1}`,
+      );
+    });
   });
 
   describe(parseSquadsProposalVoteError.name, () => {
