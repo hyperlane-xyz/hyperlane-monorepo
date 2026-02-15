@@ -78,6 +78,12 @@ function toPosixPath(relativePath: string): string {
   return relativePath.split(path.sep).join(path.posix.sep);
 }
 
+function hasTrackedSourceExtension(relativePath: string): boolean {
+  return SOURCE_FILE_EXTENSIONS.some((extension) =>
+    relativePath.endsWith(extension),
+  );
+}
+
 function isNormalizedTrackedSourceRelativePath(relativePath: string): boolean {
   return (
     relativePath.length > 0 &&
@@ -155,10 +161,7 @@ function listTrackedSourceFilesRecursively(relativeDir: string): string[] {
     }
 
     const isTrackedSourceFile =
-      entry.isFile() &&
-      SOURCE_FILE_EXTENSIONS.some((extension) =>
-        entry.name.endsWith(extension),
-      );
+      entry.isFile() && hasTrackedSourceExtension(entry.name);
     if (isTrackedSourceFile) {
       files.push(toPosixPath(entryRelativePath));
     }
@@ -186,6 +189,13 @@ describe('squads sdk migration regression', () => {
     expect(new Set(SOURCE_FILE_EXTENSIONS).size).to.equal(
       SOURCE_FILE_EXTENSIONS.length,
     );
+    for (const extension of SOURCE_FILE_EXTENSIONS) {
+      expect(extension.startsWith('.')).to.equal(true);
+      expect(extension).to.equal(extension.trim());
+      expect(extension).to.equal(extension.toLowerCase());
+      expect(extension.includes('/')).to.equal(false);
+      expect(extension.includes('\\')).to.equal(false);
+    }
     for (const squadsScriptExtension of SQUADS_SCRIPT_FILE_EXTENSIONS) {
       expect(
         SOURCE_FILE_EXTENSIONS.includes(squadsScriptExtension),
@@ -415,9 +425,7 @@ describe('squads sdk migration regression', () => {
     const trackedSourceFiles = getTrackedSourceFileSnapshot();
     for (const trackedSourceFilePath of trackedSourceFiles) {
       expect(
-        SOURCE_FILE_EXTENSIONS.some((extension) =>
-          trackedSourceFilePath.endsWith(extension),
-        ),
+        hasTrackedSourceExtension(trackedSourceFilePath),
         `Expected tracked source file path to match tracked extension policy: ${trackedSourceFilePath}`,
       ).to.equal(true);
     }
