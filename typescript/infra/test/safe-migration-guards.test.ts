@@ -2887,6 +2887,26 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('inner@./fixtures/guard-module.js');
   });
 
+  it('does not leak catch-block class module-source alias declarations to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'try {',
+      "  throw new Error('boom');",
+      '} catch (error) {',
+      '  class moduleAlias {}',
+      '  const postDeclarationSymbol = moduleAlias.inner;',
+      '  void postDeclarationSymbol;',
+      '  void error;',
+      '}',
+      'const postCatchDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
   it('does not leak catch-block enum module-source alias shadowing before declaration to outer symbol sources', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
