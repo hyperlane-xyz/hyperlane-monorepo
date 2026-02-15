@@ -62,7 +62,15 @@ export const DEFAULT_SQUADS_ERROR_PLACEHOLDER = '[unstringifiable error]';
 
 export function stringifyUnknownSquadsError(
   error: unknown,
-  options: StringifyUnknownSquadsErrorOptions = {},
+  options?: StringifyUnknownSquadsErrorOptions,
+): string;
+export function stringifyUnknownSquadsError(
+  error: unknown,
+  options?: unknown,
+): string;
+export function stringifyUnknownSquadsError(
+  error: unknown,
+  options: unknown = {},
 ): string {
   const optionsRecord =
     options && typeof options === 'object'

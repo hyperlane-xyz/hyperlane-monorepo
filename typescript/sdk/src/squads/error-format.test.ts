@@ -39,9 +39,9 @@ describe('squads error-format', () => {
       expect(normalizeStringifiedSquadsError('[object Object]')).to.equal(
         undefined,
       );
-      expect(normalizeStringifiedSquadsError('  [object ErrorLike]  ')).to.equal(
-        undefined,
-      );
+      expect(
+        normalizeStringifiedSquadsError('  [object ErrorLike]  '),
+      ).to.equal(undefined);
     });
 
     it('returns undefined for bare built-in error labels', () => {
@@ -50,12 +50,12 @@ describe('squads error-format', () => {
         expect(normalizeStringifiedSquadsError(`${errorLabel}:`)).to.equal(
           undefined,
         );
-        expect(normalizeStringifiedSquadsError(`  ${errorLabel} :   `)).to.equal(
+        expect(
+          normalizeStringifiedSquadsError(`  ${errorLabel} :   `),
+        ).to.equal(undefined);
+        expect(normalizeStringifiedSquadsError(`${errorLabel} :\n\t`)).to.equal(
           undefined,
         );
-        expect(
-          normalizeStringifiedSquadsError(`${errorLabel} :\n\t`),
-        ).to.equal(undefined);
         expect(
           normalizeStringifiedSquadsError(errorLabel.toLowerCase()),
         ).to.equal(undefined);
@@ -95,9 +95,9 @@ describe('squads error-format', () => {
   describe(isGenericObjectStringifiedValue.name, () => {
     it('detects generic object stringification with or without padding', () => {
       expect(isGenericObjectStringifiedValue('[object Object]')).to.equal(true);
-      expect(isGenericObjectStringifiedValue('  [object CustomError]')).to.equal(
-        true,
-      );
+      expect(
+        isGenericObjectStringifiedValue('  [object CustomError]'),
+      ).to.equal(true);
     });
 
     it('rejects non-generic object stringification values', () => {
@@ -328,30 +328,13 @@ describe('squads error-format', () => {
     });
 
     it('tolerates malformed options containers by falling back to defaults', () => {
-      expect(
-        stringifyUnknownSquadsError(
-          '   ',
-          null as unknown as Parameters<typeof stringifyUnknownSquadsError>[1],
-        ),
-      ).to.equal(
+      expect(stringifyUnknownSquadsError('   ', null)).to.equal(
         DEFAULT_SQUADS_ERROR_PLACEHOLDER,
       );
-      expect(
-        stringifyUnknownSquadsError(
-          '   ',
-          1 as unknown as Parameters<typeof stringifyUnknownSquadsError>[1],
-        ),
-      ).to.equal(
+      expect(stringifyUnknownSquadsError('   ', 1)).to.equal(
         DEFAULT_SQUADS_ERROR_PLACEHOLDER,
       );
-      expect(
-        stringifyUnknownSquadsError(
-          '   ',
-          'bad-options' as unknown as Parameters<
-            typeof stringifyUnknownSquadsError
-          >[1],
-        ),
-      ).to.equal(
+      expect(stringifyUnknownSquadsError('   ', 'bad-options')).to.equal(
         DEFAULT_SQUADS_ERROR_PLACEHOLDER,
       );
     });
@@ -375,21 +358,11 @@ describe('squads error-format', () => {
         },
       );
 
+      expect(stringifyUnknownSquadsError('   ', malformedOptions)).to.equal(
+        DEFAULT_SQUADS_ERROR_PLACEHOLDER,
+      );
       expect(
-        stringifyUnknownSquadsError(
-          '   ',
-          malformedOptions as unknown as Parameters<
-            typeof stringifyUnknownSquadsError
-          >[1],
-        ),
-      ).to.equal(DEFAULT_SQUADS_ERROR_PLACEHOLDER);
-      expect(
-        stringifyUnknownSquadsError(
-          new Error('boom'),
-          malformedOptions as unknown as Parameters<
-            typeof stringifyUnknownSquadsError
-          >[1],
-        ),
+        stringifyUnknownSquadsError(new Error('boom'), malformedOptions),
       ).to.equal('Error: boom');
     });
 
@@ -407,23 +380,21 @@ describe('squads error-format', () => {
         },
       };
 
-      expect(
-        stringifyUnknownSquadsError(
-          errorLike,
-          malformedOptions as unknown as Parameters<
-            typeof stringifyUnknownSquadsError
-          >[1],
-        ),
-      ).to.equal('object fallback');
+      expect(stringifyUnknownSquadsError(errorLike, malformedOptions)).to.equal(
+        'object fallback',
+      );
     });
 
     it('supports object formatter callbacks for plain objects', () => {
       expect(
-        stringifyUnknownSquadsError({ foo: 'bar' }, {
-          formatObject(value) {
-            return JSON.stringify(value);
+        stringifyUnknownSquadsError(
+          { foo: 'bar' },
+          {
+            formatObject(value) {
+              return JSON.stringify(value);
+            },
           },
-        }),
+        ),
       ).to.equal('{"foo":"bar"}');
     });
 
