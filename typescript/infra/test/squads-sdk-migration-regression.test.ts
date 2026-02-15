@@ -427,6 +427,24 @@ describe('squads sdk migration regression', () => {
     }
   });
 
+  it('keeps squads regression tests included in tracked source scan', () => {
+    const trackedSourceFiles = getTrackedSourceFileSnapshot();
+    const trackedSourceFileSet = new Set(trackedSourceFiles);
+    const expectedRegressionTestPaths = [
+      'test/squads-sdk-migration-regression.test.ts',
+      'test/squads-test-constants.test.ts',
+      'test/squads-test-utils.test.ts',
+      'test/squads-scripts-help.test.ts',
+    ] as const;
+
+    for (const regressionTestPath of expectedRegressionTestPaths) {
+      expect(
+        trackedSourceFileSet.has(regressionTestPath),
+        `Expected tracked source scan to include squads regression test file: ${regressionTestPath}`,
+      ).to.equal(true);
+    }
+  });
+
   it('keeps tracked infra source file scan ordering deterministic', () => {
     const trackedSourceFiles = getTrackedSourceFileSnapshot();
     expect(trackedSourceFiles).to.deep.equal(
