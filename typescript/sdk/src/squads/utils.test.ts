@@ -18,6 +18,7 @@ import {
   executeProposal,
   assertValidTransactionIndexInput,
   getSquadAndProvider,
+  getPendingProposalsForChains,
   getMinimumProposalIndexToCheck,
   isLikelyMissingSquadsAccountError,
   normalizeSquadsAddressList,
@@ -2612,6 +2613,44 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
       expect(chain).to.equal('solanamainnet');
       expect(svmProvider).to.equal(providerOverride);
+    });
+  });
+
+  describe(getPendingProposalsForChains.name, () => {
+    it('normalizes and deduplicates chain inputs before provider lookups', async () => {
+      const providerLookupChains: string[] = [];
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChains.push(chain);
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        [' solanamainnet ', 'solanamainnet', 'unsupported', ' unsupported '],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupChains).to.deep.equal(['solanamainnet']);
+    });
+
+    it('skips provider lookups when all input chains are unsupported', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        ['unsupported', ' unsupported '],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
     });
   });
 
