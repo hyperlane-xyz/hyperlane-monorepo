@@ -2325,6 +2325,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when members entry key is an array', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [{ key: ['member-1'] }],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members[0] key must be an object or non-empty string',
+      );
+    });
+
     it('throws when object member key cannot be stringified', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig({

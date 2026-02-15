@@ -1802,7 +1802,7 @@ function getMultisigMemberCount(
       );
     } else {
       assert(
-        typeof memberKey === 'object',
+        typeof memberKey === 'object' && !Array.isArray(memberKey),
         `Squads ${fieldPrefix} members[${index}] key must be an object or non-empty string`,
       );
       let normalizedMemberKey: string | undefined;
