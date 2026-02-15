@@ -1738,6 +1738,13 @@ async function getNextSquadsTransactionIndex(
 ): Promise<bigint> {
   const { svmProvider, multisigPda, programId } =
     getSquadAndProviderForResolvedChain(chain, mpp, svmProviderOverride);
+  const multisigAccountInfo = await getMultisigAccountInfoForNextIndex(
+    chain,
+    svmProvider,
+    multisigPda,
+  );
+  warnOnUnexpectedMultisigAccountOwner(chain, multisigAccountInfo, programId);
+
   const squadsProvider = toSquadsProvider(svmProvider);
 
   const multisig = await accounts.Multisig.fromAccountAddress(
@@ -1749,14 +1756,69 @@ async function getNextSquadsTransactionIndex(
   const currentIndex = BigInt(parsedMultisig.currentTransactionIndex);
   const nextIndex = currentIndex + 1n;
 
-  const accountInfo = await svmProvider.getAccountInfo(multisigPda);
-  if (accountInfo && !accountInfo.owner.equals(programId)) {
-    rootLogger.warn(
-      `WARNING: Multisig account owner (${accountInfo.owner.toBase58()}) does not match expected program ID (${programId.toBase58()})`,
+  return nextIndex;
+}
+
+async function getMultisigAccountInfoForNextIndex(
+  chain: SquadsChainName,
+  svmProvider: SolanaWeb3Provider,
+  multisigPda: PublicKey,
+): Promise<unknown> {
+  let getAccountInfoValue: unknown;
+  try {
+    getAccountInfoValue = (svmProvider as { getAccountInfo?: unknown })
+      .getAccountInfo;
+  } catch (error) {
+    throw new Error(
+      `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
 
-  return nextIndex;
+  assert(
+    typeof getAccountInfoValue === 'function',
+    `Invalid solana provider for ${chain}: expected getAccountInfo function, got ${getUnknownValueTypeName(getAccountInfoValue)}`,
+  );
+
+  try {
+    return await getAccountInfoValue.call(svmProvider, multisigPda);
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch multisig account ${multisigPda.toBase58()} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+}
+
+function warnOnUnexpectedMultisigAccountOwner(
+  chain: SquadsChainName,
+  accountInfo: unknown,
+  expectedProgramId: PublicKey,
+): void {
+  if (!accountInfo || typeof accountInfo !== 'object') {
+    return;
+  }
+
+  let ownerValue: unknown;
+  try {
+    ownerValue = (accountInfo as { owner?: unknown }).owner;
+  } catch (error) {
+    rootLogger.warn(
+      `Failed to read multisig account owner on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+    return;
+  }
+
+  if (!(ownerValue instanceof PublicKey)) {
+    rootLogger.warn(
+      `Skipping multisig owner validation on ${chain}: expected owner PublicKey, got ${getUnknownValueTypeName(ownerValue)}`,
+    );
+    return;
+  }
+
+  if (!ownerValue.equals(expectedProgramId)) {
+    rootLogger.warn(
+      `WARNING: Multisig account owner (${ownerValue.toBase58()}) does not match expected program ID (${expectedProgramId.toBase58()})`,
+    );
+  }
 }
 
 function assertValidBigintTransactionIndex(

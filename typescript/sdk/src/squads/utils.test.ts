@@ -4784,6 +4784,68 @@ describe('squads utils', () => {
       expect(providerLookupCount).to.equal(1);
     });
 
+    it('throws contextual error when multisig account prefetch fails during proposal build', async () => {
+      let providerLookupCount = 0;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCount += 1;
+          return {
+            getAccountInfo: async () => {
+              throw new Error('account unavailable');
+            },
+          };
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          [],
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Failed to fetch multisig account ',
+      );
+      expect(thrownError?.message).to.include(
+        'on solanamainnet: account unavailable',
+      );
+      expect(providerLookupCount).to.equal(1);
+    });
+
+    it('uses placeholder when multisig account prefetch throws opaque value during proposal build', async () => {
+      let providerLookupCount = 0;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCount += 1;
+          return {
+            getAccountInfo: async () => {
+              throw {};
+            },
+          };
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          [],
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Failed to fetch multisig account ',
+      );
+      expect(thrownError?.message).to.include(
+        'on solanamainnet: [unstringifiable error]',
+      );
+      expect(providerLookupCount).to.equal(1);
+    });
+
     it('uses provided provider override without multiprovider lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
