@@ -2915,7 +2915,7 @@ describe('squads transaction reader', () => {
     );
 
     expect(thrownError?.message).to.equal(
-      'Failed to inspect core program ids for solanamainnet: Error: then getter failed',
+      'Failed to inspect core program ids for solanamainnet: failed to read promise-like then field (Error: then getter failed)',
     );
   });
 

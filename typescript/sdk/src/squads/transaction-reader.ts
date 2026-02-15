@@ -1099,9 +1099,9 @@ export class SquadsTransactionReader {
       getThenValue(coreProgramIds);
     assert(
       !thenReadError,
-      `Failed to inspect core program ids for ${chain}: ${stringifyUnknownSquadsError(
+      `Failed to inspect core program ids for ${chain}: failed to read promise-like then field (${stringifyUnknownSquadsError(
         thenReadError,
-      )}`,
+      )})`,
     );
     assert(
       typeof thenValue !== 'function',
@@ -1331,7 +1331,7 @@ export class SquadsTransactionReader {
       const { thenValue, readError: thenReadError } = getThenValue(config);
       if (thenReadError) {
         rootLogger.warn(
-          `Failed to inspect expected multisig config for ${chain}: ${stringifyUnknownSquadsError(thenReadError)}`,
+          `Failed to inspect expected multisig config for ${chain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,
         );
         this.multisigConfigs.set(chain, null);
         return null;
