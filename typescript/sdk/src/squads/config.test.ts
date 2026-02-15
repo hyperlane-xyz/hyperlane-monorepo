@@ -103,6 +103,30 @@ describe('squads config', () => {
     );
   });
 
+  const malformedChainNameCases: Array<{
+    value: unknown;
+    expectedType: string;
+  }> = [
+    { value: undefined, expectedType: 'undefined' },
+    { value: false, expectedType: 'boolean' },
+    { value: 1n, expectedType: 'bigint' },
+    { value: Symbol('chain'), expectedType: 'symbol' },
+    { value: ['solanamainnet'], expectedType: 'array' },
+    { value: { chain: 'solanamainnet' }, expectedType: 'object' },
+    { value: () => 'solanamainnet', expectedType: 'function' },
+  ];
+
+  for (const { value, expectedType } of malformedChainNameCases) {
+    it(`labels malformed chain-name type ${expectedType} in assertion errors`, () => {
+      expect(() => assertIsSquadsChain(value as unknown as string)).to.throw(
+        `Expected chain name to be a string, got ${expectedType}`,
+      );
+      expect(() => getSquadsKeys(value as unknown as string)).to.throw(
+        `Expected chain name to be a string, got ${expectedType}`,
+      );
+    });
+  }
+
   it('partitions chains with dedupe and first-seen ordering', () => {
     expect(
       partitionSquadsChains([
