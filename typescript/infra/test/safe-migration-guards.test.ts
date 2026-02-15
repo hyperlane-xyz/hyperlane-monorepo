@@ -596,6 +596,40 @@ function getDisallowedModuleSpecifierReferences(
     .map(formatModuleSpecifierReference);
 }
 
+function collectDefaultImportsFromModule(
+  paths: readonly string[],
+  moduleName: string,
+): string[] {
+  const defaultImports: string[] = [];
+  for (const sourceFilePath of collectProjectSourceFilePaths(paths)) {
+    const contents = fs.readFileSync(sourceFilePath, 'utf8');
+    const sourceFile = ts.createSourceFile(
+      sourceFilePath,
+      contents,
+      ts.ScriptTarget.Latest,
+      true,
+      getScriptKind(sourceFilePath),
+    );
+
+    const visit = (node: ts.Node) => {
+      if (
+        ts.isImportDeclaration(node) &&
+        ts.isStringLiteralLike(node.moduleSpecifier) &&
+        node.moduleSpecifier.text === moduleName &&
+        node.importClause?.name
+      ) {
+        defaultImports.push(
+          `${path.relative(process.cwd(), sourceFilePath)} -> ${node.importClause.name.text}`,
+        );
+      }
+      ts.forEachChild(node, visit);
+    };
+
+    visit(sourceFile);
+  }
+  return defaultImports;
+}
+
 function isLegacySafeUtilSpecifier(source: string): boolean {
   return /(?:^|\/)utils\/safe(?:\.[cm]?[jt]sx?)?(?:$|\/)/.test(source);
 }
@@ -1108,6 +1142,20 @@ describe('Safe migration guards', () => {
     expectNoRipgrepMatches(
       String.raw`from ['"]@safe-global|require\(['"]@safe-global|import\(['"]@safe-global`,
       '@safe-global imports in infra sources',
+      INFRA_SOURCE_AND_TEST_PATHS,
+    );
+  });
+
+  it('prevents default imports from sdk entrypoint', () => {
+    const defaultSdkImports = collectDefaultImportsFromModule(
+      INFRA_SOURCE_AND_TEST_PATHS,
+      '@hyperlane-xyz/sdk',
+    );
+    expect(defaultSdkImports).to.deep.equal([]);
+
+    expectNoRipgrepMatches(
+      String.raw`import\s+[A-Za-z_$][A-Za-z0-9_$]*\s+from\s+['"]@hyperlane-xyz/sdk['"]`,
+      'default imports from @hyperlane-xyz/sdk',
       INFRA_SOURCE_AND_TEST_PATHS,
     );
   });
