@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,11 +7,17 @@ import { expect } from 'chai';
 
 import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
+  hasAllowedSquadsScriptExtension,
+  isExecutableSquadsScriptPath,
+  isNormalizedGuardedScriptPath,
   isSquadsDirectoryScriptPath,
 } from './squads-test-constants.js';
 import { listExecutableSquadsDirectoryScripts } from './squads-test-utils.js';
 
-const INFRA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const INFRA_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
 
 type HelpCase = {
   readonly scriptPath: string;
@@ -64,8 +71,20 @@ describe('squads scripts --help smoke', function () {
 
   it('keeps help expectation lists non-empty and deduplicated', () => {
     for (const { scriptPath, expectedOutput } of SQUADS_SCRIPT_HELP_CASES) {
+      const absoluteScriptPath = path.join(INFRA_ROOT, scriptPath);
       expect(scriptPath.includes('\\')).to.equal(false);
       expect(scriptPath.startsWith('scripts/')).to.equal(true);
+      expect(isNormalizedGuardedScriptPath(scriptPath)).to.equal(true);
+      expect(isExecutableSquadsScriptPath(scriptPath)).to.equal(true);
+      expect(hasAllowedSquadsScriptExtension(scriptPath)).to.equal(true);
+      expect(
+        fs.existsSync(absoluteScriptPath),
+        `Expected help-script path to exist: ${scriptPath}`,
+      ).to.equal(true);
+      expect(
+        fs.statSync(absoluteScriptPath).isFile(),
+        `Expected help-script path to be a file: ${scriptPath}`,
+      ).to.equal(true);
       expect(
         expectedOutput.length,
         `Expected help expectation list to be non-empty: ${scriptPath}`,
