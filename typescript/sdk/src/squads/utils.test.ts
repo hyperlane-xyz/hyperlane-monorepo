@@ -4755,6 +4755,33 @@ describe('squads utils', () => {
       );
       expect(providerLookupCalled).to.equal(false);
     });
+
+    it('fails fast for malformed rejection members before provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsProposalRejection(
+          'solanamainnet',
+          mpp,
+          1n,
+          'malformed-member',
+          {} as unknown as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal rejection member for solanamainnet to be a PublicKey, got string',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
   });
 
   describe(buildSquadsProposalCancellation.name, () => {
@@ -4994,6 +5021,33 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Expected transaction index to be a non-negative bigint for solanamainnet, got -1',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for malformed cancellation members before provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsProposalCancellation(
+          'solanamainnet',
+          mpp,
+          1n,
+          null,
+          {} as unknown as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal cancellation member for solanamainnet to be a PublicKey, got null',
       );
       expect(providerLookupCalled).to.equal(false);
     });

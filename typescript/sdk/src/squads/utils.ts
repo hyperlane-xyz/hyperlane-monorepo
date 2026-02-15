@@ -1655,6 +1655,14 @@ function assertValidBigintTransactionIndex(
   return transactionIndex;
 }
 
+function assertPublicKeyValue(value: unknown, label: string): PublicKey {
+  assert(
+    value instanceof PublicKey,
+    `Expected ${label} to be a PublicKey, got ${getUnknownValueTypeName(value)}`,
+  );
+  return value;
+}
+
 function buildVaultTransactionMessage(
   vaultPda: PublicKey,
   ixs: readonly TransactionInstruction[],
@@ -1777,7 +1785,7 @@ export async function buildSquadsProposalRejection(
   chain: unknown,
   mpp: MultiProtocolProvider,
   transactionIndex: unknown,
-  member: PublicKey,
+  member: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<{
   instruction: TransactionInstruction;
@@ -1792,11 +1800,15 @@ export async function buildSquadsProposalRejection(
     mpp,
     svmProviderOverride,
   );
+  const normalizedMember = assertPublicKeyValue(
+    member,
+    `proposal rejection member for ${normalizedChain}`,
+  );
 
   const rejectIx = instructions.proposalReject({
     multisigPda,
     transactionIndex: normalizedTransactionIndex,
-    member,
+    member: normalizedMember,
     programId,
   });
 
@@ -1809,7 +1821,7 @@ export async function buildSquadsProposalCancellation(
   chain: unknown,
   mpp: MultiProtocolProvider,
   transactionIndex: unknown,
-  member: PublicKey,
+  member: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<{
   instruction: TransactionInstruction;
@@ -1824,11 +1836,15 @@ export async function buildSquadsProposalCancellation(
     mpp,
     svmProviderOverride,
   );
+  const normalizedMember = assertPublicKeyValue(
+    member,
+    `proposal cancellation member for ${normalizedChain}`,
+  );
 
   const cancelIx = createProposalCancelInstruction(
     multisigPda,
     normalizedTransactionIndex,
-    member,
+    normalizedMember,
     programId,
   );
 
