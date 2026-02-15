@@ -76,6 +76,24 @@ describe('squads provider bridge', () => {
     );
   });
 
+  it('fails with stable malformed-provider error when proxy get trap throws', () => {
+    const providerLike = new Proxy(
+      {},
+      {
+        get(_target, property) {
+          if (property === 'getAccountInfo') {
+            throw new Error('proxy getter failure');
+          }
+          return undefined;
+        },
+      },
+    );
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to read getAccountInfo (provider: object)',
+    );
+  });
+
   it('reads malformed getter-backed getAccountInfo once during validation', () => {
     let getAccountInfoReadCount = 0;
     const providerLike = createGetterBackedProvider(() => {
