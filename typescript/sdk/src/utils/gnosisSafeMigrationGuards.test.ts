@@ -1197,6 +1197,18 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
+  it('tracks default symbol references through optional chaining access', () => {
+    const source = [
+      "import * as infra from './fixtures/guard-module.js';",
+      'const optionalDefault = infra?.default;',
+      "const optionalElementDefault = infra?.['default'];",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
   it('prevents sdk source imports from infra paths', () => {
     const sourceFilePaths = collectSdkSourceFilePaths(
       path.resolve(process.cwd(), 'src'),

@@ -1286,6 +1286,18 @@ describe('Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
+  it('tracks default symbol references through optional chaining access', () => {
+    const source = [
+      "import * as sdk from './fixtures/guard-module.js';",
+      'const optionalDefault = sdk?.default;',
+      "const optionalElementDefault = sdk?.['default'];",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
   it('collects value and type-only default imports from source text', () => {
     const source = [
       "import SafeSdk from '@fixtures/guard-module';",
