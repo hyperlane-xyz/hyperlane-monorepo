@@ -25,17 +25,18 @@ import {
   squadsConfigs as directSquadsConfigs,
 } from './config.js';
 
+const SDK_SQUADS_SOURCE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SDK_ROOT_INDEX_PATH = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
+  SDK_SQUADS_SOURCE_DIR,
   '..',
   'index.ts',
 );
 const SQUADS_BARREL_INDEX_PATH = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
+  SDK_SQUADS_SOURCE_DIR,
   'index.ts',
 );
 const SDK_PACKAGE_JSON_PATH = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
+  SDK_SQUADS_SOURCE_DIR,
   '..',
   '..',
   'package.json',
@@ -166,6 +167,38 @@ function assertSdkQuotedCommandTokenSet(
       `Expected ${tokenSetLabel} token path to appear exactly once in command: ${tokenPath}`,
     ).to.equal(1);
   }
+}
+
+function listSdkSquadsTestFilePaths(): readonly string[] {
+  const directoryEntries = fs
+    .readdirSync(SDK_SQUADS_SOURCE_DIR, { withFileTypes: true })
+    .sort((left, right) => compareLexicographically(left.name, right.name));
+  return directoryEntries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.test.ts'))
+    .map((entry) => `src/squads/${entry.name}`);
+}
+
+function matchesSingleAsteriskGlob(
+  candidatePath: string,
+  globPattern: string,
+): boolean {
+  const wildcardIndex = globPattern.indexOf('*');
+  expect(
+    wildcardIndex,
+    `Expected sdk squads test glob to contain wildcard: ${globPattern}`,
+  ).to.not.equal(-1);
+  expect(
+    globPattern.indexOf('*', wildcardIndex + 1),
+    `Expected sdk squads test glob to contain a single wildcard: ${globPattern}`,
+  ).to.equal(-1);
+
+  const prefix = globPattern.slice(0, wildcardIndex);
+  const suffix = globPattern.slice(wildcardIndex + 1);
+  return (
+    candidatePath.startsWith(prefix) &&
+    candidatePath.endsWith(suffix) &&
+    candidatePath.length >= prefix.length + suffix.length
+  );
 }
 
 describe('squads barrel exports', () => {
@@ -414,5 +447,36 @@ describe('squads barrel exports', () => {
     );
     expect(callerMutatedTokenPaths).to.not.deep.equal(baselineTokenPaths);
     expect(subsequentTokenPaths).to.deep.equal(baselineTokenPaths);
+  });
+
+  it('keeps sdk squads test globs aligned with discovered squads test files', () => {
+    const discoveredSquadsTestPaths = listSdkSquadsTestFilePaths();
+    expect(
+      discoveredSquadsTestPaths.length,
+      'Expected at least one discovered sdk squads test file',
+    ).to.be.greaterThan(0);
+
+    for (const discoveredPath of discoveredSquadsTestPaths) {
+      assertSdkSquadsTestTokenShape(
+        discoveredPath,
+        'discovered sdk squads test file path',
+      );
+      expect(
+        SDK_SQUADS_TEST_TOKEN_PATHS.some((globPattern) =>
+          matchesSingleAsteriskGlob(discoveredPath, globPattern),
+        ),
+        `Expected discovered sdk squads test file to be covered by command glob: ${discoveredPath}`,
+      ).to.equal(true);
+    }
+
+    for (const globPattern of SDK_SQUADS_TEST_TOKEN_PATHS) {
+      const matchingDiscoveredPaths = discoveredSquadsTestPaths.filter(
+        (pathValue) => matchesSingleAsteriskGlob(pathValue, globPattern),
+      );
+      expect(
+        matchingDiscoveredPaths.length,
+        `Expected sdk squads test glob to match at least one discovered squads test file: ${globPattern}`,
+      ).to.be.greaterThan(0);
+    }
   });
 });
