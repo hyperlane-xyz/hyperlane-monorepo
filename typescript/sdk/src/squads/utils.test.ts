@@ -4721,6 +4721,31 @@ describe('squads utils', () => {
       expect(isConfigTransaction(data)).to.equal(true);
       expect(isVaultTransaction(data)).to.equal(false);
     });
+
+    it('accepts Uint8Array discriminator sources', () => {
+      const vaultData = new Uint8Array([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT],
+        9,
+      ]);
+      const configData = new Uint8Array([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        9,
+      ]);
+
+      expect(isVaultTransaction(vaultData)).to.equal(true);
+      expect(isConfigTransaction(vaultData)).to.equal(false);
+      expect(isConfigTransaction(configData)).to.equal(true);
+      expect(isVaultTransaction(configData)).to.equal(false);
+    });
+
+    it('throws for malformed discriminator sources', () => {
+      expect(() => isVaultTransaction(null)).to.throw(
+        'Expected account data to be a Uint8Array, got null',
+      );
+      expect(() => isConfigTransaction('not-bytes')).to.throw(
+        'Expected account data to be a Uint8Array, got string',
+      );
+    });
   });
 
   describe('squads enum and constant tables', () => {

@@ -1561,22 +1561,46 @@ export async function submitProposalToSquads(
   }
 }
 
-export function isVaultTransaction(accountData: Buffer): boolean {
+function assertIsDiscriminatorSource(accountData: unknown): asserts accountData is Uint8Array {
+  assert(
+    accountData instanceof Uint8Array,
+    `Expected account data to be a Uint8Array, got ${getUnknownValueTypeName(accountData)}`,
+  );
+}
+
+function hasMatchingDiscriminator(
+  accountData: Uint8Array,
+  expectedDiscriminator: Uint8Array,
+): boolean {
   const discriminator = accountData.subarray(
     0,
     SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
   );
-  return discriminator.equals(
+  if (discriminator.length !== expectedDiscriminator.length) {
+    return false;
+  }
+
+  for (let index = 0; index < expectedDiscriminator.length; index += 1) {
+    if (discriminator[index] !== expectedDiscriminator[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function isVaultTransaction(accountData: unknown): boolean {
+  assertIsDiscriminatorSource(accountData);
+  return hasMatchingDiscriminator(
+    accountData,
     SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT],
   );
 }
 
-export function isConfigTransaction(accountData: Buffer): boolean {
-  const discriminator = accountData.subarray(
-    0,
-    SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-  );
-  return discriminator.equals(
+export function isConfigTransaction(accountData: unknown): boolean {
+  assertIsDiscriminatorSource(accountData);
+  return hasMatchingDiscriminator(
+    accountData,
     SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
   );
 }
