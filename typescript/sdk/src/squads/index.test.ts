@@ -96,6 +96,8 @@ const PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN =
   /\bprocess\s*\?\.\s*(?:(?:env|argv|cwd|exit|stdin|stdout|stderr)\b|\[\s*['"](?:env|argv|cwd|exit|stdin|stdout|stderr)['"]\s*\])/;
 const PARENTHESIZED_PROCESS_REFERENCE_PATTERN =
   /\(\s*process\s*\)\s*(?:\.\s*(?:env|argv|cwd|exit|stdin|stdout|stderr)\b|\[\s*['"](?:env|argv|cwd|exit|stdin|stdout|stderr)['"]\s*\])/;
+const PARENTHESIZED_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN =
+  /\(\s*process\s*\)\s*\?\.\s*(?:(?:env|argv|cwd|exit|stdin|stdout|stderr)\b|\[\s*['"](?:env|argv|cwd|exit|stdin|stdout|stderr)['"]\s*\])/;
 const GLOBAL_PROCESS_REFERENCE_PATTERN =
   /\b(?:globalThis|global)\s*\.\s*process\b/;
 const GLOBAL_PROCESS_BRACKET_REFERENCE_PATTERN =
@@ -104,6 +106,8 @@ const GLOBAL_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN =
   /\b(?:globalThis|global|window)\s*\?\.\s*(?:process\b|\[\s*['"]process['"]\s*\])/;
 const PARENTHESIZED_GLOBAL_PROCESS_REFERENCE_PATTERN =
   /\(\s*(?:globalThis|global|window)\s*\)\s*(?:\.\s*process\b|\[\s*['"]process['"]\s*\])/;
+const PARENTHESIZED_GLOBAL_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN =
+  /\(\s*(?:globalThis|global|window|self)\s*\)\s*\?\.\s*(?:process\b|\[\s*['"]process['"]\s*\])/;
 const WINDOW_PROCESS_REFERENCE_PATTERN = /\bwindow\s*\.\s*process\b/;
 const WINDOW_PROCESS_BRACKET_REFERENCE_PATTERN =
   /\bwindow\s*\[\s*['"]process['"]\s*\]/;
@@ -114,6 +118,8 @@ const SELF_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN =
   /\bself\s*\?\.\s*(?:process\b|\[\s*['"]process['"]\s*\])/;
 const PARENTHESIZED_SELF_PROCESS_REFERENCE_PATTERN =
   /\(\s*self\s*\)\s*(?:\.\s*process\b|\[\s*['"]process['"]\s*\])/;
+const PARENTHESIZED_SELF_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN =
+  /\(\s*self\s*\)\s*\?\.\s*(?:process\b|\[\s*['"]process['"]\s*\])/;
 const GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN =
   /\{[^}]*\bprocess\b[^}]*\}\s*=\s*(?:globalThis|global|window|self)\b/;
 const CONSOLE_REFERENCE_PATTERN =
@@ -126,6 +132,8 @@ const CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN =
   /\bconsole\s*\?\.\s*(?:(?:log|info|warn|error|debug|trace|table)\s*\(|\[\s*['"](?:log|info|warn|error|debug|trace|table)['"]\s*\]\s*\()/;
 const PARENTHESIZED_CONSOLE_REFERENCE_PATTERN =
   /\(\s*console\s*\)\s*(?:\.\s*(?:log|info|warn|error|debug|trace|table)\s*\(|\[\s*['"](?:log|info|warn|error|debug|trace|table)['"]\s*\]\s*\()/;
+const PARENTHESIZED_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN =
+  /\(\s*console\s*\)\s*\?\.\s*(?:(?:log|info|warn|error|debug|trace|table)\s*\(|\[\s*['"](?:log|info|warn|error|debug|trace|table)['"]\s*\]\s*\()/;
 const GLOBAL_CONSOLE_REFERENCE_PATTERN =
   /\b(?:globalThis|global)\s*\.\s*console\b/;
 const GLOBAL_CONSOLE_BRACKET_REFERENCE_PATTERN =
@@ -134,6 +142,8 @@ const GLOBAL_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN =
   /\b(?:globalThis|global|window)\s*\?\.\s*(?:console\b|\[\s*['"]console['"]\s*\])/;
 const PARENTHESIZED_GLOBAL_CONSOLE_REFERENCE_PATTERN =
   /\(\s*(?:globalThis|global|window)\s*\)\s*(?:\.\s*console\b|\[\s*['"]console['"]\s*\])/;
+const PARENTHESIZED_GLOBAL_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN =
+  /\(\s*(?:globalThis|global|window|self)\s*\)\s*\?\.\s*(?:console\b|\[\s*['"]console['"]\s*\])/;
 const WINDOW_CONSOLE_REFERENCE_PATTERN = /\bwindow\s*\.\s*console\b/;
 const WINDOW_CONSOLE_BRACKET_REFERENCE_PATTERN =
   /\bwindow\s*\[\s*['"]console['"]\s*\]/;
@@ -144,6 +154,8 @@ const SELF_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN =
   /\bself\s*\?\.\s*(?:console\b|\[\s*['"]console['"]\s*\])/;
 const PARENTHESIZED_SELF_CONSOLE_REFERENCE_PATTERN =
   /\(\s*self\s*\)\s*(?:\.\s*console\b|\[\s*['"]console['"]\s*\])/;
+const PARENTHESIZED_SELF_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN =
+  /\(\s*self\s*\)\s*\?\.\s*(?:console\b|\[\s*['"]console['"]\s*\])/;
 const GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN =
   /\{[^}]*\bconsole\b[^}]*\}\s*=\s*(?:globalThis|global|window|self)\b/;
 const CLI_GLUE_IMPORT_PATTERN =
@@ -1195,10 +1207,20 @@ describe('squads barrel exports', () => {
     expect(PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test("process?.['env']"))
       .to.equal(true);
     expect(
+      PARENTHESIZED_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        "(process)?.['env']",
+      ),
+    ).to.equal(true);
+    expect(
       PARENTHESIZED_PROCESS_REFERENCE_PATTERN.test("(process)['stdout']"),
     ).to.equal(true);
     expect(
       CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test("console?.['warn']('x')"),
+    ).to.equal(true);
+    expect(
+      PARENTHESIZED_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        "(console)?.['warn']('x')",
+      ),
     ).to.equal(true);
     expect(
       PARENTHESIZED_CONSOLE_REFERENCE_PATTERN.test("(console)['log']('x')"),
@@ -1218,6 +1240,11 @@ describe('squads barrel exports', () => {
         "(window)['process']",
       ),
     ).to.equal(true);
+    expect(
+      PARENTHESIZED_GLOBAL_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        '(globalThis)?.process',
+      ),
+    ).to.equal(true);
     expect(SELF_PROCESS_REFERENCE_PATTERN.test('self.process')).to.equal(true);
     expect(SELF_PROCESS_BRACKET_REFERENCE_PATTERN.test("self['process']")).to
       .equal(true);
@@ -1226,6 +1253,11 @@ describe('squads barrel exports', () => {
     ).to.equal(true);
     expect(
       PARENTHESIZED_SELF_PROCESS_REFERENCE_PATTERN.test('(self).process'),
+    ).to.equal(true);
+    expect(
+      PARENTHESIZED_SELF_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        "(self)?.['process']",
+      ),
     ).to.equal(true);
     expect(
       GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(
@@ -1252,6 +1284,11 @@ describe('squads barrel exports', () => {
         '(globalThis).console',
       ),
     ).to.equal(true);
+    expect(
+      PARENTHESIZED_GLOBAL_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        "(window)?.['console']",
+      ),
+    ).to.equal(true);
     expect(SELF_CONSOLE_REFERENCE_PATTERN.test('self.console')).to.equal(true);
     expect(SELF_CONSOLE_BRACKET_REFERENCE_PATTERN.test('self["console"]')).to
       .equal(true);
@@ -1261,13 +1298,28 @@ describe('squads barrel exports', () => {
     expect(
       PARENTHESIZED_SELF_CONSOLE_REFERENCE_PATTERN.test('(self)["console"]'),
     ).to.equal(true);
+    expect(
+      PARENTHESIZED_SELF_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        '(self)?.console',
+      ),
+    ).to.equal(true);
 
     expect(PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test('processor?.env')).to
       .equal(false);
+    expect(
+      PARENTHESIZED_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        '(processes)?.env',
+      ),
+    ).to.equal(false);
     expect(PARENTHESIZED_PROCESS_REFERENCE_PATTERN.test('(processes).env')).to
       .equal(false);
     expect(CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test("consoles?.['warn']"))
       .to.equal(false);
+    expect(
+      PARENTHESIZED_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        "(consoles)?.['warn']('x')",
+      ),
+    ).to.equal(false);
     expect(PARENTHESIZED_CONSOLE_REFERENCE_PATTERN.test("(consoles)['log']"))
       .to.equal(false);
     expect(
@@ -1285,6 +1337,11 @@ describe('squads barrel exports', () => {
         '(windows).process',
       ),
     ).to.equal(false);
+    expect(
+      PARENTHESIZED_GLOBAL_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        '(globalThiss)?.process',
+      ),
+    ).to.equal(false);
     expect(SELF_PROCESS_REFERENCE_PATTERN.test('shelf.process')).to.equal(false);
     expect(SELF_PROCESS_BRACKET_REFERENCE_PATTERN.test("shelf['process']")).to
       .equal(false);
@@ -1293,6 +1350,11 @@ describe('squads barrel exports', () => {
     ).to.equal(false);
     expect(
       PARENTHESIZED_SELF_PROCESS_REFERENCE_PATTERN.test('(shelf).process'),
+    ).to.equal(false);
+    expect(
+      PARENTHESIZED_SELF_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        '(shelf)?.process',
+      ),
     ).to.equal(false);
     expect(
       GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(
@@ -1317,6 +1379,11 @@ describe('squads barrel exports', () => {
         '(globalThiss).console',
       ),
     ).to.equal(false);
+    expect(
+      PARENTHESIZED_GLOBAL_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        '(windows)?.console',
+      ),
+    ).to.equal(false);
     expect(SELF_CONSOLE_REFERENCE_PATTERN.test('shelf.console')).to.equal(
       false,
     );
@@ -1327,6 +1394,11 @@ describe('squads barrel exports', () => {
     ).to.equal(false);
     expect(
       PARENTHESIZED_SELF_CONSOLE_REFERENCE_PATTERN.test('(shelf).console'),
+    ).to.equal(false);
+    expect(
+      PARENTHESIZED_SELF_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+        '(shelf)?.console',
+      ),
     ).to.equal(false);
   });
 
@@ -1393,6 +1465,10 @@ describe('squads barrel exports', () => {
         `Expected sdk squads runtime source to avoid process optional-chaining coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
+        PARENTHESIZED_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid parenthesized process optional-chaining coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
         PARENTHESIZED_PROCESS_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid parenthesized process coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
@@ -1411,6 +1487,12 @@ describe('squads barrel exports', () => {
       expect(
         PARENTHESIZED_GLOBAL_PROCESS_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid parenthesized global/window process coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        PARENTHESIZED_GLOBAL_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+          runtimeSource,
+        ),
+        `Expected sdk squads runtime source to avoid parenthesized optional global/window process coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
         WINDOW_PROCESS_REFERENCE_PATTERN.test(runtimeSource),
@@ -1437,6 +1519,12 @@ describe('squads barrel exports', () => {
         `Expected sdk squads runtime source to avoid parenthesized self process coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
+        PARENTHESIZED_SELF_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+          runtimeSource,
+        ),
+        `Expected sdk squads runtime source to avoid parenthesized optional self process coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
         GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid global/window process destructuring coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
@@ -1457,6 +1545,12 @@ describe('squads barrel exports', () => {
         `Expected sdk squads runtime source to avoid console optional-chaining coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
+        PARENTHESIZED_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+          runtimeSource,
+        ),
+        `Expected sdk squads runtime source to avoid parenthesized console optional-chaining coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
         PARENTHESIZED_CONSOLE_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid parenthesized console coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
@@ -1475,6 +1569,12 @@ describe('squads barrel exports', () => {
       expect(
         PARENTHESIZED_GLOBAL_CONSOLE_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid parenthesized global/window console coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        PARENTHESIZED_GLOBAL_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+          runtimeSource,
+        ),
+        `Expected sdk squads runtime source to avoid parenthesized optional global/window console coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
         WINDOW_CONSOLE_REFERENCE_PATTERN.test(runtimeSource),
@@ -1499,6 +1599,12 @@ describe('squads barrel exports', () => {
       expect(
         PARENTHESIZED_SELF_CONSOLE_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid parenthesized self console coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        PARENTHESIZED_SELF_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+          runtimeSource,
+        ),
+        `Expected sdk squads runtime source to avoid parenthesized optional self console coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
         GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(runtimeSource),
