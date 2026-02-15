@@ -2,8 +2,12 @@ import { expect } from 'chai';
 import { PublicKey } from '@solana/web3.js';
 
 import {
+  SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
   SquadTxStatus,
   SquadsAccountType,
+  SQUADS_DISCRIMINATOR_SIZE,
+  SQUADS_INSTRUCTION_DISCRIMINATORS,
+  SQUADS_PROPOSAL_OVERHEAD,
   SquadsProposalVoteError,
   SquadsPermission,
   SquadsProposalStatus,
@@ -3231,6 +3235,31 @@ describe('squads utils', () => {
   });
 
   describe('transaction type discriminators', () => {
+    it('exports canonical squads discriminator sizing constants', () => {
+      expect(SQUADS_DISCRIMINATOR_SIZE).to.equal(8);
+      expect(SQUADS_ACCOUNT_DISCRIMINATOR_SIZE).to.equal(8);
+      expect(SQUADS_ACCOUNT_DISCRIMINATOR_SIZE).to.equal(
+        SQUADS_DISCRIMINATOR_SIZE,
+      );
+      expect(SQUADS_PROPOSAL_OVERHEAD).to.equal(500);
+    });
+
+    it('keeps squads account discriminator byte lengths canonical', () => {
+      const discriminatorSets = Object.values(SQUADS_ACCOUNT_DISCRIMINATORS);
+      expect(discriminatorSets.length).to.be.greaterThan(0);
+      for (const discriminator of discriminatorSets) {
+        expect(discriminator).to.have.length(SQUADS_ACCOUNT_DISCRIMINATOR_SIZE);
+      }
+    });
+
+    it('keeps squads instruction discriminator byte lengths canonical', () => {
+      const discriminatorSets = Object.values(SQUADS_INSTRUCTION_DISCRIMINATORS);
+      expect(discriminatorSets.length).to.be.greaterThan(0);
+      for (const discriminator of discriminatorSets) {
+        expect(discriminator).to.have.length(SQUADS_DISCRIMINATOR_SIZE);
+      }
+    });
+
     it('identifies vault transactions by discriminator', () => {
       const data = Buffer.from([
         ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT],
