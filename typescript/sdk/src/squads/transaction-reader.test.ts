@@ -176,6 +176,15 @@ describe('squads transaction reader warning formatters', () => {
     );
   });
 
+  it('accepts byte-range discriminator boundaries for unknown instruction warnings', () => {
+    expect(formatUnknownInstructionWarning('Mailbox', 0)).to.equal(
+      'Unknown Mailbox instruction (discriminator: 0)',
+    );
+    expect(formatUnknownInstructionWarning('Mailbox', 255)).to.equal(
+      'Unknown Mailbox instruction (discriminator: 255)',
+    );
+  });
+
   it('throws for malformed unknown-instruction warning inputs', () => {
     expect(() => formatUnknownInstructionWarning(null, 1)).to.throw(
       'Expected program name to be a string, got null',
