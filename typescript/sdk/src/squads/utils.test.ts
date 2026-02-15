@@ -3703,6 +3703,9 @@ describe('squads utils', () => {
     expect(() =>
       resolveSquadsChains('solanamainnet' as unknown as readonly string[]),
     ).to.throw('Expected squads chains to be an array, got string');
+    expect(() =>
+      resolveSquadsChains(null as unknown as readonly string[]),
+    ).to.throw('Expected squads chains to be an array, got null');
   });
 
   it('labels array-valued explicit squads chain entries clearly', () => {

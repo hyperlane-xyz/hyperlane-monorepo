@@ -118,6 +118,11 @@ describe('squads config', () => {
         'ethereum' as unknown as readonly string[],
       ),
     ).to.throw('Expected unsupported squads chains to be an array, got string');
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        null as unknown as readonly string[],
+      ),
+    ).to.throw('Expected unsupported squads chains to be an array, got null');
 
     expect(() =>
       getUnsupportedSquadsChainsErrorMessage(['ethereum'], []),
@@ -139,6 +144,9 @@ describe('squads config', () => {
     expect(() =>
       resolveSquadsChains('solanamainnet' as unknown as readonly string[]),
     ).to.throw('Expected squads chains to be an array, got string');
+    expect(() =>
+      resolveSquadsChains(null as unknown as readonly string[]),
+    ).to.throw('Expected squads chains to be an array, got null');
     expect(() =>
       resolveSquadsChains([
         'solanamainnet',

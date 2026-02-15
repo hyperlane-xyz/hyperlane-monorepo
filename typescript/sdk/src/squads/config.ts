@@ -151,16 +151,16 @@ export function getUnsupportedSquadsChainsErrorMessage(
   nonSquadsChains: readonly unknown[],
   configuredSquadsChains: readonly unknown[] = getSquadsChains(),
 ): string {
-  if (nonSquadsChains.length === 0) {
+  const normalizedNonSquadsChains = normalizeChainListValues(
+    nonSquadsChains,
+    'unsupported squads chains',
+  );
+  if (normalizedNonSquadsChains.length === 0) {
     throw new Error(
       'Expected at least one unsupported squads chain to format error message',
     );
   }
 
-  const normalizedNonSquadsChains = normalizeChainListValues(
-    nonSquadsChains,
-    'unsupported squads chains',
-  );
   const normalizedConfiguredSquadsChains = normalizeChainListValues(
     configuredSquadsChains,
     'configured squads chains',
@@ -184,13 +184,16 @@ export function getUnsupportedSquadsChainsErrorMessage(
 export function resolveSquadsChains(
   chains?: readonly unknown[],
 ): SquadsChainName[] {
-  if (!chains || chains.length === 0) {
+  if (typeof chains === 'undefined') {
     return getSquadsChains();
   }
 
   const normalizedChains = normalizeChainListValues(chains, 'squads chains').map(
     (chain) => chain.trim(),
   );
+  if (normalizedChains.length === 0) {
+    return getSquadsChains();
+  }
   const { squadsChains, nonSquadsChains } =
     partitionSquadsChains(normalizedChains);
   if (nonSquadsChains.length > 0) {
