@@ -49,6 +49,7 @@ describe('squads test utils', () => {
     expect(squadsScripts).to.deep.equal(configuredSquadsScripts);
     for (const scriptPath of squadsScripts) {
       expect(scriptPath.includes('\\')).to.equal(false);
+      expect(isSquadsDirectoryScriptPath(scriptPath)).to.equal(true);
       expect(hasAllowedSquadsScriptExtension(scriptPath)).to.equal(true);
     }
   });
@@ -79,6 +80,9 @@ describe('squads test utils', () => {
     expect(executableScripts.some((scriptPath) => scriptPath.includes('\\'))).to.equal(
       false,
     );
+    for (const scriptPath of executableScripts) {
+      expect(isSquadsDirectoryScriptPath(scriptPath)).to.equal(true);
+    }
   });
 
   it('returns fresh executable squads script arrays per call', () => {
