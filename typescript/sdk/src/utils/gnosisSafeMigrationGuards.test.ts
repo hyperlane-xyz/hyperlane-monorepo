@@ -38,6 +38,14 @@ function hasExportModifier(node: ts.Node): boolean {
   );
 }
 
+function hasDefaultModifier(node: ts.Node): boolean {
+  if (!ts.canHaveModifiers(node)) return false;
+  const modifiers = ts.getModifiers(node);
+  return !!modifiers?.some(
+    (modifier: ts.Modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword,
+  );
+}
+
 function extractNamedExportSymbols(
   sourceText: string,
   modulePath: string,
@@ -127,6 +135,7 @@ function extractTopLevelDeclarationExports(
 
     if (!hasExportModifier(statement)) continue;
     if (ts.isFunctionDeclaration(statement) && statement.name) {
+      if (hasDefaultModifier(statement)) continue;
       symbols.add(statement.name.text);
       continue;
     }
@@ -137,6 +146,7 @@ function extractTopLevelDeclarationExports(
         ts.isEnumDeclaration(statement)) &&
       statement.name
     ) {
+      if (hasDefaultModifier(statement)) continue;
       symbols.add(statement.name.text);
       continue;
     }
@@ -331,6 +341,17 @@ describe('Gnosis Safe migration guards', () => {
     ].join('\n');
     const symbols = extractTopLevelDeclarationExports(source, 'fixture.ts');
     expect(symbols).to.deep.equal(['SafeCallData', 'SafeStatus']);
+  });
+
+  it('ignores default exports in top-level declaration extraction', () => {
+    const source = [
+      'export default function internalDefault() { return 1; }',
+      'export function getSafe() { return 2; }',
+      'export default class InternalDefaultClass {}',
+      'export class SafeStatus {}',
+    ].join('\n');
+    const symbols = extractTopLevelDeclarationExports(source, 'fixture.ts');
+    expect(symbols).to.deep.equal(['getSafe', 'SafeStatus']);
   });
 
   it('prevents sdk source imports from infra paths', () => {
