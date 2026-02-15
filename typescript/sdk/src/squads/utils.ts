@@ -2127,8 +2127,6 @@ export async function executeProposal(
     transactionIndex,
     normalizedChain,
   );
-  const { svmProvider, multisigPda, programId } =
-    getSquadAndProviderForResolvedChain(normalizedChain, mpp);
   const buildAndSendTransaction = getSignerBuildAndSendTransactionForChain(
     signerAdapter,
     normalizedChain,
@@ -2137,6 +2135,8 @@ export async function executeProposal(
     signerAdapter,
     normalizedChain,
   );
+  const { svmProvider, multisigPda, programId } =
+    getSquadAndProviderForResolvedChain(normalizedChain, mpp);
 
   const proposalData = await getSquadProposal(
     normalizedChain,

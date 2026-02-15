@@ -6127,12 +6127,10 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          '  solanamainnet  ',
-          mpp,
-          0,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('  solanamainnet  ', mpp, 0, {
+          buildAndSendTransaction: async () => 'signature',
+          publicKey: () => PublicKey.default,
+        } as unknown as Parameters<typeof executeProposal>[3]),
       );
 
       expect(thrownError?.message).to.equal(
@@ -6494,7 +6492,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Invalid signer adapter for solanamainnet: expected buildAndSendTransaction function, got undefined',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
     });
 
     it('fails fast when execution signer does not expose publicKey function', async () => {
@@ -6518,7 +6516,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Invalid signer adapter for solanamainnet: expected publicKey function, got undefined',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
     });
 
     it('throws contextual error when execution signer publicKey accessor fails', async () => {
@@ -6552,7 +6550,75 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Failed to read signer publicKey for solanamainnet: signer unavailable',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
+    });
+
+    it('throws contextual error when execution signer buildAndSendTransaction accessor fails', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = new Proxy(
+        {
+          publicKey: () => PublicKey.default,
+        },
+        {
+          get(target, property, receiver) {
+            if (property === 'buildAndSendTransaction') {
+              throw new Error('send unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ) as unknown as Parameters<typeof executeProposal>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal('solanamainnet', mpp, 0, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read signer buildAndSendTransaction for solanamainnet: send unavailable',
+      );
+      expect(providerLookupChain).to.equal(undefined);
+    });
+
+    it('uses placeholder when execution signer buildAndSendTransaction accessor throws opaque value', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = new Proxy(
+        {
+          publicKey: () => PublicKey.default,
+        },
+        {
+          get(target, property, receiver) {
+            if (property === 'buildAndSendTransaction') {
+              throw {};
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ) as unknown as Parameters<typeof executeProposal>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal('solanamainnet', mpp, 0, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read signer buildAndSendTransaction for solanamainnet: [unstringifiable error]',
+      );
+      expect(providerLookupChain).to.equal(undefined);
     });
   });
 
