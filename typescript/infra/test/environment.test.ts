@@ -19,7 +19,7 @@ describe('Environment', () => {
         expect(
           env.owners[chain],
           `Missing owner for chain ${chain} in environment ${env.environment}`,
-        ).to.not.be.undefined;
+        ).to.not.equal(undefined);
       }
     });
   }
@@ -80,7 +80,7 @@ describe('Environment', () => {
                 return module.type === IsmType.ROUTING;
               },
             ) as DomainRoutingIsmConfig;
-            expect(routingIsm).to.not.be.undefined;
+            expect(routingIsm).to.not.equal(undefined);
           }
 
           // Get the domains from the routing ISM
@@ -103,7 +103,7 @@ describe('Environment', () => {
 
           // Verify each expected chain has an entry in the domains
           for (const expectedChain of expectedChains) {
-            expect(routingIsmDomains[expectedChain]).to.not.be.undefined;
+            expect(routingIsmDomains[expectedChain]).to.not.equal(undefined);
           }
         }
       });

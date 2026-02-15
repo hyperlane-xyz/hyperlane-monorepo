@@ -650,7 +650,7 @@ describe('GitLeaks CLI Integration Tests', function () {
     expect(
       setEquality(new Set(ruleIds), new Set(ruleIdsInTestCases)),
       'Expected rule ids in gitleaks config file to match rule ids in test cases',
-    ).to.be.true;
+    ).to.equal(true);
   });
 
   // Generate tests for each rule
