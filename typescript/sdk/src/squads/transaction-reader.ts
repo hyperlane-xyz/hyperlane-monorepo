@@ -1853,44 +1853,98 @@ export class SquadsTransactionReader {
       let insight: string;
 
       if (types.isConfigActionAddMember(action)) {
+        const newMemberValue = this.readConfigActionField(
+          chain,
+          'config action add-member payload',
+          () => action.newMember,
+          undefined,
+        );
+        const memberKeyValue = isRecordObject(newMemberValue)
+          ? this.readConfigActionField(
+              chain,
+              'config action member key',
+              () => newMemberValue.key,
+              undefined,
+            )
+          : undefined;
         const member = this.formatAddressLikeForDisplay(
           chain,
           'config action member key',
-          action.newMember.key,
+          memberKeyValue,
         );
-        const permissionsMask = action.newMember.permissions.mask;
+
+        const permissionsValue = isRecordObject(newMemberValue)
+          ? this.readConfigActionField(
+              chain,
+              'config action member permissions',
+              () => newMemberValue.permissions,
+              undefined,
+            )
+          : undefined;
+        const permissionsMask = isRecordObject(permissionsValue)
+          ? this.readConfigActionField(
+              chain,
+              'config action member permissions mask',
+              () => permissionsValue.mask,
+              undefined,
+            )
+          : undefined;
         let permissionsStr = 'Unknown';
-        try {
-          permissionsStr = decodePermissions(permissionsMask);
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to decode config-action permissions on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
+        if (typeof permissionsMask !== 'undefined') {
+          try {
+            permissionsStr = decodePermissions(permissionsMask);
+          } catch (error) {
+            rootLogger.warn(
+              `Failed to decode config-action permissions on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+            );
+          }
         }
 
         type = SquadsInstructionName[SquadsInstructionType.ADD_MEMBER];
         args = {
           member,
-          permissions: { mask: permissionsMask, decoded: permissionsStr },
+          permissions: {
+            mask:
+              typeof permissionsMask === 'undefined' ? null : permissionsMask,
+            decoded: permissionsStr,
+          },
         };
         insight = `Add member ${member} with ${permissionsStr} permissions`;
       } else if (types.isConfigActionRemoveMember(action)) {
+        const oldMemberValue = this.readConfigActionField(
+          chain,
+          'config action removed member',
+          () => action.oldMember,
+          undefined,
+        );
         const member = this.formatAddressLikeForDisplay(
           chain,
           'config action removed member',
-          action.oldMember,
+          oldMemberValue,
         );
         type = SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER];
         args = { member };
         insight = `Remove member ${member}`;
       } else if (types.isConfigActionChangeThreshold(action)) {
+        const thresholdValue = this.readConfigActionField(
+          chain,
+          'config action threshold',
+          () => action.newThreshold,
+          null,
+        );
         type = SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD];
-        args = { threshold: action.newThreshold };
-        insight = `Change threshold to ${action.newThreshold}`;
+        args = { threshold: thresholdValue };
+        insight = `Change threshold to ${formatIntegerValidationValue(thresholdValue)}`;
       } else if (types.isConfigActionSetTimeLock(action)) {
+        const timeLockValue = this.readConfigActionField(
+          chain,
+          'config action time lock',
+          () => action.newTimeLock,
+          null,
+        );
         type = 'SetTimeLock';
-        args = { timeLock: action.newTimeLock };
-        insight = `Set time lock to ${action.newTimeLock}s`;
+        args = { timeLock: timeLockValue };
+        insight = `Set time lock to ${formatIntegerValidationValue(timeLockValue)}s`;
       } else if (types.isConfigActionAddSpendingLimit(action)) {
         let amountValue = '[invalid amount]';
         try {
@@ -1928,10 +1982,16 @@ export class SquadsTransactionReader {
           );
           destinationsValue = [];
         }
+        const vaultIndexValue = this.readConfigActionField(
+          chain,
+          'config action spending-limit vault index',
+          () => action.vaultIndex,
+          null,
+        );
 
         type = 'AddSpendingLimit';
         args = {
-          vaultIndex: action.vaultIndex,
+          vaultIndex: vaultIndexValue,
           mint: this.formatAddressLikeForDisplay(
             chain,
             'config action spending-limit mint',
@@ -1949,13 +2009,19 @@ export class SquadsTransactionReader {
             destinationsValue,
           ),
         };
-        insight = `Add spending limit for vault ${action.vaultIndex}`;
+        insight = `Add spending limit for vault ${formatIntegerValidationValue(vaultIndexValue)}`;
       } else if (types.isConfigActionRemoveSpendingLimit(action)) {
+        const spendingLimitValue = this.readConfigActionField(
+          chain,
+          'config action spending-limit address',
+          () => action.spendingLimit,
+          undefined,
+        );
         type = 'RemoveSpendingLimit';
         const spendingLimit = this.formatAddressLikeForDisplay(
           chain,
           'config action spending-limit address',
-          action.spendingLimit,
+          spendingLimitValue,
         );
         args = { spendingLimit };
         insight = `Remove spending limit ${spendingLimit}`;
@@ -1975,6 +2041,22 @@ export class SquadsTransactionReader {
         `Failed to format config action on ${chain}: ${stringifyUnknownSquadsError(error)}`,
       );
       return null;
+    }
+  }
+
+  private readConfigActionField(
+    chain: SquadsChainName,
+    label: string,
+    readValue: () => unknown,
+    fallbackValue: unknown,
+  ): unknown {
+    try {
+      return readValue();
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read ${label} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return fallbackValue;
     }
   }
 

@@ -3791,6 +3791,126 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('keeps add-member config actions when nested field access throws', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatConfigAction: (
+        chain: string,
+        action: Record<string, unknown>,
+      ) => Record<string, unknown> | null;
+    };
+    const hostileAction = {
+      __kind: 'AddMember',
+      get newMember() {
+        return {
+          key: { toBase58: () => 'member-a' },
+          get permissions() {
+            throw new Error('permissions unavailable');
+          },
+        };
+      },
+    };
+
+    const result = readerAny.formatConfigAction(
+      'solanamainnet',
+      hostileAction as unknown as Record<string, unknown>,
+    );
+
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Squads Multisig Configuration',
+      type: SquadsInstructionName[SquadsInstructionType.ADD_MEMBER],
+      args: {
+        member: 'member-a',
+        permissions: { mask: null, decoded: 'Unknown' },
+      },
+      insight: 'Add member member-a with Unknown permissions',
+    });
+  });
+
+  it('keeps add-spending-limit config actions when vault-index access throws', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatConfigAction: (
+        chain: string,
+        action: Record<string, unknown>,
+      ) => Record<string, unknown> | null;
+    };
+    const hostileAction = {
+      __kind: 'AddSpendingLimit',
+      get vaultIndex() {
+        throw new Error('vault index unavailable');
+      },
+      mint: { toBase58: () => 'mint-address' },
+      amount: 7n,
+      members: [{ toBase58: () => 'member-a' }],
+      destinations: [{ toBase58: () => 'destination-a' }],
+    };
+
+    const result = readerAny.formatConfigAction(
+      'solanamainnet',
+      hostileAction as unknown as Record<string, unknown>,
+    );
+
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Squads Multisig Configuration',
+      type: 'AddSpendingLimit',
+      args: {
+        vaultIndex: null,
+        mint: 'mint-address',
+        amount: '7',
+        members: ['member-a'],
+        destinations: ['destination-a'],
+      },
+      insight: 'Add spending limit for vault null',
+    });
+  });
+
+  it('keeps remove-spending-limit config actions when spending-limit access throws', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatConfigAction: (
+        chain: string,
+        action: Record<string, unknown>,
+      ) => Record<string, unknown> | null;
+    };
+    const hostileAction = {
+      __kind: 'RemoveSpendingLimit',
+      get spendingLimit() {
+        throw new Error('spending limit unavailable');
+      },
+    };
+
+    const result = readerAny.formatConfigAction(
+      'solanamainnet',
+      hostileAction as unknown as Record<string, unknown>,
+    );
+
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Squads Multisig Configuration',
+      type: 'RemoveSpendingLimit',
+      args: { spendingLimit: '[invalid address]' },
+      insight: 'Remove spending limit [invalid address]',
+    });
+  });
+
   it('keeps config actions with malformed address-like fields using fallback addresses', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
