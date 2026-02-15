@@ -6046,6 +6046,116 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('keeps system-instruction parsing when instruction data has malformed type', async () => {
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const vaultTransaction = {
+      message: {
+        accountKeys: [SYSTEM_PROGRAM_ID],
+        addressTableLookups: [],
+        instructions: [
+          {
+            programIdIndex: 0,
+            accountIndexes: [],
+            data: 7,
+          },
+        ],
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction as unknown as Record<string, unknown>,
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed).to.deep.equal({
+      warnings: [],
+      instructions: [
+        {
+          programId: SYSTEM_PROGRAM_ID,
+          programName: 'System Program',
+          instructionType: 'System Call',
+          data: {},
+          accounts: [],
+          warnings: [],
+        },
+      ],
+    });
+  });
+
+  it('keeps system-instruction parsing when instruction data array cannot normalize', async () => {
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const vaultTransaction = {
+      message: {
+        accountKeys: [SYSTEM_PROGRAM_ID],
+        addressTableLookups: [],
+        instructions: [
+          {
+            programIdIndex: 0,
+            accountIndexes: [],
+            data: [1n],
+          },
+        ],
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction as unknown as Record<string, unknown>,
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed).to.deep.equal({
+      warnings: [],
+      instructions: [
+        {
+          programId: SYSTEM_PROGRAM_ID,
+          programName: 'System Program',
+          instructionType: 'System Call',
+          data: {},
+          accounts: [],
+          warnings: [],
+        },
+      ],
+    });
+  });
+
   it('formats unstringifiable instruction parse errors safely', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({

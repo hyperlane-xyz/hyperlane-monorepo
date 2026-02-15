@@ -1314,7 +1314,11 @@ export class SquadsTransactionReader {
           () => (instruction as { data?: unknown }).data,
           Buffer.alloc(0),
         );
-        const instructionData = Buffer.from(instructionDataValue as Uint8Array);
+        const instructionData = this.normalizeInstructionDataForParse(
+          chain,
+          idx,
+          instructionDataValue,
+        );
         const accounts: PublicKey[] = [];
         for (const accountIdxValue of accountIndexes) {
           if (
@@ -1468,6 +1472,37 @@ export class SquadsTransactionReader {
       );
       return fallbackValue;
     }
+  }
+
+  private normalizeInstructionDataForParse(
+    chain: SquadsChainName,
+    instructionIndex: number,
+    value: unknown,
+  ): Buffer {
+    if (Buffer.isBuffer(value)) {
+      return Buffer.from(value);
+    }
+    if (value instanceof Uint8Array) {
+      return Buffer.from(value);
+    }
+    if (value instanceof ArrayBuffer) {
+      return Buffer.from(new Uint8Array(value));
+    }
+    if (Array.isArray(value)) {
+      try {
+        return Buffer.from(value);
+      } catch (error) {
+        rootLogger.warn(
+          `Failed to normalize instruction ${instructionIndex} data on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        );
+        return Buffer.alloc(0);
+      }
+    }
+
+    rootLogger.warn(
+      `Malformed instruction ${instructionIndex} data on ${chain}: expected bytes, got ${getUnknownValueTypeName(value)}`,
+    );
+    return Buffer.alloc(0);
   }
 
   private normalizeVaultArrayField(
