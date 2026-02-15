@@ -31,6 +31,14 @@ enum UserReview {
 }
 const LOW_PROPOSED_THRESHOLD_FACTOR = 0.5;
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { skipReview } = await withSkipReview(yargs(process.argv.slice(2)))
     .argv;
@@ -356,12 +364,14 @@ function writeConfigsToFile(newConfigs: ThresholdsData) {
       );
       writeAndFormatJsonAtPath(configPath, newConfigs[thresholdType]);
     } catch (error) {
-      rootLogger.error(`Failed to write config for ${thresholdType}:`, error);
+      rootLogger.error(
+        `Failed to write config for ${thresholdType}: ${stringifyValueForError(error)}`,
+      );
     }
   }
 }
 
 main().catch((e) => {
-  rootLogger.error(e);
+  rootLogger.error(stringifyValueForError(e));
   process.exit(1);
 });

@@ -9,6 +9,14 @@ import { sortThresholds } from '../../src/funding/balances.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { withAlertTypeRequired, withWrite } from '../agent-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 // this scripts reads the thresholds in the grafana alert, prints and then overwrites the thresholds in the file
 // it has been helpful in debugging and updating the thresholds during the development phase to reset the thresholds
 // it is not intended to be used in the production process of managing the thresholds
@@ -31,12 +39,14 @@ async function main() {
       );
       rootLogger.info('Alert thresholds written to file.');
     } catch (e) {
-      rootLogger.error('Error writing alert thresholds to file:', e);
+      rootLogger.error(
+        `Error writing alert thresholds to file: ${stringifyValueForError(e)}`,
+      );
     }
   }
 }
 
 main().catch((err) => {
-  rootLogger.error(err);
+  rootLogger.error(stringifyValueForError(err));
   process.exit(1);
 });

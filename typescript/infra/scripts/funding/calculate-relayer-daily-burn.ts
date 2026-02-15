@@ -43,6 +43,14 @@ const MIN_NUMBER_OF_TXS = 100; // the minimum number of txs to consider for dail
 const MIN_BURN_INCREASE_FACTOR = 0.05; // burn should be at least 5% higher than current to be updated
 const LOW_PROPOSED_BURN_FACTOR = 0.5; // proposed burn should be at least 50% lower than current to initiate user review
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { skipReview, append } = await withAppend(
     withSkipReview(yargs(process.argv.slice(2))),
@@ -56,7 +64,9 @@ async function main() {
   try {
     burnData = await calculateDailyRelayerBurn(sealevelDomainIds, skipReview);
   } catch (err) {
-    rootLogger.error('Error fetching daily burn data:', err);
+    rootLogger.error(
+      `Error fetching daily burn data: ${stringifyValueForError(err)}`,
+    );
     process.exit(1);
   }
 
@@ -333,7 +343,9 @@ function writeBurnDataToFile(burnData: ChainMap<number>, append: boolean) {
     writeJsonWithAppendMode(DAILY_BURN_PATH, burnData, append);
     rootLogger.info('Daily burn data written to file.');
   } catch (err) {
-    rootLogger.error('Error writing daily burn data to file:', err);
+    rootLogger.error(
+      `Error writing daily burn data to file: ${stringifyValueForError(err)}`,
+    );
   }
 }
 
@@ -423,6 +435,6 @@ async function handleLowProposedDailyBurn(
 }
 
 main().catch((err) => {
-  rootLogger.error('Error:', err);
+  rootLogger.error(`Error: ${stringifyValueForError(err)}`);
   process.exit(1);
 });

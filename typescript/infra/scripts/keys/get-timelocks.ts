@@ -23,6 +23,14 @@ import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 const supportedGovernanceTypes = [
   GovernanceType.AbacusWorks,
   GovernanceType.Regular,
@@ -132,7 +140,9 @@ async function main() {
         }
       } catch (err) {
         results[chain] = { address: timelockAddress, status: '❌' };
-        rootLogger.error(`Error checking timelock config for ${chain}:`, err);
+        rootLogger.error(
+          `Error checking timelock config for ${chain}: ${stringifyValueForError(err)}`,
+        );
       }
     }),
   );
@@ -177,6 +187,6 @@ async function main() {
 main()
   .then()
   .catch((err) => {
-    rootLogger.error('Error:', err);
+    rootLogger.error(`Error: ${stringifyValueForError(err)}`);
     process.exit(1);
   });

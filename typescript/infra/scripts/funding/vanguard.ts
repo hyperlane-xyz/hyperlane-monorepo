@@ -10,6 +10,14 @@ import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 import { Role } from '../../src/roles.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 const VANGUARDS = [
   'vanguard0', // regular
   'vanguard1', // regular
@@ -225,8 +233,7 @@ async function fundVanguards() {
           } catch (error) {
             rootLogger.error(
               chalk.bold.red(
-                `Error checking balance for ${vanguard} on ${chain}:`,
-                error,
+                `Error checking balance for ${vanguard} on ${chain}: ${stringifyValueForError(error)}`,
               ),
             );
             continue;
@@ -242,6 +249,8 @@ async function fundVanguards() {
 }
 
 fundVanguards().catch((error) => {
-  rootLogger.error(chalk.bold.red('Error funding agents:', error));
+  rootLogger.error(
+    chalk.bold.red(`Error funding agents: ${stringifyValueForError(error)}`),
+  );
   process.exit(1);
 });

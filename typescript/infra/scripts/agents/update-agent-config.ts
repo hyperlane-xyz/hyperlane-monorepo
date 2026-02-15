@@ -59,6 +59,14 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { environment } = await getArgs().argv;
   const envConfig = getEnvironmentConfig(environment);
@@ -110,7 +118,9 @@ export async function writeAgentConfig(
               );
               config.gasPrice = gasPrice;
             } catch (error) {
-              rootLogger.error(`Error getting gas price for ${chain}:`, error);
+              rootLogger.error(
+                `Error getting gas price for ${chain}: ${stringifyValueForError(error)}`,
+              );
               const { denom } = await multiProvider.getNativeToken(chain);
               assert(denom, `No nativeToken.denom found for chain ${chain}`);
               const amount =
@@ -198,10 +208,7 @@ export async function writeAgentConfig(
           return deployedBlock.toNumber();
         } catch (err) {
           rootLogger.error(
-            'Failed to get deployed block, defaulting to 0. Chain:',
-            chain,
-            'Error:',
-            err,
+            `Failed to get deployed block, defaulting to 0. Chain: ${chain}. Error: ${stringifyValueForError(err)}`,
           );
           return undefined;
         }
@@ -301,6 +308,8 @@ export async function writeAgentAppContexts(
 main()
   .then(() => process.exit(0))
   .catch((e) => {
-    rootLogger.error('Failed to update agent config', e);
+    rootLogger.error(
+      `Failed to update agent config: ${stringifyValueForError(e)}`,
+    );
     process.exit(1);
   });
