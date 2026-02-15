@@ -16,10 +16,14 @@ const GENERIC_ERROR_LABELS = new Set(
 );
 
 export function isGenericObjectStringifiedValue(value: unknown): boolean {
-  return (
-    typeof value === 'string' &&
-    GENERIC_OBJECT_STRING_PATTERN.test(value.trim())
-  );
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const normalizedValue = value
+    .trim()
+    .replace(TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN, '');
+  return GENERIC_OBJECT_STRING_PATTERN.test(normalizedValue);
 }
 
 export function normalizeStringifiedSquadsError(

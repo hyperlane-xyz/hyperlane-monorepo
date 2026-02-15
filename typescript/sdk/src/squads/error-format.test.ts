@@ -42,6 +42,12 @@ describe('squads error-format', () => {
       expect(
         normalizeStringifiedSquadsError('  [object ErrorLike]  '),
       ).to.equal(undefined);
+      expect(normalizeStringifiedSquadsError('[object Object]:')).to.equal(
+        undefined,
+      );
+      expect(
+        normalizeStringifiedSquadsError(' [object ErrorLike] :   '),
+      ).to.equal(undefined);
     });
 
     it('returns undefined for bare built-in error labels', () => {
@@ -97,6 +103,12 @@ describe('squads error-format', () => {
       expect(isGenericObjectStringifiedValue('[object Object]')).to.equal(true);
       expect(
         isGenericObjectStringifiedValue('  [object CustomError]'),
+      ).to.equal(true);
+      expect(isGenericObjectStringifiedValue('[object Object]:')).to.equal(
+        true,
+      );
+      expect(
+        isGenericObjectStringifiedValue(' [object CustomError] : '),
       ).to.equal(true);
     });
 
