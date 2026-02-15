@@ -6,6 +6,13 @@ import { expect } from 'chai';
 
 const SOURCE_FILE_GLOB = '*.{ts,js,mts,cts,mjs,cjs}' as const;
 
+type SdkPackageJson = {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+};
+
 function normalizeNamedSymbol(symbol: string): string {
   const trimmed = symbol.trim();
   if (!trimmed || trimmed.startsWith('...')) return '';
@@ -143,5 +150,24 @@ describe('Gnosis Safe migration guards', () => {
       missingExports,
       'Expected sdk index to re-export all top-level gnosisSafe module exports',
     ).to.deep.equal([]);
+  });
+
+  it('keeps sdk package free of infra dependency edges', () => {
+    const packageJsonPath = path.resolve(process.cwd(), 'package.json');
+    const packageJson: SdkPackageJson = JSON.parse(
+      fs.readFileSync(packageJsonPath, 'utf8'),
+    );
+
+    const allDependencyNames = [
+      ...Object.keys(packageJson.dependencies ?? {}),
+      ...Object.keys(packageJson.devDependencies ?? {}),
+      ...Object.keys(packageJson.optionalDependencies ?? {}),
+      ...Object.keys(packageJson.peerDependencies ?? {}),
+    ];
+
+    expect(
+      allDependencyNames.includes('@hyperlane-xyz/infra'),
+      'SDK package.json should not depend on @hyperlane-xyz/infra',
+    ).to.equal(false);
   });
 });
