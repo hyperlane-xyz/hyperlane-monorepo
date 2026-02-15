@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { serialize } from 'borsh';
 import { PublicKey } from '@solana/web3.js';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
@@ -27,6 +28,7 @@ import {
   SealevelSetDestinationGasConfigsInstruction,
   SealevelSetDestinationGasConfigsInstructionSchema,
 } from '../token/adapters/serialization.js';
+import type { WarpCoreConfig } from '../warp/types.js';
 import { SealevelInstructionWrapper } from '../utils/sealevelSerialization.js';
 import { SquadsAccountType, SQUADS_ACCOUNT_DISCRIMINATORS } from './utils.js';
 
@@ -1451,6 +1453,93 @@ describe('squads transaction reader', () => {
       programId: new PublicKey('11111111111111111111111111111111'),
     };
   }
+
+  it('skips warp-route tokens when protocol lookup throws during initialization', async () => {
+    let protocolLookupCount = 0;
+    const mpp = {
+      tryGetProtocol: (chain: string) => {
+        protocolLookupCount += 1;
+        if (chain === 'badchain') {
+          throw new Error('protocol lookup failed');
+        }
+        return ProtocolType.Sealevel;
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    await reader.init({
+      routeA: {
+        tokens: [
+          {
+            chainName: 'badchain',
+            addressOrDenom: 'BAD001',
+            symbol: 'BAD',
+            name: 'Bad Token',
+          },
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 'GOOD001',
+            symbol: 'GOOD',
+            name: 'Good Token',
+          },
+        ],
+      } as unknown as WarpCoreConfig,
+    });
+
+    expect(protocolLookupCount).to.equal(2);
+    expect(reader.warpRouteIndex.has('badchain')).to.equal(false);
+    expect(
+      reader.warpRouteIndex.get('solanamainnet')?.get('good001'),
+    ).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Good Token',
+      routeName: 'routeA',
+    });
+  });
+
+  it('skips malformed warp-route addresses during initialization', async () => {
+    const mpp = {
+      tryGetProtocol: () => ProtocolType.Sealevel,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    await reader.init({
+      routeA: {
+        tokens: [
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 123 as unknown as string,
+            symbol: 'BAD',
+            name: 'Bad Token',
+          },
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: ' GOOD002 ',
+            symbol: 'GOOD',
+            name: 'Good Token',
+          },
+        ],
+      } as unknown as WarpCoreConfig,
+    });
+
+    const chainIndex = reader.warpRouteIndex.get('solanamainnet');
+    expect(chainIndex?.has('123')).to.equal(false);
+    expect(chainIndex?.get('good002')).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Good Token',
+      routeName: 'routeA',
+    });
+  });
 
   const invalidTransactionIndexCases: Array<{
     title: string;

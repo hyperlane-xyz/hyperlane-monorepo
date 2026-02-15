@@ -387,10 +387,31 @@ export class SquadsTransactionReader {
   async init(warpRoutes: Record<string, WarpCoreConfig>): Promise<void> {
     for (const [routeName, warpRoute] of Object.entries(warpRoutes)) {
       for (const token of Object.values(warpRoute.tokens)) {
-        const chainProtocol = this.mpp.tryGetProtocol(token.chainName);
+        let chainProtocol: ProtocolType | null | undefined;
+        try {
+          chainProtocol = this.mpp.tryGetProtocol(token.chainName);
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to resolve protocol for warp route ${routeName} on ${token.chainName}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          continue;
+        }
         if (chainProtocol !== ProtocolType.Sealevel) continue;
 
-        const address = token.addressOrDenom?.toLowerCase();
+        const addressOrDenom = token.addressOrDenom;
+        if (typeof addressOrDenom !== 'string') {
+          if (
+            typeof addressOrDenom !== 'undefined' &&
+            addressOrDenom !== null
+          ) {
+            rootLogger.warn(
+              `Skipping malformed warp route token address for ${routeName} on ${token.chainName}: expected string, got ${getUnknownValueTypeName(addressOrDenom)}`,
+            );
+          }
+          continue;
+        }
+
+        const address = addressOrDenom.trim().toLowerCase();
         if (!address) continue;
 
         if (!this.warpRouteIndex.has(token.chainName)) {
