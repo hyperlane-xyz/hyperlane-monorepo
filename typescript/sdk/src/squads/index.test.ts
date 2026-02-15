@@ -967,6 +967,18 @@ describe('squads barrel exports', () => {
     ]);
   });
 
+  it('keeps squads barrel export statements aligned with exported source-path constants', () => {
+    const exportedSourcePathsFromStatements =
+      EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS.map((statement) =>
+        statement
+          .replace("export * from './", 'src/squads/')
+          .replace(".js';", '.ts'),
+      ).sort(compareLexicographically);
+    expect(exportedSourcePathsFromStatements).to.deep.equal([
+      ...EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS,
+    ]);
+  });
+
   it('keeps expected canonical sdk squads internal source paths', () => {
     expect(EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS).to.deep.equal(
       ['src/squads/provider.ts', 'src/squads/validation.ts'],
