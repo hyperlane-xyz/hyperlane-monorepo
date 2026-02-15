@@ -909,6 +909,21 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps expected canonical sdk squads barrel export statements', () => {
+    expect(EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS).to.deep.equal([
+      "export * from './config.js';",
+      "export * from './utils.js';",
+      "export * from './transaction-reader.js';",
+      "export * from './error-format.js';",
+    ]);
+  });
+
+  it('keeps expected canonical sdk squads internal source paths', () => {
+    expect(EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS).to.deep.equal(
+      ['src/squads/provider.ts', 'src/squads/validation.ts'],
+    );
+  });
+
   it('keeps sdk squads source-role constants normalized and disjoint', () => {
     expect(Object.isFrozen(EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS)).to.equal(
       true,
