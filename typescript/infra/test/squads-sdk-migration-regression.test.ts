@@ -228,6 +228,11 @@ function listInfraSquadsTestDirectoryAssets(): readonly string[] {
     .map((entry) => `test/${entry.name}`);
 }
 
+function listInfraSquadsRegressionTestsFromDirectory(): readonly string[] {
+  return partitionTrackedTestAssetsByRole(listInfraSquadsTestDirectoryAssets())
+    .regressionPaths;
+}
+
 function countSubstringOccurrences(haystack: string, needle: string): number {
   if (needle.length === 0) {
     return 0;
@@ -627,6 +632,31 @@ describe('squads sdk migration regression', () => {
     for (const supportPath of SQUADS_TRACKED_TEST_SUPPORT_PATHS) {
       expect(quotedScriptPaths.includes(supportPath)).to.equal(false);
     }
+  });
+
+  it('keeps infra squads test command aligned with discovered regression tests', () => {
+    const discoveredRegressionTests =
+      listInfraSquadsRegressionTestsFromDirectory();
+    assertTrackedSourcePathSetNormalizedAndDeduplicated(
+      discoveredRegressionTests,
+      'discovered infra squads regression tests',
+    );
+    for (const discoveredRegressionPath of discoveredRegressionTests) {
+      assertRegressionTestPathShape(
+        discoveredRegressionPath,
+        'discovered infra squads regression test path',
+      );
+    }
+    const quotedCommandScriptPaths = getQuotedInfraSquadsRegressionPaths();
+    assertInfraRegressionCommandTokenSet(
+      quotedCommandScriptPaths,
+      'quoted infra squads regression command',
+    );
+    expect(
+      [...quotedCommandScriptPaths].sort(compareLexicographically),
+    ).to.deep.equal(
+      [...discoveredRegressionTests].sort(compareLexicographically),
+    );
   });
 
   it('keeps quoted infra squads regression command tokens isolated from caller mutation', () => {
