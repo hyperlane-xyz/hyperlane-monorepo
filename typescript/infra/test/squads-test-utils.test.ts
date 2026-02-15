@@ -6,6 +6,7 @@ import { expect } from 'chai';
 import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   hasAllowedSquadsScriptExtension,
+  isAllowlistedNonExecutableSquadsScriptPath,
   isSquadsDirectoryScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_SCRIPT_PATHS,
@@ -69,6 +70,11 @@ describe('squads test utils', () => {
           scriptPath.endsWith(`/${nonExecutableScriptFile}`),
         ),
       ).to.equal(false);
+    }
+    for (const scriptPath of executableScripts) {
+      expect(isAllowlistedNonExecutableSquadsScriptPath(scriptPath)).to.equal(
+        false,
+      );
     }
 
     expect(

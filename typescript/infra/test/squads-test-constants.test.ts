@@ -89,6 +89,7 @@ describe('squads test constants', () => {
     for (const nonExecutableScriptFile of NON_EXECUTABLE_SQUADS_SCRIPT_FILES) {
       expect(
         SQUADS_SCRIPT_PATHS.some((scriptPath) =>
+          isAllowlistedNonExecutableSquadsScriptPath(scriptPath) &&
           scriptPath.endsWith(`/${nonExecutableScriptFile}`),
         ),
       ).to.equal(true);
