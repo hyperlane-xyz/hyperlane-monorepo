@@ -210,6 +210,15 @@ function resolveModuleSourceFromExpression(
   moduleAliasByIdentifier: Map<string, string>,
 ): string | undefined {
   const unwrapped = unwrapInitializerExpression(expression);
+  if (
+    ts.isBinaryExpression(unwrapped) &&
+    unwrapped.operatorToken.kind === ts.SyntaxKind.CommaToken
+  ) {
+    return resolveModuleSourceFromExpression(
+      unwrapped.right,
+      moduleAliasByIdentifier,
+    );
+  }
   const directSource = readModuleSourceFromInitializer(unwrapped);
   if (directSource) return directSource;
   if (ts.isIdentifier(unwrapped)) {
@@ -1177,6 +1186,18 @@ describe('Safe migration guards', () => {
       "const fromTypeAssertionAlias = typeAssertionAlias['default'];",
       'const fromNonNullAlias = nonNullAlias.default;',
       'const fromSatisfiesAlias = satisfiesAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through comma operator wrappers', () => {
+    const source = [
+      "const commaAlias = (0, require('./fixtures/guard-module.js'));",
+      'const commaDefault = commaAlias.default;',
+      "const inlineCommaDefault = (0, require('./fixtures/guard-module.js'))['default'];",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
