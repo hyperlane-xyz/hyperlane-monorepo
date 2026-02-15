@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import {
   hasAllowedSquadsScriptExtension,
-  isAllowlistedNonExecutableSquadsScriptPath,
+  isExecutableSquadsScriptPath,
 } from './squads-test-constants.js';
 
 export function listSquadsDirectoryScripts(infraRoot: string): string[] {
@@ -11,8 +11,7 @@ export function listSquadsDirectoryScripts(infraRoot: string): string[] {
   return fs
     .readdirSync(squadsScriptsDir, { withFileTypes: true })
     .filter(
-      (entry) =>
-        entry.isFile() && hasAllowedSquadsScriptExtension(entry.name),
+      (entry) => entry.isFile() && hasAllowedSquadsScriptExtension(entry.name),
     )
     .map((entry) => path.posix.join('scripts/squads', entry.name))
     .sort();
@@ -21,7 +20,7 @@ export function listSquadsDirectoryScripts(infraRoot: string): string[] {
 export function listExecutableSquadsDirectoryScripts(
   infraRoot: string,
 ): string[] {
-  return listSquadsDirectoryScripts(infraRoot).filter(
-    (scriptPath) => !isAllowlistedNonExecutableSquadsScriptPath(scriptPath),
+  return listSquadsDirectoryScripts(infraRoot).filter((scriptPath) =>
+    isExecutableSquadsScriptPath(scriptPath),
   );
 }
