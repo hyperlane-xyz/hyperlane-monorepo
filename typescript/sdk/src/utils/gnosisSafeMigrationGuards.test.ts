@@ -4342,6 +4342,90 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('does not leak direct require shadowing across while scopes', () => {
+    const source = [
+      'while (true) {',
+      '  const require = () => undefined;',
+      "  require('./fixtures/other-module.js');",
+      '  break;',
+      '}',
+      "const postWhileCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak direct require shadowing across do-while scopes', () => {
+    const source = [
+      'do {',
+      '  const require = () => undefined;',
+      "  require('./fixtures/other-module.js');",
+      '} while (false);',
+      "const postDoWhileCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak while-block lexical alias shadowing before declaration to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'while (true) {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  const reqAlias = () => undefined;',
+      '  break;',
+      '}',
+      "const postWhileCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak do-while lexical alias shadowing before declaration to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'do {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  const reqAlias = () => undefined;',
+      '} while (false);',
+      "const postDoWhileCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('does not leak lexical for-loop enum alias shadowing before declaration to outer module specifiers', () => {
     const source = [
       'const reqAlias = require;',
@@ -10037,6 +10121,70 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('does not leak direct require symbol-source shadowing across while scopes', () => {
+    const source = [
+      'while (true) {',
+      '  const require = () => undefined;',
+      "  require('./fixtures/other-module.js').default;",
+      '  break;',
+      '}',
+      "const postWhileDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak direct require symbol-source shadowing across do-while scopes', () => {
+    const source = [
+      'do {',
+      '  const require = () => undefined;',
+      "  require('./fixtures/other-module.js').default;",
+      '} while (false);',
+      "const postDoWhileDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak while-block lexical alias shadowing before declaration to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'while (true) {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  const reqAlias = () => undefined;',
+      '  break;',
+      '}',
+      "const postWhileDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak do-while lexical alias shadowing before declaration to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'do {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  const reqAlias = () => undefined;',
+      '} while (false);',
+      "const postDoWhileDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak lexical for-loop enum alias shadowing before declaration to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -10661,6 +10809,76 @@ describe('Gnosis Safe migration guards', () => {
     );
     expect(references).to.include('default@./fixtures/guard-module.js');
     expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('does not leak while-block lexical module-source alias shadowing before declaration to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'while (true) {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  const moduleAlias = { inner: preDeclarationSymbol };',
+      '  void moduleAlias;',
+      '  break;',
+      '}',
+      'const postWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('does not leak do-while lexical module-source alias shadowing before declaration to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'do {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  const moduleAlias = { inner: preDeclarationSymbol };',
+      '  void moduleAlias;',
+      '} while (false);',
+      'const postDoWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('does not leak while-block class module-source alias shadowing before declaration to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'while (true) {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  class moduleAlias {}',
+      '  void preDeclarationSymbol;',
+      '  break;',
+      '}',
+      'const postWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('does not leak do-while class module-source alias shadowing before declaration to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'do {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  class moduleAlias {}',
+      '  void preDeclarationSymbol;',
+      '} while (false);',
+      'const postDoWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
   });
 
   it('does not leak lexical for-loop enum module-source alias shadowing before declaration to outer symbol sources', () => {
