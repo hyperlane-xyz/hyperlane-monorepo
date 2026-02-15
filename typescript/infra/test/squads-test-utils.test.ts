@@ -146,6 +146,10 @@ describe('squads test utils', () => {
 
   it('lists executable squads scripts excluding non-executable allowlist', () => {
     const executableScripts = listExecutableSquadsDirectoryScripts(INFRA_ROOT);
+    expect(executableScripts).to.deep.equal(
+      [...executableScripts].sort(compareLexicographically),
+      'Expected executable squads scripts to be sorted',
+    );
     const configuredExecutableSquadsScripts =
       EXECUTABLE_SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
         isSquadsDirectoryScriptPath(scriptPath),
