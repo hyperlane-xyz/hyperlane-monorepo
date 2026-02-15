@@ -2028,6 +2028,27 @@ function hasMatchingDiscriminator(
   return true;
 }
 
+function readTransactionAccountDataForType(
+  chain: SquadsChainName,
+  accountInfo: { data?: unknown },
+): Uint8Array {
+  let dataValue: unknown;
+  try {
+    dataValue = accountInfo.data;
+  } catch (error) {
+    throw new Error(
+      `Failed to read transaction account data on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    dataValue instanceof Uint8Array,
+    `Malformed transaction account data on ${chain}: expected Uint8Array, got ${getUnknownValueTypeName(dataValue)}`,
+  );
+
+  return dataValue;
+}
+
 export function isVaultTransaction(accountData: unknown): boolean {
   assertIsDiscriminatorSource(accountData);
   return hasMatchingDiscriminator(
@@ -2075,12 +2096,17 @@ export async function getTransactionType(
     );
   }
 
-  if (isVaultTransaction(accountInfo.data)) {
+  const accountData = readTransactionAccountDataForType(
+    normalizedChain,
+    accountInfo as { data?: unknown },
+  );
+
+  if (isVaultTransaction(accountData)) {
     return SquadsAccountType.VAULT;
-  } else if (isConfigTransaction(accountInfo.data)) {
+  } else if (isConfigTransaction(accountData)) {
     return SquadsAccountType.CONFIG;
   } else {
-    const discriminator = accountInfo.data.subarray(
+    const discriminator = accountData.subarray(
       0,
       SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
     );

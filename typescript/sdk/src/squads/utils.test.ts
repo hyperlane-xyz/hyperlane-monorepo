@@ -6029,6 +6029,91 @@ describe('squads utils', () => {
       );
       expect(providerLookupCalled).to.equal(false);
     });
+
+    it('throws contextual error when transaction account data getter throws', async () => {
+      let providerLookupChain: string | undefined;
+      const accountInfo = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'data') {
+              throw new Error('data unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {
+            getAccountInfo: async () => accountInfo,
+          };
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType('solanamainnet', mpp, 0),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read transaction account data on solanamainnet: data unavailable',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('throws stable error when transaction account data is malformed', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {
+            getAccountInfo: async () => ({ data: 'malformed' }),
+          };
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType('solanamainnet', mpp, 0),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Malformed transaction account data on solanamainnet: expected Uint8Array, got string',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('uses placeholder when transaction account data getter throws opaque value', async () => {
+      let providerLookupChain: string | undefined;
+      const accountInfo = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'data') {
+              throw {};
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {
+            getAccountInfo: async () => accountInfo,
+          };
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType('solanamainnet', mpp, 0),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read transaction account data on solanamainnet: [unstringifiable error]',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
   });
 
   describe(executeProposal.name, () => {
