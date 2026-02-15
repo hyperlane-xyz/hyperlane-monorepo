@@ -225,6 +225,19 @@ function assertTrackedSourcePathSetNormalizedAndDeduplicated(
   }
 }
 
+function assertTrackedSourceSetContainsPaths(
+  trackedSourceFileSet: ReadonlySet<string>,
+  expectedPaths: readonly string[],
+  pathSetLabel: string,
+): void {
+  for (const expectedPath of expectedPaths) {
+    expect(
+      trackedSourceFileSet.has(expectedPath),
+      `Expected tracked source scan to include ${pathSetLabel} path: ${expectedPath}`,
+    ).to.equal(true);
+  }
+}
+
 describe('squads sdk migration regression', () => {
   it('keeps squads script constants immutable', () => {
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
@@ -406,6 +419,10 @@ describe('squads sdk migration regression', () => {
     );
     expect(quotedScriptPaths).to.deep.equal([...SQUADS_REGRESSION_TEST_PATHS]);
     expect(new Set(quotedScriptPaths).size).to.equal(quotedScriptPaths.length);
+    assertTrackedSourcePathSetNormalizedAndDeduplicated(
+      quotedScriptPaths,
+      'quoted squads regression test command',
+    );
   });
 
   it('keeps infra package explicitly depending on sdk squads surface', () => {
@@ -467,31 +484,25 @@ describe('squads sdk migration regression', () => {
 
   it('keeps guarded squads script paths included in tracked source scan', () => {
     const trackedSourceFileSet = getTrackedSourceFileSet();
-
-    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
-      expect(
-        trackedSourceFileSet.has(scriptPath),
-        `Expected guarded squads script path in tracked source scan: ${scriptPath}`,
-      ).to.equal(true);
-    }
-
-    for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
-      expect(
-        trackedSourceFileSet.has(scriptPath),
-        `Expected formatting-guarded squads script path in tracked source scan: ${scriptPath}`,
-      ).to.equal(true);
-    }
+    assertTrackedSourceSetContainsPaths(
+      trackedSourceFileSet,
+      SQUADS_SCRIPT_PATHS,
+      'guarded squads script',
+    );
+    assertTrackedSourceSetContainsPaths(
+      trackedSourceFileSet,
+      SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
+      'formatting-guarded squads script',
+    );
   });
 
   it('keeps squads tracked test assets included in tracked source scan', () => {
     const trackedSourceFileSet = getTrackedSourceFileSet();
-
-    for (const testAssetPath of SQUADS_TRACKED_TEST_ASSET_PATHS) {
-      expect(
-        trackedSourceFileSet.has(testAssetPath),
-        `Expected tracked source scan to include squads test asset file: ${testAssetPath}`,
-      ).to.equal(true);
-    }
+    assertTrackedSourceSetContainsPaths(
+      trackedSourceFileSet,
+      SQUADS_TRACKED_TEST_ASSET_PATHS,
+      'squads tracked test asset',
+    );
   });
 
   it('keeps squads regression test path set normalized and deduplicated', () => {
