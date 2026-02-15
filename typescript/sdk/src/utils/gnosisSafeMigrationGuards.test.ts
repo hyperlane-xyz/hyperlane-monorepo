@@ -713,6 +713,35 @@ function readImportTypeQualifierSymbol(
   return readImportTypeQualifierSymbol(qualifier.left);
 }
 
+function isLexicalScopeBoundary(node: ts.Node): boolean {
+  return ts.isBlock(node) || ts.isModuleBlock(node) || ts.isCaseBlock(node);
+}
+
+function cloneStringArrayMap(
+  source: Map<string, string[]>,
+): Map<string, string[]> {
+  return new Map(
+    [...source.entries()].map(([key, values]) => [key, [...values]]),
+  );
+}
+
+function restoreStringArrayMap(
+  target: Map<string, string[]>,
+  snapshot: Map<string, string[]>,
+): void {
+  target.clear();
+  for (const [key, values] of snapshot.entries()) {
+    target.set(key, [...values]);
+  }
+}
+
+function restoreStringSet(target: Set<string>, snapshot: Set<string>): void {
+  target.clear();
+  for (const value of snapshot.values()) {
+    target.add(value);
+  }
+}
+
 function resolveModuleSourceFromEntityName(
   name: ts.EntityName,
   moduleAliasByIdentifier: Map<string, string[]>,
@@ -752,6 +781,13 @@ function collectSymbolSourceReferences(
   };
 
   const visit = (node: ts.Node) => {
+    const scopeSnapshot = isLexicalScopeBoundary(node)
+      ? {
+          moduleAliases: cloneStringArrayMap(moduleAliasByIdentifier),
+          requireLikeIdentifiers: new Set(requireLikeIdentifiers),
+        }
+      : undefined;
+
     if (ts.isImportDeclaration(node)) {
       const source = ts.isStringLiteralLike(node.moduleSpecifier)
         ? node.moduleSpecifier.text
@@ -994,6 +1030,17 @@ function collectSymbolSourceReferences(
     }
 
     ts.forEachChild(node, visit);
+
+    if (scopeSnapshot) {
+      restoreStringArrayMap(
+        moduleAliasByIdentifier,
+        scopeSnapshot.moduleAliases,
+      );
+      restoreStringSet(
+        requireLikeIdentifiers,
+        scopeSnapshot.requireLikeIdentifiers,
+      );
+    }
   };
 
   visit(sourceFile);
@@ -1024,6 +1071,10 @@ function collectModuleSpecifierReferences(
   );
 
   const visit = (node: ts.Node) => {
+    const scopeSnapshot = isLexicalScopeBoundary(node)
+      ? new Set(requireLikeIdentifiers)
+      : undefined;
+
     if (
       ts.isImportDeclaration(node) &&
       ts.isStringLiteralLike(node.moduleSpecifier)
@@ -1107,6 +1158,10 @@ function collectModuleSpecifierReferences(
     }
 
     ts.forEachChild(node, visit);
+
+    if (scopeSnapshot) {
+      restoreStringSet(requireLikeIdentifiers, scopeSnapshot);
+    }
   };
 
   visit(sourceFile);
@@ -1559,6 +1614,24 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('collects module specifiers from require aliases across shadowed scopes', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      '{',
+      '  const reqAlias = () => undefined;',
+      '  void reqAlias;',
+      '}',
+      "const postShadowRequire = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+  });
+
   it('tracks default symbol references from namespace and require access', () => {
     const source = [
       "import * as infra from './fixtures/guard-module.js';",
@@ -1655,6 +1728,22 @@ describe('Gnosis Safe migration guards', () => {
       (reference) => `${reference.symbol}@${reference.source}`,
     );
     expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references for aliases across shadowed scopes', () => {
+    const source = [
+      "import * as sdk from './fixtures/guard-module.js';",
+      '{',
+      "  const sdk = require('./fixtures/other-module.js');",
+      '  const innerDefault = sdk.default;',
+      '}',
+      'const outerDefault = sdk.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
   });
 
   it('tracks default symbol references through logical wrappers', () => {
