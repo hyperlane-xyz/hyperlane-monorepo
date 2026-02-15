@@ -512,10 +512,35 @@ describe('Gnosis Safe migration guards', () => {
     expect(hasDefaultExportInSourceFile(source, 'fixture.ts')).to.equal(true);
   });
 
+  it('detects local default export alias declarations', () => {
+    const source = [
+      'const getSafe = () => 1;',
+      'export { getSafe as default };',
+    ].join('\n');
+    expect(hasDefaultExportInSourceFile(source, 'fixture.ts')).to.equal(true);
+  });
+
   it('detects default re-exports from specific modules', () => {
     const source = [
       "export { default as SafeDefault } from './fixtures/guard-module.js';",
       "export { getSafe } from './fixtures/guard-module.js';",
+    ].join('\n');
+    expect(
+      hasDefaultReExportFromModule(
+        source,
+        'fixture.ts',
+        './fixtures/guard-module.js',
+      ),
+    ).to.equal(true);
+    expect(
+      hasDefaultReExportFromModule(source, 'fixture.ts', './fixtures/other.js'),
+    ).to.equal(false);
+  });
+
+  it('detects namespace default re-exports from specific modules', () => {
+    const source = [
+      "export * as default from './fixtures/guard-module.js';",
+      "export * as helpers from './fixtures/guard-module.js';",
     ].join('\n');
     expect(
       hasDefaultReExportFromModule(
