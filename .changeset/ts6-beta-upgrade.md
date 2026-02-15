@@ -361,3 +361,5 @@ Quoted object-tag placeholder variants (for example `"[object Object]"` and `"[o
 Single-quoted placeholder strings (for example `'[Object]'` and `'[object Object]'`) are now also normalized as non-informative placeholder forms across JSON/inspect fallback handling.
 
 Mixed quote-wrapper placeholder strings (for example `"'[Object]'"` and `"'[object Object]'"`) are now also covered so repeated quote wrapping cannot bypass placeholder filtering.
+
+Mixed quote-wrapper object-tag array placeholders (for example `"'[object Array]'"`) are now also covered across JSON and inspect fallback paths.
