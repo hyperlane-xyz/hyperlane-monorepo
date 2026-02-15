@@ -137,6 +137,21 @@ function isPositiveSafeInteger(value: unknown): value is number {
   );
 }
 
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= 0
+  );
+}
+
+function formatIntegerValidationValue(value: unknown): string {
+  if (typeof value === 'number') {
+    return Number.isNaN(value) ? 'NaN' : `${value}`;
+  }
+  return getUnknownValueTypeName(value);
+}
+
 function normalizeValidatorSet(validators: unknown): string[] | null {
   if (!Array.isArray(validators)) {
     return null;
@@ -1184,6 +1199,13 @@ export class SquadsTransactionReader {
     validators: readonly string[],
   ): { matches: boolean; issues: string[] } {
     const issues: string[] = [];
+    if (!isNonNegativeSafeInteger(remoteDomain)) {
+      issues.push(
+        `Malformed remote domain for ${originChain}: expected non-negative safe integer, got ${formatIntegerValidationValue(remoteDomain)}`,
+      );
+      return { matches: false, issues };
+    }
+
     let remoteChain: string | null | undefined;
     try {
       remoteChain = this.mpp.tryGetChainName(remoteDomain);
@@ -1196,6 +1218,13 @@ export class SquadsTransactionReader {
 
     if (!remoteChain) {
       issues.push(`Unknown domain ${remoteDomain}`);
+      return { matches: false, issues };
+    }
+
+    if (!isPositiveSafeInteger(threshold)) {
+      issues.push(
+        `Malformed validator threshold for route ${originChain} -> ${remoteChain}: threshold must be a positive safe integer, got ${formatIntegerValidationValue(threshold)}`,
+      );
       return { matches: false, issues };
     }
 

@@ -373,6 +373,50 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(0);
   });
 
+  it('returns malformed-domain issue before chain resolution and config loading', () => {
+    let tryGetChainNameCallCount = 0;
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => {
+        tryGetChainNameCallCount += 1;
+        return 'solanatestnet';
+      },
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      '1000' as unknown as number,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed remote domain for solanamainnet: expected non-negative safe integer, got string',
+      ],
+    });
+    expect(tryGetChainNameCallCount).to.equal(0);
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
   it('returns chain-resolution failure before loading expected configuration', () => {
     let resolveConfigCallCount = 0;
     const reader = createReaderForVerification(
@@ -409,6 +453,42 @@ describe('squads transaction reader multisig verification', () => {
       matches: false,
       issues: [
         'Failed to resolve chain for domain 1000: Error: chain resolver failed',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
+  it('returns malformed-threshold issue before loading expected configuration', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(() => {
+      resolveConfigCallCount += 1;
+      return {
+        solanatestnet: {
+          threshold: 2,
+          validators: ['validator-a'],
+        },
+      };
+    });
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      0,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed validator threshold for route solanamainnet -> solanatestnet: threshold must be a positive safe integer, got 0',
       ],
     });
     expect(resolveConfigCallCount).to.equal(0);
