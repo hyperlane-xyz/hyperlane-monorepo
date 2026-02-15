@@ -523,7 +523,7 @@ function normalizeSafeIntegerValue(value: unknown): {
 }
 
 export function getSquadAndProvider(
-  chain: ChainName,
+  chain: unknown,
   mpp: MultiProtocolProvider,
   svmProviderOverride?: SolanaWeb3Provider,
 ): SquadAndProvider {
@@ -550,7 +550,7 @@ function getSquadAndProviderForResolvedChain(
 }
 
 export async function getSquadProposal(
-  chain: ChainName,
+  chain: unknown,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
   svmProviderOverride?: SolanaWeb3Provider,
@@ -595,7 +595,7 @@ export async function getSquadProposal(
 }
 
 export async function getSquadProposalAccount(
-  chain: ChainName,
+  chain: unknown,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
   svmProviderOverride?: SolanaWeb3Provider,
@@ -685,7 +685,7 @@ export function isLikelyMissingSquadsAccountError(error: unknown): boolean {
 }
 
 export async function getPendingProposalsForChains(
-  chains: readonly string[],
+  chains: readonly unknown[],
   mpp: MultiProtocolProvider,
 ): Promise<SquadProposalStatus[]> {
   const proposals: SquadProposalStatus[] = [];

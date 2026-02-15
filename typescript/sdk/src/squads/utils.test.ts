@@ -2588,7 +2588,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = captureSyncError(() =>
-        getSquadAndProvider(1 as unknown as string, mpp),
+        getSquadAndProvider(1, mpp),
       );
 
       expect(thrownError?.message).to.equal(
@@ -2669,7 +2669,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         getPendingProposalsForChains(
-          ['solanamainnet', 1 as unknown as string],
+          ['solanamainnet', 1],
           mpp,
         ),
       );
@@ -2964,7 +2964,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        getSquadProposal(1 as unknown as string, mpp, 1),
+        getSquadProposal(1, mpp, 1),
       );
 
       expect(thrownError?.message).to.equal(
@@ -3172,7 +3172,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        getSquadProposalAccount(1 as unknown as string, mpp, 1),
+        getSquadProposalAccount(1, mpp, 1),
       );
 
       expect(thrownError?.message).to.equal(
