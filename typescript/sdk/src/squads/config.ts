@@ -1,6 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 
 import { Address } from '@hyperlane-xyz/utils';
+import { stringifyUnknownSquadsError } from './error-format.js';
 
 export type SquadConfig = {
   programId: Address;
@@ -86,21 +87,9 @@ function formatLengthValue(value: unknown): string {
 }
 
 function formatUnknownListError(error: unknown): string {
-  if (error instanceof Error) {
-    const errorMessage = error.message.trim();
-    if (errorMessage.length > 0) {
-      return errorMessage;
-    }
-  }
-
-  try {
-    const normalizedError = String(error).trim();
-    return normalizedError.length > 0
-      ? normalizedError
-      : '[unstringifiable error]';
-  } catch {
-    return '[unstringifiable error]';
-  }
+  return stringifyUnknownSquadsError(error, {
+    preferErrorMessageForErrorInstances: true,
+  });
 }
 
 function getArrayLengthOrThrow(
