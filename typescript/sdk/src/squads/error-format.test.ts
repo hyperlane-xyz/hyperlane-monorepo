@@ -311,6 +311,43 @@ describe('squads error-format', () => {
       );
     });
 
+    it('falls back to exported default placeholder when placeholder override is empty', () => {
+      expect(
+        stringifyUnknownSquadsError('   ', {
+          placeholder: '',
+        }),
+      ).to.equal(DEFAULT_SQUADS_ERROR_PLACEHOLDER);
+    });
+
+    it('tolerates malformed options containers by falling back to defaults', () => {
+      expect(
+        stringifyUnknownSquadsError(
+          '   ',
+          null as unknown as Parameters<typeof stringifyUnknownSquadsError>[1],
+        ),
+      ).to.equal(
+        DEFAULT_SQUADS_ERROR_PLACEHOLDER,
+      );
+      expect(
+        stringifyUnknownSquadsError(
+          '   ',
+          1 as unknown as Parameters<typeof stringifyUnknownSquadsError>[1],
+        ),
+      ).to.equal(
+        DEFAULT_SQUADS_ERROR_PLACEHOLDER,
+      );
+      expect(
+        stringifyUnknownSquadsError(
+          '   ',
+          'bad-options' as unknown as Parameters<
+            typeof stringifyUnknownSquadsError
+          >[1],
+        ),
+      ).to.equal(
+        DEFAULT_SQUADS_ERROR_PLACEHOLDER,
+      );
+    });
+
     it('supports object formatter callbacks for plain objects', () => {
       expect(
         stringifyUnknownSquadsError({ foo: 'bar' }, {

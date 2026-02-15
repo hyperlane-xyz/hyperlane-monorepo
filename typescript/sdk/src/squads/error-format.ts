@@ -64,12 +64,25 @@ export function stringifyUnknownSquadsError(
   error: unknown,
   options: StringifyUnknownSquadsErrorOptions = {},
 ): string {
-  const placeholder = options.placeholder ?? DEFAULT_SQUADS_ERROR_PLACEHOLDER;
+  const optionsUnknown = options as unknown;
+  const normalizedOptions =
+    optionsUnknown && typeof optionsUnknown === 'object'
+      ? (optionsUnknown as Partial<StringifyUnknownSquadsErrorOptions>)
+      : {};
+  const placeholderCandidate = (normalizedOptions as { placeholder?: unknown })
+    .placeholder;
+  const placeholder =
+    typeof placeholderCandidate === 'string' && placeholderCandidate.length > 0
+      ? placeholderCandidate
+      : DEFAULT_SQUADS_ERROR_PLACEHOLDER;
   const preferErrorMessageForErrorInstances =
-    options.preferErrorMessageForErrorInstances === true;
+    normalizedOptions.preferErrorMessageForErrorInstances === true;
   const preferErrorStackForErrorInstances =
-    options.preferErrorStackForErrorInstances === true;
-  const formatObject = options.formatObject;
+    normalizedOptions.preferErrorStackForErrorInstances === true;
+  const formatObject =
+    typeof normalizedOptions.formatObject === 'function'
+      ? normalizedOptions.formatObject
+      : undefined;
   const stringifyErrorFallback = (value: unknown): string => {
     try {
       const normalizedError = normalizeStringifiedSquadsError(String(value));
