@@ -739,6 +739,41 @@ function getSolanaWeb3ProviderForChain(
   }
 }
 
+function getSignerPublicKeyForChain(
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+  chain: SquadsChainName,
+): PublicKey {
+  let publicKeyValue: unknown;
+  try {
+    publicKeyValue = (signerAdapter as { publicKey?: unknown }).publicKey;
+  } catch (error) {
+    throw new Error(
+      `Failed to read signer publicKey for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof publicKeyValue === 'function',
+    `Invalid signer adapter for ${chain}: expected publicKey function, got ${getUnknownValueTypeName(publicKeyValue)}`,
+  );
+
+  let signerPublicKey: unknown;
+  try {
+    signerPublicKey = publicKeyValue.call(signerAdapter);
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve signer public key for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    signerPublicKey instanceof PublicKey,
+    `Invalid signer public key for ${chain}: expected PublicKey, got ${getUnknownValueTypeName(signerPublicKey)}`,
+  );
+
+  return signerPublicKey;
+}
+
 export async function getSquadProposal(
   chain: unknown,
   mpp: MultiProtocolProvider,
@@ -1780,7 +1815,10 @@ export async function submitProposalToSquads(
     const normalizedChain = resolveSquadsChainName(chain);
     const { svmProvider, multisigPda, programId } =
       getSquadAndProviderForResolvedChain(normalizedChain, mpp);
-    const creatorPublicKey = signerAdapter.publicKey();
+    const creatorPublicKey = getSignerPublicKeyForChain(
+      signerAdapter,
+      normalizedChain,
+    );
 
     const { instructions: proposalInstructions, transactionIndex } =
       await buildSquadsVaultTransactionProposal(
@@ -1953,7 +1991,10 @@ export async function executeProposal(
     `Executing ${txType} proposal ${normalizedTransactionIndex} on ${normalizedChain}`,
   );
 
-  const executorPublicKey = signerAdapter.publicKey();
+  const executorPublicKey = getSignerPublicKeyForChain(
+    signerAdapter,
+    normalizedChain,
+  );
 
   try {
     let instruction: TransactionInstruction;

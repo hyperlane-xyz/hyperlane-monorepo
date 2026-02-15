@@ -5092,6 +5092,120 @@ describe('squads utils', () => {
       expect(providerLookupChain).to.equal('solanamainnet');
       expect(signerPublicKeyCalled).to.equal(false);
     });
+
+    it('fails fast when signer adapter does not expose publicKey function', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads(
+          'solanamainnet',
+          [],
+          mpp,
+          {} as Parameters<typeof submitProposalToSquads>[3],
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid signer adapter for solanamainnet: expected publicKey function, got undefined',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('throws contextual error when signer publicKey accessor fails', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'publicKey') {
+              throw new Error('signer unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ) as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read signer publicKey for solanamainnet: signer unavailable',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('uses placeholder when signer publicKey accessor throws opaque value', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'publicKey') {
+              throw {};
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ) as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read signer publicKey for solanamainnet: [unstringifiable error]',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('fails fast when signer publicKey result is not a PublicKey instance', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () => 'not-a-public-key',
+      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid signer public key for solanamainnet: expected PublicKey, got string',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
   });
 
   describe(getTransactionType.name, () => {
