@@ -3321,6 +3321,37 @@ describe('squads utils', () => {
       }
     });
 
+    it('keeps squads account discriminator table aligned with account enum', () => {
+      const accountTypeValues = [
+        SquadsAccountType.VAULT,
+        SquadsAccountType.CONFIG,
+      ] as const;
+      const accountDiscriminatorKeys = Object.keys(
+        SQUADS_ACCOUNT_DISCRIMINATORS,
+      ).map(Number);
+      expect(accountDiscriminatorKeys).to.deep.equal(accountTypeValues);
+      for (const accountType of accountTypeValues) {
+        expect(SQUADS_ACCOUNT_DISCRIMINATORS[accountType]).to.not.equal(
+          undefined,
+        );
+      }
+    });
+
+    it('keeps squads instruction-name table aligned with instruction enum', () => {
+      const instructionTypeValues = [
+        SquadsInstructionType.ADD_MEMBER,
+        SquadsInstructionType.REMOVE_MEMBER,
+        SquadsInstructionType.CHANGE_THRESHOLD,
+      ] as const;
+      const instructionNameKeys = Object.keys(SquadsInstructionName).map(
+        Number,
+      );
+      expect(instructionNameKeys).to.deep.equal(instructionTypeValues);
+      for (const instructionType of instructionTypeValues) {
+        expect(SquadsInstructionName[instructionType]).to.be.a('string');
+      }
+    });
+
     it('exports canonical squads permission bit flags', () => {
       expect(SquadsPermission.PROPOSER).to.equal(1);
       expect(SquadsPermission.VOTER).to.equal(2);
