@@ -865,6 +865,26 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps expected sdk squads barrel-exported source paths normalized and deduplicated', () => {
+    expect(
+      Object.isFrozen(EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS),
+    ).to.equal(true);
+    expect(
+      [...EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS].sort(
+        compareLexicographically,
+      ),
+    ).to.deep.equal([...EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS]);
+    expect(
+      new Set(EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS).size,
+    ).to.equal(EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS.length);
+    for (const sourcePath of EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS) {
+      assertSdkSquadsNonTestSourcePathShape(
+        sourcePath,
+        'expected sdk squads barrel-exported source path constant',
+      );
+    }
+  });
+
   it('keeps recursive sdk squads discovery helpers isolated from caller mutation', () => {
     assertPathSnapshotIsolation(
       listSdkSquadsTestFilePaths,
