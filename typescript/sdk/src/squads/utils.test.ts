@@ -2617,6 +2617,50 @@ describe('squads utils', () => {
   });
 
   describe(getPendingProposalsForChains.name, () => {
+    it('fails fast for malformed chain entry values before provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getPendingProposalsForChains(
+          ['solanamainnet', 1 as unknown as string],
+          mpp,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected partitioned squads chains[1] to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for malformed chain container values before provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getPendingProposalsForChains(
+          'solanamainnet' as unknown as readonly string[],
+          mpp,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected partitioned squads chains to be an array, got string',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('normalizes and deduplicates chain inputs before provider lookups', async () => {
       const providerLookupChains: string[] = [];
       const mpp = {
