@@ -23,7 +23,7 @@ function cleanup() {
   for pid in "${ANVIL_PIDS[@]}"; do
     kill "${pid}" 2>/dev/null || true
   done
-  for port in 8555 8600 8601; do
+  for port in 8555 8600 8601 2496 18555 18600 18601; do
     kill_listeners_on_port "${port}"
   done
   rm -rf /tmp/anvil2
