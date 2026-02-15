@@ -113,7 +113,7 @@ describe('Safe migration guards', () => {
 
         const contents = fs.readFileSync(entryPath, 'utf8');
         const importMatches = contents.matchAll(
-          /import\s*{([^}]*)}\s*from\s*['"]([^'"]+)['"]/g,
+          /import\s+(?:type\s+)?{([^}]*)}\s*from\s*['"]([^'"]+)['"]/g,
         );
 
         for (const [, imported, source] of importMatches) {
@@ -146,6 +146,13 @@ describe('Safe migration guards', () => {
     expectNoRipgrepMatches(
       String.raw`from ['"]@safe-global|require\(['"]@safe-global`,
       '@safe-global imports in infra sources',
+    );
+  });
+
+  it('prevents imports from sdk internal gnosis safe module paths', () => {
+    expectNoRipgrepMatches(
+      String.raw`from ['"]@hyperlane-xyz/sdk\/.*gnosisSafe|from ['"].*\/gnosisSafe(\.js)?['"]`,
+      'gnosis safe imports that bypass @hyperlane-xyz/sdk entrypoint',
     );
   });
 
