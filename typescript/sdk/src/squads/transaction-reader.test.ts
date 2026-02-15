@@ -456,6 +456,94 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(0);
   });
 
+  it('returns malformed-domain issue for negative domain values before lookups', () => {
+    let tryGetChainNameCallCount = 0;
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => {
+        tryGetChainNameCallCount += 1;
+        return 'solanatestnet';
+      },
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      -1,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed remote domain for solanamainnet: expected non-negative safe integer, got -1',
+      ],
+    });
+    expect(tryGetChainNameCallCount).to.equal(0);
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
+  it('returns malformed-domain issue for NaN domain values before lookups', () => {
+    let tryGetChainNameCallCount = 0;
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => {
+        tryGetChainNameCallCount += 1;
+        return 'solanatestnet';
+      },
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      Number.NaN,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed remote domain for solanamainnet: expected non-negative safe integer, got NaN',
+      ],
+    });
+    expect(tryGetChainNameCallCount).to.equal(0);
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
   it('returns chain-resolution failure before loading expected configuration', () => {
     let resolveConfigCallCount = 0;
     const reader = createReaderForVerification(
@@ -528,6 +616,42 @@ describe('squads transaction reader multisig verification', () => {
       matches: false,
       issues: [
         'Malformed validator threshold for route solanamainnet -> solanatestnet: threshold must be a positive safe integer, got 0',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
+  it('returns malformed-threshold issue for non-number thresholds before config loading', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(() => {
+      resolveConfigCallCount += 1;
+      return {
+        solanatestnet: {
+          threshold: 2,
+          validators: ['validator-a'],
+        },
+      };
+    });
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      '2' as unknown as number,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed validator threshold for route solanamainnet -> solanatestnet: threshold must be a positive safe integer, got string',
       ],
     });
     expect(resolveConfigCallCount).to.equal(0);
