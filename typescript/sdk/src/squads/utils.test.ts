@@ -5530,6 +5530,98 @@ describe('squads utils', () => {
       );
       expect(providerLookupChain).to.equal('solanamainnet');
     });
+
+    it('fails fast when signer adapter does not expose buildAndSendTransaction function', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () => PublicKey.default,
+      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid signer adapter for solanamainnet: expected buildAndSendTransaction function, got undefined',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('throws contextual error when signer buildAndSendTransaction accessor fails', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = new Proxy(
+        {
+          publicKey: () => PublicKey.default,
+        },
+        {
+          get(target, property, receiver) {
+            if (property === 'buildAndSendTransaction') {
+              throw new Error('send unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ) as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read signer buildAndSendTransaction for solanamainnet: send unavailable',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('uses placeholder when signer buildAndSendTransaction accessor throws opaque value', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = new Proxy(
+        {
+          publicKey: () => PublicKey.default,
+        },
+        {
+          get(target, property, receiver) {
+            if (property === 'buildAndSendTransaction') {
+              throw {};
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ) as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read signer buildAndSendTransaction for solanamainnet: [unstringifiable error]',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
   });
 
   describe(getTransactionType.name, () => {

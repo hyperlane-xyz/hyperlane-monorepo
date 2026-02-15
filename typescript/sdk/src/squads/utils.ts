@@ -807,6 +807,29 @@ function getSignerPublicKeyForChain(
   return signerPublicKey;
 }
 
+function getSignerBuildAndSendTransactionForChain(
+  signerAdapter: SvmMultiProtocolSignerAdapter,
+  chain: SquadsChainName,
+): SvmMultiProtocolSignerAdapter['buildAndSendTransaction'] {
+  let buildAndSendTransactionValue: unknown;
+  try {
+    buildAndSendTransactionValue = (
+      signerAdapter as { buildAndSendTransaction?: unknown }
+    ).buildAndSendTransaction;
+  } catch (error) {
+    throw new Error(
+      `Failed to read signer buildAndSendTransaction for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof buildAndSendTransactionValue === 'function',
+    `Invalid signer adapter for ${chain}: expected buildAndSendTransaction function, got ${getUnknownValueTypeName(buildAndSendTransactionValue)}`,
+  );
+
+  return buildAndSendTransactionValue as SvmMultiProtocolSignerAdapter['buildAndSendTransaction'];
+}
+
 export async function getSquadProposal(
   chain: unknown,
   mpp: MultiProtocolProvider,
@@ -1928,6 +1951,10 @@ export async function submitProposalToSquads(
       signerAdapter,
       normalizedChain,
     );
+    const buildAndSendTransaction = getSignerBuildAndSendTransactionForChain(
+      signerAdapter,
+      normalizedChain,
+    );
 
     const { instructions: proposalInstructions, transactionIndex } =
       await buildSquadsVaultTransactionProposal(
@@ -1939,8 +1966,10 @@ export async function submitProposalToSquads(
         svmProvider,
       );
 
-    const createSignature =
-      await signerAdapter.buildAndSendTransaction(proposalInstructions);
+    const createSignature = await buildAndSendTransaction.call(
+      signerAdapter,
+      proposalInstructions,
+    );
 
     rootLogger.info(`Proposal created: ${createSignature}`);
     rootLogger.info(`Transaction index: ${transactionIndex}`);
@@ -1952,7 +1981,7 @@ export async function submitProposalToSquads(
       programId,
     });
 
-    const approveSignature = await signerAdapter.buildAndSendTransaction([
+    const approveSignature = await buildAndSendTransaction.call(signerAdapter, [
       approveIx,
     ]);
     rootLogger.info(`Proposal approved: ${approveSignature}`);
@@ -2069,6 +2098,10 @@ export async function executeProposal(
   );
   const { svmProvider, multisigPda, programId } =
     getSquadAndProviderForResolvedChain(normalizedChain, mpp);
+  const buildAndSendTransaction = getSignerBuildAndSendTransactionForChain(
+    signerAdapter,
+    normalizedChain,
+  );
 
   const proposalData = await getSquadProposal(
     normalizedChain,
@@ -2134,7 +2167,7 @@ export async function executeProposal(
       });
     }
 
-    const signature = await signerAdapter.buildAndSendTransaction([
+    const signature = await buildAndSendTransaction.call(signerAdapter, [
       instruction,
     ]);
 
