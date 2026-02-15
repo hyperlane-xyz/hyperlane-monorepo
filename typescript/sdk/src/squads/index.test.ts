@@ -852,6 +852,14 @@ describe('squads barrel exports', () => {
 
   it('keeps recursive sdk squads discovery helpers isolated from caller mutation', () => {
     assertPathSnapshotIsolation(
+      listSdkSquadsTestFilePaths,
+      'sdk squads top-level test-path discovery',
+    );
+    assertPathSnapshotIsolation(
+      listSdkSquadsNonTestSourceFilePaths,
+      'sdk squads top-level non-test source discovery',
+    );
+    assertPathSnapshotIsolation(
       () => listSdkSquadsTestFilePathsRecursively(SDK_SQUADS_SOURCE_DIR),
       'sdk squads recursive test-path discovery',
     );
@@ -863,6 +871,10 @@ describe('squads barrel exports', () => {
     assertPathSnapshotIsolation(
       () => listSdkSquadsTypeScriptPathsRecursively(SDK_SQUADS_SOURCE_DIR),
       'sdk squads recursive TypeScript discovery',
+    );
+    assertPathSnapshotIsolation(
+      listSquadsBarrelExportedSourcePaths,
+      'sdk squads barrel-exported source discovery',
     );
   });
 });
