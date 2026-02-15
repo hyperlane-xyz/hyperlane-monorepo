@@ -74,7 +74,7 @@ function getUnknownValueTypeName(value: unknown): string {
 }
 
 function normalizeChainListValues(
-  chains: readonly string[],
+  chains: readonly unknown[],
   listLabel: string,
 ): string[] {
   const normalizedChains: string[] = [];
