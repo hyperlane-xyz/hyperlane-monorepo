@@ -156,6 +156,33 @@ function isRecordObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function getThenValue(value: unknown): {
+  thenValue: unknown;
+  readFailed: boolean;
+} {
+  if (
+    (typeof value !== 'object' && typeof value !== 'function') ||
+    value === null
+  ) {
+    return {
+      thenValue: undefined,
+      readFailed: false,
+    };
+  }
+
+  try {
+    return {
+      thenValue: (value as { then?: unknown }).then,
+      readFailed: false,
+    };
+  } catch {
+    return {
+      thenValue: undefined,
+      readFailed: true,
+    };
+  }
+}
+
 function parseCoreProgramId(
   programId: string,
   chain: SquadsChainName,
@@ -1076,6 +1103,16 @@ export class SquadsTransactionReader {
         `Failed to resolve core program ids for ${chain}: ${stringifyUnknownSquadsError(error)}`,
       );
     }
+
+    const { thenValue, readFailed: thenReadFailed } = getThenValue(coreProgramIds);
+    assert(
+      !thenReadFailed,
+      `Failed to inspect core program ids for ${chain}: unable to read promise-like then field`,
+    );
+    assert(
+      typeof thenValue !== 'function',
+      `Invalid core program ids for ${chain}: expected synchronous object result, got promise-like value`,
+    );
 
     const coreProgramIdsType = getUnknownValueTypeName(coreProgramIds);
     assert(

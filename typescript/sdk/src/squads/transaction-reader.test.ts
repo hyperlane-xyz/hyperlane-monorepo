@@ -2780,6 +2780,81 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('throws stable error when core program resolver returns promise-like values', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () =>
+        Promise.resolve({
+          mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+          multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+        }) as unknown as { mailbox: string; multisig_ism_message_id: string },
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Invalid core program ids for solanamainnet: expected synchronous object result, got promise-like value',
+    );
+  });
+
+  it('throws stable error when promise-like then field access fails', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () =>
+        new Proxy(
+          {},
+          {
+            get(target, property, receiver) {
+              if (property === 'then') {
+                throw new Error('then getter failed');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ) as unknown as { mailbox: string; multisig_ism_message_id: string },
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to inspect core program ids for solanamainnet: unable to read promise-like then field',
+    );
+  });
+
   it('throws stable error when mailbox program id getter throws', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () =>
