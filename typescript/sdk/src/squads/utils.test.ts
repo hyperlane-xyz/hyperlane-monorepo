@@ -2480,6 +2480,68 @@ describe('squads utils', () => {
       );
     });
 
+    it('tolerates throwing message accessors while parsing fallback log fields', () => {
+      const error = {
+        logs: ['custom program error: 0x177a'],
+      } as {
+        logs: readonly string[];
+        message?: string;
+      };
+      Object.defineProperty(error, 'message', {
+        configurable: true,
+        enumerable: true,
+        get() {
+          throw new Error('message unavailable');
+        },
+      });
+
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
+    it('tolerates throwing known-log-field accessors while parsing other fields', () => {
+      const error = {
+        details: 'Program log: AlreadyCancelled',
+      } as {
+        details: string;
+        transactionLogs?: unknown;
+      };
+      Object.defineProperty(error, 'transactionLogs', {
+        configurable: true,
+        enumerable: true,
+        get() {
+          throw new Error('logs unavailable');
+        },
+      });
+
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyCancelled,
+      );
+    });
+
+    it('tolerates throwing log-like accessors while parsing nested wrappers', () => {
+      const error = {
+        cause: {
+          logs: ['custom program error: 0x177b'],
+        },
+      } as {
+        cause: { logs: readonly string[] };
+        programLogs?: unknown;
+      };
+      Object.defineProperty(error, 'programLogs', {
+        configurable: true,
+        enumerable: true,
+        get() {
+          throw new Error('program logs unavailable');
+        },
+      });
+
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
     it('prefers top-level parsed errors over nested errors', () => {
       const error = {
         logs: ['custom program error: 0x177c'],

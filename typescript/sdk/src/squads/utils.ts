@@ -383,6 +383,17 @@ function parseSquadsProposalVoteErrorFromUnknownLogs(
   return parseSquadsProposalVoteErrorText(logEntries.join('\n'));
 }
 
+function getRecordFieldValue(
+  record: Record<string, unknown>,
+  fieldName: string,
+): unknown {
+  try {
+    return record[fieldName];
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Parse known Squads proposal vote/cancel errors from transaction logs.
  * Matches both named errors and their hex error codes.
@@ -437,33 +448,35 @@ export function parseSquadsProposalVoteErrorFromError(
 
     const currentRecord = current as Record<string, unknown>;
     for (const logField of SQUADS_ERROR_LOG_ARRAY_FIELDS) {
-      const maybeLogs = currentRecord[logField];
+      const maybeLogs = getRecordFieldValue(currentRecord, logField);
       const parsedError =
         parseSquadsProposalVoteErrorFromUnknownLogs(maybeLogs);
       if (parsedError) return parsedError;
     }
 
-    if (typeof currentRecord.message === 'string') {
+    const messageValue = getRecordFieldValue(currentRecord, 'message');
+    if (typeof messageValue === 'string') {
       const parsedError = parseSquadsProposalVoteErrorText(
-        currentRecord.message,
+        messageValue,
       );
       if (parsedError) return parsedError;
     }
 
     for (const field of SQUADS_ERROR_STRING_FIELDS) {
-      const value = currentRecord[field];
+      const value = getRecordFieldValue(currentRecord, field);
       if (typeof value !== 'string') continue;
       const parsedError = parseSquadsProposalVoteErrorText(value);
       if (parsedError) return parsedError;
     }
 
     for (const field of SQUADS_ERROR_STRING_ARRAY_FIELDS) {
-      const value = currentRecord[field];
+      const value = getRecordFieldValue(currentRecord, field);
       const parsedError = parseSquadsProposalVoteErrorFromUnknownLogs(value);
       if (parsedError) return parsedError;
     }
 
-    for (const [key, nestedValue] of Object.entries(currentRecord)) {
+    for (const key of Object.keys(currentRecord)) {
+      const nestedValue = getRecordFieldValue(currentRecord, key);
       if (
         !SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES.has(key) &&
         isLikelyLogArrayFieldName(key)
