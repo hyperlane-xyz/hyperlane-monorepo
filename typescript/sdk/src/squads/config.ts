@@ -193,9 +193,7 @@ export function resolveSquadsChains(
     return getSquadsChains();
   }
 
-  const normalizedChains = normalizeChainListValues(chains, 'squads chains').map(
-    (chain) => chain.trim(),
-  );
+  const normalizedChains = normalizeChainListValues(chains, 'squads chains');
   if (normalizedChains.length === 0) {
     return getSquadsChains();
   }
