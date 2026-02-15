@@ -78,6 +78,20 @@ describe('squads barrel exports', () => {
     expect(countOccurrences(rootIndexSource, squadsExportStatement)).to.equal(1);
   });
 
+  it('keeps sdk root index squads exports routed only through squads barrel', () => {
+    const rootIndexSource = fs.readFileSync(SDK_ROOT_INDEX_PATH, 'utf8');
+    const directSquadsSubmoduleStatements = [
+      "export * from './squads/config.js';",
+      "export * from './squads/utils.js';",
+      "export * from './squads/transaction-reader.js';",
+      "export * from './squads/error-format.js';",
+    ] as const;
+
+    for (const statement of directSquadsSubmoduleStatements) {
+      expect(rootIndexSource.includes(statement)).to.equal(false);
+    }
+  });
+
   it('keeps expected squads submodule exports in squads barrel source', () => {
     const squadsBarrelSource = fs.readFileSync(SQUADS_BARREL_INDEX_PATH, 'utf8');
     const expectedSubmoduleExportStatements = [
