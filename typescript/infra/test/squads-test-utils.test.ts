@@ -53,6 +53,33 @@ function listSquadsDirectoryScriptsRecursively(
 }
 
 describe('squads test utils', () => {
+  it('keeps shared lexical comparator behavior deterministic and symmetric', () => {
+    const sortedPaths = [
+      'scripts/squads/cancel-proposal.ts',
+      'scripts/squads/get-pending-txs.ts',
+      'scripts/squads/parse-txs.ts',
+      'scripts/squads/read-proposal.ts',
+    ];
+    const unsortedPaths = [
+      'scripts/squads/read-proposal.ts',
+      'scripts/squads/get-pending-txs.ts',
+      'scripts/squads/cancel-proposal.ts',
+      'scripts/squads/parse-txs.ts',
+    ];
+    expect([...unsortedPaths].sort(compareLexicographically)).to.deep.equal(
+      sortedPaths,
+    );
+    expect(compareLexicographically(sortedPaths[0], sortedPaths[0])).to.equal(
+      0,
+    );
+    expect(compareLexicographically(sortedPaths[0], sortedPaths[1])).to.equal(
+      -1,
+    );
+    expect(compareLexicographically(sortedPaths[1], sortedPaths[0])).to.equal(
+      1,
+    );
+  });
+
   it('returns fresh squads script arrays per call', () => {
     const firstScripts = listSquadsDirectoryScripts(INFRA_ROOT);
     const secondScripts = listSquadsDirectoryScripts(INFRA_ROOT);
