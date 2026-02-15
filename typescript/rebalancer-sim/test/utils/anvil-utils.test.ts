@@ -714,6 +714,59 @@ describe('Anvil utils', () => {
       ).to.equal(false);
     });
 
+    it('ignores spoofed boxed-string-valued cause fields when coercion fails', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: buildUncoercibleSpoofedBoxedString(),
+        }),
+      ).to.equal(false);
+    });
+
+    it('ignores spoofed boxed-string-valued cause fields when coercion succeeds', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: buildCoercibleSpoofedBoxedString(
+            'No Docker client strategy found',
+          ),
+        }),
+      ).to.equal(false);
+    });
+
+    it('ignores string-prototype impostor cause fields when coercion succeeds', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: buildStringPrototypeImpostor(
+            'No Docker client strategy found',
+          ),
+        }),
+      ).to.equal(false);
+    });
+
+    it('matches runtime errors when spoofed boxed-string cause coercion fails but errors fallback is available', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: buildUncoercibleSpoofedBoxedString(),
+          errors: [{ message: 'No Docker client strategy found' }],
+        }),
+      ).to.equal(true);
+    });
+
+    it('matches runtime errors when string-prototype impostor cause is present but errors fallback is available', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: buildStringPrototypeImpostor(
+            'No Docker client strategy found',
+          ),
+          errors: [{ message: 'No Docker client strategy found' }],
+        }),
+      ).to.equal(true);
+    });
+
     it('matches docker runtime errors nested in object error arrays', () => {
       expect(
         isContainerRuntimeUnavailable({
