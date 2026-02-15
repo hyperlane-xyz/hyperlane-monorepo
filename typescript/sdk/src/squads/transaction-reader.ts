@@ -55,7 +55,10 @@ import {
 import { stringifyUnknownSquadsError } from './error-format.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
-import { resolveSquadsChainName } from './config.js';
+import {
+  resolveSquadsChainName,
+  type SquadsChainName,
+} from './config.js';
 
 export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
 export const MAILBOX_DISCRIMINATOR_SIZE = 1;
@@ -234,7 +237,7 @@ type WarpSetIgpData = {
 
 export class SquadsTransactionReader {
   errors: Array<Record<string, unknown>> = [];
-  private multisigConfigs: Map<ChainName, SvmMultisigConfigMap | null> =
+  private multisigConfigs: Map<SquadsChainName, SvmMultisigConfigMap | null> =
     new Map();
   readonly warpRouteIndex: Map<ChainName, Map<string, WarpRouteMetadata>> =
     new Map();
@@ -671,7 +674,7 @@ export class SquadsTransactionReader {
   }
 
   private async fetchProposalData(
-    chain: ChainName,
+    chain: SquadsChainName,
     transactionIndex: number,
     svmProvider: SolanaWeb3Provider,
   ): Promise<{
@@ -697,7 +700,7 @@ export class SquadsTransactionReader {
   }
 
   private async fetchTransactionAccount(
-    chain: ChainName,
+    chain: SquadsChainName,
     transactionIndex: number,
     transactionPda: PublicKey,
     svmProvider: SolanaWeb3Provider,
@@ -720,7 +723,7 @@ export class SquadsTransactionReader {
   }
 
   private async resolveAddressLookupTables(
-    chain: ChainName,
+    chain: SquadsChainName,
     vaultTransaction: accounts.VaultTransaction,
     svmProvider: SolanaWeb3Provider,
   ): Promise<PublicKey[]> {
@@ -765,7 +768,7 @@ export class SquadsTransactionReader {
   }
 
   private async parseVaultInstructions(
-    chain: ChainName,
+    chain: SquadsChainName,
     vaultTransaction: accounts.VaultTransaction,
     svmProvider: SolanaWeb3Provider,
   ): Promise<{ instructions: ParsedInstruction[]; warnings: string[] }> {
@@ -931,7 +934,7 @@ export class SquadsTransactionReader {
   }
 
   private async readConfigTransaction(
-    chain: ChainName,
+    chain: SquadsChainName,
     transactionIndex: number,
     proposalData: {
       proposal: accounts.Proposal;
@@ -960,7 +963,7 @@ export class SquadsTransactionReader {
   }
 
   private async readVaultTransaction(
-    chain: ChainName,
+    chain: SquadsChainName,
     transactionIndex: number,
     svmProvider: SolanaWeb3Provider,
     proposalData: {
@@ -1072,7 +1075,9 @@ export class SquadsTransactionReader {
     }
   }
 
-  private loadMultisigConfig(chain: ChainName): SvmMultisigConfigMap | null {
+  private loadMultisigConfig(
+    chain: SquadsChainName,
+  ): SvmMultisigConfigMap | null {
     if (this.multisigConfigs.has(chain)) {
       return this.multisigConfigs.get(chain) ?? null;
     }
@@ -1096,7 +1101,7 @@ export class SquadsTransactionReader {
   }
 
   private verifyConfiguration(
-    originChain: ChainName,
+    originChain: SquadsChainName,
     remoteDomain: number,
     threshold: number,
     validators: readonly string[],
@@ -1159,7 +1164,7 @@ export class SquadsTransactionReader {
   }
 
   private formatConfigAction(
-    chain: ChainName,
+    chain: SquadsChainName,
     action: types.ConfigAction,
   ): SquadsGovernTransaction | null {
     let type: string;
@@ -1218,7 +1223,7 @@ export class SquadsTransactionReader {
   }
 
   private formatInstruction(
-    chain: ChainName,
+    chain: SquadsChainName,
     inst: ParsedInstruction,
   ): SquadsGovernTransaction {
     const to = `${inst.programName} (${inst.programId.toBase58()})`;
