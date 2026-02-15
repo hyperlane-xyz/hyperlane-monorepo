@@ -168,6 +168,18 @@ function collectSymbolSourceReferences(
       }
     }
 
+    if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      node.moduleReference.expression &&
+      ts.isStringLiteralLike(node.moduleReference.expression)
+    ) {
+      moduleAliasByIdentifier.set(
+        node.name.text,
+        node.moduleReference.expression.text,
+      );
+    }
+
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
       const initializer = node.initializer
         ? unwrapInitializerExpression(node.initializer)

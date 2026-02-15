@@ -93,6 +93,18 @@ function collectModuleSpecifierReferences(
       references.push({ source: node.moduleSpecifier.text, filePath });
     }
 
+    if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      node.moduleReference.expression &&
+      ts.isStringLiteralLike(node.moduleReference.expression)
+    ) {
+      references.push({
+        source: node.moduleReference.expression.text,
+        filePath,
+      });
+    }
+
     if (ts.isExportDeclaration(node)) {
       if (
         node.moduleSpecifier &&
