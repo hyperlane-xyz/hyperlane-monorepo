@@ -4,6 +4,8 @@ import path from 'path';
 
 import { expect } from 'chai';
 
+const SOURCE_FILE_GLOB = '*.{ts,js,mts,cts,mjs,cjs}' as const;
+
 function extractNamedExportSymbols(
   sourceText: string,
   modulePath: string,
@@ -47,10 +49,14 @@ function extractTopLevelDeclarationExports(sourceText: string): string[] {
 
 function expectNoRipgrepMatches(pattern: string, description: string): void {
   try {
-    const output = execFileSync('rg', [pattern, 'src', '--glob', '*.ts'], {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-    });
+    const output = execFileSync(
+      'rg',
+      [pattern, 'src', '--glob', SOURCE_FILE_GLOB],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+      },
+    );
     expect.fail(`Found disallowed ${description}:\n${output}`);
   } catch (error) {
     const commandError = error as Error & { status?: number };

@@ -51,6 +51,7 @@ const DISALLOWED_LOCAL_SAFE_DECLARATIONS = [
 
 const INFRA_SOURCE_PATHS = ['scripts', 'src', 'config'] as const;
 const INFRA_SOURCE_AND_TEST_PATHS = [...INFRA_SOURCE_PATHS, 'test'] as const;
+const SOURCE_FILE_GLOB = '*.{ts,js,mts,cts,mjs,cjs}' as const;
 
 function expectNoRipgrepMatches(
   pattern: string,
@@ -58,9 +59,13 @@ function expectNoRipgrepMatches(
   paths: readonly string[] = INFRA_SOURCE_PATHS,
 ): void {
   try {
-    const output = execFileSync('rg', [pattern, ...paths, '--glob', '*.ts'], {
-      encoding: 'utf8',
-    });
+    const output = execFileSync(
+      'rg',
+      [pattern, ...paths, '--glob', SOURCE_FILE_GLOB],
+      {
+        encoding: 'utf8',
+      },
+    );
     expect.fail(`Found disallowed ${description}:\n${output}`);
   } catch (error) {
     const commandError = error as Error & { status?: number };
@@ -142,7 +147,9 @@ describe('Safe migration guards', () => {
           walk(entryPath);
           continue;
         }
-        if (!entry.isFile() || !entry.name.endsWith('.ts')) continue;
+        if (!entry.isFile() || !/\.(?:[cm]?ts|[cm]?js)$/.test(entry.name)) {
+          continue;
+        }
 
         const contents = fs.readFileSync(entryPath, 'utf8');
         const importAndExportMatches = contents.matchAll(
