@@ -1614,6 +1614,40 @@ export class SquadsTransactionReader {
     };
   }
 
+  private tryResolveRemoteChainNameForDisplay(
+    remoteDomain: unknown,
+  ): string | null {
+    if (!isNonNegativeSafeInteger(remoteDomain)) {
+      return null;
+    }
+
+    let remoteChain: unknown;
+    try {
+      remoteChain = this.mpp.tryGetChainName(remoteDomain);
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to resolve chain alias for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return null;
+    }
+
+    if (!remoteChain) {
+      return null;
+    }
+
+    try {
+      return assertNonEmptyStringValue(
+        remoteChain,
+        `resolved chain alias for domain ${remoteDomain}`,
+      );
+    } catch (error) {
+      rootLogger.warn(
+        `Malformed chain alias for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return null;
+    }
+  }
+
   private formatInstruction(
     chain: SquadsChainName,
     inst: ParsedInstruction,
@@ -1631,7 +1665,9 @@ export class SquadsTransactionReader {
         SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
       ]: {
         const data = inst.data as MultisigSetValidatorsData;
-        const remoteChain = this.mpp.tryGetChainName(data.domain);
+        const remoteChain = this.tryResolveRemoteChainNameForDisplay(
+          data.domain,
+        );
         const validatorsWithAliases = remoteChain
           ? formatValidatorsWithAliases(remoteChain, data.validators)
           : data.validators;

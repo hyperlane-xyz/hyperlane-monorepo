@@ -8,6 +8,10 @@ import {
   SYSTEM_PROGRAM_ID,
   SquadsTransactionReader,
 } from './transaction-reader.js';
+import {
+  SealevelMultisigIsmInstructionName,
+  SealevelMultisigIsmInstructionType,
+} from '../ism/serialization.js';
 import { SquadsAccountType, SQUADS_ACCOUNT_DISCRIMINATORS } from './utils.js';
 
 function createReaderWithLookupCounter(): {
@@ -2618,6 +2622,51 @@ describe('squads transaction reader', () => {
 
     expect(result.transactionIndex).to.equal(5);
     expect(providerLookupCount).to.equal(1);
+  });
+
+  it('handles throwing chain alias resolution while formatting validator instructions', () => {
+    const mpp = {
+      tryGetChainName: () => {
+        throw new Error('chain resolver failed');
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'MultisigIsmMessageId',
+      instructionType:
+        SealevelMultisigIsmInstructionName[
+          SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+        ],
+      data: {
+        domain: 1000,
+        threshold: 2,
+        validators: ['validator-a'],
+      },
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(result.args).to.deep.equal({
+      domain: 1000,
+      threshold: 2,
+      validators: ['validator-a'],
+    });
+    expect(result.insight).to.equal(
+      '❌ fatal mismatch: Failed to resolve chain for domain 1000: Error: chain resolver failed',
+    );
   });
 
   it('does not require full proposal status shape when index is valid', async () => {
