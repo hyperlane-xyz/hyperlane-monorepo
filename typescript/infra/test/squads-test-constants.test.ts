@@ -4,6 +4,7 @@ import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   hasAllowedSquadsScriptExtension,
   isAllowlistedNonExecutableSquadsScriptPath,
+  isNormalizedGuardedScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_SCRIPT_FILE_EXTENSIONS,
   SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
@@ -101,6 +102,24 @@ describe('squads test constants', () => {
     expect(new Set(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS).size).to.equal(
       SQUADS_ERROR_FORMATTING_SCRIPT_PATHS.length,
     );
+  });
+
+  it('classifies normalized guarded script paths consistently', () => {
+    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
+      expect(isNormalizedGuardedScriptPath(scriptPath)).to.equal(true);
+    }
+    for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
+      expect(isNormalizedGuardedScriptPath(scriptPath)).to.equal(true);
+    }
+    expect(isNormalizedGuardedScriptPath('/scripts/squads/cli-helpers.ts')).to.equal(
+      false,
+    );
+    expect(
+      isNormalizedGuardedScriptPath('scripts\\squads\\cli-helpers.ts'),
+    ).to.equal(false);
+    expect(
+      isNormalizedGuardedScriptPath('scripts/squads/../cli-helpers.ts'),
+    ).to.equal(false);
   });
 
   it('keeps exactly one squads-adjacent non-squads script path', () => {

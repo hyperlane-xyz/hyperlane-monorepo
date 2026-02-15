@@ -7,6 +7,7 @@ import { expect } from 'chai';
 import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   isAllowlistedNonExecutableSquadsScriptPath,
+  isNormalizedGuardedScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
   SQUADS_SCRIPT_FILE_EXTENSIONS,
@@ -177,10 +178,7 @@ describe('squads sdk migration regression', () => {
     ]);
 
     for (const scriptPath of guardedScriptPaths) {
-      expect(path.isAbsolute(scriptPath)).to.equal(false);
-      expect(scriptPath.includes('\\')).to.equal(false);
-      expect(scriptPath.split('/').includes('..')).to.equal(false);
-      expect(scriptPath.startsWith('scripts/')).to.equal(true);
+      expect(isNormalizedGuardedScriptPath(scriptPath)).to.equal(true);
     }
   });
 
