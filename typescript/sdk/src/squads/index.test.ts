@@ -35,6 +35,7 @@ const SQUADS_BARREL_INDEX_PATH = path.resolve(
   SDK_SQUADS_SOURCE_DIR,
   'index.ts',
 );
+const SDK_PACKAGE_ROOT = path.resolve(SDK_SQUADS_SOURCE_DIR, '..', '..');
 const SDK_PACKAGE_JSON_PATH = path.resolve(
   SDK_SQUADS_SOURCE_DIR,
   '..',
@@ -319,6 +320,23 @@ function matchesSingleAsteriskGlob(
     candidatePath.endsWith(suffix) &&
     candidatePath.length >= prefix.length + suffix.length
   );
+}
+
+function assertRelativePathsResolveToFiles(
+  relativePaths: readonly string[],
+  pathSetLabel: string,
+): void {
+  for (const relativePath of relativePaths) {
+    const absolutePath = path.join(SDK_PACKAGE_ROOT, relativePath);
+    expect(
+      fs.existsSync(absolutePath),
+      `Expected ${pathSetLabel} path to exist: ${relativePath}`,
+    ).to.equal(true);
+    expect(
+      fs.statSync(absolutePath).isFile(),
+      `Expected ${pathSetLabel} path to resolve to file: ${relativePath}`,
+    ).to.equal(true);
+  }
 }
 
 describe('squads barrel exports', () => {
@@ -681,5 +699,25 @@ describe('squads barrel exports', () => {
         ...recursivelyDiscoveredNonTestSourcePaths,
       ].sort(compareLexicographically),
     ).to.deep.equal(recursivelyDiscoveredTypeScriptPaths);
+  });
+
+  it('keeps sdk discovered squads file paths resolving to files', () => {
+    const discoveredTestPaths = listSdkSquadsTestFilePaths();
+    const discoveredNonTestSourcePaths = listSdkSquadsNonTestSourceFilePaths();
+    const discoveredAllTypeScriptPaths =
+      listSdkSquadsTypeScriptPathsRecursively(SDK_SQUADS_SOURCE_DIR);
+
+    assertRelativePathsResolveToFiles(
+      discoveredTestPaths,
+      'discovered sdk squads test',
+    );
+    assertRelativePathsResolveToFiles(
+      discoveredNonTestSourcePaths,
+      'discovered sdk squads non-test source',
+    );
+    assertRelativePathsResolveToFiles(
+      discoveredAllTypeScriptPaths,
+      'discovered sdk squads TypeScript',
+    );
   });
 });
