@@ -717,6 +717,23 @@ function isLexicalScopeBoundary(node: ts.Node): boolean {
   return ts.isBlock(node) || ts.isModuleBlock(node) || ts.isCaseBlock(node);
 }
 
+function collectFunctionScopeShadowedIdentifiers(node: ts.Node): string[] {
+  if (!ts.isFunctionLike(node)) return [];
+
+  const shadowed = new Set<string>();
+  if ('name' in node && node.name && ts.isIdentifier(node.name)) {
+    shadowed.add(normalizeNamedSymbol(node.name.text));
+  }
+
+  for (const parameter of node.parameters) {
+    for (const localName of collectBindingLocalNames(parameter.name)) {
+      shadowed.add(localName);
+    }
+  }
+
+  return [...shadowed].filter(Boolean);
+}
+
 function cloneStringArrayMap(
   source: Map<string, string[]>,
 ): Map<string, string[]> {
@@ -787,6 +804,23 @@ function collectSymbolSourceReferences(
           requireLikeIdentifiers: new Set(requireLikeIdentifiers),
         }
       : undefined;
+    const functionScopeSnapshot = ts.isFunctionLike(node)
+      ? {
+          moduleAliases: cloneStringArrayMap(moduleAliasByIdentifier),
+          requireLikeIdentifiers: new Set(requireLikeIdentifiers),
+        }
+      : undefined;
+
+    if (functionScopeSnapshot) {
+      for (const shadowedIdentifier of collectFunctionScopeShadowedIdentifiers(
+        node,
+      )) {
+        moduleAliasByIdentifier.delete(shadowedIdentifier);
+        if (shadowedIdentifier !== 'require') {
+          requireLikeIdentifiers.delete(shadowedIdentifier);
+        }
+      }
+    }
 
     if (ts.isImportDeclaration(node)) {
       const source = ts.isStringLiteralLike(node.moduleSpecifier)
@@ -1040,6 +1074,15 @@ function collectSymbolSourceReferences(
         requireLikeIdentifiers,
         scopeSnapshot.requireLikeIdentifiers,
       );
+    } else if (functionScopeSnapshot) {
+      restoreStringArrayMap(
+        moduleAliasByIdentifier,
+        functionScopeSnapshot.moduleAliases,
+      );
+      restoreStringSet(
+        requireLikeIdentifiers,
+        functionScopeSnapshot.requireLikeIdentifiers,
+      );
     }
   };
 
@@ -1074,6 +1117,19 @@ function collectModuleSpecifierReferences(
     const scopeSnapshot = isLexicalScopeBoundary(node)
       ? new Set(requireLikeIdentifiers)
       : undefined;
+    const functionScopeSnapshot = ts.isFunctionLike(node)
+      ? new Set(requireLikeIdentifiers)
+      : undefined;
+
+    if (functionScopeSnapshot) {
+      for (const shadowedIdentifier of collectFunctionScopeShadowedIdentifiers(
+        node,
+      )) {
+        if (shadowedIdentifier !== 'require') {
+          requireLikeIdentifiers.delete(shadowedIdentifier);
+        }
+      }
+    }
 
     if (
       ts.isImportDeclaration(node) &&
@@ -1161,6 +1217,8 @@ function collectModuleSpecifierReferences(
 
     if (scopeSnapshot) {
       restoreStringSet(requireLikeIdentifiers, scopeSnapshot);
+    } else if (functionScopeSnapshot) {
+      restoreStringSet(requireLikeIdentifiers, functionScopeSnapshot);
     }
   };
 
@@ -1632,6 +1690,26 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('does not leak require aliases across function parameter shadows', () => {
+    const source = [
+      'const reqAlias = require;',
+      'function run(reqAlias: any) {',
+      "  return reqAlias('./fixtures/other-module.js');",
+      '}',
+      "const outerCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('tracks default symbol references from namespace and require access', () => {
     const source = [
       "import * as infra from './fixtures/guard-module.js';",
@@ -1744,6 +1822,21 @@ describe('Gnosis Safe migration guards', () => {
     );
     expect(references).to.include('default@./fixtures/guard-module.js');
     expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak symbol-source aliases across function parameter shadows', () => {
+    const source = [
+      'const reqAlias = require;',
+      'function run(reqAlias: any) {',
+      "  return reqAlias('./fixtures/other-module.js').default;",
+      '}',
+      "const outerDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
   it('tracks default symbol references through logical wrappers', () => {
