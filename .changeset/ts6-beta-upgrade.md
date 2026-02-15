@@ -481,3 +481,5 @@ Regression coverage now also confirms whitespace-only `String(error)` outputs fr
 Regression coverage now also confirms non-`Error` `String(error)` fallback paths sourced from `Symbol.toPrimitive` stay robust: informative runtime/non-runtime outputs remain authoritative, while placeholder-like outputs continue through `Object.prototype.toString` for precise runtime-signal matching.
 
 Regression coverage now also confirms non-`Error` `Symbol.toPrimitive` payloads that violate coercion contracts (returning non-primitives) are handled safely, with matcher/formatter behavior continuing through `Object.prototype.toString` fallbacks.
+
+Regression coverage now also confirms non-`Error` wrappers remain stable when `Symbol.toPrimitive` throws during `String(error)` fallback, with matcher/formatter logic continuing through `Object.prototype.toString` and preserving runtime-signal precision.
