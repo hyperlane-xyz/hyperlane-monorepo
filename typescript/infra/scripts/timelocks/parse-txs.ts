@@ -23,6 +23,14 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { chains, governanceType } = await withGovernanceType(
@@ -89,7 +97,9 @@ async function main() {
           return [`${chain}-${salt}-${id}`, results];
         } catch (err) {
           rootLogger.error(
-            chalk.red('Error reading transaction', err, chain, tx),
+            chalk.red(
+              `Error reading transaction ${id} on ${chain}: ${stringifyValueForError(err)}`,
+            ),
           );
           process.exit(1);
         }
@@ -105,6 +115,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  rootLogger.error('Error:', err);
+  rootLogger.error(`Error: ${stringifyValueForError(err)}`);
   process.exit(1);
 });

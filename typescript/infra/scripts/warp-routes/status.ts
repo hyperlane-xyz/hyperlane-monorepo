@@ -23,6 +23,14 @@ const LOG_AMOUNT = 5;
 
 const environment = 'mainnet3';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { warpRouteId } = await withWarpRouteIdRequired(
@@ -57,7 +65,9 @@ async function showWarpMonitorStatus(warpRouteId: string, environment: string) {
       orange.bold(`Grafana Dashboard: ${GRAFANA_LINK}${warpRouteId}\n`),
     );
   } catch (error) {
-    rootLogger.error(`Failed to get status for ${warpRouteId}:`, error);
+    rootLogger.error(
+      `Failed to get status for ${warpRouteId}: ${stringifyValueForError(error)}`,
+    );
   }
 }
 
@@ -126,6 +136,6 @@ function formatAndPrintLogs(rawLogs: string) {
 }
 
 main().catch((err) => {
-  rootLogger.error(err);
+  rootLogger.error(stringifyValueForError(err));
   process.exit(1);
 });

@@ -20,6 +20,14 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 // CLI argument parsing
 async function main() {
   const { chain, transactionIndex } = await withTransactionIndex(
@@ -208,6 +216,8 @@ async function main() {
 }
 
 main().catch((err) => {
-  rootLogger.error('Error processing Squads proposal:', err);
+  rootLogger.error(
+    `Error processing Squads proposal: ${stringifyValueForError(err)}`,
+  );
   process.exit(1);
 });

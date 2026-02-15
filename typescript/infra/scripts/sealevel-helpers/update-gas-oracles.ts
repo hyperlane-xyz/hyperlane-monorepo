@@ -42,6 +42,14 @@ import { chainIsProtocol } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 /**
  * Fetch and deserialize account states
  */
@@ -626,6 +634,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  rootLogger.error('Error configuring IGP:', err);
+  rootLogger.error(`Error configuring IGP: ${stringifyValueForError(err)}`);
   process.exit(1);
 });

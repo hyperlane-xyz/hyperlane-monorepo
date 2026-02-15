@@ -23,6 +23,14 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { chains } = await withChains(
     yargs(process.argv.slice(2)),
@@ -80,8 +88,9 @@ async function main() {
           return [`${chain}-${nonce}-${fullTxHash}`, result];
         } catch (error) {
           rootLogger.error(
-            chalk.red(`Error parsing proposal ${nonce} on ${chain}:`),
-            error,
+            chalk.red(
+              `Error parsing proposal ${nonce} on ${chain}: ${stringifyValueForError(error)}`,
+            ),
           );
           return [`${chain}-${nonce}-${fullTxHash}`, { chain, error }];
         }
@@ -98,6 +107,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  rootLogger.error('Error:', err);
+  rootLogger.error(`Error: ${stringifyValueForError(err)}`);
   process.exit(1);
 });

@@ -12,6 +12,14 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { warpRouteId, environment, outFile } = await withOutputFile(
     withKnownWarpRouteIdRequired(getArgs()),
@@ -39,4 +47,6 @@ async function main() {
   }
 }
 
-main().catch((err) => rootLogger.error('Error:', err));
+main().catch((err) => {
+  rootLogger.error(`Error: ${stringifyValueForError(err)}`);
+});

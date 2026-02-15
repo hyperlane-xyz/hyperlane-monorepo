@@ -12,6 +12,14 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { WarpRouteIds } from '../../../config/environments/mainnet3/warp/warpIds.js';
 import { getRegistry } from '../../../config/registry.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 const collateralChains = ['celo', 'ethereum'];
 const chainsToPrune = ['worldchain', 'linea'];
 
@@ -88,7 +96,9 @@ async function main() {
     });
   } catch (error) {
     console.error(
-      chalk.red(`Failed to add warp route for ${warpRouteId}:`, error),
+      chalk.red(
+        `Failed to add warp route for ${warpRouteId}: ${stringifyValueForError(error)}`,
+      ),
     );
   }
 
@@ -100,4 +110,6 @@ async function main() {
   );
 }
 
-main().catch((err) => console.error(chalk.bold.red('Error:', err)));
+main().catch((err) =>
+  console.error(chalk.bold.red(`Error: ${stringifyValueForError(err)}`)),
+);

@@ -10,6 +10,14 @@ import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
 import { getArgs, withWarpRouteIds } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 // Writes the warp configs into the Registry
 async function main() {
   const { environment, warpRouteIds } = await withWarpRouteIds(getArgs()).argv;
@@ -58,7 +66,9 @@ async function main() {
       });
     } catch (error) {
       console.error(
-        chalk.red(`Failed to add warp route config for ${warpRouteId}:`, error),
+        chalk.red(
+          `Failed to add warp route config for ${warpRouteId}: ${stringifyValueForError(error)}`,
+        ),
       );
     }
 
@@ -69,4 +79,4 @@ async function main() {
   }
 }
 
-main().catch((err) => console.error('Error:', err));
+main().catch((err) => console.error(`Error: ${stringifyValueForError(err)}`));

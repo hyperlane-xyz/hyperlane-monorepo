@@ -29,6 +29,14 @@ const strategyFilePath = resolve(
 const ICA_OWNER_CHAIN = 'ethereum';
 const ICA_OWNER_SAFE = awSafes[ICA_OWNER_CHAIN];
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const multiProvider = await envConfig.getMultiProvider();
@@ -112,4 +120,6 @@ async function main() {
   writeYaml(strategyFilePath, chainSubmissionStrategy);
 }
 
-main().catch((err) => rootLogger.error('Error:', err));
+main().catch((err) => {
+  rootLogger.error(`Error: ${stringifyValueForError(err)}`);
+});

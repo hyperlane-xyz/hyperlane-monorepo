@@ -15,6 +15,14 @@ import {
   withOutputFile,
 } from '../agent-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 // Writes the strategy config to disk
 async function main() {
   const logger = configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -46,4 +54,4 @@ async function main() {
   }
 }
 
-main().catch((err) => console.error('Error:', err));
+main().catch((err) => console.error(`Error: ${stringifyValueForError(err)}`));
