@@ -108,4 +108,20 @@ describe('squads test constants', () => {
       'scripts/squads/cli-helpers.ts',
     ]);
   });
+
+  it('keeps non-executable allowlist deduplicated and squads-scoped', () => {
+    expect(new Set(NON_EXECUTABLE_SQUADS_SCRIPT_FILES).size).to.equal(
+      NON_EXECUTABLE_SQUADS_SCRIPT_FILES.length,
+    );
+
+    for (const fileName of NON_EXECUTABLE_SQUADS_SCRIPT_FILES) {
+      expect(fileName.endsWith('.ts')).to.equal(true);
+      expect(fileName.includes('/')).to.equal(false);
+      expect(
+        SQUADS_SCRIPT_PATHS.some(
+          (scriptPath) => scriptPath === `scripts/squads/${fileName}`,
+        ),
+      ).to.equal(true);
+    }
+  });
 });
