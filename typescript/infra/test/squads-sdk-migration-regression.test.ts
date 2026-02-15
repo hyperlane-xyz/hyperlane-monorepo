@@ -881,6 +881,23 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps shared squads ordering helper tracked as support-only asset', () => {
+    expect(
+      SQUADS_TRACKED_TEST_SUPPORT_PATHS.includes(
+        SQUADS_TEST_ORDERING_HELPER_PATH,
+      ),
+    ).to.equal(true);
+    expect(
+      SQUADS_REGRESSION_TEST_PATHS.includes(SQUADS_TEST_ORDERING_HELPER_PATH),
+    ).to.equal(false);
+    expect(
+      countSubstringOccurrences(
+        SQUADS_TRACKED_TEST_ASSET_PATHS.join('\n'),
+        SQUADS_TEST_ORDERING_HELPER_PATH,
+      ),
+    ).to.equal(1);
+  });
+
   it('keeps squads test assets sourcing lexical comparator from shared helper', () => {
     for (const pathValue of SQUADS_TRACKED_TEST_ASSET_PATHS) {
       const fileContents = readInfraFile(pathValue);
