@@ -2126,6 +2126,35 @@ function readTransactionAccountDataForType(
   return dataValue;
 }
 
+async function getTransactionAccountInfoForType(
+  chain: SquadsChainName,
+  svmProvider: SolanaWeb3Provider,
+  transactionPda: PublicKey,
+): Promise<unknown> {
+  let getAccountInfoValue: unknown;
+  try {
+    getAccountInfoValue = (svmProvider as { getAccountInfo?: unknown })
+      .getAccountInfo;
+  } catch (error) {
+    throw new Error(
+      `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof getAccountInfoValue === 'function',
+    `Invalid solana provider for ${chain}: expected getAccountInfo function, got ${getUnknownValueTypeName(getAccountInfoValue)}`,
+  );
+
+  try {
+    return await getAccountInfoValue.call(svmProvider, transactionPda);
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch transaction account ${transactionPda.toBase58()} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+}
+
 export function isVaultTransaction(accountData: unknown): boolean {
   assertIsDiscriminatorSource(accountData);
   return hasMatchingDiscriminator(
@@ -2166,7 +2195,11 @@ export async function getTransactionType(
     programId,
   });
 
-  const accountInfo = await svmProvider.getAccountInfo(transactionPda);
+  const accountInfo = await getTransactionAccountInfoForType(
+    normalizedChain,
+    svmProvider,
+    transactionPda,
+  );
   if (!accountInfo) {
     throw new Error(
       `Transaction account not found at ${transactionPda.toBase58()}`,

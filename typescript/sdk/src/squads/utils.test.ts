@@ -6090,6 +6090,80 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('throws stable error when provider does not expose getAccountInfo function', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {};
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType('solanamainnet', mpp, 0),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid solana provider for solanamainnet: expected getAccountInfo function, got undefined',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('throws contextual error when provider getAccountInfo accessor fails', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return new Proxy(
+            {},
+            {
+              get(target, property, receiver) {
+                if (property === 'getAccountInfo') {
+                  throw new Error('account reader unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          );
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType('solanamainnet', mpp, 0),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read getAccountInfo for solanamainnet: account reader unavailable',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('uses placeholder when provider getAccountInfo throws opaque value', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {
+            getAccountInfo: async () => {
+              throw {};
+            },
+          };
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType('solanamainnet', mpp, 0),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Failed to fetch transaction account ',
+      );
+      expect(thrownError?.message).to.include(
+        'on solanamainnet: [unstringifiable error]',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
     it('throws contextual error when transaction account data getter throws', async () => {
       let providerLookupChain: string | undefined;
       const accountInfo = new Proxy(
