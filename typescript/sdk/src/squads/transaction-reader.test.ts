@@ -2137,6 +2137,128 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('fails with contextual error when getSolanaWeb3Provider accessor throws', async () => {
+    const mpp = new Proxy(
+      {},
+      {
+        get(_target, property) {
+          if (property === 'getSolanaWeb3Provider') {
+            throw new Error('provider lookup accessor unavailable');
+          }
+          return undefined;
+        },
+      },
+    ) as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to read getSolanaWeb3Provider for solanamainnet: Error: provider lookup accessor unavailable',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Failed to read getSolanaWeb3Provider for solanamainnet: Error: provider lookup accessor unavailable',
+      },
+    ]);
+  });
+
+  it('fails with contextual error when getSolanaWeb3Provider is missing', async () => {
+    const reader = new SquadsTransactionReader(
+      {} as unknown as MultiProtocolProvider,
+      {
+        resolveCoreProgramIds: () => ({
+          mailbox: 'mailbox-program-id',
+          multisig_ism_message_id: 'multisig-ism-program-id',
+        }),
+      },
+    );
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Invalid multi protocol provider for solanamainnet: expected getSolanaWeb3Provider function, got undefined',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Invalid multi protocol provider for solanamainnet: expected getSolanaWeb3Provider function, got undefined',
+      },
+    ]);
+  });
+
+  it('fails with contextual error when provider lookup returns promise-like value', async () => {
+    const mpp = {
+      getSolanaWeb3Provider: async () => ({
+        getAccountInfo: async () => null,
+      }),
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Invalid solana provider for solanamainnet: expected synchronous provider, got promise-like value',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Invalid solana provider for solanamainnet: expected synchronous provider, got promise-like value',
+      },
+    ]);
+  });
+
+  it('fails with contextual error when provider is missing getAccountInfo', async () => {
+    const mpp = {
+      getSolanaWeb3Provider: () => ({}),
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Invalid solana provider for solanamainnet: expected getAccountInfo function, got undefined',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Invalid solana provider for solanamainnet: expected getAccountInfo function, got undefined',
+      },
+    ]);
+  });
+
   it('uses requested transaction index when reading config transaction', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({

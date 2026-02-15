@@ -1102,6 +1102,56 @@ export class SquadsTransactionReader {
     return { proposal, proposalPda, multisigPda, programId };
   }
 
+  private getSolanaWeb3ProviderForRead(
+    chain: SquadsChainName,
+  ): SolanaWeb3Provider {
+    let getSolanaWeb3ProviderValue: unknown;
+    try {
+      getSolanaWeb3ProviderValue = (
+        this.mpp as { getSolanaWeb3Provider?: unknown }
+      ).getSolanaWeb3Provider;
+    } catch (error) {
+      throw new Error(
+        `Failed to read getSolanaWeb3Provider for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    assert(
+      typeof getSolanaWeb3ProviderValue === 'function',
+      `Invalid multi protocol provider for ${chain}: expected getSolanaWeb3Provider function, got ${getUnknownValueTypeName(getSolanaWeb3ProviderValue)}`,
+    );
+
+    const svmProvider = getSolanaWeb3ProviderValue.call(this.mpp, chain);
+    const { thenValue, readError: thenReadError } = getThenValue(svmProvider);
+    if (thenReadError) {
+      throw new Error(
+        `Failed to inspect solana provider for ${chain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,
+      );
+    }
+    assert(
+      typeof thenValue !== 'function',
+      `Invalid solana provider for ${chain}: expected synchronous provider, got promise-like value`,
+    );
+
+    let getAccountInfoValue: unknown;
+    try {
+      getAccountInfoValue = (
+        svmProvider as { getAccountInfo?: unknown } | null | undefined
+      )?.getAccountInfo;
+    } catch (error) {
+      throw new Error(
+        `Failed to read getAccountInfo for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    assert(
+      typeof getAccountInfoValue === 'function',
+      `Invalid solana provider for ${chain}: expected getAccountInfo function, got ${getUnknownValueTypeName(getAccountInfoValue)}`,
+    );
+
+    return svmProvider as SolanaWeb3Provider;
+  }
+
   private async fetchTransactionAccount(
     chain: SquadsChainName,
     transactionIndex: number,
@@ -1873,7 +1923,7 @@ export class SquadsTransactionReader {
     );
 
     try {
-      const svmProvider = this.mpp.getSolanaWeb3Provider(normalizedChain);
+      const svmProvider = this.getSolanaWeb3ProviderForRead(normalizedChain);
       const proposalData = await this.fetchProposalData(
         normalizedChain,
         normalizedTransactionIndex,
