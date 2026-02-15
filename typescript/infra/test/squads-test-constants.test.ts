@@ -134,4 +134,22 @@ describe('squads test constants', () => {
       ).to.equal(true);
     }
   });
+
+  it('keeps configured squads script paths constrained to allowed extensions', () => {
+    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
+      expect(
+        SQUADS_SCRIPT_FILE_EXTENSIONS.some((extension) =>
+          scriptPath.endsWith(extension),
+        ),
+      ).to.equal(true);
+    }
+
+    for (const scriptPath of EXECUTABLE_SQUADS_SCRIPT_PATHS) {
+      expect(
+        SQUADS_SCRIPT_FILE_EXTENSIONS.some((extension) =>
+          scriptPath.endsWith(extension),
+        ),
+      ).to.equal(true);
+    }
+  });
 });
