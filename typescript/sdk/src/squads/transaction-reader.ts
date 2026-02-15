@@ -1108,7 +1108,12 @@ export class SquadsTransactionReader {
     transactionPda: PublicKey,
     svmProvider: SolanaWeb3Provider,
   ): Promise<{ accountInfo: { data?: unknown }; accountData: Buffer }> {
-    const accountInfo = await svmProvider.getAccountInfo(transactionPda);
+    const accountInfo = await this.fetchAccountInfoForReader(
+      chain,
+      transactionPda,
+      'transaction account',
+      svmProvider,
+    );
 
     if (!accountInfo) {
       const transactionPdaForDisplay = this.formatAddressLikeForDisplay(
@@ -1134,6 +1139,47 @@ export class SquadsTransactionReader {
     }
 
     return { accountInfo, accountData };
+  }
+
+  private async fetchAccountInfoForReader(
+    chain: SquadsChainName,
+    address: unknown,
+    label: string,
+    svmProvider: SolanaWeb3Provider,
+  ): Promise<unknown> {
+    assert(
+      address instanceof PublicKey,
+      `Expected ${label} address on ${chain} to be a PublicKey, got ${getUnknownValueTypeName(address)}`,
+    );
+
+    let getAccountInfoValue: unknown;
+    try {
+      getAccountInfoValue = (svmProvider as { getAccountInfo?: unknown })
+        .getAccountInfo;
+    } catch (error) {
+      throw new Error(
+        `Failed to read getAccountInfo for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    assert(
+      typeof getAccountInfoValue === 'function',
+      `Invalid solana provider for ${chain}: expected getAccountInfo function, got ${getUnknownValueTypeName(getAccountInfoValue)}`,
+    );
+
+    const addressForDisplay = this.formatAddressLikeForDisplay(
+      chain,
+      `${label} address`,
+      address,
+    );
+
+    try {
+      return await getAccountInfoValue.call(svmProvider, address);
+    } catch (error) {
+      throw new Error(
+        `Failed to fetch ${label} ${addressForDisplay} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
   }
 
   private async resolveAddressLookupTables(
@@ -1186,8 +1232,11 @@ export class SquadsTransactionReader {
         undefined,
       );
       try {
-        const lookupTableAccount = await svmProvider.getAccountInfo(
-          lookupAccountKeyValue as PublicKey,
+        const lookupTableAccount = await this.fetchAccountInfoForReader(
+          chain,
+          lookupAccountKeyValue,
+          'lookup table account',
+          svmProvider,
         );
         if (!lookupTableAccount) continue;
 
@@ -1218,7 +1267,11 @@ export class SquadsTransactionReader {
             )
           : [];
 
-        const data = lookupTableAccount.data;
+        const data = this.readTransactionAccountData(
+          chain,
+          'lookup table account',
+          lookupTableAccount as { data?: unknown },
+        );
         const LOOKUP_TABLE_META_SIZE = 56;
         const addresses: PublicKey[] = [];
 
