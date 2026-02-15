@@ -5505,6 +5505,104 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('applies if-branch assignments to outer require aliases for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (true) {',
+      '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('applies else-branch assignments to outer require aliases for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (false) {',
+      '  void 0;',
+      '} else {',
+      '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('applies if-branch destructuring assignments to outer require aliases for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (true) {',
+      '  ({ reqAlias } = { reqAlias: () => undefined });',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('applies else-branch destructuring assignments to outer require aliases for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (false) {',
+      '  void 0;',
+      '} else {',
+      '  ({ reqAlias } = { reqAlias: () => undefined });',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('applies if-branch require assignments to outer aliases for symbol sources', () => {
+    const source = [
+      'let reqAlias: any;',
+      'if (true) {',
+      '  reqAlias = require;',
+      '}',
+      "const postIfDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('applies else-branch require assignments to outer aliases for symbol sources', () => {
+    const source = [
+      'let reqAlias: any;',
+      'if (false) {',
+      '  void 0;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "const postElseDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
   it('does not leak hoisted if-branch function alias shadowing to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -7099,6 +7197,106 @@ describe('Safe migration guards', () => {
       '} else {',
       "  var moduleAlias: any = require('./fixtures/guard-module.js');",
       '  moduleAlias = { default: fallbackDefault };',
+      '}',
+      'const postElseDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('applies if-branch assignments to outer module-source aliases for symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "const fallbackDefault = require('./fixtures/other-module.js').default;",
+      'if (true) {',
+      '  moduleAlias = { default: fallbackDefault };',
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('applies else-branch assignments to outer module-source aliases for symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "const fallbackDefault = require('./fixtures/other-module.js').default;",
+      'if (false) {',
+      '  void 0;',
+      '} else {',
+      '  moduleAlias = { default: fallbackDefault };',
+      '}',
+      'const postElseDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('applies if-branch destructuring assignments to outer module-source aliases for symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "const fallbackDefault = require('./fixtures/other-module.js').default;",
+      'if (true) {',
+      '  ({ moduleAlias } = { moduleAlias: { default: fallbackDefault } });',
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('applies else-branch destructuring assignments to outer module-source aliases for symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "const fallbackDefault = require('./fixtures/other-module.js').default;",
+      'if (false) {',
+      '  void 0;',
+      '} else {',
+      '  ({ moduleAlias } = { moduleAlias: { default: fallbackDefault } });',
+      '}',
+      'const postElseDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('applies if-branch require assignments to outer module-source aliases for symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'if (true) {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('applies else-branch require assignments to outer module-source aliases for symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'if (false) {',
+      '  void 0;',
+      '} else {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
       '}',
       'const postElseDefault = moduleAlias.default;',
     ].join('\n');
@@ -14882,6 +15080,130 @@ describe('Safe migration guards', () => {
     );
     expect(moduleReferences).to.not.include(
       './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('applies if-branch assignments to outer require aliases for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (true) {',
+      '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('applies else-branch assignments to outer require aliases for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (false) {',
+      '  void 0;',
+      '} else {',
+      '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('applies if-branch destructuring assignments to outer require aliases for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (true) {',
+      '  ({ reqAlias } = { reqAlias: () => undefined });',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('applies else-branch destructuring assignments to outer require aliases for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (false) {',
+      '  void 0;',
+      '} else {',
+      '  ({ reqAlias } = { reqAlias: () => undefined });',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('applies if-branch require assignments to outer aliases for module specifiers', () => {
+    const source = [
+      'let reqAlias: any;',
+      'if (true) {',
+      '  reqAlias = require;',
+      '}',
+      "const postIfCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+  });
+
+  it('applies else-branch require assignments to outer aliases for module specifiers', () => {
+    const source = [
+      'let reqAlias: any;',
+      'if (false) {',
+      '  void 0;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "const postElseCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
     );
   });
 
