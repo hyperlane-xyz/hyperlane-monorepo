@@ -1683,59 +1683,66 @@ export class SquadsTransactionReader {
     chain: SquadsChainName,
     action: types.ConfigAction,
   ): SquadsGovernTransaction | null {
-    let type: string;
-    let args: Record<string, unknown>;
-    let insight: string;
+    try {
+      let type: string;
+      let args: Record<string, unknown>;
+      let insight: string;
 
-    if (types.isConfigActionAddMember(action)) {
-      const member = action.newMember.key.toBase58();
-      const permissionsMask = action.newMember.permissions.mask;
-      const permissionsStr = decodePermissions(permissionsMask);
+      if (types.isConfigActionAddMember(action)) {
+        const member = action.newMember.key.toBase58();
+        const permissionsMask = action.newMember.permissions.mask;
+        const permissionsStr = decodePermissions(permissionsMask);
 
-      type = SquadsInstructionName[SquadsInstructionType.ADD_MEMBER];
-      args = {
-        member,
-        permissions: { mask: permissionsMask, decoded: permissionsStr },
+        type = SquadsInstructionName[SquadsInstructionType.ADD_MEMBER];
+        args = {
+          member,
+          permissions: { mask: permissionsMask, decoded: permissionsStr },
+        };
+        insight = `Add member ${member} with ${permissionsStr} permissions`;
+      } else if (types.isConfigActionRemoveMember(action)) {
+        const member = action.oldMember.toBase58();
+        type = SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER];
+        args = { member };
+        insight = `Remove member ${member}`;
+      } else if (types.isConfigActionChangeThreshold(action)) {
+        type = SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD];
+        args = { threshold: action.newThreshold };
+        insight = `Change threshold to ${action.newThreshold}`;
+      } else if (types.isConfigActionSetTimeLock(action)) {
+        type = 'SetTimeLock';
+        args = { timeLock: action.newTimeLock };
+        insight = `Set time lock to ${action.newTimeLock}s`;
+      } else if (types.isConfigActionAddSpendingLimit(action)) {
+        type = 'AddSpendingLimit';
+        args = {
+          vaultIndex: action.vaultIndex,
+          mint: action.mint.toBase58(),
+          amount: action.amount.toString(),
+          members: action.members.map((m) => m.toBase58()),
+          destinations: action.destinations.map((d) => d.toBase58()),
+        };
+        insight = `Add spending limit for vault ${action.vaultIndex}`;
+      } else if (types.isConfigActionRemoveSpendingLimit(action)) {
+        type = 'RemoveSpendingLimit';
+        args = { spendingLimit: action.spendingLimit.toBase58() };
+        insight = `Remove spending limit ${action.spendingLimit.toBase58()}`;
+      } else {
+        return null;
+      }
+
+      return {
+        chain,
+        to: 'Squads Multisig Configuration',
+        type,
+        args,
+        insight,
       };
-      insight = `Add member ${member} with ${permissionsStr} permissions`;
-    } else if (types.isConfigActionRemoveMember(action)) {
-      const member = action.oldMember.toBase58();
-      type = SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER];
-      args = { member };
-      insight = `Remove member ${member}`;
-    } else if (types.isConfigActionChangeThreshold(action)) {
-      type = SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD];
-      args = { threshold: action.newThreshold };
-      insight = `Change threshold to ${action.newThreshold}`;
-    } else if (types.isConfigActionSetTimeLock(action)) {
-      type = 'SetTimeLock';
-      args = { timeLock: action.newTimeLock };
-      insight = `Set time lock to ${action.newTimeLock}s`;
-    } else if (types.isConfigActionAddSpendingLimit(action)) {
-      type = 'AddSpendingLimit';
-      args = {
-        vaultIndex: action.vaultIndex,
-        mint: action.mint.toBase58(),
-        amount: action.amount.toString(),
-        members: action.members.map((m) => m.toBase58()),
-        destinations: action.destinations.map((d) => d.toBase58()),
-      };
-      insight = `Add spending limit for vault ${action.vaultIndex}`;
-    } else if (types.isConfigActionRemoveSpendingLimit(action)) {
-      type = 'RemoveSpendingLimit';
-      args = { spendingLimit: action.spendingLimit.toBase58() };
-      insight = `Remove spending limit ${action.spendingLimit.toBase58()}`;
-    } else {
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to format config action on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
       return null;
     }
-
-    return {
-      chain,
-      to: 'Squads Multisig Configuration',
-      type,
-      args,
-      insight,
-    };
   }
 
   private tryResolveRemoteChainNameForDisplay(

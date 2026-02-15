@@ -3542,6 +3542,39 @@ describe('squads transaction reader', () => {
     expect(result.args).to.deep.equal({ newThreshold: null });
   });
 
+  it('returns null for hostile config actions during config-action formatting', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatConfigAction: (
+        chain: string,
+        action: Record<string, unknown>,
+      ) => Record<string, unknown> | null;
+    };
+    const malformedAction = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'newMember') {
+            throw new Error('config action unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const result = readerAny.formatConfigAction(
+      'solanamainnet',
+      malformedAction as unknown as Record<string, unknown>,
+    );
+
+    expect(result).to.equal(null);
+  });
+
   it('does not misclassify multisig validator instructions when chain lookup throws during parse', () => {
     const mpp = {
       tryGetChainName: () => {
