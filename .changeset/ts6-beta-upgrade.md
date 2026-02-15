@@ -309,3 +309,5 @@ Regression coverage now also confirms boxed-string and hostile cross-realm boxed
 Regression coverage now also confirms non-hostile cross-realm boxed-string `message` fields on both `AggregateError` and top-level `Error` wrappers remain detectable/ignorable under combined `cause`+`errors` accessor failures, while malformed spoofed and `String.prototype` impostor message payloads remain ignored.
 
 Regression coverage now also confirms hostile same-realm boxed-string `message` fields on both `AggregateError` and top-level `Error` wrappers remain detectable/ignorable under combined `cause`+`errors` accessor failures.
+
+Regression coverage now also confirms runtime/non-runtime `name` fallback payloads on both `AggregateError` and top-level `Error` wrappers remain detectable/ignorable when `message`, `cause`, and `errors` accessors all throw.
