@@ -3333,6 +3333,58 @@ describe('squads utils', () => {
   });
 
   describe(buildSquadsVaultTransactionProposal.name, () => {
+    it('fails fast for unsupported chain names before proposal build provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'unsupported-chain' as unknown as Parameters<
+            typeof buildSquadsVaultTransactionProposal
+          >[0],
+          mpp,
+          [],
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for empty chain names before proposal build provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          '   ' as unknown as Parameters<
+            typeof buildSquadsVaultTransactionProposal
+          >[0],
+          mpp,
+          [],
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a non-empty string',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('normalizes padded chain names before proposal build provider lookup', async () => {
       let providerLookupChain: string | undefined;
       const mpp = {
@@ -3736,6 +3788,38 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+      expect(signerPublicKeyCalled).to.equal(false);
+    });
+
+    it('fails fast for empty runtime chain names before provider lookup', async () => {
+      let providerLookupCalled = false;
+      let signerPublicKeyCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () => {
+          signerPublicKeyCalled = true;
+          return PublicKey.default;
+        },
+      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads(
+          '   ' as unknown as Parameters<typeof submitProposalToSquads>[0],
+          [],
+          mpp,
+          signerAdapter,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a non-empty string',
       );
       expect(providerLookupCalled).to.equal(false);
       expect(signerPublicKeyCalled).to.equal(false);
