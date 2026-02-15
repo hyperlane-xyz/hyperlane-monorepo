@@ -2102,6 +2102,10 @@ export async function executeProposal(
     signerAdapter,
     normalizedChain,
   );
+  const executorPublicKey = getSignerPublicKeyForChain(
+    signerAdapter,
+    normalizedChain,
+  );
 
   const proposalData = await getSquadProposal(
     normalizedChain,
@@ -2131,11 +2135,6 @@ export async function executeProposal(
   );
   rootLogger.info(
     `Executing ${txType} proposal ${normalizedTransactionIndex} on ${normalizedChain}`,
-  );
-
-  const executorPublicKey = getSignerPublicKeyForChain(
-    signerAdapter,
-    normalizedChain,
   );
 
   try {

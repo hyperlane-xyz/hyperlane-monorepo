@@ -6270,6 +6270,88 @@ describe('squads utils', () => {
       );
       expect(providerLookupCalled).to.equal(false);
     });
+
+    it('fails fast when execution signer does not expose buildAndSendTransaction function', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () => PublicKey.default,
+      } as unknown as Parameters<typeof executeProposal>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal('solanamainnet', mpp, 0, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid signer adapter for solanamainnet: expected buildAndSendTransaction function, got undefined',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('fails fast when execution signer does not expose publicKey function', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        buildAndSendTransaction: async () => 'signature',
+      } as unknown as Parameters<typeof executeProposal>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal('solanamainnet', mpp, 0, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid signer adapter for solanamainnet: expected publicKey function, got undefined',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('throws contextual error when execution signer publicKey accessor fails', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = new Proxy(
+        {
+          buildAndSendTransaction: async () => 'signature',
+        },
+        {
+          get(target, property, receiver) {
+            if (property === 'publicKey') {
+              throw new Error('signer unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ) as unknown as Parameters<typeof executeProposal>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal('solanamainnet', mpp, 0, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read signer publicKey for solanamainnet: signer unavailable',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
   });
 
   describe('transaction type discriminators', () => {
