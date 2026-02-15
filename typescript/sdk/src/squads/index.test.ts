@@ -9,6 +9,7 @@ import {
   DEFAULT_SQUADS_ERROR_PLACEHOLDER,
   SquadsTransactionReader,
   getSquadsChains,
+  resolveSquadsChainName,
   normalizeStringifiedSquadsError,
   squadsConfigs,
   stringifyUnknownSquadsError,
@@ -22,6 +23,7 @@ import {
 } from './error-format.js';
 import {
   getSquadsChains as directGetSquadsChains,
+  resolveSquadsChainName as directResolveSquadsChainName,
   squadsConfigs as directSquadsConfigs,
 } from './config.js';
 
@@ -542,6 +544,7 @@ describe('squads barrel exports', () => {
   it('re-exports squads config/constants', () => {
     expect(squadsConfigs).to.equal(directSquadsConfigs);
     expect(getSquadsChains).to.equal(directGetSquadsChains);
+    expect(resolveSquadsChainName).to.equal(directResolveSquadsChainName);
   });
 
   it('re-exports squads transaction reader', () => {
