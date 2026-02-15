@@ -757,7 +757,7 @@ function getSolanaWeb3ProviderForChain(
 }
 
 function getSignerPublicKeyForChain(
-  signerAdapter: SvmMultiProtocolSignerAdapter,
+  signerAdapter: unknown,
   chain: SquadsChainName,
 ): PublicKey {
   let publicKeyValue: unknown;
@@ -808,7 +808,7 @@ function getSignerPublicKeyForChain(
 }
 
 function getSignerBuildAndSendTransactionForChain(
-  signerAdapter: SvmMultiProtocolSignerAdapter,
+  signerAdapter: unknown,
   chain: SquadsChainName,
 ): SvmMultiProtocolSignerAdapter['buildAndSendTransaction'] {
   let buildAndSendTransactionValue: unknown;
@@ -1940,7 +1940,7 @@ export async function submitProposalToSquads(
   chain: unknown,
   vaultInstructions: unknown,
   mpp: MultiProtocolProvider,
-  signerAdapter: SvmMultiProtocolSignerAdapter,
+  signerAdapter: unknown,
   memo?: unknown,
 ): Promise<void> {
   try {
@@ -2120,7 +2120,7 @@ export async function executeProposal(
   chain: unknown,
   mpp: MultiProtocolProvider,
   transactionIndex: unknown,
-  signerAdapter: SvmMultiProtocolSignerAdapter,
+  signerAdapter: unknown,
 ): Promise<void> {
   const normalizedChain = resolveSquadsChainName(chain);
   const normalizedTransactionIndex = assertValidTransactionIndexInput(
