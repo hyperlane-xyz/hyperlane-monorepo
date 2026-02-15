@@ -19,6 +19,14 @@ import { testChainNames } from '../../config/environments/test/chains.js';
 import { getChain, getChains } from '../../config/registry.js';
 import { FundableRole, Role } from '../roles.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export function include(condition: boolean, data: any) {
   return condition ? data : {};
 }
@@ -190,8 +198,9 @@ export async function formatFileWithPrettier(filepath: string): Promise<void> {
     // Silently fail if prettier is not available or fails
     // This ensures the deployment process continues even if formatting fails
     console.warn(
-      `Warning: Failed to format file with prettier: ${filepath}`,
-      error instanceof Error ? error.message : error,
+      `Warning: Failed to format file with prettier: ${filepath} (${stringifyValueForError(
+        error,
+      )})`,
     );
   }
 }

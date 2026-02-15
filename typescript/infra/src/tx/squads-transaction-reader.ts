@@ -1074,17 +1074,15 @@ export class SquadsTransactionReader {
         transactionPda,
       );
     } catch (error) {
-      if (
-        error instanceof RangeError &&
-        error.message.includes('out of range')
-      ) {
+      const errorText = stringifyValueForError(error);
+      if (error instanceof RangeError && errorText.includes('out of range')) {
         const errorMsg = `VaultTransaction at ${transactionPda.toBase58()} has incompatible structure (likely different Squads V4 version). This chain may require Squads SDK update.`;
         rootLogger.warn(chalk.yellow(errorMsg));
         this.errors.push({ chain, transactionIndex, error: errorMsg });
         throw new Error(errorMsg);
       }
 
-      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPda.toBase58()}: ${stringifyValueForError(error)}`;
+      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPda.toBase58()}: ${errorText}`;
       rootLogger.error(chalk.red(errorMsg));
       this.errors.push({ chain, transactionIndex, error: errorMsg });
       throw new Error(errorMsg);

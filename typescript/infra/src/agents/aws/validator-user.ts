@@ -18,6 +18,14 @@ import { Role } from '../../roles.js';
 import { AgentAwsKey } from './key.js';
 import { AgentAwsUser } from './user.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export class ValidatorAgentAwsUser extends AgentAwsUser {
   private adminS3Client: S3Client;
 
@@ -105,9 +113,10 @@ export class ValidatorAgentAwsUser extends AgentAwsUser {
         await this.adminS3Client.send(getCmd);
       accessBlockConfiguration = configuration;
     } catch (e) {
+      const errorText = stringifyValueForError(e);
       if (
         e instanceof Error &&
-        e.message.includes('NoSuchPublicAccessBlockConfiguration')
+        errorText.includes('NoSuchPublicAccessBlockConfiguration')
       ) {
         // No public access block exists
         return;

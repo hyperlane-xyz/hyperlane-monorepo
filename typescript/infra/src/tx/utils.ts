@@ -24,6 +24,12 @@ function stringifyValueForError(value: unknown): string {
   }
 }
 
+function safeErrorMessage(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined;
+  const errorText = stringifyValueForError(error);
+  return errorText.replace(/^[A-Za-z]*Error:\s*/, '');
+}
+
 function parseNonNegativeSafeLength(value: unknown, name: string): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0) {
     throw new Error(`${name} is invalid: ${stringifyValueForError(value)}`);
@@ -61,9 +67,7 @@ export function processGovernorReaderResult(
     );
   } catch (error) {
     throw new Error(
-      error instanceof Error
-        ? error.message
-        : 'Governor reader result length is invalid',
+      safeErrorMessage(error) ?? 'Governor reader result length is invalid',
     );
   }
   let errorCount = 0;
@@ -80,9 +84,7 @@ export function processGovernorReaderResult(
     );
   } catch (error) {
     throw new Error(
-      error instanceof Error
-        ? error.message
-        : 'Governor reader errors length is invalid',
+      safeErrorMessage(error) ?? 'Governor reader errors length is invalid',
     );
   }
   if (
@@ -203,9 +205,8 @@ export function processGovernorReaderResult(
       );
     } catch (error) {
       throw new Error(
-        error instanceof Error
-          ? error.message
-          : `Governor reader result entry length at index ${index} is invalid`,
+        safeErrorMessage(error) ??
+          `Governor reader result entry length at index ${index} is invalid`,
       );
     }
     if (entryLength !== 2) {
