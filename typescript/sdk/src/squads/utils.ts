@@ -193,6 +193,18 @@ function getUnknownValueTypeName(value: unknown): string {
   return Array.isArray(value) ? 'array' : typeof value;
 }
 
+function getObjectRecord(
+  value: unknown,
+  label: string,
+): Record<string, unknown> {
+  assert(
+    value && typeof value === 'object' && !Array.isArray(value),
+    `${label} must be an object, got ${getUnknownValueTypeName(value)}`,
+  );
+
+  return value as Record<string, unknown>;
+}
+
 function formatUnknownErrorForMessage(error: unknown): string {
   return stringifyUnknownSquadsError(error, {
     preferErrorMessageForErrorInstances: true,
@@ -1002,14 +1014,16 @@ export function getMinimumProposalIndexToCheck(
 }
 
 export function parseSquadProposal(
-  proposal: accounts.Proposal,
+  proposal: unknown,
 ): ParsedSquadProposal {
-  const approvals = getProposalVoteCount(proposal, 'approved');
-  const rejections = getProposalVoteCount(proposal, 'rejected');
-  const cancellations = getProposalVoteCount(proposal, 'cancelled');
+  const proposalRecord = getObjectRecord(proposal, 'Squads proposal');
+  const approvals = getProposalVoteCount(proposalRecord, 'approved');
+  const rejections = getProposalVoteCount(proposalRecord, 'rejected');
+  const cancellations = getProposalVoteCount(proposalRecord, 'cancelled');
   const { statusKind, rawStatusTimestamp } =
-    getProposalStatusMetadata(proposal);
-  const transactionIndex = parseSquadProposalTransactionIndex(proposal);
+    getProposalStatusMetadata(proposalRecord);
+  const transactionIndex =
+    parseSquadProposalTransactionIndex(proposalRecord);
   const statusTimestampSeconds =
     typeof rawStatusTimestamp !== 'undefined'
       ? toSafeInteger(rawStatusTimestamp, 'status timestamp', {
@@ -1030,18 +1044,19 @@ export function parseSquadProposal(
 }
 
 export function parseSquadProposalTransactionIndex(
-  proposal: accounts.Proposal,
+  proposal: unknown,
 ): number {
-  return toSafeInteger(proposal.transactionIndex, 'transaction index', {
+  const proposalRecord = getObjectRecord(proposal, 'Squads proposal');
+  return toSafeInteger(proposalRecord.transactionIndex, 'transaction index', {
     nonNegative: true,
   });
 }
 
-function getProposalStatusMetadata(proposal: accounts.Proposal): {
+function getProposalStatusMetadata(proposal: Record<string, unknown>): {
   statusKind: string;
   rawStatusTimestamp: unknown;
 } {
-  const status = (proposal as unknown as { status?: unknown }).status;
+  const status = proposal.status;
   assert(
     status && typeof status === 'object',
     'Squads proposal status must be an object',
@@ -1072,12 +1087,10 @@ function normalizeStatusKind(
 }
 
 function getProposalVoteCount(
-  proposal: accounts.Proposal,
+  proposal: Record<string, unknown>,
   fieldName: 'approved' | 'rejected' | 'cancelled',
 ): number {
-  const fieldValue = (proposal as unknown as Record<string, unknown>)[
-    fieldName
-  ];
+  const fieldValue = proposal[fieldName];
   assert(
     Array.isArray(fieldValue),
     `Squads proposal ${fieldName} votes must be an array`,
@@ -1086,30 +1099,38 @@ function getProposalVoteCount(
 }
 
 export function parseSquadMultisig(
-  multisig: accounts.Multisig,
+  multisig: unknown,
   fieldPrefix = 'multisig',
 ): ParsedSquadMultisig {
+  const multisigRecord = getObjectRecord(
+    multisig,
+    `Squads ${fieldPrefix}`,
+  );
   const threshold = toSafeInteger(
-    multisig.threshold,
+    multisigRecord.threshold,
     `${fieldPrefix} threshold`,
     {
       positive: true,
     },
   );
   const currentTransactionIndex = toSafeInteger(
-    multisig.transactionIndex,
+    multisigRecord.transactionIndex,
     `${fieldPrefix} transaction index`,
     { nonNegative: true },
   );
   const staleTransactionIndex = toSafeInteger(
-    multisig.staleTransactionIndex,
+    multisigRecord.staleTransactionIndex,
     `${fieldPrefix} stale transaction index`,
     { nonNegative: true },
   );
-  const timeLock = toSafeInteger(multisig.timeLock, `${fieldPrefix} timelock`, {
-    nonNegative: true,
-  });
-  const memberCount = getMultisigMemberCount(multisig, fieldPrefix);
+  const timeLock = toSafeInteger(
+    multisigRecord.timeLock,
+    `${fieldPrefix} timelock`,
+    {
+      nonNegative: true,
+    },
+  );
+  const memberCount = getMultisigMemberCount(multisigRecord, fieldPrefix);
 
   assert(
     staleTransactionIndex <= currentTransactionIndex,
@@ -1131,10 +1152,10 @@ export function parseSquadMultisig(
 }
 
 function getMultisigMemberCount(
-  multisig: accounts.Multisig,
+  multisig: Record<string, unknown>,
   fieldPrefix: string,
 ): number | undefined {
-  const members = (multisig as { members?: unknown }).members;
+  const members = multisig.members;
   if (typeof members === 'undefined') {
     return undefined;
   }
