@@ -1892,6 +1892,34 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not treat top-level class declaration named require alias as module-sourced', () => {
+    const source = [
+      'const reqAlias = require;',
+      "const preShadowDefault = reqAlias('./fixtures/guard-module.js').default;",
+      'class reqAlias {}',
+      "const postShadowDefault = reqAlias('./fixtures/other-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not treat top-level enum declaration named require alias as module-sourced', () => {
+    const source = [
+      'const reqAlias = require;',
+      "const preShadowDefault = reqAlias('./fixtures/guard-module.js').default;",
+      'enum reqAlias { Primary = 1 }',
+      "const postShadowDefault = reqAlias('./fixtures/other-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('does not treat block-scoped function shadowing of require alias as module-sourced', () => {
     const source = [
       'const reqAlias = require;',
@@ -2233,6 +2261,44 @@ describe('Safe migration guards', () => {
       '  return _value;',
       '}',
       "const postShadowCall = require('./fixtures/other-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not treat top-level class declaration named require alias as module specifier source', () => {
+    const source = [
+      'const reqAlias = require;',
+      "const preShadowCall = reqAlias('./fixtures/guard-module.js');",
+      'class reqAlias {}',
+      "const postShadowCall = reqAlias('./fixtures/other-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not treat top-level enum declaration named require alias as module specifier source', () => {
+    const source = [
+      'const reqAlias = require;',
+      "const preShadowCall = reqAlias('./fixtures/guard-module.js');",
+      'enum reqAlias { Primary = 1 }',
+      "const postShadowCall = reqAlias('./fixtures/other-module.js');",
     ].join('\n');
     const moduleReferences = collectModuleSpecifierReferences(
       source,
