@@ -5081,6 +5081,86 @@ describe('squads utils', () => {
       }
     });
 
+    it('throws contextual error when multisig account loader throws during proposal build', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () => {
+          throw new Error('multisig fetch unavailable');
+        };
+        const mpp = {
+          getSolanaWeb3Provider: () => ({
+            getAccountInfo: async () => ({
+              owner: getSquadsKeys('solanamainnet').programId,
+            }),
+          }),
+        };
+
+        const thrownError = await captureAsyncError(() =>
+          buildSquadsVaultTransactionProposal(
+            'solanamainnet',
+            mpp,
+            [],
+            PublicKey.default,
+          ),
+        );
+
+        expect(thrownError?.message).to.include('Failed to fetch multisig ');
+        expect(thrownError?.message).to.include(
+          'on solanamainnet: multisig fetch unavailable',
+        );
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
+
+    it('uses placeholder when multisig account loader throws opaque value during proposal build', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () => {
+          throw {};
+        };
+        const mpp = {
+          getSolanaWeb3Provider: () => ({
+            getAccountInfo: async () => ({
+              owner: getSquadsKeys('solanamainnet').programId,
+            }),
+          }),
+        };
+
+        const thrownError = await captureAsyncError(() =>
+          buildSquadsVaultTransactionProposal(
+            'solanamainnet',
+            mpp,
+            [],
+            PublicKey.default,
+          ),
+        );
+
+        expect(thrownError?.message).to.include('Failed to fetch multisig ');
+        expect(thrownError?.message).to.include(
+          'on solanamainnet: [unstringifiable error]',
+        );
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
+
     it('throws contextual error when getLatestBlockhash accessor fails during proposal build', async () => {
       const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
       try {

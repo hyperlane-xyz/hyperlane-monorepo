@@ -1788,8 +1788,8 @@ async function getNextSquadsTransactionIndex(
   warnOnUnexpectedMultisigAccountOwner(chain, multisigAccountInfo, programId);
 
   const squadsProvider = toSquadsProvider(svmProvider);
-
-  const multisig = await accounts.Multisig.fromAccountAddress(
+  const multisig = await getMultisigAccountForNextIndex(
+    chain,
     squadsProvider,
     multisigPda,
   );
@@ -1799,6 +1799,40 @@ async function getNextSquadsTransactionIndex(
   const nextIndex = currentIndex + 1n;
 
   return nextIndex;
+}
+
+async function getMultisigAccountForNextIndex(
+  chain: SquadsChainName,
+  squadsProvider: ReturnType<typeof toSquadsProvider>,
+  multisigPda: PublicKey,
+): Promise<accounts.Multisig> {
+  let fromAccountAddressValue: unknown;
+  try {
+    fromAccountAddressValue = (
+      accounts.Multisig as { fromAccountAddress?: unknown }
+    ).fromAccountAddress;
+  } catch (error) {
+    throw new Error(
+      `Failed to read multisig account loader for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof fromAccountAddressValue === 'function',
+    `Invalid multisig account loader for ${chain}: expected fromAccountAddress function, got ${getUnknownValueTypeName(fromAccountAddressValue)}`,
+  );
+
+  try {
+    return await fromAccountAddressValue.call(
+      accounts.Multisig,
+      squadsProvider,
+      multisigPda,
+    );
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch multisig ${multisigPda.toBase58()} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
 }
 
 async function getMultisigAccountInfoForNextIndex(
