@@ -303,3 +303,5 @@ Regression coverage now also confirms scalar string `cause` payloads on both `Ag
 Regression coverage now also confirms scalar string `cause` payloads on both `AggregateError` and top-level `Error` wrappers remain detectable/ignorable when only `message` accessors throw.
 
 Regression coverage now also confirms runtime/non-runtime `message` fields on both `AggregateError` and top-level `Error` wrappers remain detectable/ignorable when both `cause` and `errors` accessors throw.
+
+Regression coverage now also confirms boxed-string and hostile cross-realm boxed-string `message` fields on both `AggregateError` and top-level `Error` wrappers remain detectable/ignorable when both `cause` and `errors` accessors throw.
