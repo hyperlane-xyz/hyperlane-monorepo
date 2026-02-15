@@ -143,6 +143,11 @@ const isNonInformativeStructuredOutput = (value: string): boolean => {
   return false;
 };
 
+const isNonInformativeStringCoercionOutput = (value: string): boolean => {
+  if (value === ':') return true;
+  return isNonInformativeStructuredOutput(value);
+};
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     try {
@@ -189,6 +194,18 @@ function getErrorMessage(error: unknown): string {
       const inspectedValue = getTrimmedNonEmptyString(inspect(error));
       if (inspectedValue && !isNonInformativeStructuredOutput(inspectedValue)) {
         return inspectedValue;
+      }
+    } catch {
+      // Fall through to Object.prototype.toString fallback.
+    }
+
+    try {
+      const coercedStringValue = getTrimmedNonEmptyString(String(error));
+      if (
+        coercedStringValue &&
+        !isNonInformativeStringCoercionOutput(coercedStringValue)
+      ) {
+        return coercedStringValue;
       }
     } catch {
       // Fall through to Object.prototype.toString fallback.

@@ -375,3 +375,7 @@ Lowercase bracketed placeholder variants (`[object]`, `[array]`) are now also co
 Uppercase bracketed placeholder variants (`[OBJECT]`, `[ARRAY]`) are now also covered across JSON/inspect fallback paths.
 
 Mixed-case bracketed placeholder variants (for example `[oBjEcT]` and `[aRrAy]`) are now also covered across JSON/inspect fallback paths.
+
+When `JSON.stringify` and `inspect` are both non-informative, `getErrorMessage` now also considers `String(error)` before `Object.prototype.toString`, while still treating placeholder-like string outputs as non-informative.
+
+`String(error)` fallback handling also treats bare `":"` outputs (from hostile `Error` wrappers with inaccessible name/message fields) as non-informative so diagnostics can continue to `Object.prototype.toString`.
