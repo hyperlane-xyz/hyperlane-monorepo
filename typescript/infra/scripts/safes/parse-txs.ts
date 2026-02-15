@@ -29,6 +29,14 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { chains, governanceType } = await withGovernanceType(
     withChains(yargs(process.argv.slice(2))),
@@ -102,7 +110,7 @@ async function main() {
         } catch (err) {
           rootLogger.error(
             chalk.red(
-              `Error reading transaction ${fullTxHash} on ${chain}: ${err}`,
+              `Error reading transaction ${fullTxHash} on ${chain}: ${stringifyValueForError(err)}`,
             ),
           );
           return { failure: { chain, fullTxHash } };
@@ -142,6 +150,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  rootLogger.error('Error:', err);
+  rootLogger.error(`Error: ${stringifyValueForError(err)}`);
   process.exit(1);
 });

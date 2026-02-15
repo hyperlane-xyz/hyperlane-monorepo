@@ -5,6 +5,14 @@ import { pollAsync } from '@hyperlane-xyz/utils';
 import { HelmManager } from './helm.js';
 import { execCmd } from './utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export enum K8sResourceType {
   SECRET = 'secret',
   POD = 'pod',
@@ -83,7 +91,9 @@ async function waitForK8sResources(
     );
     console.log(`✅  All ${resourceNames.length} ${resourceType}s exist`);
   } catch (e) {
-    console.error(`Error waiting for ${resourceType}s to exist: ${e}`);
+    console.error(
+      `Error waiting for ${resourceType}s to exist: ${stringifyValueForError(e)}`,
+    );
   }
 }
 

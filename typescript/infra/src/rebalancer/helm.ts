@@ -24,6 +24,14 @@ import {
 } from '../utils/helm.js';
 import { execCmdAndParseJson, getInfraPath } from '../utils/utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export class RebalancerHelmManager extends HelmManager {
   static helmReleasePrefix: string = 'hyperlane-rebalancer';
 
@@ -267,7 +275,7 @@ export async function getDeployedRebalancerWarpRouteIds(
         }
       } catch (e) {
         rootLogger.debug(
-          `Failed to read configmap for ${helmReleaseName}: ${e}`,
+          `Failed to read configmap for ${helmReleaseName}: ${stringifyValueForError(e)}`,
         );
       }
     }

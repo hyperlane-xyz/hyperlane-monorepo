@@ -39,6 +39,14 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export class AgentAwsKey extends CloudAgentKey {
   private client: KMSClient | undefined;
   private region: string;
@@ -190,7 +198,9 @@ export class AgentAwsKey extends CloudAgentKey {
           this.logger.debug('Key not found');
           return undefined;
         }
-        this.logger.debug(`Error retrieving key ID: ${err}`);
+        this.logger.debug(
+          `Error retrieving key ID: ${stringifyValueForError(err)}`,
+        );
         throw err;
       }
     });

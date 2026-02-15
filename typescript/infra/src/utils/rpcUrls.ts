@@ -26,6 +26,14 @@ import { disableGCPSecretVersion } from './gcloud.js';
 import { HelmManager } from './helm.js';
 import { K8sResourceType, refreshK8sResources } from './k8s.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 /**
  * Set the RPC URLs for the given chain in the given environment interactively.
  * Includes an interactive experience for selecting new RPC URLs, confirming the change,
@@ -558,7 +566,9 @@ async function testProvider(chain: ChainName, url: string): Promise<boolean> {
     );
     return true;
   } catch (e) {
-    console.error(`Provider failed: ${url}\nError: ${e}`);
+    console.error(
+      `Provider failed: ${url}\nError: ${stringifyValueForError(e)}`,
+    );
     return false;
   }
 }

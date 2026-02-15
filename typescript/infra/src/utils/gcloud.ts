@@ -17,6 +17,14 @@ interface IamCondition {
 
 const logger = rootLogger.child({ module: 'infra:utils:gcloud' });
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 // Allows secrets to be overridden via environment variables to avoid
 // gcloud calls. This is particularly useful for running commands in k8s,
 // where we can use external-secrets to fetch secrets from GCP secret manager,
@@ -41,7 +49,7 @@ export async function fetchGCPSecret(
       output = await fetchLatestGCPSecret(secretName);
     } catch (err) {
       throw new Error(
-        `Error fetching GCP secret with name ${secretName}: ${err}`,
+        `Error fetching GCP secret with name ${secretName}: ${stringifyValueForError(err)}`,
       );
     }
   }
@@ -131,9 +139,10 @@ export async function gcpSecretExistsUsingClient(
 
     return secrets.length > 0;
   } catch (err) {
+    const errorDetails = stringifyValueForError(err);
     logger.error(
       { err },
-      `Error checking if secret ${secretName} exists: ${err}`,
+      `Error checking if secret ${secretName} exists: ${errorDetails}`,
     );
     throw err;
   }
