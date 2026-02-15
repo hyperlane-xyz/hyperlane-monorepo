@@ -28,6 +28,14 @@ import { Role } from '../../src/roles.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const safeChains = Object.keys(safes);
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -166,7 +174,11 @@ async function main() {
           ),
         );
       } catch (error) {
-        rootLogger.error(chalk.red(`Error reproposing transaction: ${error}`));
+        rootLogger.error(
+          chalk.red(
+            `Error reproposing transaction: ${stringifyValueForError(error)}`,
+          ),
+        );
         continue;
       }
     }
@@ -178,6 +190,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    rootLogger.error(e);
+    rootLogger.error(stringifyValueForError(e));
     process.exit(1);
   });

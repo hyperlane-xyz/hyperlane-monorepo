@@ -20,6 +20,14 @@ import { Role } from '../../../src/roles.js';
 import { withChainsRequired, withPropose } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const {
     propose,
@@ -51,7 +59,9 @@ async function main() {
     try {
       safeSdk = await getSafe(chain, multiProvider, safeAddress);
     } catch (error) {
-      rootLogger.error(`[${chain}] could not get safe: ${error}`);
+      rootLogger.error(
+        `[${chain}] could not get safe: ${stringifyValueForError(error)}`,
+      );
       continue;
     }
 
@@ -63,7 +73,9 @@ async function main() {
         safeAddress,
       );
     } catch (error) {
-      rootLogger.error(`[${chain}] could not get safe multi send: ${error}`);
+      rootLogger.error(
+        `[${chain}] could not get safe multi send: ${stringifyValueForError(error)}`,
+      );
       continue;
     }
 
@@ -77,7 +89,9 @@ async function main() {
         signers,
       ));
     } catch (error) {
-      rootLogger.error(`[${chain}] could not read safe owners: ${error}`);
+      rootLogger.error(
+        `[${chain}] could not read safe owners: ${stringifyValueForError(error)}`,
+      );
       continue;
     }
 
@@ -99,7 +113,9 @@ async function main() {
         threshold,
       });
     } catch (error) {
-      rootLogger.error(`[${chain}] could not update safe owner: ${error}`);
+      rootLogger.error(
+        `[${chain}] could not update safe owner: ${stringifyValueForError(error)}`,
+      );
       continue;
     }
 
@@ -117,7 +133,9 @@ async function main() {
         );
         rootLogger.info(`[${chain}] Successfully sent transactions`);
       } catch (error) {
-        rootLogger.error(`[${chain}] could not send transactions: ${error}`);
+        rootLogger.error(
+          `[${chain}] could not send transactions: ${stringifyValueForError(error)}`,
+        );
       }
     }
   }
@@ -128,6 +146,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  rootLogger.error(error);
+  rootLogger.error(stringifyValueForError(error));
   process.exit(1);
 });

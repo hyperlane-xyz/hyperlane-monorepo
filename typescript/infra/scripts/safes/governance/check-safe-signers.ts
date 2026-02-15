@@ -27,6 +27,14 @@ interface SafeConfigViolation {
   actual?: string;
 }
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { governanceType = GovernanceType.Regular } = await withGovernanceType(
     yargs(process.argv.slice(2)),
@@ -50,7 +58,9 @@ async function main() {
       try {
         safeSdk = await getSafe(chain, multiProvider, safeAddress);
       } catch (error) {
-        rootLogger.error(`[${chain}] could not get safe: ${error}`);
+        rootLogger.error(
+          `[${chain}] could not get safe: ${stringifyValueForError(error)}`,
+        );
         return [];
       }
 
@@ -62,7 +72,9 @@ async function main() {
           safeSdk.getThreshold(),
         ]);
       } catch (error) {
-        rootLogger.error(`[${chain}] could not read safe config: ${error}`);
+        rootLogger.error(
+          `[${chain}] could not read safe config: ${stringifyValueForError(error)}`,
+        );
         return [];
       }
       const expectedOwners = signers;
@@ -75,7 +87,7 @@ async function main() {
         ));
       } catch (error) {
         rootLogger.error(
-          `[${chain}] could not diff safe owners against expected signers: ${error}`,
+          `[${chain}] could not diff safe owners against expected signers: ${stringifyValueForError(error)}`,
         );
         return [];
       }
@@ -169,6 +181,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  rootLogger.error(error);
+  rootLogger.error(stringifyValueForError(error));
   process.exit(1);
 });
