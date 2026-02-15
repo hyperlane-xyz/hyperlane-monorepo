@@ -523,10 +523,6 @@ function isSdkSubpathOrSourceSpecifier(source: string): boolean {
   );
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 function expectNoRipgrepMatches(
   pattern: string,
   description: string,
@@ -554,20 +550,49 @@ function expectNoRipgrepMatches(
 function extractNamedExportSymbols(
   sourceText: string,
   modulePath: string,
+  filePath: string,
 ): string[] {
-  const exportClausePattern = new RegExp(
-    `export(?:\\s+type)?\\s*\\{([^}]*)\\}\\s*from\\s*['"]${escapeRegExp(modulePath)}['"]\\s*;`,
-    'g',
+  const symbols: string[] = [];
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
   );
-  return [...sourceText.matchAll(exportClausePattern)].flatMap((match) =>
-    match[1].split(',').map(normalizeNamedSymbol).filter(Boolean),
-  );
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      node.moduleSpecifier.text === modulePath &&
+      node.exportClause &&
+      ts.isNamedExports(node.exportClause)
+    ) {
+      for (const exportSpecifier of node.exportClause.elements) {
+        symbols.push(
+          normalizeNamedSymbol(
+            exportSpecifier.propertyName?.text ?? exportSpecifier.name.text,
+          ),
+        );
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return symbols.filter(Boolean);
 }
 
 function getSdkGnosisSafeExports(): string[] {
   const sdkIndexPath = path.resolve(process.cwd(), '../sdk/src/index.ts');
   const sdkIndexText = fs.readFileSync(sdkIndexPath, 'utf8');
-  return extractNamedExportSymbols(sdkIndexText, './utils/gnosisSafe.js');
+  return extractNamedExportSymbols(
+    sdkIndexText,
+    './utils/gnosisSafe.js',
+    sdkIndexPath,
+  );
 }
 
 describe('Safe migration guards', () => {
