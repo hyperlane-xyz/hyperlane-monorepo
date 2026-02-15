@@ -221,6 +221,7 @@ describe('squads sdk migration regression', () => {
     expect(hasTrackedSourceExtension('src/example')).to.equal(false);
     expect(hasTrackedSourceExtension('src/example.ts.bak')).to.equal(false);
     expect(hasTrackedSourceExtension('src/example.TS')).to.equal(false);
+    expect(hasTrackedSourceExtension('src/example.ts ')).to.equal(false);
     expect(hasTrackedSourceExtension('src/example.jsx')).to.equal(false);
   });
 
@@ -257,6 +258,11 @@ describe('squads sdk migration regression', () => {
       shouldSkipTrackedSourceDirectory('src'),
       'Expected non-skipped source directory to remain tracked',
     ).to.equal(false);
+    expect(shouldSkipTrackedSourceDirectory('node_modules ')).to.equal(false);
+    expect(shouldSkipTrackedSourceDirectory('Node_modules')).to.equal(false);
+    expect(shouldSkipTrackedSourceDirectory('node_modules/cache')).to.equal(
+      false,
+    );
   });
 
   it('keeps guarded squads script path lists valid and deduplicated', () => {
