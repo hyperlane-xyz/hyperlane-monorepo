@@ -61,6 +61,8 @@ describe('squads scripts --help smoke', function () {
 
   it('keeps help expectation lists non-empty and deduplicated', () => {
     for (const { scriptPath, expectedOutput } of SQUADS_SCRIPT_HELP_CASES) {
+      expect(scriptPath.includes('\\')).to.equal(false);
+      expect(scriptPath.startsWith('scripts/')).to.equal(true);
       expect(
         expectedOutput.length,
         `Expected help expectation list to be non-empty: ${scriptPath}`,
@@ -79,6 +81,11 @@ describe('squads scripts --help smoke', function () {
         expectedOutput.includes('--version'),
         `Expected help expectation list to include --version: ${scriptPath}`,
       ).to.equal(true);
+
+      for (const expectedText of expectedOutput) {
+        expect(expectedText).to.equal(expectedText.trim());
+        expect(expectedText.startsWith('--')).to.equal(true);
+      }
     }
   });
 
