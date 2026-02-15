@@ -514,4 +514,6 @@ Regression coverage now also confirms triple-escaped single-quoted and mixed-quo
 
 Regression coverage now also confirms triple-escaped uppercase bracketed and object-tag placeholder outputs from `Symbol.toPrimitive` (for example `\\\\\\\"[OBJECT]\\\\\\\"` and `\\\\\\\"[object Array]\\\\\\\"`) are treated as non-informative and preserve matcher/formatter fallback semantics.
 
+Regression coverage now also confirms triple-escaped mixed-case/lowercase bracketed and object-tag placeholder outputs from `Symbol.toPrimitive` (for example `\\\\\\\"[aRrAy]\\\\\\\"`, `\\\\\\\"[array]\\\\\\\"`, `\\\\\\\"[OBJECT ARRAY]\\\\\\\"`, `\\\\\\\"[oBjEcT aRrAy]\\\\\\\"`, and `\\\\\\\"[object array]\\\\\\\"`) are treated as non-informative and preserve matcher/formatter fallback semantics.
+
 Regression coverage now also confirms bracketed-array placeholder outputs from `Symbol.toPrimitive` (for example `[Array]`) are treated as non-informative and preserve runtime/non-runtime matcher plus formatter `Object.prototype.toString` fallback behavior.
