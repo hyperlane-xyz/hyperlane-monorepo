@@ -1665,6 +1665,9 @@ export class SquadsTransactionReader {
         SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
       ]: {
         const data = inst.data as MultisigSetValidatorsData;
+        const remoteDomainForDisplay = formatIntegerValidationValue(
+          data.domain,
+        );
         const remoteChain = this.tryResolveRemoteChainNameForDisplay(
           data.domain,
         );
@@ -1686,8 +1689,8 @@ export class SquadsTransactionReader {
         );
 
         const chainInfo = remoteChain
-          ? `${remoteChain} (${data.domain})`
-          : `${data.domain}`;
+          ? `${remoteChain} (${remoteDomainForDisplay})`
+          : remoteDomainForDisplay;
 
         tx.insight = verification.matches
           ? `✅ matches expected config for ${chainInfo}`

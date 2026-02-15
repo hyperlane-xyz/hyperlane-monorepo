@@ -2669,6 +2669,57 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('handles malformed domain display values while formatting validator instructions', () => {
+    let chainLookupCount = 0;
+    const mpp = {
+      tryGetChainName: () => {
+        chainLookupCount += 1;
+        return 'solanatestnet';
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const malformedDomainValue = {
+      toString: () => {
+        throw new Error('domain toString should not run');
+      },
+      [Symbol.toPrimitive]: () => {
+        throw new Error('domain primitive conversion should not run');
+      },
+    };
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'MultisigIsmMessageId',
+      instructionType:
+        SealevelMultisigIsmInstructionName[
+          SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+        ],
+      data: {
+        domain: malformedDomainValue as unknown as number,
+        threshold: 2,
+        validators: ['validator-a'],
+      },
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(chainLookupCount).to.equal(0);
+    expect(result.insight).to.equal(
+      '❌ fatal mismatch: Malformed remote domain for solanamainnet: expected non-negative safe integer, got object',
+    );
+  });
+
   it('does not require full proposal status shape when index is valid', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
