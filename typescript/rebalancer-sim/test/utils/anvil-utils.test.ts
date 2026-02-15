@@ -882,6 +882,40 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
     });
 
+    it('matches boxed-string message fields when wrapper formatting is non-informative and toStringTag accessor throws', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const wrappedError = {
+        message: buildRealBoxedStringWithThrowingToStringTag(
+          'No Docker client strategy found',
+        ),
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime boxed-string message fields when wrapper formatting is non-informative and toStringTag accessor throws', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const wrappedError = {
+        message: buildRealBoxedStringWithThrowingToStringTag(
+          'unrelated nested warning',
+        ),
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
     it('matches cross-realm boxed-string message fields when wrapper formatting is non-informative', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const wrappedError = {

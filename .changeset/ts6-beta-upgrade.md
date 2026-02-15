@@ -241,3 +241,5 @@ Regression coverage now also confirms cross-realm boxed-string payloads remain d
 Regression coverage now also confirms cross-realm boxed-string-valued wrapper `errors` fields continue to detect runtime signals (and ignore non-runtime signals) when `Symbol.toStringTag` accessors throw.
 
 Regression coverage now also confirms wrapper-level cross-realm boxed-string `message` fields remain detectable/ignorable under non-informative serialization, including hostile `Symbol.toStringTag` accessor failures.
+
+Regression coverage now also confirms same-realm boxed-string wrapper `message` fields remain detectable/ignorable under non-informative serialization even when `Symbol.toStringTag` accessors throw.
