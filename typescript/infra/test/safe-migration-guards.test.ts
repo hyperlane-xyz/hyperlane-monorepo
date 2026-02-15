@@ -33,22 +33,7 @@ const REQUIRED_SAFE_HELPER_EXPORTS = [
 ] as const;
 
 const DISALLOWED_LOCAL_SAFE_DECLARATIONS = [
-  'createSafeDeploymentTransaction',
-  'createSafeTransaction',
-  'createSafeTransactionData',
-  'decodeMultiSendData',
-  'deleteAllPendingSafeTxs',
-  'deleteSafeTx',
-  'executeTx',
-  'getPendingTxsForChains',
-  'getSafe',
-  'getSafeAndService',
-  'getSafeDelegates',
-  'getSafeService',
-  'getSafeTx',
-  'parseSafeTx',
-  'proposeSafeTransaction',
-  'updateSafeOwner',
+  ...REQUIRED_SAFE_HELPER_EXPORTS,
 ] as const;
 
 const INFRA_SOURCE_PATHS = ['scripts', 'src', 'config'] as const;
