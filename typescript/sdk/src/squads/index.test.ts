@@ -103,6 +103,8 @@ const GLOBAL_PROCESS_BRACKET_REFERENCE_PATTERN =
 const WINDOW_PROCESS_REFERENCE_PATTERN = /\bwindow\s*\.\s*process\b/;
 const WINDOW_PROCESS_BRACKET_REFERENCE_PATTERN =
   /\bwindow\s*\[\s*['"]process['"]\s*\]/;
+const GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN =
+  /\{[^}]*\bprocess\b[^}]*\}\s*=\s*(?:globalThis|global|window)\b/;
 const CONSOLE_REFERENCE_PATTERN =
   /\bconsole\s*(?:\.\s*(?:log|info|warn|error|debug|trace|table)\s*\(|\[\s*['"](?:log|info|warn|error|debug|trace|table)['"]\s*\]\s*\()/;
 const CONSOLE_DESTRUCTURE_REFERENCE_PATTERN =
@@ -120,6 +122,8 @@ const GLOBAL_CONSOLE_BRACKET_REFERENCE_PATTERN =
 const WINDOW_CONSOLE_REFERENCE_PATTERN = /\bwindow\s*\.\s*console\b/;
 const WINDOW_CONSOLE_BRACKET_REFERENCE_PATTERN =
   /\bwindow\s*\[\s*['"]console['"]\s*\]/;
+const GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN =
+  /\{[^}]*\bconsole\b[^}]*\}\s*=\s*(?:globalThis|global|window)\b/;
 const CLI_GLUE_IMPORT_PATTERN =
   /(?:from\s+['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]|import\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\)|require\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\))/;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
@@ -1177,6 +1181,16 @@ describe('squads barrel exports', () => {
     expect(
       PARENTHESIZED_CONSOLE_REFERENCE_PATTERN.test("(console)['log']('x')"),
     ).to.equal(true);
+    expect(
+      GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN.test(
+        'const { process } = globalThis',
+      ),
+    ).to.equal(true);
+    expect(
+      GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(
+        'const { console } = window',
+      ),
+    ).to.equal(true);
 
     expect(PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test('processor?.env')).to
       .equal(false);
@@ -1186,6 +1200,16 @@ describe('squads barrel exports', () => {
       .to.equal(false);
     expect(PARENTHESIZED_CONSOLE_REFERENCE_PATTERN.test("(consoles)['log']"))
       .to.equal(false);
+    expect(
+      GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN.test(
+        'const { processor } = globalThis',
+      ),
+    ).to.equal(false);
+    expect(
+      GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(
+        'const { consoles } = window',
+      ),
+    ).to.equal(false);
   });
 
   it('keeps sdk squads runtime sources decoupled from infra and filesystem env wiring', () => {
@@ -1271,6 +1295,10 @@ describe('squads barrel exports', () => {
         `Expected sdk squads runtime source to avoid window['process'] coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
+        GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid global/window process destructuring coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
         CONSOLE_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid direct console usage: ${runtimeSourcePath}`,
       ).to.equal(false);
@@ -1305,6 +1333,10 @@ describe('squads barrel exports', () => {
       expect(
         WINDOW_CONSOLE_BRACKET_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid window['console'] coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid global/window console destructuring coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
         CLI_GLUE_IMPORT_PATTERN.test(runtimeSource),
