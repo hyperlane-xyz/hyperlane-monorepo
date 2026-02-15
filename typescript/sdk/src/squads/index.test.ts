@@ -81,6 +81,7 @@ const FILESYSTEM_IMPORT_PATTERN =
   /(?:from\s+['"]node:(?:fs|path)['"]|from\s+['"](?:fs|path)['"])/;
 const PROCESS_ENV_REFERENCE_PATTERN = /\bprocess\.env\b/;
 const PROCESS_ARGV_REFERENCE_PATTERN = /\bprocess\.argv\b/;
+const PROCESS_CWD_REFERENCE_PATTERN = /\bprocess\.cwd\s*\(/;
 const CLI_GLUE_IMPORT_PATTERN =
   /(?:from\s+['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]|import\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\))/;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
@@ -1151,6 +1152,10 @@ describe('squads barrel exports', () => {
       expect(
         PROCESS_ARGV_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid process.argv coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        PROCESS_CWD_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid process.cwd coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
         CLI_GLUE_IMPORT_PATTERN.test(runtimeSource),
