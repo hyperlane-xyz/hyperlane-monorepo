@@ -65,6 +65,11 @@ const SKIPPED_DIRECTORIES = new Set([
   'cache',
   '.turbo',
 ]);
+const SQUADS_TEST_ORDERING_HELPER_PATH = 'test/squads-test-ordering.ts';
+const LOCAL_LEXICOGRAPHIC_COMPARATOR_DEFINITION_PATTERN =
+  /^\s*(?:export\s+)?function\s+compareLexicographically\s*\(/m;
+const SQUADS_TEST_ORDERING_HELPER_IMPORT_PATTERN =
+  /from\s+['"]\.\/squads-test-ordering\.js['"]/;
 const SQUADS_REGRESSION_TEST_PATHS = Object.freeze([
   'test/squads-cli-helpers.test.ts',
   'test/squads-scripts-help.test.ts',
@@ -73,7 +78,7 @@ const SQUADS_REGRESSION_TEST_PATHS = Object.freeze([
   'test/squads-test-constants.test.ts',
 ]);
 const SQUADS_TRACKED_TEST_SUPPORT_PATHS = Object.freeze([
-  'test/squads-test-ordering.ts',
+  SQUADS_TEST_ORDERING_HELPER_PATH,
   'test/squads-test-constants.ts',
   'test/squads-test-utils.ts',
 ]);
@@ -271,6 +276,16 @@ function countSubstringOccurrences(haystack: string, needle: string): number {
     return 0;
   }
   return haystack.split(needle).length - 1;
+}
+
+function countLocalLexicographicComparatorDefinitions(
+  fileContents: string,
+): number {
+  return [
+    ...fileContents.matchAll(
+      /^\s*(?:export\s+)?function\s+compareLexicographically\s*\(/gm,
+    ),
+  ].length;
 }
 
 function assertCanonicalCliCommandShape(
@@ -864,6 +879,29 @@ describe('squads sdk migration regression', () => {
       SQUADS_TRACKED_TEST_SUPPORT_PATHS,
       'squads test-support',
     );
+  });
+
+  it('keeps squads test assets sourcing lexical comparator from shared helper', () => {
+    for (const pathValue of SQUADS_TRACKED_TEST_ASSET_PATHS) {
+      const fileContents = readInfraFile(pathValue);
+      if (pathValue === SQUADS_TEST_ORDERING_HELPER_PATH) {
+        expect(
+          countLocalLexicographicComparatorDefinitions(fileContents),
+        ).to.equal(1);
+        continue;
+      }
+
+      expect(
+        LOCAL_LEXICOGRAPHIC_COMPARATOR_DEFINITION_PATTERN.test(fileContents),
+        `Expected squads test asset to avoid local lexical comparator definition: ${pathValue}`,
+      ).to.equal(false);
+      if (fileContents.includes('compareLexicographically(')) {
+        expect(
+          SQUADS_TEST_ORDERING_HELPER_IMPORT_PATTERN.test(fileContents),
+          `Expected squads test asset using lexical comparator to import shared helper: ${pathValue}`,
+        ).to.equal(true);
+      }
+    }
   });
 
   it('keeps squads test-support paths source-only and squads-scoped', () => {
