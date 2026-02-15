@@ -264,6 +264,40 @@ function listSdkSquadsNonTestSourceFilePathsRecursively(
   return discoveredNonTestSourcePaths.sort(compareLexicographically);
 }
 
+function listSdkSquadsTypeScriptPathsRecursively(
+  absoluteDirectoryPath: string,
+  relativeDirectoryPath: string = '',
+): readonly string[] {
+  const directoryEntries = fs
+    .readdirSync(absoluteDirectoryPath, { withFileTypes: true })
+    .sort((left, right) => compareLexicographically(left.name, right.name));
+  const discoveredTypeScriptPaths: string[] = [];
+
+  for (const entry of directoryEntries) {
+    const nextRelativePath =
+      relativeDirectoryPath.length === 0
+        ? entry.name
+        : path.posix.join(relativeDirectoryPath, entry.name);
+    const nextAbsolutePath = path.join(absoluteDirectoryPath, entry.name);
+
+    if (entry.isDirectory()) {
+      discoveredTypeScriptPaths.push(
+        ...listSdkSquadsTypeScriptPathsRecursively(
+          nextAbsolutePath,
+          nextRelativePath,
+        ),
+      );
+      continue;
+    }
+
+    if (entry.isFile() && entry.name.endsWith('.ts')) {
+      discoveredTypeScriptPaths.push(`src/squads/${nextRelativePath}`);
+    }
+  }
+
+  return discoveredTypeScriptPaths.sort(compareLexicographically);
+}
+
 function matchesSingleAsteriskGlob(
   candidatePath: string,
   globPattern: string,
@@ -606,5 +640,46 @@ describe('squads barrel exports', () => {
     expect(topLevelDiscoveredNonTestSourcePaths).to.deep.equal(
       recursivelyDiscoveredNonTestSourcePaths,
     );
+  });
+
+  it('keeps sdk squads TypeScript discovery partitioned into test and non-test sets', () => {
+    const recursivelyDiscoveredTestPaths = [
+      ...listSdkSquadsTestFilePathsRecursively(SDK_SQUADS_SOURCE_DIR),
+    ];
+    const recursivelyDiscoveredNonTestSourcePaths = [
+      ...listSdkSquadsNonTestSourceFilePathsRecursively(SDK_SQUADS_SOURCE_DIR),
+    ];
+    const recursivelyDiscoveredTypeScriptPaths = [
+      ...listSdkSquadsTypeScriptPathsRecursively(SDK_SQUADS_SOURCE_DIR),
+    ];
+
+    expect(
+      recursivelyDiscoveredTestPaths.length,
+      'Expected at least one recursively discovered sdk squads test path',
+    ).to.be.greaterThan(0);
+    expect(
+      recursivelyDiscoveredNonTestSourcePaths.length,
+      'Expected at least one recursively discovered sdk squads non-test path',
+    ).to.be.greaterThan(0);
+
+    const testPathSet = new Set(recursivelyDiscoveredTestPaths);
+    const nonTestPathSet = new Set(recursivelyDiscoveredNonTestSourcePaths);
+
+    for (const testPath of testPathSet) {
+      expect(nonTestPathSet.has(testPath)).to.equal(false);
+    }
+
+    expect(new Set(recursivelyDiscoveredTypeScriptPaths).size).to.equal(
+      recursivelyDiscoveredTypeScriptPaths.length,
+    );
+    expect(recursivelyDiscoveredTypeScriptPaths).to.deep.equal(
+      [...recursivelyDiscoveredTypeScriptPaths].sort(compareLexicographically),
+    );
+    expect(
+      [
+        ...recursivelyDiscoveredTestPaths,
+        ...recursivelyDiscoveredNonTestSourcePaths,
+      ].sort(compareLexicographically),
+    ).to.deep.equal(recursivelyDiscoveredTypeScriptPaths);
   });
 });
