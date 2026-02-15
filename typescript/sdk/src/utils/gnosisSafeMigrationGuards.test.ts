@@ -19,6 +19,11 @@ type ModuleSpecifierReference = {
   filePath: string;
 };
 
+type NamedExportSymbolReference = {
+  symbol: string;
+  isTypeOnly: boolean;
+};
+
 function normalizeNamedSymbol(symbol: string): string {
   const trimmed = symbol.trim();
   if (!trimmed || trimmed.startsWith('...')) return '';
@@ -52,7 +57,25 @@ function extractNamedExportSymbols(
   filePath: string,
   fallbackModuleExportSymbols: readonly string[] = [],
 ): string[] {
-  const symbols = new Set<string>();
+  return [
+    ...new Set(
+      extractNamedExportSymbolReferences(
+        sourceText,
+        modulePath,
+        filePath,
+        fallbackModuleExportSymbols,
+      ).map((reference) => reference.symbol),
+    ),
+  ];
+}
+
+function extractNamedExportSymbolReferences(
+  sourceText: string,
+  modulePath: string,
+  filePath: string,
+  fallbackModuleExportSymbols: readonly string[] = [],
+): NamedExportSymbolReference[] {
+  const references: NamedExportSymbolReference[] = [];
   const sourceFile = ts.createSourceFile(
     filePath,
     sourceText,
@@ -71,7 +94,10 @@ function extractNamedExportSymbols(
     ) {
       if (ts.isNamedExports(node.exportClause)) {
         for (const exportSpecifier of node.exportClause.elements) {
-          symbols.add(normalizeNamedSymbol(exportSpecifier.name.text));
+          references.push({
+            symbol: normalizeNamedSymbol(exportSpecifier.name.text),
+            isTypeOnly: node.isTypeOnly || exportSpecifier.isTypeOnly,
+          });
         }
       }
     } else if (
@@ -83,14 +109,26 @@ function extractNamedExportSymbols(
       !node.isTypeOnly
     ) {
       for (const symbol of fallbackModuleExportSymbols) {
-        symbols.add(normalizeNamedSymbol(symbol));
+        references.push({
+          symbol: normalizeNamedSymbol(symbol),
+          isTypeOnly: false,
+        });
       }
     }
     ts.forEachChild(node, visit);
   };
 
   visit(sourceFile);
-  return [...symbols].filter(Boolean);
+  return references.filter((reference) => reference.symbol.length > 0);
+}
+
+function hasValueExport(
+  references: readonly NamedExportSymbolReference[],
+  symbol: string,
+): boolean {
+  return references.some(
+    (reference) => reference.symbol === symbol && !reference.isTypeOnly,
+  );
 }
 
 function extractTopLevelDeclarationExports(
@@ -321,6 +359,17 @@ describe('Gnosis Safe migration guards', () => {
     expect(symbols).to.deep.equal(['getSafe']);
   });
 
+  it('tracks type-only named export specifiers', () => {
+    const source =
+      "export { type getSafe as getSafe } from './fixtures/guard-module.js';";
+    const references = extractNamedExportSymbolReferences(
+      source,
+      './fixtures/guard-module.js',
+      'fixture.ts',
+    );
+    expect(references).to.deep.equal([{ symbol: 'getSafe', isTypeOnly: true }]);
+  });
+
   it('ignores type-only wildcard module re-exports for fallback symbols', () => {
     const source = "export type * from './fixtures/guard-module.js';";
     const symbols = extractNamedExportSymbols(
@@ -395,6 +444,12 @@ describe('Gnosis Safe migration guards', () => {
       gnosisSafeText,
       gnosisSafePath,
     );
+    const gnosisSafeExportReferences = extractNamedExportSymbolReferences(
+      indexText,
+      './utils/gnosisSafe.js',
+      indexPath,
+      moduleExports,
+    );
     const gnosisSafeExports = extractNamedExportSymbols(
       indexText,
       './utils/gnosisSafe.js',
@@ -446,10 +501,32 @@ describe('Gnosis Safe migration guards', () => {
       'SafeTxStatus',
     ];
 
+    const requiredRuntimeExports = requiredExports.filter(
+      (symbol) =>
+        ![
+          'ParseableSafeTx',
+          'SafeAndService',
+          'SafeCallData',
+          'SafeDeploymentConfig',
+          'SafeDeploymentTransaction',
+          'SafeOwnerUpdateCall',
+          'SafeServiceTransaction',
+          'SafeServiceTransactionWithPayload',
+          'SafeStatus',
+        ].includes(symbol),
+    );
+
     for (const exportedSymbol of requiredExports) {
       expect(
         gnosisSafeExports.includes(exportedSymbol),
         `Expected sdk index gnosisSafe export list to include ${exportedSymbol}`,
+      ).to.equal(true);
+    }
+
+    for (const runtimeExportedSymbol of requiredRuntimeExports) {
+      expect(
+        hasValueExport(gnosisSafeExportReferences, runtimeExportedSymbol),
+        `Expected sdk index gnosisSafe export ${runtimeExportedSymbol} to be value-exported`,
       ).to.equal(true);
     }
 
