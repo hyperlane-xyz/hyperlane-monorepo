@@ -14,11 +14,20 @@ function extractNamedExportSymbols(
     .find((index) => index >= 0);
   if (fromIndex === undefined) return [];
 
-  const exportStartIndex = sourceText.lastIndexOf('export {', fromIndex);
+  const exportStartIndex = Math.max(
+    sourceText.lastIndexOf('export {', fromIndex),
+    sourceText.lastIndexOf('export type {', fromIndex),
+  );
   if (exportStartIndex < 0) return [];
 
+  const exportPrefixLength = sourceText.startsWith(
+    'export type {',
+    exportStartIndex,
+  )
+    ? 'export type {'.length
+    : 'export {'.length;
   const exportedBlock = sourceText.slice(
-    exportStartIndex + 'export {'.length,
+    exportStartIndex + exportPrefixLength,
     fromIndex,
   );
   return exportedBlock
