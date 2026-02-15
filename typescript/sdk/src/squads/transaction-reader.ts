@@ -491,12 +491,17 @@ export class SquadsTransactionReader {
       return;
     }
 
-    let chainProtocol: ProtocolType | null | undefined;
+    let chainProtocol: unknown;
     try {
-      chainProtocol = this.mpp.tryGetProtocol(normalizedChainName);
+      chainProtocol = this.resolveProtocolTypeForWarpRoute(
+        routeName,
+        normalizedChainName,
+      );
     } catch (error) {
       rootLogger.warn(
-        `Failed to resolve protocol for warp route ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(error)}`,
+        error instanceof Error
+          ? error.message
+          : `Failed to resolve protocol for warp route ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(error)}`,
       );
       return;
     }
@@ -566,6 +571,49 @@ export class SquadsTransactionReader {
       name,
       routeName,
     });
+  }
+
+  private resolveProtocolTypeForWarpRoute(
+    routeName: string,
+    chain: string,
+  ): unknown {
+    let tryGetProtocolValue: unknown;
+    try {
+      tryGetProtocolValue = (
+        this.mpp as { tryGetProtocol?: unknown } | null | undefined
+      )?.tryGetProtocol;
+    } catch (error) {
+      throw new Error(
+        `Failed to read tryGetProtocol for warp route ${routeName} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    assert(
+      typeof tryGetProtocolValue === 'function',
+      `Invalid multi protocol provider for warp route ${routeName} on ${chain}: expected tryGetProtocol function, got ${getUnknownValueTypeName(tryGetProtocolValue)}`,
+    );
+
+    let protocol: unknown;
+    try {
+      protocol = tryGetProtocolValue.call(this.mpp, chain);
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve protocol for warp route ${routeName} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    const { thenValue, readError: thenReadError } = getThenValue(protocol);
+    if (thenReadError) {
+      throw new Error(
+        `Failed to inspect protocol for warp route ${routeName} on ${chain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,
+      );
+    }
+    assert(
+      typeof thenValue !== 'function',
+      `Invalid protocol for warp route ${routeName} on ${chain}: expected synchronous ProtocolType value, got promise-like value`,
+    );
+
+    return protocol;
   }
 
   private isWarpRouteProgram(
