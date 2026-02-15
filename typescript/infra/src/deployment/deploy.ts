@@ -42,6 +42,14 @@ const standardDeployModules = [
   Modules.HOOK,
 ];
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export interface DeployCache {
   verification: string;
   read: boolean;
@@ -216,7 +224,9 @@ export async function baseDeploy<
       .catch((error) => {
         deployStatus[chain] = DeployStatus.FAILURE;
         console.error(
-          chalk.red.bold(`Deployment failed on ${chain}. ${error}`),
+          chalk.red.bold(
+            `Deployment failed on ${chain}. ${stringifyValueForError(error)}`,
+          ),
         );
         if (error?.stack) {
           console.error(chalk.gray(error.stack));
@@ -253,7 +263,9 @@ async function postDeploy<Config extends object>(
       savedVerification = readJson(cache.verification);
     } catch (e) {
       console.error(
-        chalk.red('Failed to load cached verification inputs. Error: ', e),
+        chalk.red(
+          `Failed to load cached verification inputs: ${stringifyValueForError(e)}`,
+        ),
       );
     }
 
