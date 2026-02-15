@@ -1928,7 +1928,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a positive JavaScript safe integer: -1',
@@ -1942,7 +1942,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a positive JavaScript safe integer: 0',
@@ -1956,7 +1956,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a positive JavaScript safe integer: 0',
@@ -1970,7 +1970,7 @@ describe('squads utils', () => {
           transactionIndex: -1,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig transaction index must be a non-negative JavaScript safe integer: -1',
@@ -1984,7 +1984,7 @@ describe('squads utils', () => {
           transactionIndex: 1,
           staleTransactionIndex: -1,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig stale transaction index must be a non-negative JavaScript safe integer: -1',
@@ -1998,7 +1998,7 @@ describe('squads utils', () => {
           transactionIndex: 1,
           staleTransactionIndex: 0,
           timeLock: -1,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig timelock must be a non-negative JavaScript safe integer: -1',
@@ -2012,7 +2012,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a JavaScript safe integer: 1e3',
@@ -2030,7 +2030,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a JavaScript safe integer: [unstringifiable value]',
@@ -2050,7 +2050,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a JavaScript safe integer: [unstringifiable value]',
@@ -2075,7 +2075,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a JavaScript safe integer: [unstringifiable value]',
@@ -2103,7 +2103,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a JavaScript safe integer: [unstringifiable value]',
@@ -2117,7 +2117,7 @@ describe('squads utils', () => {
           transactionIndex: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseUnsafeMultisig).to.throw(
         'Squads multisig transaction index must be a JavaScript safe integer',
@@ -2131,7 +2131,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseUnsafeMultisig).to.throw(
         'Squads multisig stale transaction index must be a JavaScript safe integer',
@@ -2145,7 +2145,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseUnsafeMultisig).to.throw(
         'Squads multisig timelock must be a JavaScript safe integer',
@@ -2159,7 +2159,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 2n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig stale transaction index must be less than or equal to transaction index: 2 > 1',
@@ -2174,7 +2174,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: 'not-an-array',
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members must be an array when provided',
@@ -2190,7 +2190,7 @@ describe('squads utils', () => {
             staleTransactionIndex: 1n,
             timeLock: 0n,
             members: 'not-an-array',
-          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          },
           'solanamainnet multisig',
         );
 
@@ -2207,7 +2207,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [1],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] must be an object',
@@ -2222,7 +2222,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [[]],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] must be an object',
@@ -2238,7 +2238,7 @@ describe('squads utils', () => {
             staleTransactionIndex: 1n,
             timeLock: 0n,
             members: [1],
-          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          },
           'solanamainnet multisig',
         );
 
@@ -2255,7 +2255,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [{}],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] must include key',
@@ -2270,7 +2270,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [{ key: null }],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] must include key',
@@ -2286,7 +2286,7 @@ describe('squads utils', () => {
             staleTransactionIndex: 1n,
             timeLock: 0n,
             members: [{ key: null }],
-          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          },
           'solanamainnet multisig',
         );
 
@@ -2303,7 +2303,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [{ key: '   ' }],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] key must be a non-empty string',
@@ -2318,7 +2318,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [{ key: 7 }],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] key must be an object or non-empty string',
@@ -2333,7 +2333,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [{ key: ['member-1'] }],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] key must be an object or non-empty string',
@@ -2356,7 +2356,7 @@ describe('squads utils', () => {
               },
             },
           ],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] key must be stringifiable',
@@ -2371,7 +2371,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [{ key: { toString: () => '   ' } }],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] key must resolve to a non-empty string',
@@ -2386,7 +2386,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [{ key: {} }],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] key must stringify to a meaningful identifier',
@@ -2401,7 +2401,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [{ key: { toString: () => '[object CustomKey]' } }],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] key must stringify to a meaningful identifier',
@@ -2416,7 +2416,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [{ key: { toString: () => '  [object Object]  ' } }],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] key must stringify to a meaningful identifier',
@@ -2432,7 +2432,7 @@ describe('squads utils', () => {
             staleTransactionIndex: 1n,
             timeLock: 0n,
             members: [{ key: { toString: () => '   ' } }],
-          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          },
           'solanamainnet multisig',
         );
 
@@ -2450,7 +2450,7 @@ describe('squads utils', () => {
             staleTransactionIndex: 1n,
             timeLock: 0n,
             members: [{ key: {} }],
-          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          },
           'solanamainnet multisig',
         );
 
@@ -2467,7 +2467,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be less than or equal to member count: 1 > 0',
@@ -2480,7 +2480,7 @@ describe('squads utils', () => {
         transactionIndex: 4n,
         staleTransactionIndex: 4n,
         timeLock: 0n,
-      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+      });
 
       expect(parsed).to.deep.equal({
         threshold: 3,
@@ -2498,7 +2498,7 @@ describe('squads utils', () => {
           staleTransactionIndex: 1n,
           timeLock: 0n,
           members: [{ key: 'member-1' }, { key: 'member-2' }],
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be less than or equal to member count: 3 > 2',
@@ -2513,7 +2513,7 @@ describe('squads utils', () => {
             transactionIndex: 1n,
             staleTransactionIndex: 2n,
             timeLock: 0n,
-          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          },
           'solanamainnet multisig',
         );
 
@@ -2531,7 +2531,7 @@ describe('squads utils', () => {
             staleTransactionIndex: 1n,
             timeLock: 0n,
             members: [{ key: 'member-1' }, { key: 'member-2' }],
-          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          },
           'solanamainnet multisig',
         );
 
@@ -2548,7 +2548,7 @@ describe('squads utils', () => {
             transactionIndex: 1n,
             staleTransactionIndex: 0n,
             timeLock: 0n,
-          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          },
           'solanamainnet multisig',
         );
 
@@ -2566,7 +2566,7 @@ describe('squads utils', () => {
             staleTransactionIndex: 1n,
             timeLock: 0n,
             members: [{ key: null }],
-          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          },
           'solanamainnet multisig',
         );
 
@@ -2583,7 +2583,7 @@ describe('squads utils', () => {
             transactionIndex: 1n,
             staleTransactionIndex: 0n,
             timeLock: 0n,
-          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          },
           'solanamainnet multisig',
         );
 
