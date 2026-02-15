@@ -1715,7 +1715,11 @@ export class SquadsTransactionReader {
       let insight: string;
 
       if (types.isConfigActionAddMember(action)) {
-        const member = action.newMember.key.toBase58();
+        const member = this.formatAddressLikeForDisplay(
+          chain,
+          'config action member key',
+          action.newMember.key,
+        );
         const permissionsMask = action.newMember.permissions.mask;
         let permissionsStr = 'Unknown';
         try {
@@ -1733,7 +1737,11 @@ export class SquadsTransactionReader {
         };
         insight = `Add member ${member} with ${permissionsStr} permissions`;
       } else if (types.isConfigActionRemoveMember(action)) {
-        const member = action.oldMember.toBase58();
+        const member = this.formatAddressLikeForDisplay(
+          chain,
+          'config action removed member',
+          action.oldMember,
+        );
         type = SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER];
         args = { member };
         insight = `Remove member ${member}`;
@@ -1758,16 +1766,33 @@ export class SquadsTransactionReader {
         type = 'AddSpendingLimit';
         args = {
           vaultIndex: action.vaultIndex,
-          mint: action.mint.toBase58(),
+          mint: this.formatAddressLikeForDisplay(
+            chain,
+            'config action spending-limit mint',
+            action.mint,
+          ),
           amount: amountValue,
-          members: action.members.map((m) => m.toBase58()),
-          destinations: action.destinations.map((d) => d.toBase58()),
+          members: this.formatAddressLikeListForDisplay(
+            chain,
+            'config action spending-limit members',
+            action.members,
+          ),
+          destinations: this.formatAddressLikeListForDisplay(
+            chain,
+            'config action spending-limit destinations',
+            action.destinations,
+          ),
         };
         insight = `Add spending limit for vault ${action.vaultIndex}`;
       } else if (types.isConfigActionRemoveSpendingLimit(action)) {
         type = 'RemoveSpendingLimit';
-        args = { spendingLimit: action.spendingLimit.toBase58() };
-        insight = `Remove spending limit ${action.spendingLimit.toBase58()}`;
+        const spendingLimit = this.formatAddressLikeForDisplay(
+          chain,
+          'config action spending-limit address',
+          action.spendingLimit,
+        );
+        args = { spendingLimit };
+        insight = `Remove spending limit ${spendingLimit}`;
       } else {
         return null;
       }
@@ -1887,6 +1912,70 @@ export class SquadsTransactionReader {
     }
     const normalizedValue = value.trim();
     return normalizedValue.length > 0 ? normalizedValue : null;
+  }
+
+  private formatAddressLikeForDisplay(
+    chain: SquadsChainName,
+    label: string,
+    value: unknown,
+  ): string {
+    if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+      rootLogger.warn(
+        `Malformed ${label} on ${chain}: expected object with toBase58()`,
+      );
+      return '[invalid address]';
+    }
+
+    let toBase58Value: unknown;
+    try {
+      toBase58Value = (value as { toBase58?: unknown }).toBase58;
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read ${label} toBase58 on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return '[invalid address]';
+    }
+
+    if (typeof toBase58Value !== 'function') {
+      rootLogger.warn(
+        `Malformed ${label} on ${chain}: missing toBase58() function`,
+      );
+      return '[invalid address]';
+    }
+
+    try {
+      const normalizedValue = this.normalizeOptionalNonEmptyString(
+        toBase58Value.call(value),
+      );
+      if (normalizedValue) {
+        return normalizedValue;
+      }
+      rootLogger.warn(
+        `Malformed ${label} on ${chain}: toBase58() returned empty value`,
+      );
+      return '[invalid address]';
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to format ${label} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return '[invalid address]';
+    }
+  }
+
+  private formatAddressLikeListForDisplay(
+    chain: SquadsChainName,
+    label: string,
+    values: unknown,
+  ): string[] {
+    if (!Array.isArray(values)) {
+      rootLogger.warn(
+        `Malformed ${label} on ${chain}: expected array, got ${getUnknownValueTypeName(values)}`,
+      );
+      return [];
+    }
+    return values.map((value, index) =>
+      this.formatAddressLikeForDisplay(chain, `${label}[${index}]`, value),
+    );
   }
 
   private formatProgramIdForDisplay(programId: unknown): string {

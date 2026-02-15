@@ -3689,6 +3689,78 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('keeps config actions with malformed address-like fields using fallback addresses', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatConfigAction: (
+        chain: string,
+        action: Record<string, unknown>,
+      ) => Record<string, unknown> | null;
+    };
+
+    const addMemberResult = readerAny.formatConfigAction('solanamainnet', {
+      __kind: 'AddMember',
+      newMember: {
+        key: {},
+        permissions: { mask: 1 },
+      },
+    });
+    const addSpendingLimitResult = readerAny.formatConfigAction(
+      'solanamainnet',
+      {
+        __kind: 'AddSpendingLimit',
+        vaultIndex: 1,
+        mint: {},
+        amount: 5n,
+        members: [{ toBase58: () => 'member-a' }, {}],
+        destinations: 'bad-destinations',
+      },
+    );
+    const removeSpendingLimitResult = readerAny.formatConfigAction(
+      'solanamainnet',
+      {
+        __kind: 'RemoveSpendingLimit',
+        spendingLimit: {},
+      },
+    );
+
+    expect(addMemberResult).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Squads Multisig Configuration',
+      type: SquadsInstructionName[SquadsInstructionType.ADD_MEMBER],
+      args: {
+        member: '[invalid address]',
+        permissions: { mask: 1, decoded: 'Proposer' },
+      },
+      insight: 'Add member [invalid address] with Proposer permissions',
+    });
+    expect(addSpendingLimitResult).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Squads Multisig Configuration',
+      type: 'AddSpendingLimit',
+      args: {
+        vaultIndex: 1,
+        mint: '[invalid address]',
+        amount: '5',
+        members: ['member-a', '[invalid address]'],
+        destinations: [],
+      },
+      insight: 'Add spending limit for vault 1',
+    });
+    expect(removeSpendingLimitResult).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Squads Multisig Configuration',
+      type: 'RemoveSpendingLimit',
+      args: { spendingLimit: '[invalid address]' },
+      insight: 'Remove spending limit [invalid address]',
+    });
+  });
+
   it('returns empty config instructions when config-action list access throws', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
