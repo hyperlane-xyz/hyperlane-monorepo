@@ -792,6 +792,36 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps tracked test-asset partition helper isolated from caller mutation', () => {
+    const baselinePartition = partitionTrackedTestAssetsByRole(
+      SQUADS_TRACKED_TEST_ASSET_PATHS,
+    );
+    const callerMutatedPartition = partitionTrackedTestAssetsByRole(
+      SQUADS_TRACKED_TEST_ASSET_PATHS,
+    );
+    const mutableRegressionPaths = [...callerMutatedPartition.regressionPaths];
+    mutableRegressionPaths.pop();
+
+    const subsequentPartition = partitionTrackedTestAssetsByRole(
+      SQUADS_TRACKED_TEST_ASSET_PATHS,
+    );
+    expect(mutableRegressionPaths).to.not.deep.equal(
+      baselinePartition.regressionPaths,
+    );
+    expect(subsequentPartition.regressionPaths).to.deep.equal(
+      baselinePartition.regressionPaths,
+    );
+    expect(subsequentPartition.supportPaths).to.deep.equal(
+      baselinePartition.supportPaths,
+    );
+    expect(subsequentPartition.regressionPaths).to.not.equal(
+      baselinePartition.regressionPaths,
+    );
+    expect(subsequentPartition.supportPaths).to.not.equal(
+      baselinePartition.supportPaths,
+    );
+  });
+
   it('keeps tracked infra source file scan ordering deterministic', () => {
     const trackedSourceFiles = getTrackedSourceFileSnapshot();
     expect(trackedSourceFiles).to.deep.equal(
