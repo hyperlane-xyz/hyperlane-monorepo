@@ -193,6 +193,11 @@ function getUnknownValueTypeName(value: unknown): string {
   return Array.isArray(value) ? 'array' : typeof value;
 }
 
+function formatAddressForError(value: unknown): string {
+  const { address } = normalizeSquadsAddressValue(value);
+  return address ?? '[invalid address]';
+}
+
 function getObjectRecord(
   value: unknown,
   label: string,
@@ -1226,7 +1231,7 @@ export async function getPendingProposalsForChains(
         const balanceFormatted = (vaultBalance / 10 ** decimals).toFixed(5);
 
         rootLogger.info(
-          `Fetching proposals for squads ${multisigPda.toBase58()} on ${chain}`,
+          `Fetching proposals for squads ${formatAddressForError(multisigPda)} on ${chain}`,
         );
 
         const minIndexToCheck = getMinimumProposalIndexToCheck(
@@ -1296,7 +1301,7 @@ export async function getPendingProposalsForChains(
               index: BigInt(proposalIndex),
               programId,
             });
-            const txHash = transactionPda.toBase58();
+            const txHash = formatAddressForError(transactionPda);
 
             proposals.push({
               chain,
@@ -1904,7 +1909,7 @@ async function getMultisigAccountForNextIndex(
     );
   } catch (error) {
     throw new Error(
-      `Failed to fetch multisig ${multisigPda.toBase58()} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to fetch multisig ${formatAddressForError(multisigPda)} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
 }
@@ -1933,7 +1938,7 @@ async function getMultisigAccountInfoForNextIndex(
     return await getAccountInfoValue.call(svmProvider, multisigPda);
   } catch (error) {
     throw new Error(
-      `Failed to fetch multisig account ${multisigPda.toBase58()} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to fetch multisig account ${formatAddressForError(multisigPda)} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
 }
@@ -2468,7 +2473,7 @@ async function getTransactionAccountInfoForType(
     return await getAccountInfoValue.call(svmProvider, transactionPda);
   } catch (error) {
     throw new Error(
-      `Failed to fetch transaction account ${transactionPda.toBase58()} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to fetch transaction account ${formatAddressForError(transactionPda)} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
 }
@@ -2520,7 +2525,7 @@ export async function getTransactionType(
   );
   if (!accountInfo) {
     throw new Error(
-      `Transaction account not found at ${transactionPda.toBase58()}`,
+      `Transaction account not found at ${formatAddressForError(transactionPda)}`,
     );
   }
 

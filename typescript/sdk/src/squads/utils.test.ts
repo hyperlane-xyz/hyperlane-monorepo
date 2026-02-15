@@ -6494,6 +6494,63 @@ describe('squads utils', () => {
       expect(providerLookupChain).to.equal('solanamainnet');
     });
 
+    it('uses fallback transaction address when account is missing and pda formatting fails', async () => {
+      const originalToBase58 = PublicKey.prototype.toBase58;
+      PublicKey.prototype.toBase58 = function () {
+        throw new Error('address unavailable');
+      };
+
+      try {
+        const mpp = {
+          getSolanaWeb3Provider: () => ({
+            getAccountInfo: async () => null,
+          }),
+        } as unknown as MultiProtocolProvider;
+
+        const thrownError = await captureAsyncError(() =>
+          getTransactionType('solanamainnet', mpp, 0),
+        );
+
+        expect(thrownError?.message).to.equal(
+          'Transaction account not found at [invalid address]',
+        );
+      } finally {
+        PublicKey.prototype.toBase58 = originalToBase58;
+      }
+    });
+
+    it('uses fallback transaction address when account fetch fails and pda formatting fails', async () => {
+      const originalToBase58 = PublicKey.prototype.toBase58;
+      PublicKey.prototype.toBase58 = function () {
+        throw new Error('address unavailable');
+      };
+
+      try {
+        let providerLookupChain: string | undefined;
+        const mpp = {
+          getSolanaWeb3Provider: (chain: string) => {
+            providerLookupChain = chain;
+            return {
+              getAccountInfo: async () => {
+                throw new Error('account fetch failed');
+              },
+            };
+          },
+        } as unknown as MultiProtocolProvider;
+
+        const thrownError = await captureAsyncError(() =>
+          getTransactionType('solanamainnet', mpp, 0),
+        );
+
+        expect(thrownError?.message).to.equal(
+          'Failed to fetch transaction account [invalid address] on solanamainnet: account fetch failed',
+        );
+        expect(providerLookupChain).to.equal('solanamainnet');
+      } finally {
+        PublicKey.prototype.toBase58 = originalToBase58;
+      }
+    });
+
     it('fails fast for unsupported chains before account lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
