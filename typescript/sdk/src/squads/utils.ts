@@ -1507,7 +1507,8 @@ async function getNextSquadsTransactionIndex(
     multisigPda,
   );
 
-  const currentIndex = BigInt(multisig.transactionIndex.toString());
+  const parsedMultisig = parseSquadMultisig(multisig, `${chain} multisig`);
+  const currentIndex = BigInt(parsedMultisig.currentTransactionIndex);
   const nextIndex = currentIndex + 1n;
 
   const accountInfo = await svmProvider.getAccountInfo(multisigPda);
@@ -1889,10 +1890,10 @@ export async function executeProposal(
   }
 
   const { proposal } = proposalData;
-
-  if (proposal.status.__kind !== SquadsProposalStatus.Approved) {
+  const parsedProposal = parseSquadProposal(proposal);
+  if (parsedProposal.status !== SquadsProposalStatus.Approved) {
     throw new Error(
-      `Proposal ${normalizedTransactionIndex} on ${normalizedChain} is not approved (status: ${proposal.status.__kind})`,
+      `Proposal ${normalizedTransactionIndex} on ${normalizedChain} is not approved (status: ${parsedProposal.status})`,
     );
   }
 
