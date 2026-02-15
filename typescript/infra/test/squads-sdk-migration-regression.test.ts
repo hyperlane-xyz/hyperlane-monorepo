@@ -163,7 +163,7 @@ describe('squads sdk migration regression', () => {
     const infraPackageJson = readInfraPackageJson();
 
     expect(infraPackageJson.scripts?.['test:squads']).to.equal(
-      'mocha --config ../sdk/.mocharc.json "test/squads-cli-helpers.test.ts" "test/squads-scripts-help.test.ts" "test/squads-sdk-migration-regression.test.ts"',
+      'mocha --config ../sdk/.mocharc.json "test/squads-cli-helpers.test.ts" "test/squads-scripts-help.test.ts" "test/squads-sdk-migration-regression.test.ts" "test/squads-test-utils.test.ts"',
     );
   });
 

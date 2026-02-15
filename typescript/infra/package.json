@@ -27,7 +27,7 @@
     "test:warp": "mocha --config ../sdk/.mocharc.json test/warp-configs.test.ts",
     "test:gitleaks": "mocha --config ../sdk/.mocharc.json test/gitleaks.test.ts",
     "test:balance": "mocha --config ../sdk/.mocharc.json test/balance-alerts.test.ts",
-    "test:squads": "mocha --config ../sdk/.mocharc.json \"test/squads-cli-helpers.test.ts\" \"test/squads-scripts-help.test.ts\" \"test/squads-sdk-migration-regression.test.ts\"",
+    "test:squads": "mocha --config ../sdk/.mocharc.json \"test/squads-cli-helpers.test.ts\" \"test/squads-scripts-help.test.ts\" \"test/squads-sdk-migration-regression.test.ts\" \"test/squads-test-utils.test.ts\"",
     "test:unit": "mocha --config ../sdk/.mocharc.json \"test/**/*.test.ts\" --ignore \"test/{warp-configs,balance-alerts,gitleaks}.test.ts\"",
     "test:hardhat": "pnpm hardhat-esm test test/govern.hardhat-test.ts",
     "test": "pnpm test:unit && pnpm test:hardhat && pnpm test:warp && pnpm test:balance",
