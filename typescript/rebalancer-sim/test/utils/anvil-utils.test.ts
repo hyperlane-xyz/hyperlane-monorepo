@@ -25373,6 +25373,48 @@ describe('Anvil utils', () => {
 
   describe('Symbol.toPrimitive descriptor parity guards', () => {
     const expectedDescriptorSetSize = 40;
+    const expectedDescriptorBases = [
+      'lowercase bracketed placeholder',
+      'lowercase bracketed-object placeholder',
+      'lowercase object-tag placeholder',
+      'lowercase object-tag-object placeholder',
+      'mixed-case bracketed placeholder',
+      'mixed-case bracketed-object placeholder',
+      'mixed-case object-tag placeholder',
+      'mixed-case object-tag-object placeholder',
+      'mixed-quoted lowercase bracketed placeholder',
+      'mixed-quoted lowercase bracketed-object placeholder',
+      'mixed-quoted lowercase object-tag placeholder',
+      'mixed-quoted lowercase object-tag-object placeholder',
+      'mixed-quoted mixed-case bracketed placeholder',
+      'mixed-quoted mixed-case bracketed-object placeholder',
+      'mixed-quoted mixed-case object-tag placeholder',
+      'mixed-quoted mixed-case object-tag-object placeholder',
+      'mixed-quoted placeholder',
+      'mixed-quoted uppercase bracketed placeholder',
+      'mixed-quoted uppercase bracketed-object placeholder',
+      'mixed-quoted uppercase object-tag placeholder',
+      'mixed-quoted uppercase object-tag-object placeholder',
+      'object-tag placeholder',
+      'object-tag-object placeholder',
+      'quoted placeholder',
+      'single-quoted lowercase bracketed placeholder',
+      'single-quoted lowercase bracketed-object placeholder',
+      'single-quoted lowercase object-tag placeholder',
+      'single-quoted lowercase object-tag-object placeholder',
+      'single-quoted mixed-case bracketed placeholder',
+      'single-quoted mixed-case bracketed-object placeholder',
+      'single-quoted mixed-case object-tag placeholder',
+      'single-quoted mixed-case object-tag-object placeholder',
+      'single-quoted placeholder',
+      'single-quoted uppercase bracketed placeholder',
+      'single-quoted uppercase bracketed-object placeholder',
+      'single-quoted uppercase object-tag placeholder',
+      'single-quoted uppercase object-tag-object placeholder',
+      'uppercase bracketed placeholder',
+      'uppercase object-tag placeholder',
+      'uppercase object-tag-object placeholder',
+    ] as const;
     const parseDescriptors = (
       source: string,
       matcher: RegExp,
@@ -25414,6 +25456,14 @@ describe('Anvil utils', () => {
       return [...left].filter((value) => !right.has(value)).sort();
     };
 
+    const sortedValues = (values: ReadonlySet<string>): ReadonlyArray<string> =>
+      [...values].sort();
+
+    const expectDescriptorSetShape = (values: ReadonlySet<string>) => {
+      expect(values.size).to.equal(expectedDescriptorSetSize);
+      expect(sortedValues(values)).to.deep.equal(expectedDescriptorBases);
+    };
+
     it('keeps matcher descriptor sets equivalent across triple/json/double escape levels', () => {
       const source = readFileSync(new URL(import.meta.url), 'utf8');
       const matcherDescriptors = parseDescriptors(
@@ -25422,9 +25472,9 @@ describe('Anvil utils', () => {
       );
       const { triple, json, double } = splitByEscapeLevel(matcherDescriptors);
 
-      expect(triple.size).to.equal(expectedDescriptorSetSize);
-      expect(json.size).to.equal(expectedDescriptorSetSize);
-      expect(double.size).to.equal(expectedDescriptorSetSize);
+      expectDescriptorSetShape(triple);
+      expectDescriptorSetShape(json);
+      expectDescriptorSetShape(double);
       expect(sortedDifference(triple, json)).to.deep.equal([]);
       expect(sortedDifference(json, triple)).to.deep.equal([]);
       expect(sortedDifference(triple, double)).to.deep.equal([]);
@@ -25439,9 +25489,9 @@ describe('Anvil utils', () => {
       );
       const { triple, json, double } = splitByEscapeLevel(formatterDescriptors);
 
-      expect(triple.size).to.equal(expectedDescriptorSetSize);
-      expect(json.size).to.equal(expectedDescriptorSetSize);
-      expect(double.size).to.equal(expectedDescriptorSetSize);
+      expectDescriptorSetShape(triple);
+      expectDescriptorSetShape(json);
+      expectDescriptorSetShape(double);
       expect(sortedDifference(triple, json)).to.deep.equal([]);
       expect(sortedDifference(json, triple)).to.deep.equal([]);
       expect(sortedDifference(triple, double)).to.deep.equal([]);
