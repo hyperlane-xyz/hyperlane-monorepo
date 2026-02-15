@@ -3509,6 +3509,32 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast for unsupported chain names before rejection index validation', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsProposalRejection(
+          'unsupported-chain' as unknown as Parameters<
+            typeof buildSquadsProposalRejection
+          >[0],
+          mpp,
+          -1n,
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('normalizes padded chain names before rejection provider lookup', async () => {
       let providerLookupChain: string | undefined;
       const mpp = {
@@ -3669,6 +3695,32 @@ describe('squads utils', () => {
           >[0],
           mpp,
           1n,
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for unsupported chain names before cancellation index validation', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsProposalCancellation(
+          'unsupported-chain' as unknown as Parameters<
+            typeof buildSquadsProposalCancellation
+          >[0],
+          mpp,
+          -1n,
           PublicKey.default,
         ),
       );
@@ -4032,6 +4084,31 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast for unsupported chains before transaction index validation', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType(
+          'unsupported-chain' as unknown as Parameters<
+            typeof getTransactionType
+          >[0],
+          mpp,
+          -1,
+        ),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('fails fast for malformed chain names before account lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -4235,6 +4312,30 @@ describe('squads utils', () => {
           'unsupported-chain' as unknown as Parameters<typeof executeProposal>[0],
           mpp,
           0,
+          {} as Parameters<typeof executeProposal>[3],
+        ),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for unsupported chains before execution index validation', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal(
+          'unsupported-chain' as unknown as Parameters<typeof executeProposal>[0],
+          mpp,
+          -1,
           {} as Parameters<typeof executeProposal>[3],
         ),
       );
