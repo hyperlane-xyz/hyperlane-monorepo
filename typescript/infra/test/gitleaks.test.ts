@@ -20,6 +20,14 @@ describe('GitLeaks CLI Integration Tests', function () {
 
   let gitLeaksConfig: TomlTable;
 
+  function stringifyValueForError(value: unknown): string {
+    try {
+      return String(value);
+    } catch {
+      return '<unstringifiable>';
+    }
+  }
+
   before(function () {
     const originalConfigPath = path.join(
       process.cwd(),
@@ -160,7 +168,9 @@ describe('GitLeaks CLI Integration Tests', function () {
         }
       } else {
         throw new Error(
-          `Gitleaks execution failed for test ${testCase.name}: ${error.message}`,
+          `Gitleaks execution failed for test ${testCase.name}: ${stringifyValueForError(
+            error,
+          )}`,
         );
       }
     }
@@ -188,7 +198,9 @@ describe('GitLeaks CLI Integration Tests', function () {
         );
       } else {
         throw new Error(
-          `Gitleaks execution failed for test ${testCase.name}: ${error.message}`,
+          `Gitleaks execution failed for test ${testCase.name}: ${stringifyValueForError(
+            error,
+          )}`,
         );
       }
     }
