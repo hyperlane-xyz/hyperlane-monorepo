@@ -4,9 +4,9 @@ use url::Url;
 
 /// converts url into a host:port string
 pub fn url_to_host_info(url: &Url) -> Option<String> {
-    // check if url has scheme, if not, then add a dummy one
-    // to satisfy Url's parsing schema
-    match url.domain() {
+    // if the URL lacks a host/authority (e.g. parsed as an opaque URL like
+    // "grpc.example.com:234"), prepend a dummy scheme and reparse to extract host:port
+    match url.host_str() {
         None => {
             let with_dummy_scheme = format!("https://{url}");
             let url = Url::parse(&with_dummy_scheme).ok()?;
@@ -21,7 +21,7 @@ fn schemed_url_to_host_info(url: &Url) -> Option<String> {
         let mut s = String::new();
         s.push_str(host);
         if let Some(port) = url.port_or_known_default() {
-            write!(&mut s, ":{port}").unwrap();
+            let _ = write!(&mut s, ":{port}");
         }
         Some(s)
     } else {
