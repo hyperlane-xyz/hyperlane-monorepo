@@ -16,10 +16,14 @@ import {
   SealevelMultisigIsmInstructionName,
   SealevelMultisigIsmInstructionType,
   SealevelMultisigIsmSetValidatorsInstructionSchema,
+  SealevelMultisigIsmTransferOwnershipInstruction,
+  SealevelMultisigIsmTransferOwnershipInstructionSchema,
 } from '../ism/serialization.js';
 import {
   SealevelMailboxInstructionName,
   SealevelMailboxInstructionType,
+  SealevelMailboxSetDefaultIsmInstruction,
+  SealevelMailboxSetDefaultIsmInstructionSchema,
 } from '../mailbox/serialization.js';
 import {
   SealevelEnrollRemoteRouterInstruction,
@@ -29,6 +33,8 @@ import {
   SealevelGasRouterConfig,
   SealevelHypTokenInstruction,
   SealevelHypTokenInstructionName,
+  SealevelHypTokenTransferOwnershipInstruction,
+  SealevelHypTokenTransferOwnershipInstructionSchema,
   SealevelRemoteRouterConfig,
   SealevelSetDestinationGasConfigsInstruction,
   SealevelSetDestinationGasConfigsInstructionSchema,
@@ -246,6 +252,52 @@ function createSetDestinationGasConfigsInstructionData(
       instruction: SealevelHypTokenInstruction.SetDestinationGasConfigs,
       data: new SealevelSetDestinationGasConfigsInstruction({
         configs: [new SealevelGasRouterConfig({ domain, gas })],
+      }),
+    }),
+  );
+  return Buffer.concat([Buffer.alloc(8), Buffer.from(payload)]);
+}
+
+function createMailboxSetDefaultIsmInstructionData(
+  ismByteValue: number,
+): Buffer {
+  return Buffer.from(
+    serialize(
+      SealevelMailboxSetDefaultIsmInstructionSchema,
+      new SealevelInstructionWrapper({
+        instruction: SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM,
+        data: new SealevelMailboxSetDefaultIsmInstruction({
+          newIsm: new Uint8Array(32).fill(ismByteValue),
+        }),
+      }),
+    ),
+  );
+}
+
+function createMultisigTransferOwnershipInstructionData(
+  ownerByteValue: number,
+): Buffer {
+  const payload = serialize(
+    SealevelMultisigIsmTransferOwnershipInstructionSchema,
+    new SealevelInstructionWrapper({
+      instruction: SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP,
+      data: new SealevelMultisigIsmTransferOwnershipInstruction({
+        newOwner: new Uint8Array(32).fill(ownerByteValue),
+      }),
+    }),
+  );
+  return Buffer.concat([Buffer.alloc(8), Buffer.from(payload)]);
+}
+
+function createWarpTransferOwnershipInstructionData(
+  ownerByteValue: number,
+): Buffer {
+  const payload = serialize(
+    SealevelHypTokenTransferOwnershipInstructionSchema,
+    new SealevelInstructionWrapper({
+      instruction: SealevelHypTokenInstruction.TransferOwnership,
+      data: new SealevelHypTokenTransferOwnershipInstruction({
+        newOwner: new Uint8Array(32).fill(ownerByteValue),
       }),
     }),
   );
@@ -4254,6 +4306,122 @@ describe('squads transaction reader', () => {
     expect(parsedConfigs[0].domain).to.equal(1000);
     expect(parsedConfigs[0].chainName).to.equal(undefined);
     expect(String(parsedConfigs[0].gas)).to.equal('5');
+  });
+
+  it('keeps mailbox default-ISM instruction classification when pubkey toBase58 throws', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readMailboxInstruction: (
+        chain: string,
+        instructionData: Buffer,
+      ) => Record<string, unknown>;
+    };
+    const originalToBase58 = PublicKey.prototype.toBase58;
+    PublicKey.prototype.toBase58 = () => {
+      throw new Error('pubkey unavailable');
+    };
+
+    try {
+      const parsedInstruction = readerAny.readMailboxInstruction(
+        'solanamainnet',
+        createMailboxSetDefaultIsmInstructionData(0xaa),
+      );
+
+      expect(parsedInstruction).to.deep.equal({
+        instructionType:
+          SealevelMailboxInstructionName[
+            SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
+          ],
+        data: { newDefaultIsm: '[invalid address]' },
+        insight: 'Set default ISM to [invalid address]',
+        warnings: [],
+      });
+    } finally {
+      PublicKey.prototype.toBase58 = originalToBase58;
+    }
+  });
+
+  it('keeps multisig transfer-ownership classification when pubkey toBase58 throws', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readMultisigIsmInstruction: (
+        chain: string,
+        instructionData: Buffer,
+      ) => Record<string, unknown>;
+    };
+    const originalToBase58 = PublicKey.prototype.toBase58;
+    PublicKey.prototype.toBase58 = () => {
+      throw new Error('pubkey unavailable');
+    };
+
+    try {
+      const parsedInstruction = readerAny.readMultisigIsmInstruction(
+        'solanamainnet',
+        createMultisigTransferOwnershipInstructionData(0xbb),
+      );
+
+      expect(parsedInstruction).to.deep.equal({
+        instructionType:
+          SealevelMultisigIsmInstructionName[
+            SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP
+          ],
+        data: { newOwner: '[invalid address]' },
+        insight: 'Transfer ownership to [invalid address]',
+        warnings: ['⚠️  OWNERSHIP TRANSFER DETECTED'],
+      });
+    } finally {
+      PublicKey.prototype.toBase58 = originalToBase58;
+    }
+  });
+
+  it('keeps warp transfer-ownership classification when pubkey toBase58 throws', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readWarpRouteInstruction: (
+        chain: string,
+        instructionData: Buffer,
+        metadata: Record<string, string>,
+      ) => Record<string, unknown>;
+    };
+    const originalToBase58 = PublicKey.prototype.toBase58;
+    PublicKey.prototype.toBase58 = () => {
+      throw new Error('pubkey unavailable');
+    };
+
+    try {
+      const parsedInstruction = readerAny.readWarpRouteInstruction(
+        'solanamainnet',
+        createWarpTransferOwnershipInstructionData(0xcc),
+        { symbol: 'TEST', name: 'Test Token', routeName: 'test-route' },
+      );
+
+      expect(parsedInstruction).to.deep.equal({
+        instructionType:
+          SealevelHypTokenInstructionName[
+            SealevelHypTokenInstruction.TransferOwnership
+          ],
+        data: { newOwner: '[invalid address]' },
+        insight: 'Transfer ownership to [invalid address]',
+        warnings: ['⚠️  OWNERSHIP TRANSFER DETECTED'],
+      });
+    } finally {
+      PublicKey.prototype.toBase58 = originalToBase58;
+    }
   });
 
   it('does not require full proposal status shape when index is valid', async () => {

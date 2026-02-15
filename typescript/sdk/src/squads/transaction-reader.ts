@@ -661,7 +661,13 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelSetInterchainSecurityModuleInstruction;
-          const ism = instruction.ismPubkey?.toBase58() ?? null;
+          const ism = instruction.ismPubkey
+            ? this.formatAddressLikeForDisplay(
+                chain,
+                'warp ISM pubkey',
+                instruction.ismPubkey,
+              )
+            : null;
 
           return {
             instructionType:
@@ -685,9 +691,21 @@ export class SquadsTransactionReader {
           const igpConfig = instruction.igpConfig;
           const igp = igpConfig
             ? {
-                program: igpConfig.programIdPubkey?.toBase58() ?? '',
+                program: igpConfig.programIdPubkey
+                  ? this.formatAddressLikeForDisplay(
+                      chain,
+                      'warp IGP program pubkey',
+                      igpConfig.programIdPubkey,
+                    )
+                  : '',
                 type: igpConfig.igpTypeName,
-                account: igpConfig.igpAccountPubkey?.toBase58() ?? '',
+                account: igpConfig.igpAccountPubkey
+                  ? this.formatAddressLikeForDisplay(
+                      chain,
+                      'warp IGP account pubkey',
+                      igpConfig.igpAccountPubkey,
+                    )
+                  : '',
               }
             : null;
 
@@ -712,7 +730,13 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelHypTokenTransferOwnershipInstruction;
-          const newOwner = instruction.newOwnerPubkey?.toBase58() ?? null;
+          const newOwner = instruction.newOwnerPubkey
+            ? this.formatAddressLikeForDisplay(
+                chain,
+                'warp ownership target',
+                instruction.newOwnerPubkey,
+              )
+            : null;
 
           return {
             instructionType:
@@ -773,6 +797,7 @@ export class SquadsTransactionReader {
   }
 
   private readMailboxInstruction(
+    chain: ChainName,
     instructionData: Buffer,
   ): Partial<ParsedInstruction> {
     if (instructionData.length < MAILBOX_DISCRIMINATOR_SIZE) {
@@ -795,11 +820,16 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelMailboxSetDefaultIsmInstruction;
+          const newDefaultIsm = this.formatAddressLikeForDisplay(
+            chain,
+            'mailbox default ISM',
+            instruction.newIsmPubkey,
+          );
 
           return {
             instructionType: SealevelMailboxInstructionName[discriminator],
-            data: { newDefaultIsm: instruction.newIsmPubkey.toBase58() },
-            insight: `Set default ISM to ${instruction.newIsmPubkey.toBase58()}`,
+            data: { newDefaultIsm },
+            insight: `Set default ISM to ${newDefaultIsm}`,
             warnings: [],
           };
         }
@@ -814,10 +844,15 @@ export class SquadsTransactionReader {
             wrapper.data as SealevelMailboxTransferOwnershipInstruction;
 
           if (instruction.newOwnerPubkey) {
+            const newOwner = this.formatAddressLikeForDisplay(
+              chain,
+              'mailbox ownership target',
+              instruction.newOwnerPubkey,
+            );
             return {
               instructionType: SealevelMailboxInstructionName[discriminator],
-              data: { newOwner: instruction.newOwnerPubkey.toBase58() },
-              insight: `Transfer ownership to ${instruction.newOwnerPubkey.toBase58()}`,
+              data: { newOwner },
+              insight: `Transfer ownership to ${newOwner}`,
               warnings: [WarningMessage.OWNERSHIP_TRANSFER],
             };
           }
@@ -942,11 +977,16 @@ export class SquadsTransactionReader {
             wrapper.data as SealevelMultisigIsmTransferOwnershipInstruction;
 
           if (instruction.newOwnerPubkey) {
+            const newOwner = this.formatAddressLikeForDisplay(
+              chain,
+              'multisig ISM ownership target',
+              instruction.newOwnerPubkey,
+            );
             return {
               instructionType:
                 SealevelMultisigIsmInstructionName[discriminator],
-              data: { newOwner: instruction.newOwnerPubkey.toBase58() },
-              insight: `Transfer ownership to ${instruction.newOwnerPubkey.toBase58()}`,
+              data: { newOwner },
+              insight: `Transfer ownership to ${newOwner}`,
               warnings: [WarningMessage.OWNERSHIP_TRANSFER],
             };
           }
@@ -1150,7 +1190,7 @@ export class SquadsTransactionReader {
         }
 
         if (this.isMailboxInstruction(chain, programId, corePrograms)) {
-          const parsed = this.readMailboxInstruction(instructionData);
+          const parsed = this.readMailboxInstruction(chain, instructionData);
           parsedInstructions.push({
             programId,
             programName: ProgramName.MAILBOX,
