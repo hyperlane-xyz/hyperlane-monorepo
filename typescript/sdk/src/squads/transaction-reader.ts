@@ -1016,8 +1016,13 @@ export class SquadsTransactionReader {
     const accountInfo = await svmProvider.getAccountInfo(transactionPda);
 
     if (!accountInfo) {
+      const transactionPdaForDisplay = this.formatAddressLikeForDisplay(
+        chain,
+        'transaction PDA',
+        transactionPda,
+      );
       throw new Error(
-        `Transaction account not found at ${transactionPda.toBase58()} on ${chain}`,
+        `Transaction account not found at ${transactionPdaForDisplay} on ${chain}`,
       );
     }
 
@@ -1390,9 +1395,17 @@ export class SquadsTransactionReader {
 
     return {
       chain,
-      proposalPda: proposalData.proposalPda.toBase58(),
+      proposalPda: this.formatAddressLikeForDisplay(
+        chain,
+        'proposal PDA',
+        proposalData.proposalPda,
+      ),
       transactionIndex,
-      multisig: proposalData.multisigPda.toBase58(),
+      multisig: this.formatAddressLikeForDisplay(
+        chain,
+        'multisig PDA',
+        proposalData.multisigPda,
+      ),
       instructions,
     };
   }
@@ -1417,7 +1430,12 @@ export class SquadsTransactionReader {
         transactionPda,
       );
     } catch (error) {
-      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPda.toBase58()}: ${stringifyUnknownSquadsError(error)}`;
+      const transactionPdaForDisplay = this.formatAddressLikeForDisplay(
+        chain,
+        'vault transaction PDA',
+        transactionPda,
+      );
+      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPdaForDisplay}: ${stringifyUnknownSquadsError(error)}`;
       throw new Error(errorMsg);
     }
 
@@ -1430,9 +1448,17 @@ export class SquadsTransactionReader {
 
     return {
       chain,
-      proposalPda: proposalData.proposalPda.toBase58(),
+      proposalPda: this.formatAddressLikeForDisplay(
+        chain,
+        'proposal PDA',
+        proposalData.proposalPda,
+      ),
       transactionIndex,
-      multisig: proposalData.multisigPda.toBase58(),
+      multisig: this.formatAddressLikeForDisplay(
+        chain,
+        'multisig PDA',
+        proposalData.multisigPda,
+      ),
       instructions: parsedInstructions.map((inst) =>
         this.formatInstruction(chain, inst),
       ),

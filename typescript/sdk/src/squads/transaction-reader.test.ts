@@ -3867,6 +3867,185 @@ describe('squads transaction reader', () => {
     }
   });
 
+  it('uses fallback addresses when config transaction PDAs cannot be stringified', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readConfigTransaction: (
+        chain: string,
+        transactionIndex: number,
+        proposalData: Record<string, unknown>,
+        accountInfo: Record<string, unknown>,
+      ) => Promise<Record<string, unknown>>;
+    };
+    const malformedAddressLike = {
+      toBase58: () => {
+        throw new Error('address unavailable');
+      },
+    };
+    const originalFromAccountInfo = accounts.ConfigTransaction.fromAccountInfo;
+    (
+      accounts.ConfigTransaction as unknown as {
+        fromAccountInfo: (...args: unknown[]) => unknown;
+      }
+    ).fromAccountInfo = () => [{ actions: [] }];
+
+    try {
+      const result = await readerAny.readConfigTransaction(
+        'solanamainnet',
+        5,
+        {
+          proposal: {},
+          proposalPda: malformedAddressLike,
+          multisigPda: malformedAddressLike,
+        },
+        { data: Buffer.alloc(0) },
+      );
+
+      expect(result).to.deep.equal({
+        chain: 'solanamainnet',
+        proposalPda: '[invalid address]',
+        transactionIndex: 5,
+        multisig: '[invalid address]',
+        instructions: [],
+      });
+    } finally {
+      (
+        accounts.ConfigTransaction as unknown as {
+          fromAccountInfo: typeof originalFromAccountInfo;
+        }
+      ).fromAccountInfo = originalFromAccountInfo;
+    }
+  });
+
+  it('uses fallback transaction address in vault fetch failures', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readVaultTransaction: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+        proposalData: Record<string, unknown>,
+        transactionPda: unknown,
+      ) => Promise<Record<string, unknown>>;
+    };
+    const originalFromAccountAddress =
+      accounts.VaultTransaction.fromAccountAddress;
+    (
+      accounts.VaultTransaction as unknown as {
+        fromAccountAddress: (...args: unknown[]) => unknown;
+      }
+    ).fromAccountAddress = async () => {
+      throw new Error('vault unavailable');
+    };
+
+    try {
+      const thrownError = await captureAsyncError(() =>
+        readerAny.readVaultTransaction(
+          'solanamainnet',
+          5,
+          { getAccountInfo: async () => null },
+          {
+            proposal: {},
+            proposalPda: new PublicKey('11111111111111111111111111111111'),
+            multisigPda: new PublicKey('11111111111111111111111111111111'),
+          },
+          {
+            toBase58: () => {
+              throw new Error('transaction pda unavailable');
+            },
+          },
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to fetch VaultTransaction at [invalid address]: Error: vault unavailable',
+      );
+    } finally {
+      (
+        accounts.VaultTransaction as unknown as {
+          fromAccountAddress: typeof originalFromAccountAddress;
+        }
+      ).fromAccountAddress = originalFromAccountAddress;
+    }
+  });
+
+  it('uses fallback addresses when vault transaction PDAs cannot be stringified', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readVaultTransaction: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+        proposalData: Record<string, unknown>,
+        transactionPda: unknown,
+      ) => Promise<Record<string, unknown>>;
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: unknown,
+        svmProvider: unknown,
+      ) => Promise<{ instructions: unknown[]; warnings: string[] }>;
+    };
+    const malformedAddressLike = {
+      toBase58: () => {
+        throw new Error('address unavailable');
+      },
+    };
+    const originalFromAccountAddress =
+      accounts.VaultTransaction.fromAccountAddress;
+    (
+      accounts.VaultTransaction as unknown as {
+        fromAccountAddress: (...args: unknown[]) => unknown;
+      }
+    ).fromAccountAddress = async () => ({ message: { instructions: [] } });
+    readerAny.parseVaultInstructions = async () => ({
+      instructions: [],
+      warnings: [],
+    });
+
+    try {
+      const result = await readerAny.readVaultTransaction(
+        'solanamainnet',
+        5,
+        { getAccountInfo: async () => null },
+        {
+          proposal: {},
+          proposalPda: malformedAddressLike,
+          multisigPda: malformedAddressLike,
+        },
+        new PublicKey('11111111111111111111111111111111'),
+      );
+
+      expect(result).to.deep.equal({
+        chain: 'solanamainnet',
+        proposalPda: '[invalid address]',
+        transactionIndex: 5,
+        multisig: '[invalid address]',
+        instructions: [],
+      });
+    } finally {
+      (
+        accounts.VaultTransaction as unknown as {
+          fromAccountAddress: typeof originalFromAccountAddress;
+        }
+      ).fromAccountAddress = originalFromAccountAddress;
+    }
+  });
+
   it('does not misclassify multisig validator instructions when chain lookup throws during parse', () => {
     const mpp = {
       tryGetChainName: () => {
