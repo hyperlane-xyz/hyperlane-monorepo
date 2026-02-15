@@ -192,6 +192,40 @@ function listSdkSquadsNonTestSourceFilePaths(): readonly string[] {
     .map((entry) => `src/squads/${entry.name}`);
 }
 
+function listSdkSquadsTestFilePathsRecursively(
+  absoluteDirectoryPath: string,
+  relativeDirectoryPath: string = '',
+): readonly string[] {
+  const directoryEntries = fs
+    .readdirSync(absoluteDirectoryPath, { withFileTypes: true })
+    .sort((left, right) => compareLexicographically(left.name, right.name));
+  const discoveredTestPaths: string[] = [];
+
+  for (const entry of directoryEntries) {
+    const nextRelativePath =
+      relativeDirectoryPath.length === 0
+        ? entry.name
+        : path.posix.join(relativeDirectoryPath, entry.name);
+    const nextAbsolutePath = path.join(absoluteDirectoryPath, entry.name);
+
+    if (entry.isDirectory()) {
+      discoveredTestPaths.push(
+        ...listSdkSquadsTestFilePathsRecursively(
+          nextAbsolutePath,
+          nextRelativePath,
+        ),
+      );
+      continue;
+    }
+
+    if (entry.isFile() && entry.name.endsWith('.test.ts')) {
+      discoveredTestPaths.push(`src/squads/${nextRelativePath}`);
+    }
+  }
+
+  return discoveredTestPaths.sort(compareLexicographically);
+}
+
 function matchesSingleAsteriskGlob(
   candidatePath: string,
   globPattern: string,
@@ -513,5 +547,15 @@ describe('squads barrel exports', () => {
         `Expected sdk squads test command glob to exclude non-test source path: ${nonTestPath}`,
       ).to.equal(false);
     }
+  });
+
+  it('keeps sdk squads test files flat for non-recursive squads test glob', () => {
+    const topLevelDiscoveredTestPaths = listSdkSquadsTestFilePaths();
+    const recursivelyDiscoveredTestPaths =
+      listSdkSquadsTestFilePathsRecursively(SDK_SQUADS_SOURCE_DIR);
+    expect(recursivelyDiscoveredTestPaths.length).to.be.greaterThan(0);
+    expect(topLevelDiscoveredTestPaths).to.deep.equal(
+      recursivelyDiscoveredTestPaths,
+    );
   });
 });
