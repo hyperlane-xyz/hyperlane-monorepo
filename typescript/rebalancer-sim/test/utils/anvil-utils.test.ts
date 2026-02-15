@@ -3518,6 +3518,102 @@ describe('Anvil utils', () => {
       }
     });
 
+    it('matches runtime wrapper strings via Object.prototype.toString fallback when String(error) returns json-escaped single-quoted object-tag placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, 'toString', {
+          value: () => "\\'[object Array]\\'",
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString runtime fallback after json-escaped single-quoted object-tag String(error) placeholder`,
+        ).to.equal(true);
+      }
+    });
+
+    it('ignores non-runtime wrapper strings via Object.prototype.toString fallback when String(error) returns json-escaped single-quoted object-tag placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, 'toString', {
+          value: () => "\\'[object Array]\\'",
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'unrelated nested startup warning',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString non-runtime fallback after json-escaped single-quoted object-tag String(error) placeholder`,
+        ).to.equal(false);
+      }
+    });
+
+    it('matches runtime wrapper strings via Object.prototype.toString fallback when String(error) returns json-escaped mixed-quoted object-tag placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, 'toString', {
+          value: () => `\\"'[object Array]'\\"`,
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString runtime fallback after json-escaped mixed-quoted object-tag String(error) placeholder`,
+        ).to.equal(true);
+      }
+    });
+
+    it('ignores non-runtime wrapper strings via Object.prototype.toString fallback when String(error) returns json-escaped mixed-quoted object-tag placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, 'toString', {
+          value: () => `\\"'[object Array]'\\"`,
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'unrelated nested startup warning',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString non-runtime fallback after json-escaped mixed-quoted object-tag String(error) placeholder`,
+        ).to.equal(false);
+      }
+    });
+
     it('matches runtime wrapper strings via Object.prototype.toString fallback when String(error) returns object-tag object placeholders under hostile accessors', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       for (const wrapperKind of hostileFallbackWrapperKinds) {
@@ -10686,6 +10782,50 @@ describe('Anvil utils', () => {
 
       expect(formatLocalAnvilStartError(problematic)).to.equal(
         'Failed to start local anvil: [object JsonEscapedQuotedObjectTagStringFallbackRuntimeTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString when stringify and inspect are non-informative and String(error) returns a json-escaped single-quoted object-tag placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+        toString() {
+          return "\\'[object Array]\\'";
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'JsonEscapedSingleQuotedObjectTagStringFallbackRuntimeTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object JsonEscapedSingleQuotedObjectTagStringFallbackRuntimeTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString when stringify and inspect are non-informative and String(error) returns a json-escaped mixed-quoted object-tag placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+        toString() {
+          return `\\"'[object Array]'\\"`;
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'JsonEscapedMixedQuotedObjectTagStringFallbackRuntimeTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object JsonEscapedMixedQuotedObjectTagStringFallbackRuntimeTag]',
       );
     });
 
