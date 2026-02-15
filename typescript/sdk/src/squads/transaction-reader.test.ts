@@ -2084,6 +2084,49 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('skips malformed warp-route token containers when token-array inspection fails', async () => {
+    let protocolLookupCount = 0;
+    const mpp = {
+      tryGetProtocol: () => {
+        protocolLookupCount += 1;
+        return ProtocolType.Sealevel;
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const { proxy: revokedTokens, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    await reader.init({
+      malformedRoute: {
+        tokens: revokedTokens,
+      },
+      validRoute: {
+        tokens: [
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 'GOOD003-REVOCABLE',
+            symbol: 'GOOD',
+            name: 'Good Token',
+          },
+        ],
+      },
+    });
+
+    expect(protocolLookupCount).to.equal(1);
+    expect(
+      reader.warpRouteIndex.get('solanamainnet')?.get('good003-revocable'),
+    ).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Good Token',
+      routeName: 'validRoute',
+    });
+  });
+
   it('skips malformed warp-route token containers when tokens length accessor throws', async () => {
     let protocolLookupCount = 0;
     const mpp = {

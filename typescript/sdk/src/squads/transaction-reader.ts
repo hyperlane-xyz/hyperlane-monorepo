@@ -212,12 +212,15 @@ function parseCoreProgramId(
 }
 
 function normalizeValidatorSet(validators: unknown): string[] | null {
-  if (!Array.isArray(validators)) {
+  const { isArray: validatorsAreArray, readFailed: validatorsReadFailed } =
+    inspectArrayValue(validators);
+  if (validatorsReadFailed || !validatorsAreArray) {
     return null;
   }
 
+  const normalizedValidatorsInput = validators as readonly unknown[];
   const normalizedValidators: string[] = [];
-  for (const validator of validators) {
+  for (const validator of normalizedValidatorsInput) {
     if (typeof validator !== 'string') {
       return null;
     }
@@ -435,16 +438,21 @@ export class SquadsTransactionReader {
         continue;
       }
 
-      if (!Array.isArray(routeTokens)) {
+      const {
+        isArray: routeTokensAreArray,
+        readFailed: routeTokensReadFailed,
+      } = inspectArrayValue(routeTokens);
+      if (routeTokensReadFailed || !routeTokensAreArray) {
         rootLogger.warn(
           `Skipping malformed warp route tokens for ${routeName}: expected array, got ${getUnknownValueTypeName(routeTokens)}`,
         );
         continue;
       }
+      const normalizedRouteTokens = routeTokens as readonly unknown[];
 
       let routeTokensLengthValue: unknown;
       try {
-        routeTokensLengthValue = routeTokens.length;
+        routeTokensLengthValue = normalizedRouteTokens.length;
       } catch (error) {
         rootLogger.warn(
           `Failed to read warp route tokens length for ${routeName}: ${stringifyUnknownSquadsError(error)}`,
@@ -470,7 +478,7 @@ export class SquadsTransactionReader {
       ) {
         let token: unknown;
         try {
-          token = routeTokens[tokenIndex];
+          token = normalizedRouteTokens[tokenIndex];
         } catch (error) {
           rootLogger.warn(
             `Failed to read warp route token at index ${tokenIndex} for ${routeName}: ${stringifyUnknownSquadsError(error)}`,
@@ -1205,10 +1213,13 @@ export class SquadsTransactionReader {
       `Invalid solana provider for ${chain}: expected synchronous provider, got promise-like value`,
     );
 
+    const { isArray: providerIsArray, readFailed: providerReadFailed } =
+      inspectArrayValue(svmProvider);
     assert(
       typeof svmProvider === 'object' &&
         svmProvider !== null &&
-        !Array.isArray(svmProvider),
+        !providerReadFailed &&
+        !providerIsArray,
       `Invalid solana provider for ${chain}: expected object, got ${getUnknownValueTypeName(svmProvider)}`,
     );
 
@@ -1322,7 +1333,9 @@ export class SquadsTransactionReader {
       () => vaultTransaction.message.accountKeys,
       [],
     );
-    if (!Array.isArray(accountKeysValue)) {
+    const { isArray: accountKeysAreArray, readFailed: accountKeysReadFailed } =
+      inspectArrayValue(accountKeysValue);
+    if (accountKeysReadFailed || !accountKeysAreArray) {
       rootLogger.warn(
         `Malformed vault account keys on ${chain}: expected array, got ${getUnknownValueTypeName(accountKeysValue)}`,
       );
@@ -1331,7 +1344,7 @@ export class SquadsTransactionReader {
     const accountKeys = this.normalizeVaultArrayField(
       chain,
       'vault account keys',
-      accountKeysValue,
+      accountKeysValue as unknown[],
     ) as PublicKey[];
     const lookupsValue = this.readVaultTransactionField(
       chain,
@@ -1339,7 +1352,9 @@ export class SquadsTransactionReader {
       () => vaultTransaction.message.addressTableLookups,
       [],
     );
-    if (!Array.isArray(lookupsValue)) {
+    const { isArray: lookupsAreArray, readFailed: lookupsReadFailed } =
+      inspectArrayValue(lookupsValue);
+    if (lookupsReadFailed || !lookupsAreArray) {
       rootLogger.warn(
         `Malformed vault address lookup tables on ${chain}: expected array, got ${getUnknownValueTypeName(lookupsValue)}`,
       );
@@ -1348,7 +1363,7 @@ export class SquadsTransactionReader {
     const lookups = this.normalizeVaultArrayField(
       chain,
       'vault address lookup tables',
-      lookupsValue,
+      lookupsValue as unknown[],
     );
 
     if (!lookups || lookups.length === 0) return accountKeys;
@@ -1381,20 +1396,30 @@ export class SquadsTransactionReader {
           () => (lookup as { readonlyIndexes?: unknown }).readonlyIndexes,
           [],
         );
-        const writableIndexes = Array.isArray(writableIndexesValue)
-          ? this.normalizeVaultArrayField(
-              chain,
-              'lookup table writable indexes',
-              writableIndexesValue,
-            )
-          : [];
-        const readonlyIndexes = Array.isArray(readonlyIndexesValue)
-          ? this.normalizeVaultArrayField(
-              chain,
-              'lookup table readonly indexes',
-              readonlyIndexesValue,
-            )
-          : [];
+        const {
+          isArray: writableIndexesAreArray,
+          readFailed: writableIndexesReadFailed,
+        } = inspectArrayValue(writableIndexesValue);
+        const writableIndexes =
+          !writableIndexesReadFailed && writableIndexesAreArray
+            ? this.normalizeVaultArrayField(
+                chain,
+                'lookup table writable indexes',
+                writableIndexesValue as unknown[],
+              )
+            : [];
+        const {
+          isArray: readonlyIndexesAreArray,
+          readFailed: readonlyIndexesReadFailed,
+        } = inspectArrayValue(readonlyIndexesValue);
+        const readonlyIndexes =
+          !readonlyIndexesReadFailed && readonlyIndexesAreArray
+            ? this.normalizeVaultArrayField(
+                chain,
+                'lookup table readonly indexes',
+                readonlyIndexesValue as unknown[],
+              )
+            : [];
 
         const data = this.readTransactionAccountData(
           chain,
@@ -1465,7 +1490,11 @@ export class SquadsTransactionReader {
       () => vaultTransaction.message.instructions,
       [],
     );
-    if (!Array.isArray(instructionsValue)) {
+    const {
+      isArray: instructionsAreArray,
+      readFailed: instructionsReadFailed,
+    } = inspectArrayValue(instructionsValue);
+    if (instructionsReadFailed || !instructionsAreArray) {
       const warning = `Malformed vault instructions on ${chain}: expected array, got ${getUnknownValueTypeName(instructionsValue)}`;
       warnings.push(warning);
       return { instructions: parsedInstructions, warnings };
@@ -1473,7 +1502,7 @@ export class SquadsTransactionReader {
     const instructions = this.normalizeVaultArrayField(
       chain,
       'vault instructions',
-      instructionsValue,
+      instructionsValue as unknown[],
     );
     const computeBudgetProgramId = ComputeBudgetProgram.programId;
 
@@ -1506,18 +1535,23 @@ export class SquadsTransactionReader {
           () => (instruction as { accountIndexes?: unknown }).accountIndexes,
           [],
         );
-        if (!Array.isArray(accountIndexesValue)) {
+        const {
+          isArray: accountIndexesAreArray,
+          readFailed: accountIndexesReadFailed,
+        } = inspectArrayValue(accountIndexesValue);
+        if (accountIndexesReadFailed || !accountIndexesAreArray) {
           const warning = `Malformed instruction account indexes on ${chain} at ${idx}: expected array, got ${getUnknownValueTypeName(accountIndexesValue)}`;
           rootLogger.warn(warning);
           warnings.push(warning);
         }
-        const accountIndexes = Array.isArray(accountIndexesValue)
-          ? this.normalizeVaultArrayField(
-              chain,
-              `instruction account indexes at ${idx}`,
-              accountIndexesValue,
-            )
-          : [];
+        const accountIndexes =
+          !accountIndexesReadFailed && accountIndexesAreArray
+            ? this.normalizeVaultArrayField(
+                chain,
+                `instruction account indexes at ${idx}`,
+                accountIndexesValue as unknown[],
+              )
+            : [];
 
         if (accountIndexes.length > MAX_SOLANA_ACCOUNTS) {
           throw new Error(
@@ -1724,9 +1758,11 @@ export class SquadsTransactionReader {
     if (value instanceof ArrayBuffer) {
       return Buffer.from(new Uint8Array(value));
     }
-    if (Array.isArray(value)) {
+    const { isArray: valueIsArray, readFailed: valueReadFailed } =
+      inspectArrayValue(value);
+    if (!valueReadFailed && valueIsArray) {
       try {
-        return Buffer.from(value);
+        return Buffer.from(value as readonly number[]);
       } catch (error) {
         const warning = `Failed to normalize instruction ${instructionIndex} data on ${chain}: ${stringifyUnknownSquadsError(error)}`;
         rootLogger.warn(warning);
@@ -1874,14 +1910,17 @@ export class SquadsTransactionReader {
       actions = [];
     }
 
-    if (!Array.isArray(actions)) {
+    const { isArray: actionsAreArray, readFailed: actionsReadFailed } =
+      inspectArrayValue(actions);
+    if (actionsReadFailed || !actionsAreArray) {
       rootLogger.warn(
         `Malformed config actions for ${chain} at index ${transactionIndex}: expected array, got ${getUnknownValueTypeName(actions)}`,
       );
       actions = [];
     }
 
-    const normalizedActions: unknown[] = Array.isArray(actions) ? actions : [];
+    const normalizedActions: unknown[] =
+      !actionsReadFailed && actionsAreArray ? (actions as unknown[]) : [];
     for (const action of normalizedActions) {
       const instruction = this.formatConfigAction(
         chain,
@@ -2097,12 +2136,40 @@ export class SquadsTransactionReader {
       );
     }
 
+    const {
+      isArray: transactionPdaTupleIsArray,
+      readFailed: transactionPdaTupleReadFailed,
+    } = inspectArrayValue(transactionPdaTuple);
     assert(
-      Array.isArray(transactionPdaTuple) && transactionPdaTuple.length > 0,
+      !transactionPdaTupleReadFailed && transactionPdaTupleIsArray,
       `Malformed transaction PDA derivation for ${chain} at index ${transactionIndex}: expected non-empty tuple result`,
     );
 
-    const [transactionPda] = transactionPdaTuple;
+    const normalizedTransactionPdaTuple =
+      transactionPdaTuple as readonly unknown[];
+    let transactionPdaTupleLengthValue: unknown;
+    try {
+      transactionPdaTupleLengthValue = normalizedTransactionPdaTuple.length;
+    } catch (error) {
+      throw new Error(
+        `Failed to read transaction PDA tuple length for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+    assert(
+      typeof transactionPdaTupleLengthValue === 'number' &&
+        Number.isSafeInteger(transactionPdaTupleLengthValue) &&
+        transactionPdaTupleLengthValue > 0,
+      `Malformed transaction PDA derivation for ${chain} at index ${transactionIndex}: expected non-empty tuple result`,
+    );
+
+    let transactionPda: unknown;
+    try {
+      transactionPda = normalizedTransactionPdaTuple[0];
+    } catch (error) {
+      throw new Error(
+        `Failed to read transaction PDA tuple entry for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
     assert(
       transactionPda instanceof PublicKey,
       `Malformed transaction PDA derivation for ${chain} at index ${transactionIndex}: expected PublicKey at tuple index 0, got ${getUnknownValueTypeName(transactionPda)}`,
@@ -2988,14 +3055,16 @@ export class SquadsTransactionReader {
     label: string,
     values: unknown,
   ): string[] {
-    if (!Array.isArray(values)) {
+    const { isArray: valuesAreArray, readFailed: valuesReadFailed } =
+      inspectArrayValue(values);
+    if (valuesReadFailed || !valuesAreArray) {
       rootLogger.warn(
         `Malformed ${label} on ${chain}: expected array, got ${getUnknownValueTypeName(values)}`,
       );
       return [];
     }
     try {
-      return Array.from(values, (value, index) =>
+      return Array.from(values as readonly unknown[], (value, index) =>
         this.formatAddressLikeForDisplay(chain, `${label}[${index}]`, value),
       );
     } catch (error) {
@@ -3345,8 +3414,12 @@ export class SquadsTransactionReader {
           tx.args = routers;
           break;
         }
-        if (Array.isArray(routersCandidate)) {
-          for (const [index, router] of routersCandidate.entries()) {
+        const { isArray: routersAreArray, readFailed: routersReadFailed } =
+          inspectArrayValue(routersCandidate);
+        if (!routersReadFailed && routersAreArray) {
+          for (const [index, router] of (
+            routersCandidate as readonly unknown[]
+          ).entries()) {
             if (!isRecordObject(router)) {
               rootLogger.warn(
                 `Skipping malformed warp enroll-router config at index ${index} on ${chain}: expected object, got ${getUnknownValueTypeName(router)}`,
@@ -3408,8 +3481,12 @@ export class SquadsTransactionReader {
           break;
         }
 
-        if (Array.isArray(configsCandidate)) {
-          for (const [index, config] of configsCandidate.entries()) {
+        const { isArray: configsAreArray, readFailed: configsReadFailed } =
+          inspectArrayValue(configsCandidate);
+        if (!configsReadFailed && configsAreArray) {
+          for (const [index, config] of (
+            configsCandidate as readonly unknown[]
+          ).entries()) {
             if (!isRecordObject(config)) {
               rootLogger.warn(
                 `Skipping malformed warp gas config at index ${index} on ${chain}: expected object, got ${getUnknownValueTypeName(config)}`,
