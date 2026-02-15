@@ -20,6 +20,11 @@ const INFRA_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
+const SQUADS_SCRIPTS_DIRECTORY_PATH = path.join(
+  INFRA_ROOT,
+  'scripts',
+  'squads',
+);
 
 type HelpCase = {
   readonly scriptPath: string;
@@ -66,6 +71,50 @@ function runScriptHelp(scriptPath: string) {
     cwd: INFRA_ROOT,
     encoding: 'utf8',
   });
+}
+
+function compareLexicographically(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
+function listExecutableSquadsScriptsRecursively(
+  absoluteDirectoryPath: string,
+  relativeDirectoryPath: string,
+): readonly string[] {
+  const entries = fs
+    .readdirSync(absoluteDirectoryPath, { withFileTypes: true })
+    .sort((left, right) => compareLexicographically(left.name, right.name));
+  const scripts: string[] = [];
+
+  for (const entry of entries) {
+    const nextRelativePath = path.posix.join(relativeDirectoryPath, entry.name);
+    const nextAbsolutePath = path.join(absoluteDirectoryPath, entry.name);
+    if (entry.isDirectory()) {
+      scripts.push(
+        ...listExecutableSquadsScriptsRecursively(
+          nextAbsolutePath,
+          nextRelativePath,
+        ),
+      );
+      continue;
+    }
+
+    if (
+      entry.isFile() &&
+      hasAllowedSquadsScriptExtension(nextRelativePath) &&
+      isExecutableSquadsScriptPath(nextRelativePath)
+    ) {
+      scripts.push(nextRelativePath);
+    }
+  }
+
+  return scripts.sort(compareLexicographically);
 }
 
 describe('squads scripts --help smoke', function () {
@@ -145,6 +194,22 @@ describe('squads scripts --help smoke', function () {
     expect(configuredScriptPaths).to.deep.equal([
       ...EXECUTABLE_SQUADS_SCRIPT_PATHS,
     ]);
+  });
+
+  it('keeps squads script discovery flat for top-level squads helper', () => {
+    const topLevelExecutableSquadsScripts =
+      listExecutableSquadsDirectoryScripts(INFRA_ROOT);
+    const recursivelyDiscoveredExecutableSquadsScripts =
+      listExecutableSquadsScriptsRecursively(
+        SQUADS_SCRIPTS_DIRECTORY_PATH,
+        'scripts/squads',
+      );
+    expect(
+      recursivelyDiscoveredExecutableSquadsScripts.length,
+    ).to.be.greaterThan(0);
+    expect(topLevelExecutableSquadsScripts).to.deep.equal(
+      recursivelyDiscoveredExecutableSquadsScripts,
+    );
   });
 
   for (const { scriptPath, expectedOutput } of SQUADS_SCRIPT_HELP_CASES) {
