@@ -75,7 +75,10 @@ function compareLexicographically(left: string, right: string): number {
 }
 
 function toPosixPath(relativePath: string): string {
-  return relativePath.split(path.sep).join(path.posix.sep);
+  const normalizedByPlatformSeparator = relativePath
+    .split(path.sep)
+    .join(path.posix.sep);
+  return normalizedByPlatformSeparator.split('\\').join(path.posix.sep);
 }
 
 function hasTrackedSourceExtension(relativePath: string): boolean {
@@ -418,6 +421,18 @@ describe('squads sdk migration regression', () => {
     ).to.equal(false);
     expect(isNormalizedTrackedSourceRelativePath(' scripts/file.ts')).to.equal(
       false,
+    );
+  });
+
+  it('normalizes tracked-source paths to posix separators', () => {
+    expect(toPosixPath('scripts/squads/read-proposal.ts')).to.equal(
+      'scripts/squads/read-proposal.ts',
+    );
+    expect(toPosixPath('scripts\\squads\\read-proposal.ts')).to.equal(
+      'scripts/squads/read-proposal.ts',
+    );
+    expect(toPosixPath('scripts/squads\\read-proposal.ts')).to.equal(
+      'scripts/squads/read-proposal.ts',
     );
   });
 
