@@ -64,24 +64,36 @@ export function stringifyUnknownSquadsError(
   error: unknown,
   options: StringifyUnknownSquadsErrorOptions = {},
 ): string {
-  const optionsUnknown = options as unknown;
-  const normalizedOptions =
-    optionsUnknown && typeof optionsUnknown === 'object'
-      ? (optionsUnknown as Partial<StringifyUnknownSquadsErrorOptions>)
-      : {};
-  const placeholderCandidate = (normalizedOptions as { placeholder?: unknown })
-    .placeholder;
+  const optionsRecord =
+    options && typeof options === 'object'
+      ? (options as Record<string, unknown>)
+      : undefined;
+  const readOptionCandidate = (key: string): unknown => {
+    if (!optionsRecord) {
+      return undefined;
+    }
+
+    try {
+      return optionsRecord[key];
+    } catch {
+      return undefined;
+    }
+  };
+
+  const placeholderCandidate = readOptionCandidate('placeholder');
   const placeholder =
-    typeof placeholderCandidate === 'string' && placeholderCandidate.length > 0
+    typeof placeholderCandidate === 'string' &&
+    placeholderCandidate.trim().length > 0
       ? placeholderCandidate
       : DEFAULT_SQUADS_ERROR_PLACEHOLDER;
   const preferErrorMessageForErrorInstances =
-    normalizedOptions.preferErrorMessageForErrorInstances === true;
+    readOptionCandidate('preferErrorMessageForErrorInstances') === true;
   const preferErrorStackForErrorInstances =
-    normalizedOptions.preferErrorStackForErrorInstances === true;
+    readOptionCandidate('preferErrorStackForErrorInstances') === true;
+  const formatObjectCandidate = readOptionCandidate('formatObject');
   const formatObject =
-    typeof normalizedOptions.formatObject === 'function'
-      ? normalizedOptions.formatObject
+    typeof formatObjectCandidate === 'function'
+      ? (formatObjectCandidate as (value: object) => string | undefined)
       : undefined;
   const stringifyErrorFallback = (value: unknown): string => {
     try {

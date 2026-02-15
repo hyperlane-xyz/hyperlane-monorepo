@@ -319,6 +319,14 @@ describe('squads error-format', () => {
       ).to.equal(DEFAULT_SQUADS_ERROR_PLACEHOLDER);
     });
 
+    it('falls back to exported default placeholder when placeholder override is whitespace', () => {
+      expect(
+        stringifyUnknownSquadsError('   ', {
+          placeholder: '   ',
+        }),
+      ).to.equal(DEFAULT_SQUADS_ERROR_PLACEHOLDER);
+    });
+
     it('tolerates malformed options containers by falling back to defaults', () => {
       expect(
         stringifyUnknownSquadsError(
@@ -346,6 +354,67 @@ describe('squads error-format', () => {
       ).to.equal(
         DEFAULT_SQUADS_ERROR_PLACEHOLDER,
       );
+    });
+
+    it('tolerates option accessors that throw by falling back to defaults', () => {
+      const malformedOptions = Object.create(null) as Record<string, unknown>;
+      Object.defineProperty(malformedOptions, 'placeholder', {
+        configurable: true,
+        get() {
+          throw new Error('placeholder unavailable');
+        },
+      });
+      Object.defineProperty(
+        malformedOptions,
+        'preferErrorMessageForErrorInstances',
+        {
+          configurable: true,
+          get() {
+            throw new Error('message preference unavailable');
+          },
+        },
+      );
+
+      expect(
+        stringifyUnknownSquadsError(
+          '   ',
+          malformedOptions as unknown as Parameters<
+            typeof stringifyUnknownSquadsError
+          >[1],
+        ),
+      ).to.equal(DEFAULT_SQUADS_ERROR_PLACEHOLDER);
+      expect(
+        stringifyUnknownSquadsError(
+          new Error('boom'),
+          malformedOptions as unknown as Parameters<
+            typeof stringifyUnknownSquadsError
+          >[1],
+        ),
+      ).to.equal('Error: boom');
+    });
+
+    it('tolerates throwing formatObject accessors and falls back to stringification', () => {
+      const malformedOptions = Object.create(null) as Record<string, unknown>;
+      Object.defineProperty(malformedOptions, 'formatObject', {
+        configurable: true,
+        get() {
+          throw new Error('formatObject unavailable');
+        },
+      });
+      const errorLike = {
+        toString() {
+          return 'object fallback';
+        },
+      };
+
+      expect(
+        stringifyUnknownSquadsError(
+          errorLike,
+          malformedOptions as unknown as Parameters<
+            typeof stringifyUnknownSquadsError
+          >[1],
+        ),
+      ).to.equal('object fallback');
     });
 
     it('supports object formatter callbacks for plain objects', () => {
