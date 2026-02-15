@@ -169,11 +169,65 @@ function collectSymbolSourceReferences(
     }
 
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
-      const source = node.initializer
-        ? readModuleSourceFromInitializer(node.initializer)
+      const initializer = node.initializer
+        ? unwrapInitializerExpression(node.initializer)
         : undefined;
+      const directSource = initializer
+        ? readModuleSourceFromInitializer(initializer)
+        : undefined;
+      const aliasSource =
+        initializer && ts.isIdentifier(initializer)
+          ? moduleAliasByIdentifier.get(initializer.text)
+          : undefined;
+      const source = directSource ?? aliasSource;
       if (source) {
         moduleAliasByIdentifier.set(node.name.text, source);
+      }
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left)
+    ) {
+      const rightExpression = unwrapInitializerExpression(node.right);
+      const directSource = readModuleSourceFromInitializer(rightExpression);
+      const aliasSource = ts.isIdentifier(rightExpression)
+        ? moduleAliasByIdentifier.get(rightExpression.text)
+        : undefined;
+      const source = directSource ?? aliasSource;
+      if (source) {
+        moduleAliasByIdentifier.set(node.left.text, source);
+      } else {
+        moduleAliasByIdentifier.delete(node.left.text);
+      }
+    }
+
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression)
+    ) {
+      const source = moduleAliasByIdentifier.get(node.expression.text);
+      if (source) {
+        references.push({
+          symbol: normalizeNamedSymbol(node.name.text),
+          source,
+        });
+      }
+    }
+
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.argumentExpression &&
+      ts.isStringLiteralLike(node.argumentExpression)
+    ) {
+      const source = moduleAliasByIdentifier.get(node.expression.text);
+      if (source) {
+        references.push({
+          symbol: normalizeNamedSymbol(node.argumentExpression.text),
+          source,
+        });
       }
     }
 
