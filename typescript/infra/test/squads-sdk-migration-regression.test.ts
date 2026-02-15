@@ -82,6 +82,7 @@ function isNormalizedTrackedSourceRelativePath(relativePath: string): boolean {
   return (
     relativePath.length > 0 &&
     relativePath === relativePath.trim() &&
+    relativePath === path.posix.normalize(relativePath) &&
     !relativePath.startsWith('.') &&
     !relativePath.startsWith('/') &&
     !relativePath.includes('\\') &&
@@ -386,6 +387,28 @@ describe('squads sdk migration regression', () => {
         `Expected tracked source file path to be normalized and relative: ${trackedSourceFilePath}`,
       ).to.equal(true);
     }
+  });
+
+  it('rejects malformed tracked-source relative path candidates', () => {
+    expect(isNormalizedTrackedSourceRelativePath('')).to.equal(false);
+    expect(isNormalizedTrackedSourceRelativePath('./scripts/file.ts')).to.equal(
+      false,
+    );
+    expect(isNormalizedTrackedSourceRelativePath('/scripts/file.ts')).to.equal(
+      false,
+    );
+    expect(
+      isNormalizedTrackedSourceRelativePath('scripts//nested/file.ts'),
+    ).to.equal(false);
+    expect(
+      isNormalizedTrackedSourceRelativePath('scripts/../nested/file.ts'),
+    ).to.equal(false);
+    expect(
+      isNormalizedTrackedSourceRelativePath('scripts\\nested\\file.ts'),
+    ).to.equal(false);
+    expect(isNormalizedTrackedSourceRelativePath(' scripts/file.ts')).to.equal(
+      false,
+    );
   });
 
   it('keeps tracked infra source file paths constrained to tracked extensions', () => {
