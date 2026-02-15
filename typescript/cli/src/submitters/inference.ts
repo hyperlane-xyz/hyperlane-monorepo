@@ -1,5 +1,3 @@
-import { constants as ethersConstants } from 'ethers';
-
 import {
   ISafe__factory,
   InterchainAccountRouter__factory,
@@ -36,6 +34,8 @@ import {
 
 const logger = rootLogger.child({ module: 'submitter-inference' });
 const MAX_INFERENCE_DEPTH = 3;
+const EVM_ADDRESS_ZERO =
+  '0x0000000000000000000000000000000000000000' as Address;
 type InferredSubmitter = SubmitterMetadata;
 
 type Cache = {
@@ -334,7 +334,7 @@ async function getSignerAddressFromSignerObject(
     const signerAddress = await maybeGetAddress.call(signer);
     const normalizedSignerAddress = tryNormalizeEvmAddress(signerAddress);
     return normalizedSignerAddress &&
-      !eqAddress(normalizedSignerAddress, ethersConstants.AddressZero)
+      !eqAddress(normalizedSignerAddress, EVM_ADDRESS_ZERO)
       ? (normalizedSignerAddress as Address)
       : null;
   } catch {
@@ -410,7 +410,7 @@ async function getSignerAddressForChain(
     const normalizedSignerAddress = tryNormalizeEvmAddress(signerAddress);
     const resolvedSignerAddress =
       normalizedSignerAddress &&
-      !eqAddress(normalizedSignerAddress, ethersConstants.AddressZero)
+      !eqAddress(normalizedSignerAddress, EVM_ADDRESS_ZERO)
         ? (normalizedSignerAddress as Address)
         : null;
     cache.signerAddressByChain.set(chain, resolvedSignerAddress);
@@ -480,7 +480,7 @@ async function getOwnerForTarget(
     const ownerAddress = await Ownable__factory.connect(target, provider).owner();
     const normalizedOwner = tryNormalizeEvmAddress(ownerAddress);
     const resolvedOwner =
-      normalizedOwner && !eqAddress(normalizedOwner, ethersConstants.AddressZero)
+      normalizedOwner && !eqAddress(normalizedOwner, EVM_ADDRESS_ZERO)
         ? normalizedOwner
         : null;
     cache.ownerByChainAndAddress.set(ownerKey, resolvedOwner);
@@ -608,7 +608,7 @@ async function inferIcaSubmitterFromAccount({
   );
   if (
     !normalizedDestinationRouterAddress ||
-    eqAddress(normalizedDestinationRouterAddress, ethersConstants.AddressZero)
+    eqAddress(normalizedDestinationRouterAddress, EVM_ADDRESS_ZERO)
   ) {
     cache.icaByChainAndAddress.set(cacheId, null);
     return null;
@@ -661,8 +661,8 @@ async function inferIcaSubmitterFromAccount({
       originRouter = bytes32ToAddress(parsed.args.router);
       owner = bytes32ToAddress(parsed.args.owner);
       if (
-        eqAddress(originRouter, ethersConstants.AddressZero) ||
-        eqAddress(owner, ethersConstants.AddressZero)
+        eqAddress(originRouter, EVM_ADDRESS_ZERO) ||
+        eqAddress(owner, EVM_ADDRESS_ZERO)
       ) {
         continue;
       }
@@ -705,7 +705,7 @@ async function inferIcaSubmitterFromAccount({
       internalSubmitter,
       originInterchainAccountRouter: originRouter,
       destinationInterchainAccountRouter: normalizedDestinationRouterAddress,
-      ...(eqAddress(ism, ethersConstants.AddressZero)
+      ...(eqAddress(ism, EVM_ADDRESS_ZERO)
         ? {}
         : { interchainSecurityModule: ism }),
     } satisfies Extract<
@@ -752,7 +752,7 @@ async function inferIcaSubmitterFromAccount({
           tryNormalizeEvmAddress(originRouterAddress);
         if (
           !normalizedOriginRouterAddress ||
-          eqAddress(normalizedOriginRouterAddress, ethersConstants.AddressZero)
+          eqAddress(normalizedOriginRouterAddress, EVM_ADDRESS_ZERO)
         ) {
           continue;
         }
@@ -775,12 +775,12 @@ async function inferIcaSubmitterFromAccount({
           ](
             ownerCandidate,
             normalizedDestinationRouterAddress,
-            ethersConstants.AddressZero,
+            EVM_ADDRESS_ZERO,
           );
           const normalizedDerivedAccount = tryNormalizeEvmAddress(derivedAccount);
           if (
             !normalizedDerivedAccount ||
-            eqAddress(normalizedDerivedAccount, ethersConstants.AddressZero)
+            eqAddress(normalizedDerivedAccount, EVM_ADDRESS_ZERO)
           ) {
             continue;
           }
@@ -862,7 +862,7 @@ async function inferTimelockProposerSubmitter({
   let signerHasRole = false;
   try {
     [isOpenProposerRole, signerHasRole] = await Promise.all([
-      timelock.hasRole(PROPOSER_ROLE, ethersConstants.AddressZero),
+      timelock.hasRole(PROPOSER_ROLE, EVM_ADDRESS_ZERO),
       timelock.hasRole(PROPOSER_ROLE, signerAddress),
     ]);
   } catch {
@@ -921,7 +921,7 @@ async function inferTimelockProposerSubmitter({
       );
       if (
         normalizedAccount &&
-        !eqAddress(normalizedAccount, ethersConstants.AddressZero)
+        !eqAddress(normalizedAccount, EVM_ADDRESS_ZERO)
       ) {
         if (roleLog.isGrant) {
           granted.add(normalizedAccount as Address);
@@ -935,7 +935,7 @@ async function inferTimelockProposerSubmitter({
   }
 
   const proposers = Array.from(granted).filter(
-    (account) => !eqAddress(account, ethersConstants.AddressZero),
+    (account) => !eqAddress(account, EVM_ADDRESS_ZERO),
   );
   const registryAddresses = await getRegistryAddresses(context, cache);
   const destinationRouterAddressCandidate = tryNormalizeEvmAddress(
@@ -943,7 +943,7 @@ async function inferTimelockProposerSubmitter({
   );
   const destinationRouterAddress =
     destinationRouterAddressCandidate &&
-    !eqAddress(destinationRouterAddressCandidate, ethersConstants.AddressZero)
+    !eqAddress(destinationRouterAddressCandidate, EVM_ADDRESS_ZERO)
       ? destinationRouterAddressCandidate
       : null;
 
@@ -1017,7 +1017,7 @@ async function inferTimelockProposerSubmitter({
           tryNormalizeEvmAddress(originRouterAddress);
         if (
           !normalizedOriginRouterAddress ||
-          eqAddress(normalizedOriginRouterAddress, ethersConstants.AddressZero)
+          eqAddress(normalizedOriginRouterAddress, EVM_ADDRESS_ZERO)
         ) {
           continue;
         }
@@ -1044,14 +1044,14 @@ async function inferTimelockProposerSubmitter({
           ](
             signerAddress,
             destinationRouterAddress,
-            ethersConstants.AddressZero,
+            EVM_ADDRESS_ZERO,
           );
           const normalizedDerivedIcaProposer = tryNormalizeEvmAddress(
             derivedIcaProposer,
           );
           if (
             !normalizedDerivedIcaProposer ||
-            eqAddress(normalizedDerivedIcaProposer, ethersConstants.AddressZero)
+            eqAddress(normalizedDerivedIcaProposer, EVM_ADDRESS_ZERO)
           ) {
             continue;
           }
@@ -1113,7 +1113,7 @@ async function inferTimelockProposerSubmitter({
         tryNormalizeEvmAddress(originRouterAddress);
       if (
         !normalizedOriginRouterAddress ||
-        eqAddress(normalizedOriginRouterAddress, ethersConstants.AddressZero)
+        eqAddress(normalizedOriginRouterAddress, EVM_ADDRESS_ZERO)
       ) {
         continue;
       }
@@ -1137,13 +1137,13 @@ async function inferTimelockProposerSubmitter({
         );
         const derivedIcaProposer = await originRouter[
           'getRemoteInterchainAccount(address,address,address)'
-        ](signerAddress, destinationRouterAddress, ethersConstants.AddressZero);
+        ](signerAddress, destinationRouterAddress, EVM_ADDRESS_ZERO);
         const normalizedDerivedIcaProposer = tryNormalizeEvmAddress(
           derivedIcaProposer,
         );
         if (
           !normalizedDerivedIcaProposer ||
-          eqAddress(normalizedDerivedIcaProposer, ethersConstants.AddressZero)
+          eqAddress(normalizedDerivedIcaProposer, EVM_ADDRESS_ZERO)
         ) {
           continue;
         }
@@ -1217,7 +1217,7 @@ async function inferSubmitterFromAddress({
     return defaultSubmitter;
   }
 
-  if (eqAddress(address, ethersConstants.AddressZero)) {
+  if (eqAddress(address, EVM_ADDRESS_ZERO)) {
     return defaultSubmitter;
   }
 
