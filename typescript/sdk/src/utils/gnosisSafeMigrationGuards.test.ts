@@ -396,6 +396,54 @@ function resolveModuleSourceFromExpression(
   if (ts.isIdentifier(unwrapped)) {
     return moduleAliasByIdentifier.get(unwrapped.text) ?? [];
   }
+  if (ts.isObjectLiteralExpression(unwrapped)) {
+    const sources = new Set<string>();
+    for (const property of unwrapped.properties) {
+      if (ts.isPropertyAssignment(property)) {
+        for (const source of resolveModuleSourceFromExpression(
+          property.initializer,
+          moduleAliasByIdentifier,
+        )) {
+          sources.add(source);
+        }
+      } else if (ts.isShorthandPropertyAssignment(property)) {
+        for (const source of moduleAliasByIdentifier.get(property.name.text) ??
+          []) {
+          sources.add(source);
+        }
+      } else if (ts.isSpreadAssignment(property)) {
+        for (const source of resolveModuleSourceFromExpression(
+          property.expression,
+          moduleAliasByIdentifier,
+        )) {
+          sources.add(source);
+        }
+      }
+    }
+    return [...sources];
+  }
+  if (ts.isArrayLiteralExpression(unwrapped)) {
+    const sources = new Set<string>();
+    for (const element of unwrapped.elements) {
+      if (ts.isOmittedExpression(element)) continue;
+      if (ts.isSpreadElement(element)) {
+        for (const source of resolveModuleSourceFromExpression(
+          element.expression,
+          moduleAliasByIdentifier,
+        )) {
+          sources.add(source);
+        }
+        continue;
+      }
+      for (const source of resolveModuleSourceFromExpression(
+        element,
+        moduleAliasByIdentifier,
+      )) {
+        sources.add(source);
+      }
+    }
+    return [...sources];
+  }
   if (ts.isPropertyAccessExpression(unwrapped)) {
     return resolveModuleSourceFromExpression(
       unwrapped.expression,
@@ -1389,6 +1437,30 @@ describe('Gnosis Safe migration guards', () => {
       'const templateAlias = require(`./fixtures/guard-module.js`);',
       'const templateDefault = templateAlias.default;',
       "const inlineTemplateDefault = require(`./fixtures/guard-module.js`)['default'];",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through object-literal wrappers', () => {
+    const source = [
+      "const wrapped = { sdk: require('./fixtures/guard-module.js') };",
+      'const wrappedAlias = wrapped.sdk;',
+      'const wrappedDefault = wrappedAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through array-literal wrappers', () => {
+    const source = [
+      "const wrapped = [require('./fixtures/guard-module.js')];",
+      'const wrappedAlias = wrapped[0];',
+      'const wrappedDefault = wrappedAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
