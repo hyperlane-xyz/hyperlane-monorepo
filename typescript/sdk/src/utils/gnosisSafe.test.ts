@@ -6931,6 +6931,74 @@ describe('gnosisSafe utils', () => {
       expect(statuses).to.have.lengthOf(1);
       expect(statuses[0].fullTxHash).to.equal(`0x${'dd'.repeat(32)}`);
     });
+
+    it('logs contextual error when pending tx hash parsing fails for unstringifiable value', async () => {
+      const unstringifiableHash = {
+        [Symbol.toPrimitive]() {
+          throw new Error('safeTxHash to-primitive boom');
+        },
+      };
+      safeModule.init = (async () => ({
+        getThreshold: async () => 1,
+        getBalance: async () => BigNumber.from('1000000000000000000'),
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => ({
+        results: [
+          {
+            nonce: '1',
+            submissionDate: '2026-01-01T00:00:00Z',
+            safeTxHash: unstringifiableHash,
+            confirmations: [],
+          },
+        ],
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const logger = rootLogger as unknown as {
+        error: (...args: unknown[]) => void;
+      };
+      const originalErrorLogger = logger.error;
+      const loggedMessages: unknown[] = [];
+      logger.error = (...args: unknown[]) => {
+        loggedMessages.push(args[0]);
+      };
+
+      let statuses;
+      try {
+        statuses = await getPendingTxsForChains(['test'], multiProviderMock, {
+          test: '0x52908400098527886e0f7030069857d2e4169ee7',
+        });
+      } finally {
+        logger.error = originalErrorLogger;
+      }
+
+      expect(statuses).to.deep.equal([]);
+      const contextualLog = loggedMessages
+        .map((entry) => String(entry))
+        .find((entry) =>
+          entry.includes(
+            'Failed to parse pending Safe transaction hash at index 0 on test:',
+          ),
+        );
+      expect(contextualLog).to.not.equal(undefined);
+      expect(contextualLog).to.include('<unstringifiable>');
+    });
   });
 
   describe('safe tx service helpers', () => {

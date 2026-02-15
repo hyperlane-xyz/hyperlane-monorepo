@@ -2677,7 +2677,11 @@ export async function getPendingTxsForChains(
           `Safe threshold must be a positive integer on ${chainName}: ${stringifyValueForError(thresholdRaw)}`,
         );
       } catch (error) {
-        rootLogger.error(chalk.red(stringifyValueForError(error)));
+        rootLogger.error(
+          chalk.red(
+            `Failed to parse Safe threshold for ${normalizedSafeAddress} on ${chainName}: ${stringifyValueForError(error)}`,
+          ),
+        );
         return chainTxs;
       }
 
@@ -2774,7 +2778,11 @@ export async function getPendingTxsForChains(
           `Safe balance must be non-negative integer on ${chainName}: ${stringifyValueForError(safeBalanceRaw)}`,
         );
       } catch (error) {
-        rootLogger.error(chalk.red(stringifyValueForError(error)));
+        rootLogger.error(
+          chalk.red(
+            `Failed to parse Safe balance for ${normalizedSafeAddress} on ${chainName}: ${stringifyValueForError(error)}`,
+          ),
+        );
         return chainTxs;
       }
       let nativeToken: unknown;
@@ -2883,7 +2891,11 @@ export async function getPendingTxsForChains(
             `Pending Safe transaction nonce must be a non-negative integer at index ${index} on ${chainName}: ${stringifyValueForError(nonce)}`,
           );
         } catch (error) {
-          rootLogger.error(chalk.red(stringifyValueForError(error)));
+          rootLogger.error(
+            chalk.red(
+              `Failed to parse pending Safe transaction nonce at index ${index} on ${chainName}: ${stringifyValueForError(error)}`,
+            ),
+          );
           continue;
         }
         const normalizedSubmissionDate =
@@ -2905,7 +2917,11 @@ export async function getPendingTxsForChains(
         try {
           normalizedSafeTxHash = normalizeSafeTxHash(safeTxHash);
         } catch (error) {
-          rootLogger.error(chalk.red(stringifyValueForError(error)));
+          rootLogger.error(
+            chalk.red(
+              `Failed to parse pending Safe transaction hash at index ${index} on ${chainName}: ${stringifyValueForError(error)}`,
+            ),
+          );
           continue;
         }
         let confs = 0;
