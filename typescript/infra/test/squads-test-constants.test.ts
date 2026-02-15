@@ -227,6 +227,14 @@ describe('squads test constants', () => {
     }
   });
 
+  it('accepts each allowlisted squads script extension suffix', () => {
+    for (const extension of SQUADS_SCRIPT_FILE_EXTENSIONS) {
+      expect(
+        hasAllowedSquadsScriptExtension(`scripts/squads/example${extension}`),
+      ).to.equal(true);
+    }
+  });
+
   it('rejects non-allowlisted squads script extensions', () => {
     expect(
       hasAllowedSquadsScriptExtension('scripts/squads/example.js'),
@@ -236,6 +244,9 @@ describe('squads test constants', () => {
     ).to.equal(false);
     expect(
       hasAllowedSquadsScriptExtension('scripts/squads/example.TS'),
+    ).to.equal(false);
+    expect(
+      hasAllowedSquadsScriptExtension('scripts/squads/example.ts.bak'),
     ).to.equal(false);
   });
 
