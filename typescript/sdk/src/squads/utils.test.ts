@@ -2766,6 +2766,34 @@ describe('squads utils', () => {
       expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(undefined);
     });
 
+    it('parses known vote errors from cyclic object graphs', () => {
+      const root = {
+        transactionLogs: ['Program log: unrelated'],
+      } as {
+        transactionLogs: readonly string[];
+        nested?: unknown;
+      };
+      const nested = {
+        logs: ['custom program error: 0x177b'],
+        parent: root,
+      };
+      root.nested = nested;
+
+      expect(parseSquadsProposalVoteErrorFromError(root)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
+    it('parses known vote errors from cyclic array wrappers', () => {
+      const cyclicArray: unknown[] = [];
+      cyclicArray.push({ logs: ['custom program error: 0x177a'] });
+      cyclicArray.push(cyclicArray);
+
+      expect(parseSquadsProposalVoteErrorFromError(cyclicArray)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
     it('parses known vote error from aggregate errors array', () => {
       const error = {
         errors: [{ message: 'unrelated' }, 'custom program error: 0x177a'],
