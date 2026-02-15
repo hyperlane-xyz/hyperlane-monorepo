@@ -5,6 +5,7 @@ import {
   hasAllowedSquadsScriptExtension,
   isExecutableSquadsScriptPath,
 } from './squads-test-constants.js';
+import { compareLexicographically } from './squads-test-ordering.js';
 
 export function listSquadsDirectoryScripts(infraRoot: string): string[] {
   const squadsScriptsDir = path.join(infraRoot, 'scripts/squads');
@@ -14,7 +15,7 @@ export function listSquadsDirectoryScripts(infraRoot: string): string[] {
       (entry) => entry.isFile() && hasAllowedSquadsScriptExtension(entry.name),
     )
     .map((entry) => path.posix.join('scripts/squads', entry.name))
-    .sort();
+    .sort(compareLexicographically);
 }
 
 export function listExecutableSquadsDirectoryScripts(
