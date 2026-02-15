@@ -227,6 +227,10 @@ function assertTrackedSourcePathSetNormalizedAndDeduplicated(
       `Expected ${pathSetLabel} path to be normalized and relative: ${pathValue}`,
     ).to.equal(true);
     expect(
+      /\s/.test(pathValue),
+      `Expected ${pathSetLabel} path to avoid whitespace characters: ${pathValue}`,
+    ).to.equal(false);
+    expect(
       hasTrackedSourceExtension(pathValue),
       `Expected ${pathSetLabel} path to match tracked source extension policy: ${pathValue}`,
     ).to.equal(true);
