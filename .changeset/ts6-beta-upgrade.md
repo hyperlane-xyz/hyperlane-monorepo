@@ -353,3 +353,5 @@ Regression coverage now also confirms uppercase object-tag inspect placeholders 
 Inspect-placeholder filtering coverage now also explicitly includes array placeholder variants (`[Array]` and `[object Array]`) to ensure they cannot mask runtime signals carried by `Object.prototype.toString` fallbacks.
 
 JSON fallback handling now also treats quoted structural placeholders (for example `"{}"`, `"[]"`, or `"[Object]"` payload strings) as non-informative when they normalize to inert placeholders, preserving downstream inspect/toString runtime-signal extraction.
+
+Inspect fallback handling now also treats quoted placeholder strings (for example `"{}"` and `"[Array]"`) as non-informative, so custom inspect implementations cannot mask runtime signals that should be surfaced by `Object.prototype.toString`.
