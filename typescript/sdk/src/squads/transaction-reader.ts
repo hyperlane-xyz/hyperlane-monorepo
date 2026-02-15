@@ -152,6 +152,10 @@ function formatIntegerValidationValue(value: unknown): string {
   return getUnknownValueTypeName(value);
 }
 
+function isRecordObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function normalizeValidatorSet(validators: unknown): string[] | null {
   if (!Array.isArray(validators)) {
     return null;
@@ -1221,9 +1225,22 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
+    let normalizedRemoteChain: string;
+    try {
+      normalizedRemoteChain = assertNonEmptyStringValue(
+        remoteChain,
+        `resolved chain name for domain ${remoteDomain}`,
+      );
+    } catch (error) {
+      issues.push(
+        `Malformed chain resolution for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return { matches: false, issues };
+    }
+
     if (!isPositiveSafeInteger(threshold)) {
       issues.push(
-        `Malformed validator threshold for route ${originChain} -> ${remoteChain}: threshold must be a positive safe integer, got ${formatIntegerValidationValue(threshold)}`,
+        `Malformed validator threshold for route ${originChain} -> ${normalizedRemoteChain}: threshold must be a positive safe integer, got ${formatIntegerValidationValue(threshold)}`,
       );
       return { matches: false, issues };
     }
@@ -1234,10 +1251,17 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
-    const route = `${originChain} -> ${remoteChain}`;
+    if (!isRecordObject(config)) {
+      issues.push(
+        `Malformed expected config for ${originChain}: expected route map object`,
+      );
+      return { matches: false, issues };
+    }
+
+    const route = `${originChain} -> ${normalizedRemoteChain}`;
     let expectedConfig: SvmMultisigConfigMap[ChainName];
     try {
-      expectedConfig = config[remoteChain];
+      expectedConfig = config[normalizedRemoteChain];
     } catch (error) {
       issues.push(
         `Malformed expected config for route ${route}: failed to read route entry (${stringifyUnknownSquadsError(error)})`,
