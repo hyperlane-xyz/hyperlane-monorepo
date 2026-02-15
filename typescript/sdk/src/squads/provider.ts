@@ -8,6 +8,7 @@ export type SquadsProvider = Parameters<
 type ProviderWithOptionalGetAccountInfo =
   | {
       getAccountInfo?: unknown;
+      then?: unknown;
     }
   | null
   | undefined;
@@ -36,6 +37,23 @@ function getProviderGetAccountInfo(value: unknown): {
   }
 }
 
+function getProviderThen(value: unknown): {
+  thenValue: unknown;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      thenValue: (value as ProviderWithOptionalGetAccountInfo)?.then,
+      readFailed: false,
+    };
+  } catch {
+    return {
+      thenValue: undefined,
+      readFailed: true,
+    };
+  }
+}
+
 function isGetAccountInfoFunction(
   value: unknown,
 ): value is (...args: unknown[]) => unknown {
@@ -48,6 +66,20 @@ export function toSquadsProvider(provider: unknown): SquadsProvider {
       provider !== null &&
       !Array.isArray(provider),
     `Invalid Solana provider: expected object, got ${formatValueType(provider)}`,
+  );
+
+  const { thenValue, readFailed: thenReadFailed } = getProviderThen(provider);
+  assert(
+    !thenReadFailed,
+    `Invalid Solana provider: failed to inspect promise-like then (provider: ${formatValueType(
+      provider,
+    )})`,
+  );
+  assert(
+    typeof thenValue !== 'function',
+    `Invalid Solana provider: expected synchronous provider, got promise-like value (provider: ${formatValueType(
+      provider,
+    )})`,
   );
 
   const { getAccountInfo, readFailed } = getProviderGetAccountInfo(provider);

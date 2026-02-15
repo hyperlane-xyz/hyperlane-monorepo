@@ -73,6 +73,49 @@ describe('squads provider bridge', () => {
     expect(getAccountInfoReadCount).to.equal(1);
   });
 
+  it('rejects promise-like providers before getAccountInfo validation', () => {
+    const providerLike = {
+      getAccountInfo: async () => null,
+      then: () => undefined,
+    };
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: expected synchronous provider, got promise-like value (provider: object)',
+    );
+  });
+
+  it('rejects Promise provider values before getAccountInfo validation', () => {
+    expect(() =>
+      toSquadsProvider(
+        Promise.resolve({
+          getAccountInfo: async () => null,
+        }),
+      ),
+    ).to.throw(
+      'Invalid Solana provider: expected synchronous provider, got promise-like value (provider: object)',
+    );
+  });
+
+  it('fails with stable malformed-provider error when then accessor throws', () => {
+    const providerLike = new Proxy(
+      {
+        getAccountInfo: async () => null,
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'then') {
+            throw new Error('then unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to inspect promise-like then (provider: object)',
+    );
+  });
+
   it('fails with stable malformed-provider error when getAccountInfo getter throws', () => {
     const providerLike = createGetterBackedProvider(() => {
       throw new Error('getter failure');
