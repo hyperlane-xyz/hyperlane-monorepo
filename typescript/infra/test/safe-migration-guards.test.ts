@@ -312,6 +312,95 @@ function collectBindingElementSymbols(element: ts.BindingElement): string[] {
   return [...symbols].filter(Boolean);
 }
 
+function unwrapAssignmentTargetExpression(
+  expression: ts.Expression,
+): ts.Expression {
+  if (ts.isParenthesizedExpression(expression)) {
+    return unwrapAssignmentTargetExpression(expression.expression);
+  }
+  if (ts.isAsExpression(expression)) {
+    return unwrapAssignmentTargetExpression(expression.expression);
+  }
+  if (ts.isTypeAssertionExpression(expression)) {
+    return unwrapAssignmentTargetExpression(expression.expression);
+  }
+  if (ts.isNonNullExpression(expression)) {
+    return unwrapAssignmentTargetExpression(expression.expression);
+  }
+  if (ts.isSatisfiesExpression(expression)) {
+    return unwrapAssignmentTargetExpression(expression.expression);
+  }
+  return expression;
+}
+
+function readAssignmentPropertyName(name: ts.PropertyName): string {
+  if (ts.isIdentifier(name)) return normalizeNamedSymbol(name.text);
+  if (ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) {
+    return normalizeNamedSymbol(name.text);
+  }
+  if (
+    ts.isComputedPropertyName(name) &&
+    ts.isStringLiteralLike(name.expression)
+  ) {
+    return normalizeNamedSymbol(name.expression.text);
+  }
+  return '';
+}
+
+function collectAssignmentPatternSymbols(expression: ts.Expression): string[] {
+  const unwrapped = unwrapAssignmentTargetExpression(expression);
+
+  if (ts.isIdentifier(unwrapped)) {
+    return [normalizeNamedSymbol(unwrapped.text)].filter(Boolean);
+  }
+
+  if (ts.isObjectLiteralExpression(unwrapped)) {
+    const symbols = new Set<string>();
+    for (const property of unwrapped.properties) {
+      if (ts.isPropertyAssignment(property)) {
+        const propertySymbol = readAssignmentPropertyName(property.name);
+        if (propertySymbol) symbols.add(propertySymbol);
+        for (const symbol of collectAssignmentPatternSymbols(
+          property.initializer,
+        )) {
+          symbols.add(symbol);
+        }
+      } else if (ts.isShorthandPropertyAssignment(property)) {
+        symbols.add(normalizeNamedSymbol(property.name.text));
+      }
+    }
+    return [...symbols].filter(Boolean);
+  }
+
+  if (ts.isArrayLiteralExpression(unwrapped)) {
+    const symbols = new Set<string>();
+    for (const element of unwrapped.elements) {
+      if (ts.isOmittedExpression(element)) continue;
+      if (ts.isSpreadElement(element)) {
+        for (const symbol of collectAssignmentPatternSymbols(
+          element.expression,
+        )) {
+          symbols.add(symbol);
+        }
+        continue;
+      }
+      for (const symbol of collectAssignmentPatternSymbols(element)) {
+        symbols.add(symbol);
+      }
+    }
+    return [...symbols].filter(Boolean);
+  }
+
+  if (
+    ts.isBinaryExpression(unwrapped) &&
+    unwrapped.operatorToken.kind === ts.SyntaxKind.EqualsToken
+  ) {
+    return collectAssignmentPatternSymbols(unwrapped.left);
+  }
+
+  return [];
+}
+
 function readImportTypeQualifierSymbol(
   qualifier: ts.EntityName | undefined,
 ): string {
@@ -464,18 +553,29 @@ function collectSymbolSourceReferences(
         ts.SyntaxKind.BarBarEqualsToken,
         ts.SyntaxKind.AmpersandAmpersandEqualsToken,
         ts.SyntaxKind.QuestionQuestionEqualsToken,
-      ].includes(node.operatorToken.kind) &&
-      ts.isIdentifier(node.left)
+      ].includes(node.operatorToken.kind)
     ) {
       const rightExpression = unwrapInitializerExpression(node.right);
       const sources = resolveModuleSourceFromExpression(
         rightExpression,
         moduleAliasByIdentifier,
       );
-      if (sources.length > 0) {
-        moduleAliasByIdentifier.set(node.left.text, sources);
-      } else if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
-        moduleAliasByIdentifier.delete(node.left.text);
+
+      if (ts.isIdentifier(node.left)) {
+        if (sources.length > 0) {
+          moduleAliasByIdentifier.set(node.left.text, sources);
+        } else if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+          moduleAliasByIdentifier.delete(node.left.text);
+        }
+      }
+
+      if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+        const assignmentSymbols = collectAssignmentPatternSymbols(node.left);
+        for (const source of sources) {
+          for (const symbol of assignmentSymbols) {
+            references.push({ symbol, source });
+          }
+        }
       }
     }
 
@@ -1401,6 +1501,21 @@ describe('Safe migration guards', () => {
     const source = [
       "const [{ default: arrayDefault }] = require('./fixtures/guard-module.js');",
       'void arrayDefault;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through destructuring assignment patterns', () => {
+    const source = [
+      'let directAlias: unknown;',
+      'let nestedAlias: unknown;',
+      "({ default: directAlias, nested: { default: nestedAlias } } = require('./fixtures/guard-module.js'));",
+      "([{ default: directAlias }] = require('./fixtures/guard-module.js'));",
+      'void directAlias;',
+      'void nestedAlias;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
