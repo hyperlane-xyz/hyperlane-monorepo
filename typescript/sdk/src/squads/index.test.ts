@@ -290,82 +290,44 @@ function listSdkSquadsTestFilePathsRecursively(
   absoluteDirectoryPath: string,
   relativeDirectoryPath: string = '',
 ): readonly string[] {
-  const directoryEntries = fs
-    .readdirSync(absoluteDirectoryPath, { withFileTypes: true })
-    .sort((left, right) => compareLexicographically(left.name, right.name));
-  const discoveredTestPaths: string[] = [];
-
-  for (const entry of directoryEntries) {
-    const nextRelativePath =
-      relativeDirectoryPath.length === 0
-        ? entry.name
-        : path.posix.join(relativeDirectoryPath, entry.name);
-    const nextAbsolutePath = path.join(absoluteDirectoryPath, entry.name);
-
-    if (entry.isDirectory()) {
-      discoveredTestPaths.push(
-        ...listSdkSquadsTestFilePathsRecursively(
-          nextAbsolutePath,
-          nextRelativePath,
-        ),
-      );
-      continue;
-    }
-
-    if (entry.isFile() && entry.name.endsWith('.test.ts')) {
-      discoveredTestPaths.push(`src/squads/${nextRelativePath}`);
-    }
-  }
-
-  return discoveredTestPaths.sort(compareLexicographically);
+  return listSdkSquadsPathsRecursively(
+    absoluteDirectoryPath,
+    relativeDirectoryPath,
+    (entryName) => entryName.endsWith('.test.ts'),
+  );
 }
 
 function listSdkSquadsNonTestSourceFilePathsRecursively(
   absoluteDirectoryPath: string,
   relativeDirectoryPath: string = '',
 ): readonly string[] {
-  const directoryEntries = fs
-    .readdirSync(absoluteDirectoryPath, { withFileTypes: true })
-    .sort((left, right) => compareLexicographically(left.name, right.name));
-  const discoveredNonTestSourcePaths: string[] = [];
-
-  for (const entry of directoryEntries) {
-    const nextRelativePath =
-      relativeDirectoryPath.length === 0
-        ? entry.name
-        : path.posix.join(relativeDirectoryPath, entry.name);
-    const nextAbsolutePath = path.join(absoluteDirectoryPath, entry.name);
-
-    if (entry.isDirectory()) {
-      discoveredNonTestSourcePaths.push(
-        ...listSdkSquadsNonTestSourceFilePathsRecursively(
-          nextAbsolutePath,
-          nextRelativePath,
-        ),
-      );
-      continue;
-    }
-
-    if (
-      entry.isFile() &&
-      entry.name.endsWith('.ts') &&
-      !entry.name.endsWith('.test.ts')
-    ) {
-      discoveredNonTestSourcePaths.push(`src/squads/${nextRelativePath}`);
-    }
-  }
-
-  return discoveredNonTestSourcePaths.sort(compareLexicographically);
+  return listSdkSquadsPathsRecursively(
+    absoluteDirectoryPath,
+    relativeDirectoryPath,
+    (entryName) => entryName.endsWith('.ts') && !entryName.endsWith('.test.ts'),
+  );
 }
 
 function listSdkSquadsTypeScriptPathsRecursively(
   absoluteDirectoryPath: string,
   relativeDirectoryPath: string = '',
 ): readonly string[] {
+  return listSdkSquadsPathsRecursively(
+    absoluteDirectoryPath,
+    relativeDirectoryPath,
+    (entryName) => entryName.endsWith('.ts'),
+  );
+}
+
+function listSdkSquadsPathsRecursively(
+  absoluteDirectoryPath: string,
+  relativeDirectoryPath: string,
+  shouldIncludeFileName: (entryName: string) => boolean,
+): readonly string[] {
   const directoryEntries = fs
     .readdirSync(absoluteDirectoryPath, { withFileTypes: true })
     .sort((left, right) => compareLexicographically(left.name, right.name));
-  const discoveredTypeScriptPaths: string[] = [];
+  const discoveredPaths: string[] = [];
 
   for (const entry of directoryEntries) {
     const nextRelativePath =
@@ -375,21 +337,22 @@ function listSdkSquadsTypeScriptPathsRecursively(
     const nextAbsolutePath = path.join(absoluteDirectoryPath, entry.name);
 
     if (entry.isDirectory()) {
-      discoveredTypeScriptPaths.push(
-        ...listSdkSquadsTypeScriptPathsRecursively(
+      discoveredPaths.push(
+        ...listSdkSquadsPathsRecursively(
           nextAbsolutePath,
           nextRelativePath,
+          shouldIncludeFileName,
         ),
       );
       continue;
     }
 
-    if (entry.isFile() && entry.name.endsWith('.ts')) {
-      discoveredTypeScriptPaths.push(`src/squads/${nextRelativePath}`);
+    if (entry.isFile() && shouldIncludeFileName(entry.name)) {
+      discoveredPaths.push(`src/squads/${nextRelativePath}`);
     }
   }
 
-  return discoveredTypeScriptPaths.sort(compareLexicographically);
+  return discoveredPaths.sort(compareLexicographically);
 }
 
 function matchesSingleAsteriskGlob(
