@@ -384,4 +384,22 @@ describe('squads barrel exports', () => {
     expect(subsequentQuotedTokens).to.deep.equal(baselineQuotedTokens);
     expect(subsequentQuotedTokens).to.not.equal(baselineQuotedTokens);
   });
+
+  it('keeps sdk squads token-path constants isolated from caller mutation', () => {
+    const baselineTokenPaths = [...SDK_SQUADS_TEST_TOKEN_PATHS];
+    assertSdkSquadsTokenPathSetNormalizedAndDeduplicated(
+      baselineTokenPaths,
+      'baseline sdk squads token-path constants',
+    );
+    const callerMutatedTokenPaths = [...SDK_SQUADS_TEST_TOKEN_PATHS];
+    callerMutatedTokenPaths.pop();
+
+    const subsequentTokenPaths = [...SDK_SQUADS_TEST_TOKEN_PATHS];
+    assertSdkSquadsTokenPathSetNormalizedAndDeduplicated(
+      subsequentTokenPaths,
+      'subsequent sdk squads token-path constants',
+    );
+    expect(callerMutatedTokenPaths).to.not.deep.equal(baselineTokenPaths);
+    expect(subsequentTokenPaths).to.deep.equal(baselineTokenPaths);
+  });
 });
