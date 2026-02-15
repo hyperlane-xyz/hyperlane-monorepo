@@ -295,3 +295,5 @@ Regression coverage now also confirms malformed top-level `Error.cause` payloads
 Regression coverage now also confirms top-level `Error.errors` payloads (same-realm/cross-realm boxed strings, hostile `toStringTag` wrappers, and malformed spoofed payloads) remain detectable/ignorable when top-level `Error.cause` accessors throw.
 
 Regression coverage now also confirms top-level `Error.errors` payloads remain detectable/ignorable under `cause` accessor failures for cross-realm hostile boxed strings, while coercible spoofed and `String.prototype` impostor `Error.errors` payloads remain ignored.
+
+Regression coverage now also confirms scalar string top-level `Error.errors` payloads remain detectable/ignorable under both `cause` accessor failures and combined `message`+`cause` accessor failures.
