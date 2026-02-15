@@ -899,6 +899,10 @@ function getPendingProposalNativeTokenMetadataForChain(
     symbol.length > 0,
     `Malformed native token symbol for ${chain}: expected non-empty string, got empty`,
   );
+  assert(
+    !isGenericObjectStringifiedValue(symbol),
+    `Malformed native token symbol for ${chain}: expected meaningful string, got generic object label`,
+  );
 
   return { decimals, symbol };
 }

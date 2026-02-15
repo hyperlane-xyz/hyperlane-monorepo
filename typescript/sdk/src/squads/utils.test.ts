@@ -3905,6 +3905,41 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('skips provider lookup when chain metadata then accessor throws', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getChainMetadata: () =>
+          new Proxy(
+            {
+              nativeToken: {
+                decimals: 9,
+                symbol: 'SOL',
+              },
+            },
+            {
+              get(target, property, receiver) {
+                if (property === 'then') {
+                  throw new Error('metadata then unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        ['solanamainnet'],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('skips provider lookup when native token metadata then accessor throws', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -3923,6 +3958,54 @@ describe('squads utils', () => {
               },
             },
           ),
+        }),
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        ['solanamainnet'],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('skips provider lookup when native token metadata is promise-like', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getChainMetadata: () => ({
+          nativeToken: Promise.resolve({
+            decimals: 9,
+            symbol: 'SOL',
+          }),
+        }),
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        ['solanamainnet'],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('skips provider lookup when native token symbol is a generic object label', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getChainMetadata: () => ({
+          nativeToken: {
+            decimals: 9,
+            symbol: '[object Object]',
+          },
         }),
         getSolanaWeb3Provider: () => {
           providerLookupCalled = true;
