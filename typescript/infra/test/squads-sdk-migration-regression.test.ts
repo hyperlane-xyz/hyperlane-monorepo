@@ -825,6 +825,32 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps expected canonical removed infra squads module base paths', () => {
+    expect(REMOVED_INFRA_SQUADS_MODULE_BASE_PATHS).to.deep.equal([
+      'src/config/squads',
+      'src/utils/squads',
+      'src/tx/squads-transaction-reader',
+    ]);
+  });
+
+  it('keeps removed infra squads module base paths normalized and immutable', () => {
+    expect(Object.isFrozen(REMOVED_INFRA_SQUADS_MODULE_BASE_PATHS)).to.equal(
+      true,
+    );
+    expect(new Set(REMOVED_INFRA_SQUADS_MODULE_BASE_PATHS).size).to.equal(
+      REMOVED_INFRA_SQUADS_MODULE_BASE_PATHS.length,
+    );
+    for (const removedModuleBasePath of REMOVED_INFRA_SQUADS_MODULE_BASE_PATHS) {
+      expect(removedModuleBasePath).to.equal(removedModuleBasePath.trim());
+      expect(removedModuleBasePath).to.equal(
+        path.posix.normalize(removedModuleBasePath),
+      );
+      expect(removedModuleBasePath.startsWith('src/')).to.equal(true);
+      expect(removedModuleBasePath.includes('\\')).to.equal(false);
+      expect(removedModuleBasePath.includes('..')).to.equal(false);
+    }
+  });
+
   it('keeps removed infra squads modules deleted', () => {
     for (const removedModuleBasePath of REMOVED_INFRA_SQUADS_MODULE_BASE_PATHS) {
       for (const extension of SOURCE_FILE_EXTENSIONS) {
