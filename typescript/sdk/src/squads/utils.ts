@@ -1630,7 +1630,7 @@ function getProposalStatusMetadata(proposal: Record<string, unknown>): {
     'Squads proposal status',
   );
   assert(
-    status && typeof status === 'object',
+    status && typeof status === 'object' && !Array.isArray(status),
     'Squads proposal status must be an object',
   );
 
@@ -1782,7 +1782,7 @@ function getMultisigMemberCount(
       `Squads ${fieldPrefix} members`,
     );
     assert(
-      member && typeof member === 'object',
+      member && typeof member === 'object' && !Array.isArray(member),
       `Squads ${fieldPrefix} members[${index}] must be an object`,
     );
     const memberRecord = member as Record<string, unknown>;
