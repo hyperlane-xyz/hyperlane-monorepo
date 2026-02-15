@@ -103,6 +103,27 @@ describe('squads config', () => {
     );
   });
 
+  it('normalizes surrounding whitespace in squads key lookups', () => {
+    const trimmedLookup = getSquadsKeys('solanamainnet');
+    const paddedLookup = getSquadsKeys('  solanamainnet  ');
+
+    expect(paddedLookup.multisigPda.toBase58()).to.equal(
+      trimmedLookup.multisigPda.toBase58(),
+    );
+    expect(paddedLookup.programId.toBase58()).to.equal(
+      trimmedLookup.programId.toBase58(),
+    );
+    expect(paddedLookup.vault.toBase58()).to.equal(
+      trimmedLookup.vault.toBase58(),
+    );
+  });
+
+  it('rejects empty chain-name values in squads key lookups', () => {
+    expect(() => getSquadsKeys('   ')).to.throw(
+      'Expected chain name to be a non-empty string',
+    );
+  });
+
   const malformedChainNameCases: Array<{
     value: unknown;
     expectedType: string;

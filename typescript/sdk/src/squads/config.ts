@@ -222,9 +222,25 @@ export function assertIsSquadsChain(
   );
 }
 
+function normalizeChainNameForSquadsLookup(chainName: unknown): string {
+  if (typeof chainName !== 'string') {
+    throw new Error(
+      `Expected chain name to be a string, got ${getUnknownValueTypeName(chainName)}`,
+    );
+  }
+
+  const normalizedChainName = chainName.trim();
+  if (normalizedChainName.length === 0) {
+    throw new Error('Expected chain name to be a non-empty string');
+  }
+
+  return normalizedChainName;
+}
+
 export function getSquadsKeys(chainName: string): SquadsKeys {
-  assertIsSquadsChain(chainName);
-  const keys = SQUADS_KEYS_BY_CHAIN[chainName];
+  const normalizedChainName = normalizeChainNameForSquadsLookup(chainName);
+  assertIsSquadsChain(normalizedChainName);
+  const keys = SQUADS_KEYS_BY_CHAIN[normalizedChainName];
 
   return Object.freeze({
     multisigPda: keys.multisigPda,

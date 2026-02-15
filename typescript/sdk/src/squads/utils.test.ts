@@ -3414,9 +3414,28 @@ describe('squads utils', () => {
       expect(keys.vault.toBase58().length).to.be.greaterThan(0);
     });
 
+    it('normalizes surrounding whitespace when looking up configured chains', () => {
+      const trimmedKeys = getSquadsKeys('solanamainnet');
+      const paddedKeys = getSquadsKeys('  solanamainnet  ');
+
+      expect(paddedKeys.multisigPda.toBase58()).to.equal(
+        trimmedKeys.multisigPda.toBase58(),
+      );
+      expect(paddedKeys.programId.toBase58()).to.equal(
+        trimmedKeys.programId.toBase58(),
+      );
+      expect(paddedKeys.vault.toBase58()).to.equal(trimmedKeys.vault.toBase58());
+    });
+
     it('throws for unknown chain', () => {
       expect(() => getSquadsKeys('unknown-chain')).to.throw(
         'Squads config not found on chain unknown-chain',
+      );
+    });
+
+    it('throws for empty chain-name values after trimming', () => {
+      expect(() => getSquadsKeys('   ')).to.throw(
+        'Expected chain name to be a non-empty string',
       );
     });
 
