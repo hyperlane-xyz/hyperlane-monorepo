@@ -65,6 +65,14 @@ export enum SquadTxStatus {
   STALE = '💩',
 }
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export async function getSquadAndProvider(
   chain: ChainName,
   mpp: MultiProtocolProvider,
@@ -118,7 +126,7 @@ export async function getSquadProposal(
   } catch (error) {
     rootLogger.warn(
       chalk.yellow(
-        `Failed to fetch proposal ${transactionIndex} on ${chain}: ${error}`,
+        `Failed to fetch proposal ${transactionIndex} on ${chain}: ${stringifyValueForError(error)}`,
       ),
     );
     return undefined;
@@ -254,7 +262,7 @@ export async function getPendingProposalsForChains(
       } catch (error) {
         rootLogger.warn(
           chalk.yellow(
-            `Skipping chain ${chain} as there was an error getting the squads data: ${error}`,
+            `Skipping chain ${chain} as there was an error getting the squads data: ${stringifyValueForError(error)}`,
           ),
         );
         return;
@@ -787,7 +795,9 @@ export async function submitProposalToSquads(
     );
   } catch (error) {
     rootLogger.error(
-      chalk.red(`Failed to submit proposal to Squads: ${error}`),
+      chalk.red(
+        `Failed to submit proposal to Squads: ${stringifyValueForError(error)}`,
+      ),
     );
     throw error;
   }
