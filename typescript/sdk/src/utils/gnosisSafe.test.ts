@@ -4,6 +4,7 @@ import { type Address, encodeFunctionData, getAddress, parseAbi } from 'viem';
 import SafeApiKit from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
 import sinon from 'sinon';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   DEFAULT_SAFE_DEPLOYMENT_VERSIONS,
@@ -7753,6 +7754,68 @@ describe('gnosisSafe utils', () => {
       );
 
       expect(requestCount).to.equal(2);
+    });
+
+    it('deleteSafeTx logs deterministic message when delete request throws unstringifiable error', async () => {
+      const proposerAddress = '0x00000000000000000000000000000000000000AA';
+      const safeTxHash = `0x${'de'.repeat(32)}`;
+      let requestCount = 0;
+      const unstringifiableError = {
+        [Symbol.toPrimitive]() {
+          throw new Error('delete request to-primitive boom');
+        },
+      };
+
+      const signerMock = {
+        getAddress: async () => proposerAddress,
+        _signTypedData: async () => `0x${'11'.repeat(65)}`,
+      };
+
+      globalThis.fetch = (async () => {
+        requestCount += 1;
+        if (requestCount === 1) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ proposer: proposerAddress.toLowerCase() }),
+          } as unknown as Response;
+        }
+        throw unstringifiableError;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => signerMock,
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteSafeTx>[1];
+
+      const logger = rootLogger as unknown as {
+        error: (...args: unknown[]) => void;
+      };
+      const originalErrorLogger = logger.error;
+      const loggedMessages: unknown[] = [];
+      logger.error = (...args: unknown[]) => {
+        loggedMessages.push(args[0]);
+      };
+
+      try {
+        await deleteSafeTx(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+          safeTxHash,
+        );
+      } finally {
+        logger.error = originalErrorLogger;
+      }
+
+      expect(requestCount).to.equal(2);
+      expect(loggedMessages.length).to.be.greaterThan(0);
+      expect(String(loggedMessages[0])).to.include('<unstringifiable>');
+      expect(String(loggedMessages[0])).to.include(safeTxHash);
     });
 
     it('deleteAllPendingSafeTxs throws for invalid safe address before metadata/network calls', async () => {

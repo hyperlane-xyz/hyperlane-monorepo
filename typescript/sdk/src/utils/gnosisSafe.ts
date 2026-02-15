@@ -2064,9 +2064,8 @@ export async function deleteSafeTx(
   } catch (error) {
     rootLogger.error(
       chalk.red(
-        `Failed to delete transaction ${normalizedSafeTxHash} on ${chain}:`,
+        `Failed to delete transaction ${normalizedSafeTxHash} on ${chain}: ${stringifyValueForError(error)}`,
       ),
-      error,
     );
   }
 }
