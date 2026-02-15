@@ -7,6 +7,8 @@ import { expect } from 'chai';
 type InfraPackageJson = {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
 };
 
 const REQUIRED_SAFE_HELPER_EXPORTS = [
@@ -233,6 +235,8 @@ describe('Safe migration guards', () => {
     const allDependencyNames = [
       ...Object.keys(packageJson.dependencies ?? {}),
       ...Object.keys(packageJson.devDependencies ?? {}),
+      ...Object.keys(packageJson.optionalDependencies ?? {}),
+      ...Object.keys(packageJson.peerDependencies ?? {}),
     ];
 
     const safeGlobalDeps = allDependencyNames.filter((dep) =>
