@@ -954,6 +954,10 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps expected canonical sdk squads index source path', () => {
+    expect(SDK_SQUADS_INDEX_SOURCE_PATH).to.equal('src/squads/index.ts');
+  });
+
   it('keeps sdk squads source-role constants normalized and disjoint', () => {
     expect(Object.isFrozen(EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS)).to.equal(
       true,

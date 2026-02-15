@@ -938,6 +938,12 @@ describe('squads sdk migration regression', () => {
     ]);
   });
 
+  it('keeps expected canonical squads test ordering helper path', () => {
+    expect(SQUADS_TEST_ORDERING_HELPER_PATH).to.equal(
+      'test/squads-test-ordering.ts',
+    );
+  });
+
   it('keeps shared squads ordering helper tracked as support-only asset', () => {
     expect(
       SQUADS_TRACKED_TEST_SUPPORT_PATHS.includes(
