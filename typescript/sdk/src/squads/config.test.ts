@@ -94,6 +94,15 @@ describe('squads config', () => {
     );
   });
 
+  it('rejects non-string chain names in assert and key lookups', () => {
+    expect(() => assertIsSquadsChain(null as unknown as string)).to.throw(
+      'Expected chain name to be a string, got null',
+    );
+    expect(() => getSquadsKeys(1 as unknown as string)).to.throw(
+      'Expected chain name to be a string, got number',
+    );
+  });
+
   it('partitions chains with dedupe and first-seen ordering', () => {
     expect(
       partitionSquadsChains([

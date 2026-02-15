@@ -210,6 +210,12 @@ export function resolveSquadsChains(
 export function assertIsSquadsChain(
   chainName: string,
 ): asserts chainName is SquadsChainName {
+  if (typeof chainName !== 'string') {
+    throw new Error(
+      `Expected chain name to be a string, got ${getUnknownValueTypeName(chainName)}`,
+    );
+  }
+
   if (isSquadsChain(chainName)) return;
 
   throw new Error(
