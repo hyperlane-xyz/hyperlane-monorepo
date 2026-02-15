@@ -42,6 +42,11 @@ type SymbolSourceReference = {
   source: string;
 };
 
+type ModuleSpecifierReference = {
+  source: string;
+  filePath: string;
+};
+
 function normalizeNamedSymbol(symbol: string): string {
   const trimmed = symbol.trim();
   if (!trimmed || trimmed.startsWith('...')) return '';
@@ -374,6 +379,129 @@ function collectProjectSourceFilePaths(paths: readonly string[]): string[] {
   return sourceFilePaths;
 }
 
+function collectModuleSpecifierReferences(
+  contents: string,
+  filePath: string,
+): ModuleSpecifierReference[] {
+  const references: ModuleSpecifierReference[] = [];
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    contents,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
+  );
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      references.push({ source: node.moduleSpecifier.text, filePath });
+    }
+
+    if (ts.isExportDeclaration(node)) {
+      if (
+        node.moduleSpecifier &&
+        ts.isStringLiteralLike(node.moduleSpecifier)
+      ) {
+        references.push({ source: node.moduleSpecifier.text, filePath });
+      }
+    }
+
+    if (ts.isImportTypeNode(node)) {
+      const argument = node.argument;
+      if (
+        ts.isLiteralTypeNode(argument) &&
+        ts.isStringLiteralLike(argument.literal)
+      ) {
+        references.push({ source: argument.literal.text, filePath });
+      }
+    }
+
+    if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      node.moduleReference.expression &&
+      ts.isStringLiteralLike(node.moduleReference.expression)
+    ) {
+      references.push({
+        source: node.moduleReference.expression.text,
+        filePath,
+      });
+    }
+
+    if (ts.isCallExpression(node)) {
+      if (
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'require'
+      ) {
+        const source = readModuleSourceArg(node);
+        if (source) references.push({ source, filePath });
+      }
+      if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        const source = readModuleSourceArg(node);
+        if (source) references.push({ source, filePath });
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return references;
+}
+
+function collectProjectModuleSpecifierReferences(
+  paths: readonly string[],
+): ModuleSpecifierReference[] {
+  return collectProjectSourceFilePaths(paths).flatMap((sourceFilePath) =>
+    collectModuleSpecifierReferences(
+      fs.readFileSync(sourceFilePath, 'utf8'),
+      sourceFilePath,
+    ),
+  );
+}
+
+function formatModuleSpecifierReference(
+  reference: ModuleSpecifierReference,
+): string {
+  return `${path.relative(process.cwd(), reference.filePath)} -> ${reference.source}`;
+}
+
+function getDisallowedModuleSpecifierReferences(
+  paths: readonly string[],
+  isDisallowed: (source: string) => boolean,
+): string[] {
+  return collectProjectModuleSpecifierReferences(paths)
+    .filter((reference) => isDisallowed(reference.source))
+    .map(formatModuleSpecifierReference);
+}
+
+function isLegacySafeUtilSpecifier(source: string): boolean {
+  return /(?:^|\/)utils\/safe(?:\.[cm]?[jt]sx?)?(?:$|\/)/.test(source);
+}
+
+function isSafeGlobalSpecifier(source: string): boolean {
+  return source === '@safe-global' || source.startsWith('@safe-global/');
+}
+
+function isSdkInternalGnosisSafeSpecifier(source: string): boolean {
+  if (source.startsWith('@hyperlane-xyz/sdk/')) {
+    return source.includes('gnosisSafe');
+  }
+  return /(?:^|\/)gnosisSafe(?:\.[cm]?[jt]sx?)?$/.test(source);
+}
+
+function isSdkSubpathOrSourceSpecifier(source: string): boolean {
+  return (
+    source.startsWith('@hyperlane-xyz/sdk/') ||
+    source.includes('/sdk/src/') ||
+    source.includes('typescript/sdk/src/') ||
+    source.includes('typescript/sdk/')
+  );
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -428,6 +556,12 @@ describe('Safe migration guards', () => {
   });
 
   it('prevents reintroducing infra local safe util imports', () => {
+    const disallowedSpecifiers = getDisallowedModuleSpecifierReferences(
+      INFRA_SOURCE_AND_TEST_PATHS,
+      isLegacySafeUtilSpecifier,
+    );
+    expect(disallowedSpecifiers).to.deep.equal([]);
+
     expectNoRipgrepMatches(
       String.raw`(?:from ['"][^'"]*utils/safe|require\(['"][^'"]*utils/safe|import\(['"][^'"]*utils/safe)`,
       'legacy infra safe util import path usage',
@@ -468,6 +602,12 @@ describe('Safe migration guards', () => {
   });
 
   it('prevents direct @safe-global imports in infra source', () => {
+    const disallowedSpecifiers = getDisallowedModuleSpecifierReferences(
+      INFRA_SOURCE_AND_TEST_PATHS,
+      isSafeGlobalSpecifier,
+    );
+    expect(disallowedSpecifiers).to.deep.equal([]);
+
     expectNoRipgrepMatches(
       String.raw`from ['"]@safe-global|require\(['"]@safe-global|import\(['"]@safe-global`,
       '@safe-global imports in infra sources',
@@ -476,6 +616,12 @@ describe('Safe migration guards', () => {
   });
 
   it('prevents imports from sdk internal gnosis safe module paths', () => {
+    const disallowedSpecifiers = getDisallowedModuleSpecifierReferences(
+      INFRA_SOURCE_AND_TEST_PATHS,
+      isSdkInternalGnosisSafeSpecifier,
+    );
+    expect(disallowedSpecifiers).to.deep.equal([]);
+
     expectNoRipgrepMatches(
       String.raw`from ['"]@hyperlane-xyz/sdk\/.*gnosisSafe|from ['"].*\/gnosisSafe(\.js)?['"]|require\(['"]@hyperlane-xyz/sdk\/.*gnosisSafe|require\(['"].*\/gnosisSafe(\.js)?['"]|import\(['"]@hyperlane-xyz/sdk\/.*gnosisSafe|import\(['"].*\/gnosisSafe(\.js)?['"]`,
       'gnosis safe imports that bypass @hyperlane-xyz/sdk entrypoint',
@@ -484,6 +630,12 @@ describe('Safe migration guards', () => {
   });
 
   it('prevents imports from sdk source or subpath entrypoints', () => {
+    const disallowedSpecifiers = getDisallowedModuleSpecifierReferences(
+      INFRA_SOURCE_AND_TEST_PATHS,
+      isSdkSubpathOrSourceSpecifier,
+    );
+    expect(disallowedSpecifiers).to.deep.equal([]);
+
     expectNoRipgrepMatches(
       String.raw`(?:from ['"]|require\(['"]|import\(['"])(?:@hyperlane-xyz/sdk\/|(?:\.\.?\/)+.*sdk\/src\/|(?:\.\.?\/)+.*typescript\/sdk\/|.*typescript\/sdk\/src\/)`,
       'sdk source-path or package subpath imports',
