@@ -56,6 +56,10 @@ const LOCAL_SDK_WORKSPACE_REFERENCE_PATTERN =
   /(?:from\s+['"](?:\.\.\/)+sdk\/(?:src|dist)\/|import\(\s*['"](?:\.\.\/)+sdk\/(?:src|dist)\/|require\(\s*['"](?:\.\.\/)+sdk\/(?:src|dist)\/|from\s+['"]typescript\/sdk\/(?:src|dist)\/|import\(\s*['"]typescript\/sdk\/(?:src|dist)\/|require\(\s*['"]typescript\/sdk\/(?:src|dist)\/)/;
 const SDK_SQUADS_IMPORT_PATTERN =
   /(?:from\s+['"]@hyperlane-xyz\/sdk['"]|import\(\s*['"]@hyperlane-xyz\/sdk['"]\s*\)|require\(\s*['"]@hyperlane-xyz\/sdk['"]\s*\))/;
+const SDK_NAMED_IMPORT_WITH_SQUADS_PROPOSAL_OVERHEAD_PATTERN =
+  /import\s*\{[^}]*\bSQUADS_PROPOSAL_OVERHEAD\b[^}]*\}\s*from\s+['"]@hyperlane-xyz\/sdk['"]/m;
+const LOCAL_SQUADS_PROPOSAL_OVERHEAD_DECLARATION_PATTERN =
+  /\b(?:const|let|var)\s+SQUADS_PROPOSAL_OVERHEAD\b/;
 const FORMATTED_ERROR_USAGE_PATTERN = /formatScriptError\(/;
 const DIRECT_ERROR_STRINGIFICATION_PATTERN =
   /(?:String\((?:error|err|e)\)|\$\{(?:error|err|e)\}|(?:error|err|e)\.message)/;
@@ -87,6 +91,8 @@ const SQUADS_TRACKED_TEST_ASSET_PATHS = Object.freeze([
   ...SQUADS_REGRESSION_TEST_PATHS,
   ...SQUADS_TRACKED_TEST_SUPPORT_PATHS,
 ]);
+const UPDATE_MULTISIG_ISM_SCRIPT_PATH =
+  'scripts/sealevel-helpers/update-multisig-ism-config.ts';
 const INFRA_SQUADS_TEST_COMMAND_PREFIX = 'mocha --config ../sdk/.mocharc.json';
 const EXPECTED_INFRA_SQUADS_TEST_SCRIPT = `${INFRA_SQUADS_TEST_COMMAND_PREFIX} ${SQUADS_REGRESSION_TEST_PATHS.map((scriptPath) => `"${scriptPath}"`).join(' ')}`;
 const QUOTED_SCRIPT_PATH_PATTERN = /"([^"]+)"/g;
@@ -877,12 +883,34 @@ describe('squads sdk migration regression', () => {
     }
   });
 
+  it('keeps multisig ism update script importing squads proposal overhead from sdk', () => {
+    const scriptContents = readInfraFile(UPDATE_MULTISIG_ISM_SCRIPT_PATH);
+    expect(
+      SDK_NAMED_IMPORT_WITH_SQUADS_PROPOSAL_OVERHEAD_PATTERN.test(
+        scriptContents,
+      ),
+      `Expected ${UPDATE_MULTISIG_ISM_SCRIPT_PATH} to import SQUADS_PROPOSAL_OVERHEAD from @hyperlane-xyz/sdk`,
+    ).to.equal(true);
+  });
+
   it('keeps all tracked infra source files free of legacy squads imports', () => {
     const trackedSourceFiles = getTrackedSourceFileSnapshot();
 
     for (const relativePath of trackedSourceFiles) {
       const fileContents = readInfraFile(relativePath);
       assertNoForbiddenSquadsReferences(fileContents, relativePath);
+    }
+  });
+
+  it('keeps tracked infra source files free of local squads proposal-overhead declarations', () => {
+    const trackedSourceFiles = getTrackedSourceFileSnapshot();
+
+    for (const relativePath of trackedSourceFiles) {
+      const fileContents = readInfraFile(relativePath);
+      expect(
+        LOCAL_SQUADS_PROPOSAL_OVERHEAD_DECLARATION_PATTERN.test(fileContents),
+        `Expected tracked source file to avoid local SQUADS_PROPOSAL_OVERHEAD declarations: ${relativePath}`,
+      ).to.equal(false);
     }
   });
 
