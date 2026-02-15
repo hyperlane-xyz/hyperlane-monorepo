@@ -5632,6 +5632,34 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('throws when evm chain id is non-numeric string', () => {
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getEvmChainId: () => 'mainnet',
+      } as unknown as Parameters<typeof getSafeService>[1];
+
+      expect(() => getSafeService('test', multiProviderMock)).to.throw(
+        'EVM chain id must be a positive integer for test: mainnet',
+      );
+    });
+
+    it('throws when evm chain id is non-positive bigint', () => {
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getEvmChainId: () => 0n,
+      } as unknown as Parameters<typeof getSafeService>[1];
+
+      expect(() => getSafeService('test', multiProviderMock)).to.throw(
+        'EVM chain id must be a positive integer for test: 0',
+      );
+    });
+
     it('throws deterministic message when evm chain id lookup throws unstringifiable error', () => {
       const unstringifiableError = {
         [Symbol.toPrimitive]() {
