@@ -1289,13 +1289,39 @@ export class SquadsTransactionReader {
     },
     accountInfo: AccountInfo<Buffer>,
   ): Promise<SquadsTransaction> {
-    const [configTx] = accounts.ConfigTransaction.fromAccountInfo(
-      accountInfo,
-      0,
-    );
+    let configTx: unknown;
+    try {
+      [configTx] = accounts.ConfigTransaction.fromAccountInfo(accountInfo, 0);
+    } catch (error) {
+      throw new Error(
+        `Failed to decode ConfigTransaction for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
     const instructions: SquadsGovernTransaction[] = [];
-    for (const action of configTx.actions) {
-      const instruction = this.formatConfigAction(chain, action);
+    let actions: unknown;
+    try {
+      actions = (configTx as { actions?: unknown }).actions;
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read config actions for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      actions = [];
+    }
+
+    if (!Array.isArray(actions)) {
+      rootLogger.warn(
+        `Malformed config actions for ${chain} at index ${transactionIndex}: expected array, got ${getUnknownValueTypeName(actions)}`,
+      );
+      actions = [];
+    }
+
+    const normalizedActions: unknown[] = Array.isArray(actions) ? actions : [];
+    for (const action of normalizedActions) {
+      const instruction = this.formatConfigAction(
+        chain,
+        action as types.ConfigAction,
+      );
       if (instruction) instructions.push(instruction);
     }
 

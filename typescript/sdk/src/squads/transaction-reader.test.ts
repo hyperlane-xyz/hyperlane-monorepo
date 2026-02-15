@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { serialize } from 'borsh';
 import { PublicKey } from '@solana/web3.js';
+import { accounts } from '@sqds/multisig';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -3573,6 +3574,112 @@ describe('squads transaction reader', () => {
     );
 
     expect(result).to.equal(null);
+  });
+
+  it('returns empty config instructions when config-action list access throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readConfigTransaction: (
+        chain: string,
+        transactionIndex: number,
+        proposalData: Record<string, unknown>,
+        accountInfo: Record<string, unknown>,
+      ) => Promise<Record<string, unknown>>;
+    };
+    const originalFromAccountInfo = accounts.ConfigTransaction.fromAccountInfo;
+    (
+      accounts.ConfigTransaction as unknown as {
+        fromAccountInfo: (...args: unknown[]) => unknown;
+      }
+    ).fromAccountInfo = () => [
+      new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'actions') {
+              throw new Error('actions unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ),
+    ];
+
+    try {
+      const result = await readerAny.readConfigTransaction(
+        'solanamainnet',
+        5,
+        {
+          proposal: {},
+          proposalPda: new PublicKey('11111111111111111111111111111111'),
+          multisigPda: new PublicKey('11111111111111111111111111111111'),
+        },
+        { data: Buffer.alloc(0) },
+      );
+
+      expect(result.instructions).to.deep.equal([]);
+    } finally {
+      (
+        accounts.ConfigTransaction as unknown as {
+          fromAccountInfo: typeof originalFromAccountInfo;
+        }
+      ).fromAccountInfo = originalFromAccountInfo;
+    }
+  });
+
+  it('throws stable contextual error when config transaction decoding fails', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readConfigTransaction: (
+        chain: string,
+        transactionIndex: number,
+        proposalData: Record<string, unknown>,
+        accountInfo: Record<string, unknown>,
+      ) => Promise<Record<string, unknown>>;
+    };
+    const originalFromAccountInfo = accounts.ConfigTransaction.fromAccountInfo;
+    (
+      accounts.ConfigTransaction as unknown as {
+        fromAccountInfo: (...args: unknown[]) => unknown;
+      }
+    ).fromAccountInfo = () => {
+      throw new Error('decode failed');
+    };
+
+    try {
+      const thrownError = await captureAsyncError(() =>
+        readerAny.readConfigTransaction(
+          'solanamainnet',
+          5,
+          {
+            proposal: {},
+            proposalPda: new PublicKey('11111111111111111111111111111111'),
+            multisigPda: new PublicKey('11111111111111111111111111111111'),
+          },
+          { data: Buffer.alloc(0) },
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to decode ConfigTransaction for solanamainnet at index 5: Error: decode failed',
+      );
+    } finally {
+      (
+        accounts.ConfigTransaction as unknown as {
+          fromAccountInfo: typeof originalFromAccountInfo;
+        }
+      ).fromAccountInfo = originalFromAccountInfo;
+    }
   });
 
   it('does not misclassify multisig validator instructions when chain lookup throws during parse', () => {
