@@ -5594,6 +5594,30 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('throws when tx-service url accessor is inaccessible', () => {
+      const metadataWithThrowingUrl: {
+        gnosisSafeTransactionServiceUrl?: string;
+      } = {};
+      Object.defineProperty(
+        metadataWithThrowingUrl,
+        'gnosisSafeTransactionServiceUrl',
+        {
+          get() {
+            throw new Error('tx-service url accessor boom');
+          },
+        },
+      );
+
+      const multiProviderMock = {
+        getChainMetadata: () => metadataWithThrowingUrl,
+        getEvmChainId: () => 1,
+      } as unknown as Parameters<typeof getSafeService>[1];
+
+      expect(() => getSafeService('test', multiProviderMock)).to.throw(
+        'Safe tx service URL is inaccessible for test',
+      );
+    });
+
     it('throws when evm chain id is non-positive', () => {
       const multiProviderMock = {
         getChainMetadata: () => ({
@@ -5679,6 +5703,29 @@ describe('gnosisSafe utils', () => {
       } as unknown as Parameters<typeof getSafeService>[1];
 
       expect(() => getSafeService('test', multiProviderMock)).to.not.throw();
+    });
+
+    it('accepts bigint and numeric-string evm chain ids', () => {
+      const metadata = {
+        gnosisSafeTransactionServiceUrl:
+          'https://safe-transaction-mainnet.safe.global/api',
+      };
+
+      const bigintChainIdProvider = {
+        getChainMetadata: () => metadata,
+        getEvmChainId: () => 1n,
+      } as unknown as Parameters<typeof getSafeService>[1];
+      expect(() =>
+        getSafeService('test', bigintChainIdProvider),
+      ).to.not.throw();
+
+      const numericStringChainIdProvider = {
+        getChainMetadata: () => metadata,
+        getEvmChainId: () => ' 1 ',
+      } as unknown as Parameters<typeof getSafeService>[1];
+      expect(() =>
+        getSafeService('test', numericStringChainIdProvider),
+      ).to.not.throw();
     });
   });
 
