@@ -3,6 +3,8 @@ import { PublicKey } from '@solana/web3.js';
 
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
+  formatUnknownInstructionWarning,
+  formatUnknownProgramWarning,
   SYSTEM_PROGRAM_ID,
   SquadsTransactionReader,
 } from './transaction-reader.js';
@@ -148,6 +150,50 @@ function createErrorWithGenericObjectStringification(): Error {
   error.toString = () => '[object ErrorLike]';
   return error;
 }
+
+describe('squads transaction reader warning formatters', () => {
+  it('formats unknown program warnings using trimmed program id values', () => {
+    expect(
+      formatUnknownProgramWarning(' 11111111111111111111111111111111 '),
+    ).to.equal('⚠️  UNKNOWN PROGRAM: 11111111111111111111111111111111');
+  });
+
+  it('throws for malformed unknown-program warning program ids', () => {
+    expect(() => formatUnknownProgramWarning(null)).to.throw(
+      'Expected program id to be a string, got null',
+    );
+    expect(() => formatUnknownProgramWarning(1)).to.throw(
+      'Expected program id to be a string, got number',
+    );
+    expect(() => formatUnknownProgramWarning('   ')).to.throw(
+      'Expected program id to be a non-empty string, got empty string',
+    );
+  });
+
+  it('formats unknown instruction warnings using normalized inputs', () => {
+    expect(formatUnknownInstructionWarning(' Mailbox ', 1)).to.equal(
+      'Unknown Mailbox instruction (discriminator: 1)',
+    );
+  });
+
+  it('throws for malformed unknown-instruction warning inputs', () => {
+    expect(() => formatUnknownInstructionWarning(null, 1)).to.throw(
+      'Expected program name to be a string, got null',
+    );
+    expect(() => formatUnknownInstructionWarning('Mailbox', '1')).to.throw(
+      'Expected discriminator to be a non-negative integer, got string',
+    );
+    expect(() => formatUnknownInstructionWarning('Mailbox', -1)).to.throw(
+      'Expected discriminator to be a non-negative integer, got -1',
+    );
+    expect(() => formatUnknownInstructionWarning('Mailbox', 1.5)).to.throw(
+      'Expected discriminator to be a non-negative integer, got 1.5',
+    );
+    expect(() => formatUnknownInstructionWarning('  ', 1)).to.throw(
+      'Expected program name to be a non-empty string, got empty string',
+    );
+  });
+});
 
 describe('squads transaction reader', () => {
   function createMockProposalData(

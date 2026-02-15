@@ -92,15 +92,57 @@ export enum WarningMessage {
   OWNERSHIP_RENUNCIATION = '⚠️  OWNERSHIP RENUNCIATION DETECTED',
 }
 
-export function formatUnknownProgramWarning(programId: string): string {
-  return `⚠️  UNKNOWN PROGRAM: ${programId}`;
+function getUnknownValueTypeName(value: unknown): string {
+  if (value === null) {
+    return 'null';
+  }
+  if (Array.isArray(value)) {
+    return 'array';
+  }
+  return typeof value;
+}
+
+function assertNonEmptyStringValue(value: unknown, label: string): string {
+  const valueType = getUnknownValueTypeName(value);
+  assert(
+    typeof value === 'string',
+    `Expected ${label} to be a string, got ${valueType}`,
+  );
+  const normalizedValue = value.trim();
+  assert(
+    normalizedValue.length > 0,
+    `Expected ${label} to be a non-empty string, got empty string`,
+  );
+  return normalizedValue;
+}
+
+function assertInstructionDiscriminator(discriminator: unknown): number {
+  const discriminatorType = getUnknownValueTypeName(discriminator);
+  assert(
+    typeof discriminator === 'number' &&
+      Number.isInteger(discriminator) &&
+      discriminator >= 0,
+    `Expected discriminator to be a non-negative integer, got ${typeof discriminator === 'number' ? discriminator : discriminatorType}`,
+  );
+  return discriminator;
+}
+
+export function formatUnknownProgramWarning(programId: unknown): string {
+  const normalizedProgramId = assertNonEmptyStringValue(programId, 'program id');
+  return `⚠️  UNKNOWN PROGRAM: ${normalizedProgramId}`;
 }
 
 export function formatUnknownInstructionWarning(
-  programName: string,
-  discriminator: number,
+  programName: unknown,
+  discriminator: unknown,
 ): string {
-  return `Unknown ${programName} instruction (discriminator: ${discriminator})`;
+  const normalizedProgramName = assertNonEmptyStringValue(
+    programName,
+    'program name',
+  );
+  const normalizedDiscriminator =
+    assertInstructionDiscriminator(discriminator);
+  return `Unknown ${normalizedProgramName} instruction (discriminator: ${normalizedDiscriminator})`;
 }
 
 export type SvmMultisigConfigMap = Partial<
