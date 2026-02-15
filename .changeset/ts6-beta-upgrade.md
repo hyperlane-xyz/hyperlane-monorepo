@@ -323,3 +323,5 @@ Regression coverage now also confirms non-hostile cross-realm boxed-string `cons
 Regression coverage now also confirms same-realm boxed-string `constructor.name` fallback payloads remain detectable/ignorable even when boxed-string `Symbol.toStringTag` accessors throw under combined `message`+`name`+`cause`+`errors` accessor failures for both `AggregateError` and top-level `Error` wrappers.
 
 Regression coverage now also confirms whitespace-trimmed scalar `constructor.name` fallback payloads on both `AggregateError` and top-level `Error` wrappers remain detectable/ignorable under combined `message`+`name`+`cause`+`errors` accessor failures.
+
+Regression coverage now also confirms whitespace-only `name` payloads on both `AggregateError` and top-level `Error` wrappers are treated as non-informative, allowing runtime/non-runtime `constructor.name` fallback payloads to remain detectable/ignorable under combined `message`+`cause`+`errors` accessor failures.
