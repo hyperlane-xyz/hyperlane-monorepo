@@ -64,6 +64,16 @@ const SKIPPED_DIRECTORIES = new Set([
   '.turbo',
 ]);
 
+function compareLexicographically(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
 function readInfraFile(relativePath: string): string {
   return fs.readFileSync(path.join(INFRA_ROOT, relativePath), 'utf8');
 }
@@ -114,7 +124,7 @@ function listTrackedSourceFilesRecursively(relativeDir: string): string[] {
   const absoluteDir = path.join(INFRA_ROOT, relativeDir);
   const entries = fs
     .readdirSync(absoluteDir, { withFileTypes: true })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((left, right) => compareLexicographically(left.name, right.name));
   const files: string[] = [];
 
   for (const entry of entries) {
@@ -138,7 +148,7 @@ function listTrackedSourceFilesRecursively(relativeDir: string): string[] {
     }
   }
 
-  return files.sort();
+  return files.sort(compareLexicographically);
 }
 
 describe('squads sdk migration regression', () => {
@@ -309,7 +319,9 @@ describe('squads sdk migration regression', () => {
 
   it('keeps tracked infra source file scan ordering deterministic', () => {
     const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
-    expect(trackedSourceFiles).to.deep.equal([...trackedSourceFiles].sort());
+    expect(trackedSourceFiles).to.deep.equal(
+      [...trackedSourceFiles].sort(compareLexicographically),
+    );
   });
 
   it('keeps squads-related scripts using shared formatScriptError helper', () => {
