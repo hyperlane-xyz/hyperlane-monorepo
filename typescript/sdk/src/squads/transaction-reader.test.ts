@@ -2710,6 +2710,76 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('throws stable error when core program resolver is not callable', async () => {
+    const reader = new SquadsTransactionReader(
+      createNoopMpp(),
+      {
+        resolveCoreProgramIds: 1,
+      } as unknown as {
+        resolveCoreProgramIds: (chain: string) => {
+          mailbox: string;
+          multisig_ism_message_id: string;
+        };
+      },
+    );
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Invalid core program resolver for solanamainnet: expected function, got number',
+    );
+  });
+
+  it('throws stable error when core program resolver invocation throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => {
+        throw new Error('resolver invocation failed');
+      },
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to resolve core program ids for solanamainnet: Error: resolver invocation failed',
+    );
+  });
+
   it('throws stable error when resolved core program ids are malformed', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
@@ -2740,6 +2810,39 @@ describe('squads transaction reader', () => {
 
     expect(thrownError?.message).to.equal(
       'Expected mailbox program id for solanamainnet to be a non-empty string, got empty string',
+    );
+  });
+
+  it('throws stable error when resolved multisig program id is malformed', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: '   ',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Expected multisig_ism_message_id program id for solanamainnet to be a non-empty string, got empty string',
     );
   });
 
