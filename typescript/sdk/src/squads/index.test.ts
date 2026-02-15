@@ -802,6 +802,10 @@ describe('squads barrel exports', () => {
     for (const testPath of EXPECTED_SDK_SQUADS_TEST_FILE_PATHS) {
       assertSdkSquadsTestTokenShape(testPath, 'expected sdk squads test path');
     }
+    assertRelativePathsResolveToFiles(
+      EXPECTED_SDK_SQUADS_TEST_FILE_PATHS,
+      'expected sdk squads test path constant',
+    );
   });
 
   it('keeps sdk discovered squads test files aligned with canonical test file paths', () => {
