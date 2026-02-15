@@ -3530,6 +3530,48 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(true);
     });
 
+    it('throws stable error when provider lookup returns promise-like value', () => {
+      const mpp = {
+        getSolanaWeb3Provider: () =>
+          Promise.resolve({
+            getAccountInfo: async () => null,
+          }),
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid solana provider for solanamainnet: expected synchronous provider, got promise-like value',
+      );
+    });
+
+    it('throws stable error when provider promise-like inspection fails', () => {
+      const mpp = {
+        getSolanaWeb3Provider: () =>
+          new Proxy(
+            {},
+            {
+              get(target, property, receiver) {
+                if (property === 'then') {
+                  throw new Error('then unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to inspect solana provider for solanamainnet: failed to read promise-like then field (then unavailable)',
+      );
+    });
+
     it('uses provided provider override without multiprovider lookup', () => {
       let providerLookupCalled = false;
       const mpp = {

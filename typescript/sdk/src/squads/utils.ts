@@ -730,13 +730,30 @@ function getSolanaWeb3ProviderForChain(
     `Invalid multiprovider for ${chain}: expected getSolanaWeb3Provider function, got ${getUnknownValueTypeName(getSolanaWeb3ProviderValue)}`,
   );
 
+  let providerValue: unknown;
   try {
-    return getSolanaWeb3ProviderValue(chain) as SolanaWeb3Provider;
+    providerValue = getSolanaWeb3ProviderValue(chain);
   } catch (error) {
     throw new Error(
       `Failed to resolve solana provider for ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
+
+  let thenValue: unknown;
+  try {
+    thenValue = (providerValue as { then?: unknown } | null | undefined)?.then;
+  } catch (error) {
+    throw new Error(
+      `Failed to inspect solana provider for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(error)})`,
+    );
+  }
+
+  assert(
+    typeof thenValue !== 'function',
+    `Invalid solana provider for ${chain}: expected synchronous provider, got promise-like value`,
+  );
+
+  return providerValue as SolanaWeb3Provider;
 }
 
 function getSignerPublicKeyForChain(
