@@ -171,6 +171,21 @@ describe('squads config', () => {
     });
   }
 
+  it('labels unreadable chain-name types in assertion errors', () => {
+    const { proxy: revokedChainName, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    expect(() => assertIsSquadsChain(revokedChainName)).to.throw(
+      'Expected chain name to be a string, got [unreadable value type]',
+    );
+    expect(() => getSquadsKeys(revokedChainName)).to.throw(
+      'Expected chain name to be a string, got [unreadable value type]',
+    );
+    expect(() => resolveSquadsChainName(revokedChainName)).to.throw(
+      'Expected chain name to be a string, got [unreadable value type]',
+    );
+  });
+
   it('partitions chains with dedupe and first-seen ordering', () => {
     expect(
       partitionSquadsChains([
@@ -195,6 +210,15 @@ describe('squads config', () => {
 
     expect(() => partitionSquadsChains(['solanamainnet', null])).to.throw(
       'Expected partitioned squads chains[1] to be a string, got null',
+    );
+  });
+
+  it('rejects unreadable partition inputs with deterministic type labels', () => {
+    const { proxy: revokedPartitionList, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    expect(() => partitionSquadsChains(revokedPartitionList)).to.throw(
+      'Expected partitioned squads chains to be an array, got [unreadable value type]',
     );
   });
 

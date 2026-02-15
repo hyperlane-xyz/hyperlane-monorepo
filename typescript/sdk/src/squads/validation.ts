@@ -5,7 +5,29 @@ function getUnknownValueTypeName(value: unknown): string {
     return 'null';
   }
 
-  return Array.isArray(value) ? 'array' : typeof value;
+  const { isArray, readFailed } = inspectArrayValue(value);
+  if (readFailed) {
+    return '[unreadable value type]';
+  }
+
+  return isArray ? 'array' : typeof value;
+}
+
+function inspectArrayValue(value: unknown): {
+  isArray: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      isArray: Array.isArray(value),
+      readFailed: false,
+    };
+  } catch {
+    return {
+      isArray: false,
+      readFailed: true,
+    };
+  }
 }
 
 function getChainLabel(chain: unknown): string {

@@ -77,7 +77,29 @@ function getUnknownValueTypeName(value: unknown): string {
     return 'null';
   }
 
-  return Array.isArray(value) ? 'array' : typeof value;
+  const { isArray, readFailed } = inspectArrayValue(value);
+  if (readFailed) {
+    return '[unreadable value type]';
+  }
+
+  return isArray ? 'array' : typeof value;
+}
+
+function inspectArrayValue(value: unknown): {
+  isArray: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      isArray: Array.isArray(value),
+      readFailed: false,
+    };
+  } catch {
+    return {
+      isArray: false,
+      readFailed: true,
+    };
+  }
 }
 
 function formatLengthValue(value: unknown): string {
@@ -122,18 +144,21 @@ function normalizeChainListValues(
   chains: readonly unknown[] | unknown,
   listLabel: string,
 ): string[] {
-  if (!Array.isArray(chains)) {
+  const { isArray, readFailed: arrayInspectionFailed } =
+    inspectArrayValue(chains);
+  if (arrayInspectionFailed || !isArray) {
     throw new Error(
       `Expected ${listLabel} to be an array, got ${getUnknownValueTypeName(chains)}`,
     );
   }
 
+  const normalizedChainValues = chains as readonly unknown[];
   const normalizedChains: string[] = [];
-  const chainCount = getArrayLengthOrThrow(chains, listLabel);
+  const chainCount = getArrayLengthOrThrow(normalizedChainValues, listLabel);
   for (let index = 0; index < chainCount; index += 1) {
     let chain: unknown;
     try {
-      chain = chains[index];
+      chain = normalizedChainValues[index];
     } catch (error) {
       throw new Error(
         `Failed to read ${listLabel}[${index}]: ${formatUnknownListError(error)}`,

@@ -816,6 +816,15 @@ describe('squads utils', () => {
       );
     });
 
+    it('labels unreadable chain values in transaction-index validation errors', () => {
+      const { proxy: revokedChain, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(() => assertValidTransactionIndexInput(-1, revokedChain)).to.throw(
+        'Expected transaction index to be a non-negative safe integer for [unreadable value type], got -1',
+      );
+    });
+
     it('throws for invalid transaction indices', () => {
       expect(() =>
         assertValidTransactionIndexInput(-1, 'solanamainnet'),
