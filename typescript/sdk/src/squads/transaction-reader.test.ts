@@ -17,6 +17,10 @@ import {
   SealevelMultisigIsmSetValidatorsInstructionSchema,
 } from '../ism/serialization.js';
 import {
+  SealevelMailboxInstructionName,
+  SealevelMailboxInstructionType,
+} from '../mailbox/serialization.js';
+import {
   SealevelEnrollRemoteRouterInstruction,
   SealevelEnrollRemoteRouterInstructionSchema,
   SealevelEnrollRemoteRoutersInstruction,
@@ -3173,6 +3177,163 @@ describe('squads transaction reader', () => {
     });
 
     expect(result.args).to.deep.equal({});
+  });
+
+  it('handles throwing mailbox default-ISM access while formatting instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const malformedDefaultIsmData = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'newDefaultIsm') {
+            throw new Error('default ism unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'Mailbox',
+      instructionType:
+        SealevelMailboxInstructionName[
+          SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
+        ],
+      data: malformedDefaultIsmData as unknown as Record<string, unknown>,
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(result.args).to.deep.equal({ module: null });
+  });
+
+  it('handles throwing ownership-target access while formatting ownership-transfer instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const malformedOwnershipData = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'newOwner') {
+            throw new Error('new owner unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const mailboxResult = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'Mailbox',
+      instructionType:
+        SealevelMailboxInstructionName[
+          SealevelMailboxInstructionType.TRANSFER_OWNERSHIP
+        ],
+      data: malformedOwnershipData as unknown as Record<string, unknown>,
+      accounts: [],
+      warnings: [],
+    });
+    const warpResult = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'WarpRoute',
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.TransferOwnership
+        ],
+      data: malformedOwnershipData as unknown as Record<string, unknown>,
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(mailboxResult.args).to.deep.equal({ newOwner: null });
+    expect(warpResult.args).to.deep.equal({ newOwner: null });
+  });
+
+  it('normalizes malformed warp ISM and IGP values while formatting instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const malformedIsmData = new Proxy(
+      {
+        ism: '   ',
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'ism') {
+            throw new Error('ism unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    const malformedIgpData = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'igp') {
+            throw new Error('igp unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const ismResult = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'WarpRoute',
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.SetInterchainSecurityModule
+        ],
+      data: malformedIsmData as unknown as Record<string, unknown>,
+      accounts: [],
+      warnings: [],
+    });
+    const igpResult = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'WarpRoute',
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.SetInterchainGasPaymaster
+        ],
+      data: malformedIgpData as unknown as Record<string, unknown>,
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(ismResult.args).to.deep.equal({ ism: null });
+    expect(igpResult.args).to.deep.equal({ igp: null });
   });
 
   it('does not misclassify multisig validator instructions when chain lookup throws during parse', () => {

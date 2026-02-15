@@ -1832,6 +1832,14 @@ export class SquadsTransactionReader {
     }
   }
 
+  private normalizeOptionalNonEmptyString(value: unknown): string | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const normalizedValue = value.trim();
+    return normalizedValue.length > 0 ? normalizedValue : null;
+  }
+
   private formatInstruction(
     chain: SquadsChainName,
     inst: ParsedInstruction,
@@ -1891,7 +1899,16 @@ export class SquadsTransactionReader {
         SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
       ]: {
         const data = inst.data as MailboxSetDefaultIsmData;
-        tx.args = { module: data.newDefaultIsm };
+        let moduleValue: unknown;
+        try {
+          moduleValue = data.newDefaultIsm;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read mailbox default ISM on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          moduleValue = null;
+        }
+        tx.args = { module: moduleValue };
         break;
       }
 
@@ -1902,7 +1919,18 @@ export class SquadsTransactionReader {
         SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP
       ]: {
         const data = inst.data as OwnershipTransferData;
-        tx.args = { newOwner: data.newOwner || null };
+        let newOwnerValue: unknown;
+        try {
+          newOwnerValue = data.newOwner;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read ownership transfer target on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          newOwnerValue = undefined;
+        }
+        tx.args = {
+          newOwner: this.normalizeOptionalNonEmptyString(newOwnerValue),
+        };
         break;
       }
 
@@ -2098,7 +2126,16 @@ export class SquadsTransactionReader {
         SealevelHypTokenInstruction.SetInterchainSecurityModule
       ]: {
         const data = inst.data as WarpSetIsmData;
-        tx.args = { ism: data.ism || null };
+        let ismValue: unknown;
+        try {
+          ismValue = data.ism;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read warp ISM value on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          ismValue = undefined;
+        }
+        tx.args = { ism: this.normalizeOptionalNonEmptyString(ismValue) };
         break;
       }
 
@@ -2106,7 +2143,16 @@ export class SquadsTransactionReader {
         SealevelHypTokenInstruction.SetInterchainGasPaymaster
       ]: {
         const data = inst.data as WarpSetIgpData;
-        tx.args = data.igp || { igp: null };
+        let igpValue: unknown;
+        try {
+          igpValue = data.igp;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read warp IGP value on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          igpValue = undefined;
+        }
+        tx.args = igpValue || { igp: null };
         break;
       }
 
@@ -2114,7 +2160,18 @@ export class SquadsTransactionReader {
         SealevelHypTokenInstruction.TransferOwnership
       ]: {
         const data = inst.data as OwnershipTransferData;
-        tx.args = { newOwner: data.newOwner || null };
+        let newOwnerValue: unknown;
+        try {
+          newOwnerValue = data.newOwner;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read warp ownership transfer target on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          newOwnerValue = undefined;
+        }
+        tx.args = {
+          newOwner: this.normalizeOptionalNonEmptyString(newOwnerValue),
+        };
         break;
       }
     }
