@@ -1994,6 +1994,12 @@ describe('squads utils', () => {
   });
 
   describe(parseSquadsProposalVoteError.name, () => {
+    it('parses known vote error from string log payloads', () => {
+      expect(
+        parseSquadsProposalVoteError('custom program error: 0x177b'),
+      ).to.equal(SquadsProposalVoteError.AlreadyRejected);
+    });
+
     it('parses AlreadyRejected from named error', () => {
       expect(
         parseSquadsProposalVoteError(['Program log: AlreadyRejected']),
@@ -2047,6 +2053,19 @@ describe('squads utils', () => {
 
       expect(parseSquadsProposalVoteError(frozenLogs)).to.equal(
         SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
+    it('returns undefined for malformed vote-log payloads', () => {
+      expect(parseSquadsProposalVoteError(null)).to.equal(undefined);
+      expect(parseSquadsProposalVoteError(1)).to.equal(undefined);
+      expect(parseSquadsProposalVoteError(false)).to.equal(undefined);
+      expect(parseSquadsProposalVoteError(Symbol('vote-log'))).to.equal(
+        undefined,
+      );
+      expect(parseSquadsProposalVoteError([1, 2, 3])).to.equal(undefined);
+      expect(parseSquadsProposalVoteError([{ log: '0x177b' }])).to.equal(
+        undefined,
       );
     });
   });

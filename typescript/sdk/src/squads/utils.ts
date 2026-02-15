@@ -358,7 +358,7 @@ function parseSquadsProposalVoteErrorFromUnknownLogs(
     return undefined;
   }
 
-  return parseSquadsProposalVoteError(logEntries);
+  return parseSquadsProposalVoteErrorText(logEntries.join('\n'));
 }
 
 /**
@@ -366,9 +366,9 @@ function parseSquadsProposalVoteErrorFromUnknownLogs(
  * Matches both named errors and their hex error codes.
  */
 export function parseSquadsProposalVoteError(
-  transactionLogs: readonly string[],
+  transactionLogs: unknown,
 ): SquadsProposalVoteError | undefined {
-  return parseSquadsProposalVoteErrorText(transactionLogs.join('\n'));
+  return parseSquadsProposalVoteErrorFromUnknownLogs(transactionLogs);
 }
 
 /**
