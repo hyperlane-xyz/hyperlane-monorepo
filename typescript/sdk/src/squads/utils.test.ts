@@ -3411,7 +3411,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsVaultTransactionProposal(
-          1 as unknown as Parameters<typeof buildSquadsVaultTransactionProposal>[0],
+          1,
           mpp,
           [],
           PublicKey.default,
@@ -3553,7 +3553,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsProposalRejection(
-          1 as unknown as Parameters<typeof buildSquadsProposalRejection>[0],
+          1,
           mpp,
           1n,
           PublicKey.default,
@@ -3644,7 +3644,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsProposalRejection(
-          1 as unknown as Parameters<typeof buildSquadsProposalRejection>[0],
+          1,
           mpp,
           -1n,
           PublicKey.default,
@@ -3762,7 +3762,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsProposalCancellation(
-          1 as unknown as Parameters<typeof buildSquadsProposalCancellation>[0],
+          1,
           mpp,
           1n,
           PublicKey.default,
@@ -3853,7 +3853,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsProposalCancellation(
-          1 as unknown as Parameters<typeof buildSquadsProposalCancellation>[0],
+          1,
           mpp,
           -1n,
           PublicKey.default,
@@ -3942,7 +3942,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads(
-          1 as unknown as Parameters<typeof submitProposalToSquads>[0],
+          1,
           [],
           mpp,
           signerAdapter,
@@ -4125,7 +4125,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         getTransactionType(
-          1 as unknown as Parameters<typeof getTransactionType>[0],
+          1,
           mpp,
           0,
         ),
@@ -4190,7 +4190,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         getTransactionType(
-          1 as unknown as Parameters<typeof getTransactionType>[0],
+          1,
           mpp,
           -1,
         ),
@@ -4381,7 +4381,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         executeProposal(
-          1 as unknown as Parameters<typeof executeProposal>[0],
+          1,
           mpp,
           0,
           {} as Parameters<typeof executeProposal>[3],
@@ -4453,7 +4453,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         executeProposal(
-          1 as unknown as Parameters<typeof executeProposal>[0],
+          1,
           mpp,
           -1,
           {} as Parameters<typeof executeProposal>[3],

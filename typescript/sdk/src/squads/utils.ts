@@ -14,7 +14,6 @@ import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { SvmMultiProtocolSignerAdapter } from '../signers/svm/solana-web3js.js';
-import { ChainName } from '../types.js';
 
 import {
   getSquadsKeysForResolvedChain,
@@ -1362,7 +1361,7 @@ function createProposalCancelInstruction(
 }
 
 export async function buildSquadsVaultTransactionProposal(
-  chain: ChainName,
+  chain: unknown,
   mpp: MultiProtocolProvider,
   ixs: readonly TransactionInstruction[],
   creator: PublicKey,
@@ -1417,7 +1416,7 @@ export async function buildSquadsVaultTransactionProposal(
 }
 
 export async function buildSquadsProposalRejection(
-  chain: ChainName,
+  chain: unknown,
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
@@ -1446,7 +1445,7 @@ export async function buildSquadsProposalRejection(
 }
 
 export async function buildSquadsProposalCancellation(
-  chain: ChainName,
+  chain: unknown,
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
@@ -1475,7 +1474,7 @@ export async function buildSquadsProposalCancellation(
 }
 
 export async function submitProposalToSquads(
-  chain: ChainName,
+  chain: unknown,
   vaultInstructions: readonly TransactionInstruction[],
   mpp: MultiProtocolProvider,
   signerAdapter: SvmMultiProtocolSignerAdapter,
@@ -1543,7 +1542,7 @@ export function isConfigTransaction(accountData: Buffer): boolean {
 }
 
 export async function getTransactionType(
-  chain: ChainName,
+  chain: unknown,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
   svmProviderOverride?: SolanaWeb3Provider,
@@ -1586,7 +1585,7 @@ export async function getTransactionType(
 }
 
 export async function executeProposal(
-  chain: ChainName,
+  chain: unknown,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
   signerAdapter: SvmMultiProtocolSignerAdapter,
