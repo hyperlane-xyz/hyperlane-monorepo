@@ -1856,9 +1856,37 @@ function warnOnUnexpectedMultisigAccountOwner(
     return;
   }
 
-  if (!ownerValue.equals(expectedProgramId)) {
+  let ownerMatchesExpectedProgram = false;
+  try {
+    ownerMatchesExpectedProgram = ownerValue.equals(expectedProgramId);
+  } catch (error) {
     rootLogger.warn(
-      `WARNING: Multisig account owner (${ownerValue.toBase58()}) does not match expected program ID (${expectedProgramId.toBase58()})`,
+      `Failed to compare multisig account owner on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+    return;
+  }
+
+  if (!ownerMatchesExpectedProgram) {
+    let ownerAddress = '[unavailable owner address]';
+    try {
+      ownerAddress = ownerValue.toBase58();
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to format multisig account owner on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      );
+    }
+
+    let expectedProgramAddress = '[unavailable expected program address]';
+    try {
+      expectedProgramAddress = expectedProgramId.toBase58();
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to format expected program ID on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      );
+    }
+
+    rootLogger.warn(
+      `WARNING: Multisig account owner (${ownerAddress}) does not match expected program ID (${expectedProgramAddress})`,
     );
   }
 }

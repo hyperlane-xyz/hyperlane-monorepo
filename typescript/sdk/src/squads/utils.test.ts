@@ -5135,6 +5135,111 @@ describe('squads utils', () => {
       }
     });
 
+    it('continues proposal build when multisig owner comparison throws', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+        const ownerWithThrowingEquals = new Proxy(PublicKey.default, {
+          get(target, property, receiver) {
+            if (property === 'equals') {
+              throw new Error('owner compare unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        });
+        const mpp = {
+          getSolanaWeb3Provider: () => ({
+            getAccountInfo: async () => ({
+              owner: ownerWithThrowingEquals,
+            }),
+            getLatestBlockhash: async () => ({
+              blockhash: 'recent-blockhash',
+            }),
+          }),
+        };
+
+        const result = await buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          [],
+          PublicKey.default,
+        );
+
+        expect(result.transactionIndex).to.equal(1n);
+        expect(result.instructions).to.have.length(2);
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
+
+    it('continues proposal build when multisig owner formatting throws', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+        const ownerWithThrowingToBase58 = new Proxy(PublicKey.default, {
+          get(target, property, receiver) {
+            if (property === 'equals') {
+              return () => false;
+            }
+            if (property === 'toBase58') {
+              throw new Error('owner formatting unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        });
+        const mpp = {
+          getSolanaWeb3Provider: () => ({
+            getAccountInfo: async () => ({
+              owner: ownerWithThrowingToBase58,
+            }),
+            getLatestBlockhash: async () => ({
+              blockhash: 'recent-blockhash',
+            }),
+          }),
+        };
+
+        const result = await buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          [],
+          PublicKey.default,
+        );
+
+        expect(result.transactionIndex).to.equal(1n);
+        expect(result.instructions).to.have.length(2);
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
+
     it('uses provided provider override without multiprovider lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
