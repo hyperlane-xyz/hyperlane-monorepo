@@ -200,6 +200,21 @@ describe('squads test constants', () => {
     expect(
       hasAllowedSquadsScriptExtension('scripts/squads/example.tsx'),
     ).to.equal(false);
+    expect(
+      hasAllowedSquadsScriptExtension('scripts/squads/example.TS'),
+    ).to.equal(false);
+  });
+
+  it('rejects malformed non-executable script path candidates', () => {
+    expect(
+      isAllowlistedNonExecutableSquadsScriptPath('../scripts/squads/cli-helpers.ts'),
+    ).to.equal(false);
+    expect(
+      isAllowlistedNonExecutableSquadsScriptPath('scripts\\squads\\cli-helpers.ts'),
+    ).to.equal(false);
+    expect(
+      isAllowlistedNonExecutableSquadsScriptPath('/scripts/squads/cli-helpers.ts'),
+    ).to.equal(false);
   });
 
   it('keeps executable and non-executable script partitions complete and disjoint', () => {
