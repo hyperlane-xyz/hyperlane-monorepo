@@ -226,7 +226,15 @@ export function normalizeSquadsAddressValue(
       };
     }
 
-    const toBase58Candidate = (value as { toBase58?: unknown }).toBase58;
+    let toBase58Candidate: unknown;
+    try {
+      toBase58Candidate = (value as { toBase58?: unknown }).toBase58;
+    } catch (error) {
+      return {
+        address: undefined,
+        error: `failed to read toBase58() method (${formatUnknownErrorForMessage(error)})`,
+      };
+    }
     if (typeof toBase58Candidate !== 'function') {
       return {
         address: undefined,
@@ -287,7 +295,23 @@ export function normalizeSquadsAddressList(
   const addresses: string[] = [];
   let invalidEntries = 0;
 
-  for (const value of values) {
+  let entryCount: number;
+  try {
+    entryCount = values.length;
+  } catch (error) {
+    throw new Error(
+      `Failed to read address list length: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  for (let index = 0; index < entryCount; index += 1) {
+    let value: unknown;
+    try {
+      value = values[index];
+    } catch {
+      invalidEntries += 1;
+      continue;
+    }
     const normalizedAddress = normalizeSquadsAddressValue(value);
     if (normalizedAddress.address) {
       addresses.push(normalizedAddress.address);
@@ -310,22 +334,43 @@ export function parseSquadsMultisigMembers(
   const parsedMembers: ParsedSquadsMultisigMember[] = [];
   let invalidEntries = 0;
 
-  for (const member of members) {
+  for (let index = 0; index < members.length; index += 1) {
+    let member: unknown;
+    try {
+      member = members[index];
+    } catch {
+      invalidEntries += 1;
+      continue;
+    }
+
     if (!member || typeof member !== 'object') {
       invalidEntries += 1;
       continue;
     }
 
     const memberRecord = member as { key?: unknown; permissions?: unknown };
-    const normalizedMemberKey = normalizeSquadsAddressValue(memberRecord.key);
+    let memberKeyValue: unknown;
+    try {
+      memberKeyValue = memberRecord.key;
+    } catch {
+      invalidEntries += 1;
+      continue;
+    }
+    const normalizedMemberKey = normalizeSquadsAddressValue(memberKeyValue);
     if (!normalizedMemberKey.address) {
       invalidEntries += 1;
       continue;
     }
 
+    let permissionsValue: unknown;
+    try {
+      permissionsValue = memberRecord.permissions;
+    } catch {
+      permissionsValue = null;
+    }
     parsedMembers.push({
       key: normalizedMemberKey.address,
-      permissions: memberRecord.permissions ?? null,
+      permissions: permissionsValue ?? null,
     });
   }
 
@@ -469,9 +514,7 @@ export function parseSquadsProposalVoteErrorFromError(
 
     const messageValue = getRecordFieldValue(currentRecord, 'message');
     if (typeof messageValue === 'string') {
-      const parsedError = parseSquadsProposalVoteErrorText(
-        messageValue,
-      );
+      const parsedError = parseSquadsProposalVoteErrorText(messageValue);
       if (parsedError) return parsedError;
     }
 
@@ -602,11 +645,9 @@ function getSquadAndProviderForResolvedChain(
   mpp: MultiProtocolProvider,
   svmProviderOverride?: SolanaWeb3Provider,
 ): SquadAndProvider {
-  const { vault, multisigPda, programId } = getSquadsKeysForResolvedChain(
-    chain,
-  );
-  const svmProvider =
-    svmProviderOverride ?? mpp.getSolanaWeb3Provider(chain);
+  const { vault, multisigPda, programId } =
+    getSquadsKeysForResolvedChain(chain);
+  const svmProvider = svmProviderOverride ?? mpp.getSolanaWeb3Provider(chain);
 
   return { chain, svmProvider, vault, multisigPda, programId };
 }
@@ -710,11 +751,7 @@ async function getSquadProposalAccountForResolvedChain(
 ): Promise<SquadProposalAccountWithProvider | undefined> {
   try {
     const { svmProvider, multisigPda, programId } =
-      getSquadAndProviderForResolvedChain(
-        chain,
-        mpp,
-        svmProviderOverride,
-      );
+      getSquadAndProviderForResolvedChain(chain, mpp, svmProviderOverride);
     const squadsProvider = toSquadsProvider(svmProvider);
 
     const [proposalPda] = getProposalPda({
@@ -1006,10 +1043,7 @@ export function getSquadTxStatus(
     approvals,
     'approvals',
   );
-  const normalizedThreshold = assertPositiveSafeInteger(
-    threshold,
-    'threshold',
-  );
+  const normalizedThreshold = assertPositiveSafeInteger(threshold, 'threshold');
   const normalizedTransactionIndex = assertNonNegativeSafeInteger(
     transactionIndex,
     'transaction index',
@@ -1054,7 +1088,9 @@ export function getSquadTxStatus(
 }
 
 function formatSafeIntegerInputValue(value: unknown): string {
-  return typeof value === 'number' ? String(value) : getUnknownValueTypeName(value);
+  return typeof value === 'number'
+    ? String(value)
+    : getUnknownValueTypeName(value);
 }
 
 function assertNonNegativeSafeInteger(value: unknown, label: string): number {
@@ -1092,17 +1128,14 @@ export function getMinimumProposalIndexToCheck(
   );
 }
 
-export function parseSquadProposal(
-  proposal: unknown,
-): ParsedSquadProposal {
+export function parseSquadProposal(proposal: unknown): ParsedSquadProposal {
   const proposalRecord = getObjectRecord(proposal, 'Squads proposal');
   const approvals = getProposalVoteCount(proposalRecord, 'approved');
   const rejections = getProposalVoteCount(proposalRecord, 'rejected');
   const cancellations = getProposalVoteCount(proposalRecord, 'cancelled');
   const { statusKind, rawStatusTimestamp } =
     getProposalStatusMetadata(proposalRecord);
-  const transactionIndex =
-    parseSquadProposalTransactionIndex(proposalRecord);
+  const transactionIndex = parseSquadProposalTransactionIndex(proposalRecord);
   const statusTimestampSeconds =
     typeof rawStatusTimestamp !== 'undefined'
       ? toSafeInteger(rawStatusTimestamp, 'status timestamp', {
@@ -1122,9 +1155,7 @@ export function parseSquadProposal(
   return parsedProposal;
 }
 
-export function parseSquadProposalTransactionIndex(
-  proposal: unknown,
-): number {
+export function parseSquadProposalTransactionIndex(proposal: unknown): number {
   const proposalRecord = getObjectRecord(proposal, 'Squads proposal');
   return toSafeInteger(proposalRecord.transactionIndex, 'transaction index', {
     nonNegative: true,
@@ -1181,10 +1212,7 @@ export function parseSquadMultisig(
   multisig: unknown,
   fieldPrefix = 'multisig',
 ): ParsedSquadMultisig {
-  const multisigRecord = getObjectRecord(
-    multisig,
-    `Squads ${fieldPrefix}`,
-  );
+  const multisigRecord = getObjectRecord(multisig, `Squads ${fieldPrefix}`);
   const threshold = toSafeInteger(
     multisigRecord.threshold,
     `${fieldPrefix} threshold`,
@@ -1397,7 +1425,9 @@ function assertValidBigintTransactionIndex(
   chain: unknown,
 ): bigint {
   const chainLabel =
-    typeof chain === 'string' && chain.trim().length > 0 ? chain.trim() : 'unknown chain';
+    typeof chain === 'string' && chain.trim().length > 0
+      ? chain.trim()
+      : 'unknown chain';
   assert(
     typeof transactionIndex === 'bigint',
     `Expected transaction index to be a bigint for ${chainLabel}, got ${getUnknownValueTypeName(transactionIndex)}`,
@@ -1640,7 +1670,9 @@ export async function submitProposalToSquads(
   }
 }
 
-function assertIsDiscriminatorSource(accountData: unknown): asserts accountData is Uint8Array {
+function assertIsDiscriminatorSource(
+  accountData: unknown,
+): asserts accountData is Uint8Array {
   assert(
     accountData instanceof Uint8Array,
     `Expected account data to be a Uint8Array, got ${getUnknownValueTypeName(accountData)}`,

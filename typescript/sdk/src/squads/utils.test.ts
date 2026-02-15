@@ -100,9 +100,10 @@ function createErrorWithGenericObjectStringification(): Error {
   return error;
 }
 
-function createUnstringifiableObjectErrorWithMessage(
-  message: string,
-): { message: string; toString: () => string } {
+function createUnstringifiableObjectErrorWithMessage(message: string): {
+  message: string;
+  toString: () => string;
+} {
   return {
     message,
     toString: () => {
@@ -233,33 +234,42 @@ describe('squads utils', () => {
       expectedType: string;
     }> = [
       {
-        title: 'labels undefined values clearly when rejecting non-string primitives',
+        title:
+          'labels undefined values clearly when rejecting non-string primitives',
         value: undefined,
         expectedType: 'undefined',
       },
       {
-        title: 'labels boolean values clearly when rejecting non-string primitives',
+        title:
+          'labels boolean values clearly when rejecting non-string primitives',
         value: false,
         expectedType: 'boolean',
       },
       {
-        title: 'labels bigint values clearly when rejecting non-string primitives',
+        title:
+          'labels bigint values clearly when rejecting non-string primitives',
         value: 1n,
         expectedType: 'bigint',
       },
       {
-        title: 'labels symbol values clearly when rejecting non-string primitives',
+        title:
+          'labels symbol values clearly when rejecting non-string primitives',
         value: Symbol('bad-address'),
         expectedType: 'symbol',
       },
       {
-        title: 'labels function values clearly when rejecting non-string primitives',
+        title:
+          'labels function values clearly when rejecting non-string primitives',
         value: () => '11111111111111111111111111111111',
         expectedType: 'function',
       },
     ];
 
-    for (const { title, value, expectedType } of unsupportedPrimitiveInputCases) {
+    for (const {
+      title,
+      value,
+      expectedType,
+    } of unsupportedPrimitiveInputCases) {
       it(title, () => {
         expect(normalizeSquadsAddressValue(value)).to.deep.equal({
           address: undefined,
@@ -285,6 +295,26 @@ describe('squads utils', () => {
       expect(result.address).to.equal(undefined);
       expect(result.error).to.include('failed to stringify key');
       expect(result.error).to.include('boom');
+    });
+
+    it('reports toBase58 getter read failures', () => {
+      const addressLike = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'toBase58') {
+              throw new Error('getter unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+      const result = normalizeSquadsAddressValue(addressLike);
+
+      expect(result.address).to.equal(undefined);
+      expect(result.error).to.equal(
+        'failed to read toBase58() method (getter unavailable)',
+      );
     });
 
     it('uses message fields when toBase58 throws unstringifiable objects', () => {
@@ -317,9 +347,7 @@ describe('squads utils', () => {
     it('falls back to message when stack accessor throws during toBase58 failures', () => {
       const result = normalizeSquadsAddressValue({
         toBase58() {
-          throw createUnstringifiableObjectErrorWithThrowingStackGetter(
-            'boom',
-          );
+          throw createUnstringifiableObjectErrorWithThrowingStackGetter('boom');
         },
       });
 
@@ -493,6 +521,43 @@ describe('squads utils', () => {
         'Expected address list to be an array, got null',
       );
     });
+
+    it('counts entries as invalid when array element access throws', () => {
+      const hostileAddressList = new Proxy(
+        [
+          '11111111111111111111111111111111',
+          '11111111111111111111111111111111',
+        ],
+        {
+          get(target, property, receiver) {
+            if (property === '1') {
+              throw new Error('entry unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      expect(normalizeSquadsAddressList(hostileAddressList)).to.deep.equal({
+        addresses: ['11111111111111111111111111111111'],
+        invalidEntries: 1,
+      });
+    });
+
+    it('throws stable error when address list length accessor fails', () => {
+      const hostileAddressList = new Proxy([], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            throw new Error('length unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      expect(() => normalizeSquadsAddressList(hostileAddressList)).to.throw(
+        'Failed to read address list length: length unavailable',
+      );
+    });
   });
 
   describe(parseSquadsMultisigMembers.name, () => {
@@ -542,6 +607,59 @@ describe('squads utils', () => {
       expect(() => parseSquadsMultisigMembers(null)).to.throw(
         'Expected multisig members to be an array, got null',
       );
+    });
+
+    it('counts members as invalid when member key getter throws', () => {
+      const hostileMember = new Proxy(
+        { permissions: 7 },
+        {
+          get(target, property, receiver) {
+            if (property === 'key') {
+              throw new Error('key unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      expect(
+        parseSquadsMultisigMembers([
+          hostileMember,
+          { key: '11111111111111111111111111111111', permissions: 3 },
+        ]),
+      ).to.deep.equal({
+        members: [
+          {
+            key: '11111111111111111111111111111111',
+            permissions: 3,
+          },
+        ],
+        invalidEntries: 1,
+      });
+    });
+
+    it('keeps member entry when permissions getter throws', () => {
+      const hostileMember = new Proxy(
+        { key: '11111111111111111111111111111111' },
+        {
+          get(target, property, receiver) {
+            if (property === 'permissions') {
+              throw new Error('permissions unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      expect(parseSquadsMultisigMembers([hostileMember])).to.deep.equal({
+        members: [
+          {
+            key: '11111111111111111111111111111111',
+            permissions: null,
+          },
+        ],
+        invalidEntries: 0,
+      });
     });
   });
 
@@ -608,22 +726,16 @@ describe('squads utils', () => {
       ).to.throw(
         'Expected transaction index to be a non-negative safe integer for solanamainnet, got -1',
       );
-      expect(() =>
-        assertValidTransactionIndexInput(-1, '   '),
-      ).to.throw(
+      expect(() => assertValidTransactionIndexInput(-1, '   ')).to.throw(
         'Expected transaction index to be a non-negative safe integer for empty string, got -1',
       );
     });
 
     it('labels malformed chain values in transaction-index validation errors', () => {
-      expect(() =>
-        assertValidTransactionIndexInput(-1, null),
-      ).to.throw(
+      expect(() => assertValidTransactionIndexInput(-1, null)).to.throw(
         'Expected transaction index to be a non-negative safe integer for null, got -1',
       );
-      expect(() =>
-        assertValidTransactionIndexInput(-1, []),
-      ).to.throw(
+      expect(() => assertValidTransactionIndexInput(-1, [])).to.throw(
         'Expected transaction index to be a non-negative safe integer for array, got -1',
       );
     });
@@ -948,9 +1060,9 @@ describe('squads utils', () => {
     });
 
     it('throws for non-string status values', () => {
-      expect(() =>
-        getSquadTxStatus(1, 0, 1, 1, 0),
-      ).to.throw('Expected status kind to be a string, got number');
+      expect(() => getSquadTxStatus(1, 0, 1, 1, 0)).to.throw(
+        'Expected status kind to be a string, got number',
+      );
     });
   });
 
@@ -2307,8 +2419,12 @@ describe('squads utils', () => {
         },
       });
 
-      expect(() => parseSquadsProposalVoteError(throwingLogArray)).to.not.throw();
-      expect(parseSquadsProposalVoteError(throwingLogArray)).to.equal(undefined);
+      expect(() =>
+        parseSquadsProposalVoteError(throwingLogArray),
+      ).to.not.throw();
+      expect(parseSquadsProposalVoteError(throwingLogArray)).to.equal(
+        undefined,
+      );
     });
   });
 
@@ -2985,9 +3101,7 @@ describe('squads utils', () => {
         },
       } as unknown as MultiProtocolProvider;
 
-      const thrownError = captureSyncError(() =>
-        getSquadAndProvider(1, mpp),
-      );
+      const thrownError = captureSyncError(() => getSquadAndProvider(1, mpp));
 
       expect(thrownError?.message).to.equal(
         'Expected chain name to be a string, got number',
@@ -3041,7 +3155,9 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
       const providerOverride = {
         provider: 'solana-override',
-      } as unknown as ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>;
+      } as unknown as ReturnType<
+        MultiProtocolProvider['getSolanaWeb3Provider']
+      >;
 
       const { chain, svmProvider } = getSquadAndProvider(
         '  solanamainnet  ',
@@ -3066,10 +3182,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        getPendingProposalsForChains(
-          ['solanamainnet', 1],
-          mpp,
-        ),
+        getPendingProposalsForChains(['solanamainnet', 1], mpp),
       );
 
       expect(thrownError?.message).to.equal(
@@ -3876,12 +3989,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        buildSquadsVaultTransactionProposal(
-          '   ',
-          mpp,
-          [],
-          PublicKey.default,
-        ),
+        buildSquadsVaultTransactionProposal('   ', mpp, [], PublicKey.default),
       );
 
       expect(thrownError?.message).to.equal(
@@ -3922,12 +4030,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        buildSquadsVaultTransactionProposal(
-          1,
-          mpp,
-          [],
-          PublicKey.default,
-        ),
+        buildSquadsVaultTransactionProposal(1, mpp, [], PublicKey.default),
       );
 
       expect(thrownError?.message).to.equal(
@@ -4088,12 +4191,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        buildSquadsProposalRejection(
-          1,
-          mpp,
-          1n,
-          PublicKey.default,
-        ),
+        buildSquadsProposalRejection(1, mpp, 1n, PublicKey.default),
       );
 
       expect(thrownError?.message).to.equal(
@@ -4112,12 +4210,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        buildSquadsProposalRejection(
-          '   ',
-          mpp,
-          1n,
-          PublicKey.default,
-        ),
+        buildSquadsProposalRejection('   ', mpp, 1n, PublicKey.default),
       );
 
       expect(thrownError?.message).to.equal(
@@ -4203,12 +4296,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        buildSquadsProposalRejection(
-          1,
-          mpp,
-          -1n,
-          PublicKey.default,
-        ),
+        buildSquadsProposalRejection(1, mpp, -1n, PublicKey.default),
       );
 
       expect(thrownError?.message).to.equal(
@@ -4345,12 +4433,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        buildSquadsProposalCancellation(
-          1,
-          mpp,
-          1n,
-          PublicKey.default,
-        ),
+        buildSquadsProposalCancellation(1, mpp, 1n, PublicKey.default),
       );
 
       expect(thrownError?.message).to.equal(
@@ -4369,12 +4452,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        buildSquadsProposalCancellation(
-          '   ',
-          mpp,
-          1n,
-          PublicKey.default,
-        ),
+        buildSquadsProposalCancellation('   ', mpp, 1n, PublicKey.default),
       );
 
       expect(thrownError?.message).to.equal(
@@ -4460,12 +4538,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        buildSquadsProposalCancellation(
-          1,
-          mpp,
-          -1n,
-          PublicKey.default,
-        ),
+        buildSquadsProposalCancellation(1, mpp, -1n, PublicKey.default),
       );
 
       expect(thrownError?.message).to.equal(
@@ -4517,12 +4590,7 @@ describe('squads utils', () => {
       } as unknown as Parameters<typeof submitProposalToSquads>[3];
 
       const thrownError = await captureAsyncError(() =>
-        submitProposalToSquads(
-          'unsupported-chain',
-          [],
-          mpp,
-          signerAdapter,
-        ),
+        submitProposalToSquads('unsupported-chain', [], mpp, signerAdapter),
       );
 
       expect(thrownError?.message).to.include(
@@ -4549,12 +4617,7 @@ describe('squads utils', () => {
       } as unknown as Parameters<typeof submitProposalToSquads>[3];
 
       const thrownError = await captureAsyncError(() =>
-        submitProposalToSquads(
-          1,
-          [],
-          mpp,
-          signerAdapter,
-        ),
+        submitProposalToSquads(1, [], mpp, signerAdapter),
       );
 
       expect(thrownError?.message).to.equal(
@@ -4581,12 +4644,7 @@ describe('squads utils', () => {
       } as unknown as Parameters<typeof submitProposalToSquads>[3];
 
       const thrownError = await captureAsyncError(() =>
-        submitProposalToSquads(
-          '   ',
-          [],
-          mpp,
-          signerAdapter,
-        ),
+        submitProposalToSquads('   ', [], mpp, signerAdapter),
       );
 
       expect(thrownError?.message).to.equal(
@@ -4638,12 +4696,7 @@ describe('squads utils', () => {
       } as unknown as Parameters<typeof submitProposalToSquads>[3];
 
       const thrownError = await captureAsyncError(() =>
-        submitProposalToSquads(
-          '  solanamainnet  ',
-          [],
-          mpp,
-          signerAdapter,
-        ),
+        submitProposalToSquads('  solanamainnet  ', [], mpp, signerAdapter),
       );
 
       expect(thrownError?.message).to.equal('provider lookup failed');
@@ -4665,14 +4718,12 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        getTransactionType(
-          '  solanamainnet  ',
-          mpp,
-          0,
-        ),
+        getTransactionType('  solanamainnet  ', mpp, 0),
       );
 
-      expect(thrownError?.message).to.include('Transaction account not found at');
+      expect(thrownError?.message).to.include(
+        'Transaction account not found at',
+      );
       expect(providerLookupChain).to.equal('solanamainnet');
     });
 
@@ -4686,11 +4737,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        getTransactionType(
-          'unsupported-chain',
-          mpp,
-          0,
-        ),
+        getTransactionType('unsupported-chain', mpp, 0),
       );
 
       expect(thrownError?.message).to.include(
@@ -4709,11 +4756,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        getTransactionType(
-          'unsupported-chain',
-          mpp,
-          -1,
-        ),
+        getTransactionType('unsupported-chain', mpp, -1),
       );
 
       expect(thrownError?.message).to.include(
@@ -4751,11 +4794,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        getTransactionType(
-          1,
-          mpp,
-          0,
-        ),
+        getTransactionType(1, mpp, 0),
       );
 
       expect(thrownError?.message).to.equal(
@@ -4774,11 +4813,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        getTransactionType(
-          '   ',
-          mpp,
-          0,
-        ),
+        getTransactionType('   ', mpp, 0),
       );
 
       expect(thrownError?.message).to.equal(
@@ -4816,11 +4851,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        getTransactionType(
-          1,
-          mpp,
-          -1,
-        ),
+        getTransactionType(1, mpp, -1),
       );
 
       expect(thrownError?.message).to.equal(
@@ -5069,12 +5100,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          1,
-          mpp,
-          0,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal(1, mpp, 0, {} as Parameters<typeof executeProposal>[3]),
       );
 
       expect(thrownError?.message).to.equal(
@@ -5344,7 +5370,9 @@ describe('squads utils', () => {
     });
 
     it('keeps squads instruction discriminator byte lengths canonical', () => {
-      const discriminatorSets = Object.values(SQUADS_INSTRUCTION_DISCRIMINATORS);
+      const discriminatorSets = Object.values(
+        SQUADS_INSTRUCTION_DISCRIMINATORS,
+      );
       expect(discriminatorSets.length).to.be.greaterThan(0);
       for (const discriminator of discriminatorSets) {
         expect(discriminator).to.have.length(SQUADS_DISCRIMINATOR_SIZE);
@@ -5463,8 +5491,9 @@ describe('squads utils', () => {
     });
 
     it('keeps canonical squads account discriminator byte values', () => {
-      expect(Array.from(SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT]))
-        .to.deep.equal([168, 250, 162, 100, 81, 14, 162, 207]);
+      expect(
+        Array.from(SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT]),
+      ).to.deep.equal([168, 250, 162, 100, 81, 14, 162, 207]);
       expect(
         Array.from(SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG]),
       ).to.deep.equal([94, 8, 4, 35, 113, 139, 139, 112]);
@@ -5549,7 +5578,9 @@ describe('squads utils', () => {
       expect(paddedKeys.programId.toBase58()).to.equal(
         trimmedKeys.programId.toBase58(),
       );
-      expect(paddedKeys.vault.toBase58()).to.equal(trimmedKeys.vault.toBase58());
+      expect(paddedKeys.vault.toBase58()).to.equal(
+        trimmedKeys.vault.toBase58(),
+      );
     });
 
     it('throws for unknown chain', () => {
@@ -5781,9 +5812,9 @@ describe('squads utils', () => {
   });
 
   it('throws for non-string chain entries while partitioning', () => {
-    expect(() =>
-      partitionSquadsChains(['solanamainnet', null]),
-    ).to.throw('Expected partitioned squads chains[1] to be a string, got null');
+    expect(() => partitionSquadsChains(['solanamainnet', null])).to.throw(
+      'Expected partitioned squads chains[1] to be a string, got null',
+    );
   });
 
   it('throws for non-array partition inputs', () => {
@@ -5823,8 +5854,9 @@ describe('squads utils', () => {
 
   it('deduplicates explicit squads chain names after trimming', () => {
     const [firstChain] = getSquadsChains();
-    expect(resolveSquadsChains([` ${firstChain}`, `${firstChain} `])).to.deep
-      .equal([firstChain]);
+    expect(
+      resolveSquadsChains([` ${firstChain}`, `${firstChain} `]),
+    ).to.deep.equal([firstChain]);
   });
 
   it('does not mutate caller-provided explicit squads chains', () => {
@@ -5901,7 +5933,9 @@ describe('squads utils', () => {
   it('throws for non-string unsupported chain entries in formatter input', () => {
     expect(() =>
       getUnsupportedSquadsChainsErrorMessage(['ethereum', null]),
-    ).to.throw('Expected unsupported squads chains[1] to be a string, got null');
+    ).to.throw(
+      'Expected unsupported squads chains[1] to be a string, got null',
+    );
   });
 
   it('throws for non-array unsupported chain formatter input', () => {
@@ -5912,26 +5946,27 @@ describe('squads utils', () => {
 
   it('throws for non-string configured chain entries in formatter input', () => {
     expect(() =>
-      getUnsupportedSquadsChainsErrorMessage(['ethereum'], [
-        'solanamainnet',
-        {},
-      ]),
-    ).to.throw('Expected configured squads chains[1] to be a string, got object');
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        ['solanamainnet', {}],
+      ),
+    ).to.throw(
+      'Expected configured squads chains[1] to be a string, got object',
+    );
   });
 
   it('throws for non-array configured chain formatter input', () => {
     expect(() =>
-      getUnsupportedSquadsChainsErrorMessage(
-        ['ethereum'],
-        'solanamainnet',
-      ),
+      getUnsupportedSquadsChainsErrorMessage(['ethereum'], 'solanamainnet'),
     ).to.throw('Expected configured squads chains to be an array, got string');
   });
 
   it('labels symbol-valued unsupported chain entries in formatter input', () => {
     expect(() =>
       getUnsupportedSquadsChainsErrorMessage(['ethereum', Symbol('bad-chain')]),
-    ).to.throw('Expected unsupported squads chains[1] to be a string, got symbol');
+    ).to.throw(
+      'Expected unsupported squads chains[1] to be a string, got symbol',
+    );
   });
 
   it('keeps formatter dedupe and ordering canonical after chain-name normalization', () => {
@@ -5977,9 +6012,9 @@ describe('squads utils', () => {
     expect(() => isTerminalSquadsProposalStatus('   ')).to.throw(
       'Expected status kind to be a non-empty string',
     );
-    expect(() =>
-      isTerminalSquadsProposalStatus(1),
-    ).to.throw('Expected status kind to be a string, got number');
+    expect(() => isTerminalSquadsProposalStatus(1)).to.throw(
+      'Expected status kind to be a string, got number',
+    );
   });
 
   it('detects modifiable squads proposal statuses', () => {
@@ -6026,9 +6061,9 @@ describe('squads utils', () => {
     expect(() => deriveSquadsProposalModification('   ')).to.throw(
       'Expected status kind to be a non-empty string',
     );
-    expect(() =>
-      deriveSquadsProposalModification(null),
-    ).to.throw('Expected status kind to be a string, got object');
+    expect(() => deriveSquadsProposalModification(null)).to.throw(
+      'Expected status kind to be a string, got object',
+    );
   });
 
   it('detects stale squads proposals only for non-terminal statuses', () => {
@@ -6095,17 +6130,16 @@ describe('squads utils', () => {
         4,
         Number.NaN,
       ),
-    ).to.throw('Expected rejections to be a non-negative safe integer, got NaN');
+    ).to.throw(
+      'Expected rejections to be a non-negative safe integer, got NaN',
+    );
     expect(() =>
       shouldTrackPendingSquadsProposal(SquadsProposalStatus.Active, 5, 4, -1),
     ).to.throw('Expected rejections to be a non-negative safe integer, got -1');
     expect(() =>
-      shouldTrackPendingSquadsProposal(
-        SquadsProposalStatus.Active,
-        5,
-        4,
-        '0',
-      ),
-    ).to.throw('Expected rejections to be a non-negative safe integer, got string');
+      shouldTrackPendingSquadsProposal(SquadsProposalStatus.Active, 5, 4, '0'),
+    ).to.throw(
+      'Expected rejections to be a non-negative safe integer, got string',
+    );
   });
 });
