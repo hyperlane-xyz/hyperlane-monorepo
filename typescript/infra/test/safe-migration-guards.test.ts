@@ -2766,6 +2766,24 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not leak class static-block lexical alias shadowing before declaration to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      "    reqAlias('./fixtures/other-module.js').default;",
+      '    const reqAlias = () => undefined;',
+      '  }',
+      '}',
+      "const postStaticDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak class static-block var alias shadowing to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -4105,6 +4123,29 @@ describe('Safe migration guards', () => {
       '    function reqAlias(_value: unknown) {',
       '      return _value;',
       '    }',
+      '  }',
+      '}',
+      "const postStaticCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak class static-block lexical alias shadowing before declaration to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      "    reqAlias('./fixtures/other-module.js');",
+      '    const reqAlias = () => undefined;',
       '  }',
       '}',
       "const postStaticCall = reqAlias('./fixtures/guard-module.js');",
