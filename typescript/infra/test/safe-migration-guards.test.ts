@@ -117,6 +117,7 @@ function collectSymbolSourceReferences(
   filePath: string,
 ): SymbolSourceReference[] {
   const references: SymbolSourceReference[] = [];
+  const moduleAliasByIdentifier = new Map<string, string>();
   const sourceFile = ts.createSourceFile(
     filePath,
     contents,
@@ -130,15 +131,23 @@ function collectSymbolSourceReferences(
       const source = ts.isStringLiteralLike(node.moduleSpecifier)
         ? node.moduleSpecifier.text
         : undefined;
+      if (source && node.importClause?.name) {
+        moduleAliasByIdentifier.set(node.importClause.name.text, source);
+      }
       const namedBindings = node.importClause?.namedBindings;
-      if (source && namedBindings && ts.isNamedImports(namedBindings)) {
-        for (const importSpecifier of namedBindings.elements) {
-          references.push({
-            symbol: normalizeNamedSymbol(
-              importSpecifier.propertyName?.text ?? importSpecifier.name.text,
-            ),
-            source,
-          });
+      if (source && namedBindings) {
+        if (ts.isNamespaceImport(namedBindings)) {
+          moduleAliasByIdentifier.set(namedBindings.name.text, source);
+        }
+        if (ts.isNamedImports(namedBindings)) {
+          for (const importSpecifier of namedBindings.elements) {
+            references.push({
+              symbol: normalizeNamedSymbol(
+                importSpecifier.propertyName?.text ?? importSpecifier.name.text,
+              ),
+              source,
+            });
+          }
         }
       }
     }
@@ -163,13 +172,30 @@ function collectSymbolSourceReferences(
       }
     }
 
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      const source = node.initializer
+        ? readModuleSourceFromInitializer(node.initializer)
+        : undefined;
+      if (source) {
+        moduleAliasByIdentifier.set(node.name.text, source);
+      }
+    }
+
     if (
       ts.isVariableDeclaration(node) &&
       ts.isObjectBindingPattern(node.name)
     ) {
-      const source = node.initializer
+      const directSource = node.initializer
         ? readModuleSourceFromInitializer(node.initializer)
         : undefined;
+      const initializer = node.initializer
+        ? unwrapInitializerExpression(node.initializer)
+        : undefined;
+      const aliasSource =
+        initializer && ts.isIdentifier(initializer)
+          ? moduleAliasByIdentifier.get(initializer.text)
+          : undefined;
+      const source = directSource ?? aliasSource;
       if (source) {
         for (const bindingElement of node.name.elements) {
           if (bindingElement.dotDotDotToken) continue;
