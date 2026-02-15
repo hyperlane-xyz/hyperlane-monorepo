@@ -791,6 +791,19 @@ describe('squads barrel exports', () => {
     ]);
   });
 
+  it('keeps sdk squads test-file path constants normalized and immutable', () => {
+    expect(Object.isFrozen(EXPECTED_SDK_SQUADS_TEST_FILE_PATHS)).to.equal(true);
+    expect(new Set(EXPECTED_SDK_SQUADS_TEST_FILE_PATHS).size).to.equal(
+      EXPECTED_SDK_SQUADS_TEST_FILE_PATHS.length,
+    );
+    expect(
+      [...EXPECTED_SDK_SQUADS_TEST_FILE_PATHS].sort(compareLexicographically),
+    ).to.deep.equal([...EXPECTED_SDK_SQUADS_TEST_FILE_PATHS]);
+    for (const testPath of EXPECTED_SDK_SQUADS_TEST_FILE_PATHS) {
+      assertSdkSquadsTestTokenShape(testPath, 'expected sdk squads test path');
+    }
+  });
+
   it('keeps sdk discovered squads test files aligned with canonical test file paths', () => {
     const discoveredSquadsTestPaths = listSdkSquadsTestFilePaths();
     expect(discoveredSquadsTestPaths).to.deep.equal([
