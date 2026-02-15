@@ -129,6 +129,36 @@ function assertInstructionDiscriminator(discriminator: unknown): number {
   return discriminator;
 }
 
+function isPositiveSafeInteger(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value > 0
+  );
+}
+
+function normalizeValidatorSet(validators: unknown): string[] | null {
+  if (!Array.isArray(validators)) {
+    return null;
+  }
+
+  const normalizedValidators: string[] = [];
+  for (const validator of validators) {
+    if (typeof validator !== 'string') {
+      return null;
+    }
+
+    const normalizedValidator = validator.trim();
+    if (normalizedValidator.length === 0) {
+      return null;
+    }
+
+    normalizedValidators.push(normalizedValidator);
+  }
+
+  return normalizedValidators;
+}
+
 export function formatUnknownProgramWarning(programId: unknown): string {
   const normalizedProgramId = assertNonEmptyStringValue(programId, 'program id');
   return `⚠️  UNKNOWN PROGRAM: ${normalizedProgramId}`;
@@ -1175,27 +1205,55 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
+    const route = `${originChain} -> ${remoteChain}`;
+    if (!isPositiveSafeInteger(expectedConfig.threshold)) {
+      issues.push(
+        `Malformed expected config for route ${route}: threshold must be a positive safe integer`,
+      );
+      return { matches: false, issues };
+    }
+
+    const normalizedExpectedValidators = normalizeValidatorSet(
+      expectedConfig.validators,
+    );
+    if (!normalizedExpectedValidators) {
+      issues.push(
+        `Malformed expected config for route ${route}: validators must be an array of non-empty strings`,
+      );
+      return { matches: false, issues };
+    }
+
+    const normalizedActualValidators = normalizeValidatorSet(validators);
+    if (!normalizedActualValidators) {
+      issues.push(
+        `Malformed validator set for route ${route}: validators must be an array of non-empty strings`,
+      );
+      return { matches: false, issues };
+    }
+
     if (expectedConfig.threshold !== threshold) {
       issues.push(
         `Threshold mismatch: expected ${expectedConfig.threshold}, got ${threshold}`,
       );
     }
 
-    if (expectedConfig.validators.length !== validators.length) {
+    if (normalizedExpectedValidators.length !== normalizedActualValidators.length) {
       issues.push(
-        `Validator count mismatch: expected ${expectedConfig.validators.length}, got ${validators.length}`,
+        `Validator count mismatch: expected ${normalizedExpectedValidators.length}, got ${normalizedActualValidators.length}`,
       );
     }
 
     const expectedValidatorsSet = new Set(
-      expectedConfig.validators.map((v) => v.toLowerCase()),
+      normalizedExpectedValidators.map((v) => v.toLowerCase()),
     );
-    const actualValidatorsSet = new Set(validators.map((v) => v.toLowerCase()));
+    const actualValidatorsSet = new Set(
+      normalizedActualValidators.map((v) => v.toLowerCase()),
+    );
 
-    const missingValidators = expectedConfig.validators.filter(
+    const missingValidators = normalizedExpectedValidators.filter(
       (v) => !actualValidatorsSet.has(v.toLowerCase()),
     );
-    const unexpectedValidators = validators.filter(
+    const unexpectedValidators = normalizedActualValidators.filter(
       (v) => !expectedValidatorsSet.has(v.toLowerCase()),
     );
 

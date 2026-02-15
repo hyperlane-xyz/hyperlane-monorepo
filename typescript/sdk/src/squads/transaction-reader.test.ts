@@ -438,6 +438,111 @@ describe('squads transaction reader multisig verification', () => {
     });
   });
 
+  it('reports malformed expected threshold values for route config', () => {
+    const reader = createReaderForVerification(
+      () =>
+        ({
+          solanatestnet: {
+            threshold: '2',
+            validators: ['validator-a'],
+          },
+        }) as unknown as Record<
+          string,
+          { threshold: number; validators: readonly string[] }
+        >,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed expected config for route solanamainnet -> solanatestnet: threshold must be a positive safe integer',
+      ],
+    });
+  });
+
+  it('reports malformed expected validator arrays for route config', () => {
+    const reader = createReaderForVerification(
+      () =>
+        ({
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a', ''],
+          },
+        }) as unknown as Record<
+          string,
+          { threshold: number; validators: readonly string[] }
+        >,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed expected config for route solanamainnet -> solanatestnet: validators must be an array of non-empty strings',
+      ],
+    });
+  });
+
+  it('reports malformed validator sets from instruction payloads', () => {
+    const reader = createReaderForVerification(() => ({
+      solanatestnet: {
+        threshold: 2,
+        validators: ['validator-a'],
+      },
+    }));
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a', null] as unknown as readonly string[],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed validator set for route solanamainnet -> solanatestnet: validators must be an array of non-empty strings',
+      ],
+    });
+  });
+
   it('reports threshold and validator-set mismatches with detailed issues', () => {
     const reader = createReaderForVerification(() => ({
       solanatestnet: {
