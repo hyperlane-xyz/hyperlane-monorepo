@@ -166,6 +166,10 @@ function listTrackedSourceFilesRecursively(relativeDir: string): string[] {
   return files.sort(compareLexicographically);
 }
 
+function getTrackedSourceFileSnapshot(): readonly string[] {
+  return listTrackedSourceFilesRecursively('.');
+}
+
 describe('squads sdk migration regression', () => {
   it('keeps squads script constants immutable', () => {
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
@@ -324,7 +328,7 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps all tracked infra source files free of legacy squads imports', () => {
-    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    const trackedSourceFiles = getTrackedSourceFileSnapshot();
 
     for (const relativePath of trackedSourceFiles) {
       const fileContents = readInfraFile(relativePath);
@@ -333,7 +337,7 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps guarded squads script paths included in tracked source scan', () => {
-    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    const trackedSourceFiles = getTrackedSourceFileSnapshot();
     const trackedSourceFileSet = new Set(trackedSourceFiles);
 
     for (const scriptPath of SQUADS_SCRIPT_PATHS) {
@@ -352,22 +356,22 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps tracked infra source file scan ordering deterministic', () => {
-    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    const trackedSourceFiles = getTrackedSourceFileSnapshot();
     expect(trackedSourceFiles).to.deep.equal(
       [...trackedSourceFiles].sort(compareLexicographically),
     );
   });
 
   it('keeps tracked infra source file scan stable across repeated reads', () => {
-    const firstTrackedSourceFiles = listTrackedSourceFilesRecursively('.');
-    const secondTrackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    const firstTrackedSourceFiles = getTrackedSourceFileSnapshot();
+    const secondTrackedSourceFiles = getTrackedSourceFileSnapshot();
 
     expect(firstTrackedSourceFiles).to.not.equal(secondTrackedSourceFiles);
     expect(firstTrackedSourceFiles).to.deep.equal(secondTrackedSourceFiles);
   });
 
   it('keeps tracked infra source file scan non-empty and deduplicated', () => {
-    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    const trackedSourceFiles = getTrackedSourceFileSnapshot();
     expect(trackedSourceFiles.length).to.be.greaterThan(0);
     expect(new Set(trackedSourceFiles).size).to.equal(
       trackedSourceFiles.length,
@@ -375,7 +379,7 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps tracked infra source file paths normalized and relative', () => {
-    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    const trackedSourceFiles = getTrackedSourceFileSnapshot();
     for (const trackedSourceFilePath of trackedSourceFiles) {
       expect(
         isNormalizedTrackedSourceRelativePath(trackedSourceFilePath),
@@ -385,7 +389,7 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps tracked infra source file paths constrained to tracked extensions', () => {
-    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    const trackedSourceFiles = getTrackedSourceFileSnapshot();
     for (const trackedSourceFilePath of trackedSourceFiles) {
       expect(
         SOURCE_FILE_EXTENSIONS.some((extension) =>
@@ -397,7 +401,7 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps tracked infra source file scan excluding skipped directories', () => {
-    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    const trackedSourceFiles = getTrackedSourceFileSnapshot();
     for (const trackedSourceFilePath of trackedSourceFiles) {
       for (const skippedDirectory of SKIPPED_DIRECTORIES) {
         const skippedSegment = `/${skippedDirectory}/`;
