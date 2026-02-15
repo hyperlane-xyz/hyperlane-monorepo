@@ -20,6 +20,14 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 function withVerbose<T>(args: Argv<T>) {
   return args
     .describe('verbose', 'Show verbose output including raw API data')
@@ -235,7 +243,7 @@ async function main() {
     );
   } catch (error) {
     rootLogger.error(chalk.red.bold('❌ Error reading proposal:'));
-    rootLogger.error(chalk.red(error));
+    rootLogger.error(chalk.red(stringifyValueForError(error)));
     process.exit(1);
   }
 }
@@ -243,6 +251,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    rootLogger.error(e);
+    rootLogger.error(stringifyValueForError(e));
     process.exit(1);
   });

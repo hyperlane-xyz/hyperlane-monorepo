@@ -1,5 +1,13 @@
 import { getRegistry } from '../config/registry.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const registry = await getRegistry();
 
@@ -18,6 +26,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    console.error(stringifyValueForError(e));
     process.exit(1);
   });

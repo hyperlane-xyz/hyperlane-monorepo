@@ -6,6 +6,14 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { environment, chains } = await withChainsRequired(getArgs())
     // For ease of use and backward compatibility, we allow the `chain` argument to be
@@ -28,6 +36,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    console.error(stringifyValueForError(e));
     process.exit(1);
   });

@@ -168,6 +168,6 @@ async function getGasPrice(
 main()
   .then()
   .catch((err) => {
-    console.error(err);
+    console.error(stringifyValueForError(err));
     process.exit(1);
   });

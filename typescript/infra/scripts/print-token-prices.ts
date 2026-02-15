@@ -27,6 +27,14 @@ import { getInfraPath, writeJsonWithAppendMode } from '../src/utils/utils.js';
 
 import { getArgs, withAppend, withWrite } from './agent-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 const CURRENCY = 'usd';
 
 const DEFAULT_PRICE = {
@@ -138,6 +146,6 @@ async function main() {
 main()
   .then()
   .catch((err) => {
-    console.error(err);
+    console.error(stringifyValueForError(err));
     process.exit(1);
   });

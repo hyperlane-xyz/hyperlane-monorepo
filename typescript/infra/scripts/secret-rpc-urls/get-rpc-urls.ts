@@ -4,6 +4,14 @@ import {
 } from '../../src/agents/index.js';
 import { getArgs, withChainRequired } from '../agent-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { environment, chain } = await withChainRequired(getArgs()).argv;
   const secretExists = await secretRpcEndpointsExist(environment, chain);
@@ -21,6 +29,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    console.error(stringifyValueForError(e));
     process.exit(1);
   });

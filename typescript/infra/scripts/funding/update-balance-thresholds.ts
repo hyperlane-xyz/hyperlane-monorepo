@@ -256,7 +256,7 @@ async function validateThresholdsInteractive(
       isValid = true;
     } else {
       rootLogger.warn(`Validation failed for chain "${chain}":`);
-      errors.forEach((err) => rootLogger.warn(err));
+      errors.forEach((err) => rootLogger.warn(stringifyValueForError(err)));
 
       thresholds = await interactiveThresholdUpdate(thresholds);
     }

@@ -8,6 +8,14 @@ import { resetRegistry } from '../config/registry.js';
 
 import { getArgs } from './agent-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { environment, port, writeMode } = await getArgs()
     .describe('port', 'port to deploy on')
@@ -37,6 +45,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    console.error(stringifyValueForError(e));
     process.exit(1);
   });

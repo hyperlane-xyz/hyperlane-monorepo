@@ -12,6 +12,14 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 const DEFAULT_SAFE_HOME_URL = 'https://app.safe.global';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { chain, safeHomeUrl, threshold, governanceType } =
     await withGovernanceType(
@@ -55,6 +63,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    rootLogger.error(e);
+    rootLogger.error(stringifyValueForError(e));
     process.exit(1);
   });

@@ -15,6 +15,14 @@ import { deleteTimelockTx } from '../../src/utils/timelock.js';
 import { withChain } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
@@ -58,8 +66,9 @@ async function main() {
     await deleteTimelockTx(chain, currentChainTimelock, tx, multiProvider);
   } catch (error) {
     rootLogger.error(
-      `Error deleting timelock operation "${tx}" on "${chain}":`,
-      error,
+      `Error deleting timelock operation "${tx}" on "${chain}": ${stringifyValueForError(
+        error,
+      )}`,
     );
   }
 }
@@ -67,6 +76,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    rootLogger.error(e);
+    rootLogger.error(stringifyValueForError(e));
     process.exit(1);
   });

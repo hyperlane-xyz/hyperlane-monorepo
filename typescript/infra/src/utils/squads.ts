@@ -969,7 +969,7 @@ export async function executeProposal(
     rootLogger.error(
       chalk.red(`Error executing proposal ${transactionIndex} on ${chain}:`),
     );
-    console.error(error);
+    console.error(stringifyValueForError(error));
     throw error;
   }
 }

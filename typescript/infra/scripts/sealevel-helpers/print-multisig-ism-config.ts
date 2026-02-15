@@ -7,6 +7,14 @@ import { multisigIsmConfigPath } from '../../src/utils/sealevel.js';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withWrite } from '../agent-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 // This script exists to print the default multisig ISM validator sets for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(
 
@@ -70,6 +78,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(stringifyValueForError(err));
   process.exit(1);
 });

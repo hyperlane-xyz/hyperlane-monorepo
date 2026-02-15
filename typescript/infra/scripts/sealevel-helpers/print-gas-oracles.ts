@@ -18,6 +18,14 @@ import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withWrite } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 // This script exists to print the gas oracle configs for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(
 
@@ -179,6 +187,6 @@ function getChainConnections(
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(stringifyValueForError(err));
   process.exit(1);
 });

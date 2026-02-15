@@ -229,7 +229,7 @@ export abstract class HelmManager<T = HelmValues> {
       try {
         await execCmd(cmd, {}, false, false);
       } catch (e) {
-        console.error(e);
+        console.error(stringifyValueForError(e));
       }
     }
 

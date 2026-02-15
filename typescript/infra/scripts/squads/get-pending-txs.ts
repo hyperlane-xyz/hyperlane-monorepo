@@ -24,6 +24,14 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
@@ -118,6 +126,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    rootLogger.error(e);
+    rootLogger.error(stringifyValueForError(e));
     process.exit(1);
   });

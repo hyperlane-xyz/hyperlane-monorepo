@@ -10,6 +10,14 @@ import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withOutputFile } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const allChainChoices = getChains();
 
@@ -96,6 +104,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(stringifyValueForError(err));
   process.exit(1);
 });

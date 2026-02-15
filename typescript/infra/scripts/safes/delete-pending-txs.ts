@@ -10,6 +10,14 @@ import { Role } from '../../src/roles.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { chains, governanceType } = await withGovernanceType(
     withChains(yargs(process.argv.slice(2))),
@@ -40,8 +48,9 @@ async function main() {
       await deleteAllPendingSafeTxs(chain, multiProvider, safeAddress);
     } catch (error) {
       rootLogger.error(
-        `Error deleting pending transactions for ${chain}:`,
-        error,
+        `Error deleting pending transactions for ${chain}: ${stringifyValueForError(
+          error,
+        )}`,
       );
     }
   }
@@ -50,6 +59,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    rootLogger.error(e);
+    rootLogger.error(stringifyValueForError(e));
     process.exit(1);
   });

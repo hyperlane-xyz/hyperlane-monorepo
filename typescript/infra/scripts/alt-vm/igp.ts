@@ -24,6 +24,14 @@ import { Role } from '../../src/roles.js';
 import { getArgs, withChains, withContext } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 const logger = rootLogger.child({ module: 'altvm-igp' });
 
 async function main() {
@@ -357,6 +365,6 @@ async function createAltVMSigner(
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    console.error(stringifyValueForError(e));
     process.exit(1);
   });

@@ -30,6 +30,14 @@ import {
 } from './agent-utils.js';
 import { getEnvironmentConfig } from './core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const {
     context = Contexts.Hyperlane,
@@ -103,6 +111,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    rootLogger.error(e);
+    rootLogger.error(stringifyValueForError(e));
     process.exit(1);
   });

@@ -7,6 +7,14 @@ import { getTypicalRemoteGasAmount } from '../../src/config/gas-oracle.js';
 import { getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 // This script exists to print the typical local -> remote gas amounts for a given environment.
 // This is useful for Jake to use in his own models for assessing message costs.
 
@@ -45,6 +53,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(stringifyValueForError(err));
   process.exit(1);
 });

@@ -4,6 +4,14 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { getArgs } from './agent-utils.js';
 import { getHyperlaneCore } from './core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const args = await getArgs().argv;
 
@@ -44,6 +52,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(stringifyValueForError(err));
   process.exit(1);
 });
