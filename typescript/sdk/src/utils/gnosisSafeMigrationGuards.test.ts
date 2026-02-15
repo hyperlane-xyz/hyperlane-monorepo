@@ -80,7 +80,7 @@ function extractTopLevelDeclarationExports(
   sourceText: string,
   filePath: string,
 ): string[] {
-  const symbols: string[] = [];
+  const symbols = new Set<string>();
   const sourceFile = ts.createSourceFile(
     filePath,
     sourceText,
@@ -89,10 +89,36 @@ function extractTopLevelDeclarationExports(
     getScriptKind(filePath),
   );
 
+  const collectBindingIdentifiers = (name: ts.BindingName): string[] => {
+    if (ts.isIdentifier(name)) return [name.text];
+    if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+      return name.elements.flatMap((element) =>
+        ts.isBindingElement(element)
+          ? element.dotDotDotToken
+            ? []
+            : collectBindingIdentifiers(element.name)
+          : [],
+      );
+    }
+    return [];
+  };
+
   for (const statement of sourceFile.statements) {
+    if (
+      ts.isExportDeclaration(statement) &&
+      !statement.moduleSpecifier &&
+      statement.exportClause &&
+      ts.isNamedExports(statement.exportClause)
+    ) {
+      for (const exportSpecifier of statement.exportClause.elements) {
+        symbols.add(exportSpecifier.name.text);
+      }
+      continue;
+    }
+
     if (!hasExportModifier(statement)) continue;
     if (ts.isFunctionDeclaration(statement) && statement.name) {
-      symbols.push(statement.name.text);
+      symbols.add(statement.name.text);
       continue;
     }
     if (
@@ -102,19 +128,19 @@ function extractTopLevelDeclarationExports(
         ts.isEnumDeclaration(statement)) &&
       statement.name
     ) {
-      symbols.push(statement.name.text);
+      symbols.add(statement.name.text);
       continue;
     }
     if (ts.isVariableStatement(statement)) {
       for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name)) {
-          symbols.push(declaration.name.text);
+        for (const symbol of collectBindingIdentifiers(declaration.name)) {
+          symbols.add(symbol);
         }
       }
     }
   }
 
-  return symbols.map(normalizeNamedSymbol).filter(Boolean);
+  return [...symbols].map(normalizeNamedSymbol).filter(Boolean);
 }
 
 function getScriptKind(filePath: string): ts.ScriptKind {
@@ -254,6 +280,17 @@ function expectNoRipgrepMatches(pattern: string, description: string): void {
 }
 
 describe('Gnosis Safe migration guards', () => {
+  it('extracts local export specifier aliases from source declarations', () => {
+    const source = [
+      'const internalCall = 1;',
+      'export { internalCall as SafeCallData };',
+      'const internalStatus = 2;',
+      'export { internalStatus as SafeStatus };',
+    ].join('\n');
+    const symbols = extractTopLevelDeclarationExports(source, 'fixture.ts');
+    expect(symbols).to.deep.equal(['SafeCallData', 'SafeStatus']);
+  });
+
   it('prevents sdk source imports from infra paths', () => {
     const sourceFilePaths = collectSdkSourceFilePaths(
       path.resolve(process.cwd(), 'src'),
