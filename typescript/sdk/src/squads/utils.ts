@@ -372,9 +372,14 @@ function parseSquadsProposalVoteErrorFromUnknownLogs(
     return undefined;
   }
 
-  const logEntries = value.filter((entry): entry is string => {
-    return typeof entry === 'string';
-  });
+  let logEntries: string[];
+  try {
+    logEntries = value.filter((entry): entry is string => {
+      return typeof entry === 'string';
+    });
+  } catch {
+    return undefined;
+  }
 
   if (logEntries.length === 0) {
     return undefined;

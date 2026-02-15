@@ -2296,6 +2296,20 @@ describe('squads utils', () => {
         undefined,
       );
     });
+
+    it('returns undefined for vote-log arrays that throw during filtering', () => {
+      const throwingLogArray = new Proxy(['custom program error: 0x177b'], {
+        get(target, property, receiver) {
+          if (property === '0') {
+            throw new Error('log entry unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      expect(() => parseSquadsProposalVoteError(throwingLogArray)).to.not.throw();
+      expect(parseSquadsProposalVoteError(throwingLogArray)).to.equal(undefined);
+    });
   });
 
   describe(parseSquadsProposalVoteErrorFromError.name, () => {
@@ -2409,6 +2423,23 @@ describe('squads utils', () => {
     it('uses logs when transactionLogs is present but not string/array', () => {
       const error = {
         transactionLogs: 123,
+        logs: ['custom program error: 0x177a'],
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
+    it('uses logs fallback when transactionLogs array throws during parsing', () => {
+      const error = {
+        transactionLogs: new Proxy(['custom program error: 0x177b'], {
+          get(target, property, receiver) {
+            if (property === '0') {
+              throw new Error('log entry unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }),
         logs: ['custom program error: 0x177a'],
       };
       expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
