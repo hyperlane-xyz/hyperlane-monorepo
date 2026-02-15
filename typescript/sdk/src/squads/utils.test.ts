@@ -609,6 +609,40 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws contextual error when members length getter throws', () => {
+      const hostileMembers = new Proxy([], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            throw new Error('members length unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      expect(() => parseSquadsMultisigMembers(hostileMembers)).to.throw(
+        'Failed to read multisig members length: members length unavailable',
+      );
+    });
+
+    it('counts members as invalid when member index access throws', () => {
+      const hostileMembers = new Proxy(
+        [{ key: '11111111111111111111111111111111' }],
+        {
+          get(target, property, receiver) {
+            if (property === '0') {
+              throw new Error('member entry unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      expect(parseSquadsMultisigMembers(hostileMembers)).to.deep.equal({
+        members: [],
+        invalidEntries: 1,
+      });
+    });
+
     it('counts members as invalid when member key getter throws', () => {
       const hostileMember = new Proxy(
         { permissions: 7 },

@@ -374,8 +374,9 @@ export function parseSquadsMultisigMembers(
 
   const parsedMembers: ParsedSquadsMultisigMember[] = [];
   let invalidEntries = 0;
+  const memberCount = getArrayLengthOrThrow(members, 'multisig members');
 
-  for (let index = 0; index < members.length; index += 1) {
+  for (let index = 0; index < memberCount; index += 1) {
     let member: unknown;
     try {
       member = members[index];
