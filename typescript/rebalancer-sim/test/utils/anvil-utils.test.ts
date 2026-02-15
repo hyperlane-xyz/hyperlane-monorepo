@@ -632,6 +632,88 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches docker runtime errors in boxed-string-valued cause fields', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: new String('No Docker client strategy found'),
+        }),
+      ).to.equal(true);
+    });
+
+    it('ignores non-runtime boxed-string-valued cause fields', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: new String('unrelated nested warning'),
+        }),
+      ).to.equal(false);
+    });
+
+    it('matches docker runtime errors in boxed-string-valued cause fields when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: buildRealBoxedStringWithThrowingToStringTag(
+            'No Docker client strategy found',
+          ),
+        }),
+      ).to.equal(true);
+    });
+
+    it('ignores non-runtime boxed-string-valued cause fields when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: buildRealBoxedStringWithThrowingToStringTag(
+            'unrelated nested warning',
+          ),
+        }),
+      ).to.equal(false);
+    });
+
+    it('matches docker runtime errors in cross-realm boxed-string-valued cause fields', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: runInNewContext(
+            'new String("No Docker client strategy found")',
+          ),
+        }),
+      ).to.equal(true);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string-valued cause fields', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: runInNewContext('new String("unrelated nested warning")'),
+        }),
+      ).to.equal(false);
+    });
+
+    it('matches docker runtime errors in cross-realm boxed-string-valued cause fields when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: buildCrossRealmBoxedStringWithThrowingToStringTag(
+            'No Docker client strategy found',
+          ),
+        }),
+      ).to.equal(true);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string-valued cause fields when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: buildCrossRealmBoxedStringWithThrowingToStringTag(
+            'unrelated nested warning',
+          ),
+        }),
+      ).to.equal(false);
+    });
+
     it('matches docker runtime errors nested in object error arrays', () => {
       expect(
         isContainerRuntimeUnavailable({
