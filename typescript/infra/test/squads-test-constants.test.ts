@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { expect } from 'chai';
 
 import {
@@ -14,6 +18,11 @@ import {
   SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
   SQUADS_SCRIPT_PATHS,
 } from './squads-test-constants.js';
+
+const INFRA_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
 
 describe('squads test constants', () => {
   it('keeps expected canonical squads script paths', () => {
@@ -347,6 +356,25 @@ describe('squads test constants', () => {
       expect(executableScriptSet.has(scriptPath)).to.equal(
         isExecutableSquadsScriptPath(scriptPath),
       );
+    }
+  });
+
+  it('keeps configured squads script constants resolving to files', () => {
+    const allConfiguredScriptPaths = [
+      ...SQUADS_SCRIPT_PATHS,
+      ...EXECUTABLE_SQUADS_SCRIPT_PATHS,
+      ...SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
+    ];
+    for (const scriptPath of allConfiguredScriptPaths) {
+      const absoluteScriptPath = path.join(INFRA_ROOT, scriptPath);
+      expect(
+        fs.existsSync(absoluteScriptPath),
+        `Expected configured squads script path to exist: ${scriptPath}`,
+      ).to.equal(true);
+      expect(
+        fs.statSync(absoluteScriptPath).isFile(),
+        `Expected configured squads script path to resolve to file: ${scriptPath}`,
+      ).to.equal(true);
     }
   });
 });
