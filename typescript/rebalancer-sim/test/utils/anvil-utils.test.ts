@@ -1679,6 +1679,174 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
 
+    it('matches runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is a triple-escaped single-quoted mixed-case bracketed placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\'[aRrAy]\\\'`;
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is a triple-escaped single-quoted mixed-case bracketed placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\'[aRrAy]\\\'`;
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('matches runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is a triple-escaped mixed-quoted lowercase bracketed placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\"'[array]'\\\"`;
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is a triple-escaped mixed-quoted lowercase bracketed placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\"'[array]'\\\"`;
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('matches runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is a triple-escaped single-quoted mixed-case object-tag placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\'[oBjEcT aRrAy]\\\'`;
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is a triple-escaped single-quoted mixed-case object-tag placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\'[oBjEcT aRrAy]\\\'`;
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('matches runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is a triple-escaped mixed-quoted mixed-case object-tag-object placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\"'[oBjEcT oBjEcT]'\\\"`;
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is a triple-escaped mixed-quoted mixed-case object-tag-object placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\"'[oBjEcT oBjEcT]'\\\"`;
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('matches runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is a triple-escaped uppercase bracketed placeholder', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const error = {
@@ -16672,6 +16840,102 @@ describe('Anvil utils', () => {
 
       expect(formatLocalAnvilStartError(problematic)).to.equal(
         'Failed to start local anvil: [object SymbolToPrimitiveTripleEscapedMixedQuotedUppercaseObjectTagObjectPlaceholderTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString for non-Error objects when Symbol.toPrimitive String(error) is a triple-escaped single-quoted mixed-case bracketed placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\'[aRrAy]\\\'`;
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value:
+          'SymbolToPrimitiveTripleEscapedSingleQuotedMixedCaseBracketedPlaceholderTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object SymbolToPrimitiveTripleEscapedSingleQuotedMixedCaseBracketedPlaceholderTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString for non-Error objects when Symbol.toPrimitive String(error) is a triple-escaped mixed-quoted lowercase bracketed placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\"'[array]'\\\"`;
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value:
+          'SymbolToPrimitiveTripleEscapedMixedQuotedLowercaseBracketedPlaceholderTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object SymbolToPrimitiveTripleEscapedMixedQuotedLowercaseBracketedPlaceholderTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString for non-Error objects when Symbol.toPrimitive String(error) is a triple-escaped single-quoted mixed-case object-tag placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\'[oBjEcT aRrAy]\\\'`;
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value:
+          'SymbolToPrimitiveTripleEscapedSingleQuotedMixedCaseObjectTagPlaceholderTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object SymbolToPrimitiveTripleEscapedSingleQuotedMixedCaseObjectTagPlaceholderTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString for non-Error objects when Symbol.toPrimitive String(error) is a triple-escaped mixed-quoted mixed-case object-tag-object placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+        [Symbol.toPrimitive]() {
+          return String.raw`\\\"'[oBjEcT oBjEcT]'\\\"`;
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value:
+          'SymbolToPrimitiveTripleEscapedMixedQuotedMixedCaseObjectTagObjectPlaceholderTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object SymbolToPrimitiveTripleEscapedMixedQuotedMixedCaseObjectTagObjectPlaceholderTag]',
       );
     });
 
