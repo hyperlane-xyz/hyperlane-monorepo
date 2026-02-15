@@ -8,6 +8,7 @@ import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   isAllowlistedNonExecutableSquadsScriptPath,
   isNormalizedGuardedScriptPath,
+  isSquadsDirectoryScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
   SQUADS_SCRIPT_FILE_EXTENSIONS,
@@ -185,7 +186,7 @@ describe('squads sdk migration regression', () => {
   it('keeps guarded squads script list synchronized with scripts/squads directory', () => {
     const discoveredSquadsScripts = listSquadsDirectoryScripts(INFRA_ROOT);
     const configuredSquadsScripts = SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
-      scriptPath.startsWith('scripts/squads/'),
+      isSquadsDirectoryScriptPath(scriptPath),
     ).sort();
 
     expect(configuredSquadsScripts).to.deep.equal(discoveredSquadsScripts);

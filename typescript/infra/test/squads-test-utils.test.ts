@@ -6,6 +6,7 @@ import { expect } from 'chai';
 import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   hasAllowedSquadsScriptExtension,
+  isSquadsDirectoryScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_SCRIPT_PATHS,
 } from './squads-test-constants.js';
@@ -30,7 +31,7 @@ describe('squads test utils', () => {
     const secondScripts = listSquadsDirectoryScripts(INFRA_ROOT);
 
     const configuredSquadsScripts = SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
-      scriptPath.startsWith('scripts/squads/'),
+      isSquadsDirectoryScriptPath(scriptPath),
     ).sort();
     expect(secondScripts).to.deep.equal(configuredSquadsScripts);
   });
@@ -43,7 +44,7 @@ describe('squads test utils', () => {
     );
 
     const configuredSquadsScripts = SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
-      scriptPath.startsWith('scripts/squads/'),
+      isSquadsDirectoryScriptPath(scriptPath),
     ).sort();
     expect(squadsScripts).to.deep.equal(configuredSquadsScripts);
     for (const scriptPath of squadsScripts) {
@@ -55,7 +56,7 @@ describe('squads test utils', () => {
   it('lists executable squads scripts excluding non-executable allowlist', () => {
     const executableScripts = listExecutableSquadsDirectoryScripts(INFRA_ROOT);
     const configuredExecutableSquadsScripts = EXECUTABLE_SQUADS_SCRIPT_PATHS.filter(
-      (scriptPath) => scriptPath.startsWith('scripts/squads/'),
+      (scriptPath) => isSquadsDirectoryScriptPath(scriptPath),
     ).sort();
     expect(executableScripts).to.deep.equal(
       configuredExecutableSquadsScripts,
@@ -95,7 +96,7 @@ describe('squads test utils', () => {
       listExecutableSquadsDirectoryScripts(INFRA_ROOT);
 
     const configuredExecutableSquadsScripts = EXECUTABLE_SQUADS_SCRIPT_PATHS.filter(
-      (scriptPath) => scriptPath.startsWith('scripts/squads/'),
+      (scriptPath) => isSquadsDirectoryScriptPath(scriptPath),
     ).sort();
     expect(secondExecutableScripts).to.deep.equal(
       configuredExecutableSquadsScripts,

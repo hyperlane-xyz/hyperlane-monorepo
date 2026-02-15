@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url';
 
 import { expect } from 'chai';
 
-import { EXECUTABLE_SQUADS_SCRIPT_PATHS } from './squads-test-constants.js';
+import {
+  EXECUTABLE_SQUADS_SCRIPT_PATHS,
+  isSquadsDirectoryScriptPath,
+} from './squads-test-constants.js';
 import { listExecutableSquadsDirectoryScripts } from './squads-test-utils.js';
 
 const INFRA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -98,7 +101,7 @@ describe('squads scripts --help smoke', function () {
     );
 
     const configuredSquadsScripts = configuredScriptPaths
-      .filter((scriptPath) => scriptPath.startsWith('scripts/squads/'))
+      .filter((scriptPath) => isSquadsDirectoryScriptPath(scriptPath))
       .sort();
     expect(configuredSquadsScripts).to.deep.equal(
       listExecutableSquadsDirectoryScripts(INFRA_ROOT),

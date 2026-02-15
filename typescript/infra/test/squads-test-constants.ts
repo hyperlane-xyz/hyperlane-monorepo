@@ -32,10 +32,17 @@ export function isNormalizedGuardedScriptPath(scriptPath: string): boolean {
   );
 }
 
+export function isSquadsDirectoryScriptPath(scriptPath: string): boolean {
+  return (
+    isNormalizedGuardedScriptPath(scriptPath) &&
+    scriptPath.startsWith('scripts/squads/')
+  );
+}
+
 export function isAllowlistedNonExecutableSquadsScriptPath(
   scriptPath: string,
 ): boolean {
-  if (!scriptPath.startsWith('scripts/squads/')) {
+  if (!isSquadsDirectoryScriptPath(scriptPath)) {
     return false;
   }
   return NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>

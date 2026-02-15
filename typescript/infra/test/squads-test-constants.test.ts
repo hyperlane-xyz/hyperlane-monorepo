@@ -5,6 +5,7 @@ import {
   hasAllowedSquadsScriptExtension,
   isAllowlistedNonExecutableSquadsScriptPath,
   isNormalizedGuardedScriptPath,
+  isSquadsDirectoryScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_SCRIPT_FILE_EXTENSIONS,
   SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
@@ -124,7 +125,7 @@ describe('squads test constants', () => {
 
   it('keeps exactly one squads-adjacent non-squads script path', () => {
     const nonSquadsDirectoryScriptPaths = SQUADS_SCRIPT_PATHS.filter(
-      (scriptPath) => !scriptPath.startsWith('scripts/squads/'),
+      (scriptPath) => !isSquadsDirectoryScriptPath(scriptPath),
     );
     expect(nonSquadsDirectoryScriptPaths).to.deep.equal([
       'scripts/sealevel-helpers/update-multisig-ism-config.ts',
@@ -168,7 +169,7 @@ describe('squads test constants', () => {
   it('classifies allowlisted non-executable script paths consistently', () => {
     for (const scriptPath of SQUADS_SCRIPT_PATHS) {
       const expectedIsAllowlisted =
-        scriptPath.startsWith('scripts/squads/') &&
+        isSquadsDirectoryScriptPath(scriptPath) &&
         NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
           scriptPath.endsWith(`/${fileName}`),
         );
@@ -176,6 +177,20 @@ describe('squads test constants', () => {
         expectedIsAllowlisted,
       );
     }
+  });
+
+  it('classifies squads-directory script paths consistently', () => {
+    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
+      const expectedIsSquadsDirectoryPath =
+        isNormalizedGuardedScriptPath(scriptPath) &&
+        scriptPath.startsWith('scripts/squads/');
+      expect(isSquadsDirectoryScriptPath(scriptPath)).to.equal(
+        expectedIsSquadsDirectoryPath,
+      );
+    }
+    expect(isSquadsDirectoryScriptPath('scripts\\squads\\cli-helpers.ts')).to.equal(
+      false,
+    );
   });
 
   it('keeps non-executable classifier scoped to scripts/squads paths', () => {
