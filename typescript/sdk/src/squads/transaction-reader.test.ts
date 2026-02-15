@@ -6325,6 +6325,139 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('keeps parsing when lookup-table account data getter throws', async () => {
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      {
+        message: {
+          accountKeys: [SYSTEM_PROGRAM_ID],
+          addressTableLookups: [
+            {
+              accountKey: SYSTEM_PROGRAM_ID,
+              writableIndexes: [],
+              readonlyIndexes: [],
+            },
+          ],
+          instructions: [
+            {
+              programIdIndex: 0,
+              accountIndexes: [],
+              data: Buffer.from([1, 2, 3]),
+            },
+          ],
+        },
+      },
+      {
+        getAccountInfo: async () =>
+          new Proxy(
+            {},
+            {
+              get(target, property, receiver) {
+                if (property === 'data') {
+                  throw new Error('lookup table data unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+      },
+    );
+
+    expect(parsed.warnings).to.deep.equal([]);
+    expect(parsed.instructions).to.deep.equal([
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'System Program',
+        instructionType: 'System Call',
+        data: {},
+        accounts: [],
+        warnings: [],
+      },
+    ]);
+  });
+
+  it('keeps parsing when lookup-table account data type is malformed', async () => {
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      {
+        message: {
+          accountKeys: [SYSTEM_PROGRAM_ID],
+          addressTableLookups: [
+            {
+              accountKey: SYSTEM_PROGRAM_ID,
+              writableIndexes: [],
+              readonlyIndexes: [],
+            },
+          ],
+          instructions: [
+            {
+              programIdIndex: 0,
+              accountIndexes: [],
+              data: Buffer.from([1, 2, 3]),
+            },
+          ],
+        },
+      },
+      {
+        getAccountInfo: async () => ({
+          data: 7,
+        }),
+      },
+    );
+
+    expect(parsed.warnings).to.deep.equal([]);
+    expect(parsed.instructions).to.deep.equal([
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'System Program',
+        instructionType: 'System Call',
+        data: {},
+        accounts: [],
+        warnings: [],
+      },
+    ]);
+  });
+
   it('keeps parsing when vault account-keys getter throws', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
