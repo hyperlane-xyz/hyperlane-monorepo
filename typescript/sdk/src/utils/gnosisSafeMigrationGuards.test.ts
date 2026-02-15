@@ -19,6 +19,11 @@ type ModuleSpecifierReference = {
   filePath: string;
 };
 
+type SymbolSourceReference = {
+  symbol: string;
+  source: string;
+};
+
 type NamedExportSymbolReference = {
   symbol: string;
   isTypeOnly: boolean;
@@ -286,6 +291,293 @@ function readModuleSourceArg(
   return undefined;
 }
 
+function unwrapInitializerExpression(expression: ts.Expression): ts.Expression {
+  if (ts.isAwaitExpression(expression)) {
+    return unwrapInitializerExpression(expression.expression);
+  }
+  if (ts.isParenthesizedExpression(expression)) {
+    return unwrapInitializerExpression(expression.expression);
+  }
+  return expression;
+}
+
+function readModuleSourceFromInitializer(
+  expression: ts.Expression,
+): string | undefined {
+  const unwrapped = unwrapInitializerExpression(expression);
+  if (!ts.isCallExpression(unwrapped)) return undefined;
+
+  if (
+    ts.isIdentifier(unwrapped.expression) &&
+    unwrapped.expression.text === 'require'
+  ) {
+    return readModuleSourceArg(unwrapped);
+  }
+  if (unwrapped.expression.kind === ts.SyntaxKind.ImportKeyword) {
+    return readModuleSourceArg(unwrapped);
+  }
+  return undefined;
+}
+
+function resolveModuleSourceFromExpression(
+  expression: ts.Expression,
+  moduleAliasByIdentifier: Map<string, string>,
+): string | undefined {
+  const unwrapped = unwrapInitializerExpression(expression);
+  const directSource = readModuleSourceFromInitializer(unwrapped);
+  if (directSource) return directSource;
+  if (ts.isIdentifier(unwrapped)) {
+    return moduleAliasByIdentifier.get(unwrapped.text);
+  }
+  if (ts.isPropertyAccessExpression(unwrapped)) {
+    return resolveModuleSourceFromExpression(
+      unwrapped.expression,
+      moduleAliasByIdentifier,
+    );
+  }
+  if (ts.isElementAccessExpression(unwrapped)) {
+    return resolveModuleSourceFromExpression(
+      unwrapped.expression,
+      moduleAliasByIdentifier,
+    );
+  }
+  return undefined;
+}
+
+function readBindingElementSymbol(element: ts.BindingElement): string {
+  if (element.propertyName) {
+    if (ts.isIdentifier(element.propertyName)) return element.propertyName.text;
+    if (ts.isStringLiteralLike(element.propertyName))
+      return element.propertyName.text;
+  }
+  if (ts.isIdentifier(element.name)) return element.name.text;
+  return '';
+}
+
+function readImportTypeQualifierSymbol(
+  qualifier: ts.EntityName | undefined,
+): string {
+  if (!qualifier) return '';
+  if (ts.isIdentifier(qualifier)) return qualifier.text;
+  return readImportTypeQualifierSymbol(qualifier.left);
+}
+
+function resolveModuleSourceFromEntityName(
+  name: ts.EntityName,
+  moduleAliasByIdentifier: Map<string, string>,
+): string | undefined {
+  if (ts.isIdentifier(name)) return moduleAliasByIdentifier.get(name.text);
+  return resolveModuleSourceFromEntityName(name.left, moduleAliasByIdentifier);
+}
+
+function collectSymbolSourceReferences(
+  contents: string,
+  filePath: string,
+): SymbolSourceReference[] {
+  const references: SymbolSourceReference[] = [];
+  const moduleAliasByIdentifier = new Map<string, string>();
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    contents,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
+  );
+
+  const readSpecifierSymbols = (
+    specifier: ts.ImportSpecifier | ts.ExportSpecifier,
+  ): string[] => {
+    const symbols = new Set<string>();
+    symbols.add(normalizeNamedSymbol(specifier.name.text));
+    if (specifier.propertyName) {
+      symbols.add(normalizeNamedSymbol(specifier.propertyName.text));
+    }
+    return [...symbols].filter(Boolean);
+  };
+
+  const visit = (node: ts.Node) => {
+    if (ts.isImportDeclaration(node)) {
+      const source = ts.isStringLiteralLike(node.moduleSpecifier)
+        ? node.moduleSpecifier.text
+        : undefined;
+      if (source && node.importClause?.name) {
+        moduleAliasByIdentifier.set(node.importClause.name.text, source);
+        references.push({
+          symbol: normalizeNamedSymbol(node.importClause.name.text),
+          source,
+        });
+      }
+      const namedBindings = node.importClause?.namedBindings;
+      if (source && namedBindings) {
+        if (ts.isNamespaceImport(namedBindings)) {
+          moduleAliasByIdentifier.set(namedBindings.name.text, source);
+        }
+        if (ts.isNamedImports(namedBindings)) {
+          for (const importSpecifier of namedBindings.elements) {
+            for (const symbol of readSpecifierSymbols(importSpecifier)) {
+              references.push({ symbol, source });
+            }
+          }
+        }
+      }
+    }
+
+    if (ts.isExportDeclaration(node)) {
+      const source = node.moduleSpecifier;
+      const namedExports = node.exportClause;
+      if (
+        source &&
+        ts.isStringLiteralLike(source) &&
+        namedExports &&
+        ts.isNamedExports(namedExports)
+      ) {
+        for (const exportSpecifier of namedExports.elements) {
+          for (const symbol of readSpecifierSymbols(exportSpecifier)) {
+            references.push({ symbol, source: source.text });
+          }
+        }
+      }
+    }
+
+    if (ts.isImportTypeNode(node)) {
+      const argument = node.argument;
+      if (
+        ts.isLiteralTypeNode(argument) &&
+        ts.isStringLiteralLike(argument.literal)
+      ) {
+        const symbol = normalizeNamedSymbol(
+          readImportTypeQualifierSymbol(node.qualifier),
+        );
+        if (symbol) {
+          references.push({ symbol, source: argument.literal.text });
+        }
+      }
+    }
+
+    if (ts.isQualifiedName(node)) {
+      const source = resolveModuleSourceFromEntityName(
+        node.left,
+        moduleAliasByIdentifier,
+      );
+      if (source) {
+        references.push({
+          symbol: normalizeNamedSymbol(node.right.text),
+          source,
+        });
+      }
+    }
+
+    if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      node.moduleReference.expression &&
+      ts.isStringLiteralLike(node.moduleReference.expression)
+    ) {
+      moduleAliasByIdentifier.set(
+        node.name.text,
+        node.moduleReference.expression.text,
+      );
+      references.push({
+        symbol: normalizeNamedSymbol(node.name.text),
+        source: node.moduleReference.expression.text,
+      });
+    }
+
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      const initializer = node.initializer
+        ? unwrapInitializerExpression(node.initializer)
+        : undefined;
+      const source = initializer
+        ? resolveModuleSourceFromExpression(
+            initializer,
+            moduleAliasByIdentifier,
+          )
+        : undefined;
+      if (source) {
+        moduleAliasByIdentifier.set(node.name.text, source);
+      }
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left)
+    ) {
+      const rightExpression = unwrapInitializerExpression(node.right);
+      const source = resolveModuleSourceFromExpression(
+        rightExpression,
+        moduleAliasByIdentifier,
+      );
+      if (source) {
+        moduleAliasByIdentifier.set(node.left.text, source);
+      } else {
+        moduleAliasByIdentifier.delete(node.left.text);
+      }
+    }
+
+    if (ts.isPropertyAccessExpression(node)) {
+      const source = resolveModuleSourceFromExpression(
+        node.expression,
+        moduleAliasByIdentifier,
+      );
+      if (source) {
+        references.push({
+          symbol: normalizeNamedSymbol(node.name.text),
+          source,
+        });
+      }
+    }
+
+    if (
+      ts.isElementAccessExpression(node) &&
+      node.argumentExpression &&
+      ts.isStringLiteralLike(node.argumentExpression)
+    ) {
+      const source = resolveModuleSourceFromExpression(
+        node.expression,
+        moduleAliasByIdentifier,
+      );
+      if (source) {
+        references.push({
+          symbol: normalizeNamedSymbol(node.argumentExpression.text),
+          source,
+        });
+      }
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isObjectBindingPattern(node.name)
+    ) {
+      const initializer = node.initializer
+        ? unwrapInitializerExpression(node.initializer)
+        : undefined;
+      const source = initializer
+        ? resolveModuleSourceFromExpression(
+            initializer,
+            moduleAliasByIdentifier,
+          )
+        : undefined;
+      if (source) {
+        for (const bindingElement of node.name.elements) {
+          if (bindingElement.dotDotDotToken) continue;
+          references.push({
+            symbol: normalizeNamedSymbol(
+              readBindingElementSymbol(bindingElement),
+            ),
+            source,
+          });
+        }
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return references.filter((reference) => reference.symbol.length > 0);
+}
+
 function collectModuleSpecifierReferences(
   contents: string,
   filePath: string,
@@ -441,6 +733,26 @@ function collectDefaultImportsFromModule(
     }
   }
   return defaultImports;
+}
+
+function collectDefaultSymbolReferencesFromModule(
+  sourceFilePaths: readonly string[],
+  moduleName: string,
+): string[] {
+  const defaultReferences: string[] = [];
+  for (const sourceFilePath of sourceFilePaths) {
+    const contents = fs.readFileSync(sourceFilePath, 'utf8');
+    const references = collectSymbolSourceReferences(contents, sourceFilePath);
+    for (const reference of references) {
+      if (reference.source !== moduleName || reference.symbol !== 'default') {
+        continue;
+      }
+      defaultReferences.push(
+        `${path.relative(process.cwd(), sourceFilePath)} -> ${reference.symbol}`,
+      );
+    }
+  }
+  return defaultReferences;
 }
 
 function isInfraModuleSpecifier(source: string): boolean {
@@ -697,6 +1009,19 @@ describe('Gnosis Safe migration guards', () => {
     expect(defaultImports).to.deep.equal(['SafeSdk']);
   });
 
+  it('tracks default symbol references from namespace and require access', () => {
+    const source = [
+      "import * as infra from './fixtures/guard-module.js';",
+      'const namespaceDefault = infra.default;',
+      "const namespaceElementDefault = infra['default'];",
+      "const requireDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
   it('prevents sdk source imports from infra paths', () => {
     const sourceFilePaths = collectSdkSourceFilePaths(
       path.resolve(process.cwd(), 'src'),
@@ -739,6 +1064,22 @@ describe('Gnosis Safe migration guards', () => {
     expectNoRipgrepMatches(
       String.raw`(?:import\s+[A-Za-z_$][A-Za-z0-9_$]*\s+from\s+['"]@hyperlane-xyz/infra['"]|import\s+(?:type\s+)?\{\s*(?:type\s+)?default(?:\s+as\s+[A-Za-z_$][A-Za-z0-9_$]*)?\s*\}\s*from\s+['"]@hyperlane-xyz/infra['"])`,
       'default imports from @hyperlane-xyz/infra',
+    );
+  });
+
+  it('prevents infra default property access via namespace aliases', () => {
+    const sourceFilePaths = collectSdkSourceFilePaths(
+      path.resolve(process.cwd(), 'src'),
+    );
+    const defaultInfraReferences = collectDefaultSymbolReferencesFromModule(
+      sourceFilePaths,
+      '@hyperlane-xyz/infra',
+    );
+    expect(defaultInfraReferences).to.deep.equal([]);
+
+    expectNoRipgrepMatches(
+      String.raw`require\(['"]@hyperlane-xyz/infra['"]\)\s*(?:\.default|\[\s*['"]default['"]\s*\])`,
+      'direct default property access from @hyperlane-xyz/infra',
     );
   });
 
