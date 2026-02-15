@@ -52,7 +52,10 @@ import {
   isVaultTransaction,
   parseSquadProposalTransactionIndex,
 } from './utils.js';
-import { stringifyUnknownSquadsError } from './error-format.js';
+import {
+  isGenericObjectStringifiedValue,
+  stringifyUnknownSquadsError,
+} from './error-format.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
 import { resolveSquadsChainName, type SquadsChainName } from './config.js';
@@ -1892,24 +1895,52 @@ export class SquadsTransactionReader {
           );
         }
 
+        let mintValue: unknown;
+        try {
+          mintValue = action.mint;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read config-action spending-limit mint on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          mintValue = undefined;
+        }
+        let membersValue: unknown;
+        try {
+          membersValue = action.members;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read config-action spending-limit members on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          membersValue = [];
+        }
+        let destinationsValue: unknown;
+        try {
+          destinationsValue = action.destinations;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read config-action spending-limit destinations on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          destinationsValue = [];
+        }
+
         type = 'AddSpendingLimit';
         args = {
           vaultIndex: action.vaultIndex,
           mint: this.formatAddressLikeForDisplay(
             chain,
             'config action spending-limit mint',
-            action.mint,
+            mintValue,
           ),
           amount: amountValue,
           members: this.formatAddressLikeListForDisplay(
             chain,
             'config action spending-limit members',
-            action.members,
+            membersValue,
           ),
           destinations: this.formatAddressLikeListForDisplay(
             chain,
             'config action spending-limit destinations',
-            action.destinations,
+            destinationsValue,
           ),
         };
         insight = `Add spending limit for vault ${action.vaultIndex}`;
@@ -2076,8 +2107,17 @@ export class SquadsTransactionReader {
       const normalizedValue = this.normalizeOptionalNonEmptyString(
         toBase58Value.call(value),
       );
-      if (normalizedValue) {
+      if (
+        normalizedValue &&
+        !isGenericObjectStringifiedValue(normalizedValue)
+      ) {
         return normalizedValue;
+      }
+      if (normalizedValue && isGenericObjectStringifiedValue(normalizedValue)) {
+        rootLogger.warn(
+          `Malformed ${label} on ${chain}: toBase58() returned generic object label`,
+        );
+        return '[invalid address]';
       }
       rootLogger.warn(
         `Malformed ${label} on ${chain}: toBase58() returned empty value`,
@@ -2102,9 +2142,16 @@ export class SquadsTransactionReader {
       );
       return [];
     }
-    return values.map((value, index) =>
-      this.formatAddressLikeForDisplay(chain, `${label}[${index}]`, value),
-    );
+    try {
+      return Array.from(values, (value, index) =>
+        this.formatAddressLikeForDisplay(chain, `${label}[${index}]`, value),
+      );
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to normalize ${label} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return [];
+    }
   }
 
   private formatProgramIdForDisplay(programId: unknown): string {

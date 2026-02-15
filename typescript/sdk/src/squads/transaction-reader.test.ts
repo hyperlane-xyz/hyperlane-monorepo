@@ -3741,6 +3741,56 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('keeps add-spending-limit config actions when members and destinations access throws', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatConfigAction: (
+        chain: string,
+        action: Record<string, unknown>,
+      ) => Record<string, unknown> | null;
+    };
+    const hostileAction = new Proxy(
+      {
+        __kind: 'AddSpendingLimit',
+        vaultIndex: 2,
+        mint: { toBase58: () => 'mint-address' },
+        amount: 7n,
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'members' || property === 'destinations') {
+            throw new Error(`${String(property)} unavailable`);
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const result = readerAny.formatConfigAction(
+      'solanamainnet',
+      hostileAction as unknown as Record<string, unknown>,
+    );
+
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Squads Multisig Configuration',
+      type: 'AddSpendingLimit',
+      args: {
+        vaultIndex: 2,
+        mint: 'mint-address',
+        amount: '7',
+        members: [],
+        destinations: [],
+      },
+      insight: 'Add spending limit for vault 2',
+    });
+  });
+
   it('keeps config actions with malformed address-like fields using fallback addresses', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
@@ -3758,7 +3808,7 @@ describe('squads transaction reader', () => {
     const addMemberResult = readerAny.formatConfigAction('solanamainnet', {
       __kind: 'AddMember',
       newMember: {
-        key: {},
+        key: { toBase58: () => '[object PublicKey]' },
         permissions: { mask: 1 },
       },
     });
