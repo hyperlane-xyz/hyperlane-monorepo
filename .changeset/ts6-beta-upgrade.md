@@ -329,3 +329,5 @@ Regression coverage now also confirms whitespace-only `name` payloads on both `A
 Regression coverage now also confirms runtime/non-runtime `cause` and `errors` fallback payloads remain detectable/ignorable for both `AggregateError` and top-level `Error` wrappers even when `message`, `name`, and `constructor` accessors all throw.
 
 Regression coverage now also confirms whitespace-trimmed string `cause` and `errors` fallback payloads remain detectable/ignorable for both `AggregateError` and top-level `Error` wrappers under the same hostile `message`+`name`+`constructor` accessor-failure permutations.
+
+Regression coverage now also confirms structural `getErrorMessage` fallbacks (`JSON.stringify`, `inspect`, `Object.prototype.toString`, and the final unprintable placeholder path) remain non-crashing and runtime-signal-safe for both `AggregateError` and top-level `Error` wrappers under fully hostile `message`+`name`+`constructor`+`cause`+`errors` accessor failures.

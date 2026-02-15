@@ -197,6 +197,46 @@ describe('Anvil utils', () => {
 
       return wrapper;
     };
+    const hostileFallbackWrapperKinds = [
+      'AggregateError',
+      'top-level Error',
+    ] as const;
+    const buildHostileFallbackWrapper = (
+      wrapperKind: (typeof hostileFallbackWrapperKinds)[number],
+    ): Error => {
+      const wrapper =
+        wrapperKind === 'AggregateError'
+          ? new AggregateError([], 'failed to initialize runtime')
+          : new Error('hidden message');
+
+      Object.defineProperty(wrapper, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrapper, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(wrapper, 'constructor', {
+        get() {
+          throw new Error('blocked constructor getter');
+        },
+      });
+      Object.defineProperty(wrapper, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrapper, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      return wrapper;
+    };
     it('returns true for testcontainers runtime-strategy errors', () => {
       const error = new Error(
         'Could not find a working container runtime strategy',
@@ -1167,6 +1207,151 @@ describe('Anvil utils', () => {
       });
 
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('matches runtime wrapper strings via JSON.stringify fallback when message, name, constructor, cause, and errors accessors throw', () => {
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} JSON.stringify runtime fallback`,
+        ).to.equal(true);
+      }
+    });
+
+    it('ignores non-runtime wrapper strings via JSON.stringify fallback when message, name, constructor, cause, and errors accessors throw', () => {
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => 'unrelated nested startup warning',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} JSON.stringify non-runtime fallback`,
+        ).to.equal(false);
+      }
+    });
+
+    it('matches runtime wrapper strings via inspect fallback when message, name, constructor, cause, and errors accessors throw', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value() {
+            throw new Error('json blocked');
+          },
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} inspect runtime fallback`,
+        ).to.equal(true);
+      }
+    });
+
+    it('ignores non-runtime wrapper strings via inspect fallback when message, name, constructor, cause, and errors accessors throw', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value() {
+            throw new Error('json blocked');
+          },
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => 'unrelated nested startup warning',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} inspect non-runtime fallback`,
+        ).to.equal(false);
+      }
+    });
+
+    it('matches runtime wrapper strings via Object.prototype.toString fallback when message, name, constructor, cause, and errors accessors throw', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value() {
+            throw new Error('json blocked');
+          },
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value() {
+            throw new Error('inspect blocked');
+          },
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString runtime fallback`,
+        ).to.equal(true);
+      }
+    });
+
+    it('ignores non-runtime wrapper strings via Object.prototype.toString fallback when message, name, constructor, cause, and errors accessors throw', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value() {
+            throw new Error('json blocked');
+          },
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value() {
+            throw new Error('inspect blocked');
+          },
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'unrelated nested startup warning',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString non-runtime fallback`,
+        ).to.equal(false);
+      }
+    });
+
+    it('ignores unprintable wrapper placeholders when message, name, constructor, cause, and errors accessors throw', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value() {
+            throw new Error('json blocked');
+          },
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value() {
+            throw new Error('inspect blocked');
+          },
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          get() {
+            throw new Error('tag blocked');
+          },
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} unprintable placeholder fallback`,
+        ).to.equal(false);
+      }
     });
 
     it('matches runtime AggregateError messages when cause and errors accessors throw', () => {
