@@ -2320,6 +2320,42 @@ describe('Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('keeps function-scope ambient class declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'function run() {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare class reqAlias {}',
+      '}',
+      'run();',
+      "const outerDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps function-scope ambient enum declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'function run() {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      '}',
+      'run();',
+      "const outerDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak function-scope enum alias shadowing before declaration to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -2417,6 +2453,44 @@ describe('Safe migration guards', () => {
       '  const preDeclarationSymbol = moduleAlias.inner;',
       '  interface moduleAlias {',
       '    inner: unknown;',
+      '  }',
+      '  void preDeclarationSymbol;',
+      '}',
+      'run();',
+      'const outerDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps function-scope ambient class declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'function run() {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare class moduleAlias {}',
+      '  void preDeclarationSymbol;',
+      '}',
+      'run();',
+      'const outerDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps function-scope ambient enum declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'function run() {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare enum moduleAlias {',
+      '    Marker = 0,',
       '  }',
       '  void preDeclarationSymbol;',
       '}',
@@ -6007,6 +6081,52 @@ describe('Safe migration guards', () => {
       "  reqAlias('./fixtures/other-module.js');",
       '  interface reqAlias {',
       '    value: string;',
+      '  }',
+      '}',
+      'run();',
+      "const outerCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps function-scope ambient class declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'function run() {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare class reqAlias {}',
+      '}',
+      'run();',
+      "const outerCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps function-scope ambient enum declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'function run() {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
       '  }',
       '}',
       'run();',
