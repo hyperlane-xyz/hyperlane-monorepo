@@ -66,6 +66,14 @@ export type InferredCall = {
   callRemoteArgs?: GetCallRemoteSettings;
 };
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export abstract class HyperlaneAppGovernor<
   App extends HyperlaneApp<any>,
   Config extends OwnableConfig,
@@ -218,7 +226,9 @@ export abstract class HyperlaneAppGovernor<
             }
           } catch (error) {
             rootLogger.error(
-              chalk.red(`Error submitting calls on ${chain}: ${error}`),
+              chalk.red(
+                `Error submitting calls on ${chain}: ${stringifyValueForError(error)}`,
+              ),
             );
           }
         } else {
@@ -325,7 +335,7 @@ export abstract class HyperlaneAppGovernor<
         } catch (error) {
           rootLogger.error(
             chalk.red(
-              `Error inferring call submission types for chain ${chain}: ${error}`,
+              `Error inferring call submission types for chain ${chain}: ${stringifyValueForError(error)}`,
             ),
           );
           results[chain] = [];
