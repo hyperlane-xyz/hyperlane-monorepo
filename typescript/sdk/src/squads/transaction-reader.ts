@@ -381,7 +381,7 @@ export class SquadsTransactionReader {
     new Map();
 
   constructor(
-    readonly mpp: MultiProtocolProvider,
+    readonly mpp: unknown,
     private readonly options: SquadsTransactionReaderOptions,
   ) {}
 
