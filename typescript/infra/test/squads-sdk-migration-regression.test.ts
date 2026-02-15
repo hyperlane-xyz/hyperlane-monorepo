@@ -72,7 +72,7 @@ function assertNoForbiddenSquadsReferences(
   ).to.equal(false);
 }
 
-function listTypeScriptFilesRecursively(relativeDir: string): string[] {
+function listTrackedSourceFilesRecursively(relativeDir: string): string[] {
   const absoluteDir = path.join(INFRA_ROOT, relativeDir);
   const entries = fs.readdirSync(absoluteDir, { withFileTypes: true });
   const files: string[] = [];
@@ -84,7 +84,7 @@ function listTypeScriptFilesRecursively(relativeDir: string): string[] {
 
     const entryRelativePath = path.join(relativeDir, entry.name);
     if (entry.isDirectory()) {
-      files.push(...listTypeScriptFilesRecursively(entryRelativePath));
+      files.push(...listTrackedSourceFilesRecursively(entryRelativePath));
       continue;
     }
 
@@ -215,10 +215,10 @@ describe('squads sdk migration regression', () => {
     }
   });
 
-  it('keeps all infra typescript files free of legacy squads imports', () => {
-    const typeScriptFiles = listTypeScriptFilesRecursively('.');
+  it('keeps all tracked infra source files free of legacy squads imports', () => {
+    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
 
-    for (const relativePath of typeScriptFiles) {
+    for (const relativePath of trackedSourceFiles) {
       const fileContents = readInfraFile(relativePath);
       assertNoForbiddenSquadsReferences(fileContents, relativePath);
     }
