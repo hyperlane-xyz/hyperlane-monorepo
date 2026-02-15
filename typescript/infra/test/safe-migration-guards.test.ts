@@ -30,6 +30,25 @@ const REQUIRED_SAFE_HELPER_EXPORTS = [
   'SafeTxStatus',
 ] as const;
 
+const DISALLOWED_LOCAL_SAFE_DECLARATIONS = [
+  'createSafeDeploymentTransaction',
+  'createSafeTransaction',
+  'createSafeTransactionData',
+  'decodeMultiSendData',
+  'deleteAllPendingSafeTxs',
+  'deleteSafeTx',
+  'executeTx',
+  'getPendingTxsForChains',
+  'getSafe',
+  'getSafeAndService',
+  'getSafeDelegates',
+  'getSafeService',
+  'getSafeTx',
+  'parseSafeTx',
+  'proposeSafeTransaction',
+  'updateSafeOwner',
+] as const;
+
 function expectNoRipgrepMatches(pattern: string, description: string): void {
   try {
     const output = execFileSync(
@@ -180,6 +199,14 @@ describe('Safe migration guards', () => {
     );
 
     expect(safeGlobalDeps).to.deep.equal([]);
+  });
+
+  it('prevents reintroducing local safe helper implementations', () => {
+    const declarationAlternation = DISALLOWED_LOCAL_SAFE_DECLARATIONS.join('|');
+    expectNoRipgrepMatches(
+      String.raw`^[ \t]*(?:export\s+)?(?:async\s+)?(?:function|const|let|var|class|interface|type|enum)\s+(?:${declarationAlternation})\b`,
+      'local declarations for sdk-migrated safe helpers',
+    );
   });
 
   it('ensures sdk index continues exporting core safe helpers', () => {
