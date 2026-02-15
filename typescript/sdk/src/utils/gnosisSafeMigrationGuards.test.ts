@@ -1032,6 +1032,9 @@ function collectSymbolSourceReferences(
         const assignmentLocalNames = collectAssignmentPatternLocalNames(
           node.left,
         );
+        for (const localName of assignmentLocalNames) {
+          requireLikeIdentifiers.delete(localName);
+        }
         if (sources.length > 0) {
           for (const localName of assignmentLocalNames) {
             moduleAliasByIdentifier.set(localName, sources);
@@ -1295,14 +1298,21 @@ function collectModuleSpecifierReferences(
         ts.SyntaxKind.BarBarEqualsToken,
         ts.SyntaxKind.AmpersandAmpersandEqualsToken,
         ts.SyntaxKind.QuestionQuestionEqualsToken,
-      ].includes(node.operatorToken.kind) &&
-      ts.isIdentifier(node.left)
+      ].includes(node.operatorToken.kind)
     ) {
       const rightExpression = unwrapInitializerExpression(node.right);
-      if (isRequireLikeExpression(rightExpression, requireLikeIdentifiers)) {
-        requireLikeIdentifiers.add(node.left.text);
-      } else if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
-        requireLikeIdentifiers.delete(node.left.text);
+      if (ts.isIdentifier(node.left)) {
+        if (isRequireLikeExpression(rightExpression, requireLikeIdentifiers)) {
+          requireLikeIdentifiers.add(node.left.text);
+        } else if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+          requireLikeIdentifiers.delete(node.left.text);
+        }
+      }
+
+      if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+        for (const localName of collectAssignmentPatternLocalNames(node.left)) {
+          requireLikeIdentifiers.delete(localName);
+        }
       }
     }
 
@@ -2002,6 +2012,25 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('does not treat assignment-pattern shadowed require aliases as module specifier sources', () => {
+    const source = [
+      'let reqAlias = require;',
+      '({ reqAlias } = { reqAlias: () => undefined });',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('does not treat top-level function declaration named require as module specifier source', () => {
     const source = [
       "const preShadowCall = require('./fixtures/guard-module.js');",
@@ -2346,6 +2375,20 @@ describe('Gnosis Safe migration guards', () => {
       "  reqAlias('./fixtures/other-module.js').default;",
       '}',
       "const postLoopDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not treat assignment-pattern shadowed aliases as module-sourced', () => {
+    const source = [
+      'let reqAlias = require;',
+      '({ reqAlias } = { reqAlias: () => undefined });',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
