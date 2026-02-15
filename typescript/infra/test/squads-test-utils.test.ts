@@ -18,22 +18,13 @@ import {
   listExecutableSquadsDirectoryScripts,
   listSquadsDirectoryScripts,
 } from './squads-test-utils.js';
+import { compareLexicographically } from './squads-test-ordering.js';
 
 const INFRA_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
 const SQUADS_DIRECTORY_PATH = path.join(INFRA_ROOT, 'scripts', 'squads');
-
-function compareLexicographically(left: string, right: string): number {
-  if (left < right) {
-    return -1;
-  }
-  if (left > right) {
-    return 1;
-  }
-  return 0;
-}
 
 function listSquadsDirectoryScriptsRecursively(
   absoluteDirectoryPath: string,

@@ -14,6 +14,7 @@ import {
   isNormalizedGuardedScriptPath,
   isSquadsDirectoryScriptPath,
 } from './squads-test-constants.js';
+import { compareLexicographically } from './squads-test-ordering.js';
 import { listExecutableSquadsDirectoryScripts } from './squads-test-utils.js';
 
 const INFRA_ROOT = path.resolve(
@@ -71,16 +72,6 @@ function runScriptHelp(scriptPath: string) {
     cwd: INFRA_ROOT,
     encoding: 'utf8',
   });
-}
-
-function compareLexicographically(left: string, right: string): number {
-  if (left < right) {
-    return -1;
-  }
-  if (left > right) {
-    return 1;
-  }
-  return 0;
 }
 
 function listExecutableSquadsScriptsRecursively(

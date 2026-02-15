@@ -17,6 +17,7 @@ import {
   SQUADS_SCRIPT_FILE_EXTENSIONS,
   SQUADS_SCRIPT_PATHS,
 } from './squads-test-constants.js';
+import { compareLexicographically } from './squads-test-ordering.js';
 import { listSquadsDirectoryScripts } from './squads-test-utils.js';
 
 const INFRA_ROOT = path.resolve(
@@ -72,6 +73,7 @@ const SQUADS_REGRESSION_TEST_PATHS = Object.freeze([
   'test/squads-test-constants.test.ts',
 ]);
 const SQUADS_TRACKED_TEST_SUPPORT_PATHS = Object.freeze([
+  'test/squads-test-ordering.ts',
   'test/squads-test-constants.ts',
   'test/squads-test-utils.ts',
 ]);
@@ -82,16 +84,6 @@ const SQUADS_TRACKED_TEST_ASSET_PATHS = Object.freeze([
 const INFRA_SQUADS_TEST_COMMAND_PREFIX = 'mocha --config ../sdk/.mocharc.json';
 const EXPECTED_INFRA_SQUADS_TEST_SCRIPT = `${INFRA_SQUADS_TEST_COMMAND_PREFIX} ${SQUADS_REGRESSION_TEST_PATHS.map((scriptPath) => `"${scriptPath}"`).join(' ')}`;
 const QUOTED_SCRIPT_PATH_PATTERN = /"([^"]+)"/g;
-
-function compareLexicographically(left: string, right: string): number {
-  if (left < right) {
-    return -1;
-  }
-  if (left > right) {
-    return 1;
-  }
-  return 0;
-}
 
 function toPosixPath(relativePath: string): string {
   const normalizedByPlatformSeparator = relativePath
