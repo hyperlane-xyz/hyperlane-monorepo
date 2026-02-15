@@ -792,6 +792,187 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(0);
   });
 
+  it('returns chain-resolution failure when chain-resolver accessor throws', () => {
+    let resolveConfigCallCount = 0;
+    const mpp = new Proxy(
+      {
+        getSolanaWeb3Provider: () => ({
+          getAccountInfo: async () => null,
+        }),
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'tryGetChainName') {
+            throw new Error('chain resolver accessor failed');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    ) as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+      resolveExpectedMultisigConfig: () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+    });
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Failed to read tryGetChainName for domain 1000: Error: chain resolver accessor failed',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
+  it('returns chain-resolution failure when chain-resolver function is missing', () => {
+    let resolveConfigCallCount = 0;
+    const mpp = {
+      getSolanaWeb3Provider: () => ({
+        getAccountInfo: async () => null,
+      }),
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+      resolveExpectedMultisigConfig: () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+    });
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Invalid multi protocol provider for domain 1000: expected tryGetChainName function, got undefined',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
+  it('returns chain-resolution failure for promise-like chain-resolution values', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => Promise.resolve('solanatestnet') as unknown as string | undefined,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Invalid resolved chain for domain 1000: expected synchronous string result, got promise-like value',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
+  it('returns chain-resolution failure when resolved-chain promise-like inspection fails', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () =>
+        new Proxy(
+          {},
+          {
+            get(target, property, receiver) {
+              if (property === 'then') {
+                throw new Error('then unavailable');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ) as unknown as string | undefined,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Failed to inspect resolved chain for domain 1000: failed to read promise-like then field (Error: then unavailable)',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
   it('returns malformed-threshold issue before loading expected configuration', () => {
     let resolveConfigCallCount = 0;
     const reader = createReaderForVerification(() => {

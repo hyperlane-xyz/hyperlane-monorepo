@@ -2177,6 +2177,49 @@ export class SquadsTransactionReader {
     }
   }
 
+  private resolveChainNameForDomain(
+    remoteDomain: number,
+    label: 'chain' | 'chain alias',
+  ): unknown {
+    let tryGetChainNameValue: unknown;
+    try {
+      tryGetChainNameValue = (
+        this.mpp as { tryGetChainName?: unknown } | null | undefined
+      )?.tryGetChainName;
+    } catch (error) {
+      throw new Error(
+        `Failed to read tryGetChainName for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    assert(
+      typeof tryGetChainNameValue === 'function',
+      `Invalid multi protocol provider for domain ${remoteDomain}: expected tryGetChainName function, got ${getUnknownValueTypeName(tryGetChainNameValue)}`,
+    );
+
+    let remoteChain: unknown;
+    try {
+      remoteChain = tryGetChainNameValue.call(this.mpp, remoteDomain);
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve ${label} for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    const { thenValue, readError: thenReadError } = getThenValue(remoteChain);
+    if (thenReadError) {
+      throw new Error(
+        `Failed to inspect resolved ${label} for domain ${remoteDomain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,
+      );
+    }
+    assert(
+      typeof thenValue !== 'function',
+      `Invalid resolved ${label} for domain ${remoteDomain}: expected synchronous string result, got promise-like value`,
+    );
+
+    return remoteChain;
+  }
+
   private verifyConfiguration(
     originChain: SquadsChainName,
     remoteDomain: unknown,
@@ -2191,12 +2234,14 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
-    let remoteChain: string | null | undefined;
+    let remoteChain: unknown;
     try {
-      remoteChain = this.mpp.tryGetChainName(remoteDomain);
+      remoteChain = this.resolveChainNameForDomain(remoteDomain, 'chain');
     } catch (error) {
       issues.push(
-        `Failed to resolve chain for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
+        error instanceof Error
+          ? error.message
+          : `Failed to resolve chain for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
       );
       return { matches: false, issues };
     }
@@ -2646,10 +2691,12 @@ export class SquadsTransactionReader {
 
     let remoteChain: unknown;
     try {
-      remoteChain = this.mpp.tryGetChainName(remoteDomain);
+      remoteChain = this.resolveChainNameForDomain(remoteDomain, 'chain alias');
     } catch (error) {
       rootLogger.warn(
-        `Failed to resolve chain alias for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
+        error instanceof Error
+          ? error.message
+          : `Failed to resolve chain alias for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
       );
       return null;
     }
