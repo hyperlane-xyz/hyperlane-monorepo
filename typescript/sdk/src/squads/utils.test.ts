@@ -3344,9 +3344,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsVaultTransactionProposal(
-          'unsupported-chain' as unknown as Parameters<
-            typeof buildSquadsVaultTransactionProposal
-          >[0],
+          'unsupported-chain',
           mpp,
           [],
           PublicKey.default,
@@ -3370,9 +3368,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsVaultTransactionProposal(
-          '   ' as unknown as Parameters<
-            typeof buildSquadsVaultTransactionProposal
-          >[0],
+          '   ',
           mpp,
           [],
           PublicKey.default,
@@ -3396,9 +3392,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsVaultTransactionProposal(
-          '  solanamainnet  ' as unknown as Parameters<
-            typeof buildSquadsVaultTransactionProposal
-          >[0],
+          '  solanamainnet  ',
           mpp,
           [],
           PublicKey.default,
@@ -3494,9 +3488,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsProposalRejection(
-          'unsupported-chain' as unknown as Parameters<
-            typeof buildSquadsProposalRejection
-          >[0],
+          'unsupported-chain',
           mpp,
           1n,
           PublicKey.default,
@@ -3520,9 +3512,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsProposalRejection(
-          'unsupported-chain' as unknown as Parameters<
-            typeof buildSquadsProposalRejection
-          >[0],
+          'unsupported-chain',
           mpp,
           -1n,
           PublicKey.default,
@@ -3545,9 +3535,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const result = await buildSquadsProposalRejection(
-        '  solanamainnet  ' as unknown as Parameters<
-          typeof buildSquadsProposalRejection
-        >[0],
+        '  solanamainnet  ',
         mpp,
         1n,
         PublicKey.default,
@@ -3592,7 +3580,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsProposalRejection(
-          '   ' as unknown as Parameters<typeof buildSquadsProposalRejection>[0],
+          '   ',
           mpp,
           1n,
           PublicKey.default,
@@ -3690,9 +3678,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsProposalCancellation(
-          'unsupported-chain' as unknown as Parameters<
-            typeof buildSquadsProposalCancellation
-          >[0],
+          'unsupported-chain',
           mpp,
           1n,
           PublicKey.default,
@@ -3716,9 +3702,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsProposalCancellation(
-          'unsupported-chain' as unknown as Parameters<
-            typeof buildSquadsProposalCancellation
-          >[0],
+          'unsupported-chain',
           mpp,
           -1n,
           PublicKey.default,
@@ -3741,9 +3725,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const result = await buildSquadsProposalCancellation(
-        '  solanamainnet  ' as unknown as Parameters<
-          typeof buildSquadsProposalCancellation
-        >[0],
+        '  solanamainnet  ',
         mpp,
         1n,
         PublicKey.default,
@@ -3788,9 +3770,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         buildSquadsProposalCancellation(
-          '   ' as unknown as Parameters<
-            typeof buildSquadsProposalCancellation
-          >[0],
+          '   ',
           mpp,
           1n,
           PublicKey.default,
@@ -3895,9 +3875,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads(
-          'unsupported-chain' as unknown as Parameters<
-            typeof submitProposalToSquads
-          >[0],
+          'unsupported-chain',
           [],
           mpp,
           signerAdapter,
@@ -3961,7 +3939,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads(
-          '   ' as unknown as Parameters<typeof submitProposalToSquads>[0],
+          '   ',
           [],
           mpp,
           signerAdapter,
@@ -4018,9 +3996,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads(
-          '  solanamainnet  ' as unknown as Parameters<
-            typeof submitProposalToSquads
-          >[0],
+          '  solanamainnet  ',
           [],
           mpp,
           signerAdapter,
@@ -4047,9 +4023,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         getTransactionType(
-          '  solanamainnet  ' as unknown as Parameters<
-            typeof getTransactionType
-          >[0],
+          '  solanamainnet  ',
           mpp,
           0,
         ),
@@ -4070,9 +4044,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         getTransactionType(
-          'unsupported-chain' as unknown as Parameters<
-            typeof getTransactionType
-          >[0],
+          'unsupported-chain',
           mpp,
           0,
         ),
@@ -4095,9 +4067,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         getTransactionType(
-          'unsupported-chain' as unknown as Parameters<
-            typeof getTransactionType
-          >[0],
+          'unsupported-chain',
           mpp,
           -1,
         ),
@@ -4143,7 +4113,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         getTransactionType(
-          '   ' as unknown as Parameters<typeof getTransactionType>[0],
+          '   ',
           mpp,
           0,
         ),
@@ -4287,7 +4257,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         executeProposal(
-          '  solanamainnet  ' as unknown as Parameters<typeof executeProposal>[0],
+          '  solanamainnet  ',
           mpp,
           0,
           {} as Parameters<typeof executeProposal>[3],
@@ -4309,7 +4279,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         executeProposal(
-          'unsupported-chain' as unknown as Parameters<typeof executeProposal>[0],
+          'unsupported-chain',
           mpp,
           0,
           {} as Parameters<typeof executeProposal>[3],
@@ -4333,7 +4303,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         executeProposal(
-          'unsupported-chain' as unknown as Parameters<typeof executeProposal>[0],
+          'unsupported-chain',
           mpp,
           -1,
           {} as Parameters<typeof executeProposal>[3],
@@ -4381,7 +4351,7 @@ describe('squads utils', () => {
 
       const thrownError = await captureAsyncError(() =>
         executeProposal(
-          '   ' as unknown as Parameters<typeof executeProposal>[0],
+          '   ',
           mpp,
           0,
           {} as Parameters<typeof executeProposal>[3],
