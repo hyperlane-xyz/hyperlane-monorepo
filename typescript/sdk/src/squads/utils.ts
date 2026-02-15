@@ -544,11 +544,26 @@ function normalizeSafeIntegerValue(value: unknown): {
   try {
     displayValue = String(value);
   } catch {
-    const toStringCandidate = (value as { toString?: unknown }).toString;
-    if (typeof toStringCandidate !== 'function') {
+    let toStringCandidate: unknown;
+    try {
+      toStringCandidate = (value as { toString?: unknown }).toString;
+    } catch {
       return {
         parsedValue: Number.NaN,
-        displayValue: Object.prototype.toString.call(value),
+        displayValue: '[unstringifiable value]',
+      };
+    }
+
+    if (typeof toStringCandidate !== 'function') {
+      let objectTagValue: string;
+      try {
+        objectTagValue = Object.prototype.toString.call(value);
+      } catch {
+        objectTagValue = '[unstringifiable value]';
+      }
+      return {
+        parsedValue: Number.NaN,
+        displayValue: objectTagValue,
       };
     }
     return { parsedValue: Number.NaN, displayValue: '[unstringifiable value]' };
