@@ -102,7 +102,9 @@ function assertNoForbiddenSquadsReferences(
 
 function listTrackedSourceFilesRecursively(relativeDir: string): string[] {
   const absoluteDir = path.join(INFRA_ROOT, relativeDir);
-  const entries = fs.readdirSync(absoluteDir, { withFileTypes: true });
+  const entries = fs
+    .readdirSync(absoluteDir, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name));
   const files: string[] = [];
 
   for (const entry of entries) {
@@ -126,7 +128,7 @@ function listTrackedSourceFilesRecursively(relativeDir: string): string[] {
     }
   }
 
-  return files;
+  return files.sort();
 }
 
 describe('squads sdk migration regression', () => {
@@ -284,6 +286,11 @@ describe('squads sdk migration regression', () => {
       const fileContents = readInfraFile(relativePath);
       assertNoForbiddenSquadsReferences(fileContents, relativePath);
     }
+  });
+
+  it('keeps tracked infra source file scan ordering deterministic', () => {
+    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    expect(trackedSourceFiles).to.deep.equal([...trackedSourceFiles].sort());
   });
 
   it('keeps squads-related scripts using shared formatScriptError helper', () => {
