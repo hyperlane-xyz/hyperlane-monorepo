@@ -580,11 +580,7 @@ function extractNamedExportSymbols(
     ) {
       if (ts.isNamedExports(node.exportClause)) {
         for (const exportSpecifier of node.exportClause.elements) {
-          symbols.add(
-            normalizeNamedSymbol(
-              exportSpecifier.propertyName?.text ?? exportSpecifier.name.text,
-            ),
-          );
+          symbols.add(normalizeNamedSymbol(exportSpecifier.name.text));
         }
       }
     } else if (
@@ -703,6 +699,17 @@ describe('Safe migration guards', () => {
       ['getSafe', 'createSafeTransaction', 'getSafe'],
     );
     expect(symbols).to.deep.equal(['getSafe', 'createSafeTransaction']);
+  });
+
+  it('tracks export aliases by their public symbol names', () => {
+    const source =
+      "export { internalGetSafe as getSafe } from './fixtures/guard-module.js';";
+    const symbols = extractNamedExportSymbols(
+      source,
+      './fixtures/guard-module.js',
+      'fixture.ts',
+    );
+    expect(symbols).to.deep.equal(['getSafe']);
   });
 
   it('ignores type-only wildcard module re-exports for fallback symbols', () => {
