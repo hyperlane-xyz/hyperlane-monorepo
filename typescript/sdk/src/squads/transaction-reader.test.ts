@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { serialize } from 'borsh';
 import { PublicKey } from '@solana/web3.js';
 
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -9,9 +10,12 @@ import {
   SquadsTransactionReader,
 } from './transaction-reader.js';
 import {
+  SealevelMultisigIsmSetValidatorsInstruction,
   SealevelMultisigIsmInstructionName,
   SealevelMultisigIsmInstructionType,
+  SealevelMultisigIsmSetValidatorsInstructionSchema,
 } from '../ism/serialization.js';
+import { SealevelInstructionWrapper } from '../utils/sealevelSerialization.js';
 import { SquadsAccountType, SQUADS_ACCOUNT_DISCRIMINATORS } from './utils.js';
 
 function createReaderWithLookupCounter(): {
@@ -156,6 +160,26 @@ function createErrorWithGenericObjectStringification(): Error {
   });
   error.toString = () => '[object ErrorLike]';
   return error;
+}
+
+function createSetValidatorsAndThresholdInstructionData(
+  domain: number,
+  validatorByteValue: number,
+): Buffer {
+  const validator = new Uint8Array(20).fill(validatorByteValue);
+  const payload = serialize(
+    SealevelMultisigIsmSetValidatorsInstructionSchema,
+    new SealevelInstructionWrapper({
+      instruction:
+        SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD,
+      data: new SealevelMultisigIsmSetValidatorsInstruction({
+        domain,
+        validators: [validator],
+        threshold: 1,
+      }),
+    }),
+  );
+  return Buffer.concat([Buffer.alloc(8), Buffer.from(payload)]);
 }
 
 describe('squads transaction reader warning formatters', () => {
@@ -2717,6 +2741,84 @@ describe('squads transaction reader', () => {
     expect(chainLookupCount).to.equal(0);
     expect(result.insight).to.equal(
       '❌ fatal mismatch: Malformed remote domain for solanamainnet: expected non-negative safe integer, got object',
+    );
+  });
+
+  it('does not misclassify multisig validator instructions when chain lookup throws during parse', () => {
+    const mpp = {
+      tryGetChainName: () => {
+        throw new Error('chain lookup failed');
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readMultisigIsmInstruction: (
+        chain: string,
+        instructionData: Buffer,
+      ) => Record<string, unknown>;
+    };
+    const validatorHex = `0x${Buffer.from(
+      new Uint8Array(20).fill(0x11),
+    ).toString('hex')}`;
+
+    const parsedInstruction = readerAny.readMultisigIsmInstruction(
+      'solanamainnet',
+      createSetValidatorsAndThresholdInstructionData(1000, 0x11),
+    );
+
+    expect(parsedInstruction).to.deep.equal({
+      instructionType:
+        SealevelMultisigIsmInstructionName[
+          SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+        ],
+      data: {
+        domain: 1000,
+        threshold: 1,
+        validatorCount: 1,
+        validators: [validatorHex],
+      },
+      insight: 'Set 1 validator(s) with threshold 1 for 1000',
+      warnings: [],
+    });
+  });
+
+  it('does not misclassify multisig validator instructions when chain lookup returns malformed aliases', () => {
+    let chainLookupCount = 0;
+    const mpp = {
+      tryGetChainName: () => {
+        chainLookupCount += 1;
+        return { alias: 'solanatestnet' };
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readMultisigIsmInstruction: (
+        chain: string,
+        instructionData: Buffer,
+      ) => Record<string, unknown>;
+    };
+
+    const parsedInstruction = readerAny.readMultisigIsmInstruction(
+      'solanamainnet',
+      createSetValidatorsAndThresholdInstructionData(1000, 0x22),
+    );
+
+    expect(chainLookupCount).to.equal(1);
+    expect(parsedInstruction.insight).to.equal(
+      'Set 1 validator(s) with threshold 1 for 1000',
+    );
+    expect((parsedInstruction.data as Record<string, unknown>).error).to.equal(
+      undefined,
     );
   });
 

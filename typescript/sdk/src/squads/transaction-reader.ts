@@ -743,10 +743,15 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelMultisigIsmSetValidatorsInstruction;
-          const remoteChain = this.mpp.tryGetChainName(instruction.domain);
+          const remoteDomainForDisplay = formatIntegerValidationValue(
+            instruction.domain,
+          );
+          const remoteChain = this.tryResolveRemoteChainNameForDisplay(
+            instruction.domain,
+          );
           const chainInfo = remoteChain
-            ? `${remoteChain} (${instruction.domain})`
-            : `${instruction.domain}`;
+            ? `${remoteChain} (${remoteDomainForDisplay})`
+            : remoteDomainForDisplay;
 
           return {
             instructionType: SealevelMultisigIsmInstructionName[discriminator],
