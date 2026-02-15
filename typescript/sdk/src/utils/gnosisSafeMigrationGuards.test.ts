@@ -4413,6 +4413,50 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('keeps namespace ambient class declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'namespace ShadowNamespace {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare class reqAlias {}',
+      '}',
+      "const postNamespaceCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps namespace ambient enum declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'namespace ShadowNamespace {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      '}',
+      "const postNamespaceCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('does not leak hoisted namespace function alias shadowing to outer module specifiers', () => {
     const source = [
       'const reqAlias = require;',
@@ -7971,6 +8015,40 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('keeps namespace ambient class declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'namespace ShadowNamespace {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare class reqAlias {}',
+      '}',
+      "const postNamespaceDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps namespace ambient enum declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'namespace ShadowNamespace {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      '}',
+      "const postNamespaceDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak hoisted namespace function alias shadowing to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -8098,6 +8176,42 @@ describe('Gnosis Safe migration guards', () => {
       '  const preDeclarationSymbol = moduleAlias.inner;',
       '  interface moduleAlias {',
       '    inner: unknown;',
+      '  }',
+      '  void preDeclarationSymbol;',
+      '}',
+      'const postNamespaceDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps namespace ambient class declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'namespace ShadowNamespace {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare class moduleAlias {}',
+      '  void preDeclarationSymbol;',
+      '}',
+      'const postNamespaceDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps namespace ambient enum declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'namespace ShadowNamespace {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare enum moduleAlias {',
+      '    Marker = 0,',
       '  }',
       '  void preDeclarationSymbol;',
       '}',
