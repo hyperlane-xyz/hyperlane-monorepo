@@ -5608,6 +5608,51 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('throws deterministic message when evm chain id lookup throws unstringifiable error', () => {
+      const unstringifiableError = {
+        [Symbol.toPrimitive]() {
+          throw new Error('chain-id to-primitive boom');
+        },
+      };
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getEvmChainId: () => {
+          throw unstringifiableError;
+        },
+      } as unknown as Parameters<typeof getSafeService>[1];
+
+      expect(() => getSafeService('test', multiProviderMock)).to.throw(
+        'Failed to resolve EVM chain id for test: <unstringifiable>',
+      );
+    });
+
+    it('throws when safe api key accessor is inaccessible', () => {
+      const metadataWithThrowingApiKey: {
+        gnosisSafeTransactionServiceUrl: string;
+        gnosisSafeApiKey?: string;
+      } = {
+        gnosisSafeTransactionServiceUrl:
+          'https://safe-transaction-mainnet.safe.global/api',
+      };
+      Object.defineProperty(metadataWithThrowingApiKey, 'gnosisSafeApiKey', {
+        get() {
+          throw new Error('api key accessor boom');
+        },
+      });
+
+      const multiProviderMock = {
+        getChainMetadata: () => metadataWithThrowingApiKey,
+        getEvmChainId: () => 1,
+      } as unknown as Parameters<typeof getSafeService>[1];
+
+      expect(() => getSafeService('test', multiProviderMock)).to.throw(
+        'Safe API key is inaccessible for test',
+      );
+    });
+
     it('throws when safe api key is non-string', () => {
       const multiProviderMock = {
         getChainMetadata: () => ({
