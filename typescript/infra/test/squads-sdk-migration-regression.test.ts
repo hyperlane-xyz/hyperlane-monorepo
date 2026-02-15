@@ -307,6 +307,21 @@ function assertSupportSourcePathShape(
   ).to.equal(false);
 }
 
+function assertInfraRegressionCommandTokenSet(
+  tokenPaths: readonly string[],
+  tokenSetLabel: string,
+): void {
+  expect(tokenPaths).to.deep.equal([...SQUADS_REGRESSION_TEST_PATHS]);
+  expect(new Set(tokenPaths).size).to.equal(tokenPaths.length);
+  for (const tokenPath of tokenPaths) {
+    assertRegressionTestPathShape(tokenPath, `${tokenSetLabel} token path`);
+  }
+  assertTrackedSourcePathSetNormalizedAndDeduplicated(
+    tokenPaths,
+    `${tokenSetLabel} token set`,
+  );
+}
+
 describe('squads sdk migration regression', () => {
   it('keeps squads script constants immutable', () => {
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
@@ -517,14 +532,10 @@ describe('squads sdk migration regression', () => {
       ),
     ).to.equal(1);
     const quotedScriptPaths = getQuotedInfraSquadsRegressionPaths();
-    expect(quotedScriptPaths).to.deep.equal([...SQUADS_REGRESSION_TEST_PATHS]);
-    expect(new Set(quotedScriptPaths).size).to.equal(quotedScriptPaths.length);
-    for (const quotedScriptPath of quotedScriptPaths) {
-      assertRegressionTestPathShape(
-        quotedScriptPath,
-        'quoted squads regression script path',
-      );
-    }
+    assertInfraRegressionCommandTokenSet(
+      quotedScriptPaths,
+      'quoted squads regression command',
+    );
     for (const scriptPath of SQUADS_REGRESSION_TEST_PATHS) {
       const quotedScriptPath = `"${scriptPath}"`;
       expect(
@@ -535,14 +546,14 @@ describe('squads sdk migration regression', () => {
         `Expected squads test command to include quoted regression path exactly once: ${scriptPath}`,
       ).to.equal(1);
     }
-    assertTrackedSourcePathSetNormalizedAndDeduplicated(
-      quotedScriptPaths,
-      'quoted squads regression test command',
-    );
   });
 
   it('keeps infra squads test command excluding support-module paths', () => {
     const quotedScriptPaths = getQuotedInfraSquadsRegressionPaths();
+    assertInfraRegressionCommandTokenSet(
+      quotedScriptPaths,
+      'quoted squads regression command',
+    );
     for (const supportPath of SQUADS_TRACKED_TEST_SUPPORT_PATHS) {
       expect(quotedScriptPaths.includes(supportPath)).to.equal(false);
     }
@@ -550,6 +561,10 @@ describe('squads sdk migration regression', () => {
 
   it('keeps quoted infra squads regression command tokens isolated from caller mutation', () => {
     const baselineQuotedScriptPaths = getQuotedInfraSquadsRegressionPaths();
+    assertInfraRegressionCommandTokenSet(
+      baselineQuotedScriptPaths,
+      'baseline quoted squads regression command',
+    );
     const callerMutatedQuotedScriptPaths = [
       ...getQuotedInfraSquadsRegressionPaths(),
     ];
@@ -558,6 +573,10 @@ describe('squads sdk migration regression', () => {
     const subsequentQuotedScriptPaths = getQuotedInfraSquadsRegressionPaths();
     expect(callerMutatedQuotedScriptPaths).to.not.deep.equal(
       baselineQuotedScriptPaths,
+    );
+    assertInfraRegressionCommandTokenSet(
+      subsequentQuotedScriptPaths,
+      'subsequent quoted squads regression command',
     );
     expect(subsequentQuotedScriptPaths).to.deep.equal(
       baselineQuotedScriptPaths,
