@@ -4997,6 +4997,108 @@ describe('squads transaction reader', () => {
     }
   });
 
+  it('throws contextual error when config transaction decoder accessor throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readConfigTransaction: (
+        chain: string,
+        transactionIndex: number,
+        proposalData: Record<string, unknown>,
+        accountInfo: Record<string, unknown>,
+      ) => Promise<Record<string, unknown>>;
+    };
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      accounts.ConfigTransaction,
+      'fromAccountInfo',
+    );
+    Object.defineProperty(accounts.ConfigTransaction, 'fromAccountInfo', {
+      configurable: true,
+      get() {
+        throw new Error('decoder unavailable');
+      },
+    });
+
+    try {
+      const thrownError = await captureAsyncError(() =>
+        readerAny.readConfigTransaction(
+          'solanamainnet',
+          5,
+          {
+            proposal: {},
+            proposalPda: new PublicKey('11111111111111111111111111111111'),
+            multisigPda: new PublicKey('11111111111111111111111111111111'),
+          },
+          { data: Buffer.alloc(0) },
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read ConfigTransaction decoder for solanamainnet at index 5: Error: decoder unavailable',
+      );
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          accounts.ConfigTransaction,
+          'fromAccountInfo',
+          originalDescriptor,
+        );
+      }
+    }
+  });
+
+  it('throws contextual error when config transaction decoder is missing', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readConfigTransaction: (
+        chain: string,
+        transactionIndex: number,
+        proposalData: Record<string, unknown>,
+        accountInfo: Record<string, unknown>,
+      ) => Promise<Record<string, unknown>>;
+    };
+    const originalFromAccountInfo = accounts.ConfigTransaction.fromAccountInfo;
+    (
+      accounts.ConfigTransaction as unknown as {
+        fromAccountInfo?: unknown;
+      }
+    ).fromAccountInfo = undefined;
+
+    try {
+      const thrownError = await captureAsyncError(() =>
+        readerAny.readConfigTransaction(
+          'solanamainnet',
+          5,
+          {
+            proposal: {},
+            proposalPda: new PublicKey('11111111111111111111111111111111'),
+            multisigPda: new PublicKey('11111111111111111111111111111111'),
+          },
+          { data: Buffer.alloc(0) },
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid ConfigTransaction decoder for solanamainnet at index 5: expected fromAccountInfo function, got undefined',
+      );
+    } finally {
+      (
+        accounts.ConfigTransaction as unknown as {
+          fromAccountInfo: typeof originalFromAccountInfo;
+        }
+      ).fromAccountInfo = originalFromAccountInfo;
+    }
+  });
+
   it('uses fallback addresses when config transaction PDA getters throw', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({

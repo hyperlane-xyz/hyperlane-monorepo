@@ -1778,14 +1778,11 @@ export class SquadsTransactionReader {
     },
     accountInfo: AccountInfo<Buffer>,
   ): Promise<SquadsTransaction> {
-    let configTx: unknown;
-    try {
-      [configTx] = accounts.ConfigTransaction.fromAccountInfo(accountInfo, 0);
-    } catch (error) {
-      throw new Error(
-        `Failed to decode ConfigTransaction for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
-      );
-    }
+    const configTx = this.decodeConfigTransactionForRead(
+      chain,
+      transactionIndex,
+      accountInfo,
+    );
 
     const instructions: SquadsGovernTransaction[] = [];
     let actions: unknown;
@@ -1842,6 +1839,41 @@ export class SquadsTransactionReader {
       ),
       instructions,
     };
+  }
+
+  private decodeConfigTransactionForRead(
+    chain: SquadsChainName,
+    transactionIndex: number,
+    accountInfo: AccountInfo<Buffer>,
+  ): unknown {
+    let fromAccountInfoValue: unknown;
+    try {
+      fromAccountInfoValue = (
+        accounts.ConfigTransaction as { fromAccountInfo?: unknown }
+      ).fromAccountInfo;
+    } catch (error) {
+      throw new Error(
+        `Failed to read ConfigTransaction decoder for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    assert(
+      typeof fromAccountInfoValue === 'function',
+      `Invalid ConfigTransaction decoder for ${chain} at index ${transactionIndex}: expected fromAccountInfo function, got ${getUnknownValueTypeName(fromAccountInfoValue)}`,
+    );
+
+    try {
+      const [configTx] = fromAccountInfoValue.call(
+        accounts.ConfigTransaction,
+        accountInfo,
+        0,
+      );
+      return configTx;
+    } catch (error) {
+      throw new Error(
+        `Failed to decode ConfigTransaction for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
   }
 
   private async readVaultTransaction(
