@@ -65,15 +65,16 @@ const SKIPPED_DIRECTORIES = new Set([
 ]);
 const SQUADS_REGRESSION_TEST_PATHS = Object.freeze([
   'test/squads-cli-helpers.test.ts',
-  'test/squads-sdk-migration-regression.test.ts',
-  'test/squads-test-constants.test.ts',
-  'test/squads-test-utils.test.ts',
   'test/squads-scripts-help.test.ts',
+  'test/squads-sdk-migration-regression.test.ts',
+  'test/squads-test-utils.test.ts',
+  'test/squads-test-constants.test.ts',
 ]);
 const SQUADS_TRACKED_TEST_SUPPORT_PATHS = Object.freeze([
   'test/squads-test-constants.ts',
   'test/squads-test-utils.ts',
 ]);
+const EXPECTED_INFRA_SQUADS_TEST_SCRIPT = `mocha --config ../sdk/.mocharc.json ${SQUADS_REGRESSION_TEST_PATHS.map((scriptPath) => `"${scriptPath}"`).join(' ')}`;
 
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
@@ -358,7 +359,7 @@ describe('squads sdk migration regression', () => {
     const infraPackageJson = readInfraPackageJson();
 
     expect(infraPackageJson.scripts?.['test:squads']).to.equal(
-      'mocha --config ../sdk/.mocharc.json "test/squads-cli-helpers.test.ts" "test/squads-scripts-help.test.ts" "test/squads-sdk-migration-regression.test.ts" "test/squads-test-utils.test.ts" "test/squads-test-constants.test.ts"',
+      EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
     );
   });
 
