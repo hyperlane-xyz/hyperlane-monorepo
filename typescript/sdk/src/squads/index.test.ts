@@ -115,7 +115,7 @@ const SELF_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN =
 const PARENTHESIZED_SELF_PROCESS_REFERENCE_PATTERN =
   /\(\s*self\s*\)\s*(?:\.\s*process\b|\[\s*['"]process['"]\s*\])/;
 const GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN =
-  /\{[^}]*\bprocess\b[^}]*\}\s*=\s*(?:globalThis|global|window)\b/;
+  /\{[^}]*\bprocess\b[^}]*\}\s*=\s*(?:globalThis|global|window|self)\b/;
 const CONSOLE_REFERENCE_PATTERN =
   /\bconsole\s*(?:\.\s*(?:log|info|warn|error|debug|trace|table)\s*\(|\[\s*['"](?:log|info|warn|error|debug|trace|table)['"]\s*\]\s*\()/;
 const CONSOLE_DESTRUCTURE_REFERENCE_PATTERN =
@@ -145,7 +145,7 @@ const SELF_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN =
 const PARENTHESIZED_SELF_CONSOLE_REFERENCE_PATTERN =
   /\(\s*self\s*\)\s*(?:\.\s*console\b|\[\s*['"]console['"]\s*\])/;
 const GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN =
-  /\{[^}]*\bconsole\b[^}]*\}\s*=\s*(?:globalThis|global|window)\b/;
+  /\{[^}]*\bconsole\b[^}]*\}\s*=\s*(?:globalThis|global|window|self)\b/;
 const CLI_GLUE_IMPORT_PATTERN =
   /(?:from\s+['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]|import\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\)|require\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\))/;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
@@ -1233,6 +1233,16 @@ describe('squads barrel exports', () => {
       ),
     ).to.equal(true);
     expect(
+      GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN.test(
+        'const { process } = self',
+      ),
+    ).to.equal(true);
+    expect(
+      GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(
+        'const { console } = self',
+      ),
+    ).to.equal(true);
+    expect(
       GLOBAL_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
         'global?.console',
       ),
@@ -1287,6 +1297,16 @@ describe('squads barrel exports', () => {
     expect(
       GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(
         'const { consoles } = window',
+      ),
+    ).to.equal(false);
+    expect(
+      GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN.test(
+        'const { processor } = self',
+      ),
+    ).to.equal(false);
+    expect(
+      GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN.test(
+        'const { consoles } = self',
       ),
     ).to.equal(false);
     expect(
