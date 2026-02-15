@@ -6386,6 +6386,67 @@ describe('gnosisSafe utils', () => {
       expect(statuses).to.deep.equal([]);
     });
 
+    it('logs contextual error when safe threshold parsing fails with unstringifiable value', async () => {
+      const unstringifiableThreshold = {
+        [Symbol.toPrimitive]() {
+          throw new Error('threshold to-primitive boom');
+        },
+      };
+      safeModule.init = (async () => ({
+        getThreshold: async () => unstringifiableThreshold as unknown as number,
+        getBalance: async () => BigNumber.from(1),
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => ({
+        results: [],
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const logger = rootLogger as unknown as {
+        error: (...args: unknown[]) => void;
+      };
+      const originalErrorLogger = logger.error;
+      const loggedMessages: unknown[] = [];
+      logger.error = (...args: unknown[]) => {
+        loggedMessages.push(args[0]);
+      };
+
+      let statuses;
+      try {
+        statuses = await getPendingTxsForChains(['test'], multiProviderMock, {
+          test: '0x52908400098527886e0f7030069857d2e4169ee7',
+        });
+      } finally {
+        logger.error = originalErrorLogger;
+      }
+
+      expect(statuses).to.deep.equal([]);
+      const contextualLog = loggedMessages
+        .map((entry) => String(entry))
+        .find((entry) =>
+          entry.includes(
+            'Failed to parse Safe threshold for 0x52908400098527886E0F7030069857D2E4169EE7 on test:',
+          ),
+        );
+      expect(contextualLog).to.not.equal(undefined);
+      expect(contextualLog).to.include('<unstringifiable>');
+    });
+
     it('returns empty when safe balance fetch throws unstringifiable error', async () => {
       const unstringifiableError = {
         [Symbol.toPrimitive]() {
@@ -6433,6 +6494,74 @@ describe('gnosisSafe utils', () => {
       );
 
       expect(statuses).to.deep.equal([]);
+    });
+
+    it('logs contextual error when safe balance parsing fails with unstringifiable value', async () => {
+      const unstringifiableBalance = {
+        [Symbol.toPrimitive]() {
+          throw new Error('balance to-primitive boom');
+        },
+      };
+      safeModule.init = (async () => ({
+        getThreshold: async () => 1,
+        getBalance: async () => unstringifiableBalance as unknown as BigNumber,
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => ({
+        results: [
+          {
+            nonce: '1',
+            submissionDate: '2026-01-01T00:00:00Z',
+            safeTxHash: `0x${'aa'.repeat(32)}`,
+            confirmations: [],
+          },
+        ],
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const logger = rootLogger as unknown as {
+        error: (...args: unknown[]) => void;
+      };
+      const originalErrorLogger = logger.error;
+      const loggedMessages: unknown[] = [];
+      logger.error = (...args: unknown[]) => {
+        loggedMessages.push(args[0]);
+      };
+
+      let statuses;
+      try {
+        statuses = await getPendingTxsForChains(['test'], multiProviderMock, {
+          test: '0x52908400098527886e0f7030069857d2e4169ee7',
+        });
+      } finally {
+        logger.error = originalErrorLogger;
+      }
+
+      expect(statuses).to.deep.equal([]);
+      const contextualLog = loggedMessages
+        .map((entry) => String(entry))
+        .find((entry) =>
+          entry.includes(
+            'Failed to parse Safe balance for 0x52908400098527886E0F7030069857D2E4169EE7 on test:',
+          ),
+        );
+      expect(contextualLog).to.not.equal(undefined);
+      expect(contextualLog).to.include('<unstringifiable>');
     });
 
     it('returns empty when native token fetch throws unstringifiable error', async () => {
@@ -6930,6 +7059,81 @@ describe('gnosisSafe utils', () => {
 
       expect(statuses).to.have.lengthOf(1);
       expect(statuses[0].fullTxHash).to.equal(`0x${'dd'.repeat(32)}`);
+    });
+
+    it('logs contextual error when pending tx nonce parsing fails with unstringifiable value', async () => {
+      const unstringifiableNonce = {
+        [Symbol.toPrimitive]() {
+          throw new Error('nonce to-primitive boom');
+        },
+      };
+      safeModule.init = (async () => ({
+        getThreshold: async () => 1,
+        getBalance: async () => BigNumber.from('1000000000000000000'),
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => ({
+        results: [
+          {
+            nonce: unstringifiableNonce,
+            submissionDate: '2026-01-01T00:00:00Z',
+            safeTxHash: `0x${'aa'.repeat(32)}`,
+            confirmations: [],
+          },
+          {
+            nonce: '2',
+            submissionDate: '2026-01-01T00:00:00Z',
+            safeTxHash: `0x${'bb'.repeat(32)}`,
+            confirmations: [],
+          },
+        ],
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const logger = rootLogger as unknown as {
+        error: (...args: unknown[]) => void;
+      };
+      const originalErrorLogger = logger.error;
+      const loggedMessages: unknown[] = [];
+      logger.error = (...args: unknown[]) => {
+        loggedMessages.push(args[0]);
+      };
+
+      let statuses;
+      try {
+        statuses = await getPendingTxsForChains(['test'], multiProviderMock, {
+          test: '0x52908400098527886e0f7030069857d2e4169ee7',
+        });
+      } finally {
+        logger.error = originalErrorLogger;
+      }
+
+      expect(statuses).to.have.lengthOf(1);
+      expect(statuses[0].fullTxHash).to.equal(`0x${'bb'.repeat(32)}`);
+      const contextualLog = loggedMessages
+        .map((entry) => String(entry))
+        .find((entry) =>
+          entry.includes(
+            'Failed to parse pending Safe transaction nonce at index 0 on test:',
+          ),
+        );
+      expect(contextualLog).to.not.equal(undefined);
+      expect(contextualLog).to.include('<unstringifiable>');
     });
 
     it('logs contextual error when pending tx hash parsing fails for unstringifiable value', async () => {
