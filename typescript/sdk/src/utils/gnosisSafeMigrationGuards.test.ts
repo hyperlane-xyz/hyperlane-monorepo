@@ -6,6 +6,17 @@ import { expect } from 'chai';
 
 const SOURCE_FILE_GLOB = '*.{ts,js,mts,cts,mjs,cjs}' as const;
 
+function normalizeNamedSymbol(symbol: string): string {
+  const trimmed = symbol.trim();
+  if (!trimmed || trimmed.startsWith('...')) return '';
+  return trimmed
+    .replace(/^type\s+/, '')
+    .replace(/\s+as\s+\w+$/, '')
+    .replace(/\s*:\s*[^:]+$/, '')
+    .replace(/\s*=\s*.+$/, '')
+    .trim();
+}
+
 function extractNamedExportSymbols(
   sourceText: string,
   modulePath: string,
@@ -32,11 +43,7 @@ function extractNamedExportSymbols(
     exportStartIndex + exportPrefixLength,
     fromIndex,
   );
-  return exportedBlock
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => s.replace(/\s+as\s+\w+$/, ''));
+  return exportedBlock.split(',').map(normalizeNamedSymbol).filter(Boolean);
 }
 
 function extractTopLevelDeclarationExports(sourceText: string): string[] {

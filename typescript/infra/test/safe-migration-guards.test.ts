@@ -53,6 +53,17 @@ const INFRA_SOURCE_PATHS = ['scripts', 'src', 'config'] as const;
 const INFRA_SOURCE_AND_TEST_PATHS = [...INFRA_SOURCE_PATHS, 'test'] as const;
 const SOURCE_FILE_GLOB = '*.{ts,js,mts,cts,mjs,cjs}' as const;
 
+function normalizeNamedSymbol(symbol: string): string {
+  const trimmed = symbol.trim();
+  if (!trimmed || trimmed.startsWith('...')) return '';
+  return trimmed
+    .replace(/^type\s+/, '')
+    .replace(/\s+as\s+\w+$/, '')
+    .replace(/\s*:\s*[^:]+$/, '')
+    .replace(/\s*=\s*.+$/, '')
+    .trim();
+}
+
 function expectNoRipgrepMatches(
   pattern: string,
   description: string,
@@ -103,11 +114,7 @@ function extractNamedExportSymbols(
     exportStartIndex + exportPrefixLength,
     fromIndex,
   );
-  return exportedBlock
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => s.replace(/\s+as\s+\w+$/, ''));
+  return exportedBlock.split(',').map(normalizeNamedSymbol).filter(Boolean);
 }
 
 function getSdkGnosisSafeExports(): string[] {
@@ -169,7 +176,8 @@ describe('Safe migration guards', () => {
         ]) {
           const importedSymbols = imported
             .split(',')
-            .map((s) => s.trim().replace(/\s+as\s+\w+$/, ''));
+            .map(normalizeNamedSymbol)
+            .filter(Boolean);
 
           for (const safeSymbol of importedSymbols) {
             if (
