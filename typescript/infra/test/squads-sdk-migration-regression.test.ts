@@ -559,6 +559,13 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps squads tracked test-asset ordering composed from regression then support paths', () => {
+    expect(SQUADS_TRACKED_TEST_ASSET_PATHS).to.deep.equal([
+      ...SQUADS_REGRESSION_TEST_PATHS,
+      ...SQUADS_TRACKED_TEST_SUPPORT_PATHS,
+    ]);
+  });
+
   it('keeps squads test-support path set normalized and deduplicated', () => {
     assertTrackedSourcePathSetNormalizedAndDeduplicated(
       SQUADS_TRACKED_TEST_SUPPORT_PATHS,
