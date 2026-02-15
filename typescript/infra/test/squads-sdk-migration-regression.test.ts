@@ -87,6 +87,10 @@ function hasTrackedSourceExtension(relativePath: string): boolean {
   );
 }
 
+function shouldSkipTrackedSourceDirectory(entryName: string): boolean {
+  return SKIPPED_DIRECTORIES.has(entryName);
+}
+
 function isNormalizedTrackedSourceRelativePath(relativePath: string): boolean {
   return (
     relativePath.length > 0 &&
@@ -153,7 +157,7 @@ function listTrackedSourceFilesRecursively(relativeDir: string): string[] {
   const files: string[] = [];
 
   for (const entry of entries) {
-    if (SKIPPED_DIRECTORIES.has(entry.name)) {
+    if (shouldSkipTrackedSourceDirectory(entry.name)) {
       continue;
     }
 
@@ -205,6 +209,28 @@ describe('squads sdk migration regression', () => {
         `Expected tracked source extension policy to include squads script extension: ${squadsScriptExtension}`,
       ).to.equal(true);
     }
+  });
+
+  it('keeps skipped tracked-source directory policy normalized and deduplicated', () => {
+    const skippedDirectoryNames = [...SKIPPED_DIRECTORIES];
+    expect(new Set(skippedDirectoryNames).size).to.equal(
+      skippedDirectoryNames.length,
+    );
+
+    for (const skippedDirectoryName of skippedDirectoryNames) {
+      expect(skippedDirectoryName.length).to.be.greaterThan(0);
+      expect(skippedDirectoryName).to.equal(skippedDirectoryName.trim());
+      expect(skippedDirectoryName.includes('/')).to.equal(false);
+      expect(skippedDirectoryName.includes('\\')).to.equal(false);
+      expect(shouldSkipTrackedSourceDirectory(skippedDirectoryName)).to.equal(
+        true,
+      );
+    }
+
+    expect(
+      shouldSkipTrackedSourceDirectory('src'),
+      'Expected non-skipped source directory to remain tracked',
+    ).to.equal(false);
   });
 
   it('keeps guarded squads script path lists valid and deduplicated', () => {
