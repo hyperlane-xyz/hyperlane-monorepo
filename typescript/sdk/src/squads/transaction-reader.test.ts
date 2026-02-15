@@ -405,6 +405,57 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('normalizes padded chain names before vault transaction parsing', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+      readVaultTransaction: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    let observedProposalFetchChain: string | undefined;
+    readerAny.fetchProposalData = async (chain) => {
+      observedProposalFetchChain = chain;
+      return createMockProposalData(5);
+    };
+
+    readerAny.fetchTransactionAccount = async () => ({
+      data: Buffer.from([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT],
+        1,
+      ]),
+    });
+
+    let observedVaultParseChain: string | undefined;
+    readerAny.readVaultTransaction = async (chain, transactionIndex) => {
+      observedVaultParseChain = chain;
+      return { chain, transactionIndex };
+    };
+
+    const result = (await reader.read('  solanamainnet  ', 5)) as {
+      chain: string;
+      transactionIndex: number;
+    };
+
+    expect(observedProposalFetchChain).to.equal('solanamainnet');
+    expect(observedVaultParseChain).to.equal('solanamainnet');
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      transactionIndex: 5,
+    });
+  });
+
   it('fails before account lookup when proposal index mismatches request', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
