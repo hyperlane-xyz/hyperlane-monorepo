@@ -253,3 +253,5 @@ Regression coverage now also confirms spoofed boxed-string and `String.prototype
 Regression coverage now also confirms boxed-string-valued `Error.cause` payloads (same-realm and cross-realm, including hostile `Symbol.toStringTag` accessors) remain detectable/ignorable for runtime-unavailable matching.
 
 Regression coverage now also confirms cross-realm boxed-string-valued `Error.cause` payloads remain detectable/ignorable both with and without hostile `Symbol.toStringTag` accessors.
+
+Regression coverage now also confirms spoofed boxed-string and `String.prototype` impostor top-level `Error.cause` payloads are ignored for runtime matching.

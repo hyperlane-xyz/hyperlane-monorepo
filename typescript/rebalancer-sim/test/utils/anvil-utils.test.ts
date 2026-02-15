@@ -630,6 +630,30 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
     });
 
+    it('ignores spoofed boxed-string top-level Error causes when coercion fails', () => {
+      const wrappedError = new Error('hidden message');
+      (wrappedError as Error & { cause?: unknown }).cause =
+        buildUncoercibleSpoofedBoxedString();
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('ignores spoofed boxed-string top-level Error causes when coercion succeeds', () => {
+      const wrappedError = new Error('hidden message');
+      (wrappedError as Error & { cause?: unknown }).cause =
+        buildCoercibleSpoofedBoxedString('No Docker client strategy found');
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('ignores string-prototype impostor top-level Error causes when coercion succeeds', () => {
+      const wrappedError = new Error('hidden message');
+      (wrappedError as Error & { cause?: unknown }).cause =
+        buildStringPrototypeImpostor('No Docker client strategy found');
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
     it('matches runtime causes when wrapper object message is whitespace', () => {
       expect(
         isContainerRuntimeUnavailable({
