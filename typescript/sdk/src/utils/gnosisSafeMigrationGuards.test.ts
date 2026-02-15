@@ -4034,6 +4034,42 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
+  it('does not leak block lexical module-source alias shadowing before declaration to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      '{',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  const moduleAlias = { inner: preDeclarationSymbol };',
+      '  void moduleAlias;',
+      '}',
+      'const postBlockDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('does not leak hoisted block function module-source alias shadowing to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      '{',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  function moduleAlias(_value: unknown) {',
+      '    return _value;',
+      '  }',
+      '  void preDeclarationSymbol;',
+      '}',
+      'const postBlockDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
   it('does not leak block lexical alias shadowing before declaration to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
