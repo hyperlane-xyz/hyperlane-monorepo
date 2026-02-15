@@ -40,8 +40,8 @@ const SDK_DEEP_IMPORT_PATTERN =
   /(?:from\s+['"]@hyperlane-xyz\/sdk\/src\/|import\(\s*['"]@hyperlane-xyz\/sdk\/src\/|require\(\s*['"]@hyperlane-xyz\/sdk\/src\/)/;
 const SDK_SUBPATH_IMPORT_PATTERN =
   /(?:from\s+['"]@hyperlane-xyz\/sdk\/|import\(\s*['"]@hyperlane-xyz\/sdk\/|require\(\s*['"]@hyperlane-xyz\/sdk\/)/;
-const LOCAL_SDK_SOURCE_REFERENCE_PATTERN =
-  /(?:from\s+['"](?:\.\.\/)+sdk\/src\/|import\(\s*['"](?:\.\.\/)+sdk\/src\/|require\(\s*['"](?:\.\.\/)+sdk\/src\/|from\s+['"]typescript\/sdk\/src\/|import\(\s*['"]typescript\/sdk\/src\/|require\(\s*['"]typescript\/sdk\/src\/)/;
+const LOCAL_SDK_WORKSPACE_REFERENCE_PATTERN =
+  /(?:from\s+['"](?:\.\.\/)+sdk\/(?:src|dist)\/|import\(\s*['"](?:\.\.\/)+sdk\/(?:src|dist)\/|require\(\s*['"](?:\.\.\/)+sdk\/(?:src|dist)\/|from\s+['"]typescript\/sdk\/(?:src|dist)\/|import\(\s*['"]typescript\/sdk\/(?:src|dist)\/|require\(\s*['"]typescript\/sdk\/(?:src|dist)\/)/;
 const SDK_SQUADS_IMPORT_PATTERN =
   /(?:from\s+['"]@hyperlane-xyz\/sdk['"]|import\(\s*['"]@hyperlane-xyz\/sdk['"]\s*\)|require\(\s*['"]@hyperlane-xyz\/sdk['"]\s*\))/;
 const FORMATTED_ERROR_USAGE_PATTERN = /formatScriptError\(/;
@@ -90,8 +90,8 @@ function assertNoForbiddenSquadsReferences(
   ).to.equal(false);
 
   expect(
-    LOCAL_SDK_SOURCE_REFERENCE_PATTERN.test(fileContents),
-    `Expected file to avoid local SDK source-path imports: ${relativePath}`,
+    LOCAL_SDK_WORKSPACE_REFERENCE_PATTERN.test(fileContents),
+    `Expected file to avoid local SDK workspace-path imports: ${relativePath}`,
   ).to.equal(false);
 }
 
