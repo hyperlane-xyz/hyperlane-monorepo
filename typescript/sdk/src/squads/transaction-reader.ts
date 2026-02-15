@@ -386,45 +386,137 @@ export class SquadsTransactionReader {
 
   async init(warpRoutes: Record<string, WarpCoreConfig>): Promise<void> {
     for (const [routeName, warpRoute] of Object.entries(warpRoutes)) {
-      for (const token of Object.values(warpRoute.tokens)) {
-        let chainProtocol: ProtocolType | null | undefined;
-        try {
-          chainProtocol = this.mpp.tryGetProtocol(token.chainName);
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to resolve protocol for warp route ${routeName} on ${token.chainName}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          continue;
-        }
-        if (chainProtocol !== ProtocolType.Sealevel) continue;
+      let routeTokens: unknown;
+      try {
+        routeTokens = warpRoute.tokens;
+      } catch (error) {
+        rootLogger.warn(
+          `Failed to read warp route tokens for ${routeName}: ${stringifyUnknownSquadsError(error)}`,
+        );
+        continue;
+      }
 
-        const addressOrDenom = token.addressOrDenom;
-        if (typeof addressOrDenom !== 'string') {
-          if (
-            typeof addressOrDenom !== 'undefined' &&
-            addressOrDenom !== null
-          ) {
-            rootLogger.warn(
-              `Skipping malformed warp route token address for ${routeName} on ${token.chainName}: expected string, got ${getUnknownValueTypeName(addressOrDenom)}`,
-            );
-          }
-          continue;
-        }
+      if (!Array.isArray(routeTokens)) {
+        rootLogger.warn(
+          `Skipping malformed warp route tokens for ${routeName}: expected array, got ${getUnknownValueTypeName(routeTokens)}`,
+        );
+        continue;
+      }
 
-        const address = addressOrDenom.trim().toLowerCase();
-        if (!address) continue;
-
-        if (!this.warpRouteIndex.has(token.chainName)) {
-          this.warpRouteIndex.set(token.chainName, new Map());
-        }
-
-        this.warpRouteIndex.get(token.chainName)!.set(address, {
-          symbol: token.symbol ?? 'Unknown',
-          name: token.name ?? 'Unknown',
-          routeName,
-        });
+      for (const token of routeTokens) {
+        this.indexWarpRouteToken(routeName, token);
       }
     }
+  }
+
+  private indexWarpRouteToken(routeName: string, token: unknown): void {
+    if (!isRecordObject(token)) {
+      rootLogger.warn(
+        `Skipping malformed warp route token for ${routeName}: expected object, got ${getUnknownValueTypeName(token)}`,
+      );
+      return;
+    }
+
+    let chainNameValue: unknown;
+    try {
+      chainNameValue = token.chainName;
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read warp route token chain for ${routeName}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return;
+    }
+
+    if (typeof chainNameValue !== 'string') {
+      rootLogger.warn(
+        `Skipping malformed warp route token chain for ${routeName}: expected string, got ${getUnknownValueTypeName(chainNameValue)}`,
+      );
+      return;
+    }
+
+    const normalizedChainName = chainNameValue.trim();
+    if (normalizedChainName.length === 0) {
+      rootLogger.warn(
+        `Skipping malformed warp route token chain for ${routeName}: expected non-empty string`,
+      );
+      return;
+    }
+
+    let chainProtocol: ProtocolType | null | undefined;
+    try {
+      chainProtocol = this.mpp.tryGetProtocol(normalizedChainName);
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to resolve protocol for warp route ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return;
+    }
+    if (chainProtocol !== ProtocolType.Sealevel) {
+      return;
+    }
+
+    let addressOrDenom: unknown;
+    try {
+      addressOrDenom = token.addressOrDenom;
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read warp route token address for ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return;
+    }
+
+    if (typeof addressOrDenom !== 'string') {
+      if (typeof addressOrDenom !== 'undefined' && addressOrDenom !== null) {
+        rootLogger.warn(
+          `Skipping malformed warp route token address for ${routeName} on ${normalizedChainName}: expected string, got ${getUnknownValueTypeName(addressOrDenom)}`,
+        );
+      }
+      return;
+    }
+
+    const address = addressOrDenom.trim().toLowerCase();
+    if (!address) {
+      return;
+    }
+
+    let symbolValue: unknown;
+    try {
+      symbolValue = token.symbol;
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read warp route token symbol for ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      symbolValue = undefined;
+    }
+    const symbol =
+      typeof symbolValue === 'string' && symbolValue.trim().length > 0
+        ? symbolValue.trim()
+        : 'Unknown';
+
+    let nameValue: unknown;
+    try {
+      nameValue = token.name;
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read warp route token name for ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      nameValue = undefined;
+    }
+    const name =
+      typeof nameValue === 'string' && nameValue.trim().length > 0
+        ? nameValue.trim()
+        : 'Unknown';
+
+    const chainName = normalizedChainName as ChainName;
+    if (!this.warpRouteIndex.has(chainName)) {
+      this.warpRouteIndex.set(chainName, new Map());
+    }
+
+    this.warpRouteIndex.get(chainName)!.set(address, {
+      symbol,
+      name,
+      routeName,
+    });
   }
 
   private isWarpRouteProgram(
