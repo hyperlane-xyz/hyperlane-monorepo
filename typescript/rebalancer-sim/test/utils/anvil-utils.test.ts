@@ -3440,6 +3440,150 @@ describe('Anvil utils', () => {
       }
     });
 
+    it('matches runtime wrapper strings via Object.prototype.toString fallback when String(error) returns triple-escaped uppercase bracketed placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, 'toString', {
+          value: () => String.raw`\\\\\\\"[ARRAY]\\\\\\\"`,
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString runtime fallback after triple-escaped uppercase bracketed String(error) placeholder`,
+        ).to.equal(true);
+      }
+    });
+
+    it('ignores non-runtime wrapper strings via Object.prototype.toString fallback when String(error) returns triple-escaped uppercase bracketed placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, 'toString', {
+          value: () => String.raw`\\\\\\\"[ARRAY]\\\\\\\"`,
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'unrelated nested startup warning',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString non-runtime fallback after triple-escaped uppercase bracketed String(error) placeholder`,
+        ).to.equal(false);
+      }
+    });
+
+    it('matches runtime wrapper strings via Object.prototype.toString fallback when String(error) returns triple-escaped mixed-case bracketed placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, 'toString', {
+          value: () => String.raw`\\\\\\\"[aRrAy]\\\\\\\"`,
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString runtime fallback after triple-escaped mixed-case bracketed String(error) placeholder`,
+        ).to.equal(true);
+      }
+    });
+
+    it('ignores non-runtime wrapper strings via Object.prototype.toString fallback when String(error) returns triple-escaped mixed-case bracketed placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, 'toString', {
+          value: () => String.raw`\\\\\\\"[aRrAy]\\\\\\\"`,
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'unrelated nested startup warning',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString non-runtime fallback after triple-escaped mixed-case bracketed String(error) placeholder`,
+        ).to.equal(false);
+      }
+    });
+
+    it('matches runtime wrapper strings via Object.prototype.toString fallback when String(error) returns triple-escaped lowercase bracketed placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, 'toString', {
+          value: () => String.raw`\\\\\\\"[array]\\\\\\\"`,
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString runtime fallback after triple-escaped lowercase bracketed String(error) placeholder`,
+        ).to.equal(true);
+      }
+    });
+
+    it('ignores non-runtime wrapper strings via Object.prototype.toString fallback when String(error) returns triple-escaped lowercase bracketed placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, 'toString', {
+          value: () => String.raw`\\\\\\\"[array]\\\\\\\"`,
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'unrelated nested startup warning',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString non-runtime fallback after triple-escaped lowercase bracketed String(error) placeholder`,
+        ).to.equal(false);
+      }
+    });
+
     it('matches runtime wrapper strings via Object.prototype.toString fallback when String(error) returns object-tag placeholders under hostile accessors', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       for (const wrapperKind of hostileFallbackWrapperKinds) {
@@ -12228,6 +12372,72 @@ describe('Anvil utils', () => {
 
       expect(formatLocalAnvilStartError(problematic)).to.equal(
         'Failed to start local anvil: [object TripleEscapedMixedQuotedBracketedStringFallbackRuntimeTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString when stringify and inspect are non-informative and String(error) returns a triple-escaped uppercase bracketed placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+        toString() {
+          return String.raw`\\\\\\\"[ARRAY]\\\\\\\"`;
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'TripleEscapedUppercaseBracketedStringFallbackRuntimeTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object TripleEscapedUppercaseBracketedStringFallbackRuntimeTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString when stringify and inspect are non-informative and String(error) returns a triple-escaped mixed-case bracketed placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+        toString() {
+          return String.raw`\\\\\\\"[aRrAy]\\\\\\\"`;
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'TripleEscapedMixedCaseBracketedStringFallbackRuntimeTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object TripleEscapedMixedCaseBracketedStringFallbackRuntimeTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString when stringify and inspect are non-informative and String(error) returns a triple-escaped lowercase bracketed placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+        toString() {
+          return String.raw`\\\\\\\"[array]\\\\\\\"`;
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'TripleEscapedLowercaseBracketedStringFallbackRuntimeTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object TripleEscapedLowercaseBracketedStringFallbackRuntimeTag]',
       );
     });
 
