@@ -1184,7 +1184,15 @@ export class SquadsTransactionReader {
     validators: readonly string[],
   ): { matches: boolean; issues: string[] } {
     const issues: string[] = [];
-    const remoteChain = this.mpp.tryGetChainName(remoteDomain);
+    let remoteChain: string | null | undefined;
+    try {
+      remoteChain = this.mpp.tryGetChainName(remoteDomain);
+    } catch (error) {
+      issues.push(
+        `Failed to resolve chain for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return { matches: false, issues };
+    }
 
     if (!remoteChain) {
       issues.push(`Unknown domain ${remoteDomain}`);
@@ -1197,15 +1205,22 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
-    const expectedConfig = config[remoteChain];
-    if (!expectedConfig) {
+    const route = `${originChain} -> ${remoteChain}`;
+    let expectedConfig: SvmMultisigConfigMap[ChainName];
+    try {
+      expectedConfig = config[remoteChain];
+    } catch (error) {
       issues.push(
-        `No expected config for route ${originChain} -> ${remoteChain}`,
+        `Malformed expected config for route ${route}: failed to read route entry (${stringifyUnknownSquadsError(error)})`,
       );
       return { matches: false, issues };
     }
 
-    const route = `${originChain} -> ${remoteChain}`;
+    if (!expectedConfig) {
+      issues.push(`No expected config for route ${route}`);
+      return { matches: false, issues };
+    }
+
     if (!isPositiveSafeInteger(expectedConfig.threshold)) {
       issues.push(
         `Malformed expected config for route ${route}: threshold must be a positive safe integer`,

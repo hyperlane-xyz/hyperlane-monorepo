@@ -373,6 +373,47 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(0);
   });
 
+  it('returns chain-resolution failure before loading expected configuration', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => {
+        throw new Error('chain resolver failed');
+      },
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Failed to resolve chain for domain 1000: Error: chain resolver failed',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
   it('caches null expected config when resolver throws', () => {
     let resolveConfigCallCount = 0;
     const reader = createReaderForVerification(() => {
@@ -435,6 +476,45 @@ describe('squads transaction reader multisig verification', () => {
     expect(result).to.deep.equal({
       matches: false,
       issues: ['No expected config for route solanamainnet -> solanatestnet'],
+    });
+  });
+
+  it('reports malformed route config access when route lookup throws', () => {
+    const reader = createReaderForVerification(
+      () =>
+        new Proxy(
+          {},
+          {
+            get() {
+              throw new Error('route read failed');
+            },
+          },
+        ) as unknown as Record<
+          string,
+          { threshold: number; validators: readonly string[] }
+        >,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed expected config for route solanamainnet -> solanatestnet: failed to read route entry (Error: route read failed)',
+      ],
     });
   });
 
