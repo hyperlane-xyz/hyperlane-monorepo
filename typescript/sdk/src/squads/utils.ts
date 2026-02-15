@@ -783,6 +783,22 @@ function getSignerPublicKeyForChain(
     );
   }
 
+  let signerPublicKeyThenValue: unknown;
+  try {
+    signerPublicKeyThenValue = (
+      signerPublicKey as { then?: unknown } | null | undefined
+    )?.then;
+  } catch (error) {
+    throw new Error(
+      `Failed to inspect signer public key for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(error)})`,
+    );
+  }
+
+  assert(
+    typeof signerPublicKeyThenValue !== 'function',
+    `Invalid signer public key for ${chain}: expected synchronous PublicKey, got promise-like value`,
+  );
+
   assert(
     signerPublicKey instanceof PublicKey,
     `Invalid signer public key for ${chain}: expected PublicKey, got ${getUnknownValueTypeName(signerPublicKey)}`,

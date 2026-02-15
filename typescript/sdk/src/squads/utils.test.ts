@@ -5248,6 +5248,65 @@ describe('squads utils', () => {
       );
       expect(providerLookupChain).to.equal('solanamainnet');
     });
+
+    it('fails fast when signer publicKey result is promise-like', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () => Promise.resolve(PublicKey.default),
+      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid signer public key for solanamainnet: expected synchronous PublicKey, got promise-like value',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('throws contextual error when signer publicKey promise-like inspection fails', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () =>
+          new Proxy(
+            {},
+            {
+              get(target, property, receiver) {
+                if (property === 'then') {
+                  throw new Error('then unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to inspect signer public key for solanamainnet: failed to read promise-like then field (then unavailable)',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
   });
 
   describe(getTransactionType.name, () => {
