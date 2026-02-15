@@ -558,6 +558,21 @@ describe('squads utils', () => {
         'Failed to read address list length: length unavailable',
       );
     });
+
+    it('throws stable error when address list length is malformed', () => {
+      const hostileAddressList = new Proxy([], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            return 1n;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      expect(() => normalizeSquadsAddressList(hostileAddressList)).to.throw(
+        'Malformed address list length: expected non-negative safe integer, got bigint',
+      );
+    });
   });
 
   describe(parseSquadsMultisigMembers.name, () => {
@@ -621,6 +636,21 @@ describe('squads utils', () => {
 
       expect(() => parseSquadsMultisigMembers(hostileMembers)).to.throw(
         'Failed to read multisig members length: members length unavailable',
+      );
+    });
+
+    it('throws contextual error when members length type is malformed', () => {
+      const hostileMembers = new Proxy([], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            return 1n;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      expect(() => parseSquadsMultisigMembers(hostileMembers)).to.throw(
+        'Malformed multisig members length: expected non-negative safe integer, got bigint',
       );
     });
 
@@ -2670,6 +2700,24 @@ describe('squads utils', () => {
         SquadsProposalVoteError.AlreadyApproved,
       );
     });
+
+    it('returns undefined for vote-log arrays with malformed length values', () => {
+      const malformedLengthLogs = new Proxy([], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            return 1n;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      expect(() =>
+        parseSquadsProposalVoteError(malformedLengthLogs),
+      ).to.not.throw();
+      expect(parseSquadsProposalVoteError(malformedLengthLogs)).to.equal(
+        undefined,
+      );
+    });
   });
 
   describe(parseSquadsProposalVoteErrorFromError.name, () => {
@@ -2821,6 +2869,23 @@ describe('squads utils', () => {
           },
         ),
         logs: ['custom program error: 0x177b'],
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
+    it('uses logs fallback when transactionLogs length is malformed', () => {
+      const error = {
+        transactionLogs: new Proxy([], {
+          get(target, property, receiver) {
+            if (property === 'length') {
+              return 1n;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        }),
+        logs: ['custom program error: 0x177a'],
       };
       expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
         SquadsProposalVoteError.AlreadyApproved,

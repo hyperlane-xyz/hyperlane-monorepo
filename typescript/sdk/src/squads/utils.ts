@@ -223,13 +223,26 @@ function getArrayLengthOrThrow(
   values: readonly unknown[],
   label: string,
 ): number {
+  let lengthValue: unknown;
   try {
-    return values.length;
+    lengthValue = values.length;
   } catch (error) {
     throw new Error(
       `Failed to read ${label} length: ${formatUnknownErrorForMessage(error)}`,
     );
   }
+
+  if (
+    typeof lengthValue !== 'number' ||
+    !Number.isSafeInteger(lengthValue) ||
+    lengthValue < 0
+  ) {
+    throw new Error(
+      `Malformed ${label} length: expected non-negative safe integer, got ${formatSafeIntegerInputValue(lengthValue)}`,
+    );
+  }
+
+  return lengthValue;
 }
 
 function getArrayElementOrThrow(
@@ -335,15 +348,7 @@ export function normalizeSquadsAddressList(
 
   const addresses: string[] = [];
   let invalidEntries = 0;
-
-  let entryCount: number;
-  try {
-    entryCount = values.length;
-  } catch (error) {
-    throw new Error(
-      `Failed to read address list length: ${formatUnknownErrorForMessage(error)}`,
-    );
-  }
+  const entryCount = getArrayLengthOrThrow(values, 'address list');
 
   for (let index = 0; index < entryCount; index += 1) {
     let value: unknown;
@@ -461,7 +466,7 @@ function parseSquadsProposalVoteErrorFromUnknownLogs(
 
   let logEntryCount: number;
   try {
-    logEntryCount = value.length;
+    logEntryCount = getArrayLengthOrThrow(value, 'vote log entries');
   } catch {
     return undefined;
   }
