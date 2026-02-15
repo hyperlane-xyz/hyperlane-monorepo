@@ -594,7 +594,7 @@ function getSquadAndProviderForResolvedChain(
 export async function getSquadProposal(
   chain: unknown,
   mpp: MultiProtocolProvider,
-  transactionIndex: number,
+  transactionIndex: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<
   | {
@@ -605,13 +605,16 @@ export async function getSquadProposal(
   | undefined
 > {
   const normalizedChain = resolveSquadsChainName(chain);
-  assertValidTransactionIndexInput(transactionIndex, normalizedChain);
+  const normalizedTransactionIndex = assertValidTransactionIndexInput(
+    transactionIndex,
+    normalizedChain,
+  );
 
   try {
     const proposalAccountData = await getSquadProposalAccountForResolvedChain(
       normalizedChain,
       mpp,
-      transactionIndex,
+      normalizedTransactionIndex,
       svmProviderOverride,
     );
     if (!proposalAccountData) {
@@ -630,7 +633,7 @@ export async function getSquadProposal(
   } catch (error) {
     const errorText = formatUnknownErrorForMessage(error);
     rootLogger.warn(
-      `Failed to fetch proposal ${transactionIndex} on ${normalizedChain}: ${errorText}`,
+      `Failed to fetch proposal ${normalizedTransactionIndex} on ${normalizedChain}: ${errorText}`,
     );
     return undefined;
   }
@@ -639,7 +642,7 @@ export async function getSquadProposal(
 export async function getSquadProposalAccount(
   chain: unknown,
   mpp: MultiProtocolProvider,
-  transactionIndex: number,
+  transactionIndex: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<
   | {
@@ -651,12 +654,15 @@ export async function getSquadProposalAccount(
   | undefined
 > {
   const normalizedChain = resolveSquadsChainName(chain);
-  assertValidTransactionIndexInput(transactionIndex, normalizedChain);
+  const normalizedTransactionIndex = assertValidTransactionIndexInput(
+    transactionIndex,
+    normalizedChain,
+  );
 
   const proposalAccountData = await getSquadProposalAccountForResolvedChain(
     normalizedChain,
     mpp,
-    transactionIndex,
+    normalizedTransactionIndex,
     svmProviderOverride,
   );
   if (!proposalAccountData) {
