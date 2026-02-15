@@ -226,6 +226,44 @@ function listSdkSquadsTestFilePathsRecursively(
   return discoveredTestPaths.sort(compareLexicographically);
 }
 
+function listSdkSquadsNonTestSourceFilePathsRecursively(
+  absoluteDirectoryPath: string,
+  relativeDirectoryPath: string = '',
+): readonly string[] {
+  const directoryEntries = fs
+    .readdirSync(absoluteDirectoryPath, { withFileTypes: true })
+    .sort((left, right) => compareLexicographically(left.name, right.name));
+  const discoveredNonTestSourcePaths: string[] = [];
+
+  for (const entry of directoryEntries) {
+    const nextRelativePath =
+      relativeDirectoryPath.length === 0
+        ? entry.name
+        : path.posix.join(relativeDirectoryPath, entry.name);
+    const nextAbsolutePath = path.join(absoluteDirectoryPath, entry.name);
+
+    if (entry.isDirectory()) {
+      discoveredNonTestSourcePaths.push(
+        ...listSdkSquadsNonTestSourceFilePathsRecursively(
+          nextAbsolutePath,
+          nextRelativePath,
+        ),
+      );
+      continue;
+    }
+
+    if (
+      entry.isFile() &&
+      entry.name.endsWith('.ts') &&
+      !entry.name.endsWith('.test.ts')
+    ) {
+      discoveredNonTestSourcePaths.push(`src/squads/${nextRelativePath}`);
+    }
+  }
+
+  return discoveredNonTestSourcePaths.sort(compareLexicographically);
+}
+
 function matchesSingleAsteriskGlob(
   candidatePath: string,
   globPattern: string,
@@ -556,6 +594,17 @@ describe('squads barrel exports', () => {
     expect(recursivelyDiscoveredTestPaths.length).to.be.greaterThan(0);
     expect(topLevelDiscoveredTestPaths).to.deep.equal(
       recursivelyDiscoveredTestPaths,
+    );
+  });
+
+  it('keeps sdk squads non-test sources flat for top-level discovery helper', () => {
+    const topLevelDiscoveredNonTestSourcePaths =
+      listSdkSquadsNonTestSourceFilePaths();
+    const recursivelyDiscoveredNonTestSourcePaths =
+      listSdkSquadsNonTestSourceFilePathsRecursively(SDK_SQUADS_SOURCE_DIR);
+    expect(recursivelyDiscoveredNonTestSourcePaths.length).to.be.greaterThan(0);
+    expect(topLevelDiscoveredNonTestSourcePaths).to.deep.equal(
+      recursivelyDiscoveredNonTestSourcePaths,
     );
   });
 });
