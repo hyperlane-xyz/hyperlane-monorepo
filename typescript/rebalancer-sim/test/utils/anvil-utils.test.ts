@@ -650,6 +650,48 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
 
+    it('matches runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is null', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return null;
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores runtime-like toStringTag signals when non-Error Symbol.toPrimitive String(error) is a numeric primitive', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return 0;
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('matches runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) returns a non-primitive', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const error = {
@@ -14258,6 +14300,52 @@ describe('Anvil utils', () => {
 
       expect(formatLocalAnvilStartError(problematic)).to.equal(
         'Failed to start local anvil: [object SymbolToPrimitiveUndefinedTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString for non-Error objects when Symbol.toPrimitive String(error) is null', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+        [Symbol.toPrimitive]() {
+          return null;
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'SymbolToPrimitiveNullTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object SymbolToPrimitiveNullTag]',
+      );
+    });
+
+    it('uses numeric Symbol.toPrimitive String(error) output for non-Error objects', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return 0;
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: 0',
       );
     });
 

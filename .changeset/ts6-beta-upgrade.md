@@ -489,3 +489,5 @@ Regression coverage now also confirms `Symbol.toPrimitive`-sourced `String(error
 Regression coverage now also confirms `Symbol.toPrimitive`-sourced bare-colon and whitespace-only `String(error)` outputs are treated as non-informative for non-`Error` wrappers, preserving matcher/formatter `Object.prototype.toString` fallback behavior.
 
 Regression coverage now also confirms non-`Error` `Symbol.toPrimitive` outputs of `undefined` are treated as non-informative and continue through matcher/formatter `Object.prototype.toString` fallback handling.
+
+Regression coverage now also confirms non-`Error` `Symbol.toPrimitive` outputs of `null` are treated as non-informative while numeric primitive outputs remain informative, preserving fallback/precedence semantics for matcher and formatter paths.
