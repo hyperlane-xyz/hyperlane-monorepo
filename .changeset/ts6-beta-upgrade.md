@@ -494,4 +494,6 @@ Regression coverage now also confirms non-`Error` `Symbol.toPrimitive` outputs o
 
 Regression coverage now also confirms `Symbol.toPrimitive` placeholder-style outputs (`'   [Object]   '`, `':'`, and whitespace-only strings) preserve both runtime and non-runtime matcher outcomes by falling through to `Object.prototype.toString`.
 
+Regression coverage now also confirms json-escaped quoted placeholder outputs from `Symbol.toPrimitive` (for example `\"[Object]\"`) are treated as non-informative and continue through matcher/formatter `Object.prototype.toString` fallback handling.
+
 Regression coverage now also confirms bracketed-array placeholder outputs from `Symbol.toPrimitive` (for example `[Array]`) are treated as non-informative and preserve runtime/non-runtime matcher plus formatter `Object.prototype.toString` fallback behavior.
