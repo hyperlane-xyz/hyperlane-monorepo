@@ -112,11 +112,11 @@ describe('Safe migration guards', () => {
         if (!entry.isFile() || !entry.name.endsWith('.ts')) continue;
 
         const contents = fs.readFileSync(entryPath, 'utf8');
-        const importMatches = contents.matchAll(
-          /import\s+(?:type\s+)?{([^}]*)}\s*from\s*['"]([^'"]+)['"]/g,
+        const importAndExportMatches = contents.matchAll(
+          /(?:import|export)\s+(?:type\s+)?{([^}]*)}\s*from\s*['"]([^'"]+)['"]/g,
         );
 
-        for (const [, imported, source] of importMatches) {
+        for (const [, imported, source] of importAndExportMatches) {
           const importedSymbols = imported
             .split(',')
             .map((s) => s.trim().replace(/\s+as\s+\w+$/, ''));
