@@ -8,8 +8,7 @@ function kill_listeners_on_port() {
   local pids
   pids=$(
     ss -ltnp "sport = :${port}" 2>/dev/null \
-      | rg -o "pid=[0-9]+" \
-      | sed 's/pid=//' \
+      | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' \
       | sort -u
   )
 
