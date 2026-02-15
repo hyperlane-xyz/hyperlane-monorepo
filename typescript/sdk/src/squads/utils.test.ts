@@ -602,6 +602,32 @@ describe('squads utils', () => {
       expect(assertValidTransactionIndexInput(7, 'solanamainnet')).to.equal(7);
     });
 
+    it('normalizes chain labels in transaction-index validation errors', () => {
+      expect(() =>
+        assertValidTransactionIndexInput(-1, '  solanamainnet  '),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got -1',
+      );
+      expect(() =>
+        assertValidTransactionIndexInput(-1, '   '),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for empty string, got -1',
+      );
+    });
+
+    it('labels malformed chain values in transaction-index validation errors', () => {
+      expect(() =>
+        assertValidTransactionIndexInput(-1, null),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for null, got -1',
+      );
+      expect(() =>
+        assertValidTransactionIndexInput(-1, []),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for array, got -1',
+      );
+    });
+
     it('throws for invalid transaction indices', () => {
       expect(() =>
         assertValidTransactionIndexInput(-1, 'solanamainnet'),
