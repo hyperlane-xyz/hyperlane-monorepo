@@ -279,3 +279,5 @@ Regression coverage now also confirms same-realm and cross-realm boxed-string `A
 Regression coverage now also confirms malformed `AggregateError.errors` payloads (spoofed boxed strings and `String.prototype` impostors) remain ignored under combined `message`+`cause` accessor failures.
 
 Regression coverage now also confirms malformed `AggregateError.cause` payloads (spoofed boxed strings and `String.prototype` impostors) remain ignored under combined `message`+`errors` accessor failures.
+
+Regression coverage now also confirms same-realm and cross-realm boxed-string `AggregateError.cause` payloads remain detectable/ignorable under combined `message`+`errors` accessor failures both with and without hostile `Symbol.toStringTag` accessors.
