@@ -4624,6 +4624,70 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('uses fallback unknown-program labels when instruction program id toBase58 throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const malformedProgramId = {
+      equals: () => false,
+      toBase58: () => {
+        throw new Error('program id unavailable');
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      {
+        message: {
+          accountKeys: [malformedProgramId as unknown as PublicKey],
+          addressTableLookups: [],
+          instructions: [
+            {
+              programIdIndex: 0,
+              accountIndexes: [],
+              data: Buffer.from([1, 2, 3]),
+            },
+          ],
+        },
+      },
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed.warnings).to.deep.equal([
+      '⚠️  UNKNOWN PROGRAM: [invalid program id]',
+      'This instruction could not be verified!',
+    ]);
+    expect(parsed.instructions).to.deep.equal([
+      {
+        programId: malformedProgramId,
+        programName: 'Unknown',
+        instructionType: 'Unknown',
+        data: {
+          programId: '[invalid program id]',
+          rawData: '010203',
+        },
+        accounts: [],
+        warnings: [
+          '⚠️  UNKNOWN PROGRAM: [invalid program id]',
+          'This instruction could not be verified!',
+        ],
+      },
+    ]);
+  });
+
   it('formats unstringifiable instruction parse errors safely', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({

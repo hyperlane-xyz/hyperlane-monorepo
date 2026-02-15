@@ -523,9 +523,28 @@ export class SquadsTransactionReader {
     chain: ChainName,
     programId: PublicKey,
   ): WarpRouteMetadata | undefined {
+    let programIdBase58: unknown;
+    try {
+      programIdBase58 = programId.toBase58();
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to stringify warp route program id on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return undefined;
+    }
+
+    const normalizedProgramId =
+      this.normalizeOptionalNonEmptyString(programIdBase58);
+    if (!normalizedProgramId) {
+      rootLogger.warn(
+        `Malformed warp route program id on ${chain}: expected non-empty base58 string`,
+      );
+      return undefined;
+    }
+
     return this.warpRouteIndex
       .get(chain)
-      ?.get(programId.toBase58().toLowerCase());
+      ?.get(normalizedProgramId.toLowerCase());
   }
 
   private readWarpRouteInstruction(
@@ -1154,8 +1173,10 @@ export class SquadsTransactionReader {
           continue;
         }
 
+        const formattedUnknownProgramId =
+          this.formatProgramIdForDisplay(programId);
         const unknownWarnings = [
-          formatUnknownProgramWarning(programId.toBase58()),
+          formatUnknownProgramWarning(formattedUnknownProgramId),
           'This instruction could not be verified!',
         ];
         parsedInstructions.push({
@@ -1163,7 +1184,7 @@ export class SquadsTransactionReader {
           programName: ProgramName.UNKNOWN,
           instructionType: InstructionType.UNKNOWN,
           data: {
-            programId: programId.toBase58(),
+            programId: formattedUnknownProgramId,
             rawData: instructionData.toString('hex'),
           },
           accounts,
