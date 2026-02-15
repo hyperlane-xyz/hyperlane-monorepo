@@ -172,5 +172,8 @@ describe('squads barrel exports', () => {
     expect(sdkPackageJson.exports?.['.']).to.equal('./dist/index.js');
     expect(sdkPackageJson.exports?.['./squads']).to.equal(undefined);
     expect(sdkPackageJson.exports?.['./squads/*']).to.equal(undefined);
+    const sdkExportKeys = Object.keys(sdkPackageJson.exports ?? {});
+    expect(sdkExportKeys.some((exportKey) => exportKey.startsWith('./squads'))).to
+      .equal(false);
   });
 });
