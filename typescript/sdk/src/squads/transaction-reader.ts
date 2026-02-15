@@ -1005,7 +1005,7 @@ export class SquadsTransactionReader {
   }
 
   async read(
-    chain: ChainName,
+    chain: unknown,
     transactionIndex: number,
   ): Promise<SquadsTransaction> {
     const normalizedChain = resolveSquadsChainName(chain);

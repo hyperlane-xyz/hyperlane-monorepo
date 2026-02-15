@@ -268,7 +268,7 @@ describe('squads transaction reader', () => {
     const { reader, getLookupCount } = createReaderWithLookupCounter();
 
     const thrownError = await captureAsyncError(() =>
-      reader.read(1 as unknown as string, 0),
+      reader.read(1, 0),
     );
 
     expect(thrownError?.message).to.equal(
@@ -282,7 +282,7 @@ describe('squads transaction reader', () => {
     const { reader, getLookupCount } = createReaderWithLookupCounter();
 
     const thrownError = await captureAsyncError(() =>
-      reader.read(1 as unknown as string, -1),
+      reader.read(1, -1),
     );
 
     expect(thrownError?.message).to.equal(
