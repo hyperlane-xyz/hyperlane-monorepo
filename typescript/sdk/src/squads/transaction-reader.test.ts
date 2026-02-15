@@ -4688,6 +4688,72 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('keeps parsing when lookup-table warning path cannot stringify account keys', async () => {
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      {
+        message: {
+          accountKeys: [SYSTEM_PROGRAM_ID],
+          addressTableLookups: [
+            {
+              accountKey: {
+                toBase58: () => {
+                  throw new Error('lookup key unavailable');
+                },
+              } as unknown as PublicKey,
+              writableIndexes: [],
+              readonlyIndexes: [],
+            },
+          ],
+          instructions: [
+            {
+              programIdIndex: 0,
+              accountIndexes: [],
+              data: Buffer.from([1, 2, 3]),
+            },
+          ],
+        },
+      },
+      {
+        getAccountInfo: async () => {
+          throw new Error('lookup table unavailable');
+        },
+      },
+    );
+
+    expect(parsed.warnings).to.deep.equal([]);
+    expect(parsed.instructions).to.deep.equal([
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'System Program',
+        instructionType: 'System Call',
+        data: {},
+        accounts: [],
+        warnings: [],
+      },
+    ]);
+  });
+
   it('formats unstringifiable instruction parse errors safely', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({

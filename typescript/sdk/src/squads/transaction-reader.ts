@@ -1038,8 +1038,11 @@ export class SquadsTransactionReader {
         }
       } catch (error) {
         const formattedError = stringifyUnknownSquadsError(error);
+        const lookupTableAddress = this.formatProgramIdForDisplay(
+          lookup.accountKey,
+        );
         rootLogger.warn(
-          `Failed to resolve address lookup table ${lookup.accountKey.toBase58()} on ${chain}: ${formattedError}`,
+          `Failed to resolve address lookup table ${lookupTableAddress} on ${chain}: ${formattedError}`,
         );
       }
     }
