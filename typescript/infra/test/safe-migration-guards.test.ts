@@ -857,6 +857,8 @@ function collectSymbolSourceReferences(
         : [];
       if (sources.length > 0) {
         moduleAliasByIdentifier.set(node.name.text, sources);
+      } else {
+        moduleAliasByIdentifier.delete(node.name.text);
       }
     }
 
@@ -964,9 +966,16 @@ function collectSymbolSourceReferences(
           )
         : [];
       const bindingLocalNames = collectBindingLocalNames(node.name);
+      for (const localName of bindingLocalNames) {
+        requireLikeIdentifiers.delete(localName);
+      }
       if (sources.length > 0) {
         for (const localName of bindingLocalNames) {
           moduleAliasByIdentifier.set(localName, sources);
+        }
+      } else {
+        for (const localName of bindingLocalNames) {
+          moduleAliasByIdentifier.delete(localName);
         }
       }
       for (const source of sources) {
@@ -1191,6 +1200,16 @@ function collectModuleSpecifierReferences(
         }
       } else {
         requireLikeIdentifiers.delete(node.name.text);
+      }
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      (ts.isObjectBindingPattern(node.name) ||
+        ts.isArrayBindingPattern(node.name))
+    ) {
+      for (const localName of collectBindingLocalNames(node.name)) {
+        requireLikeIdentifiers.delete(localName);
       }
     }
 
@@ -2028,6 +2047,37 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not treat binding-pattern shadowed aliases as module-sourced', () => {
+    const source = [
+      'const reqAlias = require;',
+      '{',
+      '  const { reqAlias } = { reqAlias: () => undefined };',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '}',
+      "const postBlockDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not treat loop binding-pattern shadowed aliases as module-sourced', () => {
+    const source = [
+      'const reqAlias = require;',
+      'for (const { reqAlias } of [{ reqAlias: () => undefined }]) {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '}',
+      "const postLoopDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('does not treat top-level function declaration named require as module-sourced', () => {
     const source = [
       "const preShadowDefault = require('./fixtures/guard-module.js').default;",
@@ -2519,6 +2569,47 @@ describe('Safe migration guards', () => {
       '  break;',
       '}',
       "const postLoopCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not treat binding-pattern shadowed require aliases as module specifier sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      '{',
+      '  const { reqAlias } = { reqAlias: () => undefined };',
+      "  reqAlias('./fixtures/other-module.js');",
+      '}',
+      "const postBlockCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not treat loop binding-pattern shadowed require aliases as module specifier sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'for (const { reqAlias } of [{ reqAlias: () => undefined }]) {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '}',
+      "const postLoopCall = reqAlias('./fixtures/guard-module.js');",
     ].join('\n');
     const moduleReferences = collectModuleSpecifierReferences(
       source,
