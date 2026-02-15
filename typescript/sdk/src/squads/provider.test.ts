@@ -13,9 +13,16 @@ function expectInvalidProvider(
   );
 }
 
-function createGetterBackedProvider(
-  getGetAccountInfo: () => unknown,
-): unknown {
+function expectInvalidProviderContainer(
+  provider: unknown,
+  providerType: string,
+) {
+  expect(() => toSquadsProvider(provider)).to.throw(
+    `Invalid Solana provider: expected object, got ${providerType}`,
+  );
+}
+
+function createGetterBackedProvider(getGetAccountInfo: () => unknown): unknown {
   return Object.create(null, {
     getAccountInfo: {
       get: getGetAccountInfo,
@@ -151,7 +158,8 @@ describe('squads provider bridge', () => {
       getAccountInfoType: 'null',
     },
     {
-      title: 'labels boolean getAccountInfo values in malformed provider errors',
+      title:
+        'labels boolean getAccountInfo values in malformed provider errors',
       provider: { getAccountInfo: false },
       getAccountInfoType: 'boolean',
     },
@@ -162,7 +170,11 @@ describe('squads provider bridge', () => {
     },
   ];
 
-  for (const { title, provider, getAccountInfoType } of invalidGetAccountInfoCases) {
+  for (const {
+    title,
+    provider,
+    getAccountInfoType,
+  } of invalidGetAccountInfoCases) {
     it(title, () => {
       expectInvalidProvider(provider, getAccountInfoType, 'object');
     });
@@ -220,9 +232,13 @@ describe('squads provider bridge', () => {
     },
   ];
 
-  for (const { title, provider, providerType } of invalidProviderContainerCases) {
+  for (const {
+    title,
+    provider,
+    providerType,
+  } of invalidProviderContainerCases) {
     it(title, () => {
-      expectInvalidProvider(provider, 'undefined', providerType);
+      expectInvalidProviderContainer(provider, providerType);
     });
   }
 });

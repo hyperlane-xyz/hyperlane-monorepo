@@ -42,9 +42,14 @@ function isGetAccountInfoFunction(
   return typeof value === 'function';
 }
 
-export function toSquadsProvider(
-  provider: unknown,
-): SquadsProvider {
+export function toSquadsProvider(provider: unknown): SquadsProvider {
+  assert(
+    typeof provider === 'object' &&
+      provider !== null &&
+      !Array.isArray(provider),
+    `Invalid Solana provider: expected object, got ${formatValueType(provider)}`,
+  );
+
   const { getAccountInfo, readFailed } = getProviderGetAccountInfo(provider);
   assert(
     !readFailed,
