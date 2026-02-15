@@ -358,6 +358,14 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps tracked infra source file scan stable across repeated reads', () => {
+    const firstTrackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    const secondTrackedSourceFiles = listTrackedSourceFilesRecursively('.');
+
+    expect(firstTrackedSourceFiles).to.not.equal(secondTrackedSourceFiles);
+    expect(firstTrackedSourceFiles).to.deep.equal(secondTrackedSourceFiles);
+  });
+
   it('keeps tracked infra source file scan non-empty and deduplicated', () => {
     const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
     expect(trackedSourceFiles.length).to.be.greaterThan(0);
