@@ -561,6 +561,46 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('ignores uncoercible spoofed boxed-string AggregateError causes when errors are non-runtime', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      error.cause = buildUncoercibleSpoofedBoxedString();
+      Object.defineProperty(error, 'errors', {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('ignores coercible spoofed boxed-string AggregateError causes when errors are non-runtime', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      error.cause = buildCoercibleSpoofedBoxedString(
+        'No Docker client strategy found',
+      );
+      Object.defineProperty(error, 'errors', {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('ignores string-prototype impostor AggregateError causes when errors are non-runtime', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      error.cause = buildStringPrototypeImpostor(
+        'No Docker client strategy found',
+      );
+      Object.defineProperty(error, 'errors', {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('handles cyclic cause chains safely', () => {
       const first = new Error('outer startup error');
       const second = new Error(
