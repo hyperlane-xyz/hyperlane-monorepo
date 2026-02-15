@@ -214,9 +214,9 @@ export function getSquadsKeys(chainName: string): SquadsKeys {
   assertIsSquadsChain(chainName);
   const keys = SQUADS_KEYS_BY_CHAIN[chainName];
 
-  return {
+  return Object.freeze({
     multisigPda: keys.multisigPda,
     programId: keys.programId,
     vault: keys.vault,
-  };
+  });
 }

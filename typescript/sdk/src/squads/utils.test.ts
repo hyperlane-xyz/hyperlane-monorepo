@@ -3438,20 +3438,28 @@ describe('squads utils', () => {
       const secondKeys = getSquadsKeys('solanamainnet');
 
       expect(firstKeys).to.not.equal(secondKeys);
+      expect(Object.isFrozen(firstKeys)).to.equal(true);
+      expect(Object.isFrozen(secondKeys)).to.equal(true);
       expect(firstKeys.multisigPda.toBase58()).to.equal(
         secondKeys.multisigPda.toBase58(),
       );
     });
 
     it('does not leak caller mutation between key lookups', () => {
-      const mutableKeys = getSquadsKeys('solanamainnet') as {
+      const mutableKeys = getSquadsKeys('solanamainnet') as unknown as {
         multisigPda: PublicKey;
         programId: PublicKey;
         vault: PublicKey;
       };
       const originalVault = mutableKeys.vault.toBase58();
-      mutableKeys.vault = PublicKey.default;
+      let threwOnMutation = false;
+      try {
+        mutableKeys.vault = PublicKey.default;
+      } catch {
+        threwOnMutation = true;
+      }
 
+      expect(threwOnMutation).to.equal(true);
       const reloadedKeys = getSquadsKeys('solanamainnet');
       expect(reloadedKeys.vault.toBase58()).to.equal(originalVault);
     });
