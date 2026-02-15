@@ -830,7 +830,9 @@ function getPendingProposalNativeTokenMetadataForChain(
   );
 
   assert(
-    typeof chainMetadata === 'object' && chainMetadata !== null,
+    typeof chainMetadata === 'object' &&
+      chainMetadata !== null &&
+      !Array.isArray(chainMetadata),
     `Malformed chain metadata for ${chain}: expected object, got ${getUnknownValueTypeName(chainMetadata)}`,
   );
 
@@ -860,7 +862,9 @@ function getPendingProposalNativeTokenMetadataForChain(
   );
 
   assert(
-    typeof nativeToken === 'object' && nativeToken !== null,
+    typeof nativeToken === 'object' &&
+      nativeToken !== null &&
+      !Array.isArray(nativeToken),
     `Malformed native token metadata for ${chain}: expected object, got ${getUnknownValueTypeName(nativeToken)}`,
   );
 
