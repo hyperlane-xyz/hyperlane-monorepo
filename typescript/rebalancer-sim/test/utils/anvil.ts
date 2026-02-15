@@ -110,17 +110,23 @@ function getErrorMessage(error: unknown): string {
 
   if (typeof error === 'object' && error !== null) {
     try {
-      return JSON.stringify(error);
+      const jsonValue = JSON.stringify(error);
+      if (typeof jsonValue === 'string') return jsonValue;
     } catch {
-      try {
-        return inspect(error);
-      } catch {
-        try {
-          return Object.prototype.toString.call(error);
-        } catch {
-          return 'Unprintable error value';
-        }
-      }
+      // Fall through to inspect/toString formatting fallbacks.
+    }
+
+    try {
+      const inspectedValue = inspect(error);
+      if (typeof inspectedValue === 'string') return inspectedValue;
+    } catch {
+      // Fall through to Object.prototype.toString fallback.
+    }
+
+    try {
+      return Object.prototype.toString.call(error);
+    } catch {
+      return 'Unprintable error value';
     }
   }
 

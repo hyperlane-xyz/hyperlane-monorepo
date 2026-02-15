@@ -331,3 +331,5 @@ Regression coverage now also confirms runtime/non-runtime `cause` and `errors` f
 Regression coverage now also confirms whitespace-trimmed string `cause` and `errors` fallback payloads remain detectable/ignorable for both `AggregateError` and top-level `Error` wrappers under the same hostile `message`+`name`+`constructor` accessor-failure permutations.
 
 Regression coverage now also confirms structural `getErrorMessage` fallbacks (`JSON.stringify`, `inspect`, `Object.prototype.toString`, and the final unprintable placeholder path) remain non-crashing and runtime-signal-safe for both `AggregateError` and top-level `Error` wrappers under fully hostile `message`+`name`+`constructor`+`cause`+`errors` accessor failures.
+
+`getErrorMessage` now also treats non-string `JSON.stringify` results (for example `toJSON` returning `undefined`) as non-informative and falls through to `inspect`/`Object.prototype.toString` fallbacks, with regression coverage proving runtime-unavailable signals are still detectable under fully hostile wrapper accessors.
