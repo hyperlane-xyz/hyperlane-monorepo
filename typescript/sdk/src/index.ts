@@ -868,6 +868,7 @@ export {
   hasSafeServiceTransactionPayload,
   isLegacySafeApi,
   normalizeSafeServiceUrl,
+  ParseableSafeTx,
   parseSafeTx,
   proposeSafeTransaction,
   retrySafeApi,

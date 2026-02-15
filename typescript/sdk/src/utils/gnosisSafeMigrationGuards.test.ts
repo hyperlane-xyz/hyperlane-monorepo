@@ -87,6 +87,7 @@ describe('Gnosis Safe migration guards', () => {
       'hasSafeServiceTransactionPayload',
       'isLegacySafeApi',
       'normalizeSafeServiceUrl',
+      'ParseableSafeTx',
       'parseSafeTx',
       'proposeSafeTransaction',
       'resolveSafeSigner',

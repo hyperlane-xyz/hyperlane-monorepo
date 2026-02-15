@@ -23,6 +23,7 @@ const REQUIRED_SAFE_HELPER_EXPORTS = [
   'getSafeDelegates',
   'getSafeService',
   'getSafeTx',
+  'ParseableSafeTx',
   'parseSafeTx',
   'proposeSafeTransaction',
   'updateSafeOwner',
