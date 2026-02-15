@@ -42,6 +42,9 @@ const SDK_PACKAGE_JSON_PATH = path.resolve(
   '..',
   'package.json',
 );
+function countOccurrences(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1;
+}
 
 describe('squads barrel exports', () => {
   it('re-exports squads config/constants', () => {
@@ -70,20 +73,24 @@ describe('squads barrel exports', () => {
 
   it('keeps squads barrel wired through sdk root index source', () => {
     const rootIndexSource = fs.readFileSync(SDK_ROOT_INDEX_PATH, 'utf8');
-    expect(rootIndexSource).to.include("export * from './squads/index.js';");
+    const squadsExportStatement = "export * from './squads/index.js';";
+    expect(rootIndexSource).to.include(squadsExportStatement);
+    expect(countOccurrences(rootIndexSource, squadsExportStatement)).to.equal(1);
   });
 
   it('keeps expected squads submodule exports in squads barrel source', () => {
     const squadsBarrelSource = fs.readFileSync(SQUADS_BARREL_INDEX_PATH, 'utf8');
-
-    expect(squadsBarrelSource).to.include("export * from './config.js';");
-    expect(squadsBarrelSource).to.include("export * from './utils.js';");
-    expect(squadsBarrelSource).to.include(
+    const expectedSubmoduleExportStatements = [
+      "export * from './config.js';",
+      "export * from './utils.js';",
       "export * from './transaction-reader.js';",
-    );
-    expect(squadsBarrelSource).to.include(
       "export * from './error-format.js';",
-    );
+    ] as const;
+
+    for (const statement of expectedSubmoduleExportStatements) {
+      expect(squadsBarrelSource).to.include(statement);
+      expect(countOccurrences(squadsBarrelSource, statement)).to.equal(1);
+    }
   });
 
   it('keeps sdk package explicitly depending on @sqds/multisig', () => {
