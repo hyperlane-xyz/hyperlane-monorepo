@@ -1224,14 +1224,7 @@ function readStaticBooleanCondition(
 
   if (unwrapped.kind === ts.SyntaxKind.TrueKeyword) return true;
   if (unwrapped.kind === ts.SyntaxKind.FalseKeyword) return false;
-  if (
-    ts.isObjectLiteralExpression(unwrapped) ||
-    ts.isArrayLiteralExpression(unwrapped) ||
-    ts.isFunctionExpression(unwrapped) ||
-    ts.isArrowFunction(unwrapped) ||
-    ts.isClassExpression(unwrapped) ||
-    ts.isRegularExpressionLiteral(unwrapped)
-  ) {
+  if (isStaticallyTruthyNonPrimitiveExpression(unwrapped)) {
     return true;
   }
   const primitiveValue = readStaticPrimitiveValue(unwrapped);
@@ -1258,6 +1251,26 @@ function readStaticBooleanCondition(
   }
 
   if (ts.isBinaryExpression(unwrapped)) {
+    if (unwrapped.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+      const leftNullish = readStaticNullishCondition(unwrapped.left);
+      if (leftNullish === true) {
+        return readStaticBooleanCondition(unwrapped.right);
+      }
+      if (leftNullish === false) {
+        return readStaticBooleanCondition(unwrapped.left);
+      }
+      const leftCondition = readStaticBooleanCondition(unwrapped.left);
+      const rightCondition = readStaticBooleanCondition(unwrapped.right);
+      if (
+        leftCondition !== undefined &&
+        rightCondition !== undefined &&
+        leftCondition === rightCondition
+      ) {
+        return leftCondition;
+      }
+      return undefined;
+    }
+
     if (
       unwrapped.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
       unwrapped.operatorToken.kind === ts.SyntaxKind.BarBarToken
@@ -1345,6 +1358,29 @@ function readStaticBooleanCondition(
   }
 
   return undefined;
+}
+
+function isStaticallyTruthyNonPrimitiveExpression(
+  expression: ts.Expression,
+): boolean {
+  return (
+    ts.isObjectLiteralExpression(expression) ||
+    ts.isArrayLiteralExpression(expression) ||
+    ts.isFunctionExpression(expression) ||
+    ts.isArrowFunction(expression) ||
+    ts.isClassExpression(expression) ||
+    ts.isRegularExpressionLiteral(expression)
+  );
+}
+
+function readStaticNullishCondition(
+  expression: ts.Expression,
+): boolean | undefined {
+  const unwrapped = unwrapInitializerExpression(expression);
+  if (isStaticallyTruthyNonPrimitiveExpression(unwrapped)) return false;
+  const primitiveValue = readStaticPrimitiveValue(unwrapped);
+  if (primitiveValue === STATIC_PRIMITIVE_UNKNOWN) return undefined;
+  return primitiveValue === null || primitiveValue === undefined;
 }
 
 function collectVarScopeStatementBindings(
@@ -5919,6 +5955,29 @@ describe('Gnosis Safe migration guards', () => {
     const source = [
       'let reqAlias: any = require;',
       'if (({} && [])) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats nullish-coalescing literal right conditions as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if ((null ?? {})) {',
       '  reqAlias = () => undefined;',
       '} else {',
       '  reqAlias = require;',
@@ -15246,6 +15305,24 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats nullish-coalescing literal right conditions as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if ((null ?? {})) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('treats signed truthy primitive conditions as true branches for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -18763,6 +18840,23 @@ describe('Gnosis Safe migration guards', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'if (({} && [])) {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats nullish-coalescing literal right conditions as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'if ((null ?? {})) {',
       "  moduleAlias = require('./fixtures/other-module.js');",
       '} else {',
       "  moduleAlias = { default: 'not-a-module' };",
