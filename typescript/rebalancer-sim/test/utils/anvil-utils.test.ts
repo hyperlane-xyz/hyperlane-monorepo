@@ -272,6 +272,48 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(10n)).to.equal(false);
     });
 
+    it('matches runtime signals from non-Error objects via String(error) fallback', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        toString() {
+          return 'No Docker client strategy found';
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores runtime-like toStringTag signals when non-Error String(error) is informative and non-runtime', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        toString() {
+          return 'unrelated primitive-style wrapper failure';
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('matches docker daemon connection failures', () => {
       const error = new Error(
         'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?',

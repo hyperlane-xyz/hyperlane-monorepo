@@ -461,3 +461,5 @@ Regression coverage now also confirms json-escaped quoted/single-quoted/mixed-qu
 Regression coverage now also confirms json-escaped uppercase/mixed-case/lowercase bracketed-object placeholder outputs from `String(error)` (for example `\"[OBJECT]\"`, `\"[oBjEcT]\"`, and `\"[object]\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
 
 Regression coverage now also confirms json-escaped quoted/single-quoted/mixed-quoted and case-variant bracketed placeholder outputs from `String(error)` (for example `\"[Array]\"`, `\'[Array]\'`, `\"'[Array]'\"`, `\"[ARRAY]\"`, `\"[aRrAy]\"`, and `\"[array]\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
+
+Regression coverage now also confirms non-`Error` object wrappers still match runtime-unavailable signatures through `String(error)` when `message` is non-string and `JSON.stringify`/`inspect` outputs are non-informative, while informative non-runtime `String(error)` values still take precedence over runtime-like `Object.prototype.toString` tags.
