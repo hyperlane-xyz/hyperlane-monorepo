@@ -89,6 +89,26 @@ const getTrimmedNonEmptyString = (value: unknown): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
+const isNonInformativeStructuredOutput = (value: string): boolean => {
+  const trimmedValue = getTrimmedNonEmptyString(value);
+  if (!trimmedValue) return true;
+
+  if (NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(trimmedValue.toLowerCase())) {
+    return true;
+  }
+
+  try {
+    const parsedValue = JSON.parse(trimmedValue);
+    const parsedStringValue = getTrimmedNonEmptyString(parsedValue);
+    return (
+      parsedStringValue !== undefined &&
+      NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(parsedStringValue.toLowerCase())
+    );
+  } catch {
+    return false;
+  }
+};
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     try {
@@ -121,16 +141,11 @@ function getErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null) {
     try {
       const jsonValue = JSON.stringify(error);
-      if (typeof jsonValue === 'string') {
-        const trimmedJsonValue = getTrimmedNonEmptyString(jsonValue);
-        if (
-          trimmedJsonValue &&
-          !NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(
-            trimmedJsonValue.toLowerCase(),
-          )
-        ) {
-          return jsonValue;
-        }
+      if (
+        typeof jsonValue === 'string' &&
+        !isNonInformativeStructuredOutput(jsonValue)
+      ) {
+        return jsonValue;
       }
     } catch {
       // Fall through to inspect/toString formatting fallbacks.
@@ -138,10 +153,7 @@ function getErrorMessage(error: unknown): string {
 
     try {
       const inspectedValue = getTrimmedNonEmptyString(inspect(error));
-      if (
-        inspectedValue &&
-        !NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(inspectedValue.toLowerCase())
-      ) {
+      if (inspectedValue && !isNonInformativeStructuredOutput(inspectedValue)) {
         return inspectedValue;
       }
     } catch {

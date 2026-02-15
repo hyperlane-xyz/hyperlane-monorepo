@@ -351,3 +351,5 @@ Regression coverage now also confirms uppercase object-tag inspect placeholders 
 `getErrorMessage` now also treats JSON structural placeholders (`{}`, `[]`) as non-informative so they no longer short-circuit tag-sensitive fallback extraction.
 
 Inspect-placeholder filtering coverage now also explicitly includes array placeholder variants (`[Array]` and `[object Array]`) to ensure they cannot mask runtime signals carried by `Object.prototype.toString` fallbacks.
+
+JSON fallback handling now also treats quoted structural placeholders (for example `"{}"`/`"[]"` payload strings) as non-informative when they normalize to inert placeholders, preserving downstream inspect/toString runtime-signal extraction.
