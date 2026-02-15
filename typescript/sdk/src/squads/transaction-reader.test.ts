@@ -598,6 +598,94 @@ describe('squads transaction reader multisig verification', () => {
     });
   });
 
+  it('reports malformed expected threshold access when getter throws', () => {
+    const reader = createReaderForVerification(
+      () =>
+        ({
+          solanatestnet: new Proxy(
+            {},
+            {
+              get(target, property) {
+                if (property === 'threshold') {
+                  throw new Error('threshold read failed');
+                }
+                return Reflect.get(target, property);
+              },
+            },
+          ),
+        }) as unknown as Record<
+          string,
+          { threshold: number; validators: readonly string[] }
+        >,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed expected config for route solanamainnet -> solanatestnet: failed to read threshold (Error: threshold read failed)',
+      ],
+    });
+  });
+
+  it('reports malformed expected validator access when getter throws', () => {
+    const reader = createReaderForVerification(
+      () =>
+        ({
+          solanatestnet: new Proxy(
+            { threshold: 2 },
+            {
+              get(target, property) {
+                if (property === 'validators') {
+                  throw new Error('validator read failed');
+                }
+                return Reflect.get(target, property);
+              },
+            },
+          ),
+        }) as unknown as Record<
+          string,
+          { threshold: number; validators: readonly string[] }
+        >,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed expected config for route solanamainnet -> solanatestnet: failed to read validators (Error: validator read failed)',
+      ],
+    });
+  });
+
   it('reports malformed expected threshold values for route config', () => {
     const reader = createReaderForVerification(
       () =>
@@ -699,6 +787,46 @@ describe('squads transaction reader multisig verification', () => {
       matches: false,
       issues: [
         'Malformed validator set for route solanamainnet -> solanatestnet: validators must be an array of non-empty strings',
+      ],
+    });
+  });
+
+  it('reports malformed runtime validator access when iteration throws', () => {
+    const reader = createReaderForVerification(() => ({
+      solanatestnet: {
+        threshold: 2,
+        validators: ['validator-a'],
+      },
+    }));
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const runtimeValidators = new Proxy(['validator-a'], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error('validator iterator failed');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      runtimeValidators as unknown as readonly string[],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed validator set for route solanamainnet -> solanatestnet: failed to read validators (Error: validator iterator failed)',
       ],
     });
   });

@@ -1250,16 +1250,42 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
-    if (!isPositiveSafeInteger(expectedConfig.threshold)) {
+    let expectedThreshold: unknown;
+    try {
+      expectedThreshold = expectedConfig.threshold;
+    } catch (error) {
+      issues.push(
+        `Malformed expected config for route ${route}: failed to read threshold (${stringifyUnknownSquadsError(error)})`,
+      );
+      return { matches: false, issues };
+    }
+
+    if (!isPositiveSafeInteger(expectedThreshold)) {
       issues.push(
         `Malformed expected config for route ${route}: threshold must be a positive safe integer`,
       );
       return { matches: false, issues };
     }
 
-    const normalizedExpectedValidators = normalizeValidatorSet(
-      expectedConfig.validators,
-    );
+    let expectedValidators: unknown;
+    try {
+      expectedValidators = expectedConfig.validators;
+    } catch (error) {
+      issues.push(
+        `Malformed expected config for route ${route}: failed to read validators (${stringifyUnknownSquadsError(error)})`,
+      );
+      return { matches: false, issues };
+    }
+
+    let normalizedExpectedValidators: string[] | null;
+    try {
+      normalizedExpectedValidators = normalizeValidatorSet(expectedValidators);
+    } catch (error) {
+      issues.push(
+        `Malformed expected config for route ${route}: failed to read validators (${stringifyUnknownSquadsError(error)})`,
+      );
+      return { matches: false, issues };
+    }
     if (!normalizedExpectedValidators) {
       issues.push(
         `Malformed expected config for route ${route}: validators must be an array of non-empty strings`,
@@ -1267,7 +1293,15 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
-    const normalizedActualValidators = normalizeValidatorSet(validators);
+    let normalizedActualValidators: string[] | null;
+    try {
+      normalizedActualValidators = normalizeValidatorSet(validators);
+    } catch (error) {
+      issues.push(
+        `Malformed validator set for route ${route}: failed to read validators (${stringifyUnknownSquadsError(error)})`,
+      );
+      return { matches: false, issues };
+    }
     if (!normalizedActualValidators) {
       issues.push(
         `Malformed validator set for route ${route}: validators must be an array of non-empty strings`,
@@ -1275,9 +1309,9 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
-    if (expectedConfig.threshold !== threshold) {
+    if (expectedThreshold !== threshold) {
       issues.push(
-        `Threshold mismatch: expected ${expectedConfig.threshold}, got ${threshold}`,
+        `Threshold mismatch: expected ${expectedThreshold}, got ${threshold}`,
       );
     }
 
