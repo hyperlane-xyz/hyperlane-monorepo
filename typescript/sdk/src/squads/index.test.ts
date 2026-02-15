@@ -90,10 +90,14 @@ const PROCESS_BRACKET_REFERENCE_PATTERN =
   /\bprocess\s*\[\s*['"](?:env|argv|cwd|exit|stdin|stdout|stderr)['"]\s*\](?:\s*\(|\b)/;
 const GLOBAL_PROCESS_REFERENCE_PATTERN =
   /\b(?:globalThis|global)\s*\.\s*process\b/;
+const GLOBAL_PROCESS_BRACKET_REFERENCE_PATTERN =
+  /\b(?:globalThis|global)\s*\[\s*['"]process['"]\s*\]/;
 const CONSOLE_REFERENCE_PATTERN =
   /\bconsole\s*(?:\.\s*(?:log|info|warn|error|debug|trace|table)\s*\(|\[\s*['"](?:log|info|warn|error|debug|trace|table)['"]\s*\]\s*\()/;
 const GLOBAL_CONSOLE_REFERENCE_PATTERN =
   /\b(?:globalThis|global)\s*\.\s*console\b/;
+const GLOBAL_CONSOLE_BRACKET_REFERENCE_PATTERN =
+  /\b(?:globalThis|global)\s*\[\s*['"]console['"]\s*\]/;
 const CLI_GLUE_IMPORT_PATTERN =
   /(?:from\s+['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]|import\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\)|require\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\))/;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
@@ -1194,12 +1198,20 @@ describe('squads barrel exports', () => {
         `Expected sdk squads runtime source to avoid global process coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
+        GLOBAL_PROCESS_BRACKET_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid global['process'] coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
         CONSOLE_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid direct console usage: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
         GLOBAL_CONSOLE_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid global console usage: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        GLOBAL_CONSOLE_BRACKET_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid global['console'] coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
         CLI_GLUE_IMPORT_PATTERN.test(runtimeSource),
