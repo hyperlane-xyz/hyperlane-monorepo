@@ -2596,6 +2596,21 @@ describe('squads utils', () => {
   });
 
   describe(getSquadProposal.name, () => {
+    it('normalizes padded chain names before proposal provider lookup', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposal('  solanamainnet  ', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
     it('allows zero transaction index and still attempts provider lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -2840,6 +2855,25 @@ describe('squads utils', () => {
   });
 
   describe(getSquadProposalAccount.name, () => {
+    it('normalizes padded chain names before account provider lookup', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposalAccount(
+        '  solanamainnet  ',
+        mpp,
+        1,
+      );
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
     it('allows zero transaction index and still attempts provider lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
