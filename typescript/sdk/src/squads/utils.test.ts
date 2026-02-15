@@ -2493,9 +2493,10 @@ describe('squads utils', () => {
         },
       } as unknown as MultiProtocolProvider;
 
-      const { svmProvider, vault, multisigPda, programId } =
+      const { chain, svmProvider, vault, multisigPda, programId } =
         getSquadAndProvider(supportedChain, mpp);
 
+      expect(chain).to.equal(supportedChain);
       expect(providerLookupChain).to.equal(supportedChain);
       expect(svmProvider).to.equal(provider);
       expect(vault).to.be.instanceOf(PublicKey);
@@ -2520,11 +2521,10 @@ describe('squads utils', () => {
         },
       } as unknown as MultiProtocolProvider;
 
-      const { vault, multisigPda, programId, svmProvider } = getSquadAndProvider(
-        '  solanamainnet  ',
-        mpp,
-      );
+      const { chain, vault, multisigPda, programId, svmProvider } =
+        getSquadAndProvider('  solanamainnet  ', mpp);
 
+      expect(chain).to.equal('solanamainnet');
       expect(providerLookupChain).to.equal('solanamainnet');
       expect(svmProvider).to.equal(provider);
       expect(vault.toBase58()).to.equal(squadsConfigs.solanamainnet.vault);

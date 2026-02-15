@@ -162,6 +162,9 @@ describe('squads config', () => {
       expect(() => getSquadsKeys(value as unknown as string)).to.throw(
         `Expected chain name to be a string, got ${expectedType}`,
       );
+      expect(() => resolveSquadsChainName(value)).to.throw(
+        `Expected chain name to be a string, got ${expectedType}`,
+      );
     });
   }
 

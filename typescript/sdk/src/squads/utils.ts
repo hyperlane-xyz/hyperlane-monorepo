@@ -115,6 +115,7 @@ export enum SquadsProposalVoteError {
 }
 
 export type SquadAndProvider = {
+  chain: SquadsChainName;
   svmProvider: ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>;
   vault: PublicKey;
   multisigPda: PublicKey;
@@ -531,7 +532,7 @@ export function getSquadAndProvider(
   const svmProvider =
     svmProviderOverride ?? mpp.getSolanaWeb3Provider(normalizedChain);
 
-  return { svmProvider, vault, multisigPda, programId };
+  return { chain: normalizedChain, svmProvider, vault, multisigPda, programId };
 }
 
 export async function getSquadProposal(
@@ -551,8 +552,11 @@ export async function getSquadProposal(
   assertValidTransactionIndexInput(transactionIndex, normalizedChain);
 
   try {
-    const svmProvider =
-      svmProviderOverride ?? mpp.getSolanaWeb3Provider(normalizedChain);
+    const { svmProvider } = getSquadAndProvider(
+      normalizedChain,
+      mpp,
+      svmProviderOverride,
+    );
     const proposalData = await getSquadProposalAccount(
       normalizedChain,
       mpp,
@@ -595,12 +599,14 @@ export async function getSquadProposalAccount(
   | undefined
 > {
   const normalizedChain = resolveSquadsChainName(chain);
-  const { multisigPda, programId } = getSquadsKeys(normalizedChain);
   assertValidTransactionIndexInput(transactionIndex, normalizedChain);
 
   try {
-    const svmProvider =
-      svmProviderOverride ?? mpp.getSolanaWeb3Provider(normalizedChain);
+    const { svmProvider, multisigPda, programId } = getSquadAndProvider(
+      normalizedChain,
+      mpp,
+      svmProviderOverride,
+    );
     const squadsProvider = toSquadsProvider(svmProvider);
 
     const [proposalPda] = getProposalPda({
