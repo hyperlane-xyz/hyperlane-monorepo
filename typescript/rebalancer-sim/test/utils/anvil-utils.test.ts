@@ -556,6 +556,62 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('matches runtime causes when top-level Error cause is boxed string', () => {
+      const wrappedError = new Error('hidden message');
+      (wrappedError as Error & { cause?: unknown }).cause = new String(
+        'No Docker client strategy found',
+      );
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime top-level Error boxed-string causes', () => {
+      const wrappedError = new Error('hidden message');
+      (wrappedError as Error & { cause?: unknown }).cause = new String(
+        'unrelated nested warning',
+      );
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('matches runtime causes when top-level Error boxed-string causes throw on toStringTag access', () => {
+      const wrappedError = new Error('hidden message');
+      (wrappedError as Error & { cause?: unknown }).cause =
+        buildRealBoxedStringWithThrowingToStringTag(
+          'No Docker client strategy found',
+        );
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime top-level Error boxed-string causes that throw on toStringTag access', () => {
+      const wrappedError = new Error('hidden message');
+      (wrappedError as Error & { cause?: unknown }).cause =
+        buildRealBoxedStringWithThrowingToStringTag('unrelated nested warning');
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('matches runtime causes when top-level Error cross-realm boxed-string causes throw on toStringTag access', () => {
+      const wrappedError = new Error('hidden message');
+      (wrappedError as Error & { cause?: unknown }).cause =
+        buildCrossRealmBoxedStringWithThrowingToStringTag(
+          'No Docker client strategy found',
+        );
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime top-level Error cross-realm boxed-string causes throw on toStringTag access', () => {
+      const wrappedError = new Error('hidden message');
+      (wrappedError as Error & { cause?: unknown }).cause =
+        buildCrossRealmBoxedStringWithThrowingToStringTag(
+          'unrelated nested warning',
+        );
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
     it('matches runtime causes when wrapper object message is whitespace', () => {
       expect(
         isContainerRuntimeUnavailable({
