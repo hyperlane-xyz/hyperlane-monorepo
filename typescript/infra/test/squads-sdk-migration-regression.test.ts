@@ -423,6 +423,23 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps infra squads test command prefix normalized and stable', () => {
+    expect(INFRA_SQUADS_TEST_COMMAND_PREFIX).to.equal(
+      INFRA_SQUADS_TEST_COMMAND_PREFIX.trim(),
+    );
+    expect(
+      INFRA_SQUADS_TEST_COMMAND_PREFIX.startsWith('mocha --config '),
+    ).to.equal(true);
+    expect(
+      INFRA_SQUADS_TEST_COMMAND_PREFIX.includes('../sdk/.mocharc.json'),
+    ).to.equal(true);
+    expect(INFRA_SQUADS_TEST_COMMAND_PREFIX.includes('  ')).to.equal(false);
+    expect(INFRA_SQUADS_TEST_COMMAND_PREFIX.endsWith(' ')).to.equal(false);
+    expect(INFRA_SQUADS_TEST_COMMAND_PREFIX.includes('"')).to.equal(false);
+    expect(INFRA_SQUADS_TEST_COMMAND_PREFIX.includes("'")).to.equal(false);
+    expect(INFRA_SQUADS_TEST_COMMAND_PREFIX.includes('\\')).to.equal(false);
+  });
+
   it('keeps expected infra squads test command derived from regression path list', () => {
     expect(
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT.startsWith(
