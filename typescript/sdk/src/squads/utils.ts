@@ -19,6 +19,7 @@ import { ChainName } from '../types.js';
 import {
   getSquadsKeys,
   partitionSquadsChains,
+  resolveSquadsChainName,
   SquadsChainName,
 } from './config.js';
 import {
@@ -525,8 +526,10 @@ export function getSquadAndProvider(
   mpp: MultiProtocolProvider,
   svmProviderOverride?: SolanaWeb3Provider,
 ): SquadAndProvider {
-  const { vault, multisigPda, programId } = getSquadsKeys(chain);
-  const svmProvider = svmProviderOverride ?? mpp.getSolanaWeb3Provider(chain);
+  const normalizedChain = resolveSquadsChainName(chain);
+  const { vault, multisigPda, programId } = getSquadsKeys(normalizedChain);
+  const svmProvider =
+    svmProviderOverride ?? mpp.getSolanaWeb3Provider(normalizedChain);
 
   return { svmProvider, vault, multisigPda, programId };
 }
@@ -544,14 +547,14 @@ export async function getSquadProposal(
     }
   | undefined
 > {
-  getSquadsKeys(chain);
-  assertValidTransactionIndexInput(transactionIndex, chain);
+  const normalizedChain = resolveSquadsChainName(chain);
+  assertValidTransactionIndexInput(transactionIndex, normalizedChain);
 
   try {
     const svmProvider =
-      svmProviderOverride ?? mpp.getSolanaWeb3Provider(chain);
+      svmProviderOverride ?? mpp.getSolanaWeb3Provider(normalizedChain);
     const proposalData = await getSquadProposalAccount(
-      chain,
+      normalizedChain,
       mpp,
       transactionIndex,
       svmProvider,
@@ -571,7 +574,7 @@ export async function getSquadProposal(
   } catch (error) {
     const errorText = formatUnknownErrorForMessage(error);
     rootLogger.warn(
-      `Failed to fetch proposal ${transactionIndex} on ${chain}: ${errorText}`,
+      `Failed to fetch proposal ${transactionIndex} on ${normalizedChain}: ${errorText}`,
     );
     return undefined;
   }
@@ -591,11 +594,13 @@ export async function getSquadProposalAccount(
     }
   | undefined
 > {
-  const { multisigPda, programId } = getSquadsKeys(chain);
-  assertValidTransactionIndexInput(transactionIndex, chain);
+  const normalizedChain = resolveSquadsChainName(chain);
+  const { multisigPda, programId } = getSquadsKeys(normalizedChain);
+  assertValidTransactionIndexInput(transactionIndex, normalizedChain);
 
   try {
-    const svmProvider = svmProviderOverride ?? mpp.getSolanaWeb3Provider(chain);
+    const svmProvider =
+      svmProviderOverride ?? mpp.getSolanaWeb3Provider(normalizedChain);
     const squadsProvider = toSquadsProvider(svmProvider);
 
     const [proposalPda] = getProposalPda({
@@ -614,13 +619,13 @@ export async function getSquadProposalAccount(
     const errorText = formatUnknownErrorForMessage(error);
     if (isLikelyMissingSquadsAccountError(error)) {
       rootLogger.debug(
-        `Proposal ${transactionIndex} on ${chain} was not found: ${errorText}`,
+        `Proposal ${transactionIndex} on ${normalizedChain} was not found: ${errorText}`,
       );
       return undefined;
     }
 
     rootLogger.warn(
-      `Failed to fetch proposal ${transactionIndex} on ${chain}: ${errorText}`,
+      `Failed to fetch proposal ${transactionIndex} on ${normalizedChain}: ${errorText}`,
     );
     return undefined;
   }

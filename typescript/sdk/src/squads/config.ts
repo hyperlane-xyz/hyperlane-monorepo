@@ -237,9 +237,14 @@ function normalizeChainNameForSquadsLookup(chainName: unknown): string {
   return normalizedChainName;
 }
 
-export function getSquadsKeys(chainName: string): SquadsKeys {
+export function resolveSquadsChainName(chainName: unknown): SquadsChainName {
   const normalizedChainName = normalizeChainNameForSquadsLookup(chainName);
   assertIsSquadsChain(normalizedChainName);
+  return normalizedChainName;
+}
+
+export function getSquadsKeys(chainName: string): SquadsKeys {
+  const normalizedChainName = resolveSquadsChainName(chainName);
   const keys = SQUADS_KEYS_BY_CHAIN[normalizedChainName];
 
   return Object.freeze({

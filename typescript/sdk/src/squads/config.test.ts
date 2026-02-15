@@ -8,6 +8,7 @@ import {
   getUnsupportedSquadsChainsErrorMessage,
   isSquadsChain,
   partitionSquadsChains,
+  resolveSquadsChainName,
   resolveSquadsChains,
   squadsConfigs,
 } from './config.js';
@@ -121,6 +122,22 @@ describe('squads config', () => {
   it('rejects empty chain-name values in squads key lookups', () => {
     expect(() => getSquadsKeys('   ')).to.throw(
       'Expected chain name to be a non-empty string',
+    );
+  });
+
+  it('resolves padded chain names to canonical squads chain values', () => {
+    expect(resolveSquadsChainName('  solanamainnet  ')).to.equal(
+      'solanamainnet',
+    );
+    expect(resolveSquadsChainName('\tsoon\n')).to.equal('soon');
+  });
+
+  it('rejects malformed resolved chain-name lookups', () => {
+    expect(() => resolveSquadsChainName('   ')).to.throw(
+      'Expected chain name to be a non-empty string',
+    );
+    expect(() => resolveSquadsChainName('unknown-chain')).to.throw(
+      'Squads config not found on chain unknown-chain',
     );
   });
 

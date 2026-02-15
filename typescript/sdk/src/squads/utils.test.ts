@@ -2510,6 +2510,32 @@ describe('squads utils', () => {
       );
     });
 
+    it('normalizes padded chain names before provider lookup', () => {
+      const provider = { provider: 'solana' };
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return provider;
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const { vault, multisigPda, programId, svmProvider } = getSquadAndProvider(
+        '  solanamainnet  ',
+        mpp,
+      );
+
+      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(svmProvider).to.equal(provider);
+      expect(vault.toBase58()).to.equal(squadsConfigs.solanamainnet.vault);
+      expect(multisigPda.toBase58()).to.equal(
+        squadsConfigs.solanamainnet.multisigPda,
+      );
+      expect(programId.toBase58()).to.equal(
+        squadsConfigs.solanamainnet.programId,
+      );
+    });
+
     it('fails fast for unsupported chains before provider lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
