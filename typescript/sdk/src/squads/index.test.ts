@@ -465,6 +465,21 @@ function assertPathSnapshotIsolation(
 }
 
 describe('squads barrel exports', () => {
+  it('keeps canonical sdk squads path-constant relationships', () => {
+    expect(path.relative(SDK_PACKAGE_ROOT, SDK_SQUADS_SOURCE_DIR)).to.equal(
+      'src/squads',
+    );
+    expect(path.relative(SDK_PACKAGE_ROOT, SDK_ROOT_INDEX_PATH)).to.equal(
+      'src/index.ts',
+    );
+    expect(path.relative(SDK_PACKAGE_ROOT, SQUADS_BARREL_INDEX_PATH)).to.equal(
+      'src/squads/index.ts',
+    );
+    expect(path.relative(SDK_PACKAGE_ROOT, SDK_PACKAGE_JSON_PATH)).to.equal(
+      'package.json',
+    );
+  });
+
   it('keeps sdk squads test command constants normalized and scoped', () => {
     assertCanonicalCliCommandShape(
       SDK_SQUADS_TEST_COMMAND_PREFIX,
