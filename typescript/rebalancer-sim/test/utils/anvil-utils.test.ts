@@ -1405,6 +1405,27 @@ describe('Anvil utils', () => {
       }
     });
 
+    it('matches runtime wrapper strings via Object.prototype.toString fallback when JSON.stringify returns single-quoted object-tag placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => "'[object Object]'",
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString runtime fallback after single-quoted object-tag JSON placeholder`,
+        ).to.equal(true);
+      }
+    });
+
     it('matches runtime wrapper strings via Object.prototype.toString fallback when JSON.stringify returns single-quoted object-tag array placeholders under hostile accessors', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       for (const wrapperKind of hostileFallbackWrapperKinds) {
@@ -1590,6 +1611,27 @@ describe('Anvil utils', () => {
         expect(
           isContainerRuntimeUnavailable(wrapper),
           `${wrapperKind} Object.prototype.toString non-runtime fallback after single-quoted bracketed JSON placeholder`,
+        ).to.equal(false);
+      }
+    });
+
+    it('ignores non-runtime wrapper strings via Object.prototype.toString fallback when JSON.stringify returns single-quoted object-tag placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => "'[object Object]'",
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'unrelated nested startup warning',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString non-runtime fallback after single-quoted object-tag JSON placeholder`,
         ).to.equal(false);
       }
     });
@@ -1871,6 +1913,27 @@ describe('Anvil utils', () => {
         expect(
           isContainerRuntimeUnavailable(wrapper),
           `${wrapperKind} Object.prototype.toString runtime fallback after quoted bracketed-array inspect placeholder`,
+        ).to.equal(true);
+      }
+    });
+
+    it('matches runtime wrapper strings via Object.prototype.toString fallback when inspect returns single-quoted bracketed-array placeholders after JSON.stringify returns undefined', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => "'[Array]'",
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString runtime fallback after single-quoted bracketed-array inspect placeholder`,
         ).to.equal(true);
       }
     });
@@ -2165,6 +2228,27 @@ describe('Anvil utils', () => {
         expect(
           isContainerRuntimeUnavailable(wrapper),
           `${wrapperKind} Object.prototype.toString non-runtime fallback after quoted bracketed-array inspect placeholder`,
+        ).to.equal(false);
+      }
+    });
+
+    it('ignores non-runtime wrapper strings via Object.prototype.toString fallback when inspect returns single-quoted bracketed-array placeholders after JSON.stringify returns undefined', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => undefined,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => "'[Array]'",
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'unrelated nested startup warning',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString non-runtime fallback after single-quoted bracketed-array inspect placeholder`,
         ).to.equal(false);
       }
     });
@@ -8963,6 +9047,25 @@ describe('Anvil utils', () => {
       );
     });
 
+    it('falls back to Object.prototype.toString when stringify returns a single-quoted object-tag placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          return "'[object Object]'";
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'SingleQuotedJsonObjectTagRuntimeTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object SingleQuotedJsonObjectTagRuntimeTag]',
+      );
+    });
+
     it('falls back to Object.prototype.toString when stringify returns a single-quoted object-tag array placeholder', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const problematic = {
@@ -9173,6 +9276,25 @@ describe('Anvil utils', () => {
 
       expect(formatLocalAnvilStartError(problematic)).to.equal(
         'Failed to start local anvil: [object QuotedInspectArrayRuntimeTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString when stringify returns undefined and inspect is a single-quoted bracketed-array placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return "'[Array]'";
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'SingleQuotedInspectArrayRuntimeTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object SingleQuotedInspectArrayRuntimeTag]',
       );
     });
 
