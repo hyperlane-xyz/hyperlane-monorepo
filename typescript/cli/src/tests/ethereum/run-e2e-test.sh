@@ -17,6 +17,23 @@ function kill_listeners_on_port() {
   done
 }
 
+function port_has_listener() {
+  local port="$1"
+  ss -ltn "sport = :${port}" 2>/dev/null \
+    | awk 'NR > 1 { found = 1; exit } END { exit(found ? 0 : 1) }'
+}
+
+function wait_for_port_closed() {
+  local port="$1"
+  for _ in {1..40}; do
+    if ! port_has_listener "${port}"; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
 function cleanup() {
   set +e
   for pid in "${ANVIL_PIDS[@]}"; do
@@ -24,6 +41,7 @@ function cleanup() {
   done
   for port in 8555 8600 8601 2496 18555 18600 18601; do
     kill_listeners_on_port "${port}"
+    wait_for_port_closed "${port}" || true
   done
   rm -rf /tmp/anvil2
   rm -rf /tmp/anvil3
