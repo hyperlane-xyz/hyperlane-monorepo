@@ -76,6 +76,8 @@ const INFRA_REFERENCE_PATTERN =
 const FILESYSTEM_IMPORT_PATTERN =
   /(?:from\s+['"]node:(?:fs|path)['"]|from\s+['"](?:fs|path)['"])/;
 const PROCESS_ENV_REFERENCE_PATTERN = /\bprocess\.env\b/;
+const CLI_GLUE_IMPORT_PATTERN =
+  /(?:from\s+['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]|import\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\))/;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
@@ -1136,6 +1138,10 @@ describe('squads barrel exports', () => {
       expect(
         PROCESS_ENV_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid process.env coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        CLI_GLUE_IMPORT_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid infra CLI glue imports: ${runtimeSourcePath}`,
       ).to.equal(false);
     }
   });
