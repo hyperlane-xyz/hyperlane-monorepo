@@ -2855,6 +2855,45 @@ describe('Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
+  it('applies nested class static-block assignments to outer module-source aliases for symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'class ShadowContainer {',
+      '  static {',
+      '    if (true) {',
+      "      moduleAlias = require('./fixtures/other-module.js');",
+      '    }',
+      '  }',
+      '}',
+      'const postStaticDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('does not leak nested class static-block var module-source aliases to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'class ShadowContainer {',
+      '  static {',
+      '    if (true) {',
+      "      var moduleAlias = require('./fixtures/other-module.js');",
+      '      void moduleAlias;',
+      '    }',
+      '  }',
+      '}',
+      'const postStaticDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak class static-block var module-source aliases to outer symbol sources', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
