@@ -754,6 +754,17 @@ function isLexicalScopeBoundary(node: ts.Node): boolean {
   );
 }
 
+function shouldMergeNonLexicalScopeMutations(node: ts.Node): boolean {
+  const isClassStaticBlockBody =
+    ts.isBlock(node) &&
+    node.parent?.kind === ts.SyntaxKind.ClassStaticBlockDeclaration;
+  return (
+    !ts.isModuleBlock(node) &&
+    !isClassStaticBlockBody &&
+    node.kind !== ts.SyntaxKind.ClassStaticBlockDeclaration
+  );
+}
+
 function collectFunctionScopeShadowedIdentifiers(node: ts.Node): string[] {
   if (!ts.isFunctionLike(node)) return [];
 
@@ -948,6 +959,7 @@ function collectSymbolSourceReferences(
           moduleAliases: cloneStringArrayMap(moduleAliasByIdentifier),
           requireLikeIdentifiers: new Set(requireLikeIdentifiers),
           declaredIdentifiers: collectLexicalScopeDeclaredIdentifiers(node),
+          mergeNonLexicalMutations: shouldMergeNonLexicalScopeMutations(node),
         }
       : undefined;
     const functionScopeSnapshot = ts.isFunctionLike(node)
@@ -1253,32 +1265,34 @@ function collectSymbolSourceReferences(
         scopeSnapshot.requireLikeIdentifiers,
       );
 
-      for (const [identifier, sources] of postScopeModuleAliases.entries()) {
-        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
-        const previousSources = scopeSnapshot.moduleAliases.get(identifier);
-        if (!stringArraysEqual(previousSources, sources)) {
-          moduleAliasByIdentifier.set(identifier, [...sources]);
+      if (scopeSnapshot.mergeNonLexicalMutations) {
+        for (const [identifier, sources] of postScopeModuleAliases.entries()) {
+          if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+          const previousSources = scopeSnapshot.moduleAliases.get(identifier);
+          if (!stringArraysEqual(previousSources, sources)) {
+            moduleAliasByIdentifier.set(identifier, [...sources]);
+          }
         }
-      }
 
-      for (const identifier of scopeSnapshot.moduleAliases.keys()) {
-        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
-        if (!postScopeModuleAliases.has(identifier)) {
-          moduleAliasByIdentifier.delete(identifier);
+        for (const identifier of scopeSnapshot.moduleAliases.keys()) {
+          if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+          if (!postScopeModuleAliases.has(identifier)) {
+            moduleAliasByIdentifier.delete(identifier);
+          }
         }
-      }
 
-      for (const identifier of postScopeRequireLikeIdentifiers) {
-        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
-        if (!scopeSnapshot.requireLikeIdentifiers.has(identifier)) {
-          requireLikeIdentifiers.add(identifier);
+        for (const identifier of postScopeRequireLikeIdentifiers) {
+          if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+          if (!scopeSnapshot.requireLikeIdentifiers.has(identifier)) {
+            requireLikeIdentifiers.add(identifier);
+          }
         }
-      }
 
-      for (const identifier of scopeSnapshot.requireLikeIdentifiers) {
-        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
-        if (!postScopeRequireLikeIdentifiers.has(identifier)) {
-          requireLikeIdentifiers.delete(identifier);
+        for (const identifier of scopeSnapshot.requireLikeIdentifiers) {
+          if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+          if (!postScopeRequireLikeIdentifiers.has(identifier)) {
+            requireLikeIdentifiers.delete(identifier);
+          }
         }
       }
     } else if (functionScopeSnapshot) {
@@ -1337,6 +1351,7 @@ function collectModuleSpecifierReferences(
       ? {
           requireLikeIdentifiers: new Set(requireLikeIdentifiers),
           declaredIdentifiers: collectLexicalScopeDeclaredIdentifiers(node),
+          mergeNonLexicalMutations: shouldMergeNonLexicalScopeMutations(node),
         }
       : undefined;
     const functionScopeSnapshot = ts.isFunctionLike(node)
@@ -1477,17 +1492,19 @@ function collectModuleSpecifierReferences(
         scopeSnapshot.requireLikeIdentifiers,
       );
 
-      for (const identifier of postScopeRequireLikeIdentifiers) {
-        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
-        if (!scopeSnapshot.requireLikeIdentifiers.has(identifier)) {
-          requireLikeIdentifiers.add(identifier);
+      if (scopeSnapshot.mergeNonLexicalMutations) {
+        for (const identifier of postScopeRequireLikeIdentifiers) {
+          if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+          if (!scopeSnapshot.requireLikeIdentifiers.has(identifier)) {
+            requireLikeIdentifiers.add(identifier);
+          }
         }
-      }
 
-      for (const identifier of scopeSnapshot.requireLikeIdentifiers) {
-        if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
-        if (!postScopeRequireLikeIdentifiers.has(identifier)) {
-          requireLikeIdentifiers.delete(identifier);
+        for (const identifier of scopeSnapshot.requireLikeIdentifiers) {
+          if (scopeSnapshot.declaredIdentifiers.has(identifier)) continue;
+          if (!postScopeRequireLikeIdentifiers.has(identifier)) {
+            requireLikeIdentifiers.delete(identifier);
+          }
         }
       }
     } else if (functionScopeSnapshot) {
@@ -2544,6 +2561,29 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('does not leak class static-block var alias shadowing to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      '    var reqAlias = () => undefined;',
+      "    reqAlias('./fixtures/other-module.js');",
+      '  }',
+      '}',
+      "const postStaticCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('does not leak namespace lexical alias declarations to outer module specifiers', () => {
     const source = [
       'const reqAlias = require;',
@@ -3243,6 +3283,24 @@ describe('Gnosis Safe migration guards', () => {
       'class ShadowContainer {',
       '  static {',
       '    const reqAlias = () => undefined;',
+      "    reqAlias('./fixtures/other-module.js').default;",
+      '  }',
+      '}',
+      "const postStaticDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak class static-block var alias shadowing to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      '    var reqAlias = () => undefined;',
       "    reqAlias('./fixtures/other-module.js').default;",
       '  }',
       '}',
