@@ -29,6 +29,8 @@ type NamedExportSymbolReference = {
   isTypeOnly: boolean;
 };
 
+const DEFAULT_REQUIRE_LIKE_IDENTIFIERS = ['require'] as const;
+
 function normalizeNamedSymbol(symbol: string): string {
   const trimmed = symbol.trim();
   if (!trimmed || trimmed.startsWith('...')) return '';
@@ -324,14 +326,30 @@ function unwrapCallTargetExpression(expression: ts.Expression): ts.Expression {
   return unwrapped;
 }
 
+function isRequireLikeExpression(
+  expression: ts.Expression,
+  requireLikeIdentifiers: ReadonlySet<string>,
+): boolean {
+  const callTarget = unwrapCallTargetExpression(expression);
+  return (
+    ts.isIdentifier(callTarget) && requireLikeIdentifiers.has(callTarget.text)
+  );
+}
+
 function readModuleSourceFromInitializer(
   expression: ts.Expression,
+  requireLikeIdentifiers: ReadonlySet<string> = new Set(
+    DEFAULT_REQUIRE_LIKE_IDENTIFIERS,
+  ),
 ): string | undefined {
   const unwrapped = unwrapInitializerExpression(expression);
   if (!ts.isCallExpression(unwrapped)) return undefined;
   const callTarget = unwrapCallTargetExpression(unwrapped.expression);
 
-  if (ts.isIdentifier(callTarget) && callTarget.text === 'require') {
+  if (
+    ts.isIdentifier(callTarget) &&
+    requireLikeIdentifiers.has(callTarget.text)
+  ) {
     return readModuleSourceArg(unwrapped);
   }
   if (callTarget.kind === ts.SyntaxKind.ImportKeyword) {
@@ -342,8 +360,14 @@ function readModuleSourceFromInitializer(
 
 function readModuleSourceFromCallExpression(
   callExpression: ts.CallExpression,
+  requireLikeIdentifiers: ReadonlySet<string> = new Set(
+    DEFAULT_REQUIRE_LIKE_IDENTIFIERS,
+  ),
 ): string | undefined {
-  return readModuleSourceFromInitializer(callExpression);
+  return readModuleSourceFromInitializer(
+    callExpression,
+    requireLikeIdentifiers,
+  );
 }
 
 function uniqueSources(
@@ -366,6 +390,9 @@ function uniqueSources(
 function resolveModuleSourceFromExpression(
   expression: ts.Expression,
   moduleAliasByIdentifier: Map<string, string[]>,
+  requireLikeIdentifiers: ReadonlySet<string> = new Set(
+    DEFAULT_REQUIRE_LIKE_IDENTIFIERS,
+  ),
 ): string[] {
   const unwrapped = unwrapInitializerExpression(expression);
   if (
@@ -375,6 +402,7 @@ function resolveModuleSourceFromExpression(
     return resolveModuleSourceFromExpression(
       unwrapped.right,
       moduleAliasByIdentifier,
+      requireLikeIdentifiers,
     );
   }
   if (
@@ -388,10 +416,12 @@ function resolveModuleSourceFromExpression(
     const leftSource = resolveModuleSourceFromExpression(
       unwrapped.left,
       moduleAliasByIdentifier,
+      requireLikeIdentifiers,
     );
     const rightSource = resolveModuleSourceFromExpression(
       unwrapped.right,
       moduleAliasByIdentifier,
+      requireLikeIdentifiers,
     );
     return uniqueSources(leftSource, rightSource);
   }
@@ -399,14 +429,19 @@ function resolveModuleSourceFromExpression(
     const whenTrueSource = resolveModuleSourceFromExpression(
       unwrapped.whenTrue,
       moduleAliasByIdentifier,
+      requireLikeIdentifiers,
     );
     const whenFalseSource = resolveModuleSourceFromExpression(
       unwrapped.whenFalse,
       moduleAliasByIdentifier,
+      requireLikeIdentifiers,
     );
     return uniqueSources(whenTrueSource, whenFalseSource);
   }
-  const directSource = readModuleSourceFromInitializer(unwrapped);
+  const directSource = readModuleSourceFromInitializer(
+    unwrapped,
+    requireLikeIdentifiers,
+  );
   if (directSource) return [directSource];
   if (ts.isIdentifier(unwrapped)) {
     return moduleAliasByIdentifier.get(unwrapped.text) ?? [];
@@ -418,6 +453,7 @@ function resolveModuleSourceFromExpression(
         for (const source of resolveModuleSourceFromExpression(
           property.initializer,
           moduleAliasByIdentifier,
+          requireLikeIdentifiers,
         )) {
           sources.add(source);
         }
@@ -430,6 +466,7 @@ function resolveModuleSourceFromExpression(
         for (const source of resolveModuleSourceFromExpression(
           property.expression,
           moduleAliasByIdentifier,
+          requireLikeIdentifiers,
         )) {
           sources.add(source);
         }
@@ -445,6 +482,7 @@ function resolveModuleSourceFromExpression(
         for (const source of resolveModuleSourceFromExpression(
           element.expression,
           moduleAliasByIdentifier,
+          requireLikeIdentifiers,
         )) {
           sources.add(source);
         }
@@ -453,6 +491,7 @@ function resolveModuleSourceFromExpression(
       for (const source of resolveModuleSourceFromExpression(
         element,
         moduleAliasByIdentifier,
+        requireLikeIdentifiers,
       )) {
         sources.add(source);
       }
@@ -463,12 +502,14 @@ function resolveModuleSourceFromExpression(
     return resolveModuleSourceFromExpression(
       unwrapped.expression,
       moduleAliasByIdentifier,
+      requireLikeIdentifiers,
     );
   }
   if (ts.isElementAccessExpression(unwrapped)) {
     return resolveModuleSourceFromExpression(
       unwrapped.expression,
       moduleAliasByIdentifier,
+      requireLikeIdentifiers,
     );
   }
   return [];
@@ -688,6 +729,9 @@ function collectSymbolSourceReferences(
 ): SymbolSourceReference[] {
   const references: SymbolSourceReference[] = [];
   const moduleAliasByIdentifier = new Map<string, string[]>();
+  const requireLikeIdentifiers = new Set<string>(
+    DEFAULT_REQUIRE_LIKE_IDENTIFIERS,
+  );
   const sourceFile = ts.createSourceFile(
     filePath,
     contents,
@@ -798,10 +842,20 @@ function collectSymbolSourceReferences(
       const initializer = node.initializer
         ? unwrapInitializerExpression(node.initializer)
         : undefined;
+      if (initializer) {
+        if (isRequireLikeExpression(initializer, requireLikeIdentifiers)) {
+          requireLikeIdentifiers.add(node.name.text);
+        } else if (node.name.text !== 'require') {
+          requireLikeIdentifiers.delete(node.name.text);
+        }
+      } else if (node.name.text !== 'require') {
+        requireLikeIdentifiers.delete(node.name.text);
+      }
       const sources = initializer
         ? resolveModuleSourceFromExpression(
             initializer,
             moduleAliasByIdentifier,
+            requireLikeIdentifiers,
           )
         : [];
       if (sources.length > 0) {
@@ -819,12 +873,25 @@ function collectSymbolSourceReferences(
       ].includes(node.operatorToken.kind)
     ) {
       const rightExpression = unwrapInitializerExpression(node.right);
+      const rightIsRequireLike = isRequireLikeExpression(
+        rightExpression,
+        requireLikeIdentifiers,
+      );
       const sources = resolveModuleSourceFromExpression(
         rightExpression,
         moduleAliasByIdentifier,
+        requireLikeIdentifiers,
       );
 
       if (ts.isIdentifier(node.left)) {
+        if (rightIsRequireLike) {
+          requireLikeIdentifiers.add(node.left.text);
+        } else if (
+          node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+          node.left.text !== 'require'
+        ) {
+          requireLikeIdentifiers.delete(node.left.text);
+        }
         if (sources.length > 0) {
           moduleAliasByIdentifier.set(node.left.text, sources);
         } else if (node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
@@ -859,6 +926,7 @@ function collectSymbolSourceReferences(
       const sources = resolveModuleSourceFromExpression(
         node.expression,
         moduleAliasByIdentifier,
+        requireLikeIdentifiers,
       );
       for (const source of sources) {
         references.push({
@@ -876,6 +944,7 @@ function collectSymbolSourceReferences(
       const sources = resolveModuleSourceFromExpression(
         node.expression,
         moduleAliasByIdentifier,
+        requireLikeIdentifiers,
       );
       for (const source of sources) {
         references.push({
@@ -897,6 +966,7 @@ function collectSymbolSourceReferences(
         ? resolveModuleSourceFromExpression(
             initializer,
             moduleAliasByIdentifier,
+            requireLikeIdentifiers,
           )
         : [];
       const bindingLocalNames = collectBindingLocalNames(node.name);
@@ -942,6 +1012,9 @@ function collectModuleSpecifierReferences(
   filePath: string,
 ): ModuleSpecifierReference[] {
   const references: ModuleSpecifierReference[] = [];
+  const requireLikeIdentifiers = new Set<string>(
+    DEFAULT_REQUIRE_LIKE_IDENTIFIERS,
+  );
   const sourceFile = ts.createSourceFile(
     filePath,
     contents,
@@ -990,8 +1063,39 @@ function collectModuleSpecifierReferences(
     }
 
     if (ts.isCallExpression(node)) {
-      const source = readModuleSourceFromCallExpression(node);
+      const source = readModuleSourceFromCallExpression(
+        node,
+        requireLikeIdentifiers,
+      );
       if (source) references.push({ source, filePath });
+    }
+
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      const initializer = node.initializer
+        ? unwrapInitializerExpression(node.initializer)
+        : undefined;
+      if (initializer) {
+        if (isRequireLikeExpression(initializer, requireLikeIdentifiers)) {
+          requireLikeIdentifiers.add(node.name.text);
+        } else if (node.name.text !== 'require') {
+          requireLikeIdentifiers.delete(node.name.text);
+        }
+      } else if (node.name.text !== 'require') {
+        requireLikeIdentifiers.delete(node.name.text);
+      }
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left)
+    ) {
+      const rightExpression = unwrapInitializerExpression(node.right);
+      if (isRequireLikeExpression(rightExpression, requireLikeIdentifiers)) {
+        requireLikeIdentifiers.add(node.left.text);
+      } else if (node.left.text !== 'require') {
+        requireLikeIdentifiers.delete(node.left.text);
+      }
     }
 
     ts.forEachChild(node, visit);
@@ -1406,6 +1510,25 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('collects module specifiers from aliased require call targets', () => {
+    const source = [
+      'const reqAlias = require;',
+      "const aliasRequire = reqAlias('./fixtures/guard-module.js');",
+      'const nextAlias = reqAlias;',
+      "const wrappedAliasRequire = (0, nextAlias)('./fixtures/other-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('tracks default symbol references from namespace and require access', () => {
     const source = [
       "import * as infra from './fixtures/guard-module.js';",
@@ -1467,6 +1590,20 @@ describe('Gnosis Safe migration guards', () => {
       "const callTargetAlias = (0, require)('./fixtures/guard-module.js');",
       'const callTargetDefault = callTargetAlias.default;',
       "const inlineCallTargetDefault = (0, require)('./fixtures/guard-module.js')['default'];",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through aliased require call targets', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "const aliasTarget = reqAlias('./fixtures/guard-module.js');",
+      'const aliasDefault = aliasTarget.default;',
+      'reqAlias = reqAlias;',
+      "const wrappedAliasDefault = (0, reqAlias)('./fixtures/guard-module.js')['default'];",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
