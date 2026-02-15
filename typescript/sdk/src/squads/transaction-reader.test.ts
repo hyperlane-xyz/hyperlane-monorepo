@@ -39,7 +39,6 @@ import {
   SealevelSetDestinationGasConfigsInstruction,
   SealevelSetDestinationGasConfigsInstructionSchema,
 } from '../token/adapters/serialization.js';
-import type { WarpCoreConfig } from '../warp/types.js';
 import { SealevelInstructionWrapper } from '../utils/sealevelSerialization.js';
 import {
   SQUADS_ACCOUNT_DISCRIMINATORS,
@@ -1596,7 +1595,7 @@ describe('squads transaction reader', () => {
             name: 'Good Token',
           },
         ],
-      } as unknown as WarpCoreConfig,
+      },
     });
 
     expect(protocolLookupCount).to.equal(2);
@@ -1637,7 +1636,7 @@ describe('squads transaction reader', () => {
             name: 'Good Token',
           },
         ],
-      } as unknown as WarpCoreConfig,
+      },
     });
 
     const chainIndex = reader.warpRouteIndex.get('solanamainnet');
@@ -1669,7 +1668,7 @@ describe('squads transaction reader', () => {
           return Reflect.get(target, property, receiver);
         },
       },
-    ) as unknown as WarpCoreConfig;
+    );
 
     await reader.init({
       malformedRoute,
@@ -1682,7 +1681,7 @@ describe('squads transaction reader', () => {
             name: 'Good Token',
           },
         ],
-      } as unknown as WarpCoreConfig,
+      },
     });
 
     expect(
@@ -1725,7 +1724,7 @@ describe('squads transaction reader', () => {
     await reader.init({
       routeA: {
         tokens: [
-          malformedToken as unknown as WarpCoreConfig['tokens'][number],
+          malformedToken,
           {
             chainName: 'solanamainnet',
             addressOrDenom: 'GOOD004',
@@ -1733,7 +1732,7 @@ describe('squads transaction reader', () => {
             name: 'Good Token',
           },
         ],
-      } as unknown as WarpCoreConfig,
+      },
     });
 
     expect(protocolLookupCount).to.equal(1);
@@ -5898,7 +5897,7 @@ describe('squads transaction reader', () => {
             connections: [],
           },
         ],
-      } as unknown as WarpCoreConfig,
+      },
     });
     const readerAny = reader as unknown as {
       parseVaultInstructions: (
