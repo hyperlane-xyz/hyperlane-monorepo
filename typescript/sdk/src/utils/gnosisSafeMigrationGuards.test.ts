@@ -2086,6 +2086,29 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('does not leak catch-block class alias declarations to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      "  throw new Error('boom');",
+      '} catch (error) {',
+      '  class reqAlias {}',
+      "  reqAlias('./fixtures/other-module.js');",
+      '}',
+      "const postCatchCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('keeps require alias var declarations made inside catch block scopes', () => {
     const source = [
       'let reqAlias: any;',
@@ -2368,6 +2391,30 @@ describe('Gnosis Safe migration guards', () => {
       'switch (1) {',
       '  case 1: {',
       '    const reqAlias = () => undefined;',
+      "    reqAlias('./fixtures/other-module.js');",
+      '    break;',
+      '  }',
+      '}',
+      "const postCaseCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak switch-case class alias declarations to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'switch (1) {',
+      '  case 1: {',
+      '    class reqAlias {}',
       "    reqAlias('./fixtures/other-module.js');",
       '    break;',
       '  }',
@@ -2705,6 +2752,24 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not leak catch-block class alias declarations to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      "  throw new Error('boom');",
+      '} catch (error) {',
+      '  class reqAlias {}',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '}',
+      "const postCatchDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('keeps module-source alias var declarations made inside catch block scopes', () => {
     const source = [
       'let moduleAlias: any;',
@@ -2940,6 +3005,25 @@ describe('Gnosis Safe migration guards', () => {
       'switch (1) {',
       '  case 1: {',
       '    const reqAlias = () => undefined;',
+      "    reqAlias('./fixtures/other-module.js').default;",
+      '    break;',
+      '  }',
+      '}',
+      "const postCaseDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak switch-case class alias declarations to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'switch (1) {',
+      '  case 1: {',
+      '    class reqAlias {}',
       "    reqAlias('./fixtures/other-module.js').default;",
       '    break;',
       '  }',
