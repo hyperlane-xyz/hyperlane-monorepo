@@ -369,3 +369,5 @@ Single-quoted object-tag array placeholders (for example `'[object Array]'`) are
 Single-quoted object-tag (`'[object Object]'`) and single-quoted bracketed-array (`'[Array]'`) placeholder variants are now also covered across JSON/inspect fallback paths.
 
 JSON-escaped single-quoted placeholder payloads (for example `"'[object Object]'"` and `"'[Array]'"`) are now also covered so nested quote-wrapping cannot bypass placeholder filtering.
+
+Lowercase bracketed placeholder variants (`[object]`, `[array]`) are now also covered across JSON/inspect fallback paths.
