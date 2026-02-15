@@ -3116,6 +3116,82 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('throws contextual error when transaction-account provider accessor fails', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: PublicKey,
+        svmProvider: unknown,
+      ) => Promise<unknown>;
+    };
+    const provider = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'getAccountInfo') {
+            throw new Error('account reader unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.fetchTransactionAccount(
+        'solanamainnet',
+        5,
+        SYSTEM_PROGRAM_ID,
+        provider,
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to read getAccountInfo for solanamainnet: Error: account reader unavailable',
+    );
+  });
+
+  it('throws contextual error when transaction-account provider call fails', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: PublicKey,
+        svmProvider: unknown,
+      ) => Promise<unknown>;
+    };
+    const provider = {
+      getAccountInfo: async () => {
+        throw new Error('rpc unavailable');
+      },
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.fetchTransactionAccount(
+        'solanamainnet',
+        5,
+        SYSTEM_PROGRAM_ID,
+        provider,
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to fetch transaction account 11111111111111111111111111111111 on solanamainnet: Error: rpc unavailable',
+    );
+  });
+
   it('records exactly one error when transaction account data getter throws', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
