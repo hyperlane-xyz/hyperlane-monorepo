@@ -64,10 +64,15 @@ const SKIPPED_DIRECTORIES = new Set([
   '.turbo',
 ]);
 const SQUADS_REGRESSION_TEST_PATHS = Object.freeze([
+  'test/squads-cli-helpers.test.ts',
   'test/squads-sdk-migration-regression.test.ts',
   'test/squads-test-constants.test.ts',
   'test/squads-test-utils.test.ts',
   'test/squads-scripts-help.test.ts',
+]);
+const SQUADS_TRACKED_TEST_SUPPORT_PATHS = Object.freeze([
+  'test/squads-test-constants.ts',
+  'test/squads-test-utils.ts',
 ]);
 
 function compareLexicographically(left: string, right: string): number {
@@ -454,6 +459,28 @@ describe('squads sdk migration regression', () => {
         isNormalizedTrackedSourceRelativePath(regressionTestPath),
       ).to.equal(true);
       expect(hasTrackedSourceExtension(regressionTestPath)).to.equal(true);
+    }
+  });
+
+  it('keeps squads test-support source paths included in tracked source scan', () => {
+    const trackedSourceFiles = getTrackedSourceFileSnapshot();
+    const trackedSourceFileSet = new Set(trackedSourceFiles);
+
+    for (const supportPath of SQUADS_TRACKED_TEST_SUPPORT_PATHS) {
+      expect(
+        trackedSourceFileSet.has(supportPath),
+        `Expected tracked source scan to include squads test support file: ${supportPath}`,
+      ).to.equal(true);
+    }
+  });
+
+  it('keeps squads test-support path set normalized and deduplicated', () => {
+    expect(new Set(SQUADS_TRACKED_TEST_SUPPORT_PATHS).size).to.equal(
+      SQUADS_TRACKED_TEST_SUPPORT_PATHS.length,
+    );
+    for (const supportPath of SQUADS_TRACKED_TEST_SUPPORT_PATHS) {
+      expect(isNormalizedTrackedSourceRelativePath(supportPath)).to.equal(true);
+      expect(hasTrackedSourceExtension(supportPath)).to.equal(true);
     }
   });
 
