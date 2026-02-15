@@ -228,6 +228,47 @@ function listInfraSquadsTestDirectoryAssets(): readonly string[] {
     .map((entry) => `test/${entry.name}`);
 }
 
+function listInfraSquadsTestDirectoryAssetsRecursively(
+  absoluteDirectoryPath: string,
+  relativeDirectoryPath: string = '',
+): readonly string[] {
+  const entries = fs
+    .readdirSync(absoluteDirectoryPath, { withFileTypes: true })
+    .sort((left, right) => compareLexicographically(left.name, right.name));
+  const discoveredAssets: string[] = [];
+
+  for (const entry of entries) {
+    const nextRelativeDirectoryPath =
+      relativeDirectoryPath.length === 0
+        ? entry.name
+        : path.posix.join(relativeDirectoryPath, entry.name);
+    const nextAbsoluteDirectoryPath = path.join(
+      absoluteDirectoryPath,
+      entry.name,
+    );
+
+    if (entry.isDirectory()) {
+      discoveredAssets.push(
+        ...listInfraSquadsTestDirectoryAssetsRecursively(
+          nextAbsoluteDirectoryPath,
+          nextRelativeDirectoryPath,
+        ),
+      );
+      continue;
+    }
+
+    if (
+      entry.isFile() &&
+      entry.name.startsWith('squads-') &&
+      entry.name.endsWith('.ts')
+    ) {
+      discoveredAssets.push(`test/${nextRelativeDirectoryPath}`);
+    }
+  }
+
+  return discoveredAssets.sort(compareLexicographically);
+}
+
 function listInfraSquadsRegressionTestsFromDirectory(): readonly string[] {
   return partitionTrackedTestAssetsByRole(listInfraSquadsTestDirectoryAssets())
     .regressionPaths;
@@ -843,6 +884,14 @@ describe('squads sdk migration regression', () => {
     ).to.deep.equal(
       [...SQUADS_TRACKED_TEST_SUPPORT_PATHS].sort(compareLexicographically),
     );
+  });
+
+  it('keeps tracked infra squads test assets flat for top-level discovery helper', () => {
+    const topLevelDiscoveredAssets = listInfraSquadsTestDirectoryAssets();
+    const recursivelyDiscoveredAssets =
+      listInfraSquadsTestDirectoryAssetsRecursively(INFRA_TEST_DIRECTORY_PATH);
+    expect(recursivelyDiscoveredAssets.length).to.be.greaterThan(0);
+    expect(topLevelDiscoveredAssets).to.deep.equal(recursivelyDiscoveredAssets);
   });
 
   it('keeps squads tracked test assets scoped to test directory', () => {
