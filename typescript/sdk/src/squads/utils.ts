@@ -705,9 +705,38 @@ function getSquadAndProviderForResolvedChain(
 ): SquadAndProvider {
   const { vault, multisigPda, programId } =
     getSquadsKeysForResolvedChain(chain);
-  const svmProvider = svmProviderOverride ?? mpp.getSolanaWeb3Provider(chain);
+  const svmProvider =
+    svmProviderOverride ?? getSolanaWeb3ProviderForChain(mpp, chain);
 
   return { chain, svmProvider, vault, multisigPda, programId };
+}
+
+function getSolanaWeb3ProviderForChain(
+  mpp: MultiProtocolProvider,
+  chain: SquadsChainName,
+): SolanaWeb3Provider {
+  let getSolanaWeb3ProviderValue: unknown;
+  try {
+    getSolanaWeb3ProviderValue = (mpp as { getSolanaWeb3Provider?: unknown })
+      .getSolanaWeb3Provider;
+  } catch (error) {
+    throw new Error(
+      `Failed to read getSolanaWeb3Provider for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof getSolanaWeb3ProviderValue === 'function',
+    `Invalid multiprovider for ${chain}: expected getSolanaWeb3Provider function, got ${getUnknownValueTypeName(getSolanaWeb3ProviderValue)}`,
+  );
+
+  try {
+    return getSolanaWeb3ProviderValue(chain) as SolanaWeb3Provider;
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve solana provider for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
 }
 
 export async function getSquadProposal(

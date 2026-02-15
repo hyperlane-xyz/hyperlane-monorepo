@@ -3457,6 +3457,62 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast when multiprovider does not expose getSolanaWeb3Provider', () => {
+      const mpp = {} as unknown as MultiProtocolProvider;
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid multiprovider for solanamainnet: expected getSolanaWeb3Provider function, got undefined',
+      );
+    });
+
+    it('throws contextual error when multiprovider getSolanaWeb3Provider accessor fails', () => {
+      const mpp = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'getSolanaWeb3Provider') {
+              throw new Error('resolver unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ) as unknown as MultiProtocolProvider;
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read getSolanaWeb3Provider for solanamainnet: resolver unavailable',
+      );
+    });
+
+    it('uses deterministic placeholder when multiprovider resolver accessor throws opaque value', () => {
+      const mpp = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'getSolanaWeb3Provider') {
+              throw {};
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ) as unknown as MultiProtocolProvider;
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read getSolanaWeb3Provider for solanamainnet: [unstringifiable error]',
+      );
+    });
+
     it('propagates provider lookup failures for supported chains', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -5003,7 +5059,9 @@ describe('squads utils', () => {
         submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
       );
 
-      expect(thrownError?.message).to.equal('provider lookup failed');
+      expect(thrownError?.message).to.equal(
+        'Failed to resolve solana provider for solanamainnet: provider lookup failed',
+      );
       expect(signerPublicKeyCalled).to.equal(false);
       expect(providerLookupChain).to.equal('solanamainnet');
     });
@@ -5028,7 +5086,9 @@ describe('squads utils', () => {
         submitProposalToSquads('  solanamainnet  ', [], mpp, signerAdapter),
       );
 
-      expect(thrownError?.message).to.equal('provider lookup failed');
+      expect(thrownError?.message).to.equal(
+        'Failed to resolve solana provider for solanamainnet: provider lookup failed',
+      );
       expect(providerLookupChain).to.equal('solanamainnet');
       expect(signerPublicKeyCalled).to.equal(false);
     });
@@ -5343,7 +5403,9 @@ describe('squads utils', () => {
         ),
       );
 
-      expect(thrownError?.message).to.equal('provider lookup failed');
+      expect(thrownError?.message).to.equal(
+        'Failed to resolve solana provider for solanamainnet: provider lookup failed',
+      );
       expect(providerLookupChain).to.equal('solanamainnet');
     });
 
