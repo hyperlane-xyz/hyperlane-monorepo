@@ -2542,6 +2542,36 @@ describe('squads utils', () => {
       );
     });
 
+    it('tolerates ownKeys traps when known log fields are present', () => {
+      const error = new Proxy(
+        {
+          logs: ['custom program error: 0x177a'],
+        },
+        {
+          ownKeys() {
+            throw new Error('ownKeys unavailable');
+          },
+        },
+      );
+
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
+    it('returns undefined when ownKeys traps and no known fields resolve', () => {
+      const error = new Proxy(
+        { metadata: { logs: ['custom program error: 0x177b'] } },
+        {
+          ownKeys() {
+            throw new Error('ownKeys unavailable');
+          },
+        },
+      );
+
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(undefined);
+    });
+
     it('prefers top-level parsed errors over nested errors', () => {
       const error = {
         logs: ['custom program error: 0x177c'],

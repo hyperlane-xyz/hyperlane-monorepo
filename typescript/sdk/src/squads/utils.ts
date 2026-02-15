@@ -394,6 +394,14 @@ function getRecordFieldValue(
   }
 }
 
+function getRecordKeys(record: Record<string, unknown>): string[] {
+  try {
+    return Object.keys(record);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Parse known Squads proposal vote/cancel errors from transaction logs.
  * Matches both named errors and their hex error codes.
@@ -475,7 +483,7 @@ export function parseSquadsProposalVoteErrorFromError(
       if (parsedError) return parsedError;
     }
 
-    for (const key of Object.keys(currentRecord)) {
+    for (const key of getRecordKeys(currentRecord)) {
       const nestedValue = getRecordFieldValue(currentRecord, key);
       if (
         !SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES.has(key) &&
