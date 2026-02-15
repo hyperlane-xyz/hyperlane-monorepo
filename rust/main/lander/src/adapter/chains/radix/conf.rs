@@ -43,6 +43,7 @@ mod tests {
             domain,
             signer,
             submitter: SubmitterType::Lander,
+            gas_estimator: SubmitterType::Lander,
             estimated_block_time: Duration::from_secs(1),
             reorg_period: ReorgPeriod::None,
             addresses: CoreContractAddresses::default(),

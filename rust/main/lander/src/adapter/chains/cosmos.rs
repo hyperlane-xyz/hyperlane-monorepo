@@ -5,7 +5,7 @@ use uuid::Uuid;
 use hyperlane_base::settings::{ChainConf, RawChainConf};
 
 use crate::{
-    adapter::{core::TxBuildingResult, AdaptsChain, GasLimit},
+    adapter::{core::TxBuildingResult, AdaptsChain},
     error::LanderError,
     payload::{FullPayload, PayloadDetails},
     transaction::{Transaction, TransactionStatus},
@@ -31,7 +31,7 @@ impl AdaptsChain for CosmosAdapter {
     async fn estimate_gas_limit(
         &self,
         _payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, LanderError> {
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
         todo!()
     }
 
