@@ -3101,6 +3101,49 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('does not leak block class alias shadowing before declaration to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      '{',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  class reqAlias {}',
+      '  void reqAlias;',
+      '}',
+      "const postBlockCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak block class alias declarations to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      '{',
+      '  class reqAlias {}',
+      "  reqAlias('./fixtures/other-module.js');",
+      '}',
+      "const postBlockCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('does not leak block enum alias shadowing before declaration to outer module specifiers', () => {
     const source = [
       'const reqAlias = require;',
@@ -5840,6 +5883,42 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('inner@./fixtures/guard-module.js');
   });
 
+  it('does not leak block class module-source alias shadowing before declaration to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      '{',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  class moduleAlias {}',
+      '  void preDeclarationSymbol;',
+      '  void moduleAlias;',
+      '}',
+      'const postBlockDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('does not leak block class module-source alias declarations to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      '{',
+      '  class moduleAlias {}',
+      '  const postDeclarationSymbol = moduleAlias.inner;',
+      '  void postDeclarationSymbol;',
+      '  void moduleAlias;',
+      '}',
+      'const postBlockDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
   it('does not leak block lexical alias shadowing before declaration to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -5864,6 +5943,40 @@ describe('Gnosis Safe migration guards', () => {
       '  function reqAlias(_value: unknown) {',
       '    return _value;',
       '  }',
+      '}',
+      "const postBlockDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak block class alias shadowing before declaration to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      '{',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  class reqAlias {}',
+      '  void reqAlias;',
+      '}',
+      "const postBlockDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak block class alias declarations to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      '{',
+      '  class reqAlias {}',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  void reqAlias;',
       '}',
       "const postBlockDefault = reqAlias('./fixtures/guard-module.js').default;",
     ].join('\n');
