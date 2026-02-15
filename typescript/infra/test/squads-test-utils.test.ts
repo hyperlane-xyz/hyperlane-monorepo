@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,6 +23,43 @@ const INFRA_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
+const SQUADS_DIRECTORY_PATH = path.join(INFRA_ROOT, 'scripts', 'squads');
+
+function compareLexicographically(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
+function listSquadsDirectoryScriptsRecursively(
+  absoluteDirectoryPath: string,
+  relativeDirectoryPath: string = 'scripts/squads',
+): readonly string[] {
+  const entries = fs
+    .readdirSync(absoluteDirectoryPath, { withFileTypes: true })
+    .sort((left, right) => compareLexicographically(left.name, right.name));
+  const scripts: string[] = [];
+
+  for (const entry of entries) {
+    const relativePath = path.posix.join(relativeDirectoryPath, entry.name);
+    const absolutePath = path.join(absoluteDirectoryPath, entry.name);
+    if (entry.isDirectory()) {
+      scripts.push(
+        ...listSquadsDirectoryScriptsRecursively(absolutePath, relativePath),
+      );
+      continue;
+    }
+    if (entry.isFile() && hasAllowedSquadsScriptExtension(relativePath)) {
+      scripts.push(relativePath);
+    }
+  }
+
+  return scripts.sort(compareLexicographically);
+}
 
 describe('squads test utils', () => {
   it('returns fresh squads script arrays per call', () => {
@@ -59,6 +97,16 @@ describe('squads test utils', () => {
       expect(isSquadsDirectoryScriptPath(scriptPath)).to.equal(true);
       expect(hasAllowedSquadsScriptExtension(scriptPath)).to.equal(true);
     }
+  });
+
+  it('keeps squads-directory listing flat for top-level helper', () => {
+    const topLevelSquadsScripts = listSquadsDirectoryScripts(INFRA_ROOT);
+    const recursivelyDiscoveredSquadsScripts =
+      listSquadsDirectoryScriptsRecursively(SQUADS_DIRECTORY_PATH);
+    expect(recursivelyDiscoveredSquadsScripts.length).to.be.greaterThan(0);
+    expect(topLevelSquadsScripts).to.deep.equal(
+      recursivelyDiscoveredSquadsScripts,
+    );
   });
 
   it('lists executable squads scripts excluding non-executable allowlist', () => {
