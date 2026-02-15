@@ -27,3 +27,5 @@ Container-runtime-unavailable detection was significantly expanded and hardened 
 Error-message extraction and formatting paths were hardened to avoid crashes and preserve useful diagnostics for hostile/non-standard payloads, including safer fallbacks through `String(error)`, inspect/JSON fallthroughs, and stable final placeholders.
 
 `String(error)` and `Symbol.toPrimitive` placeholder handling was extensively normalized (including quoted, escaped, and case-variant placeholder forms) so non-informative outputs continue to structural fallbacks while informative outputs remain authoritative.
+
+Regression guard tests were added to assert descriptor-matrix parity across triple/json/double escaped `Symbol.toPrimitive` placeholder suites, preventing future drift in matcher and formatter coverage.

@@ -1,4 +1,5 @@
 import { runInNewContext } from 'node:vm';
+import { readFileSync } from 'node:fs';
 
 import { expect } from 'chai';
 import type { StartedTestContainer } from 'testcontainers';
@@ -25367,6 +25368,77 @@ describe('Anvil utils', () => {
       );
       expect(errorMessage).to.include('"reason":"denied"');
       expect(errorMessage).to.include('"code":13');
+    });
+  });
+
+  describe('Symbol.toPrimitive descriptor parity guards', () => {
+    const parseDescriptors = (
+      source: string,
+      matcher: RegExp,
+    ): ReadonlySet<string> => {
+      const descriptors = new Set<string>();
+      for (const match of source.matchAll(matcher)) {
+        const [, descriptor] = match;
+        if (descriptor) descriptors.add(descriptor);
+      }
+      return descriptors;
+    };
+
+    const splitByEscapeLevel = (
+      descriptors: ReadonlySet<string>,
+    ): Record<'triple' | 'json' | 'double', ReadonlySet<string>> => {
+      const group = (
+        prefix: string,
+        source: ReadonlySet<string>,
+      ): ReadonlySet<string> => {
+        const grouped = new Set<string>();
+        for (const descriptor of source) {
+          if (descriptor.startsWith(prefix)) {
+            grouped.add(descriptor.slice(prefix.length));
+          }
+        }
+        return grouped;
+      };
+      return {
+        triple: group('triple-escaped ', descriptors),
+        json: group('json-escaped ', descriptors),
+        double: group('double-escaped ', descriptors),
+      };
+    };
+
+    const sortedDifference = (
+      left: ReadonlySet<string>,
+      right: ReadonlySet<string>,
+    ): ReadonlyArray<string> => {
+      return [...left].filter((value) => !right.has(value)).sort();
+    };
+
+    it('keeps matcher descriptor sets equivalent across triple/json/double escape levels', () => {
+      const source = readFileSync(new URL(import.meta.url), 'utf8');
+      const matcherDescriptors = parseDescriptors(
+        source,
+        /it\('(?:matches runtime toStringTag signals|ignores non-runtime toStringTag signals) when non-Error Symbol\.toPrimitive String\(error\) is a ([^']+)'/g,
+      );
+      const { triple, json, double } = splitByEscapeLevel(matcherDescriptors);
+
+      expect(sortedDifference(triple, json)).to.deep.equal([]);
+      expect(sortedDifference(json, triple)).to.deep.equal([]);
+      expect(sortedDifference(triple, double)).to.deep.equal([]);
+      expect(sortedDifference(double, triple)).to.deep.equal([]);
+    });
+
+    it('keeps formatter descriptor sets equivalent across triple/json/double escape levels', () => {
+      const source = readFileSync(new URL(import.meta.url), 'utf8');
+      const formatterDescriptors = parseDescriptors(
+        source,
+        /it\('falls back to Object\.prototype\.toString for non-Error objects when Symbol\.toPrimitive String\(error\) is a ([^']+)'/g,
+      );
+      const { triple, json, double } = splitByEscapeLevel(formatterDescriptors);
+
+      expect(sortedDifference(triple, json)).to.deep.equal([]);
+      expect(sortedDifference(json, triple)).to.deep.equal([]);
+      expect(sortedDifference(triple, double)).to.deep.equal([]);
+      expect(sortedDifference(double, triple)).to.deep.equal([]);
     });
   });
 });
