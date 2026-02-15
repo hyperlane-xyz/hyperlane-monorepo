@@ -1362,7 +1362,7 @@ function createProposalCancelInstruction(
 }
 
 export async function buildSquadsVaultTransactionProposal(
-  chain: SquadsChainName,
+  chain: ChainName,
   mpp: MultiProtocolProvider,
   ixs: readonly TransactionInstruction[],
   creator: PublicKey,
@@ -1417,7 +1417,7 @@ export async function buildSquadsVaultTransactionProposal(
 }
 
 export async function buildSquadsProposalRejection(
-  chain: SquadsChainName,
+  chain: ChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
@@ -1446,7 +1446,7 @@ export async function buildSquadsProposalRejection(
 }
 
 export async function buildSquadsProposalCancellation(
-  chain: SquadsChainName,
+  chain: ChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
@@ -1475,7 +1475,7 @@ export async function buildSquadsProposalCancellation(
 }
 
 export async function submitProposalToSquads(
-  chain: SquadsChainName,
+  chain: ChainName,
   vaultInstructions: readonly TransactionInstruction[],
   mpp: MultiProtocolProvider,
   signerAdapter: SvmMultiProtocolSignerAdapter,
@@ -1543,7 +1543,7 @@ export function isConfigTransaction(accountData: Buffer): boolean {
 }
 
 export async function getTransactionType(
-  chain: SquadsChainName,
+  chain: ChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
   svmProviderOverride?: SolanaWeb3Provider,
@@ -1586,7 +1586,7 @@ export async function getTransactionType(
 }
 
 export async function executeProposal(
-  chain: SquadsChainName,
+  chain: ChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
   signerAdapter: SvmMultiProtocolSignerAdapter,
