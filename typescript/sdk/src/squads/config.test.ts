@@ -201,6 +201,22 @@ describe('squads config', () => {
     expect(keys.vault.toBase58()).to.equal(squadsConfigs.solanamainnet.vault);
   });
 
+  it('returns fresh immutable squads key containers per lookup', () => {
+    const firstKeys = getSquadsKeys('solanamainnet');
+    const secondKeys = getSquadsKeys('solanamainnet');
+
+    expect(firstKeys).to.not.equal(secondKeys);
+    expect(Object.isFrozen(firstKeys)).to.equal(true);
+    expect(Object.isFrozen(secondKeys)).to.equal(true);
+    expect(firstKeys.multisigPda.toBase58()).to.equal(
+      secondKeys.multisigPda.toBase58(),
+    );
+    expect(firstKeys.programId.toBase58()).to.equal(
+      secondKeys.programId.toBase58(),
+    );
+    expect(firstKeys.vault.toBase58()).to.equal(secondKeys.vault.toBase58());
+  });
+
   it('throws for unknown chain key lookups', () => {
     expect(() => getSquadsKeys('unknown-chain')).to.throw(
       'Squads config not found on chain unknown-chain',
