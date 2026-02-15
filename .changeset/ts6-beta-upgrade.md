@@ -269,3 +269,5 @@ Regression coverage now also confirms `AggregateError` instances remain detectab
 Regression coverage now also confirms `AggregateError` runtime matching remains stable when `message` accessors throw and detection must rely on `cause`/`errors` payloads.
 
 Regression coverage now also confirms `AggregateError` runtime matching remains stable when `message` plus `cause` or `errors` accessors throw simultaneously, as long as the remaining field still carries runtime/non-runtime signals.
+
+Regression coverage now also confirms same-realm and cross-realm boxed-string `AggregateError.errors` payloads (including hostile `Symbol.toStringTag` accessors) remain detectable/ignorable even when both `AggregateError.message` and `AggregateError.cause` accessors throw.
