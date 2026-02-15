@@ -909,6 +909,19 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps expected canonical sdk squads barrel-exported source paths', () => {
+    expect(EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS).to.deep.equal([
+      'src/squads/config.ts',
+      'src/squads/error-format.ts',
+      'src/squads/transaction-reader.ts',
+      'src/squads/utils.ts',
+    ]);
+  });
+
+  it('keeps expected canonical sdk squads test token paths', () => {
+    expect(SDK_SQUADS_TEST_TOKEN_PATHS).to.deep.equal(['src/squads/*.test.ts']);
+  });
+
   it('keeps expected canonical sdk squads barrel export statements', () => {
     expect(EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS).to.deep.equal([
       "export * from './config.js';",
