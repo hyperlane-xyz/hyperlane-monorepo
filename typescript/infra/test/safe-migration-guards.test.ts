@@ -588,11 +588,22 @@ function readImportTypeQualifierSymbol(
 }
 
 function isLexicalScopeBoundary(node: ts.Node): boolean {
+  const hasLexicalBindings = (declarations: ts.VariableDeclarationList) =>
+    (declarations.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const)) !== 0;
+  const isLexicalLoopBoundary =
+    (ts.isForStatement(node) &&
+      node.initializer &&
+      ts.isVariableDeclarationList(node.initializer) &&
+      hasLexicalBindings(node.initializer)) ||
+    ((ts.isForInStatement(node) || ts.isForOfStatement(node)) &&
+      ts.isVariableDeclarationList(node.initializer) &&
+      hasLexicalBindings(node.initializer));
   return (
     ts.isBlock(node) ||
     ts.isModuleBlock(node) ||
     ts.isCaseBlock(node) ||
-    ts.isCatchClause(node)
+    ts.isCatchClause(node) ||
+    isLexicalLoopBoundary
   );
 }
 
@@ -1898,6 +1909,21 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not leak symbol-source shadowing across lexical for-loop scopes', () => {
+    const source = [
+      'const reqAlias = require;',
+      'for (const reqAlias of [() => undefined]) {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '}',
+      "const postLoopDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('does not treat top-level function declaration named require as module-sourced', () => {
     const source = [
       "const preShadowDefault = require('./fixtures/guard-module.js').default;",
@@ -2283,6 +2309,26 @@ describe('Safe migration guards', () => {
       "  require('./fixtures/other-module.js');",
       '}',
       "const postCatchCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak require shadowing across lexical for-loop scopes', () => {
+    const source = [
+      'const reqAlias = require;',
+      'for (const reqAlias of [() => undefined]) {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '}',
+      "const postLoopCall = reqAlias('./fixtures/guard-module.js');",
     ].join('\n');
     const moduleReferences = collectModuleSpecifierReferences(
       source,
