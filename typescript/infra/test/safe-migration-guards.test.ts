@@ -1877,6 +1877,21 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not treat top-level function declaration named require as module-sourced', () => {
+    const source = [
+      "const preShadowDefault = require('./fixtures/guard-module.js').default;",
+      'function require(_value: unknown) {',
+      '  return _value;',
+      '}',
+      "const postShadowDefault = require('./fixtures/other-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('does not treat block-scoped function shadowing of require alias as module-sourced', () => {
     const source = [
       'const reqAlias = require;',
@@ -2198,6 +2213,26 @@ describe('Safe migration guards', () => {
       "  return require('./fixtures/other-module.js');",
       '}',
       'void outerRequire;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not treat top-level function declaration named require as module specifier source', () => {
+    const source = [
+      "const preShadowCall = require('./fixtures/guard-module.js');",
+      'function require(_value: unknown) {',
+      '  return _value;',
+      '}',
+      "const postShadowCall = require('./fixtures/other-module.js');",
     ].join('\n');
     const moduleReferences = collectModuleSpecifierReferences(
       source,
