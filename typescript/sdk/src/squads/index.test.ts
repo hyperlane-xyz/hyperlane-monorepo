@@ -269,20 +269,22 @@ function assertSdkQuotedCommandTokenSet(
   }
 }
 
-function listSdkSquadsTestFilePaths(): readonly string[] {
-  const directoryEntries = fs
-    .readdirSync(SDK_SQUADS_SOURCE_DIR, { withFileTypes: true })
+function listSdkSquadsDirectoryEntries(
+  absoluteDirectoryPath: string,
+): readonly fs.Dirent[] {
+  return fs
+    .readdirSync(absoluteDirectoryPath, { withFileTypes: true })
     .sort((left, right) => compareLexicographically(left.name, right.name));
-  return directoryEntries
+}
+
+function listSdkSquadsTestFilePaths(): readonly string[] {
+  return listSdkSquadsDirectoryEntries(SDK_SQUADS_SOURCE_DIR)
     .filter((entry) => entry.isFile() && entry.name.endsWith('.test.ts'))
     .map((entry) => `src/squads/${entry.name}`);
 }
 
 function listSdkSquadsNonTestSourceFilePaths(): readonly string[] {
-  const directoryEntries = fs
-    .readdirSync(SDK_SQUADS_SOURCE_DIR, { withFileTypes: true })
-    .sort((left, right) => compareLexicographically(left.name, right.name));
-  return directoryEntries
+  return listSdkSquadsDirectoryEntries(SDK_SQUADS_SOURCE_DIR)
     .filter(
       (entry) =>
         entry.isFile() &&
@@ -330,12 +332,9 @@ function listSdkSquadsPathsRecursively(
   relativeDirectoryPath: string,
   shouldIncludeFileName: (entryName: string) => boolean,
 ): readonly string[] {
-  const directoryEntries = fs
-    .readdirSync(absoluteDirectoryPath, { withFileTypes: true })
-    .sort((left, right) => compareLexicographically(left.name, right.name));
   const discoveredPaths: string[] = [];
 
-  for (const entry of directoryEntries) {
+  for (const entry of listSdkSquadsDirectoryEntries(absoluteDirectoryPath)) {
     const nextRelativePath =
       relativeDirectoryPath.length === 0
         ? entry.name
