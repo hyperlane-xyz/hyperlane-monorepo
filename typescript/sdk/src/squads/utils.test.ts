@@ -3617,6 +3617,15 @@ describe('squads utils', () => {
     expect(nonSquadsChains).to.deep.equal(['unknown-chain']);
   });
 
+  it('throws for non-string chain entries while partitioning', () => {
+    expect(() =>
+      partitionSquadsChains([
+        'solanamainnet',
+        null as unknown as string,
+      ] as readonly string[]),
+    ).to.throw('Expected partitioned squads chains[1] to be a string, got null');
+  });
+
   it('resolves squads chains to configured defaults when input omitted', () => {
     expect(resolveSquadsChains()).to.deep.equal(getSquadsChains());
   });

@@ -95,11 +95,15 @@ export function partitionSquadsChains(chains: readonly string[]): {
   squadsChains: SquadsChainName[];
   nonSquadsChains: string[];
 } {
+  const normalizedChains = normalizeChainListValues(
+    chains,
+    'partitioned squads chains',
+  );
   const squadsChains: SquadsChainName[] = [];
   const nonSquadsChains: string[] = [];
   const seenChains = new Set<string>();
 
-  for (const chain of chains) {
+  for (const chain of normalizedChains) {
     if (seenChains.has(chain)) {
       continue;
     }
