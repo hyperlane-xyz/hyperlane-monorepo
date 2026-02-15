@@ -644,11 +644,27 @@ function collectDefaultImportNamesFromSource(
       ts.isImportDeclaration(node) &&
       ts.isStringLiteralLike(node.moduleSpecifier) &&
       node.moduleSpecifier.text === moduleName &&
-      node.importClause?.name
+      node.importClause
     ) {
-      defaultImportNames.push(
-        normalizeNamedSymbol(node.importClause.name.text),
-      );
+      if (node.importClause.name) {
+        defaultImportNames.push(
+          normalizeNamedSymbol(node.importClause.name.text),
+        );
+      }
+      if (
+        node.importClause.namedBindings &&
+        ts.isNamedImports(node.importClause.namedBindings)
+      ) {
+        for (const importSpecifier of node.importClause.namedBindings
+          .elements) {
+          const importedName =
+            importSpecifier.propertyName?.text ?? importSpecifier.name.text;
+          if (importedName !== 'default') continue;
+          defaultImportNames.push(
+            normalizeNamedSymbol(importSpecifier.name.text),
+          );
+        }
+      }
     }
     ts.forEachChild(node, visit);
   };
@@ -1087,6 +1103,8 @@ describe('Safe migration guards', () => {
     const source = [
       "import SafeSdk from '@fixtures/guard-module';",
       "import type SafeType from '@fixtures/guard-module';",
+      "import { default as SafeAlias } from '@fixtures/guard-module';",
+      "import { type default as SafeTypeAlias } from '@fixtures/guard-module';",
       "import { getSafe } from '@fixtures/guard-module';",
       "import SafeOther from '@fixtures/other-module';",
     ].join('\n');
@@ -1095,7 +1113,12 @@ describe('Safe migration guards', () => {
       'fixture.ts',
       '@fixtures/guard-module',
     );
-    expect(defaultImports).to.deep.equal(['SafeSdk', 'SafeType']);
+    expect(defaultImports).to.deep.equal([
+      'SafeSdk',
+      'SafeType',
+      'SafeAlias',
+      'SafeTypeAlias',
+    ]);
   });
 
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
@@ -1212,7 +1235,7 @@ describe('Safe migration guards', () => {
     expect(defaultSdkImports).to.deep.equal([]);
 
     expectNoRipgrepMatches(
-      String.raw`import\s+[A-Za-z_$][A-Za-z0-9_$]*\s+from\s+['"]@hyperlane-xyz/sdk['"]`,
+      String.raw`(?:import\s+[A-Za-z_$][A-Za-z0-9_$]*\s+from\s+['"]@hyperlane-xyz/sdk['"]|import\s*\{\s*(?:type\s+)?default(?:\s+as\s+[A-Za-z_$][A-Za-z0-9_$]*)?\s*\}\s*from\s+['"]@hyperlane-xyz/sdk['"])`,
       'default imports from @hyperlane-xyz/sdk',
       INFRA_SOURCE_AND_TEST_PATHS,
     );
