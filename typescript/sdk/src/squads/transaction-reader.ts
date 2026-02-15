@@ -1328,6 +1328,21 @@ export class SquadsTransactionReader {
 
     try {
       const config = resolveExpectedMultisigConfig(chain);
+      const { thenValue, readFailed: thenReadFailed } = getThenValue(config);
+      if (thenReadFailed) {
+        rootLogger.warn(
+          `Failed to inspect expected multisig config for ${chain}: unable to read promise-like then field`,
+        );
+        this.multisigConfigs.set(chain, null);
+        return null;
+      }
+      if (typeof thenValue === 'function') {
+        rootLogger.warn(
+          `Invalid expected multisig config for ${chain}: expected synchronous object result, got promise-like value`,
+        );
+        this.multisigConfigs.set(chain, null);
+        return null;
+      }
       this.multisigConfigs.set(chain, config);
       return config;
     } catch (error) {
