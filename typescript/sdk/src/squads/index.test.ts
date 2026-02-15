@@ -83,6 +83,9 @@ const PROCESS_ENV_REFERENCE_PATTERN = /\bprocess\.env\b/;
 const PROCESS_ARGV_REFERENCE_PATTERN = /\bprocess\.argv\b/;
 const PROCESS_CWD_REFERENCE_PATTERN = /\bprocess\.cwd\s*\(/;
 const PROCESS_EXIT_REFERENCE_PATTERN = /\bprocess\.exit\s*\(/;
+const PROCESS_STDIN_REFERENCE_PATTERN = /\bprocess\.stdin\b/;
+const PROCESS_STDOUT_REFERENCE_PATTERN = /\bprocess\.stdout\b/;
+const PROCESS_STDERR_REFERENCE_PATTERN = /\bprocess\.stderr\b/;
 const CLI_GLUE_IMPORT_PATTERN =
   /(?:from\s+['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]|import\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\)|require\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\))/;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
@@ -1161,6 +1164,18 @@ describe('squads barrel exports', () => {
       expect(
         PROCESS_EXIT_REFERENCE_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid process.exit coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        PROCESS_STDIN_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid process.stdin coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        PROCESS_STDOUT_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid process.stdout coupling: ${runtimeSourcePath}`,
+      ).to.equal(false);
+      expect(
+        PROCESS_STDERR_REFERENCE_PATTERN.test(runtimeSource),
+        `Expected sdk squads runtime source to avoid process.stderr coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
         CLI_GLUE_IMPORT_PATTERN.test(runtimeSource),
