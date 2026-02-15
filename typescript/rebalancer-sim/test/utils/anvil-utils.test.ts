@@ -1247,6 +1247,281 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
 
+    it('matches runtime AggregateError constructor names when message, name, cause, and errors accessors throw', () => {
+      const error = new AggregateError([], 'hidden message');
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(error, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(error, 'constructor', {
+        value: { name: 'No Docker client strategy found' },
+      });
+      Object.defineProperty(error, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime AggregateError constructor names when message, name, cause, and errors accessors throw', () => {
+      const error = new AggregateError([], 'hidden message');
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(error, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(error, 'constructor', {
+        value: { name: 'unrelated nested startup warning' },
+      });
+      Object.defineProperty(error, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('matches runtime boxed-string AggregateError constructor names when message, name, cause, and errors accessors throw', () => {
+      const error = new AggregateError([], 'hidden message');
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(error, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(error, 'constructor', {
+        value: { name: new String('No Docker client strategy found') },
+      });
+      Object.defineProperty(error, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime boxed-string AggregateError constructor names when message, name, cause, and errors accessors throw', () => {
+      const error = new AggregateError([], 'hidden message');
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(error, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(error, 'constructor', {
+        value: { name: new String('unrelated nested startup warning') },
+      });
+      Object.defineProperty(error, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('matches runtime cross-realm boxed-string AggregateError constructor names when message, name, cause, and errors accessors throw with hostile toStringTag accessors', () => {
+      const error = new AggregateError([], 'hidden message');
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(error, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(error, 'constructor', {
+        value: {
+          name: buildCrossRealmBoxedStringWithThrowingToStringTag(
+            'No Docker client strategy found',
+          ),
+        },
+      });
+      Object.defineProperty(error, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string AggregateError constructor names when message, name, cause, and errors accessors throw with hostile toStringTag accessors', () => {
+      const error = new AggregateError([], 'hidden message');
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(error, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(error, 'constructor', {
+        value: {
+          name: buildCrossRealmBoxedStringWithThrowingToStringTag(
+            'unrelated nested startup warning',
+          ),
+        },
+      });
+      Object.defineProperty(error, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('ignores coercible spoofed AggregateError constructor names when message, name, cause, and errors accessors throw', () => {
+      const error = new AggregateError([], 'hidden message');
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(error, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(error, 'constructor', {
+        value: {
+          name: buildCoercibleSpoofedBoxedString(
+            'No Docker client strategy found',
+          ),
+        },
+      });
+      Object.defineProperty(error, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('ignores uncoercible spoofed AggregateError constructor names when message, name, cause, and errors accessors throw', () => {
+      const error = new AggregateError([], 'hidden message');
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(error, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(error, 'constructor', {
+        value: { name: buildUncoercibleSpoofedBoxedString() },
+      });
+      Object.defineProperty(error, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('ignores string-prototype impostor AggregateError constructor names when message, name, cause, and errors accessors throw', () => {
+      const error = new AggregateError([], 'hidden message');
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(error, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(error, 'constructor', {
+        value: {
+          name: buildStringPrototypeImpostor('No Docker client strategy found'),
+        },
+      });
+      Object.defineProperty(error, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('matches runtime boxed-string AggregateError messages when cause and errors accessors throw', () => {
       const error = new AggregateError([], 'hidden message');
       Object.defineProperty(error, 'message', {
@@ -2798,6 +3073,281 @@ describe('Anvil utils', () => {
       });
       Object.defineProperty(wrappedError, 'name', {
         value: buildStringPrototypeImpostor('No Docker client strategy found'),
+      });
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('matches runtime top-level Error constructor names when message, name, cause, and errors accessors throw', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'constructor', {
+        value: { name: 'No Docker client strategy found' },
+      });
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime top-level Error constructor names when message, name, cause, and errors accessors throw', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'constructor', {
+        value: { name: 'unrelated nested startup warning' },
+      });
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('matches runtime boxed-string top-level Error constructor names when message, name, cause, and errors accessors throw', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'constructor', {
+        value: { name: new String('No Docker client strategy found') },
+      });
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime boxed-string top-level Error constructor names when message, name, cause, and errors accessors throw', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'constructor', {
+        value: { name: new String('unrelated nested startup warning') },
+      });
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('matches runtime cross-realm boxed-string top-level Error constructor names when message, name, cause, and errors accessors throw with hostile toStringTag accessors', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'constructor', {
+        value: {
+          name: buildCrossRealmBoxedStringWithThrowingToStringTag(
+            'No Docker client strategy found',
+          ),
+        },
+      });
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string top-level Error constructor names when message, name, cause, and errors accessors throw with hostile toStringTag accessors', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'constructor', {
+        value: {
+          name: buildCrossRealmBoxedStringWithThrowingToStringTag(
+            'unrelated nested startup warning',
+          ),
+        },
+      });
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('ignores coercible spoofed top-level Error constructor names when message, name, cause, and errors accessors throw', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'constructor', {
+        value: {
+          name: buildCoercibleSpoofedBoxedString(
+            'No Docker client strategy found',
+          ),
+        },
+      });
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('ignores uncoercible spoofed top-level Error constructor names when message, name, cause, and errors accessors throw', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'constructor', {
+        value: { name: buildUncoercibleSpoofedBoxedString() },
+      });
+      Object.defineProperty(wrappedError, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('ignores string-prototype impostor top-level Error constructor names when message, name, cause, and errors accessors throw', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'name', {
+        get() {
+          throw new Error('blocked name getter');
+        },
+      });
+      Object.defineProperty(wrappedError, 'constructor', {
+        value: {
+          name: buildStringPrototypeImpostor('No Docker client strategy found'),
+        },
       });
       Object.defineProperty(wrappedError, 'cause', {
         get() {
