@@ -668,7 +668,7 @@ function collectDefaultImportNamesFromSource(
   };
 
   visit(sourceFile);
-  return defaultImportNames.filter(Boolean);
+  return [...new Set(defaultImportNames.filter(Boolean))];
 }
 
 function isLegacySafeUtilSpecifier(source: string): boolean {
@@ -1132,6 +1132,20 @@ describe('Safe migration guards', () => {
       'SafeTypeClauseAlias',
       'default',
     ]);
+  });
+
+  it('deduplicates default import names from repeated clauses', () => {
+    const source = [
+      "import SafeSdk from '@fixtures/guard-module';",
+      "import { default as SafeSdk } from '@fixtures/guard-module';",
+      "import type { default as SafeSdk } from '@fixtures/guard-module';",
+    ].join('\n');
+    const defaultImports = collectDefaultImportNamesFromSource(
+      source,
+      'fixture.ts',
+      '@fixtures/guard-module',
+    );
+    expect(defaultImports).to.deep.equal(['SafeSdk']);
   });
 
   it('keeps required runtime safe helpers value-exported from sdk index', () => {

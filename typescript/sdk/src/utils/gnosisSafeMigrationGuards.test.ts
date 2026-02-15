@@ -419,7 +419,7 @@ function collectDefaultImportNamesFromSource(
   };
 
   visit(sourceFile);
-  return defaultImportNames.filter(Boolean);
+  return [...new Set(defaultImportNames.filter(Boolean))];
 }
 
 function collectDefaultImportsFromModule(
@@ -681,6 +681,20 @@ describe('Gnosis Safe migration guards', () => {
       'SafeTypeClauseAlias',
       'default',
     ]);
+  });
+
+  it('deduplicates default import names from repeated clauses', () => {
+    const source = [
+      "import SafeSdk from '@fixtures/guard-module';",
+      "import { default as SafeSdk } from '@fixtures/guard-module';",
+      "import type { default as SafeSdk } from '@fixtures/guard-module';",
+    ].join('\n');
+    const defaultImports = collectDefaultImportNamesFromSource(
+      source,
+      'fixture.ts',
+      '@fixtures/guard-module',
+    );
+    expect(defaultImports).to.deep.equal(['SafeSdk']);
   });
 
   it('prevents sdk source imports from infra paths', () => {
