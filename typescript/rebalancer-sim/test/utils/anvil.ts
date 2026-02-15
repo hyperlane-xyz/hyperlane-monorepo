@@ -117,8 +117,8 @@ function getErrorMessage(error: unknown): string {
     }
 
     try {
-      const inspectedValue = inspect(error);
-      if (typeof inspectedValue === 'string') return inspectedValue;
+      const inspectedValue = getTrimmedNonEmptyString(inspect(error));
+      if (inspectedValue) return inspectedValue;
     } catch {
       // Fall through to Object.prototype.toString fallback.
     }
