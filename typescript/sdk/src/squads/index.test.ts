@@ -140,6 +140,46 @@ function assertSdkSquadsTestTokenShape(
   ).to.equal(true);
 }
 
+function assertSingleAsteriskGlobShape(
+  globPattern: string,
+  globLabel: string,
+): void {
+  expect(globPattern, `Expected ${globLabel} to be trimmed`).to.equal(
+    globPattern.trim(),
+  );
+  expect(
+    globPattern.includes('\\'),
+    `Expected ${globLabel} to avoid backslash separators: ${globPattern}`,
+  ).to.equal(false);
+  expect(
+    /\s/.test(globPattern),
+    `Expected ${globLabel} to avoid whitespace characters: ${globPattern}`,
+  ).to.equal(false);
+  const wildcardIndex = globPattern.indexOf('*');
+  expect(
+    wildcardIndex,
+    `Expected ${globLabel} to include wildcard segment: ${globPattern}`,
+  ).to.not.equal(-1);
+  expect(
+    globPattern.indexOf('*', wildcardIndex + 1),
+    `Expected ${globLabel} to include a single wildcard segment: ${globPattern}`,
+  ).to.equal(-1);
+  const prefix = globPattern.slice(0, wildcardIndex);
+  const suffix = globPattern.slice(wildcardIndex + 1);
+  expect(
+    prefix.startsWith('src/'),
+    `Expected ${globLabel} prefix to stay src-scoped: ${globPattern}`,
+  ).to.equal(true);
+  expect(
+    prefix.includes('/squads/'),
+    `Expected ${globLabel} prefix to stay squads-scoped: ${globPattern}`,
+  ).to.equal(true);
+  expect(
+    suffix.endsWith('.test.ts'),
+    `Expected ${globLabel} suffix to remain test-file scoped: ${globPattern}`,
+  ).to.equal(true);
+}
+
 function assertSdkSquadsTokenPathSetNormalizedAndDeduplicated(
   tokenPaths: readonly string[],
   tokenSetLabel: string,
@@ -360,6 +400,12 @@ describe('squads barrel exports', () => {
       SDK_SQUADS_TEST_TOKEN_PATHS,
       'sdk squads test-token constant set',
     );
+    for (const tokenPath of SDK_SQUADS_TEST_TOKEN_PATHS) {
+      assertSingleAsteriskGlobShape(
+        tokenPath,
+        'sdk squads test-token constant glob',
+      );
+    }
   });
 
   it('re-exports squads config/constants', () => {
