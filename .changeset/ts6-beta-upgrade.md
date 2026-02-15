@@ -263,3 +263,5 @@ Regression coverage now also confirms spoofed boxed-string and `String.prototype
 Regression coverage now also confirms boxed-string-valued `AggregateError.cause` payloads (same-realm and cross-realm, with hostile `Symbol.toStringTag` accessors) remain detectable/ignorable when `AggregateError.errors` contains only non-runtime values.
 
 Regression coverage now also confirms boxed-string-valued `AggregateError.cause` payloads (same-realm and cross-realm, without hostile `Symbol.toStringTag` accessors) remain detectable/ignorable when `AggregateError.errors` contains only non-runtime values.
+
+Regression coverage now also confirms `AggregateError` instances remain detectable/ignorable when hostile `cause` or `errors` accessors throw, as long as the remaining field still carries runtime/non-runtime signals.

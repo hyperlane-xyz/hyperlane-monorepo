@@ -709,6 +709,62 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
 
+    it('matches runtime AggregateError errors payloads when cause accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime');
+      Object.defineProperty(error, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(error, 'errors', {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime AggregateError errors payloads when cause accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime');
+      Object.defineProperty(error, 'cause', {
+        get() {
+          throw new Error('blocked cause getter');
+        },
+      });
+      Object.defineProperty(error, 'errors', {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('matches runtime AggregateError causes when errors accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      error.cause = new Error('No Docker client strategy found');
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime AggregateError causes when errors accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      error.cause = new Error('unrelated nested startup warning');
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('handles cyclic cause chains safely', () => {
       const first = new Error('outer startup error');
       const second = new Error(
