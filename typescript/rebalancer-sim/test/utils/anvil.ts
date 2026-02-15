@@ -17,6 +17,12 @@ const LOCAL_ANVIL_STARTUP_TIMEOUT_MS = 30_000;
 const LOCAL_ANVIL_STOP_TIMEOUT_MS = 5_000;
 const MAX_EXTRACTED_ERROR_NODES = 500;
 const MAX_NESTED_ITERABLE_VALUES = 500;
+const NON_INFORMATIVE_STRUCTURED_OUTPUTS = new Set([
+  '{}',
+  '[]',
+  'null',
+  'undefined',
+]);
 const WINDOWS_DOCKER_PIPE_ENGINES = [
   'docker_engine',
   'dockerdesktopengine',
@@ -123,7 +129,12 @@ function getErrorMessage(error: unknown): string {
 
     try {
       const inspectedValue = getTrimmedNonEmptyString(inspect(error));
-      if (inspectedValue) return inspectedValue;
+      if (
+        inspectedValue &&
+        !NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(inspectedValue)
+      ) {
+        return inspectedValue;
+      }
     } catch {
       // Fall through to Object.prototype.toString fallback.
     }
