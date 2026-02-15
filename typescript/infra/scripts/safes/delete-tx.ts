@@ -10,6 +10,14 @@ import { Role } from '../../src/roles.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { chains, tx, governanceType } = await withGovernanceType(
     withChains(
@@ -49,7 +57,9 @@ async function main() {
     try {
       await deleteSafeTx(chain, multiProvider, safeAddress, tx);
     } catch (error) {
-      rootLogger.error(`Error deleting transaction ${tx} for ${chain}:`, error);
+      rootLogger.error(
+        `Error deleting transaction ${tx} for ${chain}: ${stringifyValueForError(error)}`,
+      );
     }
   }
 }
@@ -57,6 +67,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    rootLogger.error(e);
+    rootLogger.error(stringifyValueForError(e));
     process.exit(1);
   });

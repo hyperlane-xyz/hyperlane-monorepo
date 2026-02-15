@@ -10,6 +10,14 @@ import { readJson } from '@hyperlane-xyz/utils/fs';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 type SafeTransactionData = {
   to: string;
   data: string;
@@ -109,6 +117,6 @@ async function main() {
 
 // Execute the main function and handle promise
 main().catch((error) => {
-  rootLogger.error('An error occurred:', error);
+  rootLogger.error(`An error occurred: ${stringifyValueForError(error)}`);
   process.exit(1);
 });

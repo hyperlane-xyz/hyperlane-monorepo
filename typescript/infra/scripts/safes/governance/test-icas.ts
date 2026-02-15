@@ -20,6 +20,14 @@ import { getEnvironmentConfig, getHyperlaneCore } from '../../core-utils.js';
 
 const originChain = 'ethereum';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 // Main function to execute the script
 async function main() {
   const { governanceType } = await withGovernanceType(
@@ -113,6 +121,6 @@ async function main() {
 
 // Execute the main function and handle promise
 main().catch((error) => {
-  rootLogger.error('An error occurred:', error);
+  rootLogger.error(`An error occurred: ${stringifyValueForError(error)}`);
   process.exit(1);
 });

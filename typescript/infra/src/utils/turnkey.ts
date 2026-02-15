@@ -13,6 +13,14 @@ import { fetchLatestGCPSecret } from './gcloud.js';
 
 export type TurnkeySigner = TurnkeySealevelSigner | TurnkeyEvmSigner;
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 /**
  * Get the GCP secret name for a Turnkey role
  */
@@ -58,7 +66,9 @@ export async function createTurnkeySigner(
 
     return signer;
   } catch (error) {
-    rootLogger.error(`Failed to initialize Turnkey ${role} signer:`, error);
+    rootLogger.error(
+      `Failed to initialize Turnkey ${role} signer: ${stringifyValueForError(error)}`,
+    );
     rootLogger.error(
       `Ensure the Turnkey config is stored in GCP Secret Manager:\n` +
         `  Secret name: ${secretName}\n` +

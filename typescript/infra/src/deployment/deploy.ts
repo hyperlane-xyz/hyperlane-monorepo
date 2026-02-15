@@ -158,11 +158,16 @@ export async function deployWithArtifacts<Config extends object>({
     } catch (error: any) {
       if (error?.message.includes('Timed out')) {
         console.warn(
-          chalk.yellow('Contract deployment exceeding configured timeout'),
-          error,
+          chalk.yellow(
+            `Contract deployment exceeding configured timeout: ${stringifyValueForError(error)}`,
+          ),
         );
       } else {
-        console.error(chalk.red('Contract deployment failed'), error);
+        console.error(
+          chalk.red(
+            `Contract deployment failed: ${stringifyValueForError(error)}`,
+          ),
+        );
       }
     }
   }

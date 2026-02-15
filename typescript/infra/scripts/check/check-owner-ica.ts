@@ -24,6 +24,14 @@ import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 function getArgs() {
   return withGovernanceType(withChains(getEnvArgs())).option('ownerChain', {
     type: 'string',
@@ -107,7 +115,9 @@ async function main() {
         }
         return { chain, result: null };
       } catch (error) {
-        rootLogger.error(`Error processing chain ${chain}:`, error);
+        rootLogger.error(
+          `Error processing chain ${chain}: ${stringifyValueForError(error)}`,
+        );
         return { chain, error };
       }
     },
@@ -116,14 +126,18 @@ async function main() {
 
   for (const [chain, value] of fulfilled) {
     if ('error' in value && value.error) {
-      rootLogger.error(`Failed to process ${chain}:`, value.error);
+      rootLogger.error(
+        `Failed to process ${chain}: ${stringifyValueForError(value.error)}`,
+      );
     } else if (value.result) {
       mismatchedResults[chain] = value.result;
     }
   }
 
   for (const [chain, error] of rejected) {
-    rootLogger.error(`Promise rejected for ${chain}:`, error);
+    rootLogger.error(
+      `Promise rejected for ${chain}: ${stringifyValueForError(error)}`,
+    );
   }
 
   if (Object.keys(mismatchedResults).length > 0) {
@@ -138,6 +152,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  rootLogger.error('Error:', err);
+  rootLogger.error(`Error: ${stringifyValueForError(err)}`);
   process.exit(1);
 });

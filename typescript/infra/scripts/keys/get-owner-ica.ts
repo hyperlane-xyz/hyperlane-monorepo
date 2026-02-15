@@ -32,6 +32,14 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function getGovernanceOwnerFromWarpConfig(
   registry: IRegistry,
   warpRouteId: string,
@@ -155,7 +163,9 @@ async function main() {
 
         return { chain, result };
       } catch (error) {
-        rootLogger.error(`Error processing chain ${chain}:`, error);
+        rootLogger.error(
+          `Error processing chain ${chain}: ${stringifyValueForError(error)}`,
+        );
         return { chain, error };
       }
     },
@@ -165,8 +175,7 @@ async function main() {
   for (const [chain, value] of fulfilled) {
     if ('error' in value || !value.result) {
       rootLogger.error(
-        `Failed to process ${chain}:`,
-        'error' in value ? value.error : 'Unknown error',
+        `Failed to process ${chain}: ${stringifyValueForError('error' in value ? value.error : 'Unknown error')}`,
       );
     } else {
       results[chain] = value.result;
@@ -174,7 +183,9 @@ async function main() {
   }
 
   for (const [chain, error] of rejected) {
-    rootLogger.error(`Promise rejected for ${chain}:`, error);
+    rootLogger.error(
+      `Promise rejected for ${chain}: ${stringifyValueForError(error)}`,
+    );
   }
 
   // eslint-disable-next-line no-console
@@ -185,6 +196,6 @@ async function main() {
 main()
   .then()
   .catch((err) => {
-    rootLogger.error('Error:', err);
+    rootLogger.error(`Error: ${stringifyValueForError(err)}`);
     process.exit(1);
   });

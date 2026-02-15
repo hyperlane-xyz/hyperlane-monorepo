@@ -27,6 +27,14 @@ import { HyperlaneCoreGovernor } from './HyperlaneCoreGovernor.js';
 import { HyperlaneICAChecker } from './HyperlaneICAChecker.js';
 import { ProxiedRouterGovernor } from './ProxiedRouterGovernor.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
   HyperlaneCore,
   CoreConfig
@@ -120,7 +128,11 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
           try {
             await this.checkChain(chain);
           } catch (err) {
-            rootLogger.error(chalk.red(`Failed to check chain ${chain}:`, err));
+            rootLogger.error(
+              chalk.red(
+                `Failed to check chain ${chain}: ${stringifyValueForError(err)}`,
+              ),
+            );
             failedChains.push(chain);
           }
         }),
