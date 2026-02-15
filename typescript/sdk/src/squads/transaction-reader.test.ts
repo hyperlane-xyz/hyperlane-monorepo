@@ -5920,6 +5920,132 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('keeps system-instruction parsing when account-indexes getter throws', async () => {
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const hostileInstruction = new Proxy(
+      {
+        programIdIndex: 0,
+        data: Buffer.from([1, 2, 3]),
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'accountIndexes') {
+            throw new Error('account indexes unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    const vaultTransaction = {
+      message: {
+        accountKeys: [SYSTEM_PROGRAM_ID],
+        addressTableLookups: [],
+        instructions: [hostileInstruction],
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction as unknown as Record<string, unknown>,
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed).to.deep.equal({
+      warnings: [],
+      instructions: [
+        {
+          programId: SYSTEM_PROGRAM_ID,
+          programName: 'System Program',
+          instructionType: 'System Call',
+          data: {},
+          accounts: [],
+          warnings: [],
+        },
+      ],
+    });
+  });
+
+  it('keeps system-instruction parsing when instruction-data getter throws', async () => {
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const hostileInstruction = new Proxy(
+      {
+        programIdIndex: 0,
+        accountIndexes: [],
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'data') {
+            throw new Error('instruction data unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    const vaultTransaction = {
+      message: {
+        accountKeys: [SYSTEM_PROGRAM_ID],
+        addressTableLookups: [],
+        instructions: [hostileInstruction],
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction as unknown as Record<string, unknown>,
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed).to.deep.equal({
+      warnings: [],
+      instructions: [
+        {
+          programId: SYSTEM_PROGRAM_ID,
+          programName: 'System Program',
+          instructionType: 'System Call',
+          data: {},
+          accounts: [],
+          warnings: [],
+        },
+      ],
+    });
+  });
+
   it('formats unstringifiable instruction parse errors safely', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({

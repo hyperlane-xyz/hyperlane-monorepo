@@ -1245,29 +1245,55 @@ export class SquadsTransactionReader {
 
     for (const [idx, instruction] of instructions.entries()) {
       try {
-        if (
-          instruction.programIdIndex >= accountKeys.length ||
-          instruction.programIdIndex < 0
-        ) {
+        const programIdIndexValue = this.readVaultInstructionField(
+          chain,
+          idx,
+          'program id index',
+          () => (instruction as { programIdIndex?: unknown }).programIdIndex,
+          -1,
+        );
+        const programIdIndex =
+          typeof programIdIndexValue === 'number' &&
+          Number.isInteger(programIdIndexValue)
+            ? programIdIndexValue
+            : -1;
+        if (programIdIndex >= accountKeys.length || programIdIndex < 0) {
           throw new Error(
-            `Invalid programIdIndex: ${instruction.programIdIndex}. Account keys length: ${accountKeys.length}`,
+            `Invalid programIdIndex: ${formatIntegerValidationValue(
+              programIdIndexValue,
+            )}. Account keys length: ${accountKeys.length}`,
           );
         }
 
-        if (
-          !instruction.accountIndexes ||
-          instruction.accountIndexes.length > MAX_SOLANA_ACCOUNTS
-        ) {
+        const accountIndexesValue = this.readVaultInstructionField(
+          chain,
+          idx,
+          'account indexes',
+          () => (instruction as { accountIndexes?: unknown }).accountIndexes,
+          [],
+        );
+        if (!Array.isArray(accountIndexesValue)) {
+          rootLogger.warn(
+            `Malformed instruction account indexes on ${chain} at ${idx}: expected array, got ${getUnknownValueTypeName(accountIndexesValue)}`,
+          );
+        }
+        const accountIndexes = Array.isArray(accountIndexesValue)
+          ? this.normalizeVaultArrayField(
+              chain,
+              `instruction account indexes at ${idx}`,
+              accountIndexesValue,
+            )
+          : [];
+
+        if (accountIndexes.length > MAX_SOLANA_ACCOUNTS) {
           throw new Error(
-            `Invalid accountIndexes: length ${instruction.accountIndexes?.length ?? 'undefined'}`,
+            `Invalid accountIndexes: length ${accountIndexes.length}`,
           );
         }
 
-        const programId = accountKeys[instruction.programIdIndex];
+        const programId = accountKeys[programIdIndex];
         if (!programId) {
-          throw new Error(
-            `Program ID not found at index ${instruction.programIdIndex}`,
-          );
+          throw new Error(`Program ID not found at index ${programIdIndex}`);
         }
 
         if (
@@ -1281,11 +1307,25 @@ export class SquadsTransactionReader {
           continue;
         }
 
-        const instructionData = Buffer.from(instruction.data);
+        const instructionDataValue = this.readVaultInstructionField(
+          chain,
+          idx,
+          'instruction data',
+          () => (instruction as { data?: unknown }).data,
+          Buffer.alloc(0),
+        );
+        const instructionData = Buffer.from(instructionDataValue as Uint8Array);
         const accounts: PublicKey[] = [];
-        for (const accountIdx of instruction.accountIndexes) {
-          if (accountIdx < accountKeys.length) {
-            const key = accountKeys[accountIdx];
+        for (const accountIdxValue of accountIndexes) {
+          if (
+            typeof accountIdxValue !== 'number' ||
+            !Number.isInteger(accountIdxValue) ||
+            accountIdxValue < 0
+          ) {
+            continue;
+          }
+          if (accountIdxValue < accountKeys.length) {
+            const key = accountKeys[accountIdxValue];
             if (key) accounts.push(key);
           }
         }
@@ -1408,6 +1448,23 @@ export class SquadsTransactionReader {
     } catch (error) {
       rootLogger.warn(
         `Failed to read ${label} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return fallbackValue;
+    }
+  }
+
+  private readVaultInstructionField(
+    chain: SquadsChainName,
+    instructionIndex: number,
+    label: string,
+    readValue: () => unknown,
+    fallbackValue: unknown,
+  ): unknown {
+    try {
+      return readValue();
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read instruction ${instructionIndex} ${label} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
       );
       return fallbackValue;
     }
