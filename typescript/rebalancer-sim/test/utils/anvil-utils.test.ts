@@ -482,6 +482,48 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
 
+    it('matches runtime signals from non-Error objects via trimmed Symbol.toPrimitive String(error) fallback', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return '  No Docker client strategy found  ';
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores runtime-like toStringTag signals when non-Error trimmed Symbol.toPrimitive String(error) is informative and non-runtime', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return '  unrelated primitive-style wrapper failure  ';
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('matches runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is a non-informative placeholder', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const error = {
@@ -494,6 +536,27 @@ describe('Anvil utils', () => {
         },
         [Symbol.toPrimitive]() {
           return '[Object]';
+        },
+      };
+      Object.defineProperty(error, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('matches runtime toStringTag signals when non-Error Symbol.toPrimitive String(error) is a whitespace-padded placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const error = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return '   [Object]   ';
         },
       };
       Object.defineProperty(error, Symbol.toStringTag, {
@@ -13953,6 +14016,52 @@ describe('Anvil utils', () => {
       );
     });
 
+    it('trims Symbol.toPrimitive String(error) fallback output for non-Error objects', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return '  No Docker client strategy found  ';
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: No Docker client strategy found',
+      );
+    });
+
+    it('prefers informative trimmed Symbol.toPrimitive String(error) output for non-Error objects over runtime-like toStringTag values', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+        [Symbol.toPrimitive]() {
+          return '  unrelated primitive-style wrapper failure  ';
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: unrelated primitive-style wrapper failure',
+      );
+    });
+
     it('falls back to Object.prototype.toString for non-Error objects when Symbol.toPrimitive String(error) is a non-informative placeholder', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const problematic = {
@@ -13973,6 +14082,29 @@ describe('Anvil utils', () => {
 
       expect(formatLocalAnvilStartError(problematic)).to.equal(
         'Failed to start local anvil: [object SymbolToPrimitivePlaceholderTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString for non-Error objects when Symbol.toPrimitive String(error) is a whitespace-padded placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        message: { detail: 'non-string message field should be ignored' },
+        toJSON() {
+          return undefined;
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+        [Symbol.toPrimitive]() {
+          return '   [Object]   ';
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'SymbolToPrimitiveWhitespacePlaceholderTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object SymbolToPrimitiveWhitespacePlaceholderTag]',
       );
     });
 
