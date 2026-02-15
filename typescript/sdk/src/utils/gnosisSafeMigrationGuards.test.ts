@@ -755,12 +755,8 @@ function isLexicalScopeBoundary(node: ts.Node): boolean {
 }
 
 function shouldMergeNonLexicalScopeMutations(node: ts.Node): boolean {
-  const isClassStaticBlockBody =
-    ts.isBlock(node) &&
-    node.parent?.kind === ts.SyntaxKind.ClassStaticBlockDeclaration;
   return (
     !ts.isModuleBlock(node) &&
-    !isClassStaticBlockBody &&
     node.kind !== ts.SyntaxKind.ClassStaticBlockDeclaration
   );
 }
@@ -821,21 +817,22 @@ function stringArraysEqual(
 function collectStatementLexicalScopeBindings(
   statement: ts.Statement,
   declaredIdentifiers: Set<string>,
+  includeVarDeclarations = false,
 ): void {
   if (ts.isLabeledStatement(statement)) {
     collectStatementLexicalScopeBindings(
       statement.statement,
       declaredIdentifiers,
+      includeVarDeclarations,
     );
     return;
   }
 
   if (ts.isVariableStatement(statement)) {
     const declarationList = statement.declarationList;
-    if (
-      (declarationList.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const)) ===
-      0
-    ) {
+    const hasLexicalBindings =
+      (declarationList.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const)) !== 0;
+    if (!hasLexicalBindings && !includeVarDeclarations) {
       return;
     }
     for (const declaration of declarationList.declarations) {
@@ -898,6 +895,20 @@ function collectLexicalScopeDeclaredIdentifiers(node: ts.Node): Set<string> {
     }
     for (const statement of node.block.statements) {
       collectStatementLexicalScopeBindings(statement, declaredIdentifiers);
+    }
+    return declaredIdentifiers;
+  }
+
+  if (
+    ts.isBlock(node) &&
+    node.parent?.kind === ts.SyntaxKind.ClassStaticBlockDeclaration
+  ) {
+    for (const statement of node.statements) {
+      collectStatementLexicalScopeBindings(
+        statement,
+        declaredIdentifiers,
+        true,
+      );
     }
     return declaredIdentifiers;
   }
@@ -2584,6 +2595,29 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('applies class static-block assignments to outer require aliases for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'class ShadowContainer {',
+      '  static {',
+      '    reqAlias = () => undefined;',
+      '  }',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('does not leak namespace lexical alias declarations to outer module specifiers', () => {
     const source = [
       'const reqAlias = require;',
@@ -3305,6 +3339,26 @@ describe('Gnosis Safe migration guards', () => {
       '  }',
       '}',
       "const postStaticDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('applies class static-block assignments to outer require aliases for symbol sources', () => {
+    const source = [
+      "const guardDefault = require('./fixtures/guard-module.js').default;",
+      'let reqAlias: any = require;',
+      'class ShadowContainer {',
+      '  static {',
+      '    reqAlias = () => undefined;',
+      '  }',
+      '}',
+      "const shadowedDefault = reqAlias('./fixtures/other-module.js').default;",
+      'void shadowedDefault;',
+      'void guardDefault;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
