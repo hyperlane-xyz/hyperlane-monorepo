@@ -236,6 +236,9 @@ describe('squads barrel exports', () => {
     expect(sdkPackageJson.scripts?.['test:squads']).to.equal(
       EXPECTED_SDK_SQUADS_TEST_SCRIPT,
     );
+    expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT).to.equal(
+      EXPECTED_SDK_SQUADS_TEST_SCRIPT.trim(),
+    );
     expect(
       EXPECTED_SDK_SQUADS_TEST_SCRIPT.startsWith(
         `${SDK_SQUADS_TEST_COMMAND_PREFIX} `,
@@ -245,6 +248,13 @@ describe('squads barrel exports', () => {
     expect(/[\n\r\t]/.test(EXPECTED_SDK_SQUADS_TEST_SCRIPT)).to.equal(false);
     expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('"')).to.equal(false);
     expect(countOccurrences(EXPECTED_SDK_SQUADS_TEST_SCRIPT, "'")).to.equal(2);
+    expect(
+      countOccurrences(
+        EXPECTED_SDK_SQUADS_TEST_SCRIPT,
+        SDK_SQUADS_TEST_COMMAND_PREFIX,
+      ),
+    ).to.equal(1);
+    expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('\\')).to.equal(false);
     expect(
       EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('typescript/infra'),
     ).to.equal(false);
