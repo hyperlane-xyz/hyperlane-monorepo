@@ -1,6 +1,7 @@
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import * as ts from 'typescript';
 
 import { expect } from 'chai';
 
@@ -40,6 +41,11 @@ const INFRA_SOURCE_PATHS = ['scripts', 'src', 'config'] as const;
 const INFRA_SOURCE_AND_TEST_PATHS = [...INFRA_SOURCE_PATHS, 'test'] as const;
 const SOURCE_FILE_GLOB = '*.{ts,tsx,js,jsx,mts,mtsx,cts,ctsx,mjs,cjs}' as const;
 
+type SymbolSourceReference = {
+  symbol: string;
+  source: string;
+};
+
 function normalizeNamedSymbol(symbol: string): string {
   const trimmed = symbol.trim();
   if (!trimmed || trimmed.startsWith('...')) return '';
@@ -49,6 +55,139 @@ function normalizeNamedSymbol(symbol: string): string {
     .replace(/\s*:\s*[^:]+$/, '')
     .replace(/\s*=\s*.+$/, '')
     .trim();
+}
+
+function getScriptKind(filePath: string): ts.ScriptKind {
+  if (/\.(?:[cm]?tsx)$/.test(filePath)) return ts.ScriptKind.TSX;
+  if (filePath.endsWith('.jsx')) return ts.ScriptKind.JSX;
+  if (/\.(?:[cm]?js)$/.test(filePath) || filePath.endsWith('.mjs')) {
+    return ts.ScriptKind.JS;
+  }
+  return ts.ScriptKind.TS;
+}
+
+function unwrapInitializerExpression(expression: ts.Expression): ts.Expression {
+  if (ts.isAwaitExpression(expression)) {
+    return unwrapInitializerExpression(expression.expression);
+  }
+  if (ts.isParenthesizedExpression(expression)) {
+    return unwrapInitializerExpression(expression.expression);
+  }
+  return expression;
+}
+
+function readModuleSourceArg(
+  callExpression: ts.CallExpression,
+): string | undefined {
+  const [firstArg] = callExpression.arguments;
+  if (firstArg && ts.isStringLiteralLike(firstArg)) return firstArg.text;
+  return undefined;
+}
+
+function readModuleSourceFromInitializer(
+  expression: ts.Expression,
+): string | undefined {
+  const unwrapped = unwrapInitializerExpression(expression);
+  if (!ts.isCallExpression(unwrapped)) return undefined;
+
+  if (
+    ts.isIdentifier(unwrapped.expression) &&
+    unwrapped.expression.text === 'require'
+  ) {
+    return readModuleSourceArg(unwrapped);
+  }
+  if (unwrapped.expression.kind === ts.SyntaxKind.ImportKeyword) {
+    return readModuleSourceArg(unwrapped);
+  }
+  return undefined;
+}
+
+function readBindingElementSymbol(element: ts.BindingElement): string {
+  if (element.propertyName) {
+    if (ts.isIdentifier(element.propertyName)) return element.propertyName.text;
+    if (ts.isStringLiteralLike(element.propertyName))
+      return element.propertyName.text;
+  }
+  if (ts.isIdentifier(element.name)) return element.name.text;
+  return '';
+}
+
+function collectSymbolSourceReferences(
+  contents: string,
+  filePath: string,
+): SymbolSourceReference[] {
+  const references: SymbolSourceReference[] = [];
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    contents,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
+  );
+
+  const visit = (node: ts.Node) => {
+    if (ts.isImportDeclaration(node)) {
+      const source = ts.isStringLiteralLike(node.moduleSpecifier)
+        ? node.moduleSpecifier.text
+        : undefined;
+      const namedBindings = node.importClause?.namedBindings;
+      if (source && namedBindings && ts.isNamedImports(namedBindings)) {
+        for (const importSpecifier of namedBindings.elements) {
+          references.push({
+            symbol: normalizeNamedSymbol(
+              importSpecifier.propertyName?.text ?? importSpecifier.name.text,
+            ),
+            source,
+          });
+        }
+      }
+    }
+
+    if (ts.isExportDeclaration(node)) {
+      const source = node.moduleSpecifier;
+      const namedExports = node.exportClause;
+      if (
+        source &&
+        ts.isStringLiteralLike(source) &&
+        namedExports &&
+        ts.isNamedExports(namedExports)
+      ) {
+        for (const exportSpecifier of namedExports.elements) {
+          references.push({
+            symbol: normalizeNamedSymbol(
+              exportSpecifier.propertyName?.text ?? exportSpecifier.name.text,
+            ),
+            source: source.text,
+          });
+        }
+      }
+    }
+
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isObjectBindingPattern(node.name)
+    ) {
+      const source = node.initializer
+        ? readModuleSourceFromInitializer(node.initializer)
+        : undefined;
+      if (source) {
+        for (const bindingElement of node.name.elements) {
+          if (bindingElement.dotDotDotToken) continue;
+          references.push({
+            symbol: normalizeNamedSymbol(
+              readBindingElementSymbol(bindingElement),
+            ),
+            source,
+          });
+        }
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return references.filter((reference) => reference.symbol.length > 0);
 }
 
 function escapeRegExp(value: string): string {
@@ -134,35 +273,18 @@ describe('Safe migration guards', () => {
         }
 
         const contents = fs.readFileSync(entryPath, 'utf8');
-        const importAndExportMatches = contents.matchAll(
-          /(?:import|export)\s+(?:type\s+)?{([^}]*)}\s*from\s*['"]([^'"]+)['"]/g,
+        const symbolSourceReferences = collectSymbolSourceReferences(
+          contents,
+          entryPath,
         );
-        const requireDestructureMatches = contents.matchAll(
-          /(?:const|let|var)\s*{([^}]*)}\s*=\s*require\(\s*['"]([^'"]+)['"]\s*\)/g,
-        );
-        const dynamicImportDestructureMatches = contents.matchAll(
-          /(?:const|let|var)\s*{([^}]*)}\s*=\s*(?:await\s+)?import\(\s*['"]([^'"]+)['"]\s*\)/g,
-        );
-
-        for (const [, imported, source] of [
-          ...importAndExportMatches,
-          ...requireDestructureMatches,
-          ...dynamicImportDestructureMatches,
-        ]) {
-          const importedSymbols = imported
-            .split(',')
-            .map(normalizeNamedSymbol)
-            .filter(Boolean);
-
-          for (const safeSymbol of importedSymbols) {
-            if (
-              sdkSafeHelperExports.has(safeSymbol) &&
-              source !== '@hyperlane-xyz/sdk'
-            ) {
-              disallowedImports.push(
-                `${path.relative(process.cwd(), entryPath)} -> ${safeSymbol} from ${source}`,
-              );
-            }
+        for (const { symbol: safeSymbol, source } of symbolSourceReferences) {
+          if (
+            sdkSafeHelperExports.has(safeSymbol) &&
+            source !== '@hyperlane-xyz/sdk'
+          ) {
+            disallowedImports.push(
+              `${path.relative(process.cwd(), entryPath)} -> ${safeSymbol} from ${source}`,
+            );
           }
         }
       }
