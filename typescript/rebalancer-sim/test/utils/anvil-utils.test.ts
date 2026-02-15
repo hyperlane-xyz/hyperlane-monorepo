@@ -893,11 +893,33 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches docker runtime errors in cross-realm boxed-string-valued errors fields when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: buildCrossRealmBoxedStringWithThrowingToStringTag(
+            'No Docker client strategy found',
+          ),
+        }),
+      ).to.equal(true);
+    });
+
     it('ignores non-runtime cross-realm boxed-string-valued errors fields', () => {
       expect(
         isContainerRuntimeUnavailable({
           message: 'top-level wrapper noise',
           errors: runInNewContext('new String("unrelated nested warning")'),
+        }),
+      ).to.equal(false);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string-valued errors fields when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: buildCrossRealmBoxedStringWithThrowingToStringTag(
+            'unrelated nested warning',
+          ),
         }),
       ).to.equal(false);
     });
