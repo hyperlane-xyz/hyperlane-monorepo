@@ -384,6 +384,18 @@ describe('squads sdk migration regression', () => {
     }
   });
 
+  it('keeps tracked infra source file paths constrained to tracked extensions', () => {
+    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    for (const trackedSourceFilePath of trackedSourceFiles) {
+      expect(
+        SOURCE_FILE_EXTENSIONS.some((extension) =>
+          trackedSourceFilePath.endsWith(extension),
+        ),
+        `Expected tracked source file path to match tracked extension policy: ${trackedSourceFilePath}`,
+      ).to.equal(true);
+    }
+  });
+
   it('keeps squads-related scripts using shared formatScriptError helper', () => {
     for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
       const scriptContents = readInfraFile(scriptPath);
