@@ -1148,7 +1148,7 @@ describe('squads utils', () => {
         rejected: [{}],
         cancelled: [{}, {}],
         transactionIndex: 42n,
-      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+      });
 
       expect(parsed).to.deep.equal({
         status: SquadsProposalStatus.Active,
@@ -1167,7 +1167,7 @@ describe('squads utils', () => {
         rejected: [],
         cancelled: [],
         transactionIndex: 7n,
-      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+      });
 
       expect(parsed).to.deep.equal({
         status: SquadsProposalStatus.Active,
@@ -1186,7 +1186,7 @@ describe('squads utils', () => {
         rejected: [],
         cancelled: [],
         transactionIndex: 7n,
-      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+      });
 
       expect(parsed.status).to.equal('FutureStatus');
       expect(
@@ -1207,7 +1207,7 @@ describe('squads utils', () => {
         rejected: [],
         cancelled: [],
         transactionIndex: 7n,
-      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+      });
 
       expect(parsed.status).to.equal('FutureStatus');
       expect(
@@ -1228,7 +1228,7 @@ describe('squads utils', () => {
         rejected: [],
         cancelled: [],
         transactionIndex: 7n,
-      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+      });
 
       expect(parsed.status).to.equal(SquadsProposalStatus.Active);
       expect(
@@ -1252,7 +1252,7 @@ describe('squads utils', () => {
         rejected: [],
         cancelled: [],
         transactionIndex: { toString: () => '7' },
-      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+      });
 
       expect(parsed).to.deep.equal({
         status: SquadsProposalStatus.Active,
@@ -1278,7 +1278,7 @@ describe('squads utils', () => {
         transactionIndex: {
           [Symbol.toPrimitive]: () => '8',
         },
-      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+      });
 
       expect(parsed).to.deep.equal({
         status: SquadsProposalStatus.Active,
@@ -1298,7 +1298,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseUnsafeProposal).to.throw(
         'Squads transaction index must be a JavaScript safe integer',
@@ -1313,7 +1313,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: true,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads transaction index must be a JavaScript safe integer: true',
@@ -1328,7 +1328,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: '7',
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads transaction index must be a JavaScript safe integer: 7',
@@ -1343,7 +1343,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: -1,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads transaction index must be a non-negative JavaScript safe integer: -1',
@@ -1358,7 +1358,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: { toString: () => '-1' },
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads transaction index must be a non-negative JavaScript safe integer: -1',
@@ -1376,7 +1376,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: 9n,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseUnsafeTimestampProposal).to.throw(
         'Squads status timestamp must be a JavaScript safe integer',
@@ -1394,7 +1394,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: 9n,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidTimestampProposal).to.throw(
         'Squads status timestamp must be a non-negative JavaScript safe integer: -1',
@@ -1409,7 +1409,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: 1,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads proposal approved votes must be an array',
@@ -1434,7 +1434,7 @@ describe('squads utils', () => {
                 return Reflect.get(target, property, receiver);
               },
             },
-          ) as unknown as Parameters<typeof parseSquadProposal>[0],
+          ),
         );
 
       expect(parseInvalidProposal).to.throw(
@@ -1457,7 +1457,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: 1,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Failed to read Squads proposal approved votes length: approved length unavailable',
@@ -1472,7 +1472,7 @@ describe('squads utils', () => {
           rejected: 'not-an-array',
           cancelled: [],
           transactionIndex: 1,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads proposal rejected votes must be an array',
@@ -1486,7 +1486,7 @@ describe('squads utils', () => {
           approved: [],
           rejected: [],
           transactionIndex: 1,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads proposal cancelled votes must be an array',
@@ -1501,7 +1501,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: 1,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads proposal status must be an object',
@@ -1526,7 +1526,7 @@ describe('squads utils', () => {
                 return Reflect.get(target, property, receiver);
               },
             },
-          ) as unknown as Parameters<typeof parseSquadProposal>[0],
+          ),
         );
 
       expect(parseInvalidProposal).to.throw(
@@ -1542,7 +1542,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: 1,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads proposal status kind must be a string',
@@ -1557,7 +1557,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: 1,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads proposal status kind must be a string',
@@ -1572,7 +1572,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: 1,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads proposal status kind must be a non-empty string',
@@ -1587,7 +1587,7 @@ describe('squads utils', () => {
           rejected: [],
           cancelled: [],
           transactionIndex: 1,
-        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+        });
 
       expect(parseInvalidProposal).to.throw(
         'Squads proposal status kind must be a non-empty string',
@@ -1608,7 +1608,7 @@ describe('squads utils', () => {
     it('extracts non-negative transaction indices from valid proposals', () => {
       const transactionIndex = parseSquadProposalTransactionIndex({
         transactionIndex: 12n,
-      } as unknown as Parameters<typeof parseSquadProposalTransactionIndex>[0]);
+      });
 
       expect(transactionIndex).to.equal(12);
     });
@@ -1618,7 +1618,7 @@ describe('squads utils', () => {
         transactionIndex: {
           [Symbol.toPrimitive]: () => '13',
         },
-      } as unknown as Parameters<typeof parseSquadProposalTransactionIndex>[0]);
+      });
 
       expect(transactionIndex).to.equal(13);
     });
@@ -1627,9 +1627,7 @@ describe('squads utils', () => {
       const parseInvalidIndex = () =>
         parseSquadProposalTransactionIndex({
           transactionIndex: true,
-        } as unknown as Parameters<
-          typeof parseSquadProposalTransactionIndex
-        >[0]);
+        });
 
       expect(parseInvalidIndex).to.throw(
         'Squads transaction index must be a JavaScript safe integer: true',
@@ -1649,9 +1647,7 @@ describe('squads utils', () => {
                 return Reflect.get(target, property, receiver);
               },
             },
-          ) as unknown as Parameters<
-            typeof parseSquadProposalTransactionIndex
-          >[0],
+          ),
         );
 
       expect(parseInvalidIndex).to.throw(
