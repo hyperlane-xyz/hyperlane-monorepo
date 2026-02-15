@@ -1460,7 +1460,8 @@ export async function submitProposalToSquads(
 ): Promise<void> {
   try {
     const creatorPublicKey = signerAdapter.publicKey();
-    const svmProvider = mpp.getSolanaWeb3Provider(chain);
+    const { svmProvider, multisigPda, programId } =
+      getSquadAndProviderForResolvedChain(chain, mpp);
 
     const { instructions: proposalInstructions, transactionIndex } =
       await buildSquadsVaultTransactionProposal(
@@ -1478,7 +1479,6 @@ export async function submitProposalToSquads(
     rootLogger.info(`Proposal created: ${createSignature}`);
     rootLogger.info(`Transaction index: ${transactionIndex}`);
 
-    const { multisigPda, programId } = getSquadsKeysForResolvedChain(chain);
     const approveIx = instructions.proposalApprove({
       multisigPda,
       transactionIndex,
