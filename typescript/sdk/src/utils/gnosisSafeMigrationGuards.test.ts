@@ -345,6 +345,35 @@ function resolveModuleSourceFromExpression(
       moduleAliasByIdentifier,
     );
   }
+  if (
+    ts.isBinaryExpression(unwrapped) &&
+    [
+      ts.SyntaxKind.BarBarToken,
+      ts.SyntaxKind.AmpersandAmpersandToken,
+      ts.SyntaxKind.QuestionQuestionToken,
+    ].includes(unwrapped.operatorToken.kind)
+  ) {
+    const leftSource = resolveModuleSourceFromExpression(
+      unwrapped.left,
+      moduleAliasByIdentifier,
+    );
+    const rightSource = resolveModuleSourceFromExpression(
+      unwrapped.right,
+      moduleAliasByIdentifier,
+    );
+    return leftSource ?? rightSource;
+  }
+  if (ts.isConditionalExpression(unwrapped)) {
+    const whenTrueSource = resolveModuleSourceFromExpression(
+      unwrapped.whenTrue,
+      moduleAliasByIdentifier,
+    );
+    const whenFalseSource = resolveModuleSourceFromExpression(
+      unwrapped.whenFalse,
+      moduleAliasByIdentifier,
+    );
+    return whenTrueSource ?? whenFalseSource;
+  }
   const directSource = readModuleSourceFromInitializer(unwrapped);
   if (directSource) return directSource;
   if (ts.isIdentifier(unwrapped)) {
@@ -1109,6 +1138,37 @@ describe('Gnosis Safe migration guards', () => {
       "const commaAlias = (0, require('./fixtures/guard-module.js'));",
       'const commaDefault = commaAlias.default;',
       "const inlineCommaDefault = (0, require('./fixtures/guard-module.js'))['default'];",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through logical wrappers', () => {
+    const source = [
+      'declare const maybeAlias: unknown;',
+      'declare const maybeNull: unknown;',
+      "const logicalOrAlias = maybeAlias || require('./fixtures/guard-module.js');",
+      "const logicalAndAlias = true && require('./fixtures/guard-module.js');",
+      "const nullishAlias = maybeNull ?? require('./fixtures/guard-module.js');",
+      'const logicalOrDefault = logicalOrAlias.default;',
+      "const logicalAndDefault = logicalAndAlias['default'];",
+      'const nullishDefault = nullishAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through conditional wrappers', () => {
+    const source = [
+      'declare const useModuleAlias: boolean;',
+      'declare const fallbackAlias: unknown;',
+      "const conditionalAlias = useModuleAlias ? require('./fixtures/guard-module.js') : fallbackAlias;",
+      'const conditionalDefault = conditionalAlias.default;',
+      "const inlineConditionalDefault = (useModuleAlias ? require('./fixtures/guard-module.js') : fallbackAlias)['default'];",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
