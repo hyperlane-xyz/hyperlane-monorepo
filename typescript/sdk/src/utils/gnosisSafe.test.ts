@@ -5784,6 +5784,42 @@ describe('gnosisSafe utils', () => {
         clock.restore();
       }
     });
+
+    it('throws deterministic message when signer resolution fails with unstringifiable error', async () => {
+      const unstringifiableError = {
+        [Symbol.toPrimitive]() {
+          throw new Error('signer to-primitive boom');
+        },
+      };
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => {
+          throw unstringifiableError;
+        },
+      } as unknown as Parameters<typeof getSafeAndService>[1];
+
+      try {
+        await getSafeAndService(
+          'test',
+          multiProviderMock,
+          '0x52908400098527886e0f7030069857d2e4169ee7',
+        );
+        expect.fail('Expected getSafeAndService to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Failed to resolve signer from MultiProvider on test: <unstringifiable>',
+        );
+      }
+    });
   });
 
   describe(getPendingTxsForChains.name, () => {
