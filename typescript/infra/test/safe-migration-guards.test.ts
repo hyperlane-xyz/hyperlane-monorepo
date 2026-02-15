@@ -156,6 +156,13 @@ describe('Safe migration guards', () => {
     );
   });
 
+  it('prevents imports from sdk source or subpath entrypoints', () => {
+    expectNoRipgrepMatches(
+      String.raw`(?:from ['"]|require\(['"]|import\(['"])(?:@hyperlane-xyz/sdk\/|(?:\.\.?\/)+.*sdk\/src\/|(?:\.\.?\/)+.*typescript\/sdk\/|.*typescript\/sdk\/src\/)`,
+      'sdk source-path or package subpath imports',
+    );
+  });
+
   it('keeps @safe-global dependencies out of infra package.json', () => {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     const packageJson: InfraPackageJson = JSON.parse(
