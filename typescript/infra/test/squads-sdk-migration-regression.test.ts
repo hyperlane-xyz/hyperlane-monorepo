@@ -38,8 +38,10 @@ const SQDS_MULTISIG_REFERENCE_PATTERN =
   /(?:from\s+['"]@sqds\/multisig['"]|import\(\s*['"]@sqds\/multisig['"]\s*\)|require\(\s*['"]@sqds\/multisig['"]\s*\))/;
 const SDK_DEEP_IMPORT_PATTERN =
   /(?:from\s+['"]@hyperlane-xyz\/sdk\/src\/|import\(\s*['"]@hyperlane-xyz\/sdk\/src\/|require\(\s*['"]@hyperlane-xyz\/sdk\/src\/)/;
+const SDK_SUBPATH_IMPORT_PATTERN =
+  /(?:from\s+['"]@hyperlane-xyz\/sdk\/|import\(\s*['"]@hyperlane-xyz\/sdk\/|require\(\s*['"]@hyperlane-xyz\/sdk\/)/;
 const SDK_SQUADS_IMPORT_PATTERN =
-  /from\s+['"]@hyperlane-xyz\/sdk['"]/;
+  /(?:from\s+['"]@hyperlane-xyz\/sdk['"]|import\(\s*['"]@hyperlane-xyz\/sdk['"]\s*\)|require\(\s*['"]@hyperlane-xyz\/sdk['"]\s*\))/;
 const FORMATTED_ERROR_USAGE_PATTERN = /formatScriptError\(/;
 const DIRECT_ERROR_STRINGIFICATION_PATTERN =
   /(?:String\((?:error|err|e)\)|\$\{(?:error|err|e)\}|(?:error|err|e)\.message)/;
@@ -78,6 +80,11 @@ function assertNoForbiddenSquadsReferences(
   expect(
     SDK_DEEP_IMPORT_PATTERN.test(fileContents),
     `Expected file to avoid deep SDK source imports: ${relativePath}`,
+  ).to.equal(false);
+
+  expect(
+    SDK_SUBPATH_IMPORT_PATTERN.test(fileContents),
+    `Expected file to avoid SDK subpath imports and rely on package root exports: ${relativePath}`,
   ).to.equal(false);
 }
 
