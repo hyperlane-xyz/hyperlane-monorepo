@@ -55,10 +55,7 @@ import {
 import { stringifyUnknownSquadsError } from './error-format.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
-import {
-  resolveSquadsChainName,
-  type SquadsChainName,
-} from './config.js';
+import { resolveSquadsChainName, type SquadsChainName } from './config.js';
 
 export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
 export const MAILBOX_DISCRIMINATOR_SIZE = 1;
@@ -130,19 +127,11 @@ function assertInstructionDiscriminator(discriminator: unknown): number {
 }
 
 function isPositiveSafeInteger(value: unknown): value is number {
-  return (
-    typeof value === 'number' &&
-    Number.isSafeInteger(value) &&
-    value > 0
-  );
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 
 function isNonNegativeSafeInteger(value: unknown): value is number {
-  return (
-    typeof value === 'number' &&
-    Number.isSafeInteger(value) &&
-    value >= 0
-  );
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 function formatIntegerValidationValue(value: unknown): string {
@@ -158,7 +147,7 @@ function isRecordObject(value: unknown): value is Record<string, unknown> {
 
 function getThenValue(value: unknown): {
   thenValue: unknown;
-  readFailed: boolean;
+  readError: unknown | undefined;
 } {
   if (
     (typeof value !== 'object' && typeof value !== 'function') ||
@@ -166,19 +155,19 @@ function getThenValue(value: unknown): {
   ) {
     return {
       thenValue: undefined,
-      readFailed: false,
+      readError: undefined,
     };
   }
 
   try {
     return {
       thenValue: (value as { then?: unknown }).then,
-      readFailed: false,
+      readError: undefined,
     };
-  } catch {
+  } catch (error) {
     return {
       thenValue: undefined,
-      readFailed: true,
+      readError: error,
     };
   }
 }
@@ -232,7 +221,10 @@ function findDuplicateValidator(validators: readonly string[]): string | null {
 }
 
 export function formatUnknownProgramWarning(programId: unknown): string {
-  const normalizedProgramId = assertNonEmptyStringValue(programId, 'program id');
+  const normalizedProgramId = assertNonEmptyStringValue(
+    programId,
+    'program id',
+  );
   return `⚠️  UNKNOWN PROGRAM: ${normalizedProgramId}`;
 }
 
@@ -244,8 +236,7 @@ export function formatUnknownInstructionWarning(
     programName,
     'program name',
   );
-  const normalizedDiscriminator =
-    assertInstructionDiscriminator(discriminator);
+  const normalizedDiscriminator = assertInstructionDiscriminator(discriminator);
   return `Unknown ${normalizedProgramName} instruction (discriminator: ${normalizedDiscriminator})`;
 }
 
@@ -1104,10 +1095,13 @@ export class SquadsTransactionReader {
       );
     }
 
-    const { thenValue, readFailed: thenReadFailed } = getThenValue(coreProgramIds);
+    const { thenValue, readError: thenReadError } =
+      getThenValue(coreProgramIds);
     assert(
-      !thenReadFailed,
-      `Failed to inspect core program ids for ${chain}: unable to read promise-like then field`,
+      !thenReadError,
+      `Failed to inspect core program ids for ${chain}: ${stringifyUnknownSquadsError(
+        thenReadError,
+      )}`,
     );
     assert(
       typeof thenValue !== 'function',
@@ -1135,7 +1129,8 @@ export class SquadsTransactionReader {
 
     let multisigIsmMessageIdProgramIdValue: unknown;
     try {
-      multisigIsmMessageIdProgramIdValue = coreProgramIds.multisig_ism_message_id;
+      multisigIsmMessageIdProgramIdValue =
+        coreProgramIds.multisig_ism_message_id;
     } catch (error) {
       throw new Error(
         `Failed to read multisig_ism_message_id program id for ${chain}: ${stringifyUnknownSquadsError(error)}`,
@@ -1147,7 +1142,11 @@ export class SquadsTransactionReader {
     );
 
     return {
-      mailbox: parseCoreProgramId(mailboxProgramId, chain, 'mailbox program id'),
+      mailbox: parseCoreProgramId(
+        mailboxProgramId,
+        chain,
+        'mailbox program id',
+      ),
       multisigIsmMessageId: parseCoreProgramId(
         multisigIsmMessageIdProgramId,
         chain,
@@ -1312,7 +1311,8 @@ export class SquadsTransactionReader {
       | SquadsTransactionReaderOptions['resolveExpectedMultisigConfig']
       | undefined;
     try {
-      resolveExpectedMultisigConfig = this.options.resolveExpectedMultisigConfig;
+      resolveExpectedMultisigConfig =
+        this.options.resolveExpectedMultisigConfig;
     } catch (error) {
       rootLogger.warn(
         `Failed to load multisig config resolver for ${chain}: ${stringifyUnknownSquadsError(error)}`,
@@ -1328,10 +1328,10 @@ export class SquadsTransactionReader {
 
     try {
       const config = resolveExpectedMultisigConfig(chain);
-      const { thenValue, readFailed: thenReadFailed } = getThenValue(config);
-      if (thenReadFailed) {
+      const { thenValue, readError: thenReadError } = getThenValue(config);
+      if (thenReadError) {
         rootLogger.warn(
-          `Failed to inspect expected multisig config for ${chain}: unable to read promise-like then field`,
+          `Failed to inspect expected multisig config for ${chain}: ${stringifyUnknownSquadsError(thenReadError)}`,
         );
         this.multisigConfigs.set(chain, null);
         return null;
@@ -1506,8 +1506,9 @@ export class SquadsTransactionReader {
       );
       return { matches: false, issues };
     }
-    const duplicateActualValidator =
-      findDuplicateValidator(normalizedActualValidators);
+    const duplicateActualValidator = findDuplicateValidator(
+      normalizedActualValidators,
+    );
     if (duplicateActualValidator) {
       issues.push(
         `Malformed validator set for route ${route}: validators must be unique (duplicate: ${duplicateActualValidator})`,
@@ -1521,7 +1522,9 @@ export class SquadsTransactionReader {
       );
     }
 
-    if (normalizedExpectedValidators.length !== normalizedActualValidators.length) {
+    if (
+      normalizedExpectedValidators.length !== normalizedActualValidators.length
+    ) {
       issues.push(
         `Validator count mismatch: expected ${normalizedExpectedValidators.length}, got ${normalizedActualValidators.length}`,
       );

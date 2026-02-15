@@ -65,9 +65,10 @@ function createUnstringifiableError(): { toString: () => string } {
   };
 }
 
-function createUnstringifiableErrorWithMessage(
-  message: string,
-): { message: string; toString: () => string } {
+function createUnstringifiableErrorWithMessage(message: string): {
+  message: string;
+  toString: () => string;
+} {
   return {
     message,
     toString: () => {
@@ -89,9 +90,11 @@ function createUnstringifiableErrorWithStackAndMessage(
   };
 }
 
-function createUnstringifiableErrorWithThrowingStackGetter(
-  message: string,
-): { message: string; toString: () => string; stack?: string } {
+function createUnstringifiableErrorWithThrowingStackGetter(message: string): {
+  message: string;
+  toString: () => string;
+  stack?: string;
+} {
   const errorLikeObject = {
     message,
     toString: () => {
@@ -221,12 +224,16 @@ describe('squads transaction reader multisig verification', () => {
   function createReaderForVerification(
     resolveExpectedMultisigConfig?: (
       chain: string,
-    ) => Record<string, { threshold: number; validators: readonly string[] }> | null,
+    ) => Record<
+      string,
+      { threshold: number; validators: readonly string[] }
+    > | null,
     tryGetChainName?: (domain: number) => string | undefined,
   ): SquadsTransactionReader {
     const mpp = {
       tryGetChainName:
-        tryGetChainName ?? ((domain: number) => (domain === 1000 ? 'solanatestnet' : undefined)),
+        tryGetChainName ??
+        ((domain: number) => (domain === 1000 ? 'solanatestnet' : undefined)),
       getSolanaWeb3Provider: () => ({
         getAccountInfo: async () => null,
       }),
@@ -261,12 +268,10 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a', 'validator-b'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+      'validator-b',
+    ]);
 
     expect(result).to.deep.equal({ matches: true, issues: [] });
     expect(resolveConfigCallCount).to.equal(1);
@@ -326,12 +331,10 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a', 'VALIDATOR-B'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+      'VALIDATOR-B',
+    ]);
 
     expect(result).to.deep.equal({ matches: true, issues: [] });
   });
@@ -359,12 +362,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      999,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 999, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -396,12 +396,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -424,7 +421,7 @@ describe('squads transaction reader multisig verification', () => {
           },
         };
       },
-      () => ({ chain: 'solanatestnet' } as unknown as string),
+      () => ({ chain: 'solanatestnet' }) as unknown as string,
     );
     const readerAny = reader as unknown as {
       verifyConfiguration: (
@@ -435,12 +432,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -474,12 +468,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({ matches: true, issues: [] });
     expect(resolveConfigCallCount).to.equal(1);
@@ -556,12 +547,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      -1,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', -1, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -642,12 +630,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -678,12 +663,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      0,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 0, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -747,12 +729,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -800,20 +779,18 @@ describe('squads transaction reader multisig verification', () => {
 
   it('caches null expected config when resolver returns promise-like values', () => {
     let resolveConfigCallCount = 0;
-    const reader = createReaderForVerification(
-      () => {
-        resolveConfigCallCount += 1;
-        return Promise.resolve({
-          solanatestnet: {
-            threshold: 2,
-            validators: ['validator-a'],
-          },
-        }) as unknown as Record<
-          string,
-          { threshold: number; validators: readonly string[] }
-        >;
-      },
-    );
+    const reader = createReaderForVerification(() => {
+      resolveConfigCallCount += 1;
+      return Promise.resolve({
+        solanatestnet: {
+          threshold: 2,
+          validators: ['validator-a'],
+        },
+      }) as unknown as Record<
+        string,
+        { threshold: number; validators: readonly string[] }
+      >;
+    });
     const readerAny = reader as unknown as {
       verifyConfiguration: (
         originChain: string,
@@ -976,12 +953,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -1016,12 +990,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -1050,12 +1021,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -1094,12 +1062,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -1138,12 +1103,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -1175,12 +1137,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -1212,12 +1171,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -1249,12 +1205,9 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -1280,12 +1233,10 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a', null] as unknown as readonly string[],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+      null,
+    ] as unknown as readonly string[]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -1311,12 +1262,10 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a', 'VALIDATOR-A'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+      'VALIDATOR-A',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -1382,12 +1331,10 @@ describe('squads transaction reader multisig verification', () => {
       ) => { matches: boolean; issues: string[] };
     };
 
-    const result = readerAny.verifyConfiguration(
-      'solanamainnet',
-      1000,
-      2,
-      ['validator-a', 'validator-d'],
-    );
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+      'validator-d',
+    ]);
 
     expect(result).to.deep.equal({
       matches: false,
@@ -1557,9 +1504,7 @@ describe('squads transaction reader', () => {
   it('fails fast for malformed chain names before provider lookup', async () => {
     const { reader, getLookupCount } = createReaderWithLookupCounter();
 
-    const thrownError = await captureAsyncError(() =>
-      reader.read(1, 0),
-    );
+    const thrownError = await captureAsyncError(() => reader.read(1, 0));
 
     expect(thrownError?.message).to.equal(
       'Expected chain name to be a string, got number',
@@ -1571,9 +1516,7 @@ describe('squads transaction reader', () => {
   it('fails fast for malformed chain names before transaction index validation', async () => {
     const { reader, getLookupCount } = createReaderWithLookupCounter();
 
-    const thrownError = await captureAsyncError(() =>
-      reader.read(1, -1),
-    );
+    const thrownError = await captureAsyncError(() => reader.read(1, -1));
 
     expect(thrownError?.message).to.equal(
       'Expected chain name to be a string, got number',
@@ -2066,7 +2009,8 @@ describe('squads transaction reader', () => {
         1,
       ]),
     });
-    const genericStringifiedError = createErrorWithGenericObjectStringification();
+    const genericStringifiedError =
+      createErrorWithGenericObjectStringification();
     readerAny.readConfigTransaction = async () => {
       throw genericStringifiedError;
     };
@@ -2764,7 +2708,11 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
@@ -2777,10 +2725,11 @@ describe('squads transaction reader', () => {
 
   it('throws stable error when core program resolver returns malformed objects', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
-      resolveCoreProgramIds: () => 'malformed-core-program-ids' as unknown as {
-        mailbox: string;
-        multisig_ism_message_id: string;
-      },
+      resolveCoreProgramIds: () =>
+        'malformed-core-program-ids' as unknown as {
+          mailbox: string;
+          multisig_ism_message_id: string;
+        },
     });
     const readerAny = reader as unknown as {
       parseVaultInstructions: (
@@ -2797,7 +2746,11 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
@@ -2809,17 +2762,14 @@ describe('squads transaction reader', () => {
   });
 
   it('throws stable error when core program resolver is not callable', async () => {
-    const reader = new SquadsTransactionReader(
-      createNoopMpp(),
-      {
-        resolveCoreProgramIds: 1,
-      } as unknown as {
-        resolveCoreProgramIds: (chain: string) => {
-          mailbox: string;
-          multisig_ism_message_id: string;
-        };
-      },
-    );
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: 1,
+    } as unknown as {
+      resolveCoreProgramIds: (chain: string) => {
+        mailbox: string;
+        multisig_ism_message_id: string;
+      };
+    });
     const readerAny = reader as unknown as {
       parseVaultInstructions: (
         chain: string,
@@ -2835,7 +2785,11 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
@@ -2867,7 +2821,11 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
@@ -2901,7 +2859,11 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
@@ -2942,14 +2904,18 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
     );
 
     expect(thrownError?.message).to.equal(
-      'Failed to inspect core program ids for solanamainnet: unable to read promise-like then field',
+      'Failed to inspect core program ids for solanamainnet: Error: then getter failed',
     );
   });
 
@@ -2988,7 +2954,11 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
@@ -3034,7 +3004,11 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
@@ -3067,7 +3041,11 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
@@ -3100,7 +3078,11 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
@@ -3133,7 +3115,11 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
@@ -3166,7 +3152,11 @@ describe('squads transaction reader', () => {
       readerAny.parseVaultInstructions(
         'solanamainnet',
         {
-          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
         },
         { getAccountInfo: async () => null },
       ),
@@ -3189,7 +3179,10 @@ describe('squads transaction reader', () => {
         chain: string,
         vaultTransaction: Record<string, unknown>,
         svmProvider: unknown,
-      ) => Promise<{ instructions: Array<Record<string, unknown>>; warnings: string[] }>;
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
       isMailboxInstruction: () => boolean;
     };
 
@@ -3374,7 +3367,9 @@ describe('squads transaction reader', () => {
     };
 
     readerAny.isMailboxInstruction = () => {
-      throw createUnstringifiableErrorWithMessage('unable to parse instruction');
+      throw createUnstringifiableErrorWithMessage(
+        'unable to parse instruction',
+      );
     };
 
     const vaultTransaction = {
