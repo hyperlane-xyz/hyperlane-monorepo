@@ -1284,6 +1284,20 @@ async function getNextSquadsTransactionIndex(
   return nextIndex;
 }
 
+function assertValidBigintTransactionIndex(
+  transactionIndex: bigint,
+  chain: SquadsChainName,
+): void {
+  assert(
+    typeof transactionIndex === 'bigint',
+    `Expected transaction index to be a bigint for ${chain}, got ${getUnknownValueTypeName(transactionIndex)}`,
+  );
+  assert(
+    transactionIndex >= 0n,
+    `Expected transaction index to be a non-negative bigint for ${chain}, got ${transactionIndex.toString()}`,
+  );
+}
+
 function buildVaultTransactionMessage(
   vaultPda: PublicKey,
   ixs: readonly TransactionInstruction[],
@@ -1412,6 +1426,7 @@ export async function buildSquadsProposalRejection(
   instruction: TransactionInstruction;
 }> {
   const normalizedChain = resolveSquadsChainName(chain);
+  assertValidBigintTransactionIndex(transactionIndex, normalizedChain);
   const { multisigPda, programId } = getSquadAndProviderForResolvedChain(
     normalizedChain,
     mpp,
@@ -1440,6 +1455,7 @@ export async function buildSquadsProposalCancellation(
   instruction: TransactionInstruction;
 }> {
   const normalizedChain = resolveSquadsChainName(chain);
+  assertValidBigintTransactionIndex(transactionIndex, normalizedChain);
   const { multisigPda, programId } = getSquadAndProviderForResolvedChain(
     normalizedChain,
     mpp,
