@@ -327,3 +327,5 @@ Regression coverage now also confirms whitespace-trimmed scalar `constructor.nam
 Regression coverage now also confirms whitespace-only `name` payloads on both `AggregateError` and top-level `Error` wrappers are treated as non-informative, allowing runtime/non-runtime `constructor.name` fallback payloads to remain detectable/ignorable under combined `message`+`cause`+`errors` accessor failures.
 
 Regression coverage now also confirms runtime/non-runtime `cause` and `errors` fallback payloads remain detectable/ignorable for both `AggregateError` and top-level `Error` wrappers even when `message`, `name`, and `constructor` accessors all throw.
+
+Regression coverage now also confirms whitespace-trimmed string `cause` and `errors` fallback payloads remain detectable/ignorable for both `AggregateError` and top-level `Error` wrappers under the same hostile `message`+`name`+`constructor` accessor-failure permutations.
