@@ -86,7 +86,8 @@ const PROCESS_EXIT_REFERENCE_PATTERN = /\bprocess\.exit\s*\(/;
 const PROCESS_STDIN_REFERENCE_PATTERN = /\bprocess\.stdin\b/;
 const PROCESS_STDOUT_REFERENCE_PATTERN = /\bprocess\.stdout\b/;
 const PROCESS_STDERR_REFERENCE_PATTERN = /\bprocess\.stderr\b/;
-const CONSOLE_REFERENCE_PATTERN = /\bconsole\.(?:log|info|warn|error|debug|trace)\s*\(/;
+const CONSOLE_REFERENCE_PATTERN =
+  /\bconsole\s*(?:\.\s*(?:log|info|warn|error|debug|trace|table)\s*\(|\[\s*['"](?:log|info|warn|error|debug|trace|table)['"]\s*\]\s*\()/;
 const CLI_GLUE_IMPORT_PATTERN =
   /(?:from\s+['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]|import\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\)|require\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\))/;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
