@@ -378,19 +378,22 @@ export function normalizeSquadsAddressValue(
 export function normalizeSquadsAddressList(
   values: unknown,
 ): NormalizeSquadsAddressListResult {
+  const { isArray: valuesIsArray, readFailed: valuesReadFailed } =
+    inspectArrayValue(values);
   assert(
-    Array.isArray(values),
+    !valuesReadFailed && valuesIsArray,
     `Expected address list to be an array, got ${getUnknownValueTypeName(values)}`,
   );
 
+  const normalizedValues = values as readonly unknown[];
   const addresses: string[] = [];
   let invalidEntries = 0;
-  const entryCount = getArrayLengthOrThrow(values, 'address list');
+  const entryCount = getArrayLengthOrThrow(normalizedValues, 'address list');
 
   for (let index = 0; index < entryCount; index += 1) {
     let value: unknown;
     try {
-      value = values[index];
+      value = normalizedValues[index];
     } catch {
       invalidEntries += 1;
       continue;
@@ -409,19 +412,25 @@ export function normalizeSquadsAddressList(
 export function parseSquadsMultisigMembers(
   members: unknown,
 ): ParseSquadsMultisigMembersResult {
+  const { isArray: membersAreArray, readFailed: membersReadFailed } =
+    inspectArrayValue(members);
   assert(
-    Array.isArray(members),
+    !membersReadFailed && membersAreArray,
     `Expected multisig members to be an array, got ${getUnknownValueTypeName(members)}`,
   );
 
+  const normalizedMembers = members as readonly unknown[];
   const parsedMembers: ParsedSquadsMultisigMember[] = [];
   let invalidEntries = 0;
-  const memberCount = getArrayLengthOrThrow(members, 'multisig members');
+  const memberCount = getArrayLengthOrThrow(
+    normalizedMembers,
+    'multisig members',
+  );
 
   for (let index = 0; index < memberCount; index += 1) {
     let member: unknown;
     try {
-      member = members[index];
+      member = normalizedMembers[index];
     } catch {
       invalidEntries += 1;
       continue;
@@ -497,13 +506,16 @@ function parseSquadsProposalVoteErrorFromUnknownLogs(
     return parseSquadsProposalVoteErrorText(value);
   }
 
-  if (!Array.isArray(value)) {
+  const { isArray: valueIsArray, readFailed: arrayInspectionFailed } =
+    inspectArrayValue(value);
+  if (arrayInspectionFailed || !valueIsArray) {
     return undefined;
   }
 
+  const normalizedValue = value as readonly unknown[];
   let logEntryCount: number;
   try {
-    logEntryCount = getArrayLengthOrThrow(value, 'vote log entries');
+    logEntryCount = getArrayLengthOrThrow(normalizedValue, 'vote log entries');
   } catch {
     return undefined;
   }
@@ -512,7 +524,7 @@ function parseSquadsProposalVoteErrorFromUnknownLogs(
   for (let index = 0; index < logEntryCount; index += 1) {
     let entry: unknown;
     try {
-      entry = value[index];
+      entry = normalizedValue[index];
     } catch {
       continue;
     }
@@ -799,10 +811,13 @@ function validateSolanaWeb3ProviderForChain(
     `Invalid solana provider for ${chain}: expected synchronous provider, got promise-like value`,
   );
 
+  const { isArray: providerIsArray, readFailed: providerReadFailed } =
+    inspectArrayValue(providerValue);
   assert(
     typeof providerValue === 'object' &&
       providerValue !== null &&
-      !Array.isArray(providerValue),
+      !providerReadFailed &&
+      !providerIsArray,
     `Invalid solana provider for ${chain}: expected object, got ${getUnknownValueTypeName(providerValue)}`,
   );
 
@@ -868,10 +883,13 @@ function getPendingProposalNativeTokenMetadataForChain(
     `Malformed chain metadata for ${chain}: expected synchronous object, got promise-like value`,
   );
 
+  const { isArray: chainMetadataIsArray, readFailed: chainMetadataReadFailed } =
+    inspectArrayValue(chainMetadata);
   assert(
     typeof chainMetadata === 'object' &&
       chainMetadata !== null &&
-      !Array.isArray(chainMetadata),
+      !chainMetadataReadFailed &&
+      !chainMetadataIsArray,
     `Malformed chain metadata for ${chain}: expected object, got ${getUnknownValueTypeName(chainMetadata)}`,
   );
 
@@ -900,10 +918,13 @@ function getPendingProposalNativeTokenMetadataForChain(
     `Malformed native token metadata for ${chain}: expected synchronous object, got promise-like value`,
   );
 
+  const { isArray: nativeTokenIsArray, readFailed: nativeTokenReadFailed } =
+    inspectArrayValue(nativeToken);
   assert(
     typeof nativeToken === 'object' &&
       nativeToken !== null &&
-      !Array.isArray(nativeToken),
+      !nativeTokenReadFailed &&
+      !nativeTokenIsArray,
     `Malformed native token metadata for ${chain}: expected object, got ${getUnknownValueTypeName(nativeToken)}`,
   );
 
@@ -1172,12 +1193,30 @@ function deriveProposalPdaForResolvedChain(
     );
   }
 
+  const {
+    isArray: proposalPdaTupleIsArray,
+    readFailed: proposalPdaTupleReadFailed,
+  } = inspectArrayValue(proposalPdaTuple);
   assert(
-    Array.isArray(proposalPdaTuple) && proposalPdaTuple.length > 0,
+    !proposalPdaTupleReadFailed && proposalPdaTupleIsArray,
     `Malformed proposal PDA derivation for ${chain} at index ${transactionIndex}: expected non-empty tuple result`,
   );
 
-  const [proposalPda] = proposalPdaTuple;
+  const normalizedProposalPdaTuple = proposalPdaTuple as readonly unknown[];
+  const proposalPdaTupleLength = getArrayLengthOrThrow(
+    normalizedProposalPdaTuple,
+    `proposal PDA tuple for ${chain} at index ${transactionIndex}`,
+  );
+  assert(
+    proposalPdaTupleLength > 0,
+    `Malformed proposal PDA derivation for ${chain} at index ${transactionIndex}: expected non-empty tuple result`,
+  );
+
+  const proposalPda = getArrayElementOrThrow(
+    normalizedProposalPdaTuple,
+    0,
+    `proposal PDA tuple for ${chain} at index ${transactionIndex}`,
+  );
   assert(
     proposalPda instanceof PublicKey,
     `Malformed proposal PDA derivation for ${chain} at index ${transactionIndex}: expected PublicKey at tuple index 0, got ${getUnknownValueTypeName(proposalPda)}`,
@@ -1661,8 +1700,10 @@ function getProposalStatusMetadata(proposal: Record<string, unknown>): {
     'status',
     'Squads proposal status',
   );
+  const { isArray: statusIsArray, readFailed: statusReadFailed } =
+    inspectArrayValue(status);
   assert(
-    status && typeof status === 'object' && !Array.isArray(status),
+    status && typeof status === 'object' && !statusReadFailed && !statusIsArray,
     'Squads proposal status must be an object',
   );
 
@@ -1709,12 +1750,15 @@ function getProposalVoteCount(
     fieldName,
     `Squads proposal ${fieldName} votes`,
   );
+  const { isArray: fieldValueIsArray, readFailed: fieldValueReadFailed } =
+    inspectArrayValue(fieldValue);
   assert(
-    Array.isArray(fieldValue),
+    !fieldValueReadFailed && fieldValueIsArray,
     `Squads proposal ${fieldName} votes must be an array`,
   );
+  const normalizedFieldValue = fieldValue as readonly unknown[];
   return getArrayLengthOrThrow(
-    fieldValue,
+    normalizedFieldValue,
     `Squads proposal ${fieldName} votes`,
   );
 }
@@ -1798,23 +1842,31 @@ function getMultisigMemberCount(
     return undefined;
   }
 
+  const { isArray: membersIsArray, readFailed: membersReadFailed } =
+    inspectArrayValue(members);
   assert(
-    Array.isArray(members),
+    !membersReadFailed && membersIsArray,
     `Squads ${fieldPrefix} members must be an array when provided`,
   );
+  const normalizedMembers = members as readonly unknown[];
 
   const memberCount = getArrayLengthOrThrow(
-    members,
+    normalizedMembers,
     `Squads ${fieldPrefix} members`,
   );
   for (let index = 0; index < memberCount; index += 1) {
     const member: unknown = getArrayElementOrThrow(
-      members,
+      normalizedMembers,
       index,
       `Squads ${fieldPrefix} members`,
     );
+    const { isArray: memberIsArray, readFailed: memberReadFailed } =
+      inspectArrayValue(member);
     assert(
-      member && typeof member === 'object' && !Array.isArray(member),
+      member &&
+        typeof member === 'object' &&
+        !memberReadFailed &&
+        !memberIsArray,
       `Squads ${fieldPrefix} members[${index}] must be an object`,
     );
     const memberRecord = member as Record<string, unknown>;
@@ -1833,8 +1885,12 @@ function getMultisigMemberCount(
         `Squads ${fieldPrefix} members[${index}] key must be a non-empty string`,
       );
     } else {
+      const { isArray: memberKeyIsArray, readFailed: memberKeyReadFailed } =
+        inspectArrayValue(memberKey);
       assert(
-        typeof memberKey === 'object' && !Array.isArray(memberKey),
+        typeof memberKey === 'object' &&
+          !memberKeyReadFailed &&
+          !memberKeyIsArray,
         `Squads ${fieldPrefix} members[${index}] key must be an object or non-empty string`,
       );
       let normalizedMemberKey: string | undefined;
@@ -2133,14 +2189,17 @@ function normalizeProposalInstructionsForBuild(
   chain: SquadsChainName,
   ixs: unknown,
 ): TransactionInstruction[] {
+  const { isArray: instructionsAreArray, readFailed: instructionsReadFailed } =
+    inspectArrayValue(ixs);
   assert(
-    Array.isArray(ixs),
+    !instructionsReadFailed && instructionsAreArray,
     `Expected proposal instructions for ${chain} to be an array, got ${getUnknownValueTypeName(ixs)}`,
   );
 
+  const normalizedInstructionsInput = ixs as readonly unknown[];
   const normalizedInstructions: TransactionInstruction[] = [];
   const instructionCount = getArrayLengthOrThrow(
-    ixs,
+    normalizedInstructionsInput,
     `proposal instructions for ${chain}`,
   );
   for (
@@ -2149,7 +2208,7 @@ function normalizeProposalInstructionsForBuild(
     instructionIndex += 1
   ) {
     const instruction = getArrayElementOrThrow(
-      ixs,
+      normalizedInstructionsInput,
       instructionIndex,
       `proposal instructions for ${chain}`,
     );
@@ -2208,10 +2267,15 @@ async function getRecentBlockhashForProposalBuild(
     );
   }
 
+  const {
+    isArray: latestBlockhashResultIsArray,
+    readFailed: latestBlockhashResultReadFailed,
+  } = inspectArrayValue(latestBlockhashResult);
   assert(
     typeof latestBlockhashResult === 'object' &&
       latestBlockhashResult !== null &&
-      !Array.isArray(latestBlockhashResult),
+      !latestBlockhashResultReadFailed &&
+      !latestBlockhashResultIsArray,
     `Malformed latest blockhash result for ${chain}: expected object, got ${getUnknownValueTypeName(latestBlockhashResult)}`,
   );
 

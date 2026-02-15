@@ -534,6 +534,15 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws stable error when address-list array inspection fails', () => {
+      const { proxy: revokedAddressList, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(() => normalizeSquadsAddressList(revokedAddressList)).to.throw(
+        'Expected address list to be an array, got [unreadable value type]',
+      );
+    });
+
     it('counts entries as invalid when array element access throws', () => {
       const hostileAddressList = new Proxy(
         [
@@ -633,6 +642,15 @@ describe('squads utils', () => {
       );
       expect(() => parseSquadsMultisigMembers(null)).to.throw(
         'Expected multisig members to be an array, got null',
+      );
+    });
+
+    it('throws stable error when multisig-member array inspection fails', () => {
+      const { proxy: revokedMembers, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(() => parseSquadsMultisigMembers(revokedMembers)).to.throw(
+        'Expected multisig members to be an array, got [unreadable value type]',
       );
     });
 
@@ -1541,6 +1559,24 @@ describe('squads utils', () => {
       const parseInvalidProposal = () =>
         parseSquadProposal({
           status: [],
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: 1,
+        });
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads proposal status must be an object',
+      );
+    });
+
+    it('throws when proposal status array inspection fails', () => {
+      const { proxy: revokedStatus, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: revokedStatus,
           approved: [],
           rejected: [],
           cancelled: [],
@@ -2732,6 +2768,14 @@ describe('squads utils', () => {
       expect(parseSquadsProposalVoteError([{ log: '0x177b' }])).to.equal(
         undefined,
       );
+    });
+
+    it('returns undefined for vote-log payloads when array inspection fails', () => {
+      const { proxy: revokedLogs, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(() => parseSquadsProposalVoteError(revokedLogs)).to.not.throw();
+      expect(parseSquadsProposalVoteError(revokedLogs)).to.equal(undefined);
     });
 
     it('returns undefined for vote-log arrays that throw during filtering', () => {
@@ -5312,6 +5356,32 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast when proposal instruction array inspection fails before provider lookup', async () => {
+      let providerLookupCalled = false;
+      const { proxy: revokedInstructions, revoke } = Proxy.revocable({}, {});
+      revoke();
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          revokedInstructions,
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal instructions for solanamainnet to be an array, got [unreadable value type]',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('fails fast for malformed proposal instructions before provider lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -5774,6 +5844,60 @@ describe('squads utils', () => {
 
         expect(thrownError?.message).to.equal(
           'Malformed latest blockhash result for solanamainnet: expected object, got null',
+        );
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
+
+    it('throws contextual error when latest blockhash result cannot be awaited during proposal build', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+        const mpp = {
+          getSolanaWeb3Provider: () => {
+            const { proxy: revokedBlockhashResult, revoke } = Proxy.revocable(
+              {},
+              {},
+            );
+            revoke();
+            return {
+              getAccountInfo: async () => ({
+                owner: getSquadsKeys('solanamainnet').programId,
+              }),
+              getLatestBlockhash: async () => revokedBlockhashResult,
+            };
+          },
+        };
+
+        const thrownError = await captureAsyncError(() =>
+          buildSquadsVaultTransactionProposal(
+            'solanamainnet',
+            mpp,
+            [],
+            PublicKey.default,
+          ),
+        );
+
+        expect(thrownError?.message).to.include(
+          'Failed to fetch latest blockhash for solanamainnet:',
+        );
+        expect(thrownError?.message).to.include(
+          "Cannot perform 'get' on a proxy that has been revoked",
         );
       } finally {
         (
