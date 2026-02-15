@@ -2205,6 +2205,40 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not leak catch binding-pattern require shadowing to outer symbol sources', () => {
+    const source = [
+      "const outerDefault = require('./fixtures/guard-module.js').default;",
+      'try {',
+      '  throw { require: () => undefined };',
+      '} catch ({ require }) {',
+      "  require('./fixtures/other-module.js').default;",
+      '}',
+      'void outerDefault;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak catch binding-pattern alias shadowing to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      '  throw { reqAlias: () => undefined };',
+      '} catch ({ reqAlias }) {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '}',
+      "const postCatchDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('keeps module-source alias var declarations made inside catch block scopes', () => {
     const source = [
       'let moduleAlias: any;',
@@ -2958,6 +2992,50 @@ describe('Safe migration guards', () => {
       "  throw new Error('boom');",
       '} catch (error) {',
       '  class reqAlias {}',
+      "  reqAlias('./fixtures/other-module.js');",
+      '}',
+      "const postCatchCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak catch binding-pattern require shadowing to outer module specifiers', () => {
+    const source = [
+      "const outerRequire = require('./fixtures/guard-module.js');",
+      'try {',
+      '  throw { require: () => undefined };',
+      '} catch ({ require }) {',
+      "  require('./fixtures/other-module.js');",
+      '}',
+      'void outerRequire;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak catch binding-pattern alias shadowing to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      '  throw { reqAlias: () => undefined };',
+      '} catch ({ reqAlias }) {',
       "  reqAlias('./fixtures/other-module.js');",
       '}',
       "const postCatchCall = reqAlias('./fixtures/guard-module.js');",
