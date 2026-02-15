@@ -546,4 +546,6 @@ Regression coverage now also confirms additional json/double-escaped bracketed-o
 
 Regression coverage now also confirms additional json/double-escaped quoted gap variants (for example `\\\"'[object array]'\\\"`, `\\\"'[oBjEcT aRrAy]'\\\"`, `\\'[oBjEcT oBjEcT]\\'`, and `\\'[ARRAY]\\'`) are treated as non-informative and preserve matcher/formatter fallback semantics.
 
+Regression coverage now also confirms non-quoted json/double-escaped case-variant placeholders (for example `\\\"[object Array]\\\"`, `\\\"[OBJECT OBJECT]\\\"`, `\\\"[aRrAy]\\\"`, and `\\\"[object]\\\"`) are treated as non-informative and preserve matcher/formatter fallback semantics.
+
 Regression coverage now also confirms bracketed-array placeholder outputs from `Symbol.toPrimitive` (for example `[Array]`) are treated as non-informative and preserve runtime/non-runtime matcher plus formatter `Object.prototype.toString` fallback behavior.
