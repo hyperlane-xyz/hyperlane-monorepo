@@ -526,4 +526,6 @@ Regression coverage now also confirms additional triple-escaped quoted case-vari
 
 Regression coverage now also confirms further triple-escaped quoted case-variant bracketed/object-tag placeholders from `Symbol.toPrimitive` (for example `\\\'[OBJECT ARRAY]\\\'`, `\\\'[object array]\\\'`, `\\\"'[ARRAY]'\\\"`, and `\\\"'[object]'\\\"`) are treated as non-informative and preserve matcher/formatter fallback semantics.
 
+Regression coverage now also confirms additional triple-escaped quoted case-variant placeholder outputs from `Symbol.toPrimitive` (for example `\\\'[ARRAY]\\\'`, `\\\'[object]\\\'`, `\\\"'[oBjEcT aRrAy]'\\\"`, and `\\\"'[OBJECT OBJECT]'\\\"`) are treated as non-informative and preserve matcher/formatter fallback semantics.
+
 Regression coverage now also confirms bracketed-array placeholder outputs from `Symbol.toPrimitive` (for example `[Array]`) are treated as non-informative and preserve runtime/non-runtime matcher plus formatter `Object.prototype.toString` fallback behavior.
