@@ -62,8 +62,11 @@ export function getSquadsChains(): SquadsChainName[] {
   return [...SQUADS_CHAINS];
 }
 
-export function isSquadsChain(chainName: string): chainName is SquadsChainName {
-  return Object.prototype.hasOwnProperty.call(squadsConfigs, chainName);
+export function isSquadsChain(chainName: unknown): chainName is SquadsChainName {
+  return (
+    typeof chainName === 'string' &&
+    Object.prototype.hasOwnProperty.call(squadsConfigs, chainName)
+  );
 }
 
 function getUnknownValueTypeName(value: unknown): string {

@@ -87,6 +87,8 @@ describe('squads config', () => {
     expect(isSquadsChain('solanamainnet')).to.equal(true);
     expect(isSquadsChain('unknown-chain')).to.equal(false);
     expect(isSquadsChain('__proto__')).to.equal(false);
+    expect(isSquadsChain(1)).to.equal(false);
+    expect(isSquadsChain(null)).to.equal(false);
   });
 
   it('asserts supported chains with helpful error context', () => {
