@@ -155,6 +155,25 @@ describe('squads barrel exports', () => {
     ]);
   });
 
+  it('keeps squads barrel free of non-export local references', () => {
+    const squadsBarrelSource = fs.readFileSync(
+      SQUADS_BARREL_INDEX_PATH,
+      'utf8',
+    );
+    const localReferenceLines = squadsBarrelSource
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.includes("from './"));
+
+    expect(localReferenceLines).to.deep.equal([
+      "export * from './config.js';",
+      "export * from './utils.js';",
+      "export * from './transaction-reader.js';",
+      "export * from './error-format.js';",
+    ]);
+    expect(countOccurrences(squadsBarrelSource, "from './")).to.equal(4);
+  });
+
   it('keeps sdk package explicitly depending on @sqds/multisig', () => {
     const sdkPackageJson = JSON.parse(
       fs.readFileSync(SDK_PACKAGE_JSON_PATH, 'utf8'),
