@@ -75,7 +75,8 @@ function extractNamedExportSymbols(
       node.moduleSpecifier &&
       ts.isStringLiteralLike(node.moduleSpecifier) &&
       node.moduleSpecifier.text === modulePath &&
-      !node.exportClause
+      !node.exportClause &&
+      !node.isTypeOnly
     ) {
       for (const symbol of fallbackModuleExportSymbols) {
         symbols.add(normalizeNamedSymbol(symbol));
@@ -301,6 +302,17 @@ describe('Gnosis Safe migration guards', () => {
       ['getSafe', 'createSafeTransaction', 'getSafe'],
     );
     expect(symbols).to.deep.equal(['getSafe', 'createSafeTransaction']);
+  });
+
+  it('ignores type-only wildcard module re-exports for fallback symbols', () => {
+    const source = "export type * from './fixtures/guard-module.js';";
+    const symbols = extractNamedExportSymbols(
+      source,
+      './fixtures/guard-module.js',
+      'fixture.ts',
+      ['getSafe', 'createSafeTransaction'],
+    );
+    expect(symbols).to.deep.equal([]);
   });
 
   it('extracts local export specifier aliases from source declarations', () => {
