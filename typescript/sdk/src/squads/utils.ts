@@ -185,12 +185,35 @@ function tokenizeFieldName(fieldName: string): string[] {
     .filter((token) => token.length > 0);
 }
 
+const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
+
+function inspectArrayValue(value: unknown): {
+  isArray: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      isArray: Array.isArray(value),
+      readFailed: false,
+    };
+  } catch {
+    return {
+      isArray: false,
+      readFailed: true,
+    };
+  }
+}
+
 function getUnknownValueTypeName(value: unknown): string {
   if (value === null) {
     return 'null';
   }
+  const { isArray, readFailed } = inspectArrayValue(value);
+  if (readFailed) {
+    return UNREADABLE_VALUE_TYPE;
+  }
 
-  return Array.isArray(value) ? 'array' : typeof value;
+  return isArray ? 'array' : typeof value;
 }
 
 function formatAddressForError(value: unknown): string {
@@ -202,8 +225,10 @@ function getObjectRecord(
   value: unknown,
   label: string,
 ): Record<string, unknown> {
+  const { isArray, readFailed: arrayInspectionFailed } =
+    inspectArrayValue(value);
   assert(
-    value && typeof value === 'object' && !Array.isArray(value),
+    !arrayInspectionFailed && value && typeof value === 'object' && !isArray,
     `${label} must be an object, got ${getUnknownValueTypeName(value)}`,
   );
 
@@ -278,7 +303,14 @@ export function normalizeSquadsAddressValue(
   if (typeof value === 'string') {
     rawAddressValue = value;
   } else {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    const { isArray, readFailed: arrayInspectionFailed } =
+      inspectArrayValue(value);
+    if (
+      arrayInspectionFailed ||
+      !value ||
+      typeof value !== 'object' ||
+      isArray
+    ) {
       return {
         address: undefined,
         error: `expected string or object with toBase58(), got ${getUnknownValueTypeName(value)}`,

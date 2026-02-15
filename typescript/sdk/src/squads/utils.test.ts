@@ -222,6 +222,17 @@ describe('squads utils', () => {
       });
     });
 
+    it('uses stable type placeholder when array inspection throws', () => {
+      const { proxy: revokedValue, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(normalizeSquadsAddressValue(revokedValue)).to.deep.equal({
+        address: undefined,
+        error:
+          'expected string or object with toBase58(), got [unreadable value type]',
+      });
+    });
+
     it('labels null values clearly when rejecting non-string primitives', () => {
       expect(normalizeSquadsAddressValue(null)).to.deep.equal({
         address: undefined,
@@ -1138,6 +1149,15 @@ describe('squads utils', () => {
       );
       expect(() => parseSquadProposal([])).to.throw(
         'Squads proposal must be an object, got array',
+      );
+    });
+
+    it('throws stable type error when proposal object inspection fails', () => {
+      const { proxy: revokedProposal, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(() => parseSquadProposal(revokedProposal)).to.throw(
+        'Squads proposal must be an object, got [unreadable value type]',
       );
     });
 
