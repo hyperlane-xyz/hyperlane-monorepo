@@ -2514,6 +2514,50 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('keeps try-block ambient class declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare class reqAlias {}',
+      '} catch {}',
+      "const postTryCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps try-block ambient enum declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      '} catch {}',
+      "const postTryCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('does not leak require shadowing across catch clause scopes', () => {
     const source = [
       'try {',
@@ -5831,6 +5875,40 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('keeps try-block ambient class declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare class reqAlias {}',
+      '} catch {}',
+      "const postTryDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps try-block ambient enum declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'try {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      '} catch {}',
+      "const postTryDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak symbol-source shadowing across catch clause scopes', () => {
     const source = [
       'try {',
@@ -6186,6 +6264,42 @@ describe('Gnosis Safe migration guards', () => {
     );
     expect(references).to.include('default@./fixtures/guard-module.js');
     expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps try-block ambient class declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'try {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare class moduleAlias {}',
+      '  void preDeclarationSymbol;',
+      '} catch {}',
+      'const postTryDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps try-block ambient enum declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'try {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare enum moduleAlias {',
+      '    Marker = 0,',
+      '  }',
+      '  void preDeclarationSymbol;',
+      '} catch {}',
+      'const postTryDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
   });
 
   it('keeps catch-block type-alias declarations from shadowing module-source aliases in symbol sources', () => {
