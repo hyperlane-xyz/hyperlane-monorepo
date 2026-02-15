@@ -363,3 +363,5 @@ Single-quoted placeholder strings (for example `'[Object]'` and `'[object Object
 Mixed quote-wrapper placeholder strings (for example `"'[Object]'"` and `"'[object Object]'"`) are now also covered so repeated quote wrapping cannot bypass placeholder filtering.
 
 Mixed quote-wrapper object-tag array placeholders (for example `"'[object Array]'"`) are now also covered across JSON and inspect fallback paths.
+
+Single-quoted object-tag array placeholders (for example `'[object Array]'`) are now also covered across JSON and inspect fallback paths.
