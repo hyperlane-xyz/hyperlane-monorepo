@@ -1675,6 +1675,57 @@ function buildVaultTransactionMessage(
   });
 }
 
+function normalizeProposalInstructionsForBuild(
+  chain: SquadsChainName,
+  ixs: unknown,
+): TransactionInstruction[] {
+  assert(
+    Array.isArray(ixs),
+    `Expected proposal instructions for ${chain} to be an array, got ${getUnknownValueTypeName(ixs)}`,
+  );
+
+  const normalizedInstructions: TransactionInstruction[] = [];
+  const instructionCount = getArrayLengthOrThrow(
+    ixs,
+    `proposal instructions for ${chain}`,
+  );
+  for (
+    let instructionIndex = 0;
+    instructionIndex < instructionCount;
+    instructionIndex += 1
+  ) {
+    const instruction = getArrayElementOrThrow(
+      ixs,
+      instructionIndex,
+      `proposal instructions for ${chain}`,
+    );
+    assert(
+      instruction instanceof TransactionInstruction,
+      `Expected proposal instructions for ${chain}[${instructionIndex}] to be a TransactionInstruction, got ${getUnknownValueTypeName(instruction)}`,
+    );
+    normalizedInstructions.push(instruction);
+  }
+
+  return normalizedInstructions;
+}
+
+function normalizeProposalMemoForBuild(
+  chain: SquadsChainName,
+  memo: unknown,
+): string | undefined {
+  if (memo === undefined || memo === null) {
+    return undefined;
+  }
+
+  assert(
+    typeof memo === 'string',
+    `Expected proposal memo for ${chain} to be a string, got ${getUnknownValueTypeName(memo)}`,
+  );
+
+  const normalizedMemo = memo.trim();
+  return normalizedMemo.length > 0 ? normalizedMemo : undefined;
+}
+
 function createVaultTransactionInstruction(
   multisigPda: PublicKey,
   transactionIndex: bigint,
@@ -1729,9 +1780,9 @@ function createProposalCancelInstruction(
 export async function buildSquadsVaultTransactionProposal(
   chain: unknown,
   mpp: MultiProtocolProvider,
-  ixs: readonly TransactionInstruction[],
+  ixs: unknown,
   creator: unknown,
-  memo?: string,
+  memo?: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<{
   instructions: TransactionInstruction[];
@@ -1742,6 +1793,11 @@ export async function buildSquadsVaultTransactionProposal(
     creator,
     `proposal creator for ${normalizedChain}`,
   );
+  const normalizedInstructions = normalizeProposalInstructionsForBuild(
+    normalizedChain,
+    ixs,
+  );
+  const normalizedMemo = normalizeProposalMemoForBuild(normalizedChain, memo);
   const { svmProvider, vault, multisigPda, programId } =
     getSquadAndProviderForResolvedChain(
       normalizedChain,
@@ -1758,7 +1814,7 @@ export async function buildSquadsVaultTransactionProposal(
   const { blockhash } = await svmProvider.getLatestBlockhash();
   const transactionMessage = buildVaultTransactionMessage(
     vault,
-    ixs,
+    normalizedInstructions,
     blockhash,
   );
 
@@ -1769,7 +1825,7 @@ export async function buildSquadsVaultTransactionProposal(
     0,
     transactionMessage,
     programId,
-    memo,
+    normalizedMemo,
   );
 
   const proposalIx = createProposalInstruction(

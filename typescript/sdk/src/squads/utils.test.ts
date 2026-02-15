@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, TransactionInstruction } from '@solana/web3.js';
 
 import {
   SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
@@ -4486,6 +4486,151 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Expected proposal creator for solanamainnet to be a PublicKey, got string',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for malformed proposal instruction containers before provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          'malformed-instructions',
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal instructions for solanamainnet to be an array, got string',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for malformed proposal instructions before provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          [{}],
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal instructions for solanamainnet[0] to be a TransactionInstruction, got object',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('throws contextual errors when proposal instruction length access fails', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const hostileInstructions = new Proxy([], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            throw new Error('length unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          hostileInstructions,
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read proposal instructions for solanamainnet length: length unavailable',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('throws contextual errors when proposal instruction index access fails', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const instructionList = new Proxy(
+        [
+          new TransactionInstruction({
+            keys: [],
+            programId: PublicKey.default,
+          }),
+        ],
+        {
+          get(target, property, receiver) {
+            if (property === '0') {
+              throw new Error('instruction unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          instructionList,
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read proposal instructions for solanamainnet[0]: instruction unavailable',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for malformed proposal memo values before provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          [],
+          PublicKey.default,
+          1,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal memo for solanamainnet to be a string, got number',
       );
       expect(providerLookupCalled).to.equal(false);
     });
