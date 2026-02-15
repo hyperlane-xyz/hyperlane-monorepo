@@ -1524,9 +1524,14 @@ export async function getTransactionType(
   transactionIndex: number,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<SquadsAccountType> {
-  assertValidTransactionIndexInput(transactionIndex, chain);
+  const normalizedChain = resolveSquadsChainName(chain);
+  assertValidTransactionIndexInput(transactionIndex, normalizedChain);
   const { svmProvider, multisigPda, programId } =
-    getSquadAndProviderForResolvedChain(chain, mpp, svmProviderOverride);
+    getSquadAndProviderForResolvedChain(
+      normalizedChain,
+      mpp,
+      svmProviderOverride,
+    );
 
   const [transactionPda] = getTransactionPda({
     multisigPda,
@@ -1562,36 +1567,39 @@ export async function executeProposal(
   transactionIndex: number,
   signerAdapter: SvmMultiProtocolSignerAdapter,
 ): Promise<void> {
-  assertValidTransactionIndexInput(transactionIndex, chain);
+  const normalizedChain = resolveSquadsChainName(chain);
+  assertValidTransactionIndexInput(transactionIndex, normalizedChain);
   const { svmProvider, multisigPda, programId } =
-    getSquadAndProviderForResolvedChain(chain, mpp);
+    getSquadAndProviderForResolvedChain(normalizedChain, mpp);
 
   const proposalData = await getSquadProposal(
-    chain,
+    normalizedChain,
     mpp,
     transactionIndex,
     svmProvider,
   );
   if (!proposalData) {
-    throw new Error(`Failed to fetch proposal ${transactionIndex} on ${chain}`);
+    throw new Error(
+      `Failed to fetch proposal ${transactionIndex} on ${normalizedChain}`,
+    );
   }
 
   const { proposal } = proposalData;
 
   if (proposal.status.__kind !== SquadsProposalStatus.Approved) {
     throw new Error(
-      `Proposal ${transactionIndex} on ${chain} is not approved (status: ${proposal.status.__kind})`,
+      `Proposal ${transactionIndex} on ${normalizedChain} is not approved (status: ${proposal.status.__kind})`,
     );
   }
 
   const txType = await getTransactionType(
-    chain,
+    normalizedChain,
     mpp,
     transactionIndex,
     svmProvider,
   );
   rootLogger.info(
-    `Executing ${txType} proposal ${transactionIndex} on ${chain}`,
+    `Executing ${txType} proposal ${transactionIndex} on ${normalizedChain}`,
   );
 
   const executorPublicKey = signerAdapter.publicKey();
@@ -1611,7 +1619,7 @@ export async function executeProposal(
 
       if (lookupTableAccounts.length > 0) {
         throw new Error(
-          `Transaction requires ${lookupTableAccounts.length} address lookup table(s). Versioned transactions are not supported on ${chain}.`,
+          `Transaction requires ${lookupTableAccounts.length} address lookup table(s). Versioned transactions are not supported on ${normalizedChain}.`,
         );
       }
 
@@ -1630,11 +1638,11 @@ export async function executeProposal(
     ]);
 
     rootLogger.info(
-      `Executed proposal ${transactionIndex} on ${chain}: ${signature}`,
+      `Executed proposal ${transactionIndex} on ${normalizedChain}: ${signature}`,
     );
   } catch (error) {
     rootLogger.error(
-      `Error executing proposal ${transactionIndex} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Error executing proposal ${transactionIndex} on ${normalizedChain}: ${formatUnknownErrorForMessage(error)}`,
     );
     throw error;
   }

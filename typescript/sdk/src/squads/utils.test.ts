@@ -3519,6 +3519,29 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast for malformed chain names before transaction index validation', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType(
+          1 as unknown as Parameters<typeof getTransactionType>[0],
+          mpp,
+          -1,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('fails fast for negative transaction index before account lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -3655,6 +3678,30 @@ describe('squads utils', () => {
           1 as unknown as Parameters<typeof executeProposal>[0],
           mpp,
           0,
+          {} as Parameters<typeof executeProposal>[3],
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for malformed chain names before transaction index validation during execution', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal(
+          1 as unknown as Parameters<typeof executeProposal>[0],
+          mpp,
+          -1,
           {} as Parameters<typeof executeProposal>[3],
         ),
       );
