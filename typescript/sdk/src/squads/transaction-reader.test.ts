@@ -3060,6 +3060,43 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('falls back to stable display labels when instruction metadata is malformed', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const malformedProgramId = {
+      toBase58: () => {
+        throw new Error('program id unavailable');
+      },
+    };
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: malformedProgramId,
+      programName: '   ',
+      instructionType: '',
+      data: {},
+      accounts: [],
+      warnings: [],
+      insight: '   ',
+    });
+
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Unknown ([invalid program id])',
+      type: 'Unknown',
+      insight: 'Unknown instruction',
+    });
+  });
+
   it('handles throwing warp router alias access while formatting single-router instructions', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({

@@ -1873,16 +1873,55 @@ export class SquadsTransactionReader {
     return normalizedValue.length > 0 ? normalizedValue : null;
   }
 
+  private formatProgramIdForDisplay(programId: unknown): string {
+    if (
+      !programId ||
+      (typeof programId !== 'object' && typeof programId !== 'function')
+    ) {
+      return '[invalid program id]';
+    }
+
+    let toBase58Value: unknown;
+    try {
+      toBase58Value = (programId as { toBase58?: unknown }).toBase58;
+    } catch {
+      return '[invalid program id]';
+    }
+
+    if (typeof toBase58Value !== 'function') {
+      return '[invalid program id]';
+    }
+
+    try {
+      const displayValue = toBase58Value.call(programId);
+      return (
+        this.normalizeOptionalNonEmptyString(displayValue) ??
+        '[invalid program id]'
+      );
+    } catch {
+      return '[invalid program id]';
+    }
+  }
+
   private formatInstruction(
     chain: SquadsChainName,
     inst: ParsedInstruction,
   ): SquadsGovernTransaction {
-    const to = `${inst.programName} (${inst.programId.toBase58()})`;
+    const instructionTypeForDisplay =
+      this.normalizeOptionalNonEmptyString(inst.instructionType) ??
+      InstructionType.UNKNOWN;
+    const programNameForDisplay =
+      this.normalizeOptionalNonEmptyString(inst.programName) ??
+      ProgramName.UNKNOWN;
+    const to = `${programNameForDisplay} (${this.formatProgramIdForDisplay(inst.programId)})`;
+    const normalizedInsight = this.normalizeOptionalNonEmptyString(
+      inst.insight,
+    );
     const tx: SquadsGovernTransaction = {
       chain,
       to,
-      type: inst.instructionType,
-      insight: inst.insight || `${inst.instructionType} instruction`,
+      type: instructionTypeForDisplay,
+      insight: normalizedInsight ?? `${instructionTypeForDisplay} instruction`,
     };
 
     switch (inst.instructionType) {
