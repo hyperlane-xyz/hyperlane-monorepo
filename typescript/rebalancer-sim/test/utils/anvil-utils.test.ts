@@ -48,6 +48,17 @@ const buildRealBoxedStringWithThrowingToStringTag = (value: string) => {
   });
   return boxed;
 };
+const buildCrossRealmBoxedStringWithThrowingToStringTag = (value: string) =>
+  runInNewContext(`(() => {
+    const boxed = new String(${JSON.stringify(value)});
+    Object.defineProperty(boxed, Symbol.toStringTag, {
+      configurable: true,
+      get() {
+        throw new Error('blocked toStringTag');
+      },
+    });
+    return boxed;
+  })()`);
 
 describe('Anvil utils', () => {
   describe('isContainerRuntimeUnavailable', () => {
@@ -428,6 +439,17 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches docker runtime errors in cross-realm boxed-string-valued AggregateError entries when toStringTag accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime');
+      Object.defineProperty(error, 'errors', {
+        value: buildCrossRealmBoxedStringWithThrowingToStringTag(
+          'No Docker client strategy found',
+        ),
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('ignores non-runtime string-valued AggregateError entries', () => {
       const error = new AggregateError([], 'failed to initialize runtime');
       Object.defineProperty(error, 'errors', {
@@ -450,6 +472,17 @@ describe('Anvil utils', () => {
       const error = new AggregateError([], 'failed to initialize runtime');
       Object.defineProperty(error, 'errors', {
         value: buildRealBoxedStringWithThrowingToStringTag(
+          'unrelated nested startup warning',
+        ),
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string-valued AggregateError entries when toStringTag accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime');
+      Object.defineProperty(error, 'errors', {
+        value: buildCrossRealmBoxedStringWithThrowingToStringTag(
           'unrelated nested startup warning',
         ),
       });
@@ -769,6 +802,26 @@ describe('Anvil utils', () => {
       expect(
         isContainerRuntimeUnavailable(
           runInNewContext('new String("unrelated nested warning")'),
+        ),
+      ).to.equal(false);
+    });
+
+    it('matches runtime cross-realm boxed-string throw values when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable(
+          buildCrossRealmBoxedStringWithThrowingToStringTag(
+            'No Docker client strategy found',
+          ),
+        ),
+      ).to.equal(true);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string throw values when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable(
+          buildCrossRealmBoxedStringWithThrowingToStringTag(
+            'unrelated nested warning',
+          ),
         ),
       ).to.equal(false);
     });
@@ -2413,6 +2466,17 @@ describe('Anvil utils', () => {
       );
     });
 
+    it('treats cross-realm boxed-string code values with throwing toStringTag as ENOENT', () => {
+      expect(
+        formatLocalAnvilStartError({
+          code: buildCrossRealmBoxedStringWithThrowingToStringTag('  EnOeNt  '),
+          message: 'spawn failed',
+        }),
+      ).to.equal(
+        'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.',
+      );
+    });
+
     it('ignores spoofed boxed-string code values when coercion fails', () => {
       expect(
         formatLocalAnvilStartError({
@@ -2469,6 +2533,16 @@ describe('Anvil utils', () => {
       expect(
         formatLocalAnvilStartError({
           message: runInNewContext('new String("  custom object failure  ")'),
+        }),
+      ).to.equal('Failed to start local anvil: custom object failure');
+    });
+
+    it('uses cross-realm boxed-string message fields with throwing toStringTag from non-Error objects', () => {
+      expect(
+        formatLocalAnvilStartError({
+          message: buildCrossRealmBoxedStringWithThrowingToStringTag(
+            '  custom object failure  ',
+          ),
         }),
       ).to.equal('Failed to start local anvil: custom object failure');
     });
