@@ -49,15 +49,18 @@ const DISALLOWED_LOCAL_SAFE_DECLARATIONS = [
   'updateSafeOwner',
 ] as const;
 
-function expectNoRipgrepMatches(pattern: string, description: string): void {
+const INFRA_SOURCE_PATHS = ['scripts', 'src', 'config'] as const;
+const INFRA_SOURCE_AND_TEST_PATHS = [...INFRA_SOURCE_PATHS, 'test'] as const;
+
+function expectNoRipgrepMatches(
+  pattern: string,
+  description: string,
+  paths: readonly string[] = INFRA_SOURCE_PATHS,
+): void {
   try {
-    const output = execFileSync(
-      'rg',
-      [pattern, 'scripts', 'src', 'config', '--glob', '*.ts'],
-      {
-        encoding: 'utf8',
-      },
-    );
+    const output = execFileSync('rg', [pattern, ...paths, '--glob', '*.ts'], {
+      encoding: 'utf8',
+    });
     expect.fail(`Found disallowed ${description}:\n${output}`);
   } catch (error) {
     const commandError = error as Error & { status?: number };
@@ -116,13 +119,14 @@ describe('Safe migration guards', () => {
 
   it('prevents reintroducing infra local safe util imports', () => {
     expectNoRipgrepMatches(
-      String.raw`src/utils/safe\.ts|src/utils/safe|from ['"].*utils/safe|require\(['"].*utils/safe|import\(['"].*utils/safe`,
+      String.raw`(?:from ['"][^'"]*utils/safe|require\(['"][^'"]*utils/safe|import\(['"][^'"]*utils/safe)`,
       'legacy infra safe util import path usage',
+      INFRA_SOURCE_AND_TEST_PATHS,
     );
   });
 
   it('ensures migrated safe helper symbols are only imported from sdk', () => {
-    const rootsToScan = ['scripts', 'src', 'config'];
+    const rootsToScan = INFRA_SOURCE_AND_TEST_PATHS;
     const disallowedImports: string[] = [];
     const sdkSafeHelperExports = new Set(getSdkGnosisSafeExports());
     expect(sdkSafeHelperExports.size).to.be.greaterThan(
@@ -175,6 +179,7 @@ describe('Safe migration guards', () => {
     expectNoRipgrepMatches(
       String.raw`from ['"]@safe-global|require\(['"]@safe-global`,
       '@safe-global imports in infra sources',
+      INFRA_SOURCE_AND_TEST_PATHS,
     );
   });
 
@@ -182,6 +187,7 @@ describe('Safe migration guards', () => {
     expectNoRipgrepMatches(
       String.raw`from ['"]@hyperlane-xyz/sdk\/.*gnosisSafe|from ['"].*\/gnosisSafe(\.js)?['"]|require\(['"]@hyperlane-xyz/sdk\/.*gnosisSafe|require\(['"].*\/gnosisSafe(\.js)?['"]|import\(['"]@hyperlane-xyz/sdk\/.*gnosisSafe|import\(['"].*\/gnosisSafe(\.js)?['"]`,
       'gnosis safe imports that bypass @hyperlane-xyz/sdk entrypoint',
+      INFRA_SOURCE_AND_TEST_PATHS,
     );
   });
 
@@ -189,6 +195,7 @@ describe('Safe migration guards', () => {
     expectNoRipgrepMatches(
       String.raw`(?:from ['"]|require\(['"]|import\(['"])(?:@hyperlane-xyz/sdk\/|(?:\.\.?\/)+.*sdk\/src\/|(?:\.\.?\/)+.*typescript\/sdk\/|.*typescript\/sdk\/src\/)`,
       'sdk source-path or package subpath imports',
+      INFRA_SOURCE_AND_TEST_PATHS,
     );
   });
 
