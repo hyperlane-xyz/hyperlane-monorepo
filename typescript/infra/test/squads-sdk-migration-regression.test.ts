@@ -898,6 +898,20 @@ describe('squads sdk migration regression', () => {
     ]);
   });
 
+  it('keeps expected canonical squads tracked test-asset paths', () => {
+    expect(SQUADS_TRACKED_TEST_ASSET_PATHS).to.deep.equal([
+      'test/squads-cli-helpers.test.ts',
+      'test/squads-scripts-help.test.ts',
+      'test/squads-sdk-migration-regression.test.ts',
+      'test/squads-test-ordering.test.ts',
+      'test/squads-test-utils.test.ts',
+      'test/squads-test-constants.test.ts',
+      'test/squads-test-ordering.ts',
+      'test/squads-test-constants.ts',
+      'test/squads-test-utils.ts',
+    ]);
+  });
+
   it('keeps squads test-support path set normalized and deduplicated', () => {
     assertTrackedSourcePathSetNormalizedAndDeduplicated(
       SQUADS_TRACKED_TEST_SUPPORT_PATHS,
