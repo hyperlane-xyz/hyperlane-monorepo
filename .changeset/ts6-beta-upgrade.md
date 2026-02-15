@@ -319,3 +319,5 @@ Regression coverage now also confirms non-hostile cross-realm boxed-string `name
 Regression coverage now also confirms scalar/boxed-string (including hostile cross-realm boxed-string) `constructor.name` fallback payloads on both `AggregateError` and top-level `Error` wrappers remain detectable/ignorable under combined `message`+`name`+`cause`+`errors` accessor failures, while coercible/uncoercible spoofed and `String.prototype` impostor `constructor.name` payloads remain ignored.
 
 Regression coverage now also confirms non-hostile cross-realm boxed-string `constructor.name` fallback payloads on both `AggregateError` and top-level `Error` wrappers remain detectable/ignorable under combined `message`+`name`+`cause`+`errors` accessor failures.
+
+Regression coverage now also confirms same-realm boxed-string `constructor.name` fallback payloads remain detectable/ignorable even when boxed-string `Symbol.toStringTag` accessors throw under combined `message`+`name`+`cause`+`errors` accessor failures for both `AggregateError` and top-level `Error` wrappers.
