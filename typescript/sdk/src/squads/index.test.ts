@@ -226,6 +226,9 @@ describe('squads barrel exports', () => {
       expect(quotedTestToken.startsWith('/')).to.equal(false);
       expect(quotedTestToken.includes('..')).to.equal(false);
       expect(quotedTestToken.includes('\\')).to.equal(false);
+      expect(quotedTestToken).to.equal(quotedTestToken.trim());
+      expect(/\s/.test(quotedTestToken)).to.equal(false);
+      expect(quotedTestToken).to.equal(path.posix.normalize(quotedTestToken));
     }
     expect(
       countOccurrences(
