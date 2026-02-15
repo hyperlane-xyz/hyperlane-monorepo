@@ -74,6 +74,7 @@ const SQUADS_REGRESSION_TEST_PATHS = Object.freeze([
   'test/squads-cli-helpers.test.ts',
   'test/squads-scripts-help.test.ts',
   'test/squads-sdk-migration-regression.test.ts',
+  'test/squads-test-ordering.test.ts',
   'test/squads-test-utils.test.ts',
   'test/squads-test-constants.test.ts',
 ]);
