@@ -250,6 +250,20 @@ describe('squads transaction reader', () => {
     expect(reader.errors).to.deep.equal([]);
   });
 
+  it('fails fast for unsupported chains before transaction index validation', async () => {
+    const { reader, getLookupCount } = createReaderWithLookupCounter();
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('unsupported-chain', -1),
+    );
+
+    expect(thrownError?.message).to.include(
+      'Squads config not found on chain unsupported-chain',
+    );
+    expect(getLookupCount()).to.equal(0);
+    expect(reader.errors).to.deep.equal([]);
+  });
+
   it('fails fast for malformed chain names before provider lookup', async () => {
     const { reader, getLookupCount } = createReaderWithLookupCounter();
 
@@ -264,10 +278,36 @@ describe('squads transaction reader', () => {
     expect(reader.errors).to.deep.equal([]);
   });
 
+  it('fails fast for malformed chain names before transaction index validation', async () => {
+    const { reader, getLookupCount } = createReaderWithLookupCounter();
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read(1 as unknown as string, -1),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Expected chain name to be a string, got number',
+    );
+    expect(getLookupCount()).to.equal(0);
+    expect(reader.errors).to.deep.equal([]);
+  });
+
   it('fails fast for empty chain names before provider lookup', async () => {
     const { reader, getLookupCount } = createReaderWithLookupCounter();
 
     const thrownError = await captureAsyncError(() => reader.read('   ', 0));
+
+    expect(thrownError?.message).to.equal(
+      'Expected chain name to be a non-empty string',
+    );
+    expect(getLookupCount()).to.equal(0);
+    expect(reader.errors).to.deep.equal([]);
+  });
+
+  it('fails fast for empty chain names before transaction index validation', async () => {
+    const { reader, getLookupCount } = createReaderWithLookupCounter();
+
+    const thrownError = await captureAsyncError(() => reader.read('   ', -1));
 
     expect(thrownError?.message).to.equal(
       'Expected chain name to be a non-empty string',
