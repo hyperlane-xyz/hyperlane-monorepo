@@ -1181,6 +1181,13 @@ export class SquadsTransactionReader {
       `Invalid solana provider for ${chain}: expected synchronous provider, got promise-like value`,
     );
 
+    assert(
+      typeof svmProvider === 'object' &&
+        svmProvider !== null &&
+        !Array.isArray(svmProvider),
+      `Invalid solana provider for ${chain}: expected object, got ${getUnknownValueTypeName(svmProvider)}`,
+    );
+
     let getAccountInfoValue: unknown;
     try {
       getAccountInfoValue = (

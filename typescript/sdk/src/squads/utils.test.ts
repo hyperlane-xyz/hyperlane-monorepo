@@ -3673,6 +3673,25 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('rejects array provider overrides before multiprovider lookup', () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      };
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp, []),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid solana provider for solanamainnet: expected object, got array',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('rejects promise-like provider overrides before multiprovider lookup', () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -3696,6 +3715,20 @@ describe('squads utils', () => {
         'Invalid solana provider for solanamainnet: expected synchronous provider, got promise-like value',
       );
       expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('rejects null providers resolved from multiprovider lookups', () => {
+      const mpp = {
+        getSolanaWeb3Provider: () => null,
+      };
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid solana provider for solanamainnet: expected object, got null',
+      );
     });
   });
 

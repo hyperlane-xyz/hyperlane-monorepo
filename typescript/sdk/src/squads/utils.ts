@@ -767,6 +767,13 @@ function validateSolanaWeb3ProviderForChain(
     `Invalid solana provider for ${chain}: expected synchronous provider, got promise-like value`,
   );
 
+  assert(
+    typeof providerValue === 'object' &&
+      providerValue !== null &&
+      !Array.isArray(providerValue),
+    `Invalid solana provider for ${chain}: expected object, got ${getUnknownValueTypeName(providerValue)}`,
+  );
+
   let getAccountInfoValue: unknown;
   try {
     getAccountInfoValue = (providerValue as { getAccountInfo?: unknown })

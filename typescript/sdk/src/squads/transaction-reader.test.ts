@@ -2563,6 +2563,62 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('fails with contextual error when provider is an array', async () => {
+    const mpp = {
+      getSolanaWeb3Provider: () => [],
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Invalid solana provider for solanamainnet: expected object, got array',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Invalid solana provider for solanamainnet: expected object, got array',
+      },
+    ]);
+  });
+
+  it('fails with contextual error when provider is null', async () => {
+    const mpp = {
+      getSolanaWeb3Provider: () => null,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Invalid solana provider for solanamainnet: expected object, got null',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Invalid solana provider for solanamainnet: expected object, got null',
+      },
+    ]);
+  });
+
   it('uses requested transaction index when reading config transaction', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
