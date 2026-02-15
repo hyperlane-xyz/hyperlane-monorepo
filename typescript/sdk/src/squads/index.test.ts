@@ -45,6 +45,16 @@ const SDK_SQUADS_TEST_GLOB = 'src/squads/*.test.ts';
 const SDK_SQUADS_TEST_TOKEN_PATHS = Object.freeze([SDK_SQUADS_TEST_GLOB]);
 const EXPECTED_SDK_SQUADS_TEST_SCRIPT = `${SDK_SQUADS_TEST_COMMAND_PREFIX} ${SDK_SQUADS_TEST_TOKEN_PATHS.map((tokenPath) => `'${tokenPath}'`).join(' ')}`;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
+function compareLexicographically(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+  if (left > right) {
+    return 1;
+  }
+  return 0;
+}
+
 function countOccurrences(haystack: string, needle: string): number {
   if (needle.length === 0) {
     return 0;
@@ -132,6 +142,9 @@ function assertSdkSquadsTokenPathSetNormalizedAndDeduplicated(
   tokenPaths: readonly string[],
   tokenSetLabel: string,
 ): void {
+  expect(tokenPaths).to.deep.equal(
+    [...tokenPaths].sort(compareLexicographically),
+  );
   expect(new Set(tokenPaths).size).to.equal(tokenPaths.length);
   for (const tokenPath of tokenPaths) {
     assertSdkSquadsTestTokenShape(tokenPath, `${tokenSetLabel} token path`);
