@@ -789,6 +789,22 @@ describe('Safe migration guards', () => {
     ]);
   });
 
+  it('detects runtime export when symbol is exported as both type and value', () => {
+    const references: NamedExportSymbolReference[] = [
+      { symbol: 'getSafe', isTypeOnly: true },
+      { symbol: 'getSafe', isTypeOnly: false },
+    ];
+    expect(hasValueExport(references, 'getSafe')).to.equal(true);
+  });
+
+  it('rejects runtime export when symbol is only type-exported', () => {
+    const references: NamedExportSymbolReference[] = [
+      { symbol: 'ParseableSafeTx', isTypeOnly: true },
+      { symbol: 'SafeCallData', isTypeOnly: true },
+    ];
+    expect(hasValueExport(references, 'ParseableSafeTx')).to.equal(false);
+  });
+
   it('ignores type-only wildcard module re-exports for fallback symbols', () => {
     const source = "export type * from './fixtures/guard-module.js';";
     const symbols = extractNamedExportSymbols(
