@@ -1075,9 +1075,15 @@ export class SquadsTransactionReader {
       );
     }
 
-    if (accountInfo.data.length > MAX_SOLANA_ACCOUNT_SIZE) {
+    const accountData = this.readTransactionAccountData(
+      chain,
+      'transaction account',
+      accountInfo,
+    );
+
+    if (accountData.length > MAX_SOLANA_ACCOUNT_SIZE) {
       rootLogger.warn(
-        `Transaction account is unusually large: ${accountInfo.data.length} bytes`,
+        `Transaction account is unusually large: ${accountData.length} bytes`,
       );
     }
 
@@ -1792,8 +1798,13 @@ export class SquadsTransactionReader {
         transactionPda,
         svmProvider,
       );
+      const accountData = this.readTransactionAccountData(
+        normalizedChain,
+        'transaction account',
+        accountInfo,
+      );
 
-      if (isConfigTransaction(accountInfo.data)) {
+      if (isConfigTransaction(accountData)) {
         return await this.readConfigTransaction(
           normalizedChain,
           normalizedTransactionIndex,
@@ -1802,8 +1813,8 @@ export class SquadsTransactionReader {
         );
       }
 
-      if (!isVaultTransaction(accountInfo.data)) {
-        const discriminator = accountInfo.data.slice(
+      if (!isVaultTransaction(accountData)) {
+        const discriminator = accountData.slice(
           0,
           SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
         );
@@ -2315,6 +2326,32 @@ export class SquadsTransactionReader {
       );
       return fallbackValue;
     }
+  }
+
+  private readTransactionAccountData(
+    chain: SquadsChainName,
+    label: string,
+    accountInfo: { data?: unknown },
+  ): Buffer {
+    let dataValue: unknown;
+    try {
+      dataValue = accountInfo.data;
+    } catch (error) {
+      throw new Error(
+        `Failed to read ${label} data on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    if (Buffer.isBuffer(dataValue)) {
+      return dataValue;
+    }
+    if (dataValue instanceof Uint8Array) {
+      return Buffer.from(dataValue);
+    }
+
+    throw new Error(
+      `Malformed ${label} data on ${chain}: expected bytes, got ${getUnknownValueTypeName(dataValue)}`,
+    );
   }
 
   private tryResolveRemoteChainNameForDisplay(
