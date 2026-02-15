@@ -3626,6 +3626,12 @@ describe('squads utils', () => {
     ).to.throw('Expected partitioned squads chains[1] to be a string, got null');
   });
 
+  it('throws for non-array partition inputs', () => {
+    expect(() =>
+      partitionSquadsChains('solanamainnet' as unknown as readonly string[]),
+    ).to.throw('Expected partitioned squads chains to be an array, got string');
+  });
+
   it('resolves squads chains to configured defaults when input omitted', () => {
     expect(resolveSquadsChains()).to.deep.equal(getSquadsChains());
   });
@@ -3685,6 +3691,12 @@ describe('squads utils', () => {
     ).to.throw('Expected squads chains[1] to be a string, got number');
   });
 
+  it('throws for non-array explicit squads chain inputs', () => {
+    expect(() =>
+      resolveSquadsChains('solanamainnet' as unknown as readonly string[]),
+    ).to.throw('Expected squads chains to be an array, got string');
+  });
+
   it('labels array-valued explicit squads chain entries clearly', () => {
     expect(() =>
       resolveSquadsChains([
@@ -3738,6 +3750,14 @@ describe('squads utils', () => {
     ).to.throw('Expected unsupported squads chains[1] to be a string, got null');
   });
 
+  it('throws for non-array unsupported chain formatter input', () => {
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        'ethereum' as unknown as readonly string[],
+      ),
+    ).to.throw('Expected unsupported squads chains to be an array, got string');
+  });
+
   it('throws for non-string configured chain entries in formatter input', () => {
     expect(() =>
       getUnsupportedSquadsChainsErrorMessage(['ethereum'], [
@@ -3745,6 +3765,15 @@ describe('squads utils', () => {
         {} as unknown as string,
       ] as readonly string[]),
     ).to.throw('Expected configured squads chains[1] to be a string, got object');
+  });
+
+  it('throws for non-array configured chain formatter input', () => {
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        'solanamainnet' as unknown as readonly string[],
+      ),
+    ).to.throw('Expected configured squads chains to be an array, got string');
   });
 
   it('labels symbol-valued unsupported chain entries in formatter input', () => {

@@ -74,9 +74,15 @@ function getUnknownValueTypeName(value: unknown): string {
 }
 
 function normalizeChainListValues(
-  chains: readonly unknown[],
+  chains: readonly unknown[] | unknown,
   listLabel: string,
 ): string[] {
+  if (!Array.isArray(chains)) {
+    throw new Error(
+      `Expected ${listLabel} to be an array, got ${getUnknownValueTypeName(chains)}`,
+    );
+  }
+
   const normalizedChains: string[] = [];
 
   for (const [index, chain] of chains.entries()) {
