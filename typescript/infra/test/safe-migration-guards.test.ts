@@ -33,10 +33,6 @@ const REQUIRED_SAFE_HELPER_EXPORTS = [
   'SafeTxStatus',
 ] as const;
 
-const DISALLOWED_LOCAL_SAFE_DECLARATIONS = [
-  ...REQUIRED_SAFE_HELPER_EXPORTS,
-] as const;
-
 const INFRA_SOURCE_PATHS = ['scripts', 'src', 'config'] as const;
 const INFRA_SOURCE_AND_TEST_PATHS = [...INFRA_SOURCE_PATHS, 'test'] as const;
 const SOURCE_FILE_GLOB = '*.{ts,tsx,js,jsx,mts,mtsx,cts,ctsx,mjs,cjs}' as const;
@@ -216,6 +212,57 @@ function collectSymbolSourceReferences(
   return references.filter((reference) => reference.symbol.length > 0);
 }
 
+function collectDeclaredSymbols(contents: string, filePath: string): string[] {
+  const symbols: string[] = [];
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    contents,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
+  );
+
+  const visit = (node: ts.Node) => {
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      symbols.push(node.name.text);
+    } else if (ts.isClassDeclaration(node) && node.name) {
+      symbols.push(node.name.text);
+    } else if (ts.isInterfaceDeclaration(node)) {
+      symbols.push(node.name.text);
+    } else if (ts.isTypeAliasDeclaration(node)) {
+      symbols.push(node.name.text);
+    } else if (ts.isEnumDeclaration(node)) {
+      symbols.push(node.name.text);
+    } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      symbols.push(node.name.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return symbols.map(normalizeNamedSymbol).filter(Boolean);
+}
+
+function collectProjectSourceFilePaths(paths: readonly string[]): string[] {
+  const sourceFilePaths: string[] = [];
+  const walk = (currentPath: string) => {
+    const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        walk(entryPath);
+        continue;
+      }
+      if (!entry.isFile() || !/\.(?:[cm]?[jt]sx?)$/.test(entry.name)) continue;
+      sourceFilePaths.push(entryPath);
+    }
+  };
+  for (const root of paths) {
+    walk(path.join(process.cwd(), root));
+  }
+  return sourceFilePaths;
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -278,7 +325,6 @@ describe('Safe migration guards', () => {
   });
 
   it('ensures migrated safe helper symbols are only imported from sdk', () => {
-    const rootsToScan = INFRA_SOURCE_AND_TEST_PATHS;
     const disallowedImports: string[] = [];
     const sdkSafeHelperExports = new Set(getSdkGnosisSafeExports());
     expect(sdkSafeHelperExports.size).to.be.greaterThan(
@@ -286,38 +332,25 @@ describe('Safe migration guards', () => {
       'Expected sdk index to export symbols from ./utils/gnosisSafe.js',
     );
 
-    const walk = (currentPath: string) => {
-      const entries = fs.readdirSync(currentPath, { withFileTypes: true });
-      for (const entry of entries) {
-        const entryPath = path.join(currentPath, entry.name);
-        if (entry.isDirectory()) {
-          walk(entryPath);
-          continue;
-        }
-        if (!entry.isFile() || !/\.(?:[cm]?[jt]sx?)$/.test(entry.name)) {
-          continue;
-        }
-
-        const contents = fs.readFileSync(entryPath, 'utf8');
-        const symbolSourceReferences = collectSymbolSourceReferences(
-          contents,
-          entryPath,
-        );
-        for (const { symbol: safeSymbol, source } of symbolSourceReferences) {
-          if (
-            sdkSafeHelperExports.has(safeSymbol) &&
-            source !== '@hyperlane-xyz/sdk'
-          ) {
-            disallowedImports.push(
-              `${path.relative(process.cwd(), entryPath)} -> ${safeSymbol} from ${source}`,
-            );
-          }
+    const sourceFilePaths = collectProjectSourceFilePaths(
+      INFRA_SOURCE_AND_TEST_PATHS,
+    );
+    for (const sourceFilePath of sourceFilePaths) {
+      const contents = fs.readFileSync(sourceFilePath, 'utf8');
+      const symbolSourceReferences = collectSymbolSourceReferences(
+        contents,
+        sourceFilePath,
+      );
+      for (const { symbol: safeSymbol, source } of symbolSourceReferences) {
+        if (
+          sdkSafeHelperExports.has(safeSymbol) &&
+          source !== '@hyperlane-xyz/sdk'
+        ) {
+          disallowedImports.push(
+            `${path.relative(process.cwd(), sourceFilePath)} -> ${safeSymbol} from ${source}`,
+          );
         }
       }
-    };
-
-    for (const root of rootsToScan) {
-      walk(path.join(process.cwd(), root));
     }
 
     expect(disallowedImports).to.deep.equal([]);
@@ -368,11 +401,25 @@ describe('Safe migration guards', () => {
   });
 
   it('prevents reintroducing local safe helper implementations', () => {
-    const declarationAlternation = DISALLOWED_LOCAL_SAFE_DECLARATIONS.join('|');
-    expectNoRipgrepMatches(
-      String.raw`^[ \t]*(?:export\s+)?(?:async\s+)?(?:function|const|let|var|class|interface|type|enum)\s+(?:${declarationAlternation})\b`,
-      'local declarations for sdk-migrated safe helpers',
+    const sdkSafeHelperExports = new Set(getSdkGnosisSafeExports());
+    expect(sdkSafeHelperExports.size).to.be.greaterThan(
+      0,
+      'Expected sdk gnosis safe export list to be non-empty',
     );
+    const disallowedDeclarations: string[] = [];
+    const sourceFilePaths = collectProjectSourceFilePaths(INFRA_SOURCE_PATHS);
+    for (const sourceFilePath of sourceFilePaths) {
+      const contents = fs.readFileSync(sourceFilePath, 'utf8');
+      const declaredSymbols = collectDeclaredSymbols(contents, sourceFilePath);
+      for (const declaredSymbol of declaredSymbols) {
+        if (sdkSafeHelperExports.has(declaredSymbol)) {
+          disallowedDeclarations.push(
+            `${path.relative(process.cwd(), sourceFilePath)} -> ${declaredSymbol}`,
+          );
+        }
+      }
+    }
+    expect(disallowedDeclarations).to.deep.equal([]);
   });
 
   it('ensures sdk index continues exporting core safe helpers', () => {
