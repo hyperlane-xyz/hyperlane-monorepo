@@ -87,7 +87,7 @@ describe('Safe migration guards', () => {
 
   it('prevents reintroducing infra local safe util imports', () => {
     expectNoRipgrepMatches(
-      String.raw`src/utils/safe\.ts|src/utils/safe|from ['"].*utils/safe`,
+      String.raw`src/utils/safe\.ts|src/utils/safe|from ['"].*utils/safe|require\(['"].*utils/safe|import\(['"].*utils/safe`,
       'legacy infra safe util import path usage',
     );
   });
