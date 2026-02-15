@@ -78,13 +78,13 @@ const EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS = Object.freeze([
 const INFRA_REFERENCE_PATTERN =
   /(?:@hyperlane-xyz\/infra|typescript\/infra|(?:\.\.\/)+infra\/)/;
 const FILESYSTEM_IMPORT_PATTERN =
-  /(?:from\s+['"]node:(?:fs|path)['"]|from\s+['"](?:fs|path)['"])/;
+  /(?:from\s+['"](?:node:)?(?:fs|path)(?:\/[^'"]*)?['"]|import\(\s*['"](?:node:)?(?:fs|path)(?:\/[^'"]*)?['"]\s*\)|require\(\s*['"](?:node:)?(?:fs|path)(?:\/[^'"]*)?['"]\s*\))/;
 const PROCESS_ENV_REFERENCE_PATTERN = /\bprocess\.env\b/;
 const PROCESS_ARGV_REFERENCE_PATTERN = /\bprocess\.argv\b/;
 const PROCESS_CWD_REFERENCE_PATTERN = /\bprocess\.cwd\s*\(/;
 const PROCESS_EXIT_REFERENCE_PATTERN = /\bprocess\.exit\s*\(/;
 const CLI_GLUE_IMPORT_PATTERN =
-  /(?:from\s+['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]|import\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\))/;
+  /(?:from\s+['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]|import\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\)|require\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\))/;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
