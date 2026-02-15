@@ -601,6 +601,62 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
 
+    it('matches runtime AggregateError boxed-string causes when toStringTag accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      error.cause = buildRealBoxedStringWithThrowingToStringTag(
+        'No Docker client strategy found',
+      );
+      Object.defineProperty(error, 'errors', {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime AggregateError boxed-string causes when toStringTag accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      error.cause = buildRealBoxedStringWithThrowingToStringTag(
+        'unrelated nested startup warning',
+      );
+      Object.defineProperty(error, 'errors', {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('matches runtime AggregateError cross-realm boxed-string causes when toStringTag accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      error.cause = buildCrossRealmBoxedStringWithThrowingToStringTag(
+        'No Docker client strategy found',
+      );
+      Object.defineProperty(error, 'errors', {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime AggregateError cross-realm boxed-string causes when toStringTag accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      error.cause = buildCrossRealmBoxedStringWithThrowingToStringTag(
+        'unrelated nested startup warning',
+      );
+      Object.defineProperty(error, 'errors', {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('handles cyclic cause chains safely', () => {
       const first = new Error('outer startup error');
       const second = new Error(
