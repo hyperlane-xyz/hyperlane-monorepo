@@ -151,7 +151,7 @@ describe('Safe migration guards', () => {
 
   it('prevents imports from sdk internal gnosis safe module paths', () => {
     expectNoRipgrepMatches(
-      String.raw`from ['"]@hyperlane-xyz/sdk\/.*gnosisSafe|from ['"].*\/gnosisSafe(\.js)?['"]`,
+      String.raw`from ['"]@hyperlane-xyz/sdk\/.*gnosisSafe|from ['"].*\/gnosisSafe(\.js)?['"]|require\(['"]@hyperlane-xyz/sdk\/.*gnosisSafe|require\(['"].*\/gnosisSafe(\.js)?['"]|import\(['"]@hyperlane-xyz/sdk\/.*gnosisSafe|import\(['"].*\/gnosisSafe(\.js)?['"]`,
       'gnosis safe imports that bypass @hyperlane-xyz/sdk entrypoint',
     );
   });
