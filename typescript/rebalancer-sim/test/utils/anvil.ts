@@ -22,6 +22,8 @@ const NON_INFORMATIVE_STRUCTURED_OUTPUTS = new Set([
   '[]',
   'null',
   'undefined',
+  '[Object]',
+  '[Array]',
 ]);
 const WINDOWS_DOCKER_PIPE_ENGINES = [
   'docker_engine',
