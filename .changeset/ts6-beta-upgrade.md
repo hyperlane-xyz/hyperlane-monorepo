@@ -498,6 +498,8 @@ Regression coverage now also confirms json-escaped quoted placeholder outputs fr
 
 Regression coverage now also confirms json-escaped single-quoted and mixed-quoted placeholder outputs from `Symbol.toPrimitive` (for example `\'[Object]\'` and `\"'[Object]'\"`) are treated as non-informative and preserve runtime/non-runtime matcher plus formatter fallback semantics.
 
+Regression coverage now also confirms json-escaped uppercase placeholder outputs from `Symbol.toPrimitive` (for example `\"[OBJECT]\"`) are treated as non-informative and preserve runtime/non-runtime matcher plus formatter fallback behavior.
+
 Regression coverage now also confirms uppercase bracketed placeholder outputs from `Symbol.toPrimitive` (for example `[OBJECT]`) are treated as non-informative and continue through runtime/non-runtime matcher plus formatter `Object.prototype.toString` fallback behavior.
 
 Regression coverage now also confirms object-tag placeholder outputs from `Symbol.toPrimitive` (for example `[object Array]`) are treated as non-informative and continue through runtime/non-runtime matcher plus formatter fallback behavior.
