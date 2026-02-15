@@ -1878,14 +1878,14 @@ export async function buildSquadsProposalRejection(
     transactionIndex,
     normalizedChain,
   );
+  const normalizedMember = assertPublicKeyValue(
+    member,
+    `proposal rejection member for ${normalizedChain}`,
+  );
   const { multisigPda, programId } = getSquadAndProviderForResolvedChain(
     normalizedChain,
     mpp,
     svmProviderOverride,
-  );
-  const normalizedMember = assertPublicKeyValue(
-    member,
-    `proposal rejection member for ${normalizedChain}`,
   );
 
   const rejectIx = instructions.proposalReject({
@@ -1914,14 +1914,14 @@ export async function buildSquadsProposalCancellation(
     transactionIndex,
     normalizedChain,
   );
+  const normalizedMember = assertPublicKeyValue(
+    member,
+    `proposal cancellation member for ${normalizedChain}`,
+  );
   const { multisigPda, programId } = getSquadAndProviderForResolvedChain(
     normalizedChain,
     mpp,
     svmProviderOverride,
-  );
-  const normalizedMember = assertPublicKeyValue(
-    member,
-    `proposal cancellation member for ${normalizedChain}`,
   );
 
   const cancelIx = createProposalCancelInstruction(
@@ -1938,15 +1938,18 @@ export async function buildSquadsProposalCancellation(
 
 export async function submitProposalToSquads(
   chain: unknown,
-  vaultInstructions: readonly TransactionInstruction[],
+  vaultInstructions: unknown,
   mpp: MultiProtocolProvider,
   signerAdapter: SvmMultiProtocolSignerAdapter,
-  memo?: string,
+  memo?: unknown,
 ): Promise<void> {
   try {
     const normalizedChain = resolveSquadsChainName(chain);
-    const { svmProvider, multisigPda, programId } =
-      getSquadAndProviderForResolvedChain(normalizedChain, mpp);
+    const normalizedVaultInstructions = normalizeProposalInstructionsForBuild(
+      normalizedChain,
+      vaultInstructions,
+    );
+    const normalizedMemo = normalizeProposalMemoForBuild(normalizedChain, memo);
     const creatorPublicKey = getSignerPublicKeyForChain(
       signerAdapter,
       normalizedChain,
@@ -1955,14 +1958,16 @@ export async function submitProposalToSquads(
       signerAdapter,
       normalizedChain,
     );
+    const { svmProvider, multisigPda, programId } =
+      getSquadAndProviderForResolvedChain(normalizedChain, mpp);
 
     const { instructions: proposalInstructions, transactionIndex } =
       await buildSquadsVaultTransactionProposal(
         normalizedChain,
         mpp,
-        vaultInstructions,
+        normalizedVaultInstructions,
         creatorPublicKey,
-        memo,
+        normalizedMemo,
         svmProvider,
       );
 

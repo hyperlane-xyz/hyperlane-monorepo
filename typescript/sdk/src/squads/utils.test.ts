@@ -4940,9 +4940,6 @@ describe('squads utils', () => {
           mpp,
           1n,
           'malformed-member',
-          {} as unknown as ReturnType<
-            MultiProtocolProvider['getSolanaWeb3Provider']
-          >,
         ),
       );
 
@@ -5204,15 +5201,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        buildSquadsProposalCancellation(
-          'solanamainnet',
-          mpp,
-          1n,
-          null,
-          {} as unknown as ReturnType<
-            MultiProtocolProvider['getSolanaWeb3Provider']
-          >,
-        ),
+        buildSquadsProposalCancellation('solanamainnet', mpp, 1n, null),
       );
 
       expect(thrownError?.message).to.equal(
@@ -5304,6 +5293,132 @@ describe('squads utils', () => {
       expect(signerPublicKeyCalled).to.equal(false);
     });
 
+    it('fails fast for malformed vault-instruction containers before provider lookup', async () => {
+      let providerLookupCalled = false;
+      let signerPublicKeyCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () => {
+          signerPublicKeyCalled = true;
+          return PublicKey.default;
+        },
+      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads(
+          'solanamainnet',
+          'malformed-instructions',
+          mpp,
+          signerAdapter,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal instructions for solanamainnet to be an array, got string',
+      );
+      expect(providerLookupCalled).to.equal(false);
+      expect(signerPublicKeyCalled).to.equal(false);
+    });
+
+    it('fails fast for malformed vault-instruction entries before provider lookup', async () => {
+      let providerLookupCalled = false;
+      let signerPublicKeyCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () => {
+          signerPublicKeyCalled = true;
+          return PublicKey.default;
+        },
+      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [{}], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal instructions for solanamainnet[0] to be a TransactionInstruction, got object',
+      );
+      expect(providerLookupCalled).to.equal(false);
+      expect(signerPublicKeyCalled).to.equal(false);
+    });
+
+    it('throws contextual error for vault-instruction length getter failures before provider lookup', async () => {
+      let providerLookupCalled = false;
+      let signerPublicKeyCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () => {
+          signerPublicKeyCalled = true;
+          return PublicKey.default;
+        },
+      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      const hostileInstructions = new Proxy([], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            throw new Error('length unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads(
+          'solanamainnet',
+          hostileInstructions,
+          mpp,
+          signerAdapter,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read proposal instructions for solanamainnet length: length unavailable',
+      );
+      expect(providerLookupCalled).to.equal(false);
+      expect(signerPublicKeyCalled).to.equal(false);
+    });
+
+    it('fails fast for malformed submit memo values before provider lookup', async () => {
+      let providerLookupCalled = false;
+      let signerPublicKeyCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () => {
+          signerPublicKeyCalled = true;
+          return PublicKey.default;
+        },
+      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter, 1),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal memo for solanamainnet to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+      expect(signerPublicKeyCalled).to.equal(false);
+    });
+
     it('does not request signer public key when provider lookup fails', async () => {
       let signerPublicKeyCalled = false;
       let providerLookupChain: string | undefined;
@@ -5318,6 +5433,7 @@ describe('squads utils', () => {
           signerPublicKeyCalled = true;
           return PublicKey.default;
         },
+        buildAndSendTransaction: async () => 'signature',
       } as unknown as Parameters<typeof submitProposalToSquads>[3];
 
       const thrownError = await captureAsyncError(() =>
@@ -5327,7 +5443,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Failed to resolve solana provider for solanamainnet: provider lookup failed',
       );
-      expect(signerPublicKeyCalled).to.equal(false);
+      expect(signerPublicKeyCalled).to.equal(true);
       expect(providerLookupChain).to.equal('solanamainnet');
     });
 
@@ -5345,6 +5461,7 @@ describe('squads utils', () => {
           signerPublicKeyCalled = true;
           return PublicKey.default;
         },
+        buildAndSendTransaction: async () => 'signature',
       } as unknown as Parameters<typeof submitProposalToSquads>[3];
 
       const thrownError = await captureAsyncError(() =>
@@ -5355,7 +5472,7 @@ describe('squads utils', () => {
         'Failed to resolve solana provider for solanamainnet: provider lookup failed',
       );
       expect(providerLookupChain).to.equal('solanamainnet');
-      expect(signerPublicKeyCalled).to.equal(false);
+      expect(signerPublicKeyCalled).to.equal(true);
     });
 
     it('fails fast when signer adapter does not expose publicKey function', async () => {
@@ -5381,7 +5498,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Invalid signer adapter for solanamainnet: expected publicKey function, got undefined',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
     });
 
     it('throws contextual error when signer publicKey accessor fails', async () => {
@@ -5413,7 +5530,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Failed to read signer publicKey for solanamainnet: signer unavailable',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
     });
 
     it('uses placeholder when signer publicKey accessor throws opaque value', async () => {
@@ -5445,7 +5562,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Failed to read signer publicKey for solanamainnet: [unstringifiable error]',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
     });
 
     it('fails fast when signer publicKey result is not a PublicKey instance', async () => {
@@ -5469,7 +5586,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Invalid signer public key for solanamainnet: expected PublicKey, got string',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
     });
 
     it('fails fast when signer publicKey result is promise-like', async () => {
@@ -5493,7 +5610,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Invalid signer public key for solanamainnet: expected synchronous PublicKey, got promise-like value',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
     });
 
     it('throws contextual error when signer publicKey promise-like inspection fails', async () => {
@@ -5528,7 +5645,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Failed to inspect signer public key for solanamainnet: failed to read promise-like then field (then unavailable)',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
     });
 
     it('fails fast when signer adapter does not expose buildAndSendTransaction function', async () => {
@@ -5552,7 +5669,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Invalid signer adapter for solanamainnet: expected buildAndSendTransaction function, got undefined',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
     });
 
     it('throws contextual error when signer buildAndSendTransaction accessor fails', async () => {
@@ -5586,7 +5703,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Failed to read signer buildAndSendTransaction for solanamainnet: send unavailable',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
     });
 
     it('uses placeholder when signer buildAndSendTransaction accessor throws opaque value', async () => {
@@ -5620,7 +5737,7 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Failed to read signer buildAndSendTransaction for solanamainnet: [unstringifiable error]',
       );
-      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(providerLookupChain).to.equal(undefined);
     });
   });
 
