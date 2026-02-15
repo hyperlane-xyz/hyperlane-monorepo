@@ -4257,6 +4257,50 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not leak switch-case lexical module-source alias shadowing before declaration to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'switch (1) {',
+      '  case 1:',
+      '    const preDeclarationSymbol = moduleAlias.inner;',
+      '    const moduleAlias = { inner: preDeclarationSymbol };',
+      '    void moduleAlias;',
+      '    break;',
+      '  default:',
+      '    break;',
+      '}',
+      'const postCaseDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('does not leak hoisted switch-case function module-source alias shadowing to outer symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'switch (1) {',
+      '  case 1:',
+      '    const preDeclarationSymbol = moduleAlias.inner;',
+      '    function moduleAlias(_value: unknown) {',
+      '      return _value;',
+      '    }',
+      '    void preDeclarationSymbol;',
+      '    break;',
+      '  default:',
+      '    break;',
+      '}',
+      'const postCaseDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('inner@./fixtures/guard-module.js');
+  });
+
   it('does not leak class static-block lexical alias declarations to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
