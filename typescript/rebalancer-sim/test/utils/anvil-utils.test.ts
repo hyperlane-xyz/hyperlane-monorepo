@@ -765,6 +765,34 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
 
+    it('matches runtime string AggregateError causes when errors accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      error.cause = 'No Docker client strategy found';
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime string AggregateError causes when errors accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      error.cause = 'unrelated nested startup warning';
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('matches runtime AggregateError causes when message accessor throws', () => {
       const error = new AggregateError([], 'failed to initialize runtime') as
         | AggregateError
@@ -866,6 +894,44 @@ describe('Anvil utils', () => {
         },
       });
       error.cause = new Error('unrelated nested startup warning');
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('matches runtime string AggregateError causes when message and errors accessors throw', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      error.cause = 'No Docker client strategy found';
+      Object.defineProperty(error, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime string AggregateError causes when message and errors accessors throw', () => {
+      const error = new AggregateError([], 'failed to initialize runtime') as
+        | AggregateError
+        | (AggregateError & { cause?: unknown });
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      error.cause = 'unrelated nested startup warning';
       Object.defineProperty(error, 'errors', {
         get() {
           throw new Error('blocked errors getter');
@@ -1454,6 +1520,42 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
     });
 
+    it('matches runtime string top-level Error causes when message and errors accessors throw', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      (wrappedError as Error & { cause?: unknown }).cause =
+        'No Docker client strategy found';
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime string top-level Error causes when message and errors accessors throw', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      (wrappedError as Error & { cause?: unknown }).cause =
+        'unrelated nested startup warning';
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
     it('matches runtime boxed-string top-level Error causes when message and errors accessors throw without hostile toStringTag accessors', () => {
       const wrappedError = new Error('hidden message');
       Object.defineProperty(wrappedError, 'message', {
@@ -1801,6 +1903,34 @@ describe('Anvil utils', () => {
         cause?: unknown;
       };
       wrappedError.cause = new Error('unrelated nested startup warning');
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('matches runtime string causes on top-level Error objects when errors accessor throws', () => {
+      const wrappedError = new Error('hidden message') as Error & {
+        cause?: unknown;
+      };
+      wrappedError.cause = 'No Docker client strategy found';
+      Object.defineProperty(wrappedError, 'errors', {
+        get() {
+          throw new Error('blocked errors getter');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime string causes on top-level Error objects when errors accessor throws', () => {
+      const wrappedError = new Error('hidden message') as Error & {
+        cause?: unknown;
+      };
+      wrappedError.cause = 'unrelated nested startup warning';
       Object.defineProperty(wrappedError, 'errors', {
         get() {
           throw new Error('blocked errors getter');
