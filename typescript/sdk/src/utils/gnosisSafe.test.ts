@@ -5684,6 +5684,54 @@ describe('gnosisSafe utils', () => {
         );
       }
     });
+
+    it('throws deterministic message when service info fetch fails with unstringifiable error', async () => {
+      const unstringifiableError = {
+        [Symbol.toPrimitive]() {
+          throw new Error('service-info to-primitive boom');
+        },
+      };
+      let serviceInfoCalls = 0;
+      safeApiPrototype.getServiceInfo = (async () => {
+        serviceInfoCalls += 1;
+        throw unstringifiableError;
+      }) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => {
+          throw new Error('should not be called');
+        },
+      } as unknown as Parameters<typeof getSafeAndService>[1];
+
+      const clock = sinon.useFakeTimers();
+      const randomStub = sinon.stub(Math, 'random').returns(0);
+      try {
+        const errorPromise: Promise<Error> = getSafeAndService(
+          'test',
+          multiProviderMock,
+          '0x52908400098527886e0f7030069857d2e4169ee7',
+        ).then(
+          () => new Error('Expected getSafeAndService to throw'),
+          (error) => error as Error,
+        );
+        await clock.tickAsync(20_000);
+        const error = await errorPromise;
+
+        expect(error.message).to.equal(
+          'Failed to fetch Safe service info for chain test: <unstringifiable>',
+        );
+        expect(serviceInfoCalls).to.equal(10);
+      } finally {
+        randomStub.restore();
+        clock.restore();
+      }
+    });
   });
 
   describe(getPendingTxsForChains.name, () => {
