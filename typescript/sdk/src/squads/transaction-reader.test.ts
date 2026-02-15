@@ -1516,6 +1516,52 @@ describe('squads transaction reader', () => {
     };
   }
 
+  it('fails fast when warp-route init input is not an object', async () => {
+    const mpp = {
+      tryGetProtocol: () => ProtocolType.Sealevel,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const error = await captureAsyncError(() =>
+      reader.init('malformed routes'),
+    );
+
+    expect(error?.message).to.equal(
+      'Expected warp routes to be an object, got string',
+    );
+  });
+
+  it('throws contextual error when warp-route entries accessor fails', async () => {
+    const mpp = {
+      tryGetProtocol: () => ProtocolType.Sealevel,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const hostileWarpRoutes = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error('entries unavailable');
+        },
+      },
+    );
+
+    const error = await captureAsyncError(() => reader.init(hostileWarpRoutes));
+
+    expect(error?.message).to.equal(
+      'Failed to read warp routes entries: Error: entries unavailable',
+    );
+  });
+
   it('skips warp-route tokens when protocol lookup throws during initialization', async () => {
     let protocolLookupCount = 0;
     const mpp = {

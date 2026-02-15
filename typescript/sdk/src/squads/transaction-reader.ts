@@ -40,8 +40,6 @@ import {
   SealevelSetInterchainSecurityModuleInstructionSchema,
 } from '../token/adapters/serialization.js';
 import { SealevelInstructionWrapper } from '../utils/sealevelSerialization.js';
-import { WarpCoreConfig } from '../warp/types.js';
-
 import {
   SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
   SquadsInstructionName,
@@ -387,11 +385,25 @@ export class SquadsTransactionReader {
     private readonly options: SquadsTransactionReaderOptions,
   ) {}
 
-  async init(warpRoutes: Record<string, WarpCoreConfig>): Promise<void> {
-    for (const [routeName, warpRoute] of Object.entries(warpRoutes)) {
+  async init(warpRoutes: unknown): Promise<void> {
+    assert(
+      isRecordObject(warpRoutes),
+      `Expected warp routes to be an object, got ${getUnknownValueTypeName(warpRoutes)}`,
+    );
+
+    let warpRouteEntries: Array<[string, unknown]>;
+    try {
+      warpRouteEntries = Object.entries(warpRoutes);
+    } catch (error) {
+      throw new Error(
+        `Failed to read warp routes entries: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    for (const [routeName, warpRoute] of warpRouteEntries) {
       let routeTokens: unknown;
       try {
-        routeTokens = warpRoute.tokens;
+        routeTokens = (warpRoute as { tokens?: unknown }).tokens;
       } catch (error) {
         rootLogger.warn(
           `Failed to read warp route tokens for ${routeName}: ${stringifyUnknownSquadsError(error)}`,
