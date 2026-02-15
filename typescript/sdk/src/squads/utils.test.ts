@@ -2924,6 +2924,21 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(true);
     });
 
+    it('looks up provider once when proposal-account fetch fails', async () => {
+      let providerLookupCount = 0;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCount += 1;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposalAccount('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCount).to.equal(1);
+    });
+
     it('returns undefined when provider lookup throws malformed Error values', async () => {
       let providerLookupCalled = false;
       const mpp = {
