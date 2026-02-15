@@ -2,6 +2,12 @@ export const NON_EXECUTABLE_SQUADS_SCRIPT_FILES = Object.freeze([
   'cli-helpers.ts',
 ]);
 
+export const SQUADS_SCRIPT_FILE_EXTENSIONS = Object.freeze([
+  '.ts',
+  '.mts',
+  '.cts',
+]);
+
 export const SQUADS_SCRIPT_PATHS = Object.freeze([
   'scripts/squads/cli-helpers.ts',
   'scripts/squads/get-pending-txs.ts',

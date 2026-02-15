@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
+  SQUADS_SCRIPT_FILE_EXTENSIONS,
   SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
   SQUADS_SCRIPT_PATHS,
 } from './squads-test-constants.js';
@@ -25,6 +26,14 @@ describe('squads test constants', () => {
     ]);
   });
 
+  it('keeps expected squads script extension allowlist', () => {
+    expect(SQUADS_SCRIPT_FILE_EXTENSIONS).to.deep.equal([
+      '.ts',
+      '.mts',
+      '.cts',
+    ]);
+  });
+
   it('keeps expected canonical executable squads script paths', () => {
     expect(EXECUTABLE_SQUADS_SCRIPT_PATHS).to.deep.equal([
       'scripts/squads/get-pending-txs.ts',
@@ -37,6 +46,7 @@ describe('squads test constants', () => {
 
   it('exports frozen constants', () => {
     expect(Object.isFrozen(NON_EXECUTABLE_SQUADS_SCRIPT_FILES)).to.equal(true);
+    expect(Object.isFrozen(SQUADS_SCRIPT_FILE_EXTENSIONS)).to.equal(true);
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
     expect(Object.isFrozen(EXECUTABLE_SQUADS_SCRIPT_PATHS)).to.equal(true);
     expect(Object.isFrozen(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS)).to.equal(
