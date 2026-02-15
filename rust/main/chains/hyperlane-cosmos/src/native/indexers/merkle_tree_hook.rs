@@ -255,6 +255,9 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for CosmosNativeMerkleTreeHook {
             .as_ref()
             .and_then(|m| m.merkle_tree.as_ref())
             .map(|merkle_tree| merkle_tree.count);
-        Ok((merkle_tree_count, tip))
+        // Convert count to the last indexed sequence (count - 1)
+        // If count is 0, there are no indexed sequences yet
+        let merkle_tree_sequence = merkle_tree_count.and_then(|count| count.checked_sub(1));
+        Ok((merkle_tree_sequence, tip))
     }
 }
