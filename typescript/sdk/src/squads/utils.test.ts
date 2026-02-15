@@ -688,6 +688,15 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws for malformed non-number current transaction index', () => {
+      expect(() => getMinimumProposalIndexToCheck('1')).to.throw(
+        'Expected current transaction index to be a non-negative safe integer, got string',
+      );
+      expect(() => getMinimumProposalIndexToCheck(null)).to.throw(
+        'Expected current transaction index to be a non-negative safe integer, got null',
+      );
+    });
+
     it('throws for negative lookback count', () => {
       expect(() => getMinimumProposalIndexToCheck(1, -1)).to.throw(
         'Expected lookback count to be a non-negative safe integer, got -1',
@@ -705,6 +714,15 @@ describe('squads utils', () => {
         getMinimumProposalIndexToCheck(1, Number.POSITIVE_INFINITY),
       ).to.throw(
         'Expected lookback count to be a non-negative safe integer, got Infinity',
+      );
+    });
+
+    it('throws for malformed non-number lookback count', () => {
+      expect(() => getMinimumProposalIndexToCheck(1, '1')).to.throw(
+        'Expected lookback count to be a non-negative safe integer, got string',
+      );
+      expect(() => getMinimumProposalIndexToCheck(1, null)).to.throw(
+        'Expected lookback count to be a non-negative safe integer, got null',
       );
     });
   });
@@ -830,12 +848,30 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws for malformed non-number approval counts', () => {
+      expect(() => getSquadTxStatus('Active', '1', 2, 1, 0)).to.throw(
+        'Expected approvals to be a non-negative safe integer, got string',
+      );
+      expect(() => getSquadTxStatus('Active', null, 2, 1, 0)).to.throw(
+        'Expected approvals to be a non-negative safe integer, got null',
+      );
+    });
+
     it('throws for unsafe threshold values', () => {
       const unsafeThreshold = Number.MAX_SAFE_INTEGER + 1;
       expect(() =>
         getSquadTxStatus('Active', 0, unsafeThreshold, 1, 0),
       ).to.throw(
         `Expected threshold to be a positive safe integer, got ${unsafeThreshold}`,
+      );
+    });
+
+    it('throws for malformed non-number threshold values', () => {
+      expect(() => getSquadTxStatus('Active', 0, '1', 1, 0)).to.throw(
+        'Expected threshold to be a positive safe integer, got string',
+      );
+      expect(() => getSquadTxStatus('Active', 0, null, 1, 0)).to.throw(
+        'Expected threshold to be a positive safe integer, got null',
       );
     });
 
@@ -848,6 +884,24 @@ describe('squads utils', () => {
     it('throws for fractional transaction index values', () => {
       expect(() => getSquadTxStatus('Active', 0, 1, 1.5, 0)).to.throw(
         'Expected transaction index to be a non-negative safe integer, got 1.5',
+      );
+    });
+
+    it('throws for malformed non-number transaction index values', () => {
+      expect(() => getSquadTxStatus('Active', 0, 1, '1', 0)).to.throw(
+        'Expected transaction index to be a non-negative safe integer, got string',
+      );
+      expect(() => getSquadTxStatus('Active', 0, 1, null, 0)).to.throw(
+        'Expected transaction index to be a non-negative safe integer, got null',
+      );
+    });
+
+    it('throws for malformed non-number stale transaction index values', () => {
+      expect(() => getSquadTxStatus('Active', 0, 1, 1, '0')).to.throw(
+        'Expected stale transaction index to be a non-negative safe integer, got string',
+      );
+      expect(() => getSquadTxStatus('Active', 0, 1, 1, null)).to.throw(
+        'Expected stale transaction index to be a non-negative safe integer, got null',
       );
     });
 
@@ -5810,6 +5864,16 @@ describe('squads utils', () => {
     expect(() => isStaleSquadsProposal('   ', 0, 0)).to.throw(
       'Expected status kind to be a non-empty string',
     );
+    expect(() =>
+      isStaleSquadsProposal(SquadsProposalStatus.Active, '1', 0),
+    ).to.throw(
+      'Expected transaction index to be a non-negative safe integer, got string',
+    );
+    expect(() =>
+      isStaleSquadsProposal(SquadsProposalStatus.Active, 0, null),
+    ).to.throw(
+      'Expected stale transaction index to be a non-negative safe integer, got null',
+    );
   });
 
   it('tracks pending squads proposals only when status is pending, non-stale, and unrejected', () => {
@@ -5839,5 +5903,13 @@ describe('squads utils', () => {
     expect(() =>
       shouldTrackPendingSquadsProposal(SquadsProposalStatus.Active, 5, 4, -1),
     ).to.throw('Expected rejections to be a non-negative safe integer, got -1');
+    expect(() =>
+      shouldTrackPendingSquadsProposal(
+        SquadsProposalStatus.Active,
+        5,
+        4,
+        '0',
+      ),
+    ).to.throw('Expected rejections to be a non-negative safe integer, got string');
   });
 });

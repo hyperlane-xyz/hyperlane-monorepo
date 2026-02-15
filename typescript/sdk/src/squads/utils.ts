@@ -938,37 +938,37 @@ export function deriveSquadsProposalModification(
 
 export function isStaleSquadsProposal(
   statusKind: unknown,
-  transactionIndex: number,
-  staleTransactionIndex: number,
+  transactionIndex: unknown,
+  staleTransactionIndex: unknown,
 ): boolean {
   const normalizedStatusKind = normalizeStatusKind(statusKind);
-  assert(
-    Number.isSafeInteger(transactionIndex) && transactionIndex >= 0,
-    `Expected transaction index to be a non-negative safe integer, got ${transactionIndex}`,
+  const normalizedTransactionIndex = assertNonNegativeSafeInteger(
+    transactionIndex,
+    'transaction index',
   );
-  assert(
-    Number.isSafeInteger(staleTransactionIndex) && staleTransactionIndex >= 0,
-    `Expected stale transaction index to be a non-negative safe integer, got ${staleTransactionIndex}`,
+  const normalizedStaleTransactionIndex = assertNonNegativeSafeInteger(
+    staleTransactionIndex,
+    'stale transaction index',
   );
 
   return (
-    transactionIndex < staleTransactionIndex &&
+    normalizedTransactionIndex < normalizedStaleTransactionIndex &&
     !isTerminalSquadsProposalStatus(normalizedStatusKind)
   );
 }
 
 export function shouldTrackPendingSquadsProposal(
   statusKind: unknown,
-  transactionIndex: number,
-  staleTransactionIndex: number,
-  rejections: number,
+  transactionIndex: unknown,
+  staleTransactionIndex: unknown,
+  rejections: unknown,
 ): boolean {
-  assert(
-    Number.isSafeInteger(rejections) && rejections >= 0,
-    `Expected rejections to be a non-negative safe integer, got ${rejections}`,
+  const normalizedRejections = assertNonNegativeSafeInteger(
+    rejections,
+    'rejections',
   );
   return (
-    rejections === 0 &&
+    normalizedRejections === 0 &&
     !isTerminalSquadsProposalStatus(statusKind) &&
     !isStaleSquadsProposal(statusKind, transactionIndex, staleTransactionIndex)
   );
@@ -976,34 +976,34 @@ export function shouldTrackPendingSquadsProposal(
 
 export function getSquadTxStatus(
   statusKind: unknown,
-  approvals: number,
-  threshold: number,
-  transactionIndex: number,
-  staleTransactionIndex: number,
+  approvals: unknown,
+  threshold: unknown,
+  transactionIndex: unknown,
+  staleTransactionIndex: unknown,
 ): SquadTxStatus {
   const normalizedStatusKind = normalizeStatusKind(statusKind);
-  assert(
-    Number.isSafeInteger(approvals) && approvals >= 0,
-    `Expected approvals to be a non-negative safe integer, got ${approvals}`,
+  const normalizedApprovals = assertNonNegativeSafeInteger(
+    approvals,
+    'approvals',
   );
-  assert(
-    Number.isSafeInteger(threshold) && threshold > 0,
-    `Expected threshold to be a positive safe integer, got ${threshold}`,
+  const normalizedThreshold = assertPositiveSafeInteger(
+    threshold,
+    'threshold',
   );
-  assert(
-    Number.isSafeInteger(transactionIndex) && transactionIndex >= 0,
-    `Expected transaction index to be a non-negative safe integer, got ${transactionIndex}`,
+  const normalizedTransactionIndex = assertNonNegativeSafeInteger(
+    transactionIndex,
+    'transaction index',
   );
-  assert(
-    Number.isSafeInteger(staleTransactionIndex) && staleTransactionIndex >= 0,
-    `Expected stale transaction index to be a non-negative safe integer, got ${staleTransactionIndex}`,
+  const normalizedStaleTransactionIndex = assertNonNegativeSafeInteger(
+    staleTransactionIndex,
+    'stale transaction index',
   );
 
   if (
     isStaleSquadsProposal(
       normalizedStatusKind,
-      transactionIndex,
-      staleTransactionIndex,
+      normalizedTransactionIndex,
+      normalizedStaleTransactionIndex,
     )
   ) {
     return SquadTxStatus.STALE;
@@ -1013,9 +1013,9 @@ export function getSquadTxStatus(
     case SquadsProposalStatus.Draft:
       return SquadTxStatus.DRAFT;
     case SquadsProposalStatus.Active:
-      return approvals >= threshold
+      return normalizedApprovals >= normalizedThreshold
         ? SquadTxStatus.APPROVED
-        : threshold - approvals === 1
+        : normalizedThreshold - normalizedApprovals === 1
           ? SquadTxStatus.ONE_AWAY
           : SquadTxStatus.ACTIVE;
     case SquadsProposalStatus.Rejected:
@@ -1033,21 +1033,43 @@ export function getSquadTxStatus(
   }
 }
 
-export function getMinimumProposalIndexToCheck(
-  currentTransactionIndex: number,
-  lookbackCount = SQUADS_PROPOSAL_LOOKBACK_COUNT,
-): number {
+function formatSafeIntegerInputValue(value: unknown): string {
+  return typeof value === 'number' ? String(value) : getUnknownValueTypeName(value);
+}
+
+function assertNonNegativeSafeInteger(value: unknown, label: string): number {
   assert(
-    Number.isSafeInteger(currentTransactionIndex) &&
-      currentTransactionIndex >= 0,
-    `Expected current transaction index to be a non-negative safe integer, got ${currentTransactionIndex}`,
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0,
+    `Expected ${label} to be a non-negative safe integer, got ${formatSafeIntegerInputValue(value)}`,
   );
+  return value;
+}
+
+function assertPositiveSafeInteger(value: unknown, label: string): number {
   assert(
-    Number.isSafeInteger(lookbackCount) && lookbackCount >= 0,
-    `Expected lookback count to be a non-negative safe integer, got ${lookbackCount}`,
+    typeof value === 'number' && Number.isSafeInteger(value) && value > 0,
+    `Expected ${label} to be a positive safe integer, got ${formatSafeIntegerInputValue(value)}`,
+  );
+  return value;
+}
+
+export function getMinimumProposalIndexToCheck(
+  currentTransactionIndex: unknown,
+  lookbackCount: unknown = SQUADS_PROPOSAL_LOOKBACK_COUNT,
+): number {
+  const normalizedCurrentTransactionIndex = assertNonNegativeSafeInteger(
+    currentTransactionIndex,
+    'current transaction index',
+  );
+  const normalizedLookbackCount = assertNonNegativeSafeInteger(
+    lookbackCount,
+    'lookback count',
   );
 
-  return Math.max(0, currentTransactionIndex - lookbackCount);
+  return Math.max(
+    0,
+    normalizedCurrentTransactionIndex - normalizedLookbackCount,
+  );
 }
 
 export function parseSquadProposal(
