@@ -159,7 +159,7 @@ function listTrackedSourceFilesRecursively(relativeDir: string): string[] {
         entry.name.endsWith(extension),
       );
     if (isTrackedSourceFile) {
-      files.push(entryRelativePath);
+      files.push(toPosixPath(entryRelativePath));
     }
   }
 
