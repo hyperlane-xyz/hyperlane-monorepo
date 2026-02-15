@@ -3338,7 +3338,7 @@ describe('squads utils', () => {
           providerLookupChain = chain;
           return provider;
         },
-      } as unknown as MultiProtocolProvider;
+      };
 
       const { chain, svmProvider, vault, multisigPda, programId } =
         getSquadAndProvider(supportedChain, mpp);
@@ -3366,7 +3366,7 @@ describe('squads utils', () => {
           providerLookupChain = chain;
           return provider;
         },
-      } as unknown as MultiProtocolProvider;
+      };
 
       const { chain, vault, multisigPda, programId, svmProvider } =
         getSquadAndProvider('  solanamainnet  ', mpp);
@@ -3390,7 +3390,7 @@ describe('squads utils', () => {
           providerLookupCalled = true;
           throw new Error('provider lookup should not execute');
         },
-      } as unknown as MultiProtocolProvider;
+      };
 
       const thrownError = captureSyncError(() =>
         getSquadAndProvider('unsupported-chain', mpp),
@@ -3409,7 +3409,7 @@ describe('squads utils', () => {
           providerLookupCalled = true;
           throw new Error('provider lookup should not execute');
         },
-      } as unknown as MultiProtocolProvider;
+      };
 
       const thrownError = captureSyncError(() =>
         getSquadAndProvider('  unsupported-chain  ', mpp),
@@ -3428,7 +3428,7 @@ describe('squads utils', () => {
           providerLookupCalled = true;
           throw new Error('provider lookup should not execute');
         },
-      } as unknown as MultiProtocolProvider;
+      };
 
       const thrownError = captureSyncError(() => getSquadAndProvider(1, mpp));
 
@@ -3445,7 +3445,7 @@ describe('squads utils', () => {
           providerLookupCalled = true;
           throw new Error('provider lookup should not execute');
         },
-      } as unknown as MultiProtocolProvider;
+      };
 
       const thrownError = captureSyncError(() =>
         getSquadAndProvider('   ', mpp),
@@ -3457,8 +3457,18 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast for primitive multiprovider values', () => {
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', 1),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid multiprovider for solanamainnet: expected getSolanaWeb3Provider function, got undefined',
+      );
+    });
+
     it('fails fast when multiprovider does not expose getSolanaWeb3Provider', () => {
-      const mpp = {} as unknown as MultiProtocolProvider;
+      const mpp = {};
 
       const thrownError = captureSyncError(() =>
         getSquadAndProvider('solanamainnet', mpp),
@@ -3480,7 +3490,7 @@ describe('squads utils', () => {
             return Reflect.get(target, property, receiver);
           },
         },
-      ) as unknown as MultiProtocolProvider;
+      );
 
       const thrownError = captureSyncError(() =>
         getSquadAndProvider('solanamainnet', mpp),
@@ -3502,7 +3512,7 @@ describe('squads utils', () => {
             return Reflect.get(target, property, receiver);
           },
         },
-      ) as unknown as MultiProtocolProvider;
+      );
 
       const thrownError = captureSyncError(() =>
         getSquadAndProvider('solanamainnet', mpp),
@@ -3520,7 +3530,7 @@ describe('squads utils', () => {
           providerLookupCalled = true;
           throw new Error('provider lookup failed');
         },
-      } as unknown as MultiProtocolProvider;
+      };
 
       const thrownError = captureSyncError(() =>
         getSquadAndProvider('solanamainnet', mpp),
@@ -3536,7 +3546,7 @@ describe('squads utils', () => {
           Promise.resolve({
             getAccountInfo: async () => null,
           }),
-      } as unknown as MultiProtocolProvider;
+      };
 
       const thrownError = captureSyncError(() =>
         getSquadAndProvider('solanamainnet', mpp),
@@ -3561,7 +3571,7 @@ describe('squads utils', () => {
               },
             },
           ),
-      } as unknown as MultiProtocolProvider;
+      };
 
       const thrownError = captureSyncError(() =>
         getSquadAndProvider('solanamainnet', mpp),
@@ -3579,7 +3589,7 @@ describe('squads utils', () => {
           providerLookupCalled = true;
           throw new Error('provider lookup should not execute');
         },
-      } as unknown as MultiProtocolProvider;
+      };
       const providerOverride = {
         provider: 'solana-override',
       } as unknown as ReturnType<
@@ -3635,6 +3645,15 @@ describe('squads utils', () => {
         'Expected partitioned squads chains to be an array, got string',
       );
       expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('skips malformed primitive multiprovider values per-chain', async () => {
+      const proposals = await getPendingProposalsForChains(
+        ['solanamainnet'],
+        1,
+      );
+
+      expect(proposals).to.deep.equal([]);
     });
 
     it('normalizes and deduplicates chain inputs before provider lookups', async () => {

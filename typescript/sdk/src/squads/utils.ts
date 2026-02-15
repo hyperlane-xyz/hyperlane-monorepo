@@ -687,7 +687,7 @@ function normalizeSafeIntegerValue(value: unknown): {
 
 export function getSquadAndProvider(
   chain: unknown,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): SquadAndProvider {
   const normalizedChain = resolveSquadsChainName(chain);
@@ -700,7 +700,7 @@ export function getSquadAndProvider(
 
 function getSquadAndProviderForResolvedChain(
   chain: SquadsChainName,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): SquadAndProvider {
   const { vault, multisigPda, programId } =
@@ -712,7 +712,7 @@ function getSquadAndProviderForResolvedChain(
 }
 
 function getSolanaWeb3ProviderForChain(
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   chain: SquadsChainName,
 ): SolanaWeb3Provider {
   let getSolanaWeb3ProviderValue: unknown;
@@ -757,7 +757,7 @@ function getSolanaWeb3ProviderForChain(
 }
 
 function getPendingProposalNativeTokenMetadataForChain(
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   chain: SquadsChainName,
 ): { decimals: number; symbol: string } {
   let getChainMetadataValue: unknown;
@@ -918,7 +918,7 @@ function getSignerBuildAndSendTransactionForChain(
 
 export async function getSquadProposal(
   chain: unknown,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   transactionIndex: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<
@@ -966,7 +966,7 @@ export async function getSquadProposal(
 
 export async function getSquadProposalAccount(
   chain: unknown,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   transactionIndex: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<
@@ -1009,7 +1009,7 @@ type SquadProposalAccountWithProvider = {
 
 async function getSquadProposalAccountForResolvedChain(
   chain: SquadsChainName,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   transactionIndex: number,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<SquadProposalAccountWithProvider | undefined> {
@@ -1055,7 +1055,7 @@ export function isLikelyMissingSquadsAccountError(error: unknown): boolean {
 
 export async function getPendingProposalsForChains(
   chains: unknown,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
 ): Promise<SquadProposalStatus[]> {
   const proposals: SquadProposalStatus[] = [];
   const { squadsChains, nonSquadsChains } = partitionSquadsChains(chains);
@@ -1709,7 +1709,7 @@ export function decodePermissions(mask: unknown): string {
 
 async function getNextSquadsTransactionIndex(
   chain: SquadsChainName,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<bigint> {
   const { svmProvider, multisigPda, programId } =
@@ -1879,7 +1879,7 @@ function createProposalCancelInstruction(
 
 export async function buildSquadsVaultTransactionProposal(
   chain: unknown,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   ixs: unknown,
   creator: unknown,
   memo?: unknown,
@@ -1943,7 +1943,7 @@ export async function buildSquadsVaultTransactionProposal(
 
 export async function buildSquadsProposalRejection(
   chain: unknown,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   transactionIndex: unknown,
   member: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
@@ -1979,7 +1979,7 @@ export async function buildSquadsProposalRejection(
 
 export async function buildSquadsProposalCancellation(
   chain: unknown,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   transactionIndex: unknown,
   member: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
@@ -2016,7 +2016,7 @@ export async function buildSquadsProposalCancellation(
 export async function submitProposalToSquads(
   chain: unknown,
   vaultInstructions: unknown,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   signerAdapter: unknown,
   memo?: unknown,
 ): Promise<void> {
@@ -2173,7 +2173,7 @@ export function isConfigTransaction(accountData: unknown): boolean {
 
 export async function getTransactionType(
   chain: unknown,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   transactionIndex: unknown,
   svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<SquadsAccountType> {
@@ -2228,7 +2228,7 @@ export async function getTransactionType(
 
 export async function executeProposal(
   chain: unknown,
-  mpp: MultiProtocolProvider,
+  mpp: unknown,
   transactionIndex: unknown,
   signerAdapter: unknown,
 ): Promise<void> {
