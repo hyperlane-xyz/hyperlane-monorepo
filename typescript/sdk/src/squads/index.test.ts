@@ -216,9 +216,14 @@ describe('squads barrel exports', () => {
     ).to.equal(true);
     expect(EXPECTED_SDK_SQUADS_TEST_SCRIPT.includes('  ')).to.equal(false);
     expect(/[\n\r\t]/.test(EXPECTED_SDK_SQUADS_TEST_SCRIPT)).to.equal(false);
-    expect(
-      listSingleQuotedTokens(EXPECTED_SDK_SQUADS_TEST_SCRIPT),
-    ).to.deep.equal([SDK_SQUADS_TEST_GLOB]);
+    const quotedTestTokens = listSingleQuotedTokens(
+      EXPECTED_SDK_SQUADS_TEST_SCRIPT,
+    );
+    expect(quotedTestTokens).to.deep.equal([SDK_SQUADS_TEST_GLOB]);
+    for (const quotedTestToken of quotedTestTokens) {
+      expect(quotedTestToken.startsWith('src/')).to.equal(true);
+      expect(quotedTestToken.startsWith('test/')).to.equal(false);
+    }
     expect(
       countOccurrences(
         EXPECTED_SDK_SQUADS_TEST_SCRIPT,
