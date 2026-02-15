@@ -74,6 +74,10 @@ function compareLexicographically(left: string, right: string): number {
   return 0;
 }
 
+function toPosixPath(relativePath: string): string {
+  return relativePath.split(path.sep).join(path.posix.sep);
+}
+
 function readInfraFile(relativePath: string): string {
   return fs.readFileSync(path.join(INFRA_ROOT, relativePath), 'utf8');
 }
@@ -314,6 +318,25 @@ describe('squads sdk migration regression', () => {
     for (const relativePath of trackedSourceFiles) {
       const fileContents = readInfraFile(relativePath);
       assertNoForbiddenSquadsReferences(fileContents, relativePath);
+    }
+  });
+
+  it('keeps guarded squads script paths included in tracked source scan', () => {
+    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    const trackedSourceFileSet = new Set(trackedSourceFiles.map(toPosixPath));
+
+    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
+      expect(
+        trackedSourceFileSet.has(scriptPath),
+        `Expected guarded squads script path in tracked source scan: ${scriptPath}`,
+      ).to.equal(true);
+    }
+
+    for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
+      expect(
+        trackedSourceFileSet.has(scriptPath),
+        `Expected formatting-guarded squads script path in tracked source scan: ${scriptPath}`,
+      ).to.equal(true);
     }
   });
 
