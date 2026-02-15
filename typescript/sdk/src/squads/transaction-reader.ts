@@ -1061,7 +1061,7 @@ export class SquadsTransactionReader {
     transactionIndex: number,
     transactionPda: PublicKey,
     svmProvider: SolanaWeb3Provider,
-  ) {
+  ): Promise<{ accountInfo: { data?: unknown }; accountData: Buffer }> {
     const accountInfo = await svmProvider.getAccountInfo(transactionPda);
 
     if (!accountInfo) {
@@ -1087,7 +1087,7 @@ export class SquadsTransactionReader {
       );
     }
 
-    return accountInfo;
+    return { accountInfo, accountData };
   }
 
   private async resolveAddressLookupTables(
@@ -1794,17 +1794,17 @@ export class SquadsTransactionReader {
         programId: proposalData.programId,
       });
 
-      const accountInfo = await this.fetchTransactionAccount(
+      const fetchedTransactionAccount = await this.fetchTransactionAccount(
         normalizedChain,
         normalizedTransactionIndex,
         transactionPda,
         svmProvider,
       );
-      const accountData = this.readTransactionAccountData(
-        normalizedChain,
-        'transaction account',
-        accountInfo,
-      );
+      const { accountInfo, accountData } =
+        this.normalizeFetchedTransactionAccount(
+          normalizedChain,
+          fetchedTransactionAccount,
+        );
 
       if (isConfigTransaction(accountData)) {
         return await this.readConfigTransaction(
@@ -1840,6 +1840,79 @@ export class SquadsTransactionReader {
       });
       throw error;
     }
+  }
+
+  private normalizeFetchedTransactionAccount(
+    chain: SquadsChainName,
+    fetchedTransactionAccount: unknown,
+  ): {
+    accountInfo: AccountInfo<Buffer<ArrayBufferLike>>;
+    accountData: Buffer;
+  } {
+    if (
+      !fetchedTransactionAccount ||
+      (typeof fetchedTransactionAccount !== 'object' &&
+        typeof fetchedTransactionAccount !== 'function')
+    ) {
+      throw new Error(
+        `Malformed fetched transaction account on ${chain}: expected object, got ${getUnknownValueTypeName(fetchedTransactionAccount)}`,
+      );
+    }
+
+    let accountInfoValue: unknown = fetchedTransactionAccount;
+    let accountDataValue: unknown;
+    const fetchedAccountRecord = fetchedTransactionAccount as {
+      accountInfo?: unknown;
+      accountData?: unknown;
+    };
+    try {
+      if ('accountInfo' in fetchedAccountRecord) {
+        accountInfoValue = fetchedAccountRecord.accountInfo;
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to read fetched transaction account info on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+    try {
+      if ('accountData' in fetchedAccountRecord) {
+        accountDataValue = fetchedAccountRecord.accountData;
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to read fetched transaction account bytes on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    if (
+      !accountInfoValue ||
+      (typeof accountInfoValue !== 'object' &&
+        typeof accountInfoValue !== 'function')
+    ) {
+      throw new Error(
+        `Malformed fetched transaction account info on ${chain}: expected object, got ${getUnknownValueTypeName(accountInfoValue)}`,
+      );
+    }
+
+    const accountInfo = accountInfoValue as AccountInfo<
+      Buffer<ArrayBufferLike>
+    >;
+    const accountData =
+      typeof accountDataValue === 'undefined'
+        ? this.readTransactionAccountData(
+            chain,
+            'transaction account',
+            accountInfo,
+          )
+        : this.readTransactionAccountData(
+            chain,
+            'fetched transaction account',
+            {
+              data: accountDataValue,
+            },
+          );
+
+    return { accountInfo, accountData };
   }
 
   private loadMultisigConfig(

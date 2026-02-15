@@ -2987,6 +2987,108 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('uses fetched transaction account bytes without re-reading accountInfo.data', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: unknown,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+      readConfigTransaction: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => ({
+      accountInfo: new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'data') {
+              throw new Error('account data should not be re-read');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ),
+      accountData: Buffer.from([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        1,
+      ]),
+    });
+    readerAny.readConfigTransaction = async (_, transactionIndex) => ({
+      chain: 'solanamainnet',
+      transactionIndex,
+    });
+
+    const result = (await reader.read('solanamainnet', 5)) as {
+      transactionIndex?: number;
+    };
+
+    expect(result.transactionIndex).to.equal(5);
+  });
+
+  it('records exactly one error when fetched transaction account info is malformed', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: unknown,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => ({
+      accountInfo: 7,
+      accountData: Buffer.from([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        1,
+      ]),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Malformed fetched transaction account info on solanamainnet: expected object, got number',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error:
+          'Error: Malformed fetched transaction account info on solanamainnet: expected object, got number',
+      },
+    ]);
+  });
+
   it('looks up solana provider once per read attempt', async () => {
     let providerLookupCount = 0;
     const provider = {
