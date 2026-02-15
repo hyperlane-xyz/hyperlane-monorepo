@@ -131,6 +131,14 @@ type XERC20Metadata = {
   decimals: number;
 };
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 const ownableFunctionSelectors = [
   'renounceOwnership()',
   'transferOwnership(address)',
@@ -695,7 +703,9 @@ export class GovernTransactionReader {
         value: tx.value,
       });
     } catch (error) {
-      throw new Error(`Failed to decode Managed Lockbox transaction: ${error}`);
+      throw new Error(
+        `Failed to decode Managed Lockbox transaction: ${stringifyValueForError(error)}`,
+      );
     }
 
     const roleMap: Record<string, string> = {
@@ -1079,7 +1089,7 @@ export class GovernTransactionReader {
     } catch (error) {
       // Not a fee contract or failed to read - return basic insight
       this.logger.debug(
-        `Could not read fee contract details for ${feeRecipientAddress}: ${error}`,
+        `Could not read fee contract details for ${feeRecipientAddress}: ${stringifyValueForError(error)}`,
       );
       return { insight: `Set fee recipient to ${feeRecipientAddress}` };
     }
