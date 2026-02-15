@@ -4688,6 +4688,70 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('keeps unknown-program parsing when program-id equals throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const malformedProgramId = {
+      equals: () => {
+        throw new Error('equals unavailable');
+      },
+      toBase58: () => 'malformed-program-id',
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      {
+        message: {
+          accountKeys: [malformedProgramId as unknown as PublicKey],
+          addressTableLookups: [],
+          instructions: [
+            {
+              programIdIndex: 0,
+              accountIndexes: [],
+              data: Buffer.from([1, 2, 3]),
+            },
+          ],
+        },
+      },
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed.warnings).to.deep.equal([
+      '⚠️  UNKNOWN PROGRAM: malformed-program-id',
+      'This instruction could not be verified!',
+    ]);
+    expect(parsed.instructions).to.deep.equal([
+      {
+        programId: malformedProgramId,
+        programName: 'Unknown',
+        instructionType: 'Unknown',
+        data: {
+          programId: 'malformed-program-id',
+          rawData: '010203',
+        },
+        accounts: [],
+        warnings: [
+          '⚠️  UNKNOWN PROGRAM: malformed-program-id',
+          'This instruction could not be verified!',
+        ],
+      },
+    ]);
+  });
+
   it('keeps parsing when lookup-table warning path cannot stringify account keys', async () => {
     const nonSystemProgramId = new PublicKey(
       new Uint8Array(32).fill(7),

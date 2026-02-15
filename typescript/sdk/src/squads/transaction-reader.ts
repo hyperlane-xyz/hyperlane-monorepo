@@ -760,10 +760,16 @@ export class SquadsTransactionReader {
   }
 
   private isMailboxInstruction(
+    chain: ChainName,
     programId: PublicKey,
     corePrograms: { mailbox: PublicKey },
   ): boolean {
-    return programId.equals(corePrograms.mailbox);
+    return this.isProgramIdEqual(
+      chain,
+      'mailbox',
+      programId,
+      corePrograms.mailbox,
+    );
   }
 
   private readMailboxInstruction(
@@ -847,10 +853,32 @@ export class SquadsTransactionReader {
   }
 
   private isMultisigIsmInstruction(
+    chain: ChainName,
     programId: PublicKey,
     corePrograms: { multisigIsmMessageId: PublicKey },
   ): boolean {
-    return programId.equals(corePrograms.multisigIsmMessageId);
+    return this.isProgramIdEqual(
+      chain,
+      'multisig_ism_message_id',
+      programId,
+      corePrograms.multisigIsmMessageId,
+    );
+  }
+
+  private isProgramIdEqual(
+    chain: ChainName,
+    label: string,
+    programId: PublicKey,
+    expectedProgramId: PublicKey,
+  ): boolean {
+    try {
+      return programId.equals(expectedProgramId);
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to compare ${label} program id on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      return false;
+    }
   }
 
   private readMultisigIsmInstruction(
@@ -1096,7 +1124,16 @@ export class SquadsTransactionReader {
           );
         }
 
-        if (programId.equals(computeBudgetProgramId)) continue;
+        if (
+          this.isProgramIdEqual(
+            chain,
+            'compute-budget',
+            programId,
+            computeBudgetProgramId,
+          )
+        ) {
+          continue;
+        }
 
         const instructionData = Buffer.from(instruction.data);
         const accounts: PublicKey[] = [];
@@ -1107,7 +1144,7 @@ export class SquadsTransactionReader {
           }
         }
 
-        if (this.isMailboxInstruction(programId, corePrograms)) {
+        if (this.isMailboxInstruction(chain, programId, corePrograms)) {
           const parsed = this.readMailboxInstruction(instructionData);
           parsedInstructions.push({
             programId,
@@ -1122,7 +1159,7 @@ export class SquadsTransactionReader {
           continue;
         }
 
-        if (this.isMultisigIsmInstruction(programId, corePrograms)) {
+        if (this.isMultisigIsmInstruction(chain, programId, corePrograms)) {
           const parsed = this.readMultisigIsmInstruction(
             chain,
             instructionData,
@@ -1140,7 +1177,9 @@ export class SquadsTransactionReader {
           continue;
         }
 
-        if (programId.equals(SYSTEM_PROGRAM_ID)) {
+        if (
+          this.isProgramIdEqual(chain, 'system', programId, SYSTEM_PROGRAM_ID)
+        ) {
           parsedInstructions.push({
             programId,
             programName: ProgramName.SYSTEM_PROGRAM,
