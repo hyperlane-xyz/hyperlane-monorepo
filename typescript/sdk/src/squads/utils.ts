@@ -866,6 +866,44 @@ function getPendingProposalNativeTokenMetadataForChain(
   return { decimals, symbol };
 }
 
+async function getVaultBalanceForPendingProposals(
+  chain: SquadsChainName,
+  svmProvider: SolanaWeb3Provider,
+  vault: PublicKey,
+): Promise<number> {
+  let getBalanceValue: unknown;
+  try {
+    getBalanceValue = (svmProvider as { getBalance?: unknown }).getBalance;
+  } catch (error) {
+    throw new Error(
+      `Failed to read getBalance for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof getBalanceValue === 'function',
+    `Invalid solana provider for ${chain}: expected getBalance function, got ${getUnknownValueTypeName(getBalanceValue)}`,
+  );
+
+  let vaultBalance: unknown;
+  try {
+    vaultBalance = await getBalanceValue.call(svmProvider, vault);
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch vault balance for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof vaultBalance === 'number' &&
+      Number.isFinite(vaultBalance) &&
+      vaultBalance >= 0,
+    `Malformed vault balance for ${chain}: expected non-negative finite number, got ${getUnknownValueTypeName(vaultBalance)}`,
+  );
+
+  return vaultBalance;
+}
+
 function getSignerPublicKeyForChain(
   signerAdapter: unknown,
   chain: SquadsChainName,
@@ -1106,7 +1144,11 @@ export async function getPendingProposalsForChains(
         const { threshold, currentTransactionIndex, staleTransactionIndex } =
           parseSquadMultisig(multisig, `${chain} multisig`);
 
-        const vaultBalance = await svmProvider.getBalance(vault);
+        const vaultBalance = await getVaultBalanceForPendingProposals(
+          chain,
+          svmProvider,
+          vault,
+        );
         const balanceFormatted = (vaultBalance / 10 ** decimals).toFixed(5);
 
         rootLogger.info(

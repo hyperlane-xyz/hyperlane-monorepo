@@ -3880,6 +3880,149 @@ describe('squads utils', () => {
       expect(proposals).to.deep.equal([]);
       expect(providerLookupCalled).to.equal(false);
     });
+
+    it('skips chain when provider lacks getBalance function', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+
+        let providerLookupChain: string | undefined;
+        const mpp = {
+          getChainMetadata: () => ({
+            nativeToken: {
+              decimals: 9,
+              symbol: 'SOL',
+            },
+          }),
+          getSolanaWeb3Provider: (chain: string) => {
+            providerLookupChain = chain;
+            return {
+              getAccountInfo: async () => null,
+            };
+          },
+        };
+
+        const proposals = await getPendingProposalsForChains(
+          ['solanamainnet'],
+          mpp,
+        );
+
+        expect(proposals).to.deep.equal([]);
+        expect(providerLookupChain).to.equal('solanamainnet');
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
+
+    it('skips chain when provider getBalance accessor fails', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+
+        const mpp = {
+          getChainMetadata: () => ({
+            nativeToken: {
+              decimals: 9,
+              symbol: 'SOL',
+            },
+          }),
+          getSolanaWeb3Provider: () =>
+            new Proxy(
+              {
+                getAccountInfo: async () => null,
+              },
+              {
+                get(target, property, receiver) {
+                  if (property === 'getBalance') {
+                    throw new Error('balance accessor unavailable');
+                  }
+                  return Reflect.get(target, property, receiver);
+                },
+              },
+            ),
+        };
+
+        const proposals = await getPendingProposalsForChains(
+          ['solanamainnet'],
+          mpp,
+        );
+
+        expect(proposals).to.deep.equal([]);
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
+
+    it('skips chain when provider returns malformed vault balance', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+
+        const mpp = {
+          getChainMetadata: () => ({
+            nativeToken: {
+              decimals: 9,
+              symbol: 'SOL',
+            },
+          }),
+          getSolanaWeb3Provider: () => ({
+            getAccountInfo: async () => null,
+            getBalance: async () => 'malformed-balance',
+          }),
+        };
+
+        const proposals = await getPendingProposalsForChains(
+          ['solanamainnet'],
+          mpp,
+        );
+
+        expect(proposals).to.deep.equal([]);
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
   });
 
   describe(getSquadProposal.name, () => {
