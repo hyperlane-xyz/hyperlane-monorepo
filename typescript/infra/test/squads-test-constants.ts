@@ -50,9 +50,16 @@ export function isAllowlistedNonExecutableSquadsScriptPath(
   );
 }
 
+export function isExecutableSquadsScriptPath(scriptPath: string): boolean {
+  return (
+    SQUADS_SCRIPT_PATHS.includes(scriptPath) &&
+    !isAllowlistedNonExecutableSquadsScriptPath(scriptPath)
+  );
+}
+
 export const EXECUTABLE_SQUADS_SCRIPT_PATHS = Object.freeze(
-  SQUADS_SCRIPT_PATHS.filter(
-    (scriptPath) => !isAllowlistedNonExecutableSquadsScriptPath(scriptPath),
+  SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
+    isExecutableSquadsScriptPath(scriptPath),
   ),
 );
 

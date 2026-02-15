@@ -7,6 +7,7 @@ import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   hasAllowedSquadsScriptExtension,
   isAllowlistedNonExecutableSquadsScriptPath,
+  isExecutableSquadsScriptPath,
   isSquadsDirectoryScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_SCRIPT_PATHS,
@@ -75,6 +76,7 @@ describe('squads test utils', () => {
       expect(isAllowlistedNonExecutableSquadsScriptPath(scriptPath)).to.equal(
         false,
       );
+      expect(isExecutableSquadsScriptPath(scriptPath)).to.equal(true);
     }
 
     expect(

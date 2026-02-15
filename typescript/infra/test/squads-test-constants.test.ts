@@ -4,6 +4,7 @@ import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   hasAllowedSquadsScriptExtension,
   isAllowlistedNonExecutableSquadsScriptPath,
+  isExecutableSquadsScriptPath,
   isNormalizedGuardedScriptPath,
   isSquadsDirectoryScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
@@ -180,6 +181,17 @@ describe('squads test constants', () => {
     }
   });
 
+  it('classifies executable squads script paths consistently', () => {
+    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
+      const expectedIsExecutable =
+        SQUADS_SCRIPT_PATHS.includes(scriptPath) &&
+        !isAllowlistedNonExecutableSquadsScriptPath(scriptPath);
+      expect(isExecutableSquadsScriptPath(scriptPath)).to.equal(
+        expectedIsExecutable,
+      );
+    }
+  });
+
   it('classifies squads-directory script paths consistently', () => {
     for (const scriptPath of SQUADS_SCRIPT_PATHS) {
       const expectedIsSquadsDirectoryPath =
@@ -278,9 +290,9 @@ describe('squads test constants', () => {
     }
 
     for (const scriptPath of SQUADS_SCRIPT_PATHS) {
-      const isAllowlisted =
-        isAllowlistedNonExecutableSquadsScriptPath(scriptPath);
-      expect(executableScriptSet.has(scriptPath)).to.equal(!isAllowlisted);
+      expect(executableScriptSet.has(scriptPath)).to.equal(
+        isExecutableSquadsScriptPath(scriptPath),
+      );
     }
   });
 });
