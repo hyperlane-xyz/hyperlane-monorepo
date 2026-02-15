@@ -459,13 +459,24 @@ function parseSquadsProposalVoteErrorFromUnknownLogs(
     return undefined;
   }
 
-  let logEntries: string[];
+  let logEntryCount: number;
   try {
-    logEntries = value.filter((entry): entry is string => {
-      return typeof entry === 'string';
-    });
+    logEntryCount = value.length;
   } catch {
     return undefined;
+  }
+
+  const logEntries: string[] = [];
+  for (let index = 0; index < logEntryCount; index += 1) {
+    let entry: unknown;
+    try {
+      entry = value[index];
+    } catch {
+      continue;
+    }
+    if (typeof entry === 'string') {
+      logEntries.push(entry);
+    }
   }
 
   if (logEntries.length === 0) {

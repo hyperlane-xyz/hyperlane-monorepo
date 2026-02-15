@@ -2652,6 +2652,24 @@ describe('squads utils', () => {
         undefined,
       );
     });
+
+    it('parses known errors from vote-log arrays when other entries throw', () => {
+      const partiallyReadableLogs = new Proxy(
+        ['Program log: AlreadyCancelled', 'custom program error: 0x177a'],
+        {
+          get(target, property, receiver) {
+            if (property === '0') {
+              throw new Error('first log unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      expect(parseSquadsProposalVoteError(partiallyReadableLogs)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
   });
 
   describe(parseSquadsProposalVoteErrorFromError.name, () => {
@@ -2783,6 +2801,26 @@ describe('squads utils', () => {
           },
         }),
         logs: ['custom program error: 0x177a'],
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
+    it('parses transactionLogs when at least one log entry remains readable', () => {
+      const error = {
+        transactionLogs: new Proxy(
+          ['Program log: AlreadyCancelled', 'custom program error: 0x177a'],
+          {
+            get(target, property, receiver) {
+              if (property === '0') {
+                throw new Error('first log unavailable');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ),
+        logs: ['custom program error: 0x177b'],
       };
       expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
         SquadsProposalVoteError.AlreadyApproved,
