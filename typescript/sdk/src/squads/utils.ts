@@ -813,6 +813,22 @@ function getPendingProposalNativeTokenMetadataForChain(
     );
   }
 
+  let chainMetadataThenValue: unknown;
+  try {
+    chainMetadataThenValue = (
+      chainMetadata as { then?: unknown } | null | undefined
+    )?.then;
+  } catch (error) {
+    throw new Error(
+      `Failed to inspect chain metadata for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(error)})`,
+    );
+  }
+
+  assert(
+    typeof chainMetadataThenValue !== 'function',
+    `Malformed chain metadata for ${chain}: expected synchronous object, got promise-like value`,
+  );
+
   assert(
     typeof chainMetadata === 'object' && chainMetadata !== null,
     `Malformed chain metadata for ${chain}: expected object, got ${getUnknownValueTypeName(chainMetadata)}`,
@@ -826,6 +842,22 @@ function getPendingProposalNativeTokenMetadataForChain(
       `Failed to read native token metadata for ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
+
+  let nativeTokenThenValue: unknown;
+  try {
+    nativeTokenThenValue = (
+      nativeToken as { then?: unknown } | null | undefined
+    )?.then;
+  } catch (error) {
+    throw new Error(
+      `Failed to inspect native token metadata for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(error)})`,
+    );
+  }
+
+  assert(
+    typeof nativeTokenThenValue !== 'function',
+    `Malformed native token metadata for ${chain}: expected synchronous object, got promise-like value`,
+  );
 
   assert(
     typeof nativeToken === 'object' && nativeToken !== null,
