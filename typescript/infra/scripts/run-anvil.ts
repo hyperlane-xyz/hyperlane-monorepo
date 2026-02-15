@@ -3,6 +3,14 @@ import { spawn } from 'child_process';
 import { getArgs, withChainRequired } from './agent-utils.js';
 import { getEnvironmentConfig } from './core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function getRpcUrl() {
   const { environment, chain } = await withChainRequired(getArgs()).argv;
   const environmentConfig = getEnvironmentConfig(environment);
@@ -41,7 +49,7 @@ async function runAnvil(rpcUrl: string) {
   });
 
   anvilProcess.on('error', (err) => {
-    console.error(`Failed to start Anvil: ${err}`);
+    console.error(`Failed to start Anvil: ${stringifyValueForError(err)}`);
     process.exit(1);
   });
 
@@ -56,6 +64,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(stringifyValueForError(err));
   process.exit(1);
 });

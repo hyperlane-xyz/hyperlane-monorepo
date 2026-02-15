@@ -4,6 +4,14 @@ import { assert } from '@hyperlane-xyz/utils';
 import { getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 /**
  * Extracts the base domain from a URL (e.g., alchemy.com instead of eth-mainnet.g.alchemy.com)
  */
@@ -75,7 +83,9 @@ async function main() {
         domainMap[domain].chains.push(chain);
       }
     } catch (e) {
-      console.error(`Error getting chain metadata for chain ${chain}: ${e}`);
+      console.error(
+        `Error getting chain metadata for chain ${chain}: ${stringifyValueForError(e)}`,
+      );
       // Skip chains that error
     }
   }
@@ -93,6 +103,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    console.error(stringifyValueForError(e));
     process.exit(1);
   });

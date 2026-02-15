@@ -43,6 +43,14 @@ export const relayerAddresses: LocalRoleAddresses =
 
 const logger = rootLogger.child({ module: 'infra:agents:key-utils' });
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export interface KeyAsAddress {
   identifier: string;
   address: string;
@@ -589,7 +597,9 @@ export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
     logger.debug(`Fetching addresses locally for ${role} role ...`);
     return addresses;
   } catch (e) {
-    throw new Error(`Error fetching addresses locally for ${role} role: ${e}`);
+    throw new Error(
+      `Error fetching addresses locally for ${role} role: ${stringifyValueForError(e)}`,
+    );
   }
 }
 

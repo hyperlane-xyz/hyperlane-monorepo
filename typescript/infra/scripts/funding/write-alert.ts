@@ -45,6 +45,14 @@ interface RegressionError {
   missingChains: string[];
 }
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { dryRun } = await withDryRun(yargs(process.argv.slice(2))).argv;
 
@@ -233,7 +241,7 @@ async function updateAlerts(
       rootLogger.info(`Updated ${alertInfo.alertType} alert`);
     } catch (e) {
       rootLogger.error(
-        `Error updating ${alertInfo.alertType} alert, aborting updating the rest of the alerts: ${e}`,
+        `Error updating ${alertInfo.alertType} alert, aborting updating the rest of the alerts: ${stringifyValueForError(e)}`,
       );
       // exiting here so we don't continue updating alerts with lower writePriority
       cleanUp(portForwardProcess);
@@ -346,6 +354,6 @@ function cleanUp(portForwardProcess: ChildProcess) {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(stringifyValueForError(err));
   process.exit(1);
 });

@@ -18,6 +18,14 @@ import {
   logViolations,
 } from './check-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { environment, asDeployer, chains, fork, context, pushMetrics } =
     await getCheckWarpDeployArgs().argv;
@@ -196,7 +204,9 @@ async function main() {
       }
     } catch (e) {
       console.error(
-        chalk.red(`Error checking warp route ${warpRouteId}: ${e}`),
+        chalk.red(
+          `Error checking warp route ${warpRouteId}: ${stringifyValueForError(e)}`,
+        ),
       );
       failedWarpRoutesChecks.push(warpRouteId);
     }
@@ -217,6 +227,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    console.error(stringifyValueForError(e));
     process.exit(1);
   });
