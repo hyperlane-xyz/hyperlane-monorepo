@@ -445,6 +445,24 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps tracked infra source file scan entries resolvable to files', () => {
+    const trackedSourceFiles = getTrackedSourceFileSnapshot();
+    for (const trackedSourceFilePath of trackedSourceFiles) {
+      const absoluteTrackedSourceFilePath = path.join(
+        INFRA_ROOT,
+        trackedSourceFilePath,
+      );
+      expect(
+        fs.existsSync(absoluteTrackedSourceFilePath),
+        `Expected tracked source file to exist: ${trackedSourceFilePath}`,
+      ).to.equal(true);
+      expect(
+        fs.statSync(absoluteTrackedSourceFilePath).isFile(),
+        `Expected tracked source path to resolve to file: ${trackedSourceFilePath}`,
+      ).to.equal(true);
+    }
+  });
+
   it('keeps tracked infra source file paths normalized and relative', () => {
     const trackedSourceFiles = getTrackedSourceFileSnapshot();
     for (const trackedSourceFilePath of trackedSourceFiles) {
