@@ -119,14 +119,14 @@ export interface SquadsCoreProgramIds {
 }
 
 export interface SquadsTransactionReaderOptions {
-  resolveCoreProgramIds: (chain: SquadsChainName) => SquadsCoreProgramIds;
+  resolveCoreProgramIds: (chain: ChainName) => SquadsCoreProgramIds;
   resolveExpectedMultisigConfig?: (
-    chain: SquadsChainName,
+    chain: ChainName,
   ) => SvmMultisigConfigMap | null;
 }
 
 export interface SquadsGovernTransaction extends Record<string, unknown> {
-  chain: SquadsChainName;
+  chain: ChainName;
   nestedTx?: SquadsGovernTransaction;
 }
 
@@ -141,7 +141,7 @@ export interface ParsedInstruction {
 }
 
 export interface SquadsTransaction extends Record<string, unknown> {
-  chain: SquadsChainName;
+  chain: ChainName;
   proposalPda?: string;
   transactionIndex?: number;
   multisig?: string;
