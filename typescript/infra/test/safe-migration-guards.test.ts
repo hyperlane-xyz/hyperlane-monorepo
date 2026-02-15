@@ -909,6 +909,31 @@ describe('Safe migration guards', () => {
     expect(symbols).to.deep.equal(['getSafe', 'SafeStatus']);
   });
 
+  it('detects default export assignments in source-file scan', () => {
+    const source = [
+      'const internalValue = 1;',
+      'export default internalValue;',
+    ].join('\n');
+    expect(hasDefaultExportInSourceFile(source, 'fixture.ts')).to.equal(true);
+  });
+
+  it('detects default re-exports from specific modules', () => {
+    const source = [
+      "export { default as SafeDefault } from './fixtures/guard-module.js';",
+      "export { getSafe } from './fixtures/guard-module.js';",
+    ].join('\n');
+    expect(
+      hasDefaultReExportFromModule(
+        source,
+        'fixture.ts',
+        './fixtures/guard-module.js',
+      ),
+    ).to.equal(true);
+    expect(
+      hasDefaultReExportFromModule(source, 'fixture.ts', './fixtures/other.js'),
+    ).to.equal(false);
+  });
+
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
     const runtimeRequiredExports = REQUIRED_SAFE_HELPER_EXPORTS.filter(
       (symbol) => symbol !== 'ParseableSafeTx',
