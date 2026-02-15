@@ -123,7 +123,12 @@ function getErrorMessage(error: unknown): string {
       const jsonValue = JSON.stringify(error);
       if (typeof jsonValue === 'string') {
         const trimmedJsonValue = getTrimmedNonEmptyString(jsonValue);
-        if (trimmedJsonValue && trimmedJsonValue !== 'null') {
+        if (
+          trimmedJsonValue &&
+          !NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(
+            trimmedJsonValue.toLowerCase(),
+          )
+        ) {
           return jsonValue;
         }
       }

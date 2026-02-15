@@ -1237,6 +1237,48 @@ describe('Anvil utils', () => {
       }
     });
 
+    it('matches runtime wrapper strings via Object.prototype.toString fallback when JSON.stringify returns empty-object placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => ({}),
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Object]',
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString runtime fallback after empty-object JSON placeholder`,
+        ).to.equal(true);
+      }
+    });
+
+    it('matches runtime wrapper strings via Object.prototype.toString fallback when JSON.stringify returns empty-array placeholders under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => [],
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => '[Array]',
+        });
+        Object.defineProperty(wrapper, Symbol.toStringTag, {
+          value: 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} Object.prototype.toString runtime fallback after empty-array JSON placeholder`,
+        ).to.equal(true);
+      }
+    });
+
     it('matches runtime wrapper strings via inspect fallback when message, name, constructor, cause, and errors accessors throw', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       for (const wrapperKind of hostileFallbackWrapperKinds) {
@@ -7971,6 +8013,44 @@ describe('Anvil utils', () => {
       );
     });
 
+    it('falls back to Object.prototype.toString when stringify returns an empty object placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          return {};
+        },
+        [inspectCustom]() {
+          return '[Object]';
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'RuntimeTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object RuntimeTag]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString when stringify returns an empty array placeholder', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          return [];
+        },
+        [inspectCustom]() {
+          return '[Array]';
+        },
+      };
+      Object.defineProperty(problematic, Symbol.toStringTag, {
+        value: 'RuntimeArrayTag',
+      });
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object RuntimeArrayTag]',
+      );
+    });
+
     it('falls back to Object.prototype.toString when stringify returns undefined and inspect throws', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const problematic = {
@@ -8214,6 +8294,7 @@ describe('Anvil utils', () => {
     });
 
     it('formats safely when message, name, and constructor access all fail', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const problematicError = new Error('hidden');
       Object.defineProperty(problematicError, 'message', {
         value: ' ',
@@ -8230,9 +8311,12 @@ describe('Anvil utils', () => {
           throw new Error('blocked constructor getter');
         },
       });
+      Object.defineProperty(problematicError, inspectCustom, {
+        value: () => '[Object]',
+      });
 
       expect(formatLocalAnvilStartError(problematicError)).to.equal(
-        'Failed to start local anvil: {}',
+        'Failed to start local anvil: [object Error]',
       );
     });
   });
