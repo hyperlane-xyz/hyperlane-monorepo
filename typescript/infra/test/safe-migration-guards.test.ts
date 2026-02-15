@@ -611,31 +611,50 @@ function collectDefaultImportsFromModule(
   const defaultImports: string[] = [];
   for (const sourceFilePath of collectProjectSourceFilePaths(paths)) {
     const contents = fs.readFileSync(sourceFilePath, 'utf8');
-    const sourceFile = ts.createSourceFile(
-      sourceFilePath,
+    const defaultImportNames = collectDefaultImportNamesFromSource(
       contents,
-      ts.ScriptTarget.Latest,
-      true,
-      getScriptKind(sourceFilePath),
+      sourceFilePath,
+      moduleName,
     );
-
-    const visit = (node: ts.Node) => {
-      if (
-        ts.isImportDeclaration(node) &&
-        ts.isStringLiteralLike(node.moduleSpecifier) &&
-        node.moduleSpecifier.text === moduleName &&
-        node.importClause?.name
-      ) {
-        defaultImports.push(
-          `${path.relative(process.cwd(), sourceFilePath)} -> ${node.importClause.name.text}`,
-        );
-      }
-      ts.forEachChild(node, visit);
-    };
-
-    visit(sourceFile);
+    for (const localName of defaultImportNames) {
+      defaultImports.push(
+        `${path.relative(process.cwd(), sourceFilePath)} -> ${localName}`,
+      );
+    }
   }
   return defaultImports;
+}
+
+function collectDefaultImportNamesFromSource(
+  sourceText: string,
+  filePath: string,
+  moduleName: string,
+): string[] {
+  const defaultImportNames: string[] = [];
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
+  );
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      node.moduleSpecifier.text === moduleName &&
+      node.importClause?.name
+    ) {
+      defaultImportNames.push(
+        normalizeNamedSymbol(node.importClause.name.text),
+      );
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return defaultImportNames.filter(Boolean);
 }
 
 function isLegacySafeUtilSpecifier(source: string): boolean {
@@ -1062,6 +1081,21 @@ describe('Safe migration guards', () => {
       (reference) => `${reference.symbol}@${reference.source}`,
     );
     expect(references).to.include('getSafe@./fixtures/guard-module.js');
+  });
+
+  it('collects value and type-only default imports from source text', () => {
+    const source = [
+      "import SafeSdk from '@fixtures/guard-module';",
+      "import type SafeType from '@fixtures/guard-module';",
+      "import { getSafe } from '@fixtures/guard-module';",
+      "import SafeOther from '@fixtures/other-module';",
+    ].join('\n');
+    const defaultImports = collectDefaultImportNamesFromSource(
+      source,
+      'fixture.ts',
+      '@fixtures/guard-module',
+    );
+    expect(defaultImports).to.deep.equal(['SafeSdk', 'SafeType']);
   });
 
   it('keeps required runtime safe helpers value-exported from sdk index', () => {

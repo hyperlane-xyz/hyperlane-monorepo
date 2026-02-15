@@ -376,6 +376,38 @@ function collectSdkSourceFilePaths(dirPath: string): string[] {
   return filePaths;
 }
 
+function collectDefaultImportNamesFromSource(
+  sourceText: string,
+  filePath: string,
+  moduleName: string,
+): string[] {
+  const defaultImportNames: string[] = [];
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
+  );
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      node.moduleSpecifier.text === moduleName &&
+      node.importClause?.name
+    ) {
+      defaultImportNames.push(
+        normalizeNamedSymbol(node.importClause.name.text),
+      );
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return defaultImportNames.filter(Boolean);
+}
+
 function collectDefaultImportsFromModule(
   sourceFilePaths: readonly string[],
   moduleName: string,
@@ -383,29 +415,16 @@ function collectDefaultImportsFromModule(
   const defaultImports: string[] = [];
   for (const sourceFilePath of sourceFilePaths) {
     const contents = fs.readFileSync(sourceFilePath, 'utf8');
-    const sourceFile = ts.createSourceFile(
-      sourceFilePath,
+    const defaultImportNames = collectDefaultImportNamesFromSource(
       contents,
-      ts.ScriptTarget.Latest,
-      true,
-      getScriptKind(sourceFilePath),
+      sourceFilePath,
+      moduleName,
     );
-
-    const visit = (node: ts.Node) => {
-      if (
-        ts.isImportDeclaration(node) &&
-        ts.isStringLiteralLike(node.moduleSpecifier) &&
-        node.moduleSpecifier.text === moduleName &&
-        node.importClause?.name
-      ) {
-        defaultImports.push(
-          `${path.relative(process.cwd(), sourceFilePath)} -> ${node.importClause.name.text}`,
-        );
-      }
-      ts.forEachChild(node, visit);
-    };
-
-    visit(sourceFile);
+    for (const localName of defaultImportNames) {
+      defaultImports.push(
+        `${path.relative(process.cwd(), sourceFilePath)} -> ${localName}`,
+      );
+    }
   }
   return defaultImports;
 }
@@ -611,6 +630,21 @@ describe('Gnosis Safe migration guards', () => {
     expect(
       hasDefaultReExportFromModule(source, 'fixture.ts', './fixtures/other.js'),
     ).to.equal(false);
+  });
+
+  it('collects value and type-only default imports from source text', () => {
+    const source = [
+      "import SafeSdk from '@fixtures/guard-module';",
+      "import type SafeType from '@fixtures/guard-module';",
+      "import { getSafe } from '@fixtures/guard-module';",
+      "import SafeOther from '@fixtures/other-module';",
+    ].join('\n');
+    const defaultImports = collectDefaultImportNamesFromSource(
+      source,
+      'fixture.ts',
+      '@fixtures/guard-module',
+    );
+    expect(defaultImports).to.deep.equal(['SafeSdk', 'SafeType']);
   });
 
   it('prevents sdk source imports from infra paths', () => {
