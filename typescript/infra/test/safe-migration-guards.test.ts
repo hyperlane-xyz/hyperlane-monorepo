@@ -602,6 +602,26 @@ function getDisallowedModuleSpecifierReferences(
     .map(formatModuleSpecifierReference);
 }
 
+function collectDefaultSymbolReferencesFromModule(
+  paths: readonly string[],
+  moduleName: string,
+): string[] {
+  const defaultReferences: string[] = [];
+  for (const sourceFilePath of collectProjectSourceFilePaths(paths)) {
+    const contents = fs.readFileSync(sourceFilePath, 'utf8');
+    const references = collectSymbolSourceReferences(contents, sourceFilePath);
+    for (const reference of references) {
+      if (reference.source !== moduleName || reference.symbol !== 'default') {
+        continue;
+      }
+      defaultReferences.push(
+        `${path.relative(process.cwd(), sourceFilePath)} -> ${reference.symbol}`,
+      );
+    }
+  }
+  return defaultReferences;
+}
+
 function collectDefaultImportsFromModule(
   paths: readonly string[],
   moduleName: string,
@@ -1108,6 +1128,19 @@ describe('Safe migration guards', () => {
     expect(references).to.include('getSafe@./fixtures/guard-module.js');
   });
 
+  it('tracks default symbol references from namespace and require access', () => {
+    const source = [
+      "import * as sdk from './fixtures/guard-module.js';",
+      'const namespaceDefault = sdk.default;',
+      "const namespaceElementDefault = sdk['default'];",
+      "const requireDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
   it('collects value and type-only default imports from source text', () => {
     const source = [
       "import SafeSdk from '@fixtures/guard-module';",
@@ -1264,6 +1297,20 @@ describe('Safe migration guards', () => {
     expectNoRipgrepMatches(
       String.raw`(?:import\s+[A-Za-z_$][A-Za-z0-9_$]*\s+from\s+['"]@hyperlane-xyz/sdk['"]|import\s+(?:type\s+)?\{\s*(?:type\s+)?default(?:\s+as\s+[A-Za-z_$][A-Za-z0-9_$]*)?\s*\}\s*from\s+['"]@hyperlane-xyz/sdk['"])`,
       'default imports from @hyperlane-xyz/sdk',
+      INFRA_SOURCE_AND_TEST_PATHS,
+    );
+  });
+
+  it('prevents sdk default property access via namespace aliases', () => {
+    const defaultSdkReferences = collectDefaultSymbolReferencesFromModule(
+      INFRA_SOURCE_AND_TEST_PATHS,
+      '@hyperlane-xyz/sdk',
+    );
+    expect(defaultSdkReferences).to.deep.equal([]);
+
+    expectNoRipgrepMatches(
+      String.raw`require\(['"]@hyperlane-xyz/sdk['"]\)\s*(?:\.default|\[\s*['"]default['"]\s*\])`,
+      'direct default property access from @hyperlane-xyz/sdk',
       INFRA_SOURCE_AND_TEST_PATHS,
     );
   });
