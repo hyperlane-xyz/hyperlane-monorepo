@@ -25,6 +25,16 @@ describe('squads test constants', () => {
     ]);
   });
 
+  it('keeps expected canonical executable squads script paths', () => {
+    expect(EXECUTABLE_SQUADS_SCRIPT_PATHS).to.deep.equal([
+      'scripts/squads/get-pending-txs.ts',
+      'scripts/squads/parse-txs.ts',
+      'scripts/squads/read-proposal.ts',
+      'scripts/squads/cancel-proposal.ts',
+      'scripts/sealevel-helpers/update-multisig-ism-config.ts',
+    ]);
+  });
+
   it('exports frozen constants', () => {
     expect(Object.isFrozen(NON_EXECUTABLE_SQUADS_SCRIPT_FILES)).to.equal(true);
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
@@ -55,5 +65,15 @@ describe('squads test constants', () => {
         ),
       ).to.equal(true);
     }
+  });
+
+  it('keeps constants free of duplicate script paths', () => {
+    expect(new Set(SQUADS_SCRIPT_PATHS).size).to.equal(SQUADS_SCRIPT_PATHS.length);
+    expect(new Set(EXECUTABLE_SQUADS_SCRIPT_PATHS).size).to.equal(
+      EXECUTABLE_SQUADS_SCRIPT_PATHS.length,
+    );
+    expect(new Set(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS).size).to.equal(
+      SQUADS_ERROR_FORMATTING_SCRIPT_PATHS.length,
+    );
   });
 });
