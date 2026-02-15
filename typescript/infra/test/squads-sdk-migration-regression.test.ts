@@ -336,6 +336,23 @@ function assertTrackedSourceSetContainsPaths(
   }
 }
 
+function assertRelativePathsResolveToFiles(
+  relativePaths: readonly string[],
+  pathSetLabel: string,
+): void {
+  for (const relativePath of relativePaths) {
+    const absolutePath = path.join(INFRA_ROOT, relativePath);
+    expect(
+      fs.existsSync(absolutePath),
+      `Expected ${pathSetLabel} path to exist: ${relativePath}`,
+    ).to.equal(true);
+    expect(
+      fs.statSync(absolutePath).isFile(),
+      `Expected ${pathSetLabel} path to resolve to a file: ${relativePath}`,
+    ).to.equal(true);
+  }
+}
+
 function assertRegressionTestPathShape(
   pathValue: string,
   pathLabel: string,
@@ -865,6 +882,21 @@ describe('squads sdk migration regression', () => {
 
   it('keeps squads tracked test-asset path set normalized and deduplicated', () => {
     assertTrackedSourcePathSetNormalizedAndDeduplicated(
+      SQUADS_TRACKED_TEST_ASSET_PATHS,
+      'squads tracked test-asset',
+    );
+  });
+
+  it('keeps squads tracked test assets resolving to files', () => {
+    assertRelativePathsResolveToFiles(
+      SQUADS_REGRESSION_TEST_PATHS,
+      'squads regression test',
+    );
+    assertRelativePathsResolveToFiles(
+      SQUADS_TRACKED_TEST_SUPPORT_PATHS,
+      'squads test-support',
+    );
+    assertRelativePathsResolveToFiles(
       SQUADS_TRACKED_TEST_ASSET_PATHS,
       'squads tracked test-asset',
     );
