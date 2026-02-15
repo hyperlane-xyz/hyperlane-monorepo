@@ -78,6 +78,17 @@ function toPosixPath(relativePath: string): string {
   return relativePath.split(path.sep).join(path.posix.sep);
 }
 
+function isNormalizedTrackedSourceRelativePath(relativePath: string): boolean {
+  return (
+    relativePath.length > 0 &&
+    relativePath === relativePath.trim() &&
+    !relativePath.startsWith('.') &&
+    !relativePath.startsWith('/') &&
+    !relativePath.includes('\\') &&
+    !relativePath.split('/').includes('..')
+  );
+}
+
 function readInfraFile(relativePath: string): string {
   return fs.readFileSync(path.join(INFRA_ROOT, relativePath), 'utf8');
 }
@@ -345,6 +356,16 @@ describe('squads sdk migration regression', () => {
     expect(trackedSourceFiles).to.deep.equal(
       [...trackedSourceFiles].sort(compareLexicographically),
     );
+  });
+
+  it('keeps tracked infra source file paths normalized and relative', () => {
+    const trackedSourceFiles = listTrackedSourceFilesRecursively('.');
+    for (const trackedSourceFilePath of trackedSourceFiles) {
+      expect(
+        isNormalizedTrackedSourceRelativePath(trackedSourceFilePath),
+        `Expected tracked source file path to be normalized and relative: ${trackedSourceFilePath}`,
+      ).to.equal(true);
+    }
   });
 
   it('keeps squads-related scripts using shared formatScriptError helper', () => {
