@@ -888,7 +888,7 @@ function getPendingProposalNativeTokenMetadataForChain(
     typeof decimals === 'number' &&
       Number.isSafeInteger(decimals) &&
       decimals >= 0,
-    `Malformed native token decimals for ${chain}: expected non-negative safe integer, got ${getUnknownValueTypeName(decimals)}`,
+    `Malformed native token decimals for ${chain}: expected non-negative safe integer, got ${formatSafeIntegerInputValue(decimals)}`,
   );
 
   let symbolValue: unknown;
@@ -950,7 +950,7 @@ async function getVaultBalanceForPendingProposals(
     typeof vaultBalance === 'number' &&
       Number.isFinite(vaultBalance) &&
       vaultBalance >= 0,
-    `Malformed vault balance for ${chain}: expected non-negative finite number, got ${getUnknownValueTypeName(vaultBalance)}`,
+    `Malformed vault balance for ${chain}: expected non-negative finite number, got ${formatSafeIntegerInputValue(vaultBalance)}`,
   );
 
   return vaultBalance;

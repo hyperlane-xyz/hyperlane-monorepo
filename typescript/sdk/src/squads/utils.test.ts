@@ -3953,6 +3953,30 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('skips provider lookup when chain metadata decimals are NaN', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getChainMetadata: () => ({
+          nativeToken: {
+            decimals: Number.NaN,
+            symbol: 'SOL',
+          },
+        }),
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        ['solanamainnet'],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('skips provider lookup when chain metadata is promise-like', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -4259,6 +4283,49 @@ describe('squads utils', () => {
           getSolanaWeb3Provider: () => ({
             getAccountInfo: async () => null,
             getBalance: async () => 'malformed-balance',
+          }),
+        };
+
+        const proposals = await getPendingProposalsForChains(
+          ['solanamainnet'],
+          mpp,
+        );
+
+        expect(proposals).to.deep.equal([]);
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalFromAccountAddress;
+      }
+    });
+
+    it('skips chain when provider returns NaN vault balance', async () => {
+      const originalFromAccountAddress = accounts.Multisig.fromAccountAddress;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+
+        const mpp = {
+          getChainMetadata: () => ({
+            nativeToken: {
+              decimals: 9,
+              symbol: 'SOL',
+            },
+          }),
+          getSolanaWeb3Provider: () => ({
+            getAccountInfo: async () => null,
+            getBalance: async () => Number.NaN,
           }),
         };
 
