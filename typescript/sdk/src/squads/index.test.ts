@@ -158,5 +158,7 @@ describe('squads barrel exports', () => {
       "mocha --config .mocharc.json 'src/squads/*.test.ts'",
     );
     expect(sdkPackageJson.exports?.['.']).to.equal('./dist/index.js');
+    expect(sdkPackageJson.exports?.['./squads']).to.equal(undefined);
+    expect(sdkPackageJson.exports?.['./squads/*']).to.equal(undefined);
   });
 });
