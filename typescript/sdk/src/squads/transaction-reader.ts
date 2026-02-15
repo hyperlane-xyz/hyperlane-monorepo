@@ -2303,32 +2303,58 @@ export class SquadsTransactionReader {
         SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
       ]: {
         const data = inst.data as MultisigSetValidatorsData;
-        const remoteDomainForDisplay = formatIntegerValidationValue(
-          data.domain,
-        );
+        let domainValue: unknown;
+        try {
+          domainValue = data.domain;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read multisig domain on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          domainValue = undefined;
+        }
+        let thresholdValue: unknown;
+        try {
+          thresholdValue = data.threshold;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read multisig threshold on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          thresholdValue = undefined;
+        }
+        let validatorsValue: unknown;
+        try {
+          validatorsValue = data.validators;
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to read multisig validators on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+          validatorsValue = undefined;
+        }
+
+        const remoteDomainForDisplay =
+          formatIntegerValidationValue(domainValue);
         const validatorsForDisplay = this.normalizeValidatorsForDisplay(
           chain,
           remoteDomainForDisplay,
-          data.validators,
+          validatorsValue,
         );
-        const remoteChain = this.tryResolveRemoteChainNameForDisplay(
-          data.domain,
-        );
+        const remoteChain =
+          this.tryResolveRemoteChainNameForDisplay(domainValue);
         const validatorsWithAliases = remoteChain
           ? formatValidatorsWithAliases(remoteChain, validatorsForDisplay)
           : validatorsForDisplay;
 
         tx.args = {
-          domain: data.domain,
-          threshold: data.threshold,
+          domain: domainValue,
+          threshold: thresholdValue,
           validators: validatorsWithAliases,
         };
 
         const verification = this.verifyConfiguration(
           chain,
-          data.domain,
-          data.threshold,
-          data.validators,
+          domainValue,
+          thresholdValue,
+          validatorsValue,
         );
 
         const chainInfo = remoteChain

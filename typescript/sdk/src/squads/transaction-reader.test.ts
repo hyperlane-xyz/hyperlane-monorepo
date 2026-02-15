@@ -3112,6 +3112,57 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('handles throwing multisig validator payload getters while formatting instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const hostileValidatorData = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (
+            property === 'domain' ||
+            property === 'threshold' ||
+            property === 'validators'
+          ) {
+            throw new Error(`${String(property)} unavailable`);
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'MultisigIsmMessageId',
+      instructionType:
+        SealevelMultisigIsmInstructionName[
+          SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+        ],
+      data: hostileValidatorData as unknown as Record<string, unknown>,
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(result.args).to.deep.equal({
+      domain: undefined,
+      threshold: undefined,
+      validators: [],
+    });
+    expect(result.insight).to.equal(
+      '❌ fatal mismatch: Malformed remote domain for solanamainnet: expected non-negative safe integer, got undefined',
+    );
+  });
+
   it('falls back to stable display labels when instruction metadata is malformed', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
