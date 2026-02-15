@@ -5663,8 +5663,8 @@ describe('squads transaction reader', () => {
             connections: [],
           },
         ],
-      },
-    } as unknown as WarpCoreConfig);
+      } as unknown as WarpCoreConfig,
+    });
     const readerAny = reader as unknown as {
       parseVaultInstructions: (
         chain: string,

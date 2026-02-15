@@ -1898,9 +1898,9 @@ export class SquadsTransactionReader {
 
   private verifyConfiguration(
     originChain: SquadsChainName,
-    remoteDomain: number,
-    threshold: number,
-    validators: readonly string[],
+    remoteDomain: unknown,
+    threshold: unknown,
+    validators: unknown,
   ): { matches: boolean; issues: string[] } {
     const issues: string[] = [];
     if (!isNonNegativeSafeInteger(remoteDomain)) {
@@ -2459,7 +2459,7 @@ export class SquadsTransactionReader {
   }
 
   private formatAddressLikeForDisplay(
-    chain: SquadsChainName,
+    chain: ChainName,
     label: string,
     value: unknown,
   ): string {
@@ -2516,7 +2516,7 @@ export class SquadsTransactionReader {
   }
 
   private formatAddressLikeListForDisplay(
-    chain: SquadsChainName,
+    chain: ChainName,
     label: string,
     values: unknown,
   ): string[] {
