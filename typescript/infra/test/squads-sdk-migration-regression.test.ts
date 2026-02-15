@@ -891,17 +891,48 @@ describe('squads sdk migration regression', () => {
         continue;
       }
 
+      const importsOrderingHelper =
+        SQUADS_TEST_ORDERING_HELPER_IMPORT_PATTERN.test(fileContents);
+      const orderingComparatorReferenceCount = countSubstringOccurrences(
+        fileContents,
+        'compareLexicographically',
+      );
       expect(
         LOCAL_LEXICOGRAPHIC_COMPARATOR_DEFINITION_PATTERN.test(fileContents),
         `Expected squads test asset to avoid local lexical comparator definition: ${pathValue}`,
       ).to.equal(false);
-      if (fileContents.includes('compareLexicographically(')) {
+      if (orderingComparatorReferenceCount > 0) {
         expect(
-          SQUADS_TEST_ORDERING_HELPER_IMPORT_PATTERN.test(fileContents),
+          importsOrderingHelper,
           `Expected squads test asset using lexical comparator to import shared helper: ${pathValue}`,
         ).to.equal(true);
       }
+      if (importsOrderingHelper) {
+        expect(
+          orderingComparatorReferenceCount > 1,
+          `Expected squads test asset importing shared ordering helper to call comparator: ${pathValue}`,
+        ).to.equal(true);
+      }
     }
+  });
+
+  it('keeps shared squads ordering helper minimal and import-free', () => {
+    const orderingHelperSource = readInfraFile(
+      SQUADS_TEST_ORDERING_HELPER_PATH,
+    );
+    expect(
+      countLocalLexicographicComparatorDefinitions(orderingHelperSource),
+    ).to.equal(1);
+    expect(orderingHelperSource.includes('import ')).to.equal(false);
+    expect(
+      countSubstringOccurrences(
+        orderingHelperSource,
+        'export function compareLexicographically(',
+      ),
+    ).to.equal(1);
+    expect(
+      SQUADS_TEST_ORDERING_HELPER_IMPORT_PATTERN.test(orderingHelperSource),
+    ).to.equal(false);
   });
 
   it('keeps squads test-support paths source-only and squads-scoped', () => {
