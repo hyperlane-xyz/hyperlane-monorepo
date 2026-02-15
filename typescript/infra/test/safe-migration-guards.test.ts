@@ -187,19 +187,28 @@ function readModuleSourceArg(
   return undefined;
 }
 
+function unwrapCallTargetExpression(expression: ts.Expression): ts.Expression {
+  const unwrapped = unwrapInitializerExpression(expression);
+  if (
+    ts.isBinaryExpression(unwrapped) &&
+    unwrapped.operatorToken.kind === ts.SyntaxKind.CommaToken
+  ) {
+    return unwrapCallTargetExpression(unwrapped.right);
+  }
+  return unwrapped;
+}
+
 function readModuleSourceFromInitializer(
   expression: ts.Expression,
 ): string | undefined {
   const unwrapped = unwrapInitializerExpression(expression);
   if (!ts.isCallExpression(unwrapped)) return undefined;
+  const callTarget = unwrapCallTargetExpression(unwrapped.expression);
 
-  if (
-    ts.isIdentifier(unwrapped.expression) &&
-    unwrapped.expression.text === 'require'
-  ) {
+  if (ts.isIdentifier(callTarget) && callTarget.text === 'require') {
     return readModuleSourceArg(unwrapped);
   }
-  if (unwrapped.expression.kind === ts.SyntaxKind.ImportKeyword) {
+  if (callTarget.kind === ts.SyntaxKind.ImportKeyword) {
     return readModuleSourceArg(unwrapped);
   }
   return undefined;
@@ -1521,6 +1530,18 @@ describe('Safe migration guards', () => {
       "const commaAlias = (0, require('./fixtures/guard-module.js'));",
       'const commaDefault = commaAlias.default;',
       "const inlineCommaDefault = (0, require('./fixtures/guard-module.js'))['default'];",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through comma-wrapped require call targets', () => {
+    const source = [
+      "const callTargetAlias = (0, require)('./fixtures/guard-module.js');",
+      'const callTargetDefault = callTargetAlias.default;',
+      "const inlineCallTargetDefault = (0, require)('./fixtures/guard-module.js')['default'];",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
