@@ -437,3 +437,5 @@ Regression coverage also now confirms double-escaped quoted/single-quoted/mixed-
 Regression coverage also now confirms double-escaped uppercase object-tag/object-tag-object placeholder outputs from `String(error)` (for example `\\\"[OBJECT ARRAY]\\\"` and `\\\"[OBJECT OBJECT]\\\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
 
 Regression coverage also now confirms double-escaped mixed-case and lowercase object-tag/object-tag-object placeholder outputs from `String(error)` (for example `\\\"[oBjEcT aRrAy]\\\"`, `\\\"[object array]\\\"`, `\\\"[oBjEcT oBjEcT]\\\"`, and `\\\"[object object]\\\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
+
+Regression coverage also now confirms triple-escaped quoted object-tag/object-tag-object placeholder outputs from `String(error)` (for example `\\\\\\\"[object Array]\\\\\\\"` and `\\\\\\\"[object Object]\\\\\\\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
