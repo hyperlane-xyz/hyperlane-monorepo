@@ -205,6 +205,20 @@ function getObjectRecord(
   return value as Record<string, unknown>;
 }
 
+function getRecordFieldOrThrow(
+  record: Record<string, unknown>,
+  fieldName: string,
+  label: string,
+): unknown {
+  try {
+    return record[fieldName];
+  } catch (error) {
+    throw new Error(
+      `Failed to read ${label}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+}
+
 function formatUnknownErrorForMessage(error: unknown): string {
   return stringifyUnknownSquadsError(error, {
     preferErrorMessageForErrorInstances: true,
@@ -1157,7 +1171,12 @@ export function parseSquadProposal(proposal: unknown): ParsedSquadProposal {
 
 export function parseSquadProposalTransactionIndex(proposal: unknown): number {
   const proposalRecord = getObjectRecord(proposal, 'Squads proposal');
-  return toSafeInteger(proposalRecord.transactionIndex, 'transaction index', {
+  const transactionIndex = getRecordFieldOrThrow(
+    proposalRecord,
+    'transactionIndex',
+    'Squads transaction index',
+  );
+  return toSafeInteger(transactionIndex, 'transaction index', {
     nonNegative: true,
   });
 }
@@ -1166,22 +1185,36 @@ function getProposalStatusMetadata(proposal: Record<string, unknown>): {
   statusKind: string;
   rawStatusTimestamp: unknown;
 } {
-  const status = proposal.status;
+  const status = getRecordFieldOrThrow(
+    proposal,
+    'status',
+    'Squads proposal status',
+  );
   assert(
     status && typeof status === 'object',
     'Squads proposal status must be an object',
   );
 
   const statusRecord = status as Record<string, unknown>;
+  const statusKind = getRecordFieldOrThrow(
+    statusRecord,
+    '__kind',
+    'Squads proposal status kind',
+  );
   const normalizedStatusKind = normalizeStatusKind(
-    statusRecord.__kind,
+    statusKind,
     'Squads proposal status kind must be a string',
     'Squads proposal status kind must be a non-empty string',
+  );
+  const rawStatusTimestamp = getRecordFieldOrThrow(
+    statusRecord,
+    'timestamp',
+    'Squads proposal status timestamp',
   );
 
   return {
     statusKind: normalizedStatusKind,
-    rawStatusTimestamp: statusRecord.timestamp,
+    rawStatusTimestamp,
   };
 }
 
@@ -1200,7 +1233,11 @@ function getProposalVoteCount(
   proposal: Record<string, unknown>,
   fieldName: 'approved' | 'rejected' | 'cancelled',
 ): number {
-  const fieldValue = proposal[fieldName];
+  const fieldValue = getRecordFieldOrThrow(
+    proposal,
+    fieldName,
+    `Squads proposal ${fieldName} votes`,
+  );
   assert(
     Array.isArray(fieldValue),
     `Squads proposal ${fieldName} votes must be an array`,
@@ -1214,24 +1251,40 @@ export function parseSquadMultisig(
 ): ParsedSquadMultisig {
   const multisigRecord = getObjectRecord(multisig, `Squads ${fieldPrefix}`);
   const threshold = toSafeInteger(
-    multisigRecord.threshold,
+    getRecordFieldOrThrow(
+      multisigRecord,
+      'threshold',
+      `Squads ${fieldPrefix} threshold`,
+    ),
     `${fieldPrefix} threshold`,
     {
       positive: true,
     },
   );
   const currentTransactionIndex = toSafeInteger(
-    multisigRecord.transactionIndex,
+    getRecordFieldOrThrow(
+      multisigRecord,
+      'transactionIndex',
+      `Squads ${fieldPrefix} transaction index`,
+    ),
     `${fieldPrefix} transaction index`,
     { nonNegative: true },
   );
   const staleTransactionIndex = toSafeInteger(
-    multisigRecord.staleTransactionIndex,
+    getRecordFieldOrThrow(
+      multisigRecord,
+      'staleTransactionIndex',
+      `Squads ${fieldPrefix} stale transaction index`,
+    ),
     `${fieldPrefix} stale transaction index`,
     { nonNegative: true },
   );
   const timeLock = toSafeInteger(
-    multisigRecord.timeLock,
+    getRecordFieldOrThrow(
+      multisigRecord,
+      'timeLock',
+      `Squads ${fieldPrefix} timelock`,
+    ),
     `${fieldPrefix} timelock`,
     {
       nonNegative: true,
@@ -1262,7 +1315,11 @@ function getMultisigMemberCount(
   multisig: Record<string, unknown>,
   fieldPrefix: string,
 ): number | undefined {
-  const members = multisig.members;
+  const members = getRecordFieldOrThrow(
+    multisig,
+    'members',
+    `Squads ${fieldPrefix} members`,
+  );
   if (typeof members === 'undefined') {
     return undefined;
   }
@@ -1278,7 +1335,12 @@ function getMultisigMemberCount(
       member && typeof member === 'object',
       `Squads ${fieldPrefix} members[${index}] must be an object`,
     );
-    const memberKey = (member as { key?: unknown }).key;
+    const memberRecord = member as Record<string, unknown>;
+    const memberKey = getRecordFieldOrThrow(
+      memberRecord,
+      'key',
+      `Squads ${fieldPrefix} members[${index}] key`,
+    );
     assert(
       typeof memberKey !== 'undefined' && memberKey !== null,
       `Squads ${fieldPrefix} members[${index}] must include key`,

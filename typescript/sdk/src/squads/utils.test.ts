@@ -1351,6 +1351,32 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws contextual error when approved votes getter throws', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal(
+          new Proxy(
+            {
+              status: { __kind: SquadsProposalStatus.Active },
+              rejected: [],
+              cancelled: [],
+              transactionIndex: 1,
+            },
+            {
+              get(target, property, receiver) {
+                if (property === 'approved') {
+                  throw new Error('approved unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ) as unknown as Parameters<typeof parseSquadProposal>[0],
+        );
+
+      expect(parseInvalidProposal).to.throw(
+        'Failed to read Squads proposal approved votes: approved unavailable',
+      );
+    });
+
     it('throws when rejected votes field is not an array', () => {
       const parseInvalidProposal = () =>
         parseSquadProposal({
@@ -1392,6 +1418,32 @@ describe('squads utils', () => {
 
       expect(parseInvalidProposal).to.throw(
         'Squads proposal status must be an object',
+      );
+    });
+
+    it('throws contextual error when proposal status getter throws', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal(
+          new Proxy(
+            {
+              approved: [],
+              rejected: [],
+              cancelled: [],
+              transactionIndex: 1,
+            },
+            {
+              get(target, property, receiver) {
+                if (property === 'status') {
+                  throw new Error('status unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ) as unknown as Parameters<typeof parseSquadProposal>[0],
+        );
+
+      expect(parseInvalidProposal).to.throw(
+        'Failed to read Squads proposal status: status unavailable',
       );
     });
 
@@ -1497,6 +1549,29 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws contextual error when transaction index getter throws', () => {
+      const parseInvalidIndex = () =>
+        parseSquadProposalTransactionIndex(
+          new Proxy(
+            {},
+            {
+              get(target, property, receiver) {
+                if (property === 'transactionIndex') {
+                  throw new Error('index unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ) as unknown as Parameters<
+            typeof parseSquadProposalTransactionIndex
+          >[0],
+        );
+
+      expect(parseInvalidIndex).to.throw(
+        'Failed to read Squads transaction index: index unavailable',
+      );
+    });
+
     it('throws when transaction index value is negative', () => {
       const parseNegativeIndex = () =>
         parseSquadProposalTransactionIndex({
@@ -1535,6 +1610,57 @@ describe('squads utils', () => {
         staleTransactionIndex: 17,
         timeLock: 60,
       });
+    });
+
+    it('throws contextual error when threshold getter throws', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig(
+          new Proxy(
+            {
+              transactionIndex: 1n,
+              staleTransactionIndex: 0n,
+              timeLock: 0n,
+            },
+            {
+              get(target, property, receiver) {
+                if (property === 'threshold') {
+                  throw new Error('threshold unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ) as unknown as Parameters<typeof parseSquadMultisig>[0],
+        );
+
+      expect(parseInvalidMultisig).to.throw(
+        'Failed to read Squads multisig threshold: threshold unavailable',
+      );
+    });
+
+    it('throws contextual error when members getter throws', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig(
+          new Proxy(
+            {
+              threshold: 1n,
+              transactionIndex: 1n,
+              staleTransactionIndex: 0n,
+              timeLock: 0n,
+            },
+            {
+              get(target, property, receiver) {
+                if (property === 'members') {
+                  throw new Error('members unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ) as unknown as Parameters<typeof parseSquadMultisig>[0],
+        );
+
+      expect(parseInvalidMultisig).to.throw(
+        'Failed to read Squads multisig members: members unavailable',
+      );
     });
 
     it('accepts threshold of one with equal stale and current indices', () => {
