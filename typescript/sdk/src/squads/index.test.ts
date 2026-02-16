@@ -1938,6 +1938,43 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps required forbidden runtime hardening labels normalized and deeply frozen', () => {
+    expect(
+      Object.isFrozen(REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS),
+    ).to.equal(true);
+    expect(
+      REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS.length,
+    ).to.be.greaterThan(0);
+
+    const baselineLabels = [
+      ...REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS,
+    ];
+    const seenLabels = new Set<string>();
+    for (const requiredLabel of REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS) {
+      expect(requiredLabel.trim().length).to.be.greaterThan(0);
+      expect(
+        seenLabels.has(requiredLabel),
+        `Expected required forbidden labels to be unique: ${requiredLabel}`,
+      ).to.equal(false);
+      seenLabels.add(requiredLabel);
+    }
+
+    expect(() => {
+      (
+        REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS as unknown as string[]
+      ).push('injected required label');
+    }).to.throw(TypeError);
+    expect(() => {
+      (
+        REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS as unknown as string[]
+      )[0] = 'mutated required label';
+    }).to.throw(TypeError);
+
+    expect(REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS).to.deep.equal(
+      baselineLabels,
+    );
+  });
+
   it('keeps forbidden runtime hardening patterns deeply frozen', () => {
     expect(Object.isFrozen(FORBIDDEN_RUNTIME_HARDENING_PATTERNS)).to.equal(
       true,
