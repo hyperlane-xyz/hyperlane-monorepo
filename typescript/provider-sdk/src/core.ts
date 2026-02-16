@@ -134,6 +134,7 @@ export function coreResultToDeployedAddresses(result: {
     staticMerkleRootMultisigIsmFactory: '',
     proxyAdmin: '',
     staticMerkleRootWeightedMultisigIsmFactory: '',
+    incrementalDomainRoutingIsmFactory: '',
     staticAggregationHookFactory: '',
     staticAggregationIsmFactory: '',
     staticMessageIdMultisigIsmFactory: '',
