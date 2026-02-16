@@ -37,6 +37,12 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     return strategyPath;
   };
 
+  const createEmptyStrategyPath = () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-explicit-default-empty-strategy-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {});
+    return strategyPath;
+  };
+
   const createExplicitStrategyWithOverridePath = () => {
     const strategyPath = `${tmpdir()}/submitter-inference-explicit-default-with-override-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {
@@ -323,6 +329,54 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     expect(batches).to.have.length(1);
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
     expect((batches[0].config.submitter as any).chain).to.equal('toString');
+  });
+
+  it('ignores inherited chain strategies from Object prototype when strategy file has no own chain entries', async () => {
+    let protocolCalls = 0;
+    const strategyPath = createEmptyStrategyPath();
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      CHAIN,
+    );
+    Object.defineProperty(Object.prototype, CHAIN, {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x7777777777777777777777777777777777777777',
+          version: '1.0',
+        },
+      },
+    });
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => {
+              protocolCalls += 1;
+              return ProtocolType.Ethereum;
+            },
+          },
+        } as any,
+        strategyUrl: strategyPath,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(protocolCalls).to.equal(1);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(Object.prototype, CHAIN, originalDescriptor);
+      } else {
+        delete (Object.prototype as Record<string, unknown>)[CHAIN];
+      }
+    }
   });
 
   it('ignores disallowed prototype-literal chain keys when resolving explicit strategy', async () => {
