@@ -1920,7 +1920,13 @@ export class SquadsTransactionReader {
     }
 
     const normalizedActions: unknown[] =
-      !actionsReadFailed && actionsAreArray ? (actions as unknown[]) : [];
+      !actionsReadFailed && actionsAreArray
+        ? this.normalizeVaultArrayField(
+            chain,
+            `config actions at ${transactionIndex}`,
+            actions as unknown[],
+          )
+        : [];
     for (const action of normalizedActions) {
       const instruction = this.formatConfigAction(
         chain,

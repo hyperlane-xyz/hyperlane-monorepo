@@ -2804,6 +2804,48 @@ describe('squads transaction reader', () => {
     expect(observedTransactionIndex).to.equal(5);
   });
 
+  it('keeps config transaction parsing stable when config actions iteration throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      decodeConfigTransactionForRead: () => { actions: unknown };
+      readConfigTransaction: (
+        chain: string,
+        transactionIndex: number,
+        proposalData: Record<string, unknown>,
+        accountInfo: unknown,
+      ) => Promise<Record<string, unknown>>;
+    };
+    const hostileActions = new Proxy([{}], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error('actions iterator unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    readerAny.decodeConfigTransactionForRead = () => ({
+      actions: hostileActions,
+    });
+
+    const result = await readerAny.readConfigTransaction(
+      'solanamainnet',
+      5,
+      createMockProposalData(5),
+      {},
+    );
+
+    expect(result).to.include({
+      chain: 'solanamainnet',
+      transactionIndex: 5,
+    });
+    expect(result.instructions).to.deep.equal([]);
+  });
+
   it('normalizes padded chain names before config transaction parsing', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
