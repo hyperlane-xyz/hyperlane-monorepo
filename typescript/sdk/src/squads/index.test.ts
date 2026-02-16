@@ -3140,6 +3140,41 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps sdk runtime Reflect.apply summary helper aligned with direct source counting', () => {
+    const directRuntimeReflectApplyCountSummaries =
+      listSdkSquadsNonTestSourceFilePaths()
+        .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
+        .sort(compareLexicographically)
+        .map((runtimeSourcePath) => {
+          const absoluteSourcePath = path.join(
+            SDK_PACKAGE_ROOT,
+            runtimeSourcePath,
+          );
+          const source = fs.readFileSync(absoluteSourcePath, 'utf8');
+          return {
+            runtimeSourcePath,
+            reflectApplyIdentifierReferenceCount: countOccurrences(
+              source,
+              REFLECT_APPLY_IDENTIFIER_REFERENCE_STATEMENT,
+            ),
+            reflectApplyInvocationCount: countOccurrences(
+              source,
+              REFLECT_APPLY_INVOCATION_STATEMENT,
+            ),
+            reflectApplyCaptureDeclarationCount: countOccurrences(
+              source,
+              REFLECT_APPLY_CAPTURE_DECLARATION_STATEMENT,
+            ),
+          };
+        });
+    const discoveredRuntimeReflectApplyCountSummaries =
+      listSdkSquadsRuntimeReflectApplyCountSummaries();
+
+    expect(discoveredRuntimeReflectApplyCountSummaries).to.deep.equal(
+      directRuntimeReflectApplyCountSummaries,
+    );
+  });
+
   it('keeps sdk Reflect.apply identifier and REFLECT_APPLY totals aligned with runtime sources', () => {
     const identifierReferenceCountTotalFromTable =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.reduce(
