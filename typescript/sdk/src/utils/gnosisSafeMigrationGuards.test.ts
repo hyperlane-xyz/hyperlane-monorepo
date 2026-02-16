@@ -238,6 +238,33 @@ function extractStrictEqualityHelperSection(sourceText: string): string {
   return match[0].trim();
 }
 
+function extractStringLiteralArrayConstant(
+  sourceText: string,
+  constantName: string,
+): string[] {
+  const constantRegex = new RegExp(
+    String.raw`const ${constantName} = \[(.*?)\] as const;`,
+    's',
+  );
+  const match = sourceText.match(constantRegex);
+  if (!match) {
+    throw new Error(`Failed to locate string-array constant ${constantName}`);
+  }
+  return [...match[1].matchAll(/'([^']+)'/g)].map((entry) => entry[1]);
+}
+
+function getInfraRequiredSafeHelperAllowlist(): string[] {
+  const infraGuardSuitePath = path.resolve(
+    process.cwd(),
+    '../infra/test/safe-migration-guards.test.ts',
+  );
+  const infraGuardSuiteSource = fs.readFileSync(infraGuardSuitePath, 'utf8');
+  return extractStringLiteralArrayConstant(
+    infraGuardSuiteSource,
+    'REQUIRED_SAFE_HELPER_EXPORTS',
+  );
+}
+
 function normalizeNamedSymbol(symbol: string): string {
   const trimmed = symbol.trim();
   if (!trimmed || trimmed.startsWith('...')) return '';
@@ -45902,6 +45929,23 @@ describe('Gnosis Safe migration guards', () => {
     expect([...anyContextTitles].sort()).to.deep.equal(
       [...constrainedTitles].sort(),
     );
+  });
+
+  it('keeps sdk required safe helper allowlist aligned with infra allowlist', () => {
+    const infraRequiredAllowlist = new Set(
+      getInfraRequiredSafeHelperAllowlist(),
+    );
+    expect(infraRequiredAllowlist.size).to.be.greaterThan(
+      0,
+      'Expected infra required safe helper allowlist to be non-empty',
+    );
+    const sdkRequiredAllowlist = new Set<string>(REQUIRED_GNOSIS_SAFE_EXPORTS);
+    for (const symbol of infraRequiredAllowlist) {
+      expect(
+        sdkRequiredAllowlist.has(symbol),
+        `Expected sdk required safe export allowlist to include ${symbol}`,
+      ).to.equal(true);
+    }
   });
 
   it('keeps strict-equality conditional source fixture structural invariants', () => {
