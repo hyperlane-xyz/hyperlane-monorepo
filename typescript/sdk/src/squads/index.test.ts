@@ -1445,6 +1445,29 @@ function assertReflectApplyWrapperDefaultDiscoveryMatchesCanonicalInventories(
     ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
   ]);
 }
+function assertScenarioLabelsUniqueAndNormalized(
+  scenarioLabels: readonly string[],
+  assertionContext: string,
+): void {
+  expect(
+    scenarioLabels.length,
+    `${assertionContext}: expected at least one scenario label`,
+  ).to.be.greaterThan(0);
+  expect(
+    new Set(scenarioLabels).size,
+    `${assertionContext}: expected scenario labels to be unique`,
+  ).to.equal(scenarioLabels.length);
+  for (const scenarioLabel of scenarioLabels) {
+    expect(
+      scenarioLabel.trim().length,
+      `${assertionContext}: expected non-empty scenario labels`,
+    ).to.be.greaterThan(0);
+    expect(
+      scenarioLabel,
+      `${assertionContext}: expected trimmed scenario labels`,
+    ).to.equal(scenarioLabel.trim());
+  }
+}
 
 type RuntimePatchRestorer = () => void;
 type ReflectApplyWrapperRuntimePatchScenario = Readonly<{
@@ -2986,12 +3009,10 @@ describe('squads barrel exports', () => {
       ({ label }) => label,
     );
 
-    expect(scenarioLabels.length).to.be.greaterThan(0);
-    expect(new Set(scenarioLabels).size).to.equal(scenarioLabels.length);
-    for (const scenarioLabel of scenarioLabels) {
-      expect(scenarioLabel.trim().length).to.be.greaterThan(0);
-      expect(scenarioLabel).to.equal(scenarioLabel.trim());
-    }
+    assertScenarioLabelsUniqueAndNormalized(
+      scenarioLabels,
+      'Reflect.apply wrapper runtime patch matrix scenario labels',
+    );
     expect(scenarioLabels).to.deep.equal([
       ...EXPECTED_REFLECT_APPLY_WRAPPER_RUNTIME_PATCH_SCENARIO_LABELS,
     ]);
@@ -3005,12 +3026,10 @@ describe('squads barrel exports', () => {
 
     for (const scenarioLabels of scenarioLabelSets) {
       expect(Object.isFrozen(scenarioLabels)).to.equal(true);
-      expect(scenarioLabels.length).to.be.greaterThan(0);
-      expect(new Set(scenarioLabels).size).to.equal(scenarioLabels.length);
-      for (const scenarioLabel of scenarioLabels) {
-        expect(scenarioLabel.trim().length).to.be.greaterThan(0);
-        expect(scenarioLabel).to.equal(scenarioLabel.trim());
-      }
+      assertScenarioLabelsUniqueAndNormalized(
+        scenarioLabels,
+        'Reflect.apply wrapper scenario-label constants',
+      );
     }
   });
 
@@ -3681,12 +3700,10 @@ describe('squads barrel exports', () => {
       listReflectApplyWrapperCallerRegexMutationScenarios().map(
         ({ label }) => label,
       );
-    expect(scenarioLabels.length).to.be.greaterThan(0);
-    expect(new Set(scenarioLabels).size).to.equal(scenarioLabels.length);
-    for (const scenarioLabel of scenarioLabels) {
-      expect(scenarioLabel.trim().length).to.be.greaterThan(0);
-      expect(scenarioLabel).to.equal(scenarioLabel.trim());
-    }
+    assertScenarioLabelsUniqueAndNormalized(
+      scenarioLabels,
+      'Reflect.apply wrapper caller-regex mutation scenario labels',
+    );
     expect(scenarioLabels).to.deep.equal([
       ...EXPECTED_REFLECT_APPLY_WRAPPER_CALLER_REGEX_MUTATION_SCENARIO_LABELS,
     ]);
