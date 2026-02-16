@@ -803,6 +803,19 @@ describe('strategy parse helpers', () => {
     }
   });
 
+  it('parseExtendedSubmissionStrategy throws when own submitter getter throws', () => {
+    const input = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(input, 'submitter', {
+      enumerable: true,
+      configurable: true,
+      get: () => {
+        throw new Error('boom');
+      },
+    });
+
+    expect(() => parseExtendedSubmissionStrategy(input as any)).to.throw();
+  });
+
   it('parseExtendedChainSubmissionStrategy rejects prototype-only nested submitter', () => {
     const inheritedChainStrategy = Object.create({
       submitter: {
@@ -815,6 +828,24 @@ describe('strategy parse helpers', () => {
       () =>
         parseExtendedChainSubmissionStrategy({
           [CHAIN]: inheritedChainStrategy,
+        } as any),
+    ).to.throw();
+  });
+
+  it('parseExtendedChainSubmissionStrategy throws when own nested submitter getter throws', () => {
+    const chainStrategy = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(chainStrategy, 'submitter', {
+      enumerable: true,
+      configurable: true,
+      get: () => {
+        throw new Error('boom');
+      },
+    });
+
+    expect(
+      () =>
+        parseExtendedChainSubmissionStrategy({
+          [CHAIN]: chainStrategy,
         } as any),
     ).to.throw();
   });
