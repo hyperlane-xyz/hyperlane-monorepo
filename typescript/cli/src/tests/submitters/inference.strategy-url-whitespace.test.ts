@@ -66,6 +66,51 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
     }
   });
 
+  it('treats non-string strategyUrl as missing and falls back to jsonRpc default', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: 123 as any,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('does not attempt inference probes when strategyUrl is non-string and context is missing', async () => {
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('ownable probe should not run'));
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('safe probe should not run'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('timelock probe should not run'));
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {} as any,
+        strategyUrl: { bad: 'path' } as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
+      expect(ownableStub.callCount).to.equal(0);
+      expect(safeStub.callCount).to.equal(0);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('loads explicit strategy when strategyUrl has surrounding whitespace', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-strategy-url-whitespace-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {

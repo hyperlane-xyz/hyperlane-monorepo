@@ -1673,7 +1673,8 @@ export async function resolveSubmitterBatchesForTransactions({
     ];
   }
 
-  const normalizedStrategyUrl = strategyUrl?.trim();
+  const normalizedStrategyUrl =
+    typeof strategyUrl === 'string' ? strategyUrl.trim() : undefined;
   const explicitSubmissionStrategy: ExtendedSubmissionStrategy | undefined =
     normalizedStrategyUrl
       ? readChainSubmissionStrategy(normalizedStrategyUrl)[chain]
