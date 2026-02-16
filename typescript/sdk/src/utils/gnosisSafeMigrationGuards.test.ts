@@ -1228,6 +1228,12 @@ function readStaticTypeofResult(
       if (leftNullish === false) {
         return readStaticTypeofResult(unwrapped.left);
       }
+      if (
+        isStaticallyBooleanValuedExpression(unwrapped.left) &&
+        isStaticallyBooleanValuedExpression(unwrapped.right)
+      ) {
+        return 'boolean';
+      }
       const leftResult = readStaticTypeofResult(unwrapped.left);
       const rightResult = readStaticTypeofResult(unwrapped.right);
       if (
@@ -9414,6 +9420,51 @@ describe('Gnosis Safe migration guards', () => {
       'const marker = Math.random();',
       "const baseline = require('./fixtures/guard-module.js');",
       "if (((typeof ((marker === 1) || marker)) === 'boolean')) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality typeof nullish-coalesced conditional-negation boolean operands as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if (((typeof (((marker ? !left : !right) ?? (marker === 2 ? !up : !down))) === 'boolean'))) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-equality typeof nullish-coalesced mixed conditional operands conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js');",
+      "if (((typeof (((marker ? !left : !right) ?? (marker === 2 ? up : down))) === 'boolean'))) reqAlias = () => undefined;",
       "reqAlias('./fixtures/other-module.js');",
       'void baseline;',
     ].join('\n');
@@ -20620,6 +20671,41 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality typeof nullish-coalesced conditional-negation boolean operands as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if (((typeof (((marker ? !left : !right) ?? (marker === 2 ? !up : !down))) === 'boolean'))) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-equality typeof nullish-coalesced mixed conditional operands conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      "if (((typeof (((marker ? !left : !right) ?? (marker === 2 ? up : down))) === 'boolean'))) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('treats nullish-coalesced logical-and typeof false-left predicates as deterministic for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -25899,6 +25985,37 @@ describe('Gnosis Safe migration guards', () => {
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'const marker = Math.random();',
       "if (((typeof ((marker === 1) || marker)) === 'boolean')) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality typeof nullish-coalesced conditional-negation boolean operands as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((typeof (((marker ? !left : !right) ?? (marker === 2 ? !up : !down))) === 'boolean'))) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-equality typeof nullish-coalesced mixed conditional operands conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((typeof (((marker ? !left : !right) ?? (marker === 2 ? up : down))) === 'boolean'))) moduleAlias = { default: 'not-a-module' };",
       'const postIfDefault = moduleAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
