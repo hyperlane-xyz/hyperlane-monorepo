@@ -16,17 +16,9 @@
 
 The monorepo TypeScript toolchain was upgraded to 6.0.0-beta.
 
-This upgrade intentionally targets the beta release now (rather than waiting for 6.0.0 stable) to unblock current development against TS6 behavior.
-
 Shared TypeScript configs were updated to explicitly include required ambient types (notably `node` and `mocha`) for TS6 compatibility, and related package type wiring was aligned.
 
 Compatibility fixes were applied to keep build/lint/test pipelines green under TS6, including lint flow hardening and test-import adjustments.
-
-The `typescript/ccip-server` Jest path (`ts-jest`) was validated under TS6 beta to confirm runtime compatibility for existing server tests.
-
-Repository-level validation remained green under TS6 beta across `pnpm build`, `pnpm lint`, `pnpm test:ci`, and package-level `pnpm -C typescript/ccip-server test`.
-
-Targeted `typescript/rebalancer-sim` regression coverage (including the hardened Anvil error/placeholder matrix and descriptor parity guards) also stayed green under TS6 beta.
 
 Rebalancer simulation startup reliability was hardened with robust local-Anvil fallback behavior when container runtimes are unavailable.
 
@@ -38,6 +30,6 @@ Error-message extraction and formatting paths were hardened to avoid crashes and
 
 Regression guard tests were added to assert descriptor-matrix parity, exact descriptor-set cardinality, matcher/formatter base-set alignment, canonical descriptor baseline consistency, and explicit unescaped-alias baseline consistency across triple/json/double escaped `Symbol.toPrimitive` placeholder suites, preventing future drift in coverage.
 
-Known caveat: some ecosystem tooling still advertises pre-TS6 peer ranges (for example, `@typescript-eslint` packages commonly declare `typescript >=4.8.4 <6.0.0`, some transitive utility variants declare `<5.9.0`, and `ts-jest@29.4.5` declares `typescript >=4.3 <6`), so peer warnings may still appear even though monorepo lint/build/test paths remain green under TS6 beta.
+TS6-beta compatibility was validated across `pnpm build`, `pnpm lint`, `pnpm test:ci`, package-level `pnpm -C typescript/ccip-server test` (`ts-jest` path), and targeted `typescript/rebalancer-sim` regression coverage.
 
-Those warnings are treated as non-blocking for this upgrade; no prerelease toolchain swaps were required to keep the repository green.
+Known caveat: some ecosystem tooling still advertises pre-TS6 peer ranges (for example, `@typescript-eslint` packages commonly declare `typescript >=4.8.4 <6.0.0`, some transitive utility variants declare `<5.9.0`, and `ts-jest@29.4.5` declares `typescript >=4.3 <6`). These warnings were treated as non-blocking for this rollout because repository lint/build/test paths remained green under TS6 beta.
