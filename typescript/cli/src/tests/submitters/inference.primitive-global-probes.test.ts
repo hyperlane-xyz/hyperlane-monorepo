@@ -14,8 +14,8 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
 import {
   getFallbackPrimitiveProbeValueFromLabel,
+  getCachedRuntimePrimitiveValuesByLabel,
   getCleanRuntimeProbeLabels,
-  getRuntimePrimitiveValuesByLabel,
 } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions primitive global probes', () => {
@@ -29,7 +29,7 @@ describe('resolveSubmitterBatchesForTransactions primitive global probes', () =>
 
   const baselinePrimitiveLabels = getCleanRuntimeProbeLabels().primitiveLabels;
 
-  const runtimePrimitiveByLabel = getRuntimePrimitiveValuesByLabel();
+  const runtimePrimitiveByLabel = getCachedRuntimePrimitiveValuesByLabel();
 
   const PROBE_CASES = baselinePrimitiveLabels.map((label) => ({
     label,

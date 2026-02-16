@@ -6,6 +6,9 @@ import { expect } from 'chai';
 import sinon from 'sinon';
 
 import {
+  getCachedRuntimeFunctionValuesByLabel,
+  getCachedRuntimeObjectValuesByLabel,
+  getCachedRuntimePrimitiveValuesByLabel,
   SUPPORTED_RUNTIME_PRIMITIVE_VALUE_TYPES,
   getCleanRuntimeProbeLabels,
   getFallbackPrimitiveProbeValueFromLabel,
@@ -180,6 +183,23 @@ describe('runtime global probe helpers', () => {
       expect(label.endsWith('-primitive')).to.equal(true);
       expect(isSupportedRuntimePrimitiveValueType(typeof value)).to.equal(true);
     }
+  });
+
+  it('returns defensive copies for cached runtime map helpers', () => {
+    const firstFunctionMap = getCachedRuntimeFunctionValuesByLabel();
+    firstFunctionMap.delete('array-constructor-object');
+    const secondFunctionMap = getCachedRuntimeFunctionValuesByLabel();
+    expect(secondFunctionMap.has('array-constructor-object')).to.equal(true);
+
+    const firstObjectMap = getCachedRuntimeObjectValuesByLabel();
+    firstObjectMap.delete('math-object');
+    const secondObjectMap = getCachedRuntimeObjectValuesByLabel();
+    expect(secondObjectMap.has('math-object')).to.equal(true);
+
+    const firstPrimitiveMap = getCachedRuntimePrimitiveValuesByLabel();
+    firstPrimitiveMap.delete('nan-number-primitive');
+    const secondPrimitiveMap = getCachedRuntimePrimitiveValuesByLabel();
+    expect(secondPrimitiveMap.has('nan-number-primitive')).to.equal(true);
   });
 
   it('accepts only supported primitive type names', () => {

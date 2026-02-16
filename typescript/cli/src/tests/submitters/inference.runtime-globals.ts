@@ -49,6 +49,9 @@ let cachedRuntimeIntlFunctionValuesByLabel: ReadonlyMap<
   string,
   Function
 > | null = null;
+let cachedRuntimeObjectValuesByLabel: ReadonlyMap<string, object> | null = null;
+let cachedRuntimePrimitiveValuesByLabel: ReadonlyMap<string, unknown> | null =
+  null;
 
 export function isSupportedRuntimePrimitiveValueType(
   valueType: string,
@@ -179,7 +182,7 @@ export function getRuntimeFunctionValuesByLabel(): Map<string, Function> {
   return runtimeFunctionValueByLabel;
 }
 
-function getCachedRuntimeFunctionValuesByLabel(): ReadonlyMap<
+function getCachedRuntimeFunctionValuesByLabelInternal(): ReadonlyMap<
   string,
   Function
 > {
@@ -187,6 +190,10 @@ function getCachedRuntimeFunctionValuesByLabel(): ReadonlyMap<
     cachedRuntimeFunctionValuesByLabel = getRuntimeFunctionValuesByLabel();
   }
   return cachedRuntimeFunctionValuesByLabel;
+}
+
+export function getCachedRuntimeFunctionValuesByLabel(): Map<string, Function> {
+  return new Map(getCachedRuntimeFunctionValuesByLabelInternal());
 }
 
 export function getRuntimeIntlFunctionValuesByLabel(): Map<string, Function> {
@@ -234,6 +241,20 @@ export function getRuntimeObjectValuesByLabel(): Map<string, object> {
   return runtimeObjectValueByLabel;
 }
 
+function getCachedRuntimeObjectValuesByLabelInternal(): ReadonlyMap<
+  string,
+  object
+> {
+  if (!cachedRuntimeObjectValuesByLabel) {
+    cachedRuntimeObjectValuesByLabel = getRuntimeObjectValuesByLabel();
+  }
+  return cachedRuntimeObjectValuesByLabel;
+}
+
+export function getCachedRuntimeObjectValuesByLabel(): Map<string, object> {
+  return new Map(getCachedRuntimeObjectValuesByLabelInternal());
+}
+
 export function getRuntimePrimitiveValuesByLabel(): Map<string, unknown> {
   const runtimePrimitiveByLabel = new Map<string, unknown>();
   for (const { name, value } of getReadableRuntimeGlobalEntries()) {
@@ -248,12 +269,26 @@ export function getRuntimePrimitiveValuesByLabel(): Map<string, unknown> {
   return runtimePrimitiveByLabel;
 }
 
+function getCachedRuntimePrimitiveValuesByLabelInternal(): ReadonlyMap<
+  string,
+  unknown
+> {
+  if (!cachedRuntimePrimitiveValuesByLabel) {
+    cachedRuntimePrimitiveValuesByLabel = getRuntimePrimitiveValuesByLabel();
+  }
+  return cachedRuntimePrimitiveValuesByLabel;
+}
+
+export function getCachedRuntimePrimitiveValuesByLabel(): Map<string, unknown> {
+  return new Map(getCachedRuntimePrimitiveValuesByLabelInternal());
+}
+
 export function getRequiredRuntimeFunctionValueByLabel(
   label: string,
   runtimeFunctionValuesByLabel: ReadonlyMap<
     string,
     unknown
-  > = getCachedRuntimeFunctionValuesByLabel(),
+  > = getCachedRuntimeFunctionValuesByLabelInternal(),
 ): Function {
   const runtimeFunctionValue = runtimeFunctionValuesByLabel.get(label);
   if (typeof runtimeFunctionValue !== 'function') {
@@ -272,7 +307,7 @@ export function resolveRuntimeFunctionProbeCases(
   runtimeFunctionValuesByLabel: ReadonlyMap<
     string,
     unknown
-  > = getCachedRuntimeFunctionValuesByLabel(),
+  > = getCachedRuntimeFunctionValuesByLabelInternal(),
 ): RuntimeFunctionProbeCase[] {
   return rawCases
     .map((value) => ({

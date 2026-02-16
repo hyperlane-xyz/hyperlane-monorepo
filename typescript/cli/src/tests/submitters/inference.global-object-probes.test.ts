@@ -15,9 +15,9 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
 import {
+  getCachedRuntimeObjectValuesByLabel,
   getCleanRuntimeProbeLabels,
   getKnownObjectLikeProbeLabelsFromOtherTests,
-  getRuntimeObjectValuesByLabel,
 } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions global object probes', () => {
@@ -35,7 +35,7 @@ describe('resolveSubmitterBatchesForTransactions global object probes', () => {
 
   const baselineObjectLabels = getCleanRuntimeProbeLabels().objectLabels;
 
-  const runtimeObjectValueByLabel = getRuntimeObjectValuesByLabel();
+  const runtimeObjectValueByLabel = getCachedRuntimeObjectValuesByLabel();
 
   const PROBE_CASES = baselineObjectLabels
     .map((label) => ({
