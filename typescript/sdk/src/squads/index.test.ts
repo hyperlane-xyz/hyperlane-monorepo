@@ -93,6 +93,39 @@ const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS = Object.freeze([
     expectedMutationTestCount: 2,
   }),
 ]);
+const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE =
+  Object.freeze([
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/config.ts',
+      coveringTestPaths: Object.freeze(['src/squads/config.test.ts']),
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/error-format.ts',
+      coveringTestPaths: Object.freeze(['src/squads/error-format.test.ts']),
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/inspection.ts',
+      coveringTestPaths: Object.freeze(['src/squads/inspection.test.ts']),
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/provider.ts',
+      coveringTestPaths: Object.freeze(['src/squads/provider.test.ts']),
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/transaction-reader.ts',
+      coveringTestPaths: Object.freeze([
+        'src/squads/transaction-reader.test.ts',
+      ]),
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/utils.ts',
+      coveringTestPaths: Object.freeze(['src/squads/utils.test.ts']),
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/validation.ts',
+      coveringTestPaths: Object.freeze(['src/squads/utils.test.ts']),
+    }),
+  ]);
 const REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN = /Reflect\.apply is mutated/;
 const REFLECT_APPLY_MONKEY_PATCH_PATTERN =
   /Object\.defineProperty\(\s*Reflect\s*,\s*['"]apply['"]/;
@@ -1513,6 +1546,41 @@ describe('squads barrel exports', () => {
     ]);
   });
 
+  it('keeps expected canonical sdk squads Reflect.apply mutation runtime coverage map', () => {
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE,
+    ).to.deep.equal([
+      {
+        runtimeSourcePath: 'src/squads/config.ts',
+        coveringTestPaths: ['src/squads/config.test.ts'],
+      },
+      {
+        runtimeSourcePath: 'src/squads/error-format.ts',
+        coveringTestPaths: ['src/squads/error-format.test.ts'],
+      },
+      {
+        runtimeSourcePath: 'src/squads/inspection.ts',
+        coveringTestPaths: ['src/squads/inspection.test.ts'],
+      },
+      {
+        runtimeSourcePath: 'src/squads/provider.ts',
+        coveringTestPaths: ['src/squads/provider.test.ts'],
+      },
+      {
+        runtimeSourcePath: 'src/squads/transaction-reader.ts',
+        coveringTestPaths: ['src/squads/transaction-reader.test.ts'],
+      },
+      {
+        runtimeSourcePath: 'src/squads/utils.ts',
+        coveringTestPaths: ['src/squads/utils.test.ts'],
+      },
+      {
+        runtimeSourcePath: 'src/squads/validation.ts',
+        coveringTestPaths: ['src/squads/utils.test.ts'],
+      },
+    ]);
+  });
+
   it('keeps sdk squads test-file path constants normalized and immutable', () => {
     expect(Object.isFrozen(EXPECTED_SDK_SQUADS_TEST_FILE_PATHS)).to.equal(true);
     expect(new Set(EXPECTED_SDK_SQUADS_TEST_FILE_PATHS).size).to.equal(
@@ -1613,6 +1681,60 @@ describe('squads barrel exports', () => {
         countOccurrences(source, REFLECT_APPLY_RESTORE_STATEMENT),
         `Expected Reflect.apply restore statement count for ${testPath}`,
       ).to.equal(expectedMutationTestCount);
+    }
+  });
+
+  it('keeps sdk Reflect.apply mutation tests covering expected runtime source modules', () => {
+    expect(
+      Object.isFrozen(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE,
+      ),
+    ).to.equal(true);
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.length,
+    ).to.be.greaterThan(0);
+    expect(
+      new Set(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.map(
+          ({ runtimeSourcePath }) => runtimeSourcePath,
+        ),
+      ).size,
+    ).to.equal(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.length,
+    );
+
+    const nonTestRuntimeSourcePathSet = new Set(
+      listSdkSquadsNonTestSourceFilePaths(),
+    );
+    const discoveredReflectApplyMutationTestPathSet = new Set(
+      listSdkSquadsTestFilePathsContainingPattern(
+        REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN,
+      ),
+    );
+
+    for (const {
+      runtimeSourcePath,
+      coveringTestPaths,
+    } of EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE) {
+      expect(
+        nonTestRuntimeSourcePathSet.has(runtimeSourcePath),
+        `Expected runtime source to exist in sdk squads non-test source set: ${runtimeSourcePath}`,
+      ).to.equal(true);
+      expect(Object.isFrozen(coveringTestPaths)).to.equal(true);
+      expect(coveringTestPaths.length).to.be.greaterThan(0);
+      expect(new Set(coveringTestPaths).size).to.equal(
+        coveringTestPaths.length,
+      );
+      expect(
+        [...coveringTestPaths].sort(compareLexicographically),
+      ).to.deep.equal([...coveringTestPaths]);
+
+      for (const coveringTestPath of coveringTestPaths) {
+        expect(
+          discoveredReflectApplyMutationTestPathSet.has(coveringTestPath),
+          `Expected runtime source to be covered by Reflect.apply mutation test file: ${runtimeSourcePath} -> ${coveringTestPath}`,
+        ).to.equal(true);
+      }
     }
   });
 
