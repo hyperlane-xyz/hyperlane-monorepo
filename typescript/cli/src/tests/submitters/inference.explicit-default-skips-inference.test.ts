@@ -282,6 +282,94 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     expect(protocolCalls).to.equal(1);
   });
 
+  it('falls back to explicit default when override key enumeration throws before protocol lookup', async () => {
+    let protocolCalls = 0;
+    const overrideTarget = '0x1111111111111111111111111111111111111111';
+    const strategyPath = createExplicitStrategyWithOverridePath();
+    const originalObjectKeys = Object.keys;
+    const objectKeysStub = sinon.stub(Object, 'keys').callsFake((value: any) => {
+      const callStack = new Error().stack ?? '';
+      if (
+        callStack.includes('hasUsableOverrideKeys') &&
+        value &&
+        typeof value === 'object' &&
+        Object.prototype.hasOwnProperty.call(value, overrideTarget)
+      ) {
+        throw new Error('override key enumeration should not crash resolution');
+      }
+      return originalObjectKeys(value as object);
+    });
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => {
+              protocolCalls += 1;
+              return ProtocolType.Ethereum;
+            },
+          },
+        } as any,
+        strategyUrl: strategyPath,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(protocolCalls).to.equal(0);
+    } finally {
+      objectKeysStub.restore();
+    }
+  });
+
+  it('falls back to explicit default when override entry enumeration throws after protocol lookup', async () => {
+    let protocolCalls = 0;
+    const overrideTarget = '0x1111111111111111111111111111111111111111';
+    const strategyPath = createExplicitStrategyWithOverridePath();
+    const originalObjectEntries = Object.entries;
+    const objectEntriesStub = sinon
+      .stub(Object, 'entries')
+      .callsFake((value: any) => {
+        const callStack = new Error().stack ?? '';
+        if (
+          callStack.includes('buildExplicitOverrideIndexes') &&
+          value &&
+          typeof value === 'object' &&
+          Object.prototype.hasOwnProperty.call(value, overrideTarget)
+        ) {
+          throw new Error('override entries enumeration should not crash routing');
+        }
+        return originalObjectEntries(value as object);
+      });
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => {
+              protocolCalls += 1;
+              return ProtocolType.Ethereum;
+            },
+          },
+        } as any,
+        strategyUrl: strategyPath,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(protocolCalls).to.equal(1);
+    } finally {
+      objectEntriesStub.restore();
+    }
+  });
+
   it('does not look up protocol when explicit strategy has overrides but no transactions have usable targets', async () => {
     let protocolCalls = 0;
     const transactions = [

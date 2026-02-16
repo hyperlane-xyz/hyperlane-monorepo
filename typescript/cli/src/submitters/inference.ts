@@ -1760,7 +1760,17 @@ function buildExplicitOverrideIndexes({
     return indexes;
   }
 
-  for (const [overrideKey, submitter] of Object.entries(overrides)) {
+  let overrideEntries: [string, ExtendedSubmissionStrategy['submitter']][];
+  try {
+    overrideEntries = Object.entries(overrides) as [
+      string,
+      ExtendedSubmissionStrategy['submitter'],
+    ][];
+  } catch {
+    return indexes;
+  }
+
+  for (const [overrideKey, submitter] of overrideEntries) {
     if (!isUsableOverrideKey(overrideKey)) {
       logger.debug(
         `Skipping unusable submitter override key '${overrideKey}' for ${submitter.chain}`,
@@ -1924,7 +1934,11 @@ function hasUsableOverrideKeys(
     return false;
   }
 
-  return Object.keys(overrides).some(isUsableOverrideKey);
+  try {
+    return Object.keys(overrides).some(isUsableOverrideKey);
+  } catch {
+    return false;
+  }
 }
 
 function normalizeOptionalPath(value: unknown): string | undefined {
