@@ -162,6 +162,120 @@ const GLOBAL_CONSOLE_DESTRUCTURE_REFERENCE_PATTERN =
   /\{[^}]*\bconsole\b[^}]*\}\s*=\s*(?:globalThis|global|window|self)\b/;
 const CLI_GLUE_IMPORT_PATTERN =
   /(?:from\s+['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]|import\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\)|require\(\s*['"](?:yargs|chalk|@inquirer\/prompts|cli-table3)['"]\s*\))/;
+const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
+  Object.freeze({
+    label: 'inline cast-property access',
+    pattern: /\([^)\n]*\sas\s\{[^\n]*\}\)\.[A-Za-z0-9_]+/,
+  }),
+  Object.freeze({
+    label: 'optional chaining',
+    pattern: /\?\./,
+  }),
+  Object.freeze({
+    label: 'Object.keys call',
+    pattern: /Object\.keys\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Object.values call',
+    pattern: /Object\.values\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Object.entries call',
+    pattern: /Object\.entries\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Array.from call',
+    pattern: /Array\.from\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Array.isArray call',
+    pattern: /Array\.isArray\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Buffer.isBuffer call',
+    pattern: /Buffer\.isBuffer\s*\(/,
+  }),
+  Object.freeze({
+    label: '.entries method call',
+    pattern: /\.entries\s*\(/,
+  }),
+  Object.freeze({
+    label: '.has method call',
+    pattern: /\.has\s*\(/,
+  }),
+  Object.freeze({
+    label: '.add method call',
+    pattern: /\.add\s*\(/,
+  }),
+  Object.freeze({
+    label: '.get method call',
+    pattern: /\.get\s*\(/,
+  }),
+  Object.freeze({
+    label: '.set method call',
+    pattern: /\.set\s*\(/,
+  }),
+  Object.freeze({
+    label: '.includes method call',
+    pattern: /\.includes\s*\(/,
+  }),
+  Object.freeze({
+    label: '.some method call',
+    pattern: /\.some\s*\(/,
+  }),
+  Object.freeze({
+    label: '.trim method call',
+    pattern: /\.trim\s*\(/,
+  }),
+  Object.freeze({
+    label: '.toLowerCase method call',
+    pattern: /\.toLowerCase\s*\(/,
+  }),
+  Object.freeze({
+    label: '.map method call',
+    pattern: /\.map\s*\(/,
+  }),
+  Object.freeze({
+    label: '.filter method call',
+    pattern: /\.filter\s*\(/,
+  }),
+  Object.freeze({
+    label: '.join method call',
+    pattern: /\.join\s*\(/,
+  }),
+  Object.freeze({
+    label: '.split method call',
+    pattern: /\.split\s*\(/,
+  }),
+  Object.freeze({
+    label: '.replace method call',
+    pattern: /\.replace\s*\(/,
+  }),
+  Object.freeze({
+    label: '.toString method call',
+    pattern: /\.toString\s*\(/,
+  }),
+  Object.freeze({
+    label: '.subarray method call',
+    pattern: /\.subarray\s*\(/,
+  }),
+  Object.freeze({
+    label: '.slice method call',
+    pattern: /\.slice\s*\(/,
+  }),
+  Object.freeze({
+    label: '.localeCompare method call',
+    pattern: /\.localeCompare\s*\(/,
+  }),
+  Object.freeze({
+    label: '.push method call',
+    pattern: /\.push\s*\(/,
+  }),
+  Object.freeze({
+    label: '.sort method call',
+    pattern: /\.sort\s*\(/,
+  }),
+]);
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
@@ -1630,6 +1744,25 @@ describe('squads barrel exports', () => {
         CLI_GLUE_IMPORT_PATTERN.test(runtimeSource),
         `Expected sdk squads runtime source to avoid infra CLI glue imports: ${runtimeSourcePath}`,
       ).to.equal(false);
+    }
+  });
+
+  it('keeps sdk squads runtime source hardened against unsafe member-access patterns', () => {
+    const runtimeSourcePaths = listSdkSquadsNonTestSourceFilePaths();
+    expect(runtimeSourcePaths.length).to.be.greaterThan(0);
+
+    for (const runtimeSourcePath of runtimeSourcePaths) {
+      const runtimeSource = fs.readFileSync(
+        path.join(SDK_PACKAGE_ROOT, runtimeSourcePath),
+        'utf8',
+      );
+
+      for (const { label, pattern } of FORBIDDEN_RUNTIME_HARDENING_PATTERNS) {
+        expect(
+          pattern.test(runtimeSource),
+          `Expected sdk squads runtime source to avoid ${label}: ${runtimeSourcePath}`,
+        ).to.equal(false);
+      }
     }
   });
 
