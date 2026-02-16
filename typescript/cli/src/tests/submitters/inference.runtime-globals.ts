@@ -118,3 +118,18 @@ export function getRuntimeObjectValuesByLabel(): Map<string, object> {
   }
   return runtimeObjectValueByLabel;
 }
+
+export function getRuntimePrimitiveValuesByLabel(): Map<string, unknown> {
+  const runtimePrimitiveByLabel = new Map<string, unknown>();
+  for (const name of Object.getOwnPropertyNames(globalThis)) {
+    const value = (globalThis as any)[name];
+    const valueType = typeof value;
+    if (isSupportedRuntimePrimitiveValueType(valueType)) {
+      runtimePrimitiveByLabel.set(
+        `${name.toLowerCase()}-${valueType}-primitive`,
+        value,
+      );
+    }
+  }
+  return runtimePrimitiveByLabel;
+}

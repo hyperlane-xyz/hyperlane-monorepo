@@ -14,7 +14,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
 import {
   getCleanRuntimeProbeLabels,
-  isSupportedRuntimePrimitiveValueType,
+  getRuntimePrimitiveValuesByLabel,
 } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions primitive global probes', () => {
@@ -28,17 +28,7 @@ describe('resolveSubmitterBatchesForTransactions primitive global probes', () =>
 
   const baselinePrimitiveLabels = getCleanRuntimeProbeLabels().primitiveLabels;
 
-  const runtimePrimitiveByLabel = new Map<string, any>();
-  for (const name of Object.getOwnPropertyNames(globalThis)) {
-    const value = (globalThis as any)[name];
-    const valueType = typeof value;
-    if (isSupportedRuntimePrimitiveValueType(valueType)) {
-      runtimePrimitiveByLabel.set(
-        `${name.toLowerCase()}-${valueType}-primitive`,
-        value,
-      );
-    }
-  }
+  const runtimePrimitiveByLabel = getRuntimePrimitiveValuesByLabel();
 
   const fallbackPrimitiveFromLabel = (label: string): unknown => {
     if (label.endsWith('-undefined-primitive')) return undefined;
