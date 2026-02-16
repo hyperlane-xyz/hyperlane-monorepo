@@ -12,6 +12,7 @@ import {
 
 import { type CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import { hasOwnObjectField } from '../submitters/object.js';
 import {
   type ExtendedChainSubmissionStrategy,
   parseExtendedChainSubmissionStrategy,
@@ -58,7 +59,7 @@ export async function createStrategyConfig({
   if (
     !context.skipConfirmation &&
     strategy &&
-    Object.prototype.hasOwnProperty.call(strategy, chain)
+    hasOwnObjectField(strategy, chain)
   ) {
     const isConfirmed = await confirm({
       message: `Default strategy for chain ${chain} already exists. Are you sure you want to overwrite existing strategy config?`,
