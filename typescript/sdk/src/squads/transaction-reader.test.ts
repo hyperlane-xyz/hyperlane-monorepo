@@ -5630,6 +5630,52 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('keeps add-spending-limit config actions when members and destinations array inspection fails', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatConfigAction: (
+        chain: string,
+        action: Record<string, unknown>,
+      ) => Record<string, unknown> | null;
+    };
+    const { proxy: revokedMembers, revoke: revokeMembers } = Proxy.revocable(
+      {},
+      {},
+    );
+    revokeMembers();
+    const { proxy: revokedDestinations, revoke: revokeDestinations } =
+      Proxy.revocable({}, {});
+    revokeDestinations();
+
+    const result = readerAny.formatConfigAction('solanamainnet', {
+      __kind: 'AddSpendingLimit',
+      vaultIndex: 3,
+      mint: { toBase58: () => 'mint-address' },
+      amount: 9n,
+      members: revokedMembers,
+      destinations: revokedDestinations,
+    });
+
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Squads Multisig Configuration',
+      type: 'AddSpendingLimit',
+      args: {
+        vaultIndex: 3,
+        mint: 'mint-address',
+        amount: '9',
+        members: [],
+        destinations: [],
+      },
+      insight: 'Add spending limit for vault 3',
+    });
+  });
+
   it('keeps add-member config actions when nested field access throws', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
