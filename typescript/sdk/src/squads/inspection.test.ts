@@ -1,0 +1,95 @@
+import { expect } from 'chai';
+
+import { inspectPromiseLikeThenValue } from './inspection.js';
+
+describe('squads inspection helpers', () => {
+  describe(inspectPromiseLikeThenValue.name, () => {
+    it('returns undefined then/readError for non-object and null values', () => {
+      expect(inspectPromiseLikeThenValue(undefined)).to.deep.equal({
+        thenValue: undefined,
+        readError: undefined,
+      });
+      expect(inspectPromiseLikeThenValue(null)).to.deep.equal({
+        thenValue: undefined,
+        readError: undefined,
+      });
+      expect(inspectPromiseLikeThenValue('value')).to.deep.equal({
+        thenValue: undefined,
+        readError: undefined,
+      });
+    });
+
+    it('returns thenValue for readable object and function inputs', () => {
+      const objectThen = () => undefined;
+      const functionThen = () => undefined;
+      const functionValue = Object.assign(() => undefined, {
+        then: functionThen,
+      });
+
+      expect(inspectPromiseLikeThenValue({ then: objectThen })).to.deep.equal({
+        thenValue: objectThen,
+        readError: undefined,
+      });
+      expect(inspectPromiseLikeThenValue(functionValue)).to.deep.equal({
+        thenValue: functionThen,
+        readError: undefined,
+      });
+    });
+
+    it('captures read errors from throwing object and function then accessors', () => {
+      const objectValue = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'then') {
+              throw new Error('object then unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+      const functionValue = new Proxy(() => undefined, {
+        get(target, property, receiver) {
+          if (property === 'then') {
+            throw new Error('function then unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      const objectInspection = inspectPromiseLikeThenValue(objectValue);
+      expect(objectInspection.thenValue).to.equal(undefined);
+      expect(objectInspection.readError).to.be.instanceOf(Error);
+      expect((objectInspection.readError as Error).message).to.equal(
+        'object then unavailable',
+      );
+
+      const functionInspection = inspectPromiseLikeThenValue(functionValue);
+      expect(functionInspection.thenValue).to.equal(undefined);
+      expect(functionInspection.readError).to.be.instanceOf(Error);
+      expect((functionInspection.readError as Error).message).to.equal(
+        'function then unavailable',
+      );
+    });
+
+    it('preserves opaque read errors from then accessors', () => {
+      const opaqueError = { source: 'then-getter' };
+      const value = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'then') {
+              throw opaqueError;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      expect(inspectPromiseLikeThenValue(value)).to.deep.equal({
+        thenValue: undefined,
+        readError: opaqueError,
+      });
+    });
+  });
+});
