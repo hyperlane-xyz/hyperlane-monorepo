@@ -327,6 +327,21 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when partition list index access throws bare Error labels', () => {
+    const hostilePartitionList = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('Error:');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
+      'Failed to read partitioned squads chains[0]: [unstringifiable error]',
+    );
+  });
+
   it('uses deterministic placeholder when partition list index access throws opaque values', () => {
     const hostilePartitionList = new Proxy(['solanamainnet'], {
       get(target, property, receiver) {
@@ -470,6 +485,23 @@ describe('squads config', () => {
       get(target, property, receiver) {
         if (property === 'length') {
           throw new Error('   ');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
+    ).to.throw(
+      'Failed to read unsupported squads chains length: [unstringifiable error]',
+    );
+  });
+
+  it('uses deterministic placeholder when unsupported-chain length getter throws bare Error labels', () => {
+    const hostileUnsupportedChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('Error:');
         }
         return Reflect.get(target, property, receiver);
       },
@@ -803,6 +835,21 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when squads-chain length accessor throws bare Error labels', () => {
+    const hostileResolveChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('Error:');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
+      'Failed to read squads chains length: [unstringifiable error]',
+    );
+  });
+
   it('uses deterministic placeholder when squads-chain length accessor throws opaque values', () => {
     const hostileResolveChains = new Proxy([], {
       get(target, property, receiver) {
@@ -899,6 +946,23 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when unsupported-chain index access throws bare Error labels', () => {
+    const hostileUnsupportedChains = new Proxy(['ethereum'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('Error:');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
+    ).to.throw(
+      'Failed to read unsupported squads chains[0]: [unstringifiable error]',
+    );
+  });
+
   it('uses deterministic placeholder when unsupported-chain index access throws opaque values', () => {
     const hostileUnsupportedChains = new Proxy(['ethereum'], {
       get(target, property, receiver) {
@@ -951,6 +1015,21 @@ describe('squads config', () => {
       get(target, property, receiver) {
         if (property === '0') {
           throw new Error('   ');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
+      'Failed to read squads chains[0]: [unstringifiable error]',
+    );
+  });
+
+  it('uses deterministic placeholder when squads-chain index access throws bare Error labels', () => {
+    const hostileResolveChains = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('Error:');
         }
         return Reflect.get(target, property, receiver);
       },
