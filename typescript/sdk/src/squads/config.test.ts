@@ -424,6 +424,26 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when configured-chain length getter throws blank Error messages', () => {
+    const hostileConfiguredChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('   ');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        hostileConfiguredChains,
+      ),
+    ).to.throw(
+      'Failed to read configured squads chains length: [unstringifiable error]',
+    );
+  });
+
   it('uses deterministic placeholder when unsupported-chain length getter throws opaque object', () => {
     const hostileUnsupportedChains = new Proxy([], {
       get(target, property, receiver) {
@@ -688,6 +708,23 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when unsupported-chain index access throws blank Error messages', () => {
+    const hostileUnsupportedChains = new Proxy(['ethereum'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('   ');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
+    ).to.throw(
+      'Failed to read unsupported squads chains[0]: [unstringifiable error]',
+    );
+  });
+
   it('uses deterministic placeholder when unsupported-chain index access throws opaque values', () => {
     const hostileUnsupportedChains = new Proxy(['ethereum'], {
       get(target, property, receiver) {
@@ -710,6 +747,21 @@ describe('squads config', () => {
       get(target, property, receiver) {
         if (property === '0') {
           throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
+      'Failed to read squads chains[0]: [unstringifiable error]',
+    );
+  });
+
+  it('uses deterministic placeholder when squads-chain index access throws blank Error messages', () => {
+    const hostileResolveChains = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('   ');
         }
         return Reflect.get(target, property, receiver);
       },
