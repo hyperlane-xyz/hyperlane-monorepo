@@ -45532,6 +45532,26 @@ describe('Gnosis Safe migration guards', () => {
     }
   });
 
+  it('keeps mirrored nullish-logical conditional delete-key test titles aligned with infra', () => {
+    const ownSourceText = fs.readFileSync(__filename, 'utf8');
+    const infraSuitePath = path.resolve(
+      process.cwd(),
+      '../infra/test/safe-migration-guards.test.ts',
+    );
+    const infraSourceText = fs.readFileSync(infraSuitePath, 'utf8');
+    const titlePattern =
+      /it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*-conditional-[^']*-(?:fallback-length|mixed-fallback) predicates[^']*)'/g;
+
+    const ownTitles = new Set(
+      [...ownSourceText.matchAll(titlePattern)].map((match) => match[1]),
+    );
+    const infraTitles = new Set(
+      [...infraSourceText.matchAll(titlePattern)].map((match) => match[1]),
+    );
+
+    expect([...ownTitles].sort()).to.deep.equal([...infraTitles].sort());
+  });
+
   it('prevents sdk source imports from infra paths', () => {
     const sourceFilePaths = collectSdkSourceFilePaths(
       path.resolve(process.cwd(), 'src'),

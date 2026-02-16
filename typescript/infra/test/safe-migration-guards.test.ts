@@ -45686,6 +45686,26 @@ describe('Safe migration guards', () => {
     }
   });
 
+  it('keeps mirrored nullish-logical conditional delete-key test titles aligned with sdk', () => {
+    const ownSourceText = fs.readFileSync(__filename, 'utf8');
+    const sdkSuitePath = path.resolve(
+      process.cwd(),
+      '../sdk/src/utils/gnosisSafeMigrationGuards.test.ts',
+    );
+    const sdkSourceText = fs.readFileSync(sdkSuitePath, 'utf8');
+    const titlePattern =
+      /it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*-conditional-[^']*-(?:fallback-length|mixed-fallback) predicates[^']*)'/g;
+
+    const ownTitles = new Set(
+      [...ownSourceText.matchAll(titlePattern)].map((match) => match[1]),
+    );
+    const sdkTitles = new Set(
+      [...sdkSourceText.matchAll(titlePattern)].map((match) => match[1]),
+    );
+
+    expect([...ownTitles].sort()).to.deep.equal([...sdkTitles].sort());
+  });
+
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
     const runtimeRequiredExports = REQUIRED_SAFE_HELPER_EXPORTS.filter(
       (symbol) => symbol !== 'ParseableSafeTx',
