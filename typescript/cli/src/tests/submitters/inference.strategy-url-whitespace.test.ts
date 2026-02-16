@@ -467,4 +467,24 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
       }
     }
   });
+
+  it('treats cyclic-prototype proxy strategyUrl as missing and falls back to jsonRpc default', async () => {
+    let cyclicProxy: any;
+    cyclicProxy = new Proxy(
+      {},
+      {
+        getPrototypeOf: () => cyclicProxy,
+      },
+    );
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: cyclicProxy,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
 });

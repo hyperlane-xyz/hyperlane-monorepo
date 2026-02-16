@@ -1664,10 +1664,15 @@ function isBoxedStringObject(value: unknown): value is String {
 
   try {
     let prototype: object | null = Object.getPrototypeOf(value);
+    const seenPrototypes = new Set<object>();
     while (prototype) {
       if (prototype === String.prototype) {
         return true;
       }
+      if (seenPrototypes.has(prototype)) {
+        return false;
+      }
+      seenPrototypes.add(prototype);
       prototype = Object.getPrototypeOf(prototype);
     }
   } catch {

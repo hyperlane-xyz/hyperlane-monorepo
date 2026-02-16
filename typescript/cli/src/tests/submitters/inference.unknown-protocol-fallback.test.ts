@@ -538,4 +538,49 @@ describe('resolveSubmitterBatchesForTransactions unknown protocol fallback', () 
       }
     }
   });
+
+  it('falls back to explicit default when protocol lookup returns cyclic-prototype proxy with explicit overrides', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-protocol-cyclic-proxy-explicit-${Date.now()}.yaml`;
+    const overrideTarget = '0x9999999999999999999999999999999999999999';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x2222222222222222222222222222222222222222',
+          version: '1.0',
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    let cyclicProxy: any;
+    cyclicProxy = new Proxy(
+      {},
+      {
+        getPrototypeOf: () => cyclicProxy,
+      },
+    );
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: overrideTarget } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => cyclicProxy,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
 });
