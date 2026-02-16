@@ -1858,6 +1858,29 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps forbidden runtime hardening patterns normalized and deduplicated', () => {
+    expect(FORBIDDEN_RUNTIME_HARDENING_PATTERNS.length).to.be.greaterThan(0);
+
+    const seenLabels = new Set<string>();
+    const seenRegexes = new Set<string>();
+
+    for (const { label, pattern } of FORBIDDEN_RUNTIME_HARDENING_PATTERNS) {
+      expect(label.trim().length).to.be.greaterThan(0);
+      expect(
+        seenLabels.has(label),
+        `Expected forbidden-pattern labels to be unique: ${label}`,
+      ).to.equal(false);
+      seenLabels.add(label);
+
+      const regexSignature = `/${pattern.source}/${pattern.flags}`;
+      expect(
+        seenRegexes.has(regexSignature),
+        `Expected forbidden-pattern regexes to be unique: ${regexSignature}`,
+      ).to.equal(false);
+      seenRegexes.add(regexSignature);
+    }
+  });
+
   it('keeps recursive sdk squads discovery helpers isolated from caller mutation', () => {
     assertPathSnapshotIsolation(
       listSdkSquadsTestFilePaths,
