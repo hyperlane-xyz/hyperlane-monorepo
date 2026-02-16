@@ -215,6 +215,28 @@ describe('runtime global probe helpers', () => {
     }
   });
 
+  it('skips throwing Intl getters when building intl runtime map', () => {
+    const throwingIntlProperty = '__throwing_intl_runtime_probe_getter__';
+    Object.defineProperty(Intl, throwingIntlProperty, {
+      configurable: true,
+      get: () => {
+        throw new Error('expected intl getter throw');
+      },
+    });
+
+    try {
+      expect(() => getRuntimeIntlFunctionValuesByLabel()).to.not.throw();
+      const intlFunctionMap = getRuntimeIntlFunctionValuesByLabel();
+      expect(
+        intlFunctionMap.has(
+          `intl-${throwingIntlProperty.toLowerCase()}-constructor-object`,
+        ),
+      ).to.equal(false);
+    } finally {
+      Reflect.deleteProperty(Intl, throwingIntlProperty);
+    }
+  });
+
   it('extracts probe labels from generated test titles', () => {
     expect(
       getProbeLabelFromInferenceTestTitle(
