@@ -8,7 +8,6 @@ export { AltVMCoreReader } from './AltVMCoreReader.js';
 export { AltVMWarpModule } from './AltVMWarpModule.js';
 export { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 export { AltVMDeployer } from './AltVMWarpDeployer.js';
-export { coreModuleProvider } from './core-module.js';
 export {
   CoreArtifactReader,
   createCoreReader,
