@@ -2550,7 +2550,7 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
-    if (!expectedConfig) {
+    if (expectedConfig === null || typeof expectedConfig === 'undefined') {
       issues.push(`No expected config for route ${route}`);
       return { matches: false, issues };
     }

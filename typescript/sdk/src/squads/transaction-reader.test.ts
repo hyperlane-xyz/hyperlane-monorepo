@@ -1575,6 +1575,37 @@ describe('squads transaction reader multisig verification', () => {
     });
   });
 
+  it('reports malformed route entries when expected route config is boolean false', () => {
+    const reader = createReaderForVerification(
+      () =>
+        ({
+          solanatestnet: false,
+        }) as unknown as Record<
+          string,
+          { threshold: number; validators: readonly string[] }
+        >,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed expected config for route solanamainnet -> solanatestnet: expected route entry object',
+      ],
+    });
+  });
+
   it('reports malformed expected threshold access when getter throws', () => {
     const reader = createReaderForVerification(
       () =>
