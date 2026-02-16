@@ -86,6 +86,10 @@ const STRICT_EQUALITY_CONDITIONAL_TITLE_REGEX = new RegExp(
   String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates (?:as deterministic|conservative) for ${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT})'`,
   'g',
 );
+const STRICT_EQUALITY_ANY_CONDITIONAL_TITLE_REGEX = new RegExp(
+  String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates (?:as deterministic|conservative) for [^']+)'`,
+  'g',
+);
 const STRICT_EQUALITY_VARIANT_CONDITIONAL_TITLE_REGEX = new RegExp(
   String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*-conditional-[^']*-(?:fallback-length|mixed-fallback) predicates (?:as deterministic|conservative) for ${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT})'`,
   'g',
@@ -102,6 +106,14 @@ function extractStrictEqualityConditionalTitles(sourceText: string): string[] {
   return [...sourceText.matchAll(STRICT_EQUALITY_CONDITIONAL_TITLE_REGEX)].map(
     (match) => match[1],
   );
+}
+
+function extractAnyStrictEqualityConditionalTitles(
+  sourceText: string,
+): string[] {
+  return [
+    ...sourceText.matchAll(STRICT_EQUALITY_ANY_CONDITIONAL_TITLE_REGEX),
+  ].map((match) => match[1]);
 }
 
 function extractStrictEqualityVariantConditionalTitles(
@@ -45736,6 +45748,18 @@ describe('Gnosis Safe migration guards', () => {
         `Expected exactly one conditional-title classification for ${title}`,
       ).to.equal(1);
     }
+  });
+
+  it('keeps strict-equality conditional delete-key contexts constrained', () => {
+    const sourceText = fs.readFileSync(__filename, 'utf8');
+    const constrainedTitles =
+      extractStrictEqualityConditionalTitles(sourceText);
+    const anyContextTitles =
+      extractAnyStrictEqualityConditionalTitles(sourceText);
+
+    expect([...anyContextTitles].sort()).to.deep.equal(
+      [...constrainedTitles].sort(),
+    );
   });
 
   it('keeps strict-equality conditional delete-key title cardinality stable', () => {
