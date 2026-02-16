@@ -725,8 +725,10 @@ export class SquadsTransactionReader {
             SealevelInstructionWrapper,
             borshData,
           );
-          const instruction =
-            wrapper.data as SealevelEnrollRemoteRouterInstruction;
+          const instruction = readPropertyOrThrow(
+            wrapper,
+            'data',
+          ) as SealevelEnrollRemoteRouterInstruction;
           const configValue = readPropertyOrThrow(instruction, 'config');
           const domain = readPropertyOrThrow(configValue, 'domain');
           const domainForDisplay = formatIntegerValidationValue(domain);
@@ -756,8 +758,10 @@ export class SquadsTransactionReader {
             SealevelInstructionWrapper,
             borshData,
           );
-          const instruction =
-            wrapper.data as SealevelEnrollRemoteRoutersInstruction;
+          const instruction = readPropertyOrThrow(
+            wrapper,
+            'data',
+          ) as SealevelEnrollRemoteRoutersInstruction;
           const configsValue = readPropertyOrThrow(instruction, 'configs');
           const { isArray: configsAreArray, readFailed: configsReadFailed } =
             inspectArrayValue(configsValue);
@@ -792,8 +796,10 @@ export class SquadsTransactionReader {
             SealevelInstructionWrapper,
             borshData,
           );
-          const instruction =
-            wrapper.data as SealevelSetDestinationGasConfigsInstruction;
+          const instruction = readPropertyOrThrow(
+            wrapper,
+            'data',
+          ) as SealevelSetDestinationGasConfigsInstruction;
           const configsValue = readPropertyOrThrow(instruction, 'configs');
           const { isArray: configsAreArray, readFailed: configsReadFailed } =
             inspectArrayValue(configsValue);
@@ -828,8 +834,10 @@ export class SquadsTransactionReader {
             SealevelInstructionWrapper,
             borshData,
           );
-          const instruction =
-            wrapper.data as SealevelSetInterchainSecurityModuleInstruction;
+          const instruction = readPropertyOrThrow(
+            wrapper,
+            'data',
+          ) as SealevelSetInterchainSecurityModuleInstruction;
           const ismPubkeyValue = readPropertyOrThrow(instruction, 'ismPubkey');
           const ism = ismPubkeyValue
             ? this.formatAddressLikeForDisplay(
@@ -856,8 +864,10 @@ export class SquadsTransactionReader {
             SealevelInstructionWrapper,
             borshData,
           );
-          const instruction =
-            wrapper.data as SealevelSetInterchainGasPaymasterInstruction;
+          const instruction = readPropertyOrThrow(
+            wrapper,
+            'data',
+          ) as SealevelSetInterchainGasPaymasterInstruction;
           const igpConfig = readPropertyOrThrow(instruction, 'igpConfig');
           const programIdPubkeyValue = igpConfig
             ? readPropertyOrThrow(igpConfig, 'programIdPubkey')
@@ -907,8 +917,10 @@ export class SquadsTransactionReader {
             SealevelInstructionWrapper,
             borshData,
           );
-          const instruction =
-            wrapper.data as SealevelHypTokenTransferOwnershipInstruction;
+          const instruction = readPropertyOrThrow(
+            wrapper,
+            'data',
+          ) as SealevelHypTokenTransferOwnershipInstruction;
           const newOwnerPubkeyValue = readPropertyOrThrow(
             instruction,
             'newOwnerPubkey',
@@ -1001,8 +1013,10 @@ export class SquadsTransactionReader {
             SealevelInstructionWrapper,
             instructionData,
           );
-          const instruction =
-            wrapper.data as SealevelMailboxSetDefaultIsmInstruction;
+          const instruction = readPropertyOrThrow(
+            wrapper,
+            'data',
+          ) as SealevelMailboxSetDefaultIsmInstruction;
           const newIsmPubkeyValue = readPropertyOrThrow(
             instruction,
             'newIsmPubkey',
@@ -1027,8 +1041,10 @@ export class SquadsTransactionReader {
             SealevelInstructionWrapper,
             instructionData,
           );
-          const instruction =
-            wrapper.data as SealevelMailboxTransferOwnershipInstruction;
+          const instruction = readPropertyOrThrow(
+            wrapper,
+            'data',
+          ) as SealevelMailboxTransferOwnershipInstruction;
           const newOwnerPubkeyValue = readPropertyOrThrow(
             instruction,
             'newOwnerPubkey',
@@ -1133,8 +1149,10 @@ export class SquadsTransactionReader {
             SealevelInstructionWrapper,
             borshData,
           );
-          const instruction =
-            wrapper.data as SealevelMultisigIsmSetValidatorsInstruction;
+          const instruction = readPropertyOrThrow(
+            wrapper,
+            'data',
+          ) as SealevelMultisigIsmSetValidatorsInstruction;
           const domainValue = readPropertyOrThrow(instruction, 'domain');
           const thresholdValue = readPropertyOrThrow(instruction, 'threshold');
           const validatorsValue = readPropertyOrThrow(
@@ -1183,8 +1201,10 @@ export class SquadsTransactionReader {
             SealevelInstructionWrapper,
             borshData,
           );
-          const instruction =
-            wrapper.data as SealevelMultisigIsmTransferOwnershipInstruction;
+          const instruction = readPropertyOrThrow(
+            wrapper,
+            'data',
+          ) as SealevelMultisigIsmTransferOwnershipInstruction;
           const newOwnerPubkeyValue = readPropertyOrThrow(
             instruction,
             'newOwnerPubkey',
