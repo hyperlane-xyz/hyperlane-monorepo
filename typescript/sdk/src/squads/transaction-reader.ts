@@ -437,12 +437,13 @@ export class SquadsTransactionReader {
       }
       const normalizedRouteTokens = routeTokens as readonly unknown[];
 
-      let routeTokensLengthValue: unknown;
-      try {
-        routeTokensLengthValue = normalizedRouteTokens.length;
-      } catch (error) {
+      const {
+        propertyValue: routeTokensLengthValue,
+        readError: routeTokensLengthReadError,
+      } = inspectPropertyValue(normalizedRouteTokens, 'length');
+      if (routeTokensLengthReadError) {
         rootLogger.warn(
-          `Failed to read warp route tokens length for ${routeName}: ${stringifyUnknownSquadsError(error)}`,
+          `Failed to read warp route tokens length for ${routeName}: ${stringifyUnknownSquadsError(routeTokensLengthReadError)}`,
         );
         continue;
       }
@@ -2185,12 +2186,13 @@ export class SquadsTransactionReader {
 
     const normalizedTransactionPdaTuple =
       transactionPdaTuple as readonly unknown[];
-    let transactionPdaTupleLengthValue: unknown;
-    try {
-      transactionPdaTupleLengthValue = normalizedTransactionPdaTuple.length;
-    } catch (error) {
+    const {
+      propertyValue: transactionPdaTupleLengthValue,
+      readError: transactionPdaTupleLengthReadError,
+    } = inspectPropertyValue(normalizedTransactionPdaTuple, 'length');
+    if (transactionPdaTupleLengthReadError) {
       throw new Error(
-        `Failed to read transaction PDA tuple length for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read transaction PDA tuple length for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(transactionPdaTupleLengthReadError)}`,
       );
     }
     assert(

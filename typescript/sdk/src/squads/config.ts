@@ -2,7 +2,7 @@ import { PublicKey } from '@solana/web3.js';
 
 import { Address } from '@hyperlane-xyz/utils';
 import { stringifyUnknownSquadsError } from './error-format.js';
-import { inspectArrayValue } from './inspection.js';
+import { inspectArrayValue, inspectPropertyValue } from './inspection.js';
 
 export type SquadConfig = {
   programId: Address;
@@ -102,12 +102,11 @@ function getArrayLengthOrThrow(
   values: readonly unknown[],
   listLabel: string,
 ): number {
-  let lengthValue: unknown;
-  try {
-    lengthValue = values.length;
-  } catch (error) {
+  const { propertyValue: lengthValue, readError: lengthReadError } =
+    inspectPropertyValue(values, 'length');
+  if (lengthReadError) {
     throw new Error(
-      `Failed to read ${listLabel} length: ${formatUnknownListError(error)}`,
+      `Failed to read ${listLabel} length: ${formatUnknownListError(lengthReadError)}`,
     );
   }
 

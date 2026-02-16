@@ -243,12 +243,11 @@ function getArrayLengthOrThrow(
   values: readonly unknown[],
   label: string,
 ): number {
-  let lengthValue: unknown;
-  try {
-    lengthValue = values.length;
-  } catch (error) {
+  const { propertyValue: lengthValue, readError: lengthReadError } =
+    inspectPropertyValue(values, 'length');
+  if (lengthReadError) {
     throw new Error(
-      `Failed to read ${label} length: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read ${label} length: ${formatUnknownErrorForMessage(lengthReadError)}`,
     );
   }
 
