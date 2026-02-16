@@ -537,6 +537,48 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     }
   });
 
+  it('does not throw when inherited chain getter on Object prototype throws and strategy file has no own chain entries', async () => {
+    let protocolCalls = 0;
+    const strategyPath = createEmptyStrategyPath();
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      CHAIN,
+    );
+    Object.defineProperty(Object.prototype, CHAIN, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error('boom');
+      },
+    });
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => {
+              protocolCalls += 1;
+              return ProtocolType.Ethereum;
+            },
+          },
+        } as any,
+        strategyUrl: strategyPath,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(protocolCalls).to.equal(1);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(Object.prototype, CHAIN, originalDescriptor);
+      } else {
+        delete (Object.prototype as Record<string, unknown>)[CHAIN];
+      }
+    }
+  });
+
   it('ignores disallowed prototype-literal chain keys when resolving explicit strategy', async () => {
     const batches = await resolveSubmitterBatchesForTransactions({
       chain: '__proto__' as any,
