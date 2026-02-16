@@ -1697,13 +1697,6 @@ function readStaticDeleteResultForElementTarget(
   }
 
   const unwrappedArgument = unwrapInitializerExpression(argumentExpression);
-  const primitiveArgument = readStaticPrimitiveValue(unwrappedArgument);
-  if (primitiveArgument !== STATIC_PRIMITIVE_UNKNOWN) {
-    return readStaticDeleteResultForPropertyTarget(
-      unwrappedTarget,
-      String(primitiveArgument),
-    );
-  }
 
   if (ts.isConditionalExpression(unwrappedArgument)) {
     const selectorCondition = readStaticBooleanCondition(
@@ -1775,7 +1768,32 @@ function readStaticDeleteResultForElementTarget(
         ts.SyntaxKind.AmpersandAmpersandToken ||
       unwrappedArgument.operatorToken.kind === ts.SyntaxKind.BarBarToken
     ) {
-      const leftCondition = readStaticBooleanCondition(unwrappedArgument.left);
+      const logicalLeft = unwrapInitializerExpression(unwrappedArgument.left);
+      if (
+        ts.isBinaryExpression(logicalLeft) &&
+        ((unwrappedArgument.operatorToken.kind === ts.SyntaxKind.BarBarToken &&
+          logicalLeft.operatorToken.kind ===
+            ts.SyntaxKind.AmpersandAmpersandToken) ||
+          (unwrappedArgument.operatorToken.kind ===
+            ts.SyntaxKind.AmpersandAmpersandToken &&
+            logicalLeft.operatorToken.kind === ts.SyntaxKind.BarBarToken))
+      ) {
+        const leftSharedPrimitive = readStaticPrimitiveValue(logicalLeft.right);
+        const rightSharedPrimitive = readStaticPrimitiveValue(
+          unwrappedArgument.right,
+        );
+        if (
+          leftSharedPrimitive !== STATIC_PRIMITIVE_UNKNOWN &&
+          leftSharedPrimitive === rightSharedPrimitive
+        ) {
+          return readStaticDeleteResultForPropertyTarget(
+            unwrappedTarget,
+            String(rightSharedPrimitive),
+          );
+        }
+      }
+
+      const leftCondition = readStaticBooleanCondition(logicalLeft);
       if (
         unwrappedArgument.operatorToken.kind ===
         ts.SyntaxKind.AmpersandAmpersandToken
@@ -1789,14 +1807,14 @@ function readStaticDeleteResultForElementTarget(
         if (leftCondition === false) {
           return readStaticDeleteResultForElementTarget(
             unwrappedTarget,
-            unwrappedArgument.left,
+            logicalLeft,
           );
         }
       } else {
         if (leftCondition === true) {
           return readStaticDeleteResultForElementTarget(
             unwrappedTarget,
-            unwrappedArgument.left,
+            logicalLeft,
           );
         }
         if (leftCondition === false) {
@@ -1807,16 +1825,21 @@ function readStaticDeleteResultForElementTarget(
         }
       }
       return mergeStaticDeleteTargetResults(
-        readStaticDeleteResultForElementTarget(
-          unwrappedTarget,
-          unwrappedArgument.left,
-        ),
+        readStaticDeleteResultForElementTarget(unwrappedTarget, logicalLeft),
         readStaticDeleteResultForElementTarget(
           unwrappedTarget,
           unwrappedArgument.right,
         ),
       );
     }
+  }
+
+  const primitiveArgument = readStaticPrimitiveValue(unwrappedArgument);
+  if (primitiveArgument !== STATIC_PRIMITIVE_UNKNOWN) {
+    return readStaticDeleteResultForPropertyTarget(
+      unwrappedTarget,
+      String(primitiveArgument),
+    );
   }
 
   return STATIC_PRIMITIVE_UNKNOWN;
@@ -9495,6 +9518,41 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality direct-delete array-element-logical-same-length predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((marker === 1 && 'length') || 'length')]) === false)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-equality direct-delete array-element-logical-mixed-key predicates conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      "if (((delete ([] as any)[((marker === 1 && 'length') || 'safe')]) === false)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('keeps strict-equality direct-delete array-element-conditional-mixed-key predicates conservative for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -16218,6 +16276,37 @@ describe('Safe migration guards', () => {
     );
     expect(references).to.include('default@./fixtures/other-module.js');
     expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality direct-delete array-element-logical-same-length predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((marker === 1 && 'length') || 'length')]) === false)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-equality direct-delete array-element-logical-mixed-key predicates conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((marker === 1 && 'length') || 'safe')]) === false)) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
   it('keeps strict-equality direct-delete array-element-conditional-mixed-key predicates conservative for module-source aliases in symbol sources', () => {
@@ -29589,6 +29678,51 @@ describe('Safe migration guards', () => {
       './fixtures/guard-module.js@fixture.ts',
     );
     expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality direct-delete array-element-logical-same-length predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((marker === 1 && 'length') || 'length')]) === false)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-equality direct-delete array-element-logical-mixed-key predicates conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js');",
+      "if (((delete ([] as any)[((marker === 1 && 'length') || 'safe')]) === false)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
       './fixtures/other-module.js@fixture.ts',
     );
   });
