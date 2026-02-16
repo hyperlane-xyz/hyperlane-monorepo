@@ -32,6 +32,8 @@ describe('resolveSubmitterBatchesForTransactions primitive edge case probes', ()
     { label: 'empty-string-primitive', probeValue: '' },
     { label: 'whitespace-string-primitive', probeValue: '   ' },
     { label: 'hex-string-primitive', probeValue: '0xdeadbeef' },
+    { label: 'symbol-local-primitive', probeValue: Symbol('local') },
+    { label: 'symbol-global-primitive', probeValue: Symbol.for('global-probe') },
     { label: 'bigint-zero-primitive', probeValue: 0n },
     { label: 'bigint-positive-primitive', probeValue: 42n },
     { label: 'bigint-negative-primitive', probeValue: -42n },
