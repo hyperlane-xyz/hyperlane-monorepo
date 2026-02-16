@@ -2837,6 +2837,117 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps sdk squads pattern-path discovery stable when regex own source and flags accessors throw', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const throwingMutationPattern = /Reflect\.apply is mutated/gi;
+    const throwingCapturePattern = /const REFLECT_APPLY = Reflect\.apply/gi;
+    const originalMutationSourceDescriptor = Object.getOwnPropertyDescriptor(
+      throwingMutationPattern,
+      'source',
+    );
+    const originalMutationFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      throwingMutationPattern,
+      'flags',
+    );
+    const originalCaptureSourceDescriptor = Object.getOwnPropertyDescriptor(
+      throwingCapturePattern,
+      'source',
+    );
+    const originalCaptureFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      throwingCapturePattern,
+      'flags',
+    );
+
+    Object.defineProperty(throwingMutationPattern, 'source', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected squads discovery to bypass throwing own source accessors',
+        );
+      },
+    });
+    Object.defineProperty(throwingMutationPattern, 'flags', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected squads discovery to bypass throwing own flags accessors',
+        );
+      },
+    });
+    Object.defineProperty(throwingCapturePattern, 'source', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected squads discovery to bypass throwing own source accessors',
+        );
+      },
+    });
+    Object.defineProperty(throwingCapturePattern, 'flags', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected squads discovery to bypass throwing own flags accessors',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listSdkSquadsTestFilePathsContainingPattern(throwingMutationPattern),
+      ).to.deep.equal(baselineMutationDiscovery);
+      expect(
+        listSdkSquadsNonTestSourceFilePathsContainingPattern(
+          throwingCapturePattern,
+        ),
+      ).to.deep.equal(baselineCaptureDiscovery);
+    } finally {
+      if (originalMutationSourceDescriptor) {
+        Object.defineProperty(
+          throwingMutationPattern,
+          'source',
+          originalMutationSourceDescriptor,
+        );
+      } else {
+        delete (throwingMutationPattern as unknown as { source?: unknown })
+          .source;
+      }
+      if (originalMutationFlagsDescriptor) {
+        Object.defineProperty(
+          throwingMutationPattern,
+          'flags',
+          originalMutationFlagsDescriptor,
+        );
+      } else {
+        delete (throwingMutationPattern as unknown as { flags?: unknown })
+          .flags;
+      }
+      if (originalCaptureSourceDescriptor) {
+        Object.defineProperty(
+          throwingCapturePattern,
+          'source',
+          originalCaptureSourceDescriptor,
+        );
+      } else {
+        delete (throwingCapturePattern as unknown as { source?: unknown })
+          .source;
+      }
+      if (originalCaptureFlagsDescriptor) {
+        Object.defineProperty(
+          throwingCapturePattern,
+          'flags',
+          originalCaptureFlagsDescriptor,
+        );
+      } else {
+        delete (throwingCapturePattern as unknown as { flags?: unknown }).flags;
+      }
+    }
+  });
+
   it('keeps sdk squads pattern-path discovery stable when regex getter call slots are overridden', () => {
     const baselineMutationDiscovery =
       listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
