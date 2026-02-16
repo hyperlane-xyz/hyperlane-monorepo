@@ -509,8 +509,9 @@ function isEthereumProtocolChain(
 
   try {
     const isEthereum =
-      context.multiProvider.getProtocol(chain as ChainName) ===
-      ProtocolType.Ethereum;
+      coerceKnownProtocolType(
+        context.multiProvider.getProtocol(chain as ChainName),
+      ) === ProtocolType.Ethereum;
     cache.protocolIsEthereumByChain.set(chain, isEthereum);
     return isEthereum;
   } catch {
