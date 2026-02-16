@@ -544,6 +544,30 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
       inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
     ).to.equal(ORIGIN_ROUTER.toLowerCase());
   });
+
+  it('accepts positional ICA parsed args when named fields are missing', async () => {
+    const positionalArgs = [] as any[];
+    positionalArgs[1] = 31347;
+    positionalArgs[2] = originRouterBytes32;
+    positionalArgs[3] = signerBytes32;
+    positionalArgs[4] = ethersConstants.AddressZero;
+
+    const inferredSubmitter = await resolveFromLogs([
+      {
+        __parsedArgs: positionalArgs,
+        topics: ['0xpositional-ica-args'],
+        data: '0x',
+        blockNumber: 651,
+        transactionIndex: 0,
+        logIndex: 0,
+      },
+    ]);
+
+    expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
 });
 
 describe('resolveSubmitterBatchesForTransactions timelock log position getter fallback', () => {
@@ -615,6 +639,11 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
                     'args getter should not crash timelock role parsing',
                   );
                 },
+              };
+            }
+            if (log?.__parsedArgs) {
+              return {
+                args: log.__parsedArgs,
               };
             }
             return {
@@ -760,6 +789,20 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
     await resolveFromRoleLogs({
       __parsedAccount: throwingBoxedAccount,
       topics: ['0xgrant-throwing-boxed-account'],
+      data: '0x',
+      blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('accepts positional timelock account fields during role ordering', async () => {
+    const positionalArgs = [] as any[];
+    positionalArgs[1] = '0x7878787878787878787878787878787878787878';
+
+    await resolveFromRoleLogs({
+      __parsedArgs: positionalArgs,
+      topics: ['0xgrant-positional-account'],
       data: '0x',
       blockNumber: '1601',
       transactionIndex: '0',

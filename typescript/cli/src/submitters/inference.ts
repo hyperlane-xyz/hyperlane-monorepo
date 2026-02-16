@@ -278,13 +278,30 @@ function getParsedLogArgs(parsedLog: unknown): unknown | null {
   }
 }
 
-function getParsedLogArg(args: unknown, field: string): unknown {
+function getParsedLogArg(
+  args: unknown,
+  field: string,
+  fallbackIndex?: number,
+): unknown {
   if (!args || (typeof args !== 'object' && typeof args !== 'function')) {
     return undefined;
   }
 
   try {
-    return (args as Record<string, unknown>)[field];
+    const fieldValue = (args as Record<string, unknown>)[field];
+    if (fieldValue !== undefined) {
+      return fieldValue;
+    }
+  } catch {
+    return undefined;
+  }
+
+  if (fallbackIndex === undefined) {
+    return undefined;
+  }
+
+  try {
+    return (args as Record<number, unknown>)[fallbackIndex];
   } catch {
     return undefined;
   }
@@ -796,17 +813,17 @@ async function inferIcaSubmitterFromAccount({
       const parsed = destinationRouter.interface.parseLog(log);
       const parsedArgs = getParsedLogArgs(parsed);
       const normalizedOriginDomain = toHyperlaneDomainId(
-        getParsedLogArg(parsedArgs, 'origin'),
+        getParsedLogArg(parsedArgs, 'origin', 1),
       );
       if (normalizedOriginDomain === null) {
         continue;
       }
       originDomain = normalizedOriginDomain;
       const normalizedOriginRouter = bytes32ToEvmAddressFromUnknown(
-        getParsedLogArg(parsedArgs, 'router'),
+        getParsedLogArg(parsedArgs, 'router', 2),
       );
       const normalizedOwner = bytes32ToEvmAddressFromUnknown(
-        getParsedLogArg(parsedArgs, 'owner'),
+        getParsedLogArg(parsedArgs, 'owner', 3),
       );
       if (!normalizedOriginRouter || !normalizedOwner) {
         continue;
@@ -820,7 +837,7 @@ async function inferIcaSubmitterFromAccount({
         continue;
       }
       const normalizedIsm = normalizeEvmAddressFromUnknown(
-        getParsedLogArg(parsedArgs, 'ism'),
+        getParsedLogArg(parsedArgs, 'ism', 4),
       );
       if (!normalizedIsm) {
         continue;
@@ -1099,7 +1116,7 @@ async function inferTimelockProposerSubmitter({
       const parsed = timelock.interface.parseLog(roleLog.log);
       const parsedArgs = getParsedLogArgs(parsed);
       const normalizedAccount = normalizeEvmAddressFromUnknown(
-        getParsedLogArg(parsedArgs, 'account'),
+        getParsedLogArg(parsedArgs, 'account', 1),
       );
       if (
         normalizedAccount &&
