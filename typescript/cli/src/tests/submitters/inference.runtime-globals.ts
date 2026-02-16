@@ -254,7 +254,10 @@ export function resolveRuntimeFunctionProbeCases(
     label: string;
     directGetLogsCallCount: number;
   }>,
-  runtimeFunctionValuesByLabel: ReadonlyMap<string, unknown>,
+  runtimeFunctionValuesByLabel: ReadonlyMap<
+    string,
+    unknown
+  > = getCachedRuntimeFunctionValuesByLabel(),
 ): RuntimeFunctionProbeCase[] {
   return rawCases
     .map((value) => ({

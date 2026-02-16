@@ -306,6 +306,15 @@ describe('runtime global probe helpers', () => {
   });
 
   it('resolves runtime function probe cases by available labels', () => {
+    const resolvedWithoutMap = resolveRuntimeFunctionProbeCases([
+      {
+        label: 'array-constructor-object',
+        directGetLogsCallCount: 4,
+      },
+    ]);
+    expect(resolvedWithoutMap).to.have.length(1);
+    expect(resolvedWithoutMap[0].constructorValue).to.equal(Array);
+
     const resolved = resolveRuntimeFunctionProbeCases(
       [
         {
@@ -387,5 +396,32 @@ describe('runtime global probe helpers', () => {
     });
 
     expect(hardcodedReturns).to.deep.equal([]);
+  });
+
+  it('enforces constructor probe files to use shared runtime helpers', () => {
+    const constructorProbeFilePattern =
+      /^inference\..*constructor(?:s)?\.test\.ts$/;
+    const submitterTestDir = path.dirname(fileURLToPath(import.meta.url));
+    const constructorProbeFiles = fs
+      .readdirSync(submitterTestDir)
+      .filter((fileName) => constructorProbeFilePattern.test(fileName));
+
+    const filesMissingSharedHelper = constructorProbeFiles.filter(
+      (fileName) => {
+        const fileContent = fs.readFileSync(
+          path.join(submitterTestDir, fileName),
+          'utf8',
+        );
+        const usesRequiredSingleProbeHelper = fileContent.includes(
+          'getRequiredRuntimeFunctionValueByLabel',
+        );
+        const usesGroupedProbeResolver = fileContent.includes(
+          'resolveRuntimeFunctionProbeCases',
+        );
+        return !usesRequiredSingleProbeHelper && !usesGroupedProbeResolver;
+      },
+    );
+
+    expect(filesMissingSharedHelper).to.deep.equal([]);
   });
 });

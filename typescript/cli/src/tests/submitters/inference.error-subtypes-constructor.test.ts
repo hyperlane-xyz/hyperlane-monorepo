@@ -12,10 +12,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
-import {
-  getRuntimeFunctionValuesByLabel,
-  resolveRuntimeFunctionProbeCases,
-} from './inference.runtime-globals.js';
+import { resolveRuntimeFunctionProbeCases } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions error subtype constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -25,8 +22,6 @@ describe('resolveSubmitterBatchesForTransactions error subtype constructor probe
     data: '0x',
     chainId: 31338,
   };
-
-  const runtimeFunctionValuesByLabel = getRuntimeFunctionValuesByLabel();
 
   const RAW_CONSTRUCTOR_CASES = [
     {
@@ -61,7 +56,6 @@ describe('resolveSubmitterBatchesForTransactions error subtype constructor probe
 
   const CONSTRUCTOR_CASES = resolveRuntimeFunctionProbeCases(
     RAW_CONSTRUCTOR_CASES,
-    runtimeFunctionValuesByLabel,
   );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
