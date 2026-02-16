@@ -608,6 +608,20 @@ async function inferIcaSubmitterFromAccount({
   cache,
   depth,
 }: InferIcaParams): Promise<InferredSubmitter | null> {
+  /**
+   * Infer an ICA submitter for a destination-chain account address.
+   *
+   * Resolution order:
+   * 1) parse destination `InterchainAccountCreated` logs (latest-first by exact
+   *    block/tx/log position) and validate origin chain + signer availability
+   * 2) fallback derivation via known origin routers and signer-owned owner
+   *    candidates when event inference is unavailable/incomplete
+   *
+   * Guarantees:
+   * - never throws for malformed logs, invalid domains, bad router fields, or
+   *   missing providers; returns `null` and lets caller fallback to jsonRpc.
+   * - caches both positive and negative outcomes per `(destinationChain, account)`.
+   */
   if (depth >= MAX_INFERENCE_DEPTH) {
     return null;
   }
@@ -858,6 +872,23 @@ async function inferTimelockProposerSubmitter({
   cache,
   depth,
 }: InferTimelockProposerParams): Promise<InferredSubmitter> {
+  /**
+   * Infer proposer submitter for a TimelockController.
+   *
+   * Strategy:
+   * - if signer can propose directly (open role or signer has proposer role):
+   *   return jsonRpc.
+   * - otherwise reconstruct current proposer set from RoleGranted/RoleRevoked logs
+   *   and prefer:
+   *   Safe proposer -> gnosisSafeTxBuilder
+   *   ICA proposer -> interchainAccount (with inferred internal submitter)
+   * - if role logs are incomplete, run signer-owned ICA derivation fallback and
+   *   verify proposer role on derived ICA account.
+   *
+   * Failure behavior:
+   * - any probe/read/parse error falls back to jsonRpc; result is memoized per
+   *   `(chain, timelockAddress)` to prevent repeated noisy RPC probes.
+   */
   const timelockKey = cacheKey(chain, timelockAddress);
   const cached = cache.timelockProposerByChainAndAddress.get(timelockKey);
   if (cached) {
@@ -1233,6 +1264,19 @@ async function inferSubmitterFromAddress({
   cache,
   depth,
 }: InferSubmitterFromAddressParams): Promise<InferredSubmitter> {
+  /**
+   * Infer the controlling submitter for an on-chain owner address.
+   *
+   * Order:
+   * - signer / zero address / recursion limit => jsonRpc
+   * - Safe owner => gnosisSafeTxBuilder
+   * - Timelock owner => timelockController with inferred proposer submitter
+   * - ICA account => interchainAccount with inferred internal submitter
+   * - unknown owner type => jsonRpc
+   *
+   * This function is deliberately conservative: inability to prove a richer
+   * submitter shape is treated as jsonRpc, not as an inference error.
+   */
   const defaultSubmitter: InferredSubmitter = {
     chain,
     type: TxSubmitterType.JSON_RPC,
