@@ -880,6 +880,23 @@ describe('squads utils', () => {
         'Expected transaction index to be a non-negative safe integer for solanamainnet, got symbol',
       );
     });
+
+    it('labels unreadable transaction-index values in validation errors', () => {
+      const { proxy: revokedTransactionIndex, revoke } = Proxy.revocable(
+        {},
+        {},
+      );
+      revoke();
+
+      expect(() =>
+        assertValidTransactionIndexInput(
+          revokedTransactionIndex,
+          'solanamainnet',
+        ),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got [unreadable value type]',
+      );
+    });
   });
 
   describe(getMinimumProposalIndexToCheck.name, () => {
@@ -948,6 +965,17 @@ describe('squads utils', () => {
       );
     });
 
+    it('labels unreadable current transaction index values in validation errors', () => {
+      const { proxy: revokedCurrentIndex, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(() =>
+        getMinimumProposalIndexToCheck(revokedCurrentIndex),
+      ).to.throw(
+        'Expected current transaction index to be a non-negative safe integer, got [unreadable value type]',
+      );
+    });
+
     it('throws for negative lookback count', () => {
       expect(() => getMinimumProposalIndexToCheck(1, -1)).to.throw(
         'Expected lookback count to be a non-negative safe integer, got -1',
@@ -974,6 +1002,17 @@ describe('squads utils', () => {
       );
       expect(() => getMinimumProposalIndexToCheck(1, null)).to.throw(
         'Expected lookback count to be a non-negative safe integer, got null',
+      );
+    });
+
+    it('labels unreadable lookback count values in validation errors', () => {
+      const { proxy: revokedLookbackCount, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(() =>
+        getMinimumProposalIndexToCheck(1, revokedLookbackCount),
+      ).to.throw(
+        'Expected lookback count to be a non-negative safe integer, got [unreadable value type]',
       );
     });
   });
