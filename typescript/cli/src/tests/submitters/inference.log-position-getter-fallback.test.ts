@@ -357,6 +357,29 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
 
     expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
   });
+
+  it('accepts boxed ICA parsed args fields', async () => {
+    const boxedArgsLog = {
+      __parsedArgs: {
+        origin: new String('31347'),
+        router: new String(originRouterBytes32),
+        owner: new String(signerBytes32),
+        ism: new String(ethersConstants.AddressZero),
+      },
+      topics: ['0xboxed-ica-args'],
+      data: '0x',
+      blockNumber: 650,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+
+    const inferredSubmitter = await resolveFromLogs([boxedArgsLog]);
+
+    expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
 });
 
 describe('resolveSubmitterBatchesForTransactions timelock log position getter fallback', () => {
@@ -534,6 +557,17 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
     await resolveFromRoleLogs({
       __throwArgsGetter: true,
       topics: ['0xgrant-malformed-throwing-args-getter'],
+      data: '0x',
+      blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('accepts boxed timelock account fields during role ordering', async () => {
+    await resolveFromRoleLogs({
+      __parsedAccount: new String('0x7878787878787878787878787878787878787878'),
+      topics: ['0xgrant-boxed-account'],
       data: '0x',
       blockNumber: '1601',
       transactionIndex: '0',
