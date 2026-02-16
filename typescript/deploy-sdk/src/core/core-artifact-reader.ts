@@ -1,4 +1,7 @@
-import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  ChainMetadataForAltVM,
+  getProtocolProvider,
+} from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactReader,
   ArtifactState,
@@ -21,6 +24,35 @@ import {
   createIsmReader,
   ismArtifactToDerivedConfig,
 } from '../ism/generic-ism.js';
+
+/**
+ * Factory function to create a CoreArtifactReader instance.
+ * Follows pattern of createHookReader() and createIsmReader().
+ *
+ * @param chainMetadata Chain metadata for target chain
+ * @param chainLookup Chain lookup for domain resolution
+ * @returns CoreArtifactReader instance
+ *
+ * @example
+ * ```typescript
+ * const reader = createCoreReader(chainMetadata, chainLookup);
+ * const coreConfig = await reader.deriveCoreConfig(mailboxAddress);
+ * ```
+ */
+export function createCoreReader(
+  chainMetadata: ChainMetadataForAltVM,
+  chainLookup: ChainLookup,
+): CoreArtifactReader {
+  const protocolProvider = getProtocolProvider(chainMetadata.protocol);
+  const mailboxArtifactManager =
+    protocolProvider.createMailboxArtifactManager(chainMetadata);
+
+  return new CoreArtifactReader(
+    mailboxArtifactManager,
+    chainMetadata,
+    chainLookup,
+  );
+}
 
 /**
  * Core Artifact Reader - composite artifact reader that orchestrates mailbox, ISM, and hook readers.

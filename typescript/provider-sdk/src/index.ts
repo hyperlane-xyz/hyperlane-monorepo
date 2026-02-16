@@ -1,5 +1,6 @@
 export * as AltVM from './altvm.js';
 export { ChainMetadataForAltVM } from './chain.js';
+export { coreConfigToArtifact, coreResultToDeployedAddresses } from './core.js';
 export { MinimumRequiredGasByAction, GasAction } from './mingas.js';
 export {
   ProtocolType,
