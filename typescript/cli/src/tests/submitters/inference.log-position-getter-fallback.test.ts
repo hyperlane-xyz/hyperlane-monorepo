@@ -59,6 +59,13 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
           },
           interface: {
             parseLog: (log: any) => {
+              if (log?.__throwArgsGetter) {
+                return {
+                  get args() {
+                    throw new Error('args getter should not crash ICA inference');
+                  },
+                };
+              }
               if (log?.__parsedArgs) {
                 return {
                   args: log.__parsedArgs,
@@ -324,6 +331,32 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
 
     expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
   });
+
+  it('ignores throwing parseLog args getters and uses next valid ICA event', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 640,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const malformedArgsGetterLog = {
+      __throwArgsGetter: true,
+      topics: ['0xmalformed-throwing-args-getter'],
+      data: '0x',
+      blockNumber: 641,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+
+    const inferredSubmitter = await resolveFromLogs([
+      malformedArgsGetterLog,
+      validLog,
+    ]);
+
+    expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
+  });
 });
 
 describe('resolveSubmitterBatchesForTransactions timelock log position getter fallback', () => {
@@ -387,11 +420,22 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
         hasRole: async () => false,
         interface: {
           getEventTopic: (name: string) => name,
-          parseLog: (log: any) => ({
-            args: {
-              account: log?.__parsedAccount ?? safeProposer,
-            },
-          }),
+          parseLog: (log: any) => {
+            if (log?.__throwArgsGetter) {
+              return {
+                get args() {
+                  throw new Error(
+                    'args getter should not crash timelock role parsing',
+                  );
+                },
+              };
+            }
+            return {
+              args: {
+                account: log?.__parsedAccount ?? safeProposer,
+              },
+            };
+          },
         },
       } as any);
 
@@ -479,6 +523,17 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
     await resolveFromRoleLogs({
       __parsedAccount: `0x${'3'.repeat(5000)}`,
       topics: ['0xgrant-malformed-overlong-account'],
+      data: '0x',
+      blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('ignores throwing parseLog args getters during timelock role ordering', async () => {
+    await resolveFromRoleLogs({
+      __throwArgsGetter: true,
+      topics: ['0xgrant-malformed-throwing-args-getter'],
       data: '0x',
       blockNumber: '1601',
       transactionIndex: '0',
