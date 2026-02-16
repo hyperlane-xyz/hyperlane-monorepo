@@ -2324,6 +2324,49 @@ describe('squads barrel exports', () => {
     expect(captureStickyPattern.lastIndex).to.equal(18);
   });
 
+  it('keeps Reflect.apply pattern-discovery helper custom mixed-flag patterns deterministic and lastIndex-safe', () => {
+    const mutationMixedPattern = /reflect\.apply is mutated/giy;
+    const captureMixedPattern = /const reflect_apply = reflect\.apply/giy;
+    mutationMixedPattern.lastIndex = 29;
+    captureMixedPattern.lastIndex = 31;
+
+    expect(
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        mutationMixedPattern,
+      ),
+    ).to.deep.equal(
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /reflect\.apply is mutated/i,
+      ),
+    );
+    expect(
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        captureMixedPattern,
+      ),
+    ).to.deep.equal(
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /const reflect_apply = reflect\.apply/i,
+      ),
+    );
+    expect(mutationMixedPattern.lastIndex).to.equal(29);
+    expect(captureMixedPattern.lastIndex).to.equal(31);
+  });
+
+  it('keeps Reflect.apply wrapper default pattern flags non-stateful', () => {
+    expect(
+      REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN.flags.includes('g'),
+    ).to.equal(false);
+    expect(
+      REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN.flags.includes('y'),
+    ).to.equal(false);
+    expect(
+      REFLECT_APPLY_CAPTURE_DECLARATION_SEARCH_PATTERN.flags.includes('g'),
+    ).to.equal(false);
+    expect(
+      REFLECT_APPLY_CAPTURE_DECLARATION_SEARCH_PATTERN.flags.includes('y'),
+    ).to.equal(false);
+  });
+
   it('keeps Reflect.apply pattern-discovery helper wrappers delegating to base pattern discovery', () => {
     const broadMutationPattern = /Reflect\.apply is mutated/;
     const broadCapturePattern = /Reflect\.apply/;
