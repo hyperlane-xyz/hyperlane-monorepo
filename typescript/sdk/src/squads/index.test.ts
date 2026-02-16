@@ -3046,6 +3046,44 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps expected canonical Reflect.apply wrapper runtime patch scenario labels', () => {
+    assertScenarioLabelsUniqueAndNormalized(
+      EXPECTED_REFLECT_APPLY_WRAPPER_RUNTIME_PATCH_SCENARIO_LABELS,
+      'Reflect.apply wrapper runtime patch canonical labels',
+    );
+    expect(
+      EXPECTED_REFLECT_APPLY_WRAPPER_RUNTIME_PATCH_SCENARIO_LABELS,
+    ).to.deep.equal([
+      'RegExp.prototype.exec global slot patch',
+      'RegExp.prototype.test global slot patch',
+      'RegExp.prototype.flags getter global slot patch',
+      'RegExp.prototype.source getter global slot patch',
+      'Reflect.apply global slot patch',
+      'global RegExp constructor patch',
+      'RegExp.prototype Symbol.match slot patch',
+      'RegExp.prototype Symbol.match call slot override',
+      'RegExp.prototype.exec call slot override',
+      'RegExp getter call slot overrides',
+    ]);
+  });
+
+  it('keeps expected canonical Reflect.apply wrapper caller-regex mutation scenario labels', () => {
+    assertScenarioLabelsUniqueAndNormalized(
+      EXPECTED_REFLECT_APPLY_WRAPPER_CALLER_REGEX_MUTATION_SCENARIO_LABELS,
+      'Reflect.apply wrapper caller-regex canonical labels',
+    );
+    expect(
+      EXPECTED_REFLECT_APPLY_WRAPPER_CALLER_REGEX_MUTATION_SCENARIO_LABELS,
+    ).to.deep.equal([
+      'own test override',
+      'own exec override',
+      'own Symbol.match override',
+      'throwing own constructor getter',
+      'shadowed own source and flags values',
+      'throwing own source and flags accessors',
+    ]);
+  });
+
   it('keeps Reflect.apply wrapper runtime patch matrix scenario helper frozen and snapshot-isolated', () => {
     const initialScenarios = listReflectApplyWrapperRuntimePatchScenarios();
     const baselineScenarioLabels = initialScenarios.map(({ label }) => label);
