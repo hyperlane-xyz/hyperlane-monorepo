@@ -1429,6 +1429,23 @@ function assertPathSnapshotIsolation(
   expect(subsequentPaths).to.not.equal(baselinePaths);
 }
 
+function assertReflectApplyWrapperDefaultDiscoveryMatchesCanonicalInventories(
+  assertionContext: string = 'Reflect.apply wrapper discovery',
+): void {
+  expect(
+    listReflectApplyMutationTestPathsFromPatternDiscovery(),
+    `${assertionContext}: expected canonical Reflect.apply mutation wrapper discovery`,
+  ).to.deep.equal([
+    ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+  ]);
+  expect(
+    listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+    `${assertionContext}: expected canonical Reflect.apply capture wrapper discovery`,
+  ).to.deep.equal([
+    ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+  ]);
+}
+
 describe('squads barrel exports', () => {
   it('keeps canonical sdk squads path-constant relationships', () => {
     expect(path.relative(SDK_PACKAGE_ROOT, SDK_SQUADS_SOURCE_DIR)).to.equal(
@@ -2255,16 +2272,155 @@ describe('squads barrel exports', () => {
   });
 
   it('keeps Reflect.apply pattern-discovery helper defaults aligned with canonical inventories', () => {
-    expect(
-      listReflectApplyMutationTestPathsFromPatternDiscovery(),
-    ).to.deep.equal([
-      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
-    ]);
-    expect(
-      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
-    ).to.deep.equal([
-      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
-    ]);
+    assertReflectApplyWrapperDefaultDiscoveryMatchesCanonicalInventories(
+      'Reflect.apply pattern-discovery helper defaults',
+    );
+  });
+
+  it('keeps Reflect.apply wrapper default discovery canonical across hostile runtime patch matrix', () => {
+    const runtimePatchScenarios = [
+      {
+        label: 'RegExp.prototype.exec global slot patch',
+        applyPatch: () => {
+          const originalRegExpPrototypeExec = RegExp.prototype.exec;
+          Object.defineProperty(RegExp.prototype, 'exec', {
+            configurable: true,
+            writable: true,
+            value: () => {
+              throw new Error(
+                'Expected Reflect.apply wrapper matrix test to use captured RegExp.prototype.exec',
+              );
+            },
+          });
+          return () => {
+            Object.defineProperty(RegExp.prototype, 'exec', {
+              configurable: true,
+              writable: true,
+              value: originalRegExpPrototypeExec,
+            });
+          };
+        },
+      },
+      {
+        label: 'RegExp.prototype.flags getter global slot patch',
+        applyPatch: () => {
+          const originalFlagsDescriptor = Object.getOwnPropertyDescriptor(
+            RegExp.prototype,
+            'flags',
+          );
+          Object.defineProperty(RegExp.prototype, 'flags', {
+            configurable: true,
+            get() {
+              throw new Error(
+                'Expected Reflect.apply wrapper matrix test to use captured RegExp.prototype.flags getter',
+              );
+            },
+          });
+          return () => {
+            if (!originalFlagsDescriptor) {
+              throw new Error(
+                'Missing original RegExp.prototype.flags descriptor',
+              );
+            }
+            Object.defineProperty(
+              RegExp.prototype,
+              'flags',
+              originalFlagsDescriptor,
+            );
+          };
+        },
+      },
+      {
+        label: 'Reflect.apply global slot patch',
+        applyPatch: () => {
+          const originalReflectApply = Reflect.apply;
+          Object.defineProperty(Reflect, 'apply', {
+            configurable: true,
+            writable: true,
+            value: () => {
+              throw new Error(
+                'Expected Reflect.apply wrapper matrix test to use captured Reflect.apply',
+              );
+            },
+          });
+          return () => {
+            Object.defineProperty(Reflect, 'apply', {
+              configurable: true,
+              writable: true,
+              value: originalReflectApply,
+            });
+          };
+        },
+      },
+      {
+        label: 'global RegExp constructor patch',
+        applyPatch: () => {
+          const originalRegExp = RegExp;
+          Object.defineProperty(globalThis, 'RegExp', {
+            configurable: true,
+            writable: true,
+            value: function MutatedRegExp(): never {
+              throw new Error(
+                'Expected Reflect.apply wrapper matrix test to use captured RegExp constructor',
+              );
+            },
+          });
+          return () => {
+            Object.defineProperty(globalThis, 'RegExp', {
+              configurable: true,
+              writable: true,
+              value: originalRegExp,
+            });
+          };
+        },
+      },
+      {
+        label: 'RegExp.prototype Symbol.match call slot override',
+        applyPatch: () => {
+          const regexpPrototypeSymbolMatch = RegExp.prototype[Symbol.match];
+          if (!regexpPrototypeSymbolMatch) {
+            throw new Error(
+              'Expected RegExp.prototype[Symbol.match] for wrapper patch matrix',
+            );
+          }
+          const originalSymbolMatchCallDescriptor =
+            Object.getOwnPropertyDescriptor(regexpPrototypeSymbolMatch, 'call');
+          Object.defineProperty(regexpPrototypeSymbolMatch, 'call', {
+            configurable: true,
+            writable: true,
+            value: () => {
+              throw new Error(
+                'Expected Reflect.apply wrapper matrix test to avoid Symbol.match call-slot dispatch',
+              );
+            },
+          });
+          return () => {
+            if (originalSymbolMatchCallDescriptor) {
+              Object.defineProperty(
+                regexpPrototypeSymbolMatch,
+                'call',
+                originalSymbolMatchCallDescriptor,
+              );
+            } else {
+              delete (
+                regexpPrototypeSymbolMatch as unknown as { call?: unknown }
+              ).call;
+            }
+          };
+        },
+      },
+    ] as const;
+
+    for (const { label, applyPatch } of runtimePatchScenarios) {
+      const restorePatch = applyPatch();
+      try {
+        assertReflectApplyWrapperDefaultDiscoveryMatchesCanonicalInventories(
+          `Reflect.apply wrapper runtime patch matrix (${label})`,
+        );
+      } finally {
+        restorePatch();
+      }
+    }
   });
 
   it('keeps Reflect.apply pattern-discovery helper custom patterns deterministic and lastIndex-safe', () => {
