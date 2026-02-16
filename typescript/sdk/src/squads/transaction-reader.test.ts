@@ -2581,6 +2581,54 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('skips warp-route tokens when protocol lookup throws generic-object Error messages during initialization', async () => {
+    let protocolLookupCount = 0;
+    const mpp = {
+      tryGetProtocol: (chain: string) => {
+        protocolLookupCount += 1;
+        if (chain === 'badchain') {
+          throw new Error('[object Object]');
+        }
+        return ProtocolType.Sealevel;
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    await reader.init({
+      routeA: {
+        tokens: [
+          {
+            chainName: 'badchain',
+            addressOrDenom: 'BAD001-GENERIC',
+            symbol: 'BAD',
+            name: 'Bad Token',
+          },
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 'GOOD001-GENERIC',
+            symbol: 'GOOD',
+            name: 'Good Token',
+          },
+        ],
+      },
+    });
+
+    expect(protocolLookupCount).to.equal(2);
+    expect(reader.warpRouteIndex.has('badchain')).to.equal(false);
+    expect(
+      reader.warpRouteIndex.get('solanamainnet')?.get('good001-generic'),
+    ).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Good Token',
+      routeName: 'routeA',
+    });
+  });
+
   it('skips warp-route tokens when protocol lookup accessor throws during initialization', async () => {
     const mpp = new Proxy(
       {},
@@ -2641,6 +2689,41 @@ describe('squads transaction reader', () => {
           {
             chainName: 'solanamainnet',
             addressOrDenom: 'GOOD001-ACCESSOR-BLANK',
+            symbol: 'GOOD',
+            name: 'Good Token',
+          },
+        ],
+      },
+    });
+
+    expect(reader.warpRouteIndex.has('solanamainnet')).to.equal(false);
+  });
+
+  it('skips warp-route tokens when protocol lookup accessor throws generic-object Error messages during initialization', async () => {
+    const mpp = new Proxy(
+      {},
+      {
+        get(_target, property) {
+          if (property === 'tryGetProtocol') {
+            throw new Error('[object Object]');
+          }
+          return undefined;
+        },
+      },
+    ) as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    await reader.init({
+      routeA: {
+        tokens: [
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 'GOOD001-ACCESSOR-GENERIC',
             symbol: 'GOOD',
             name: 'Good Token',
           },
