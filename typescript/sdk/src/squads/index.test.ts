@@ -2778,6 +2778,65 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps sdk Reflect.apply positive-count totals aligned across runtime tables and inventory', () => {
+    const positiveIdentifierCountTotalFromTable =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.filter(
+        ({ expectedReflectApplyIdentifierReferenceCount }) =>
+          expectedReflectApplyIdentifierReferenceCount > 0,
+      ).length;
+    const positiveInvocationCountTotalFromTable =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.filter(
+        ({ expectedReflectApplyInvocationCount }) =>
+          expectedReflectApplyInvocationCount > 0,
+      ).length;
+    const positiveCaptureDeclarationCountTotalFromTable =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.filter(
+        ({ expectedReflectApplyCaptureDeclarationCount }) =>
+          expectedReflectApplyCaptureDeclarationCount > 0,
+      ).length;
+
+    expect(positiveIdentifierCountTotalFromTable).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
+    );
+    expect(positiveInvocationCountTotalFromTable).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
+    );
+    expect(positiveCaptureDeclarationCountTotalFromTable).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
+    );
+
+    let discoveredPositiveIdentifierCountTotal = 0;
+    let discoveredPositiveInvocationCountTotal = 0;
+    let discoveredPositiveCaptureDeclarationCountTotal = 0;
+    for (const runtimeSourcePath of listSdkSquadsNonTestSourceFilePaths()
+      .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
+      .sort(compareLexicographically)) {
+      const absoluteSourcePath = path.join(SDK_PACKAGE_ROOT, runtimeSourcePath);
+      const source = fs.readFileSync(absoluteSourcePath, 'utf8');
+      if (countOccurrences(source, 'Reflect.apply') > 0) {
+        discoveredPositiveIdentifierCountTotal += 1;
+      }
+      if (countOccurrences(source, 'REFLECT_APPLY(') > 0) {
+        discoveredPositiveInvocationCountTotal += 1;
+      }
+      if (
+        countOccurrences(source, 'const REFLECT_APPLY = Reflect.apply as <') > 0
+      ) {
+        discoveredPositiveCaptureDeclarationCountTotal += 1;
+      }
+    }
+
+    expect(discoveredPositiveIdentifierCountTotal).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
+    );
+    expect(discoveredPositiveInvocationCountTotal).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
+    );
+    expect(discoveredPositiveCaptureDeclarationCountTotal).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
+    );
+  });
+
   it('keeps sdk Reflect.apply identifier and REFLECT_APPLY totals aligned with runtime sources', () => {
     const identifierReferenceCountTotalFromTable =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.reduce(
