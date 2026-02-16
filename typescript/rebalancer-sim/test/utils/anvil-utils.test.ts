@@ -25511,6 +25511,18 @@ describe('Anvil utils', () => {
       expect([...expectedDescriptorBases]).to.deep.equal(
         [...expectedDescriptorBases].sort(),
       );
+      expect(new Set(allowedUnescapedDescriptors).size).to.equal(
+        allowedUnescapedDescriptors.length,
+      );
+      expect([...allowedUnescapedDescriptors]).to.deep.equal(
+        [...allowedUnescapedDescriptors].sort(),
+      );
+      expect(
+        sortedDifference(
+          new Set(allowedUnescapedDescriptors),
+          new Set(expectedDescriptorBases),
+        ),
+      ).to.deep.equal([...allowedUnescapedDescriptors]);
     });
 
     it('keeps matcher descriptor sets equivalent across triple/json/double escape levels', () => {
