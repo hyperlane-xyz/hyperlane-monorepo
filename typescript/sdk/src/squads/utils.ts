@@ -194,6 +194,14 @@ const ARRAY_PUSH = Array.prototype.push;
 const ARRAY_SORT = Array.prototype.sort;
 const ARRAY_INCLUDES = Array.prototype.includes;
 const ARRAY_SOME = Array.prototype.some;
+const REFLECT_APPLY = Reflect.apply as <
+  ReturnValue,
+  ArgumentValues extends readonly unknown[],
+>(
+  target: (...args: ArgumentValues) => ReturnValue,
+  thisArgument: unknown,
+  argumentsList: ArgumentValues,
+) => ReturnValue;
 const BIGINT_FUNCTION = BigInt as (
   value: string | number | bigint | boolean,
 ) => bigint;
@@ -270,12 +278,26 @@ function tokenizeFieldName(fieldName: string): string[] {
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
 
+function reflectApply<ReturnValue, ArgumentValues extends readonly unknown[]>(
+  target: (...args: ArgumentValues) => ReturnValue,
+  thisArgument: unknown,
+  argumentsList: ArgumentValues,
+): ReturnValue {
+  return REFLECT_APPLY(target, thisArgument, argumentsList);
+}
+
 function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
-  return SET_HAS.call(set, value);
+  return reflectApply(
+    SET_HAS as (this: Set<Value>, value: Value) => boolean,
+    set,
+    [value],
+  );
 }
 
 function setAddValue<Value>(set: Set<Value>, value: Value): void {
-  SET_ADD.call(set, value);
+  reflectApply(SET_ADD as (this: Set<Value>, value: Value) => Set<Value>, set, [
+    value,
+  ]);
 }
 
 function createSetValue<Value>(values?: Iterable<Value>): Set<Value> {
@@ -286,7 +308,11 @@ function mapGetValue<Key, Value>(
   map: Map<Key, Value>,
   key: Key,
 ): Value | undefined {
-  return MAP_GET.call(map, key);
+  return reflectApply(
+    MAP_GET as (this: Map<Key, Value>, key: Key) => Value | undefined,
+    map,
+    [key],
+  );
 }
 
 function createMapValue<Key, Value>(
@@ -300,7 +326,15 @@ function mapSetValue<Key, Value>(
   key: Key,
   value: Value,
 ): void {
-  MAP_SET.call(map, key, value);
+  reflectApply(
+    MAP_SET as (
+      this: Map<Key, Value>,
+      key: Key,
+      value: Value,
+    ) => Map<Key, Value>,
+    map,
+    [key, value],
+  );
 }
 
 function arrayFromValue<T>(value: ArrayLike<T>): T[] {
@@ -311,46 +345,94 @@ function arrayMapValues<Value, Result>(
   values: readonly Value[],
   mapFn: (value: Value, index: number, array: readonly Value[]) => Result,
 ): Result[] {
-  return ARRAY_MAP.call(values, mapFn) as Result[];
+  return reflectApply(
+    ARRAY_MAP as (
+      this: readonly Value[],
+      mapFn: (value: Value, index: number, array: readonly Value[]) => Result,
+    ) => Result[],
+    values,
+    [mapFn],
+  );
 }
 
 function arrayFilterValues<Value>(
   values: readonly Value[],
   predicate: (value: Value, index: number, array: readonly Value[]) => boolean,
 ): Value[] {
-  return ARRAY_FILTER.call(values, predicate) as Value[];
+  return reflectApply(
+    ARRAY_FILTER as (
+      this: readonly Value[],
+      predicate: (
+        value: Value,
+        index: number,
+        array: readonly Value[],
+      ) => boolean,
+    ) => Value[],
+    values,
+    [predicate],
+  );
 }
 
 function arrayJoinValues(
   values: readonly unknown[],
   separator: string,
 ): string {
-  return ARRAY_JOIN.call(values, separator);
+  return reflectApply(
+    ARRAY_JOIN as (this: readonly unknown[], separator: string) => string,
+    values,
+    [separator],
+  );
 }
 
 function arrayPushValue<Value>(values: Value[], value: Value): number {
-  return ARRAY_PUSH.call(values, value);
+  return reflectApply(
+    ARRAY_PUSH as (this: Value[], value: Value) => number,
+    values,
+    [value],
+  );
 }
 
 function arraySortValues<Value>(
   values: Value[],
   compareFn: (left: Value, right: Value) => number,
 ): Value[] {
-  return ARRAY_SORT.call(values, compareFn) as Value[];
+  return reflectApply(
+    ARRAY_SORT as (
+      this: Value[],
+      compareFn: (left: Value, right: Value) => number,
+    ) => Value[],
+    values,
+    [compareFn],
+  );
 }
 
 function arrayIncludesValue<Value>(
   values: readonly Value[],
   value: Value,
 ): boolean {
-  return ARRAY_INCLUDES.call(values, value);
+  return reflectApply(
+    ARRAY_INCLUDES as (this: readonly Value[], value: Value) => boolean,
+    values,
+    [value],
+  );
 }
 
 function arraySomeValue<Value>(
   values: readonly Value[],
   predicate: (value: Value, index: number, array: readonly Value[]) => boolean,
 ): boolean {
-  return ARRAY_SOME.call(values, predicate);
+  return reflectApply(
+    ARRAY_SOME as (
+      this: readonly Value[],
+      predicate: (
+        value: Value,
+        index: number,
+        array: readonly Value[],
+      ) => boolean,
+    ) => boolean,
+    values,
+    [predicate],
+  );
 }
 
 function numberIsSafeInteger(value: unknown): boolean {
@@ -368,7 +450,14 @@ function booleanFromValue(value: unknown): boolean {
 function promiseAllValues<Value>(
   values: readonly (Value | PromiseLike<Value>)[],
 ): Promise<Value[]> {
-  return PROMISE_ALL.call(Promise, values) as Promise<Value[]>;
+  return reflectApply(
+    PROMISE_ALL as (
+      this: typeof Promise,
+      values: readonly (Value | PromiseLike<Value>)[],
+    ) => Promise<Value[]>,
+    Promise,
+    [values],
+  );
 }
 
 function numberFromValue(value: unknown): number {
@@ -396,7 +485,11 @@ function numberMax(left: number, right: number): number {
 }
 
 function objectPrototypeToString(value: unknown): string {
-  return OBJECT_PROTOTYPE_TO_STRING.call(value);
+  return reflectApply(
+    OBJECT_PROTOTYPE_TO_STRING as (this: unknown) => string,
+    value,
+    [],
+  );
 }
 
 function dateFromUnixTimestampSeconds(unixTimestampSeconds: number): Date {
@@ -404,19 +497,35 @@ function dateFromUnixTimestampSeconds(unixTimestampSeconds: number): Date {
 }
 
 function dateToDateString(value: Date): string {
-  return DATE_TO_DATE_STRING.call(value);
+  return reflectApply(DATE_TO_DATE_STRING as (this: Date) => string, value, []);
 }
 
 function regexpTest(pattern: RegExp, value: string): boolean {
-  return REGEXP_PROTOTYPE_TEST.call(pattern, value);
+  return reflectApply(
+    REGEXP_PROTOTYPE_TEST as (this: RegExp, value: string) => boolean,
+    pattern,
+    [value],
+  );
 }
 
 function stringIncludesValue(value: string, searchValue: string): boolean {
-  return STRING_INCLUDES.call(value, searchValue);
+  return reflectApply(
+    STRING_INCLUDES as (this: string, searchValue: string) => boolean,
+    value,
+    [searchValue],
+  );
 }
 
 function stringSplitValue(value: string, separator: string | RegExp): string[] {
-  return STRING_SPLIT.call(value, separator) as string[];
+  return reflectApply(
+    STRING_SPLIT as (
+      this: string,
+      separator: string | RegExp,
+      limit?: number,
+    ) => string[],
+    value,
+    [separator],
+  );
 }
 
 function stringReplaceValue(
@@ -424,23 +533,43 @@ function stringReplaceValue(
   searchValue: string | RegExp,
   replaceValue: string,
 ): string {
-  return STRING_REPLACE.call(value, searchValue, replaceValue);
+  return reflectApply(
+    STRING_REPLACE as (
+      this: string,
+      searchValue: string | RegExp,
+      replaceValue: string,
+    ) => string,
+    value,
+    [searchValue, replaceValue],
+  );
 }
 
 function stringTrim(value: string): string {
-  return STRING_TRIM.call(value);
+  return reflectApply(STRING_TRIM as (this: string) => string, value, []);
 }
 
 function stringToLowerCase(value: string): string {
-  return STRING_TO_LOWER_CASE.call(value);
+  return reflectApply(
+    STRING_TO_LOWER_CASE as (this: string) => string,
+    value,
+    [],
+  );
 }
 
 function stringSliceValue(value: string, start?: number, end?: number): string {
-  return STRING_SLICE.call(value, start, end);
+  return reflectApply(
+    STRING_SLICE as (this: string, start?: number, end?: number) => string,
+    value,
+    [start, end],
+  );
 }
 
 function stringLocaleCompare(left: string, right: string): number {
-  return STRING_LOCALE_COMPARE.call(left, right);
+  return reflectApply(
+    STRING_LOCALE_COMPARE as (this: string, compareString: string) => number,
+    left,
+    [right],
+  );
 }
 
 function uint8ArraySubarray(
@@ -448,7 +577,15 @@ function uint8ArraySubarray(
   begin?: number,
   end?: number,
 ): Uint8Array {
-  return UINT8_ARRAY_SUBARRAY.call(value, begin, end);
+  return reflectApply(
+    UINT8_ARRAY_SUBARRAY as (
+      this: Uint8Array,
+      begin?: number,
+      end?: number,
+    ) => Uint8Array,
+    value,
+    [begin, end],
+  );
 }
 
 function getUnknownValueTypeName(value: unknown): string {
@@ -579,7 +716,11 @@ export function normalizeSquadsAddressValue(
     }
 
     try {
-      const toBase58Value = toBase58Candidate.call(value);
+      const toBase58Value = reflectApply(
+        toBase58Candidate as (this: unknown) => unknown,
+        value,
+        [],
+      );
       rawAddressValue =
         typeof toBase58Value === 'string'
           ? toBase58Value
@@ -1057,7 +1198,14 @@ function getSolanaWeb3ProviderForChain(
 
   let providerValue: unknown;
   try {
-    providerValue = getSolanaWeb3ProviderValue.call(mpp, chain);
+    providerValue = reflectApply(
+      getSolanaWeb3ProviderValue as (
+        this: unknown,
+        chain: SquadsChainName,
+      ) => unknown,
+      mpp,
+      [chain],
+    );
   } catch (error) {
     throw createError(
       `Failed to resolve solana provider for ${chain}: ${formatUnknownErrorForMessage(error)}`,
@@ -1133,7 +1281,14 @@ function getPendingProposalNativeTokenMetadataForChain(
 
   let chainMetadata: unknown;
   try {
-    chainMetadata = getChainMetadataValue.call(mpp, chain);
+    chainMetadata = reflectApply(
+      getChainMetadataValue as (
+        this: unknown,
+        chain: SquadsChainName,
+      ) => unknown,
+      mpp,
+      [chain],
+    );
   } catch (error) {
     throw createError(
       `Failed to resolve chain metadata for ${chain}: ${formatUnknownErrorForMessage(error)}`,
@@ -1257,7 +1412,14 @@ async function getVaultBalanceForPendingProposals(
 
   let vaultBalance: unknown;
   try {
-    vaultBalance = await getBalanceValue.call(svmProvider, vault);
+    vaultBalance = await reflectApply(
+      getBalanceValue as (
+        this: unknown,
+        address: PublicKey,
+      ) => PromiseLike<unknown> | unknown,
+      svmProvider,
+      [vault],
+    );
   } catch (error) {
     throw createError(
       `Failed to fetch vault balance for ${chain}: ${formatUnknownErrorForMessage(error)}`,
@@ -1293,7 +1455,11 @@ function getSignerPublicKeyForChain(
 
   let signerPublicKey: unknown;
   try {
-    signerPublicKey = publicKeyValue.call(signerAdapter);
+    signerPublicKey = reflectApply(
+      publicKeyValue as (this: unknown) => unknown,
+      signerAdapter,
+      [],
+    );
   } catch (error) {
     throw createError(
       `Failed to resolve signer public key for ${chain}: ${formatUnknownErrorForMessage(error)}`,
@@ -1533,10 +1699,14 @@ async function getProposalAccountForResolvedChain(
   } catch {}
 
   try {
-    return await fromAccountAddressValue.call(
+    return await reflectApply(
+      fromAccountAddressValue as (
+        this: unknown,
+        squadsProvider: ReturnType<typeof toSquadsProvider>,
+        proposalPda: PublicKey,
+      ) => PromiseLike<accounts.Proposal> | accounts.Proposal,
       accounts.Proposal,
-      squadsProvider,
-      proposalPda,
+      [squadsProvider, proposalPda],
     );
   } catch (error) {
     throw createError(
@@ -2330,10 +2500,14 @@ async function getMultisigAccountForNextIndex(
   );
 
   try {
-    return await fromAccountAddressValue.call(
+    return await reflectApply(
+      fromAccountAddressValue as (
+        this: unknown,
+        squadsProvider: ReturnType<typeof toSquadsProvider>,
+        multisigPda: PublicKey,
+      ) => PromiseLike<accounts.Multisig> | accounts.Multisig,
       accounts.Multisig,
-      squadsProvider,
-      multisigPda,
+      [squadsProvider, multisigPda],
     );
   } catch (error) {
     throw createError(
@@ -2363,7 +2537,14 @@ async function getMultisigAccountInfoForNextIndex(
   );
 
   try {
-    return await getAccountInfoValue.call(svmProvider, multisigPda);
+    return await reflectApply(
+      getAccountInfoValue as (
+        this: unknown,
+        address: PublicKey,
+      ) => PromiseLike<unknown> | unknown,
+      svmProvider,
+      [multisigPda],
+    );
   } catch (error) {
     throw createError(
       `Failed to fetch multisig account ${formatAddressForError(multisigPda)} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
@@ -2563,7 +2744,13 @@ async function getRecentBlockhashForProposalBuild(
 
   let latestBlockhashResult: unknown;
   try {
-    latestBlockhashResult = await getLatestBlockhashValue.call(svmProvider);
+    latestBlockhashResult = await reflectApply(
+      getLatestBlockhashValue as (
+        this: unknown,
+      ) => PromiseLike<unknown> | unknown,
+      svmProvider,
+      [],
+    );
   } catch (error) {
     throw createError(
       `Failed to fetch latest blockhash for ${chain}: ${formatUnknownErrorForMessage(error)}`,
@@ -2828,9 +3015,13 @@ export async function submitProposalToSquads(
         svmProvider,
       );
 
-    const createSignature = await buildAndSendTransaction.call(
+    const createSignature = await reflectApply(
+      buildAndSendTransaction as (
+        this: unknown,
+        instructions: TransactionInstruction[],
+      ) => PromiseLike<string> | string,
       signerAdapter,
-      proposalInstructions,
+      [proposalInstructions],
     );
 
     rootLogger.info(`Proposal created: ${createSignature}`);
@@ -2843,9 +3034,14 @@ export async function submitProposalToSquads(
       programId,
     });
 
-    const approveSignature = await buildAndSendTransaction.call(signerAdapter, [
-      approveIx,
-    ]);
+    const approveSignature = await reflectApply(
+      buildAndSendTransaction as (
+        this: unknown,
+        instructions: TransactionInstruction[],
+      ) => PromiseLike<string> | string,
+      signerAdapter,
+      [[approveIx]],
+    );
     rootLogger.info(`Proposal approved: ${approveSignature}`);
   } catch (error) {
     rootLogger.error(
@@ -2935,7 +3131,14 @@ async function getTransactionAccountInfoForType(
   );
 
   try {
-    return await getAccountInfoValue.call(svmProvider, transactionPda);
+    return await reflectApply(
+      getAccountInfoValue as (
+        this: unknown,
+        address: PublicKey,
+      ) => PromiseLike<unknown> | unknown,
+      svmProvider,
+      [transactionPda],
+    );
   } catch (error) {
     throw createError(
       `Failed to fetch transaction account ${formatAddressForError(transactionPda)} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
@@ -3099,9 +3302,14 @@ export async function executeProposal(
       });
     }
 
-    const signature = await buildAndSendTransaction.call(signerAdapter, [
-      instruction,
-    ]);
+    const signature = await reflectApply(
+      buildAndSendTransaction as (
+        this: unknown,
+        instructions: TransactionInstruction[],
+      ) => PromiseLike<string> | string,
+      signerAdapter,
+      [[instruction]],
+    );
 
     rootLogger.info(
       `Executed proposal ${normalizedTransactionIndex} on ${normalizedChain}: ${signature}`,
