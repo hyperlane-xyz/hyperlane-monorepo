@@ -38,6 +38,7 @@ const EVM_ADDRESS_ZERO =
   '0x0000000000000000000000000000000000000000' as Address;
 const MAX_PROTOCOL_STRING_LENGTH = 256;
 const MAX_STRATEGY_PATH_LENGTH = 4096;
+const MAX_OVERRIDE_KEY_LENGTH = 4096;
 const MAX_BOXED_STRING_PROTOTYPE_DEPTH = 128;
 const TX_SELECTOR_PREFIX_REGEX = /^\s*(0[xX][0-9a-fA-F]{8})/;
 const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
@@ -1453,8 +1454,15 @@ function parseOverrideKey(key: string): { target: string; selector?: string } {
 }
 
 function isUsableOverrideKey(overrideKey: string): boolean {
+  if (overrideKey.length > MAX_OVERRIDE_KEY_LENGTH) {
+    return false;
+  }
   const trimmedKey = overrideKey.trim();
-  return trimmedKey.length > 0 && !trimmedKey.includes('\0');
+  return (
+    trimmedKey.length > 0 &&
+    trimmedKey.length <= MAX_OVERRIDE_KEY_LENGTH &&
+    !trimmedKey.includes('\0')
+  );
 }
 
 function tryNormalizeEvmAddress(address: string): string | null {
