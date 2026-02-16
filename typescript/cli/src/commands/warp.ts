@@ -20,6 +20,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { runWarpIcaOwnerCheck, runWarpRouteCheck } from '../check/warp.js';
+import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
   type CommandModuleWithContext,
@@ -39,7 +40,6 @@ import {
 } from '../logger.js';
 import { getWarpRouteConfigsByCore, runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
-import { ExtendedChainSubmissionStrategySchema } from '../submitters/types.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -145,8 +145,9 @@ export const apply: CommandModuleWithWarpApplyContext<
   }) => {
     logCommandHeader('Hyperlane Warp Apply');
 
-    if (strategyUrl)
-      ExtendedChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
+    if (strategyUrl) {
+      await readChainSubmissionStrategyConfig(strategyUrl);
+    }
 
     await runWarpRouteApply({
       context,
