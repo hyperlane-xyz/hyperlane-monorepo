@@ -1605,6 +1605,14 @@ function hasUsableOverrideKeys(
   return Object.keys(overrides).some((overrideKey) => overrideKey.trim().length > 0);
 }
 
+function normalizeOptionalPath(value: unknown): string | undefined {
+  if (typeof value === 'string' || value instanceof String) {
+    const trimmed = value.toString().trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  return undefined;
+}
+
 function coerceKnownProtocolType(
   protocol: unknown,
 ): ProtocolType | undefined {
@@ -1673,8 +1681,7 @@ export async function resolveSubmitterBatchesForTransactions({
     ];
   }
 
-  const normalizedStrategyUrl =
-    typeof strategyUrl === 'string' ? strategyUrl.trim() : undefined;
+  const normalizedStrategyUrl = normalizeOptionalPath(strategyUrl);
   const explicitSubmissionStrategy: ExtendedSubmissionStrategy | undefined =
     normalizedStrategyUrl
       ? readChainSubmissionStrategy(normalizedStrategyUrl)[chain]

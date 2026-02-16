@@ -186,6 +186,41 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
     expect(protocolCalls).to.equal(0);
   });
 
+  it('loads explicit strategy when strategyUrl is a String object', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-strategy-url-string-object-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x7777777777777777777777777777777777777777',
+          version: '1.0',
+        },
+      },
+    });
+
+    let protocolCalls = 0;
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => {
+            protocolCalls += 1;
+            return 'ethereum' as any;
+          },
+        },
+      } as any,
+      strategyUrl: new String(` ${strategyPath} `) as any,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+    expect(protocolCalls).to.equal(0);
+  });
+
   it('loads explicit overrides when strategyUrl has surrounding whitespace', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-strategy-url-whitespace-overrides-${Date.now()}.yaml`;
     const overrideTarget = '0x9999999999999999999999999999999999999999';
@@ -227,5 +262,17 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
       TxSubmitterType.GNOSIS_TX_BUILDER,
     );
     expect(protocolCalls).to.equal(1);
+  });
+
+  it('treats whitespace-only String strategyUrl as missing and falls back to jsonRpc default', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: new String('   ') as any,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 });
