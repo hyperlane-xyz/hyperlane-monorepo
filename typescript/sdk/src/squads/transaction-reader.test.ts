@@ -659,6 +659,42 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(0);
   });
 
+  it('returns malformed-chain-resolution issue when resolver returns boolean false', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => false as unknown as string,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed chain resolution for domain 1000: Error: Expected resolved chain name for domain 1000 to be a string, got boolean',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
   it('returns malformed-chain-resolution issue when resolver returns unreadable values', () => {
     let resolveConfigCallCount = 0;
     const { proxy: revokedChain, revoke } = Proxy.revocable({}, {});
