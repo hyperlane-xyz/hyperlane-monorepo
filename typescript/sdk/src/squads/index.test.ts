@@ -1893,6 +1893,52 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps forbidden runtime hardening patterns deeply frozen', () => {
+    expect(Object.isFrozen(FORBIDDEN_RUNTIME_HARDENING_PATTERNS)).to.equal(
+      true,
+    );
+    for (const patternEntry of FORBIDDEN_RUNTIME_HARDENING_PATTERNS) {
+      expect(Object.isFrozen(patternEntry)).to.equal(true);
+    }
+
+    const baselinePatternSignatures = FORBIDDEN_RUNTIME_HARDENING_PATTERNS.map(
+      ({ label, pattern }) => `${label}::/${pattern.source}/${pattern.flags}`,
+    );
+
+    expect(() => {
+      (FORBIDDEN_RUNTIME_HARDENING_PATTERNS as unknown as Array<unknown>).push({
+        label: 'injected pattern',
+        pattern: /injected/,
+      });
+    }).to.throw(TypeError);
+
+    expect(() => {
+      (
+        FORBIDDEN_RUNTIME_HARDENING_PATTERNS as unknown as Array<{
+          label: string;
+          pattern: RegExp;
+        }>
+      )[0] = { label: 'replaced pattern', pattern: /replaced/ };
+    }).to.throw(TypeError);
+
+    expect(() => {
+      (
+        FORBIDDEN_RUNTIME_HARDENING_PATTERNS as unknown as Array<{
+          label: string;
+          pattern: RegExp;
+        }>
+      )[0].label = 'mutated label';
+    }).to.throw(TypeError);
+
+    const postMutationPatternSignatures =
+      FORBIDDEN_RUNTIME_HARDENING_PATTERNS.map(
+        ({ label, pattern }) => `${label}::/${pattern.source}/${pattern.flags}`,
+      );
+    expect(postMutationPatternSignatures).to.deep.equal(
+      baselinePatternSignatures,
+    );
+  });
+
   it('keeps recursive sdk squads discovery helpers isolated from caller mutation', () => {
     assertPathSnapshotIsolation(
       listSdkSquadsTestFilePaths,
