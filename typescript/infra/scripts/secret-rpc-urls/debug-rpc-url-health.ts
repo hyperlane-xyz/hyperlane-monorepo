@@ -149,7 +149,11 @@ async function main() {
     process.exit(0);
   }
 
-  const expectedChainId = chainMetadata.chainId as number;
+  assert(
+    typeof chainMetadata.chainId === 'number',
+    `chainMetadata.chainId must be a number, got ${typeof chainMetadata.chainId}`,
+  );
+  const expectedChainId = chainMetadata.chainId;
 
   // Fetch private RPCs
   let privateUrls: string[] = [];
