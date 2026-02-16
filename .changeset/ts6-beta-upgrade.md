@@ -29,3 +29,5 @@ Error-message extraction and formatting paths were hardened to avoid crashes and
 `String(error)` and `Symbol.toPrimitive` placeholder handling was extensively normalized (including quoted, escaped, and case-variant placeholder forms) so non-informative outputs continue to structural fallbacks while informative outputs remain authoritative.
 
 Regression guard tests were added to assert descriptor-matrix parity, exact descriptor-set cardinality, matcher/formatter base-set alignment, canonical descriptor baseline consistency, and explicit unescaped-alias baseline consistency across triple/json/double escaped `Symbol.toPrimitive` placeholder suites, preventing future drift in coverage.
+
+Known caveat: some ecosystem tooling (notably `@typescript-eslint` and `ts-jest`) may still emit TypeScript peer-range warnings while declaring `<6`, but the monorepo lint/build/test paths remain green under TS6 beta.
