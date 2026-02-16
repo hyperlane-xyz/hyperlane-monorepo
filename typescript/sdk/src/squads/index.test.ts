@@ -244,6 +244,10 @@ const REFLECT_APPLY_MONKEY_PATCH_PATTERN =
   /Object\.defineProperty\(\s*Reflect\s*,\s*['"]apply['"]/;
 const REFLECT_APPLY_CAPTURE_DECLARATION_PATTERN =
   /\bconst\s+REFLECT_APPLY\s*=\s*Reflect\.apply\b/;
+const REFLECT_APPLY_MUTATION_TITLE_SUBSTRING_PATTERN =
+  /Reflect\.apply is mutated/;
+const REFLECT_APPLY_CAPTURE_DECLARATION_SEARCH_PATTERN =
+  /const REFLECT_APPLY = Reflect\.apply/;
 const REFLECT_APPLY_IDENTIFIER_REFERENCE_STATEMENT = 'Reflect.apply';
 const REFLECT_APPLY_INVOCATION_STATEMENT = 'REFLECT_APPLY(';
 const REFLECT_APPLY_CAPTURE_DECLARATION_STATEMENT =
@@ -1192,6 +1196,18 @@ function listSdkSquadsNonTestSourceFilePathsContainingPattern(
     }
   }
   return matchedPaths.sort(compareLexicographically);
+}
+
+function listReflectApplyMutationTestPathsFromPatternDiscovery(
+  pattern: RegExp = REFLECT_APPLY_MUTATION_TITLE_SUBSTRING_PATTERN,
+): readonly string[] {
+  return listSdkSquadsTestFilePathsContainingPattern(pattern);
+}
+
+function listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+  pattern: RegExp = REFLECT_APPLY_CAPTURE_DECLARATION_SEARCH_PATTERN,
+): readonly string[] {
+  return listSdkSquadsNonTestSourceFilePathsContainingPattern(pattern);
 }
 
 const REGEXP_CONSTRUCTOR = RegExp;
@@ -2286,11 +2302,9 @@ describe('squads barrel exports', () => {
 
   it('keeps sdk squads pattern-path discovery preserving non-stateful regex flags', () => {
     const baselineMutationDiscovery =
-      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
     const baselineCaptureDiscovery =
-      listSdkSquadsNonTestSourceFilePathsContainingPattern(
-        /const REFLECT_APPLY = Reflect\.apply/,
-      );
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
     const caseInsensitiveMutationPattern = /reflect\.apply is mutated/i;
     const caseInsensitiveGlobalMutationPattern = /reflect\.apply is mutated/gi;
     const caseInsensitiveCapturePattern =
@@ -2545,11 +2559,9 @@ describe('squads barrel exports', () => {
 
   it('keeps sdk squads pattern-path discovery stable when global RegExp is mutated', () => {
     const baselineMutationDiscovery =
-      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
     const baselineCaptureDiscovery =
-      listSdkSquadsNonTestSourceFilePathsContainingPattern(
-        /const REFLECT_APPLY = Reflect\.apply/,
-      );
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
     const originalRegExp = RegExp;
 
     Object.defineProperty(globalThis, 'RegExp', {
