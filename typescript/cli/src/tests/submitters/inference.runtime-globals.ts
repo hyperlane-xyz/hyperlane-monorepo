@@ -20,6 +20,12 @@ export type CleanRuntimeProbeLabels = {
   primitiveLabels: string[];
 };
 
+export type RuntimeFunctionProbeCase = {
+  label: string;
+  constructorValue: Function;
+  directGetLogsCallCount: number;
+};
+
 type ReadonlyCleanRuntimeProbeLabels = {
   readonly functionLabels: readonly string[];
   readonly objectLabels: readonly string[];
@@ -213,6 +219,24 @@ export function getRuntimePrimitiveValuesByLabel(): Map<string, unknown> {
     }
   }
   return runtimePrimitiveByLabel;
+}
+
+export function resolveRuntimeFunctionProbeCases(
+  rawCases: ReadonlyArray<{
+    label: string;
+    directGetLogsCallCount: number;
+  }>,
+  runtimeFunctionValuesByLabel: ReadonlyMap<string, unknown>,
+): RuntimeFunctionProbeCase[] {
+  return rawCases
+    .map((value) => ({
+      ...value,
+      constructorValue: runtimeFunctionValuesByLabel.get(value.label),
+    }))
+    .filter(
+      (value): value is RuntimeFunctionProbeCase =>
+        typeof value.constructorValue === 'function',
+    );
 }
 
 export function getProbeLabelFromInferenceTestTitle(

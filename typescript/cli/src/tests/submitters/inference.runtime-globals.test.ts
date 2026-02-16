@@ -16,6 +16,7 @@ import {
   getRuntimeObjectValuesByLabel,
   getRuntimePrimitiveValuesByLabel,
   isSupportedRuntimePrimitiveValueType,
+  resolveRuntimeFunctionProbeCases,
 } from './inference.runtime-globals.js';
 
 const HELPER_ONLY_OBJECT_LIKE_LABEL = '__runtime_helper_only-object';
@@ -279,5 +280,26 @@ describe('runtime global probe helpers', () => {
     expect(getFallbackPrimitiveProbeValueFromLabel('unknown-label')).to.equal(
       undefined,
     );
+  });
+
+  it('resolves runtime function probe cases by available labels', () => {
+    const resolved = resolveRuntimeFunctionProbeCases(
+      [
+        {
+          label: 'array-constructor-object',
+          directGetLogsCallCount: 4,
+        },
+        {
+          label: 'missing-constructor-object',
+          directGetLogsCallCount: 7,
+        },
+      ],
+      getRuntimeFunctionValuesByLabel(),
+    );
+
+    expect(resolved).to.have.length(1);
+    expect(resolved[0].label).to.equal('array-constructor-object');
+    expect(resolved[0].directGetLogsCallCount).to.equal(4);
+    expect(typeof resolved[0].constructorValue).to.equal('function');
   });
 });
