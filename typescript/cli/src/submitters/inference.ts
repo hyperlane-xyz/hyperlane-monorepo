@@ -323,14 +323,6 @@ function getOwnObjectField(value: unknown, field: string): unknown {
   });
 }
 
-function cloneOwnEnumerableObject(
-  value: unknown,
-): Record<string, unknown> | null {
-  return cloneSharedOwnEnumerableObject(value, {
-    disallowedFields: DISALLOWED_PROTOTYPE_PROPERTY_LITERALS,
-  });
-}
-
 function normalizeEvmAddressFromUnknown(value: unknown): Address | null {
   if (typeof value !== 'string' && !isBoxedStringObject(value)) {
     return null;
@@ -758,7 +750,9 @@ function readChainSubmissionStrategy(
     submissionStrategyFilepath.trim(),
   );
   const rawChainSubmissionStrategies =
-    cloneOwnEnumerableObject(submissionStrategyFileContent);
+    cloneSharedOwnEnumerableObject(submissionStrategyFileContent, {
+      disallowedFields: DISALLOWED_PROTOTYPE_PROPERTY_LITERALS,
+    });
   const sanitizedChainSubmissionStrategies = Object.create(null) as Record<
     string,
     unknown
@@ -771,7 +765,9 @@ function readChainSubmissionStrategy(
         chainKey,
       );
       sanitizedChainSubmissionStrategies[chainKey] =
-        cloneOwnEnumerableObject(chainStrategy) ?? chainStrategy;
+        cloneSharedOwnEnumerableObject(chainStrategy, {
+          disallowedFields: DISALLOWED_PROTOTYPE_PROPERTY_LITERALS,
+        }) ?? chainStrategy;
     }
   }
 
