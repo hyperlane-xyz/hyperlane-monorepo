@@ -37,6 +37,7 @@ const MAX_INFERENCE_DEPTH = 3;
 const EVM_ADDRESS_ZERO =
   '0x0000000000000000000000000000000000000000' as Address;
 const MAX_PROTOCOL_STRING_LENGTH = 256;
+const MAX_STRATEGY_PATH_LENGTH = 4096;
 const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
   (Object.values(ProtocolType) as ProtocolType[]).filter(
     (protocol) => protocol !== ProtocolType.Unknown,
@@ -1630,8 +1631,18 @@ function hasUsableOverrideKeys(
 function normalizeOptionalPath(value: unknown): string | undefined {
   if (typeof value === 'string' || isBoxedStringObject(value)) {
     try {
-      const trimmed = value.toString().trim();
-      return trimmed.length > 0 ? trimmed : undefined;
+      const rawPath = value.toString();
+      if (rawPath.length > MAX_STRATEGY_PATH_LENGTH) {
+        return undefined;
+      }
+      const trimmed = rawPath.trim();
+      if (
+        trimmed.length === 0 ||
+        trimmed.length > MAX_STRATEGY_PATH_LENGTH
+      ) {
+        return undefined;
+      }
+      return trimmed;
     } catch {
       return undefined;
     }
