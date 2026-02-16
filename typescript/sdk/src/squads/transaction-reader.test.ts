@@ -4610,6 +4610,72 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('handles unreadable router-config arrays while formatting enroll-routers instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const { proxy: revokedRouters, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'WarpRoute',
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.EnrollRemoteRouters
+        ],
+      data: {
+        routers: revokedRouters,
+      },
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(result.args).to.deep.equal({});
+  });
+
+  it('handles unreadable gas-config arrays while formatting destination-gas instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const { proxy: revokedConfigs, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'WarpRoute',
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.SetDestinationGasConfigs
+        ],
+      data: {
+        configs: revokedConfigs,
+      },
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(result.args).to.deep.equal({});
+  });
+
   it('falls back to stable display labels when instruction metadata is malformed', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
