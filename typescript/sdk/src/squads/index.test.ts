@@ -412,6 +412,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.push method call',
   '.sort method call',
 ]);
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 54;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 30;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
@@ -1903,6 +1905,9 @@ describe('squads barrel exports', () => {
   });
 
   it('keeps forbidden runtime hardening patterns normalized and deduplicated', () => {
+    expect(FORBIDDEN_RUNTIME_HARDENING_PATTERNS).to.have.length(
+      EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT,
+    );
     expect(FORBIDDEN_RUNTIME_HARDENING_PATTERNS.length).to.be.greaterThan(0);
 
     const seenLabels = new Set<string>();
@@ -1926,6 +1931,9 @@ describe('squads barrel exports', () => {
   });
 
   it('keeps required forbidden runtime hardening labels covered', () => {
+    expect(REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS).to.have.length(
+      EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT,
+    );
     const forbiddenPatternLabels = new Set<string>(
       FORBIDDEN_RUNTIME_HARDENING_PATTERNS.map(({ label }) => label),
     );
