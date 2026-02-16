@@ -31,7 +31,7 @@
   "dependencies": {
     "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
-    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/registry": "23.14.0",
     "@hyperlane-xyz/utils": "workspace:*",
     "bignumber.js": "catalog:",
     "tronweb": "^6.1.1"
