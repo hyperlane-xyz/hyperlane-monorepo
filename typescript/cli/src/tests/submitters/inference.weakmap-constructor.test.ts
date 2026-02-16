@@ -12,10 +12,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
-import {
-  getRequiredRuntimeFunctionValueByLabel,
-  getRuntimeFunctionValuesByLabel,
-} from './inference.runtime-globals.js';
+import { getRequiredRuntimeFunctionValueByLabel } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions weakmap constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -27,7 +24,6 @@ describe('resolveSubmitterBatchesForTransactions weakmap constructor probes', ()
   };
   const WEAKMAP_CONSTRUCTOR_PROBE = getRequiredRuntimeFunctionValueByLabel(
     'weakmap-constructor-object',
-    getRuntimeFunctionValuesByLabel(),
   );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {

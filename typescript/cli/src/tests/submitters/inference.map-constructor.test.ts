@@ -12,10 +12,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
-import {
-  getRequiredRuntimeFunctionValueByLabel,
-  getRuntimeFunctionValuesByLabel,
-} from './inference.runtime-globals.js';
+import { getRequiredRuntimeFunctionValueByLabel } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions map constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -27,7 +24,6 @@ describe('resolveSubmitterBatchesForTransactions map constructor probes', () => 
   };
   const MAP_CONSTRUCTOR_PROBE = getRequiredRuntimeFunctionValueByLabel(
     'map-constructor-object',
-    getRuntimeFunctionValuesByLabel(),
   );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
