@@ -2343,6 +2343,39 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps stateful regex-flag stripping order-preserving and idempotent', () => {
+    const flagStripInputs = [
+      '',
+      'g',
+      'y',
+      'gy',
+      'yg',
+      'gimy',
+      'dgimsuy',
+      'ggiyy',
+      'xyz',
+      'v',
+      'gvydmi',
+      'yggiygimsu',
+    ];
+
+    for (const input of flagStripInputs) {
+      const strippedFlags = stripStatefulRegexFlags(input);
+      expect(strippedFlags.includes('g')).to.equal(false);
+      expect(strippedFlags.includes('y')).to.equal(false);
+      expect(stripStatefulRegexFlags(strippedFlags)).to.equal(strippedFlags);
+
+      let expectedOutput = '';
+      for (let index = 0; index < input.length; index += 1) {
+        const currentFlag = input[index];
+        if (currentFlag !== 'g' && currentFlag !== 'y') {
+          expectedOutput += currentFlag;
+        }
+      }
+      expect(strippedFlags).to.equal(expectedOutput);
+    }
+  });
+
   it('keeps stateful regex-flag stripping stable when String iterator is mutated', () => {
     const stringIteratorSymbol = Symbol.iterator;
     const originalStringIteratorDescriptor = Object.getOwnPropertyDescriptor(
