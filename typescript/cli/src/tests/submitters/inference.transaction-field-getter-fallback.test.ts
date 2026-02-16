@@ -376,6 +376,114 @@ describe('resolveSubmitterBatchesForTransactions transaction field getter fallba
     }
   });
 
+  it('falls back to from-safe inference when owner() returns overlong value', async () => {
+    const safeFrom = '0x3333333333333333333333333333333333333333';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => `0x${'4'.repeat(5000)}`,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() !== safeFrom.toLowerCase()) {
+          throw new Error('unexpected safe probe target');
+        }
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      });
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('timelock probe should not run for safe from fallback'));
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [{ ...TX, from: safeFrom } as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => ProtocolType.Ethereum,
+            getSignerAddress: async () =>
+              '0x4444444444444444444444444444444444444444',
+            getProvider: () => ({}),
+          },
+          registry: {
+            getAddresses: async () => ({}),
+          },
+        } as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect((batches[0].config.submitter as any).safeAddress.toLowerCase()).to.equal(
+        safeFrom.toLowerCase(),
+      );
+      expect(ownableStub.callCount).to.equal(1);
+      expect(safeStub.callCount).to.equal(1);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
+  it('falls back to from-safe inference when owner() returns null-byte value', async () => {
+    const safeFrom = '0x3333333333333333333333333333333333333333';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => `0x4444444444444444444444444444444444444444\0`,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() !== safeFrom.toLowerCase()) {
+          throw new Error('unexpected safe probe target');
+        }
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      });
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('timelock probe should not run for safe from fallback'));
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [{ ...TX, from: safeFrom } as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => ProtocolType.Ethereum,
+            getSignerAddress: async () =>
+              '0x4444444444444444444444444444444444444444',
+            getProvider: () => ({}),
+          },
+          registry: {
+            getAddresses: async () => ({}),
+          },
+        } as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect((batches[0].config.submitter as any).safeAddress.toLowerCase()).to.equal(
+        safeFrom.toLowerCase(),
+      );
+      expect(ownableStub.callCount).to.equal(1);
+      expect(safeStub.callCount).to.equal(1);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when transaction target is cyclic-prototype proxy without running probes', async () => {
     const ownableStub = sinon
       .stub(Ownable__factory, 'connect')
