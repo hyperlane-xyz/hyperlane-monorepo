@@ -2,6 +2,8 @@ import { inspectInstanceOf, inspectPropertyValue } from './inspection.js';
 
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
 const TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN = /\s*:\s*$/;
+const STRING_TRIM = String.prototype.trim;
+const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 export const BUILTIN_SQUADS_ERROR_LABELS = Object.freeze([
   'Error',
   'TypeError',
@@ -14,7 +16,7 @@ export const BUILTIN_SQUADS_ERROR_LABELS = Object.freeze([
 ] as const);
 
 const GENERIC_ERROR_LABELS = new Set(
-  BUILTIN_SQUADS_ERROR_LABELS.map((label) => label.toLowerCase()),
+  BUILTIN_SQUADS_ERROR_LABELS.map((label) => stringToLowerCase(label)),
 );
 const SET_HAS = Set.prototype.has;
 const ERROR_LABEL_WITH_MESSAGE_PATTERN = /^([A-Za-z]*Error)\s*:\s*(.+)$/;
@@ -23,11 +25,18 @@ function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
   return SET_HAS.call(set, value);
 }
 
+function stringTrim(value: string): string {
+  return STRING_TRIM.call(value);
+}
+
+function stringToLowerCase(value: string): string {
+  return STRING_TO_LOWER_CASE.call(value);
+}
+
 function normalizeErrorLabel(value: string): string {
-  return value
-    .trim()
-    .replace(TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN, '')
-    .toLowerCase();
+  return stringToLowerCase(
+    stringTrim(value).replace(TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN, ''),
+  );
 }
 
 export function isGenericObjectStringifiedValue(value: unknown): boolean {
@@ -35,9 +44,10 @@ export function isGenericObjectStringifiedValue(value: unknown): boolean {
     return false;
   }
 
-  const normalizedValue = value
-    .trim()
-    .replace(TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN, '');
+  const normalizedValue = stringTrim(value).replace(
+    TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN,
+    '',
+  );
   return GENERIC_OBJECT_STRING_PATTERN.test(normalizedValue);
 }
 
@@ -48,7 +58,7 @@ export function normalizeStringifiedSquadsError(
     return undefined;
   }
 
-  const trimmedFormattedError = formattedError.trim();
+  const trimmedFormattedError = stringTrim(formattedError);
   const normalizedErrorLabel = normalizeErrorLabel(trimmedFormattedError);
 
   if (
@@ -70,7 +80,7 @@ function isLowSignalBuiltinErrorWithLowSignalMessage(value: string): boolean {
   }
 
   const [, errorLabel, message] = match;
-  if (!setHasValue(GENERIC_ERROR_LABELS, errorLabel.toLowerCase())) {
+  if (!setHasValue(GENERIC_ERROR_LABELS, stringToLowerCase(errorLabel))) {
     return false;
   }
 
@@ -128,7 +138,7 @@ export function stringifyUnknownSquadsError(
   const placeholderCandidate = readOptionCandidate('placeholder');
   const placeholder =
     typeof placeholderCandidate === 'string' &&
-    placeholderCandidate.trim().length > 0
+    stringTrim(placeholderCandidate).length > 0
       ? placeholderCandidate
       : DEFAULT_SQUADS_ERROR_PLACEHOLDER;
   const preferErrorMessageForErrorInstances =

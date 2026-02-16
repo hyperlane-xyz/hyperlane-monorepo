@@ -261,6 +261,41 @@ describe('squads utils', () => {
       });
     });
 
+    it('keeps address-string normalization stable when String.prototype.trim is mutated', () => {
+      const originalStringTrim = String.prototype.trim;
+      const throwingTrim: typeof String.prototype.trim = function trim() {
+        throw new Error('string trim unavailable');
+      };
+
+      let normalizedResult:
+        | {
+            address: string | undefined;
+            error: string | undefined;
+          }
+        | undefined;
+      try {
+        Object.defineProperty(String.prototype, 'trim', {
+          configurable: true,
+          writable: true,
+          value: throwingTrim,
+        });
+        normalizedResult = normalizeSquadsAddressValue(
+          ' 11111111111111111111111111111111 ',
+        );
+      } finally {
+        Object.defineProperty(String.prototype, 'trim', {
+          configurable: true,
+          writable: true,
+          value: originalStringTrim,
+        });
+      }
+
+      expect(normalizedResult).to.deep.equal({
+        address: '11111111111111111111111111111111',
+        error: undefined,
+      });
+    });
+
     it('rejects empty Solana address strings', () => {
       expect(normalizeSquadsAddressValue('   ')).to.deep.equal({
         address: undefined,
@@ -879,12 +914,17 @@ describe('squads utils', () => {
     it('keeps missing-account detection stable when includes/some prototypes are mutated', () => {
       const originalArraySome = Array.prototype.some;
       const originalStringIncludes = String.prototype.includes;
+      const originalStringToLowerCase = String.prototype.toLowerCase;
       const throwingArraySome: typeof Array.prototype.some = function some() {
         throw new Error('array some unavailable');
       };
       const throwingStringIncludes: typeof String.prototype.includes =
         function includes() {
           throw new Error('string includes unavailable');
+        };
+      const throwingStringToLowerCase: typeof String.prototype.toLowerCase =
+        function toLowerCase() {
+          throw new Error('string toLowerCase unavailable');
         };
 
       let detectedMissingAccount: boolean | undefined;
@@ -899,6 +939,11 @@ describe('squads utils', () => {
           writable: true,
           value: throwingStringIncludes,
         });
+        Object.defineProperty(String.prototype, 'toLowerCase', {
+          configurable: true,
+          writable: true,
+          value: throwingStringToLowerCase,
+        });
         detectedMissingAccount = isLikelyMissingSquadsAccountError(
           'rpc response: account not found for pubkey',
         );
@@ -912,6 +957,11 @@ describe('squads utils', () => {
           configurable: true,
           writable: true,
           value: originalStringIncludes,
+        });
+        Object.defineProperty(String.prototype, 'toLowerCase', {
+          configurable: true,
+          writable: true,
+          value: originalStringToLowerCase,
         });
       }
 
@@ -3622,6 +3672,7 @@ describe('squads utils', () => {
       const originalArrayIncludes = Array.prototype.includes;
       const originalArraySome = Array.prototype.some;
       const originalStringIncludes = String.prototype.includes;
+      const originalStringToLowerCase = String.prototype.toLowerCase;
       const throwingArrayIncludes: typeof Array.prototype.includes =
         function includes() {
           throw new Error('array includes unavailable');
@@ -3632,6 +3683,10 @@ describe('squads utils', () => {
       const throwingStringIncludes: typeof String.prototype.includes =
         function includes() {
           throw new Error('string includes unavailable');
+        };
+      const throwingStringToLowerCase: typeof String.prototype.toLowerCase =
+        function toLowerCase() {
+          throw new Error('string toLowerCase unavailable');
         };
 
       let parsedError: SquadsProposalVoteError | undefined;
@@ -3651,6 +3706,11 @@ describe('squads utils', () => {
           writable: true,
           value: throwingStringIncludes,
         });
+        Object.defineProperty(String.prototype, 'toLowerCase', {
+          configurable: true,
+          writable: true,
+          value: throwingStringToLowerCase,
+        });
         parsedError = parseSquadsProposalVoteErrorFromError({
           transactionLogs: ['custom program error: 0x177b'],
         });
@@ -3669,6 +3729,11 @@ describe('squads utils', () => {
           configurable: true,
           writable: true,
           value: originalStringIncludes,
+        });
+        Object.defineProperty(String.prototype, 'toLowerCase', {
+          configurable: true,
+          writable: true,
+          value: originalStringToLowerCase,
         });
       }
 

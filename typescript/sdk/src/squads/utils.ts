@@ -184,6 +184,8 @@ const ARRAY_FROM = Array.from;
 const ARRAY_INCLUDES = Array.prototype.includes;
 const ARRAY_SOME = Array.prototype.some;
 const STRING_INCLUDES = String.prototype.includes;
+const STRING_TRIM = String.prototype.trim;
+const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 const SAFE_INTEGER_DECIMAL_PATTERN = /^-?\d+$/;
 const LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS = [
   'account does not exist',
@@ -193,12 +195,12 @@ const LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS = [
 ] as const;
 
 function tokenizeFieldName(fieldName: string): string[] {
-  return fieldName
-    .replace(/([a-z])([A-Z])/g, '$1_$2')
-    .replace(/[^a-zA-Z0-9]+/g, '_')
-    .toLowerCase()
-    .split('_')
-    .filter((token) => token.length > 0);
+  const normalizedFieldName = stringToLowerCase(
+    fieldName
+      .replace(/([a-z])([A-Z])/g, '$1_$2')
+      .replace(/[^a-zA-Z0-9]+/g, '_'),
+  );
+  return normalizedFieldName.split('_').filter((token) => token.length > 0);
 }
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
@@ -246,6 +248,14 @@ function arraySomeValue<Value>(
 
 function stringIncludesValue(value: string, searchValue: string): boolean {
   return STRING_INCLUDES.call(value, searchValue);
+}
+
+function stringTrim(value: string): string {
+  return STRING_TRIM.call(value);
+}
+
+function stringToLowerCase(value: string): string {
+  return STRING_TO_LOWER_CASE.call(value);
 }
 
 function getUnknownValueTypeName(value: unknown): string {
@@ -389,7 +399,7 @@ export function normalizeSquadsAddressValue(
     }
   }
 
-  const trimmedAddressValue = rawAddressValue.trim();
+  const trimmedAddressValue = stringTrim(rawAddressValue);
   if (trimmedAddressValue.length === 0) {
     return {
       address: undefined,
@@ -526,7 +536,7 @@ function isLikelyLogArrayFieldName(fieldName: string): boolean {
 function parseSquadsProposalVoteErrorText(
   logsText: string,
 ): SquadsProposalVoteError | undefined {
-  const normalizedLogs = logsText.toLowerCase();
+  const normalizedLogs = stringToLowerCase(logsText);
 
   for (const { error, patterns } of SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS) {
     if (
@@ -1012,7 +1022,7 @@ function getPendingProposalNativeTokenMetadataForChain(
     `Malformed native token symbol for ${chain}: expected non-empty string, got ${getUnknownValueTypeName(symbolValue)}`,
   );
 
-  const symbol = symbolValue.trim();
+  const symbol = stringTrim(symbolValue);
   assert(
     symbol.length > 0,
     `Malformed native token symbol for ${chain}: expected non-empty string, got empty`,
@@ -1374,7 +1384,9 @@ async function getSquadProposalAccountForResolvedChain(
 }
 
 export function isLikelyMissingSquadsAccountError(error: unknown): boolean {
-  const normalizedErrorText = formatUnknownErrorForMessage(error).toLowerCase();
+  const normalizedErrorText = stringToLowerCase(
+    formatUnknownErrorForMessage(error),
+  );
   return arraySomeValue(
     LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS,
     (pattern) => stringIncludesValue(normalizedErrorText, pattern),
@@ -1806,7 +1818,7 @@ function normalizeStatusKind(
   emptyMessage = 'Expected status kind to be a non-empty string',
 ): string {
   assert(typeof statusKind === 'string', nonStringMessage);
-  const normalizedStatusKind = statusKind.trim();
+  const normalizedStatusKind = stringTrim(statusKind);
   assert(normalizedStatusKind.length > 0, emptyMessage);
   return normalizedStatusKind;
 }
@@ -1951,7 +1963,7 @@ function getMultisigMemberCount(
     );
     if (typeof memberKey === 'string') {
       assert(
-        memberKey.trim().length > 0,
+        stringTrim(memberKey).length > 0,
         `Squads ${fieldPrefix} members[${index}] key must be a non-empty string`,
       );
     } else {
@@ -1973,7 +1985,7 @@ function getMultisigMemberCount(
         typeof normalizedMemberKey === 'string',
         `Squads ${fieldPrefix} members[${index}] key must be stringifiable`,
       );
-      const trimmedMemberKey = normalizedMemberKey.trim();
+      const trimmedMemberKey = stringTrim(normalizedMemberKey);
       assert(
         !isGenericObjectStringifiedValue(trimmedMemberKey),
         `Squads ${fieldPrefix} members[${index}] key must stringify to a meaningful identifier`,
@@ -2223,8 +2235,8 @@ function assertValidBigintTransactionIndex(
   chain: unknown,
 ): bigint {
   const chainLabel =
-    typeof chain === 'string' && chain.trim().length > 0
-      ? chain.trim()
+    typeof chain === 'string' && stringTrim(chain).length > 0
+      ? stringTrim(chain)
       : 'unknown chain';
   assert(
     typeof transactionIndex === 'bigint',
@@ -2317,7 +2329,7 @@ function normalizeProposalMemoForBuild(
     `Expected proposal memo for ${chain} to be a string, got ${getUnknownValueTypeName(memo)}`,
   );
 
-  const normalizedMemo = memo.trim();
+  const normalizedMemo = stringTrim(memo);
   return normalizedMemo.length > 0 ? normalizedMemo : undefined;
 }
 
@@ -2370,10 +2382,10 @@ async function getRecentBlockhashForProposalBuild(
   }
 
   assert(
-    typeof blockhashValue === 'string' && blockhashValue.trim().length > 0,
+    typeof blockhashValue === 'string' && stringTrim(blockhashValue).length > 0,
     `Malformed latest blockhash value for ${chain}: expected non-empty string, got ${getUnknownValueTypeName(blockhashValue)}`,
   );
-  const normalizedBlockhash = blockhashValue.trim();
+  const normalizedBlockhash = stringTrim(blockhashValue);
   assert(
     !isGenericObjectStringifiedValue(normalizedBlockhash),
     `Malformed latest blockhash value for ${chain}: expected meaningful string, got generic object label`,
