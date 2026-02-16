@@ -599,4 +599,90 @@ describe('strategy parse helpers', () => {
       }
     }
   });
+
+  it('parseExtendedSubmissionStrategy strips inherited submitterOverrides from output', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitterOverrides',
+    );
+    Object.defineProperty(Object.prototype, 'submitterOverrides', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: {
+        '0x1111111111111111111111111111111111111111': {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+      },
+    });
+
+    try {
+      const parsed = parseExtendedSubmissionStrategy({
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+      } as any);
+      expect(
+        Object.prototype.hasOwnProperty.call(parsed, 'submitterOverrides'),
+      ).to.equal(false);
+      expect((parsed as Record<string, unknown>).submitterOverrides).to.equal(
+        undefined,
+      );
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitterOverrides',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitterOverrides;
+      }
+    }
+  });
+
+  it('parseExtendedChainSubmissionStrategy strips inherited nested submitterOverrides from output', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitterOverrides',
+    );
+    Object.defineProperty(Object.prototype, 'submitterOverrides', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: {
+        '0x1111111111111111111111111111111111111111': {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+      },
+    });
+
+    try {
+      const parsed = parseExtendedChainSubmissionStrategy({
+        [CHAIN]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+          },
+        },
+      } as any);
+      const chainStrategy = parsed[CHAIN] as Record<string, unknown>;
+      expect(
+        Object.prototype.hasOwnProperty.call(chainStrategy, 'submitterOverrides'),
+      ).to.equal(false);
+      expect(chainStrategy.submitterOverrides).to.equal(undefined);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitterOverrides',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitterOverrides;
+      }
+    }
+  });
 });

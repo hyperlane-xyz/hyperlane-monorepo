@@ -64,6 +64,18 @@ function getOwnObjectField(value: unknown, field: string): unknown {
   }
 }
 
+function hasOwnObjectField(value: unknown, field: string): boolean {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return false;
+  }
+
+  try {
+    return Object.prototype.hasOwnProperty.call(value, field);
+  } catch {
+    return false;
+  }
+}
+
 function cloneOwnEnumerableObject(
   value: unknown,
 ): Record<string, unknown> | null {
@@ -295,17 +307,84 @@ function withTemporarilyRemovedPrototypeFields<T>(callback: () => T): T {
 export function parseExtendedSubmissionStrategy(
   value: unknown,
 ): ExtendedSubmissionStrategy {
-  return withTemporarilyRemovedPrototypeFields(() =>
+  const parsedStrategy = withTemporarilyRemovedPrototypeFields(() =>
     ExtendedSubmissionStrategySchema.parse(value),
   );
+  return sanitizeExtendedSubmissionStrategyOutput(parsedStrategy, value);
 }
 
 export function parseExtendedChainSubmissionStrategy(
   value: unknown,
 ): ExtendedChainSubmissionStrategy {
-  return withTemporarilyRemovedPrototypeFields(() =>
+  const parsedStrategy = withTemporarilyRemovedPrototypeFields(() =>
     ExtendedChainSubmissionStrategySchema.parse(value),
   );
+  return sanitizeExtendedChainSubmissionStrategyOutput(parsedStrategy, value);
+}
+
+function sanitizeExtendedSubmissionStrategyOutput(
+  value: ExtendedSubmissionStrategy,
+  rawValue?: unknown,
+): ExtendedSubmissionStrategy {
+  const sanitizedStrategy = Object.create(null) as Record<string, unknown>;
+  const submitter = getOwnObjectField(value, 'submitter');
+  sanitizedStrategy.submitter =
+    cloneOwnEnumerableObject(submitter) ?? submitter;
+
+  const submitterOverrides = getOwnObjectField(
+    value,
+    'submitterOverrides',
+  ) as Record<string, unknown> | undefined;
+  const shouldIncludeSubmitterOverrides = hasOwnObjectField(
+    rawValue ?? value,
+    'submitterOverrides',
+  );
+  if (
+    shouldIncludeSubmitterOverrides &&
+    submitterOverrides &&
+    (typeof submitterOverrides === 'object' ||
+      typeof submitterOverrides === 'function')
+  ) {
+    const sanitizedOverrides =
+      cloneOwnEnumerableObject(submitterOverrides) ??
+      (Object.create(null) as Record<string, unknown>);
+    for (const overrideKey of Object.keys(sanitizedOverrides)) {
+      const overrideSubmitter = getOwnObjectField(
+        sanitizedOverrides,
+        overrideKey,
+      );
+      sanitizedOverrides[overrideKey] =
+        cloneOwnEnumerableObject(overrideSubmitter) ?? overrideSubmitter;
+    }
+    sanitizedStrategy.submitterOverrides = sanitizedOverrides;
+  }
+
+  return sanitizedStrategy as ExtendedSubmissionStrategy;
+}
+
+function sanitizeExtendedChainSubmissionStrategyOutput(
+  value: ExtendedChainSubmissionStrategy,
+  rawValue?: unknown,
+): ExtendedChainSubmissionStrategy {
+  const sanitizedStrategy = Object.create(null) as Record<string, unknown>;
+
+  for (const chainKey of Object.keys(value)) {
+    const chainStrategy = getOwnObjectField(value, chainKey);
+    const rawChainStrategy = getOwnObjectField(rawValue, chainKey);
+    if (
+      chainStrategy &&
+      (typeof chainStrategy === 'object' || typeof chainStrategy === 'function')
+    ) {
+      sanitizedStrategy[chainKey] = sanitizeExtendedSubmissionStrategyOutput(
+        chainStrategy as ExtendedSubmissionStrategy,
+        rawChainStrategy,
+      );
+      continue;
+    }
+    sanitizedStrategy[chainKey] = chainStrategy;
+  }
+
+  return sanitizedStrategy as ExtendedChainSubmissionStrategy;
 }
 
 export type FileTxSubmitterProps = z.infer<typeof FileTxSubmitterPropsSchema>;
