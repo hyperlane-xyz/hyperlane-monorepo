@@ -144,6 +144,20 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     expect(protocolCalls).to.equal(0);
   });
 
+  it('does not require multiProvider context when explicit strategy has no overrides', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: createExplicitStrategyPath(),
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('does not attempt inference when target is malformed and transaction from is safe-like', async () => {
     const ownableStub = sinon
       .stub(Ownable__factory, 'connect')
@@ -307,6 +321,39 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
         TxSubmitterType.GNOSIS_TX_BUILDER,
       );
       expect(protocolCalls).to.equal(1);
+      expect(ownableStub.callCount).to.equal(0);
+      expect(safeStub.callCount).to.equal(0);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
+  it('falls back to explicit default when multiProvider context is missing and explicit strategy has overrides', async () => {
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('ownable probe should not run'));
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('safe probe should not run'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('timelock probe should not run'));
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {} as any,
+        strategyUrl: createExplicitStrategyWithOverridePath(),
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
       expect(ownableStub.callCount).to.equal(0);
       expect(safeStub.callCount).to.equal(0);
       expect(timelockStub.callCount).to.equal(0);
