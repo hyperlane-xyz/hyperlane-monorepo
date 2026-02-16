@@ -514,4 +514,89 @@ describe('strategy parse helpers', () => {
       }
     }
   });
+
+  it('parseExtendedSubmissionStrategy restores non-writable prototype descriptor after parse errors', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    const nonWritableDescriptor: PropertyDescriptor = {
+      configurable: true,
+      enumerable: false,
+      writable: false,
+      value: null,
+    };
+    Object.defineProperty(
+      Object.prototype,
+      'submitter',
+      nonWritableDescriptor,
+    );
+
+    try {
+      expect(() => parseExtendedSubmissionStrategy({} as any)).to.throw();
+      const restoredDescriptor = Object.getOwnPropertyDescriptor(
+        Object.prototype,
+        'submitter',
+      );
+      expect(restoredDescriptor).to.not.equal(undefined);
+      expect(restoredDescriptor?.configurable).to.equal(
+        nonWritableDescriptor.configurable,
+      );
+      expect(restoredDescriptor?.enumerable).to.equal(
+        nonWritableDescriptor.enumerable,
+      );
+      expect(restoredDescriptor?.writable).to.equal(
+        nonWritableDescriptor.writable,
+      );
+      expect(restoredDescriptor?.value).to.equal(nonWritableDescriptor.value);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitter;
+      }
+    }
+  });
+
+  it('parseExtendedChainSubmissionStrategy restores getter-only prototype descriptor after parse errors', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    const getter = () => null;
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      get: getter,
+    });
+
+    try {
+      expect(
+        () => parseExtendedChainSubmissionStrategy({ [CHAIN]: {} } as any),
+      ).to.throw();
+      const restoredDescriptor = Object.getOwnPropertyDescriptor(
+        Object.prototype,
+        'submitter',
+      );
+      expect(restoredDescriptor).to.not.equal(undefined);
+      expect(restoredDescriptor?.configurable).to.equal(true);
+      expect(restoredDescriptor?.enumerable).to.equal(false);
+      expect(restoredDescriptor?.get).to.equal(getter);
+      expect(restoredDescriptor?.set).to.equal(undefined);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitter;
+      }
+    }
+  });
 });
