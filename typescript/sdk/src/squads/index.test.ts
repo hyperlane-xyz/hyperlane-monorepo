@@ -2319,6 +2319,30 @@ describe('squads barrel exports', () => {
     ).to.deep.equal(baselineCaptureDiscovery);
   });
 
+  it('keeps sdk squads pattern-path discovery stable for mixed stateful and non-stateful regex flags', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/i);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/i,
+      );
+    const mixedFlagMutationPattern = /reflect\.apply is mutated/giy;
+    const mixedFlagCapturePattern = /const reflect_apply = reflect\.apply/giy;
+    mixedFlagMutationPattern.lastIndex = 21;
+    mixedFlagCapturePattern.lastIndex = 34;
+
+    expect(
+      listSdkSquadsTestFilePathsContainingPattern(mixedFlagMutationPattern),
+    ).to.deep.equal(baselineMutationDiscovery);
+    expect(
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        mixedFlagCapturePattern,
+      ),
+    ).to.deep.equal(baselineCaptureDiscovery);
+    expect(mixedFlagMutationPattern.lastIndex).to.equal(21);
+    expect(mixedFlagCapturePattern.lastIndex).to.equal(34);
+  });
+
   it('keeps sdk squads pattern-path discovery stable across repeated global regex reuse', () => {
     const reusableGlobalMutationPattern = /Reflect\.apply is mutated/g;
     const reusableGlobalCapturePattern =
