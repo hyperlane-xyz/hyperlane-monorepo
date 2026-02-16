@@ -104,4 +104,34 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed selector-data def
       TxSubmitterType.GNOSIS_TX_BUILDER,
     );
   });
+
+  it('preserves explicit default submitter when transaction data is whitespace-only and only selector override exists', async () => {
+    const strategyPath = createStrategyPath('whitespace-only');
+    writeSelectorOnlyStrategy(strategyPath);
+
+    const batches = await resolveSingleBatch(
+      { ...TX, data: '    ' },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
+  it('preserves explicit default submitter when transaction data has malformed uppercase 0X selector prefix and only selector override exists', async () => {
+    const strategyPath = createStrategyPath('uppercase-malformed-prefix');
+    writeSelectorOnlyStrategy(strategyPath);
+
+    const batches = await resolveSingleBatch(
+      { ...TX, data: '  0XDEADBEE  ' },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
 });
