@@ -1673,8 +1673,11 @@ export async function resolveSubmitterBatchesForTransactions({
     ];
   }
 
+  const normalizedStrategyUrl = strategyUrl?.trim();
   const explicitSubmissionStrategy: ExtendedSubmissionStrategy | undefined =
-    strategyUrl ? readChainSubmissionStrategy(strategyUrl)[chain] : undefined;
+    normalizedStrategyUrl
+      ? readChainSubmissionStrategy(normalizedStrategyUrl)[chain]
+      : undefined;
   const explicitOverrides = explicitSubmissionStrategy?.submitterOverrides;
   const hasExplicitOverrides = hasUsableOverrideKeys(explicitOverrides);
   const hasOverrideEligibleTarget = transactions.some(hasNonEmptyStringTarget);

@@ -1,0 +1,65 @@
+import { expect } from 'chai';
+import sinon from 'sinon';
+
+import {
+  ISafe__factory,
+  Ownable__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
+import { TxSubmitterType } from '@hyperlane-xyz/sdk';
+
+import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+
+describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback', () => {
+  const CHAIN = 'anvil2';
+  const TX = {
+    to: '0x1111111111111111111111111111111111111111',
+    data: '0x',
+    chainId: 31338,
+  };
+
+  it('treats whitespace strategyUrl as missing and falls back to jsonRpc default', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: '   \n\t ',
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('does not attempt inference probes when strategyUrl is whitespace and context is missing', async () => {
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('ownable probe should not run'));
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('safe probe should not run'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('timelock probe should not run'));
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {} as any,
+        strategyUrl: '   ',
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
+      expect(ownableStub.callCount).to.equal(0);
+      expect(safeStub.callCount).to.equal(0);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+});
