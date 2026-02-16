@@ -24,6 +24,62 @@ import {
 } from '../utils/files.js';
 import { maskSensitiveData } from '../utils/output.js';
 
+function getOwnObjectField(value: unknown, field: string): unknown {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return undefined;
+  }
+
+  try {
+    if (!Object.prototype.hasOwnProperty.call(value, field)) {
+      return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  try {
+    return (value as Record<string, unknown>)[field];
+  } catch {
+    return undefined;
+  }
+}
+
+function cloneOwnEnumerableObject(
+  value: unknown,
+): Record<string, unknown> | null {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return null;
+  }
+
+  let keys: string[];
+  try {
+    keys = Object.keys(value as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+
+  const clonedObject = Object.create(null) as Record<string, unknown>;
+  for (const key of keys) {
+    clonedObject[key] = getOwnObjectField(value, key);
+  }
+
+  return clonedObject;
+}
+
+function sanitizeChainSubmissionStrategy(
+  strategy: ExtendedChainSubmissionStrategy,
+): ExtendedChainSubmissionStrategy {
+  const sanitizedStrategy = Object.create(null) as Record<string, unknown>;
+
+  for (const chainKey of Object.keys(strategy)) {
+    const chainStrategy = getOwnObjectField(strategy, chainKey);
+    sanitizedStrategy[chainKey] =
+      cloneOwnEnumerableObject(chainStrategy) ?? chainStrategy;
+  }
+
+  return sanitizedStrategy as ExtendedChainSubmissionStrategy;
+}
+
 /**
  * Reads and validates a chain submission strategy configuration from a file
  */
@@ -35,7 +91,7 @@ export async function readChainSubmissionStrategyConfig(
     readYamlOrJson<ExtendedChainSubmissionStrategy>(filePath);
   const parseResult =
     ExtendedChainSubmissionStrategySchema.parse(strategyConfig);
-  return parseResult;
+  return sanitizeChainSubmissionStrategy(parseResult);
 }
 
 export async function createStrategyConfig({
@@ -48,7 +104,9 @@ export async function createStrategyConfig({
   let strategy: ExtendedChainSubmissionStrategy;
   try {
     const strategyObj = await readYamlOrJson(outPath);
-    strategy = ExtendedChainSubmissionStrategySchema.parse(strategyObj);
+    strategy = sanitizeChainSubmissionStrategy(
+      ExtendedChainSubmissionStrategySchema.parse(strategyObj),
+    );
   } catch {
     writeYamlOrJson(outPath, {}, 'yaml');
     strategy = {};
@@ -142,8 +200,9 @@ export async function createStrategyConfig({
   };
 
   try {
-    const strategyConfig =
-      ExtendedChainSubmissionStrategySchema.parse(strategyResult);
+    const strategyConfig = sanitizeChainSubmissionStrategy(
+      ExtendedChainSubmissionStrategySchema.parse(strategyResult),
+    );
     logBlue(`Strategy configuration is valid. Writing to file ${outPath}:\n`);
 
     const maskedConfig = maskSensitiveData(strategyConfig);
