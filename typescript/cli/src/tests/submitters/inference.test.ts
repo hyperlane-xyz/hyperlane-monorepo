@@ -3154,6 +3154,90 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     );
   });
 
+  it('ignores malformed selector-style non-ethereum override keys with extra separators even when transaction target matches raw key', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-cosmos-selector-key-extra-separators-raw-target-${Date.now()}.yaml`;
+    const malformedSelectorStyleTarget =
+      'cosmos1overrideaddress000000000000000000000000@0xdeadbeef@extra';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [malformedSelectorStyleTarget]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x8888888888888888888888888888888888888888',
+            version: '1.0',
+          },
+        },
+      },
+    });
+
+    const txOverride = {
+      ...TX,
+      to: malformedSelectorStyleTarget,
+      data: '0xdeadbeef00000000',
+    };
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [txOverride as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.CosmosNative,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('ignores malformed selector-style non-ethereum override keys with invalid selector syntax even when transaction target matches raw key', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-cosmos-selector-key-invalid-selector-raw-target-${Date.now()}.yaml`;
+    const malformedSelectorStyleTarget =
+      'cosmos1overrideaddress000000000000000000000000@deadbeef';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [malformedSelectorStyleTarget]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x8888888888888888888888888888888888888888',
+            version: '1.0',
+          },
+        },
+      },
+    });
+
+    const txOverride = {
+      ...TX,
+      to: malformedSelectorStyleTarget,
+      data: '0xdeadbeef00000000',
+    };
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [txOverride as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.CosmosNative,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('prefers exact non-ethereum target override over selector-style key', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-cosmos-selector-vs-target-${Date.now()}.yaml`;
     const overrideTarget = 'cosmos1overrideaddress000000000000000000000000';
