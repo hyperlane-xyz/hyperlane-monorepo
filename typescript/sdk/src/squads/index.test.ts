@@ -1173,7 +1173,7 @@ function listSdkSquadsTestFilePathsContainingPattern(
   for (const relativeTestPath of listSdkSquadsTestFilePaths()) {
     const absoluteTestPath = path.join(SDK_PACKAGE_ROOT, relativeTestPath);
     const source = fs.readFileSync(absoluteTestPath, 'utf8');
-    if (pattern.test(source)) {
+    if (doesPatternMatchSource(source, pattern)) {
       matchedPaths.push(relativeTestPath);
     }
   }
@@ -1187,11 +1187,16 @@ function listSdkSquadsNonTestSourceFilePathsContainingPattern(
   for (const relativeSourcePath of listSdkSquadsNonTestSourceFilePaths()) {
     const absoluteSourcePath = path.join(SDK_PACKAGE_ROOT, relativeSourcePath);
     const source = fs.readFileSync(absoluteSourcePath, 'utf8');
-    if (pattern.test(source)) {
+    if (doesPatternMatchSource(source, pattern)) {
       matchedPaths.push(relativeSourcePath);
     }
   }
   return matchedPaths.sort(compareLexicographically);
+}
+
+function doesPatternMatchSource(source: string, pattern: RegExp): boolean {
+  pattern.lastIndex = 0;
+  return pattern.test(source);
 }
 
 function listSdkSquadsNonTestSourceFilePaths(): readonly string[] {
@@ -2173,6 +2178,28 @@ describe('squads barrel exports', () => {
     expect(discoveredReflectApplyMutationTestPaths).to.deep.equal([
       ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
     ]);
+  });
+
+  it('keeps sdk squads pattern-path discovery stable for global regex inputs', () => {
+    const nonGlobalMutationPathPattern = /Reflect\.apply is mutated/;
+    const globalMutationPathPattern = /Reflect\.apply is mutated/g;
+    const nonGlobalCapturePattern = /const REFLECT_APPLY = Reflect\.apply/;
+    const globalCapturePattern = /const REFLECT_APPLY = Reflect\.apply/g;
+
+    expect(
+      listSdkSquadsTestFilePathsContainingPattern(globalMutationPathPattern),
+    ).to.deep.equal(
+      listSdkSquadsTestFilePathsContainingPattern(nonGlobalMutationPathPattern),
+    );
+    expect(
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        globalCapturePattern,
+      ),
+    ).to.deep.equal(
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        nonGlobalCapturePattern,
+      ),
+    );
   });
 
   it('keeps sdk Reflect.apply mutation tests using explicit Reflect.apply monkey-patch setup', () => {
