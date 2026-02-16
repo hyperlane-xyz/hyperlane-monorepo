@@ -387,4 +387,71 @@ describe('strategy parse helpers', () => {
       }
     }
   });
+
+  it('parseExtendedChainSubmissionStrategy tolerates getter-only Object prototype submitter', () => {
+    const input = {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+      },
+    };
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      get: () => null,
+    });
+
+    try {
+      const parsed = parseExtendedChainSubmissionStrategy(input as any);
+      expect(parsed[CHAIN].submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitter;
+      }
+    }
+  });
+
+  it('parseExtendedSubmissionStrategy tolerates getter-only Object prototype submitter', () => {
+    const input = {
+      submitter: {
+        type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN,
+      },
+    };
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      get: () => null,
+    });
+
+    try {
+      const parsed = parseExtendedSubmissionStrategy(input as any);
+      expect(parsed.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitter;
+      }
+    }
+  });
 });
