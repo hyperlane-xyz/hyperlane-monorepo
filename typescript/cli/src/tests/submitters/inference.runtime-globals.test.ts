@@ -365,4 +365,24 @@ describe('runtime global probe helpers', () => {
 
     expect(hardcodedAssignments).to.deep.equal([]);
   });
+
+  it('keeps constructor probe tryGetSigner returns free of direct globals', () => {
+    const constructorProbeFilePattern =
+      /^inference\..*constructor(?:s)?\.test\.ts$/;
+    const hardcodedReturnPattern =
+      /\breturn\s+(?:Array|ArrayBuffer|SharedArrayBuffer|DataView|BigInt64Array|BigUint64Array|Uint8ClampedArray|Float64Array|Float32Array|Int32Array|Int16Array|Int8Array|Uint32Array|Uint16Array|Uint8Array|Function|Object|Error|AggregateError|EvalError|RangeError|ReferenceError|SyntaxError|TypeError|URIError|RegExp|Number|Boolean|String|BigInt|Symbol|Map|Set|WeakMap|WeakSet|Promise|Date)\s*;/g;
+    const submitterTestDir = path.dirname(fileURLToPath(import.meta.url));
+    const constructorProbeFiles = fs
+      .readdirSync(submitterTestDir)
+      .filter((fileName) => constructorProbeFilePattern.test(fileName));
+
+    const hardcodedReturns = constructorProbeFiles.flatMap((fileName) => {
+      const filePath = path.join(submitterTestDir, fileName);
+      const fileContent = fs.readFileSync(filePath, 'utf8');
+      const matches = [...fileContent.matchAll(hardcodedReturnPattern)];
+      return matches.map((match) => `${fileName}: ${match[0]}`);
+    });
+
+    expect(hardcodedReturns).to.deep.equal([]);
+  });
 });
