@@ -184,6 +184,8 @@ const ARRAY_FROM = Array.from;
 const ARRAY_MAP = Array.prototype.map;
 const ARRAY_FILTER = Array.prototype.filter;
 const ARRAY_JOIN = Array.prototype.join;
+const ARRAY_PUSH = Array.prototype.push;
+const ARRAY_SORT = Array.prototype.sort;
 const ARRAY_INCLUDES = Array.prototype.includes;
 const ARRAY_SOME = Array.prototype.some;
 const STRING_INCLUDES = String.prototype.includes;
@@ -274,6 +276,17 @@ function arrayJoinValues(
   separator: string,
 ): string {
   return ARRAY_JOIN.call(values, separator);
+}
+
+function arrayPushValue<Value>(values: Value[], value: Value): number {
+  return ARRAY_PUSH.call(values, value);
+}
+
+function arraySortValues<Value>(
+  values: Value[],
+  compareFn: (left: Value, right: Value) => number,
+): Value[] {
+  return ARRAY_SORT.call(values, compareFn) as Value[];
 }
 
 function arrayIncludesValue<Value>(
@@ -515,7 +528,7 @@ export function normalizeSquadsAddressList(
     }
     const normalizedAddress = normalizeSquadsAddressValue(value);
     if (normalizedAddress.address) {
-      addresses.push(normalizedAddress.address);
+      arrayPushValue(addresses, normalizedAddress.address);
     } else {
       invalidEntries += 1;
     }
@@ -569,7 +582,7 @@ export function parseSquadsMultisigMembers(
 
     const { propertyValue: permissionsValue, readError: permissionsReadError } =
       inspectPropertyValue(member, 'permissions');
-    parsedMembers.push({
+    arrayPushValue(parsedMembers, {
       key: normalizedMemberKey.address,
       permissions:
         permissionsReadError || typeof permissionsValue === 'undefined'
@@ -644,7 +657,7 @@ function parseSquadsProposalVoteErrorFromUnknownLogs(
       continue;
     }
     if (typeof entry === 'string') {
-      logEntries.push(entry);
+      arrayPushValue(logEntries, entry);
     }
   }
 
@@ -759,7 +772,7 @@ export function parseSquadsProposalVoteErrorFromError(
       }
 
       if (nestedValue && typeof nestedValue === 'object') {
-        traversalQueue.push(nestedValue);
+        arrayPushValue(traversalQueue, nestedValue);
       }
     }
   }
@@ -1576,7 +1589,7 @@ export async function getPendingProposalsForChains(
               continue;
             }
 
-            proposals.push({
+            arrayPushValue(proposals, {
               chain,
               nonce: proposalIndex,
               status,
@@ -1607,7 +1620,8 @@ export async function getPendingProposalsForChains(
     }),
   );
 
-  return proposals.sort(
+  return arraySortValues(
+    proposals,
     (a, b) => a.chain.localeCompare(b.chain) || a.nonce - b.nonce,
   );
 }
@@ -2135,9 +2149,9 @@ export function decodePermissions(mask: unknown): string {
   );
 
   const permissions: string[] = [];
-  if (mask & SquadsPermission.PROPOSER) permissions.push('Proposer');
-  if (mask & SquadsPermission.VOTER) permissions.push('Voter');
-  if (mask & SquadsPermission.EXECUTOR) permissions.push('Executor');
+  if (mask & SquadsPermission.PROPOSER) arrayPushValue(permissions, 'Proposer');
+  if (mask & SquadsPermission.VOTER) arrayPushValue(permissions, 'Voter');
+  if (mask & SquadsPermission.EXECUTOR) arrayPushValue(permissions, 'Executor');
 
   return permissions.length > 0 ? arrayJoinValues(permissions, ', ') : 'None';
 }
@@ -2377,7 +2391,10 @@ function normalizeProposalInstructionsForBuild(
         instructionIsTransactionInstruction,
       `Expected proposal instructions for ${chain}[${instructionIndex}] to be a TransactionInstruction, got ${getUnknownValueTypeName(instruction)}`,
     );
-    normalizedInstructions.push(instruction as TransactionInstruction);
+    arrayPushValue(
+      normalizedInstructions,
+      instruction as TransactionInstruction,
+    );
   }
 
   return normalizedInstructions;

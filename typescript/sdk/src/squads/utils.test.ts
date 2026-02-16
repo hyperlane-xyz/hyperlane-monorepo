@@ -2903,6 +2903,47 @@ describe('squads utils', () => {
       expect(decodePermissions(0)).to.equal('None');
     });
 
+    it('keeps permission decoding stable when Array push/sort prototypes are mutated', () => {
+      const originalArrayPush = Array.prototype.push;
+      const originalArraySort = Array.prototype.sort;
+      const throwingPush: typeof Array.prototype.push = function push() {
+        throw new Error('array push unavailable');
+      };
+      const throwingSort: typeof Array.prototype.sort = function sort() {
+        throw new Error('array sort unavailable');
+      };
+      let decodedPermissions: string | undefined;
+
+      try {
+        Object.defineProperty(Array.prototype, 'push', {
+          configurable: true,
+          writable: true,
+          value: throwingPush,
+        });
+        Object.defineProperty(Array.prototype, 'sort', {
+          configurable: true,
+          writable: true,
+          value: throwingSort,
+        });
+        decodedPermissions = decodePermissions(
+          SquadsPermission.ALL_PERMISSIONS,
+        );
+      } finally {
+        Object.defineProperty(Array.prototype, 'push', {
+          configurable: true,
+          writable: true,
+          value: originalArrayPush,
+        });
+        Object.defineProperty(Array.prototype, 'sort', {
+          configurable: true,
+          writable: true,
+          value: originalArraySort,
+        });
+      }
+
+      expect(decodedPermissions).to.equal('Proposer, Voter, Executor');
+    });
+
     it('throws for malformed permission masks', () => {
       expect(() => decodePermissions('7')).to.throw(
         'Expected permission mask to be a number, got string',
@@ -4565,6 +4606,42 @@ describe('squads utils', () => {
         ['unsupported', ' unsupported '],
         mpp,
       );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('keeps proposal list sorting stable when Array.prototype.sort is mutated', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const originalArraySort = Array.prototype.sort;
+      const throwingSort: typeof Array.prototype.sort = function sort() {
+        throw new Error('array sort unavailable');
+      };
+
+      let proposals: unknown;
+      try {
+        Object.defineProperty(Array.prototype, 'sort', {
+          configurable: true,
+          writable: true,
+          value: throwingSort,
+        });
+        proposals = await getPendingProposalsForChains(
+          ['unsupported', ' unsupported '],
+          mpp,
+        );
+      } finally {
+        Object.defineProperty(Array.prototype, 'sort', {
+          configurable: true,
+          writable: true,
+          value: originalArraySort,
+        });
+      }
 
       expect(proposals).to.deep.equal([]);
       expect(providerLookupCalled).to.equal(false);
