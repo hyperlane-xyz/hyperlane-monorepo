@@ -234,11 +234,6 @@ export type ExtendedChainSubmissionStrategy = z.infer<
   typeof ExtendedChainSubmissionStrategySchema
 >;
 
-const STRATEGY_SCHEMA_PROTOTYPE_COLLISION_FIELDS = [
-  'submitter',
-  'submitterOverrides',
-] as const;
-
 function shouldTemporarilyRemovePrototypeField(
   descriptor: PropertyDescriptor | undefined,
 ): boolean {
@@ -254,12 +249,19 @@ function shouldTemporarilyRemovePrototypeField(
 }
 
 function withTemporarilyRemovedPrototypeFields<T>(callback: () => T): T {
+  let prototypeFields: string[] = [];
+  try {
+    prototypeFields = Object.getOwnPropertyNames(Object.prototype);
+  } catch {
+    prototypeFields = [];
+  }
+
   const removedDescriptors: Array<{
-    field: (typeof STRATEGY_SCHEMA_PROTOTYPE_COLLISION_FIELDS)[number];
+    field: string;
     descriptor: PropertyDescriptor;
   }> = [];
 
-  for (const field of STRATEGY_SCHEMA_PROTOTYPE_COLLISION_FIELDS) {
+  for (const field of prototypeFields) {
     let descriptor: PropertyDescriptor | undefined;
     try {
       descriptor = Object.getOwnPropertyDescriptor(Object.prototype, field);

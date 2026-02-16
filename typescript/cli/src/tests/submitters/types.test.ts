@@ -454,4 +454,64 @@ describe('strategy parse helpers', () => {
       }
     }
   });
+
+  it('parseExtendedSubmissionStrategy tolerates non-writable Object prototype chain', () => {
+    const input = {
+      submitter: {
+        type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN,
+      },
+    };
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'chain',
+    );
+    Object.defineProperty(Object.prototype, 'chain', {
+      configurable: true,
+      enumerable: false,
+      value: null,
+    });
+
+    try {
+      const parsed = parseExtendedSubmissionStrategy(input as any);
+      expect(parsed.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect((parsed.submitter as Record<string, unknown>).chain).to.equal(CHAIN);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(Object.prototype, 'chain', originalDescriptor);
+      } else {
+        delete (Object.prototype as any).chain;
+      }
+    }
+  });
+
+  it('parseExtendedChainSubmissionStrategy tolerates non-writable Object prototype type', () => {
+    const input = {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+      },
+    };
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'type',
+    );
+    Object.defineProperty(Object.prototype, 'type', {
+      configurable: true,
+      enumerable: false,
+      value: null,
+    });
+
+    try {
+      const parsed = parseExtendedChainSubmissionStrategy(input as any);
+      expect(parsed[CHAIN].submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(Object.prototype, 'type', originalDescriptor);
+      } else {
+        delete (Object.prototype as any).type;
+      }
+    }
+  });
 });
