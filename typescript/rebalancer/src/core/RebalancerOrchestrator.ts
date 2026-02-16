@@ -185,12 +185,13 @@ export class RebalancerOrchestrator {
   ): Promise<void> {
     for (const result of results) {
       const intentId = result.route.intentId;
-      if (result.success && result.messageId) {
+      if (result.success) {
         await this.actionTracker.createRebalanceAction({
           intentId,
           origin: this.multiProvider.getDomainId(result.route.origin),
           destination: this.multiProvider.getDomainId(result.route.destination),
           amount: result.route.amount,
+          type: 'rebalance_message',
           messageId: result.messageId,
           txHash: result.txHash,
         });
