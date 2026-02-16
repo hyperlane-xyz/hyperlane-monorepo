@@ -1,0 +1,140 @@
+import { expect } from 'chai';
+import sinon from 'sinon';
+
+import {
+  ISafe__factory,
+  Ownable__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
+import { TxSubmitterType } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
+import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+
+describe('resolveSubmitterBatchesForTransactions transaction field getter fallback', () => {
+  const CHAIN = 'anvil2';
+  const TX = {
+    to: '0x1111111111111111111111111111111111111111',
+    data: '0x',
+    chainId: 31338,
+  };
+
+  it('falls back to jsonRpc when transaction target getter throws without running probes', async () => {
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('ownable probe should not run'));
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('safe probe should not run'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('timelock probe should not run'));
+
+    const txWithThrowingTargetGetter = {
+      ...TX,
+      get to() {
+        throw new Error('target getter should not crash inference');
+      },
+    };
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [txWithThrowingTargetGetter as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => ProtocolType.Ethereum,
+          },
+        } as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(ownableStub.callCount).to.equal(0);
+      expect(safeStub.callCount).to.equal(0);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
+  it('still infers gnosisSafeTxBuilder when transaction from getter throws but target owner is safe', async () => {
+    const safeOwner = '0x2222222222222222222222222222222222222222';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => safeOwner,
+    } as any);
+    const safeStub = sinon.stub(ISafe__factory, 'connect').returns({
+      getThreshold: async () => 1,
+      nonce: async () => 0,
+    } as any);
+
+    const txWithThrowingFromGetter = {
+      ...TX,
+      get from() {
+        throw new Error('from getter should not crash inference');
+      },
+    };
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [txWithThrowingFromGetter as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => ProtocolType.Ethereum,
+            getSignerAddress: async () =>
+              '0x4444444444444444444444444444444444444444',
+            getProvider: () => ({}),
+          },
+          registry: {
+            getAddresses: async () => ({}),
+          },
+        } as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(ownableStub.callCount).to.equal(1);
+      expect(safeStub.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
+
+  it('falls back to jsonRpc when target is malformed and from getter throws', async () => {
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('owner probe should not run for malformed target'));
+
+    const txWithMalformedTargetAndThrowingFromGetter = {
+      ...TX,
+      to: 'not-an-evm-address',
+      get from() {
+        throw new Error('from getter should not crash inference');
+      },
+    };
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [txWithMalformedTargetAndThrowingFromGetter as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => ProtocolType.Ethereum,
+          },
+        } as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(ownableStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+    }
+  });
+});
