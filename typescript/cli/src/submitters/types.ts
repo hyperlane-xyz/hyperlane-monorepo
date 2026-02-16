@@ -292,8 +292,13 @@ function sanitizeExtendedSubmissionStrategyOutput(
       'Invalid submission strategy: parsed submitter is not an own field',
     );
   }
-  sanitizedStrategy.submitter =
-    cloneOwnEnumerableObject(submitter) ?? submitter;
+  const sanitizedSubmitter = cloneOwnEnumerableObject(submitter);
+  if (!sanitizedSubmitter) {
+    throw new Error(
+      'Invalid submission strategy: submitter must be a cloneable object',
+    );
+  }
+  sanitizedStrategy.submitter = sanitizedSubmitter;
 
   const submitterOverrides = getOwnObjectField(
     value,
@@ -309,16 +314,25 @@ function sanitizeExtendedSubmissionStrategyOutput(
     (typeof submitterOverrides === 'object' ||
       typeof submitterOverrides === 'function')
   ) {
-    const sanitizedOverrides =
+    const clonedSubmitterOverrides =
       cloneOwnEnumerableObject(submitterOverrides) ??
       (Object.create(null) as Record<string, unknown>);
-    for (const overrideKey of Object.keys(sanitizedOverrides)) {
+    const sanitizedOverrides = Object.create(null) as Record<string, unknown>;
+    for (const overrideKey of Object.keys(clonedSubmitterOverrides)) {
       const overrideSubmitter = getOwnObjectField(
-        sanitizedOverrides,
+        clonedSubmitterOverrides,
         overrideKey,
       );
-      sanitizedOverrides[overrideKey] =
-        cloneOwnEnumerableObject(overrideSubmitter) ?? overrideSubmitter;
+      if (overrideSubmitter === undefined) {
+        continue;
+      }
+
+      const sanitizedOverrideSubmitter =
+        cloneOwnEnumerableObject(overrideSubmitter);
+      if (!sanitizedOverrideSubmitter) {
+        continue;
+      }
+      sanitizedOverrides[overrideKey] = sanitizedOverrideSubmitter;
     }
     sanitizedStrategy.submitterOverrides = sanitizedOverrides;
   }
