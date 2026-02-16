@@ -16,6 +16,8 @@
 
 The monorepo TypeScript toolchain was upgraded to 6.0.0-beta.
 
+The beta release was adopted intentionally to unblock active development against TS6 behavior before stable 6.0.0 lands.
+
 Shared TypeScript configs were updated to explicitly include required ambient types (notably `node` and `mocha`) for TS6 compatibility, and related package type wiring was aligned.
 
 Compatibility fixes were applied to keep build/lint/test pipelines green under TS6, including lint flow hardening and test-import adjustments.
