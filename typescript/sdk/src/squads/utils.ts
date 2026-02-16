@@ -1036,6 +1036,18 @@ function getSignerPublicKeyForChain(
     );
   }
 
+  const {
+    isArray: signerPublicKeyIsArray,
+    readFailed: signerPublicKeyReadFailed,
+  } = inspectArrayValue(signerPublicKey);
+  assert(
+    typeof signerPublicKey === 'object' &&
+      signerPublicKey !== null &&
+      !signerPublicKeyReadFailed &&
+      !signerPublicKeyIsArray,
+    `Invalid signer public key for ${chain}: expected PublicKey, got ${getUnknownValueTypeName(signerPublicKey)}`,
+  );
+
   let signerPublicKeyThenValue: unknown;
   try {
     signerPublicKeyThenValue = (
