@@ -1,3 +1,4 @@
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -45,27 +46,47 @@ describe('resolveSubmitterBatchesForTransactions global object probes', () => {
       'utf8',
     );
     for (const match of fileContent.matchAll(
-      /[a-z0-9-]+-(?:constructor-)?object/g,
+      /[a-z0-9_-]+-(?:constructor-)?object/g,
     )) {
       knownLabelsFromOtherFiles.add(match[0]);
     }
   }
 
-  const PROBE_CASES = Object.getOwnPropertyNames(globalThis)
-    .map((name) => ({
-      name,
-      value: (globalThis as any)[name],
-      label: `${name.toLowerCase()}-object`,
+  const baselineObjectLabels = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [
+        '--no-warnings',
+        '-e',
+        `
+          const labels = Object.getOwnPropertyNames(globalThis)
+            .filter((name) => {
+              const value = globalThis[name];
+              return value !== null && typeof value === 'object';
+            })
+            .map((name) => \`\${name.toLowerCase()}-object\`)
+            .sort();
+          process.stdout.write(JSON.stringify(labels));
+        `,
+      ],
+      { encoding: 'utf8' },
+    ),
+  ) as string[];
+
+  const runtimeObjectValueByLabel = new Map<string, object>();
+  for (const name of Object.getOwnPropertyNames(globalThis)) {
+    const value = (globalThis as any)[name];
+    if (value !== null && typeof value === 'object') {
+      runtimeObjectValueByLabel.set(`${name.toLowerCase()}-object`, value);
+    }
+  }
+
+  const PROBE_CASES = baselineObjectLabels
+    .map((label) => ({
+      label,
+      name: label.slice(0, -'-object'.length),
+      value: runtimeObjectValueByLabel.get(label) ?? { __label: label },
     }))
-    .filter(
-      (
-        value,
-      ): value is {
-        name: string;
-        value: object;
-        label: string;
-      } => value.value !== null && typeof value.value === 'object',
-    )
     .filter(({ label }) => !knownLabelsFromOtherFiles.has(label));
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
