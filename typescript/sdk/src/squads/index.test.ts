@@ -1468,6 +1468,21 @@ function assertScenarioLabelsUniqueAndNormalized(
     ).to.equal(scenarioLabel.trim());
   }
 }
+function assertScenarioLabelsMatchCanonicalConstants(
+  scenarioLabels: readonly string[],
+  canonicalScenarioLabels: readonly string[],
+  assertionContext: string,
+): void {
+  assertScenarioLabelsUniqueAndNormalized(scenarioLabels, assertionContext);
+  assertScenarioLabelsUniqueAndNormalized(
+    canonicalScenarioLabels,
+    `${assertionContext}: canonical`,
+  );
+  expect(
+    scenarioLabels,
+    `${assertionContext}: expected canonical scenario label ordering`,
+  ).to.deep.equal([...canonicalScenarioLabels]);
+}
 
 type RuntimePatchRestorer = () => void;
 type ReflectApplyWrapperRuntimePatchScenario = Readonly<{
@@ -3009,13 +3024,11 @@ describe('squads barrel exports', () => {
       ({ label }) => label,
     );
 
-    assertScenarioLabelsUniqueAndNormalized(
+    assertScenarioLabelsMatchCanonicalConstants(
       scenarioLabels,
+      EXPECTED_REFLECT_APPLY_WRAPPER_RUNTIME_PATCH_SCENARIO_LABELS,
       'Reflect.apply wrapper runtime patch matrix scenario labels',
     );
-    expect(scenarioLabels).to.deep.equal([
-      ...EXPECTED_REFLECT_APPLY_WRAPPER_RUNTIME_PATCH_SCENARIO_LABELS,
-    ]);
   });
 
   it('keeps Reflect.apply wrapper scenario-label constants frozen, unique, and normalized', () => {
@@ -3700,13 +3713,11 @@ describe('squads barrel exports', () => {
       listReflectApplyWrapperCallerRegexMutationScenarios().map(
         ({ label }) => label,
       );
-    assertScenarioLabelsUniqueAndNormalized(
+    assertScenarioLabelsMatchCanonicalConstants(
       scenarioLabels,
+      EXPECTED_REFLECT_APPLY_WRAPPER_CALLER_REGEX_MUTATION_SCENARIO_LABELS,
       'Reflect.apply wrapper caller-regex mutation scenario labels',
     );
-    expect(scenarioLabels).to.deep.equal([
-      ...EXPECTED_REFLECT_APPLY_WRAPPER_CALLER_REGEX_MUTATION_SCENARIO_LABELS,
-    ]);
   });
 
   it('keeps Reflect.apply wrapper caller-regex mutation scenario helper frozen and snapshot-isolated', () => {
