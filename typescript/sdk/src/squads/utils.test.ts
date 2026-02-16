@@ -3724,6 +3724,28 @@ describe('squads utils', () => {
       );
     });
 
+    it('uses deterministic placeholder when multiprovider resolver accessor throws bare Error labels', () => {
+      const mpp = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'getSolanaWeb3Provider') {
+              throw new Error('Error:');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read getSolanaWeb3Provider for solanamainnet: [unstringifiable error]',
+      );
+    });
+
     it('throws contextual provider lookup errors for supported chains', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -3768,6 +3790,25 @@ describe('squads utils', () => {
         getSolanaWeb3Provider: () => {
           providerLookupCalled = true;
           throw new Error('[object Object]');
+        },
+      };
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to resolve solana provider for solanamainnet: [unstringifiable error]',
+      );
+      expect(providerLookupCalled).to.equal(true);
+    });
+
+    it('uses deterministic placeholder when provider lookup throws bare Error labels', () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('Error:');
         },
       };
 
