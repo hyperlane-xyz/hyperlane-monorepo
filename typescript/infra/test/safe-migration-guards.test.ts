@@ -744,6 +744,106 @@ function readStaticObjectLiteralPropertyKeys(
   return propertyKeys;
 }
 
+function readStaticInMembership(
+  propertyKey: string,
+  rightExpression: ts.Expression,
+): boolean | typeof STATIC_PRIMITIVE_UNKNOWN {
+  const unwrapped = unwrapInitializerExpression(rightExpression);
+
+  if (ts.isObjectLiteralExpression(unwrapped)) {
+    const rightKeys = readStaticObjectLiteralPropertyKeys(unwrapped);
+    if (rightKeys === STATIC_PRIMITIVE_UNKNOWN) {
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+    return rightKeys.has(propertyKey);
+  }
+
+  if (ts.isConditionalExpression(unwrapped)) {
+    const selectorCondition = readStaticBooleanCondition(unwrapped.condition);
+    if (selectorCondition === true) {
+      return readStaticInMembership(propertyKey, unwrapped.whenTrue);
+    }
+    if (selectorCondition === false) {
+      return readStaticInMembership(propertyKey, unwrapped.whenFalse);
+    }
+    const whenTrueResult = readStaticInMembership(
+      propertyKey,
+      unwrapped.whenTrue,
+    );
+    const whenFalseResult = readStaticInMembership(
+      propertyKey,
+      unwrapped.whenFalse,
+    );
+    if (
+      whenTrueResult !== STATIC_PRIMITIVE_UNKNOWN &&
+      whenTrueResult === whenFalseResult
+    ) {
+      return whenTrueResult;
+    }
+    return STATIC_PRIMITIVE_UNKNOWN;
+  }
+
+  if (ts.isBinaryExpression(unwrapped)) {
+    if (unwrapped.operatorToken.kind === ts.SyntaxKind.CommaToken) {
+      return readStaticInMembership(propertyKey, unwrapped.right);
+    }
+
+    if (unwrapped.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+      const leftNullish = readStaticNullishCondition(unwrapped.left);
+      if (leftNullish === true) {
+        return readStaticInMembership(propertyKey, unwrapped.right);
+      }
+      if (leftNullish === false) {
+        return readStaticInMembership(propertyKey, unwrapped.left);
+      }
+      const leftResult = readStaticInMembership(propertyKey, unwrapped.left);
+      const rightResult = readStaticInMembership(propertyKey, unwrapped.right);
+      if (
+        leftResult !== STATIC_PRIMITIVE_UNKNOWN &&
+        leftResult === rightResult
+      ) {
+        return leftResult;
+      }
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+
+    if (
+      unwrapped.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+      unwrapped.operatorToken.kind === ts.SyntaxKind.BarBarToken
+    ) {
+      const leftCondition = readStaticBooleanCondition(unwrapped.left);
+      if (
+        unwrapped.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+      ) {
+        if (leftCondition === true) {
+          return readStaticInMembership(propertyKey, unwrapped.right);
+        }
+        if (leftCondition === false) {
+          return readStaticInMembership(propertyKey, unwrapped.left);
+        }
+      } else {
+        if (leftCondition === true) {
+          return readStaticInMembership(propertyKey, unwrapped.left);
+        }
+        if (leftCondition === false) {
+          return readStaticInMembership(propertyKey, unwrapped.right);
+        }
+      }
+      const leftResult = readStaticInMembership(propertyKey, unwrapped.left);
+      const rightResult = readStaticInMembership(propertyKey, unwrapped.right);
+      if (
+        leftResult !== STATIC_PRIMITIVE_UNKNOWN &&
+        leftResult === rightResult
+      ) {
+        return leftResult;
+      }
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+  }
+
+  return STATIC_PRIMITIVE_UNKNOWN;
+}
+
 function readStaticPrimitiveValue(
   expression: ts.Expression,
 ): StaticPrimitiveValue | typeof STATIC_PRIMITIVE_UNKNOWN {
@@ -797,15 +897,7 @@ function readStaticPrimitiveValue(
       if (leftValue === STATIC_PRIMITIVE_UNKNOWN) {
         return STATIC_PRIMITIVE_UNKNOWN;
       }
-      const rightExpression = unwrapInitializerExpression(unwrapped.right);
-      if (!ts.isObjectLiteralExpression(rightExpression)) {
-        return STATIC_PRIMITIVE_UNKNOWN;
-      }
-      const rightKeys = readStaticObjectLiteralPropertyKeys(rightExpression);
-      if (rightKeys === STATIC_PRIMITIVE_UNKNOWN) {
-        return STATIC_PRIMITIVE_UNKNOWN;
-      }
-      return rightKeys.has(String(leftValue));
+      return readStaticInMembership(String(leftValue), unwrapped.right);
     }
 
     if (
@@ -7019,6 +7111,60 @@ describe('Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('treats wrapped in predicates with matching unknown selectors as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if ((('safe' in (marker === 1 ? { safe: 1 } : { safe: 2 })) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats wrapped negative in predicates with matching unknown selectors as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if ((('safe' in (marker === 1 ? { guard: 1 } : { guard: 2 })) !== true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps wrapped in predicates with differing unknown selectors conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      "if ((('safe' in (marker === 1 ? { safe: 1 } : { guard: 1 })) === true)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('treats strict-equality instanceof primitives as deterministic for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -10970,6 +11116,55 @@ describe('Safe migration guards', () => {
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'const marker = globalThis as any;',
       "if ((('safe' in marker) === true)) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats wrapped in predicates with matching unknown selectors as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if ((('safe' in (marker === 1 ? { safe: 1 } : { safe: 2 })) === true)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats wrapped negative in predicates with matching unknown selectors as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if ((('safe' in (marker === 1 ? { guard: 1 } : { guard: 2 })) !== true)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps wrapped in predicates with differing unknown selectors conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if ((('safe' in (marker === 1 ? { safe: 1 } : { guard: 1 })) === true)) moduleAlias = { default: 'not-a-module' };",
       'const postIfDefault = moduleAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
@@ -21315,6 +21510,75 @@ describe('Safe migration guards', () => {
       'const marker = globalThis as any;',
       "const baseline = require('./fixtures/guard-module.js');",
       "if ((('safe' in marker) === true)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats wrapped in predicates with matching unknown selectors as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if ((('safe' in (marker === 1 ? { safe: 1 } : { safe: 2 })) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats wrapped negative in predicates with matching unknown selectors as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if ((('safe' in (marker === 1 ? { guard: 1 } : { guard: 2 })) !== true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps wrapped in predicates with differing unknown selectors conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js');",
+      "if ((('safe' in (marker === 1 ? { safe: 1 } : { guard: 1 })) === true)) reqAlias = () => undefined;",
       "reqAlias('./fixtures/other-module.js');",
       'void baseline;',
     ].join('\n');
