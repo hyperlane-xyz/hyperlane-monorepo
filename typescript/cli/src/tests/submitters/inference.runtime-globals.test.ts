@@ -12,6 +12,8 @@ import {
   isSupportedRuntimePrimitiveValueType,
 } from './inference.runtime-globals.js';
 
+const HELPER_ONLY_OBJECT_LIKE_LABEL = '__runtime_helper_only-object';
+
 describe('runtime global probe helpers', () => {
   it('returns object-like labels from neighboring inference test files', () => {
     const labels = getKnownObjectLikeProbeLabelsFromOtherTests(
@@ -21,6 +23,7 @@ describe('runtime global probe helpers', () => {
     expect(labels.size).to.be.greaterThan(0);
     expect(labels.has('array-constructor-object')).to.equal(true);
     expect(labels.has('undefined-undefined-primitive')).to.equal(false);
+    expect(labels.has(HELPER_ONLY_OBJECT_LIKE_LABEL)).to.equal(false);
   });
 
   it('returns defensive copies for cached known-label sets', () => {
@@ -76,9 +79,9 @@ describe('runtime global probe helpers', () => {
     ).to.equal('__filename-string-primitive');
     expect(
       getProbeLabelFromInferenceTestTitle(
-        'caches event-derived async stream-object origin signer probes across timelock ICA inferences',
+        `caches event-derived async ${HELPER_ONLY_OBJECT_LIKE_LABEL} origin signer probes across timelock ICA inferences`,
       ),
-    ).to.equal('stream-object');
+    ).to.equal(HELPER_ONLY_OBJECT_LIKE_LABEL);
     expect(
       getProbeLabelFromInferenceTestTitle(
         'some unrelated test title that should not match',

@@ -23,6 +23,10 @@ export type CleanRuntimeProbeLabels = {
 const INFERENCE_TEST_FILE_PREFIX = 'inference.';
 const INFERENCE_TEST_FILE_SUFFIX = '.test.ts';
 const OBJECT_LIKE_PROBE_LABEL_REGEX = /[a-z0-9_-]+-(?:constructor-)?object/g;
+const EXCLUDED_INFERENCE_TEST_FILES = new Set([
+  'inference.global-runtime-coverage.test.ts',
+  'inference.runtime-globals.test.ts',
+]);
 const PROBE_LABEL_FROM_TEST_TITLE_REGEX =
   /(?:caches(?: event-derived)?(?: async)? )([a-z0-9_-]+-(?:constructor-)?object|[a-z0-9_-]+-primitive) origin signer probes across timelock ICA inferences/;
 const knownObjectLikeLabelsByFilePath = new Map<string, ReadonlySet<string>>();
@@ -86,6 +90,7 @@ export function getKnownObjectLikeProbeLabelsFromOtherTests(
     if (
       !fileName.startsWith(INFERENCE_TEST_FILE_PREFIX) ||
       !fileName.endsWith(INFERENCE_TEST_FILE_SUFFIX) ||
+      EXCLUDED_INFERENCE_TEST_FILES.has(fileName) ||
       fileName === currentFileName
     ) {
       continue;
