@@ -2966,6 +2966,34 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps Reflect.apply wrapper runtime patch matrix scenario labels normalized and unique', () => {
+    const scenarioLabels = listReflectApplyWrapperRuntimePatchScenarios().map(
+      ({ label }) => label,
+    );
+    const requiredScenarioLabels = [
+      'RegExp.prototype.exec global slot patch',
+      'RegExp.prototype.test global slot patch',
+      'RegExp.prototype.source getter global slot patch',
+      'RegExp.prototype.flags getter global slot patch',
+      'Reflect.apply global slot patch',
+      'global RegExp constructor patch',
+      'RegExp.prototype Symbol.match slot patch',
+      'RegExp.prototype Symbol.match call slot override',
+      'RegExp.prototype.exec call slot override',
+      'RegExp getter call slot overrides',
+    ];
+
+    expect(scenarioLabels.length).to.be.greaterThan(0);
+    expect(new Set(scenarioLabels).size).to.equal(scenarioLabels.length);
+    for (const scenarioLabel of scenarioLabels) {
+      expect(scenarioLabel.trim().length).to.be.greaterThan(0);
+      expect(scenarioLabel).to.equal(scenarioLabel.trim());
+    }
+    for (const requiredScenarioLabel of requiredScenarioLabels) {
+      expect(scenarioLabels.includes(requiredScenarioLabel)).to.equal(true);
+    }
+  });
+
   it('keeps Reflect.apply pattern-discovery helper custom patterns deterministic and lastIndex-safe', () => {
     const mutationNonGlobalPattern = /Reflect\.apply is mutated/;
     const mutationGlobalPattern = /Reflect\.apply is mutated/g;
