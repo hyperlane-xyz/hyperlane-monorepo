@@ -92,8 +92,18 @@ export function getKnownObjectLikeProbeLabelsFromOtherTests(
   const knownLabelsFromOtherFiles = new Set<string>();
   const currentFileName = path.basename(normalizedFilePath);
   const submitterTestDir = path.dirname(normalizedFilePath);
+  let fileNames: string[];
+  try {
+    fileNames = fs.readdirSync(submitterTestDir);
+  } catch {
+    knownObjectLikeLabelsByFilePath.set(
+      normalizedFilePath,
+      knownLabelsFromOtherFiles,
+    );
+    return new Set(knownLabelsFromOtherFiles);
+  }
 
-  for (const fileName of fs.readdirSync(submitterTestDir)) {
+  for (const fileName of fileNames) {
     if (
       !fileName.startsWith(INFERENCE_TEST_FILE_PREFIX) ||
       !fileName.endsWith(INFERENCE_TEST_FILE_SUFFIX) ||
@@ -103,10 +113,15 @@ export function getKnownObjectLikeProbeLabelsFromOtherTests(
       continue;
     }
 
-    const fileContent = fs.readFileSync(
-      path.join(submitterTestDir, fileName),
-      'utf8',
-    );
+    let fileContent = '';
+    try {
+      fileContent = fs.readFileSync(
+        path.join(submitterTestDir, fileName),
+        'utf8',
+      );
+    } catch {
+      continue;
+    }
     for (const match of fileContent.matchAll(OBJECT_LIKE_PROBE_LABEL_REGEX)) {
       knownLabelsFromOtherFiles.add(match[0]);
     }

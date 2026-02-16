@@ -49,6 +49,16 @@ describe('runtime global probe helpers', () => {
     expect([...fromRelative].sort()).to.deep.equal([...fromAbsolute].sort());
   });
 
+  it('returns an empty label set when test directory is unreadable', () => {
+    const unreadablePath = path.join(
+      process.cwd(),
+      '__nonexistent_runtime_probe_tests__',
+      'inference.missing.test.ts',
+    );
+    const labels = getKnownObjectLikeProbeLabelsFromOtherTests(unreadablePath);
+    expect(labels.size).to.equal(0);
+  });
+
   it('exposes runtime function/object/primitive value maps with labeled keys', () => {
     const functionMap = getRuntimeFunctionValuesByLabel();
     const objectMap = getRuntimeObjectValuesByLabel();
