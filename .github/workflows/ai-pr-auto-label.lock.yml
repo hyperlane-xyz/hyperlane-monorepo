@@ -22,7 +22,7 @@
 # For more information: https://github.github.com/gh-aw/introduction/overview/
 #
 #
-# frontmatter-hash: e63c4256ba2ba658ca1dfc5544df200dbd69dfb732962fb9166bd1fca18e960c
+# frontmatter-hash: b4b3d3c8d5c7876276bfed595499b5c74bf42220c6ef108b065b6e362cc32951
 
 name: "PR Auto-Label"
 "on":
@@ -71,6 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: read
     env:
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       GH_AW_ASSETS_ALLOWED_EXTS: ""

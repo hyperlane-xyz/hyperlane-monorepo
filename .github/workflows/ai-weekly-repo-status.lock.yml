@@ -22,7 +22,7 @@
 # For more information: https://github.github.com/gh-aw/introduction/overview/
 #
 #
-# frontmatter-hash: 1c091693c8d1962f9b1b35f2fc26546a7219c6ba3ad56bfdd56f9dafe3bd37ff
+# frontmatter-hash: 2841034eb7123ee1f139092ee5e43b90ebec339bfcf9fae997bb9e2f9d9c397e
 
 name: "Weekly Repo Status"
 "on":
@@ -73,6 +73,7 @@ jobs:
     permissions:
       actions: read
       contents: read
+      issues: read
       pull-requests: read
     env:
       DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
