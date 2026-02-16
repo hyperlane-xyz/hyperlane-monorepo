@@ -37,7 +37,10 @@ TS6-beta compatibility was validated with:
 - Workspace-level CI-equivalent checks: `pnpm build`, `pnpm lint`, `pnpm test:ci`.
 - `typescript/ccip-server` compatibility checks: `pnpm -C typescript/ccip-server build`, `pnpm -C typescript/ccip-server lint`, `pnpm -C typescript/ccip-server test` (`ts-jest` path).
 - Hardened `typescript/rebalancer-sim` targeted regression coverage (Anvil fallback/error-matrix/parity-guard suites).
-- Additional package-smoke validation: `pnpm -C typescript/sdk test:unit`, `pnpm -C typescript/infra test:ci`, `pnpm -C typescript/cli test:ci`, `pnpm -C typescript/provider-sdk build`, `pnpm -C typescript/provider-sdk lint`, `pnpm -C typescript/provider-sdk test:ci`, `pnpm -C typescript/deploy-sdk build`, `pnpm -C typescript/deploy-sdk lint`, `pnpm -C typescript/deploy-sdk test`, `pnpm -C typescript/utils build`, `pnpm -C typescript/utils lint`, `pnpm -C typescript/utils test`, `pnpm -C typescript/cosmos-sdk build`, `pnpm -C typescript/cosmos-sdk lint`, `pnpm -C typescript/aleo-sdk build`, `pnpm -C typescript/aleo-sdk lint`, `pnpm -C typescript/aleo-sdk test:ci` (expected “no tests in aleo-sdk”).
+- Additional package-smoke validation:
+  - Unit/CI suites: `pnpm -C typescript/sdk test:unit`, `pnpm -C typescript/infra test:ci`, `pnpm -C typescript/cli test:ci`, `pnpm -C typescript/provider-sdk test:ci`, `pnpm -C typescript/deploy-sdk test`, `pnpm -C typescript/utils test`, `pnpm -C typescript/radix-sdk test:ci`.
+  - Build+lint sweeps: `typescript/provider-sdk`, `typescript/deploy-sdk`, `typescript/utils`, `typescript/cosmos-sdk`, `typescript/aleo-sdk`, `typescript/radix-sdk`, `typescript/tron-sdk`, `typescript/cosmos-types` (`pnpm -C <pkg> build` + `pnpm -C <pkg> lint`).
+  - Packages with intentionally empty CI test scripts were confirmed to report expected output (`aleo-sdk`, `tron-sdk`, `cosmos-types`).
 
 Release graph hygiene was also checked with `pnpm changeset status`, confirming a coherent patch-only bump set for this rollout.
 
