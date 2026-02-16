@@ -119,6 +119,24 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     expect(protocolCalls).to.equal(0);
   });
 
+  it('does not access multiProvider when explicit strategy has no overrides', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        get multiProvider() {
+          throw new Error('multiProvider access should not occur');
+        },
+      } as any,
+      strategyUrl: createExplicitStrategyPath(),
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('returns empty batches without protocol lookup when explicit strategy has overrides and no transactions', async () => {
     let protocolCalls = 0;
 
@@ -305,6 +323,24 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
       TxSubmitterType.GNOSIS_TX_BUILDER,
     );
     expect(protocolCalls).to.equal(0);
+  });
+
+  it('does not access multiProvider when explicit strategy has only whitespace override keys', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        get multiProvider() {
+          throw new Error('multiProvider access should not occur');
+        },
+      } as any,
+      strategyUrl: createExplicitStrategyWithWhitespaceOverrideKeyPath(),
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
   });
 
   it('does not require multiProvider context when explicit strategy has only whitespace override keys', async () => {
