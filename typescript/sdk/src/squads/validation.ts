@@ -1,4 +1,5 @@
 import { assert } from '@hyperlane-xyz/utils';
+import { inspectArrayValue } from './inspection.js';
 
 function getUnknownValueTypeName(value: unknown): string {
   if (value === null) {
@@ -11,23 +12,6 @@ function getUnknownValueTypeName(value: unknown): string {
   }
 
   return isArray ? 'array' : typeof value;
-}
-
-function inspectArrayValue(value: unknown): {
-  isArray: boolean;
-  readFailed: boolean;
-} {
-  try {
-    return {
-      isArray: Array.isArray(value),
-      readFailed: false,
-    };
-  } catch {
-    return {
-      isArray: false,
-      readFailed: true,
-    };
-  }
 }
 
 function getChainLabel(chain: unknown): string {
