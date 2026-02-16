@@ -1477,6 +1477,28 @@ function listReflectApplyWrapperRuntimePatchScenarios(): readonly ReflectApplyWr
       },
     },
     {
+      label: 'RegExp.prototype.test global slot patch',
+      applyPatch: () => {
+        const originalRegExpPrototypeTest = RegExp.prototype.test;
+        Object.defineProperty(RegExp.prototype, 'test', {
+          configurable: true,
+          writable: true,
+          value: () => {
+            throw new Error(
+              'Expected Reflect.apply wrapper matrix test to avoid RegExp.prototype.test dispatch',
+            );
+          },
+        });
+        return () => {
+          Object.defineProperty(RegExp.prototype, 'test', {
+            configurable: true,
+            writable: true,
+            value: originalRegExpPrototypeTest,
+          });
+        };
+      },
+    },
+    {
       label: 'RegExp.prototype.flags getter global slot patch',
       applyPatch: () => {
         const originalFlagsDescriptor = Object.getOwnPropertyDescriptor(
@@ -1639,6 +1661,91 @@ function listReflectApplyWrapperRuntimePatchScenarios(): readonly ReflectApplyWr
           } else {
             delete (regexpPrototypeSymbolMatch as unknown as { call?: unknown })
               .call;
+          }
+        };
+      },
+    },
+    {
+      label: 'RegExp.prototype.exec call slot override',
+      applyPatch: () => {
+        const originalExecCallDescriptor = Object.getOwnPropertyDescriptor(
+          REGEXP_PROTOTYPE_EXEC,
+          'call',
+        );
+        Object.defineProperty(REGEXP_PROTOTYPE_EXEC, 'call', {
+          configurable: true,
+          writable: true,
+          value: () => {
+            throw new Error(
+              'Expected Reflect.apply wrapper matrix test to avoid exec.call dispatch',
+            );
+          },
+        });
+        return () => {
+          if (originalExecCallDescriptor) {
+            Object.defineProperty(
+              REGEXP_PROTOTYPE_EXEC,
+              'call',
+              originalExecCallDescriptor,
+            );
+          } else {
+            delete (REGEXP_PROTOTYPE_EXEC as unknown as { call?: unknown })
+              .call;
+          }
+        };
+      },
+    },
+    {
+      label: 'RegExp getter call slot overrides',
+      applyPatch: () => {
+        const originalSourceGetterCallDescriptor =
+          Object.getOwnPropertyDescriptor(REGEXP_PROTOTYPE_SOURCE_GET, 'call');
+        const originalFlagsGetterCallDescriptor =
+          Object.getOwnPropertyDescriptor(REGEXP_PROTOTYPE_FLAGS_GET, 'call');
+        Object.defineProperty(REGEXP_PROTOTYPE_SOURCE_GET, 'call', {
+          configurable: true,
+          writable: true,
+          value: () => {
+            throw new Error(
+              'Expected Reflect.apply wrapper matrix test to avoid source getter call-slot dispatch',
+            );
+          },
+        });
+        Object.defineProperty(REGEXP_PROTOTYPE_FLAGS_GET, 'call', {
+          configurable: true,
+          writable: true,
+          value: () => {
+            throw new Error(
+              'Expected Reflect.apply wrapper matrix test to avoid flags getter call-slot dispatch',
+            );
+          },
+        });
+        return () => {
+          if (originalSourceGetterCallDescriptor) {
+            Object.defineProperty(
+              REGEXP_PROTOTYPE_SOURCE_GET,
+              'call',
+              originalSourceGetterCallDescriptor,
+            );
+          } else {
+            delete (
+              REGEXP_PROTOTYPE_SOURCE_GET as unknown as {
+                call?: unknown;
+              }
+            ).call;
+          }
+          if (originalFlagsGetterCallDescriptor) {
+            Object.defineProperty(
+              REGEXP_PROTOTYPE_FLAGS_GET,
+              'call',
+              originalFlagsGetterCallDescriptor,
+            );
+          } else {
+            delete (
+              REGEXP_PROTOTYPE_FLAGS_GET as unknown as {
+                call?: unknown;
+              }
+            ).call;
           }
         };
       },
