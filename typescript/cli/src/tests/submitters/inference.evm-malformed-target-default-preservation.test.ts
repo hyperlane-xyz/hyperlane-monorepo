@@ -57,6 +57,21 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target default pr
       strategyUrl: strategyPath,
     });
 
+  const resolveBatches = async (
+    transactions: unknown[],
+    strategyPath: string,
+  ) =>
+    resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: transactions as any,
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
   it('preserves explicit default submitter when transaction target is non-string', async () => {
     const strategyPath = createStrategyPath('non-string');
     writeTargetOverrideStrategy(strategyPath);
@@ -102,6 +117,28 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target default pr
     );
   });
 
+  it('preserves explicit default submitter when transaction target getter throws', async () => {
+    const strategyPath = createStrategyPath('throwing-target-getter');
+    writeTargetOverrideStrategy(strategyPath);
+
+    const txWithThrowingTargetGetter = {
+      ...TX,
+      get to() {
+        throw new Error('target getter should not crash explicit override routing');
+      },
+    };
+
+    const batches = await resolveSingleBatch(
+      txWithThrowingTargetGetter,
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('still applies valid EVM target override when transaction target is well-formed', async () => {
     const strategyPath = createStrategyPath('valid-address');
     writeTargetOverrideStrategy(strategyPath);
@@ -126,5 +163,31 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target default pr
 
     expect(batches).to.have.length(1);
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('routes valid targets while preserving default for transactions with throwing target getters', async () => {
+    const strategyPath = createStrategyPath('mixed-valid-and-throwing-target');
+    writeTargetOverrideStrategy(strategyPath);
+
+    const txWithThrowingTargetGetter = {
+      ...TX,
+      data: '0x1234',
+      get to() {
+        throw new Error('target getter should not crash explicit override routing');
+      },
+    };
+
+    const batches = await resolveBatches(
+      [{ ...TX, data: '0xabcdef', to: TARGET }, txWithThrowingTargetGetter],
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(2);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(batches[0].transactions).to.have.length(1);
+    expect(batches[1].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+    expect(batches[1].transactions).to.have.length(1);
   });
 });

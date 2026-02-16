@@ -1387,15 +1387,15 @@ async function inferSubmitterFromTransaction({
     return defaultSubmitter;
   }
 
-  const to = (transaction as any).to;
-  const from = (transaction as any).from;
-  if (!to || typeof to !== 'string') {
+  const to = getTransactionStringField(transaction, 'to');
+  const from = getTransactionStringField(transaction, 'from');
+  if (!to) {
     return defaultSubmitter;
   }
 
   const normalizedTarget = tryNormalizeEvmAddress(to);
   const normalizedFrom =
-    typeof from === 'string' ? tryNormalizeEvmAddress(from) : null;
+    from ? tryNormalizeEvmAddress(from) : null;
   if (!normalizedTarget && !normalizedFrom) {
     return defaultSubmitter;
   }
@@ -1541,10 +1541,10 @@ function resolveExplicitSubmitterForTransaction({
   explicitSubmissionStrategy: ExtendedSubmissionStrategy;
   explicitOverrideIndexes: ExplicitOverrideIndexes;
 }): ExtendedSubmissionStrategy {
-  const to = (transaction as any).to;
+  const to = getTransactionStringField(transaction, 'to');
   const overrides = explicitSubmissionStrategy.submitterOverrides;
 
-  if (!overrides || !to || typeof to !== 'string') {
+  if (!overrides || !to) {
     return ExtendedSubmissionStrategySchema.parse({
       submitter: explicitSubmissionStrategy.submitter,
     });
@@ -1593,11 +1593,19 @@ function resolveExplicitSubmitterForTransaction({
 function hasNonEmptyStringTarget(
   transaction: TypedAnnotatedTransaction,
 ): boolean {
+  const to = getTransactionStringField(transaction, 'to');
+  return typeof to === 'string' && to.trim().length > 0;
+}
+
+function getTransactionStringField(
+  transaction: TypedAnnotatedTransaction,
+  field: 'to' | 'from',
+): string | undefined {
   try {
-    const to = (transaction as any).to;
-    return typeof to === 'string' && to.trim().length > 0;
+    const value = (transaction as any)[field];
+    return typeof value === 'string' ? value : undefined;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
