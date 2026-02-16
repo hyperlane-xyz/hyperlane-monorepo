@@ -2296,6 +2296,35 @@ describe('squads barrel exports', () => {
     expect(captureGlobalPattern.lastIndex).to.equal(7);
   });
 
+  it('keeps Reflect.apply pattern-discovery helper wrappers delegating to base pattern discovery', () => {
+    const broadMutationPattern = /Reflect\.apply is mutated/;
+    const broadCapturePattern = /Reflect\.apply/;
+    const expectedBroadMutationPaths =
+      listSdkSquadsTestFilePathsContainingPattern(broadMutationPattern);
+    const expectedBroadCapturePaths =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(broadCapturePattern);
+
+    expect(
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        broadMutationPattern,
+      ),
+    ).to.deep.equal(expectedBroadMutationPaths);
+    expect(
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        broadCapturePattern,
+      ),
+    ).to.deep.equal(expectedBroadCapturePaths);
+    expect(
+      expectedBroadMutationPaths.includes('src/squads/index.test.ts'),
+    ).to.equal(true);
+    expect(
+      expectedBroadMutationPaths.length,
+      'Expected broad mutation-pattern discovery to include additional test paths beyond canonical mutation test set',
+    ).to.be.greaterThan(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS.length,
+    );
+  });
+
   it('keeps Reflect.apply pattern-discovery helper defaults repeatable and lastIndex-safe', () => {
     const originalMutationTitlePatternLastIndex =
       REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN.lastIndex;
