@@ -1165,6 +1165,84 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('ignores selector override keys with invalid EVM target even when selector is valid', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-invalid-selector-target-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          'not-an-address@0xdeadbeef': {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x7777777777777777777777777777777777777777',
+            version: '1.0',
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('ignores EVM override keys with malformed selector syntax on valid targets', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-malformed-selector-syntax-${Date.now()}.yaml`;
+    const validTarget = '0x1111111111111111111111111111111111111111';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [`${validTarget}@deadbeef`]: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: CHAIN,
+            timelockAddress: '0x6666666666666666666666666666666666666666',
+            proposerSubmitter: {
+              type: TxSubmitterType.JSON_RPC,
+              chain: CHAIN,
+            },
+          },
+        },
+      },
+    });
+
+    const txWithSelector = {
+      ...TX,
+      to: validTarget,
+      data: '0xdeadbeef0000',
+    };
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [txWithSelector as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('ignores invalid EVM override target keys and falls back to default explicit submitter', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-invalid-evm-target-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {
