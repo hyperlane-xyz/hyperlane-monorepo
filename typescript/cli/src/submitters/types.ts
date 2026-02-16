@@ -278,6 +278,13 @@ function sanitizeExtendedSubmissionStrategyOutput(
   value: ExtendedSubmissionStrategy,
   rawValue?: unknown,
 ): ExtendedSubmissionStrategy {
+  const shouldIncludeSubmitter = hasOwnObjectField(rawValue ?? value, 'submitter');
+  if (!shouldIncludeSubmitter) {
+    throw new Error(
+      'Invalid submission strategy: missing own submitter field',
+    );
+  }
+
   const sanitizedStrategy = Object.create(null) as Record<string, unknown>;
   const submitter = getOwnObjectField(value, 'submitter');
   sanitizedStrategy.submitter =

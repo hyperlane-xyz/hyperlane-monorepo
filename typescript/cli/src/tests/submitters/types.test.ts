@@ -701,6 +701,36 @@ describe('strategy parse helpers', () => {
     expect(parsed.submitterOverrides).to.deep.equal({});
   });
 
+  it('parseExtendedSubmissionStrategy rejects prototype-only submitter', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: {
+        type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN,
+      },
+    });
+
+    try {
+      expect(() => parseExtendedSubmissionStrategy({} as any)).to.throw();
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitter;
+      }
+    }
+  });
+
   it('parseExtendedChainSubmissionStrategy drops empty nested submitterOverrides', () => {
     const parsed = parseExtendedChainSubmissionStrategy({
       [CHAIN]: {
