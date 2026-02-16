@@ -2228,6 +2228,42 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps sdk squads pattern-path discovery preserving non-stateful regex flags', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const caseInsensitiveMutationPattern = /reflect\.apply is mutated/i;
+    const caseInsensitiveGlobalMutationPattern = /reflect\.apply is mutated/gi;
+    const caseInsensitiveCapturePattern =
+      /const reflect_apply = reflect\.apply/i;
+    const caseInsensitiveGlobalCapturePattern =
+      /const reflect_apply = reflect\.apply/gi;
+
+    expect(
+      listSdkSquadsTestFilePathsContainingPattern(
+        caseInsensitiveMutationPattern,
+      ),
+    ).to.deep.equal(baselineMutationDiscovery);
+    expect(
+      listSdkSquadsTestFilePathsContainingPattern(
+        caseInsensitiveGlobalMutationPattern,
+      ),
+    ).to.deep.equal(baselineMutationDiscovery);
+    expect(
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        caseInsensitiveCapturePattern,
+      ),
+    ).to.deep.equal(baselineCaptureDiscovery);
+    expect(
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        caseInsensitiveGlobalCapturePattern,
+      ),
+    ).to.deep.equal(baselineCaptureDiscovery);
+  });
+
   it('keeps sdk squads pattern-path discovery stable across repeated global regex reuse', () => {
     const reusableGlobalMutationPattern = /Reflect\.apply is mutated/g;
     const reusableGlobalCapturePattern =
