@@ -1341,7 +1341,11 @@ export class SquadsTransactionReader {
     const accountKeysValue = this.readVaultTransactionField(
       chain,
       'vault message account keys',
-      () => vaultTransaction.message.accountKeys,
+      () =>
+        readPropertyOrThrow(
+          readPropertyOrThrow(vaultTransaction, 'message'),
+          'accountKeys',
+        ),
       [],
     );
     const { isArray: accountKeysAreArray, readFailed: accountKeysReadFailed } =
@@ -1360,7 +1364,11 @@ export class SquadsTransactionReader {
     const lookupsValue = this.readVaultTransactionField(
       chain,
       'vault address lookup tables',
-      () => vaultTransaction.message.addressTableLookups,
+      () =>
+        readPropertyOrThrow(
+          readPropertyOrThrow(vaultTransaction, 'message'),
+          'addressTableLookups',
+        ),
       [],
     );
     const { isArray: lookupsAreArray, readFailed: lookupsReadFailed } =
@@ -1498,7 +1506,11 @@ export class SquadsTransactionReader {
     const instructionsValue = this.readVaultTransactionField(
       chain,
       'vault instructions',
-      () => vaultTransaction.message.instructions,
+      () =>
+        readPropertyOrThrow(
+          readPropertyOrThrow(vaultTransaction, 'message'),
+          'instructions',
+        ),
       [],
     );
     const {
@@ -1961,13 +1973,13 @@ export class SquadsTransactionReader {
     const proposalPdaValue = this.readProposalDataField(
       chain,
       'proposal PDA',
-      () => proposalData.proposalPda,
+      () => readPropertyOrThrow(proposalData, 'proposalPda'),
       undefined,
     );
     const multisigPdaValue = this.readProposalDataField(
       chain,
       'multisig PDA',
-      () => proposalData.multisigPda,
+      () => readPropertyOrThrow(proposalData, 'multisigPda'),
       undefined,
     );
 
@@ -2051,13 +2063,13 @@ export class SquadsTransactionReader {
     const proposalPdaValue = this.readProposalDataField(
       chain,
       'proposal PDA',
-      () => proposalData.proposalPda,
+      () => readPropertyOrThrow(proposalData, 'proposalPda'),
       undefined,
     );
     const multisigPdaValue = this.readProposalDataField(
       chain,
       'multisig PDA',
-      () => proposalData.multisigPda,
+      () => readPropertyOrThrow(proposalData, 'multisigPda'),
       undefined,
     );
 
@@ -3194,31 +3206,31 @@ export class SquadsTransactionReader {
     const instructionTypeValue = this.readParsedInstructionField(
       chain,
       'instruction type',
-      () => inst.instructionType,
+      () => readPropertyOrThrow(inst, 'instructionType'),
       undefined,
     );
     const programNameValue = this.readParsedInstructionField(
       chain,
       'instruction program name',
-      () => inst.programName,
+      () => readPropertyOrThrow(inst, 'programName'),
       undefined,
     );
     const programIdValue = this.readParsedInstructionField(
       chain,
       'instruction program id',
-      () => inst.programId,
+      () => readPropertyOrThrow(inst, 'programId'),
       undefined,
     );
     const insightValue = this.readParsedInstructionField(
       chain,
       'instruction insight',
-      () => inst.insight,
+      () => readPropertyOrThrow(inst, 'insight'),
       undefined,
     );
     const dataValue = this.readParsedInstructionField(
       chain,
       'instruction data',
-      () => inst.data,
+      () => readPropertyOrThrow(inst, 'data'),
       undefined,
     );
 
