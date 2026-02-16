@@ -15667,6 +15667,114 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('infers ICA when inherited tryGetSigner getter throws by falling back to direct signer lookup', async () => {
+    const inferredIcaOwner = '0x7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d';
+    const destinationRouterAddress =
+      '0x9292929292929292929292929292929292929292';
+    const originOwner = '0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e';
+    const originOwnerBytes32 =
+      `0x000000000000000000000000${originOwner.slice(2)}` as const;
+    const originRouterBytes32 =
+      '0x0000000000000000000000007c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([{ topics: [], data: '0x' }]),
+    };
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+            interface: {
+              parseLog: () => ({
+                args: {
+                  origin: 31347,
+                  router: originRouterBytes32,
+                  owner: originOwnerBytes32,
+                  ism: ethersConstants.AddressZero,
+                },
+              }),
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    const signerAddressCallsByChain: Record<string, number> = {};
+    const multiProviderPrototype = Object.create(null) as Record<
+      string,
+      unknown
+    >;
+    Object.defineProperty(multiProviderPrototype, 'tryGetSigner', {
+      configurable: true,
+      get: () => {
+        throw new Error('broken inherited tryGetSigner getter');
+      },
+    });
+    const multiProvider = Object.create(multiProviderPrototype) as Record<
+      string,
+      unknown
+    >;
+    multiProvider.getProtocol = () => ProtocolType.Ethereum;
+    multiProvider.getSignerAddress = async (chainName: string) => {
+      signerAddressCallsByChain[chainName] =
+        (signerAddressCallsByChain[chainName] ?? 0) + 1;
+      return SIGNER;
+    };
+    multiProvider.getProvider = () => provider;
+    multiProvider.getChainName = (domainId: number) => {
+      if (domainId === 31347) return 'anvil3';
+      throw new Error('unknown domain');
+    };
+
+    const context = {
+      multiProvider,
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
+      expect(signerAddressCallsByChain.anvil3).to.equal(1);
+      expect(provider.getLogs.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when tryGetSigner getter throws and origin signer lookup is malformed', async () => {
     const inferredIcaOwner = '0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e';
     const destinationRouterAddress =
