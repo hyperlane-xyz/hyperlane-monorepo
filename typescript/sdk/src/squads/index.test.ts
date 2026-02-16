@@ -3312,6 +3312,69 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps Reflect.apply wrapper discovery stable when RegExp.prototype Symbol.match call slot is overridden', () => {
+    const defaultMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
+    const defaultCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
+    const customMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const customCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /Reflect\.apply/,
+      );
+    const regexpPrototypeSymbolMatch = RegExp.prototype[Symbol.match];
+    if (!regexpPrototypeSymbolMatch) {
+      throw new Error('Expected RegExp.prototype[Symbol.match] to be defined');
+    }
+    const originalSymbolMatchCallDescriptor = Object.getOwnPropertyDescriptor(
+      regexpPrototypeSymbolMatch,
+      'call',
+    );
+
+    Object.defineProperty(regexpPrototypeSymbolMatch, 'call', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected Reflect.apply wrapper discovery to avoid Symbol.match call-slot dispatch',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultCapturePaths);
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(customMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          /Reflect\.apply/,
+        ),
+      ).to.deep.equal(customCapturePaths);
+    } finally {
+      if (originalSymbolMatchCallDescriptor) {
+        Object.defineProperty(
+          regexpPrototypeSymbolMatch,
+          'call',
+          originalSymbolMatchCallDescriptor,
+        );
+      } else {
+        delete (regexpPrototypeSymbolMatch as unknown as { call?: unknown })
+          .call;
+      }
+    }
+  });
+
   it('keeps Reflect.apply wrapper discovery stable when regexp exec call slot is overridden', () => {
     const defaultMutationPaths =
       listReflectApplyMutationTestPathsFromPatternDiscovery();
