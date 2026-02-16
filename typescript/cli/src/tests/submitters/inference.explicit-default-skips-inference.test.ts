@@ -286,6 +286,20 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     expect(protocolCalls).to.equal(0);
   });
 
+  it('does not require multiProvider context when explicit strategy has only whitespace override keys', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: createExplicitStrategyWithWhitespaceOverrideKeyPath(),
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('does not require multiProvider context when explicit strategy has no overrides', async () => {
     const batches = await resolveSubmitterBatchesForTransactions({
       chain: CHAIN,
