@@ -206,7 +206,7 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
     chainId: 31338,
   };
 
-  it('ignores blockNumber toString getter throws during timelock role ordering', async () => {
+  async function resolveFromRoleLogs(malformedGrant: any) {
     const timelockOwner = '0x6767676767676767676767676767676767676767';
     const safeProposer = '0x7878787878787878787878787878787878787878';
 
@@ -233,17 +233,6 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
       blockNumber: '1600',
       transactionIndex: '1',
       logIndex: '1',
-    };
-    const malformedGrant = {
-      topics: ['0xgrant-malformed'],
-      data: '0x',
-      blockNumber: {
-        get toString() {
-          throw new Error('blockNumber toString getter should not crash');
-        },
-      },
-      transactionIndex: '0',
-      logIndex: '0',
     };
     const revoke = {
       topics: ['0xrevoke'],
@@ -309,5 +298,47 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
       safeStub.restore();
       timelockStub.restore();
     }
+  }
+
+  it('ignores blockNumber toString getter throws during timelock role ordering', async () => {
+    await resolveFromRoleLogs({
+      topics: ['0xgrant-malformed-block-number-getter'],
+      data: '0x',
+      blockNumber: {
+        get toString() {
+          throw new Error('blockNumber toString getter should not crash');
+        },
+      },
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('ignores transactionIndex toString getter throws during timelock role ordering', async () => {
+    await resolveFromRoleLogs({
+      topics: ['0xgrant-malformed-transaction-index-getter'],
+      data: '0x',
+      blockNumber: '1600',
+      transactionIndex: {
+        get toString() {
+          throw new Error('transactionIndex toString getter should not crash');
+        },
+      },
+      logIndex: '0',
+    });
+  });
+
+  it('ignores logIndex toString getter throws during timelock role ordering', async () => {
+    await resolveFromRoleLogs({
+      topics: ['0xgrant-malformed-log-index-getter'],
+      data: '0x',
+      blockNumber: '1600',
+      transactionIndex: '0',
+      logIndex: {
+        get toString() {
+          throw new Error('logIndex toString getter should not crash');
+        },
+      },
+    });
   });
 });
