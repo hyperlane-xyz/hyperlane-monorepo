@@ -19,7 +19,7 @@ export function inspectObjectEntries(value: unknown): {
   entries: [string, unknown][];
   readError: unknown | undefined;
 } {
-  if (!value || typeof value !== 'object') {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
     return {
       entries: [],
       readError: undefined,
@@ -43,7 +43,7 @@ export function inspectObjectKeys(value: unknown): {
   keys: string[];
   readError: unknown | undefined;
 } {
-  if (!value || typeof value !== 'object') {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
     return {
       keys: [],
       readError: undefined,

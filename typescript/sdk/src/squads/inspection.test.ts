@@ -39,12 +39,19 @@ describe('squads inspection helpers', () => {
   });
 
   describe(inspectObjectEntries.name, () => {
-    it('returns entries for object values', () => {
+    it('returns entries for object and function values', () => {
+      const functionValue = Object.assign(() => undefined, {
+        a: 1,
+      });
       expect(inspectObjectEntries({ a: 1, b: 2 })).to.deep.equal({
         entries: [
           ['a', 1],
           ['b', 2],
         ],
+        readError: undefined,
+      });
+      expect(inspectObjectEntries(functionValue)).to.deep.equal({
+        entries: [['a', 1]],
         readError: undefined,
       });
       expect(inspectObjectEntries(null)).to.deep.equal({
@@ -64,12 +71,36 @@ describe('squads inspection helpers', () => {
       expect(inspection.entries).to.deep.equal([]);
       expect(inspection.readError).to.be.instanceOf(TypeError);
     });
+
+    it('preserves opaque read errors from entry access', () => {
+      const opaqueError = { source: 'entries-ownKeys' };
+      const value = new Proxy(
+        {},
+        {
+          ownKeys() {
+            throw opaqueError;
+          },
+        },
+      );
+
+      expect(inspectObjectEntries(value)).to.deep.equal({
+        entries: [],
+        readError: opaqueError,
+      });
+    });
   });
 
   describe(inspectObjectKeys.name, () => {
-    it('returns keys for object values', () => {
+    it('returns keys for object and function values', () => {
+      const functionValue = Object.assign(() => undefined, {
+        a: 1,
+      });
       expect(inspectObjectKeys({ a: 1, b: 2 })).to.deep.equal({
         keys: ['a', 'b'],
+        readError: undefined,
+      });
+      expect(inspectObjectKeys(functionValue)).to.deep.equal({
+        keys: ['a'],
         readError: undefined,
       });
       expect(inspectObjectKeys(null)).to.deep.equal({
@@ -88,6 +119,23 @@ describe('squads inspection helpers', () => {
       const inspection = inspectObjectKeys(revokedValue);
       expect(inspection.keys).to.deep.equal([]);
       expect(inspection.readError).to.be.instanceOf(TypeError);
+    });
+
+    it('preserves opaque read errors from key access', () => {
+      const opaqueError = { source: 'keys-ownKeys' };
+      const value = new Proxy(
+        {},
+        {
+          ownKeys() {
+            throw opaqueError;
+          },
+        },
+      );
+
+      expect(inspectObjectKeys(value)).to.deep.equal({
+        keys: [],
+        readError: opaqueError,
+      });
     });
   });
 
