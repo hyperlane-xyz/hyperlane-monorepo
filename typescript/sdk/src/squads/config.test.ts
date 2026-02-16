@@ -237,6 +237,21 @@ describe('squads config', () => {
     );
   });
 
+  it('throws contextual errors when partition list length accessor throws informative strings', () => {
+    const hostilePartitionList = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw 'length unavailable';
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
+      'Failed to read partitioned squads chains length: length unavailable',
+    );
+  });
+
   it('uses deterministic placeholder when partition length accessor throws blank Error messages', () => {
     const hostilePartitionList = new Proxy([], {
       get(target, property, receiver) {
@@ -332,6 +347,21 @@ describe('squads config', () => {
       get(target, property, receiver) {
         if (property === '0') {
           throw new Error('Error:');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
+      'Failed to read partitioned squads chains[0]: [unstringifiable error]',
+    );
+  });
+
+  it('uses deterministic placeholder when partition list index access throws bare string labels', () => {
+    const hostilePartitionList = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw 'Error:';
         }
         return Reflect.get(target, property, receiver);
       },
@@ -934,6 +964,23 @@ describe('squads config', () => {
       get(target, property, receiver) {
         if (property === '0') {
           throw new Error('   ');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
+    ).to.throw(
+      'Failed to read unsupported squads chains[0]: [unstringifiable error]',
+    );
+  });
+
+  it('uses deterministic placeholder when unsupported-chain index access throws whitespace-only strings', () => {
+    const hostileUnsupportedChains = new Proxy(['ethereum'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw '   ';
         }
         return Reflect.get(target, property, receiver);
       },
