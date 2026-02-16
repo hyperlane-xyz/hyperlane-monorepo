@@ -1,10 +1,15 @@
 import { assert } from '@hyperlane-xyz/utils';
 import { inspectArrayValue } from './inspection.js';
 
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const STRING_TRIM = String.prototype.trim;
 
 function stringTrim(value: string): string {
   return STRING_TRIM.call(value);
+}
+
+function numberIsSafeInteger(value: unknown): boolean {
+  return NUMBER_IS_SAFE_INTEGER(value);
 }
 
 function getUnknownValueTypeName(value: unknown): string {
@@ -43,7 +48,7 @@ export function assertValidTransactionIndexInput(
 ): number {
   assert(
     typeof transactionIndex === 'number' &&
-      Number.isSafeInteger(transactionIndex) &&
+      numberIsSafeInteger(transactionIndex) &&
       transactionIndex >= 0,
     `Expected transaction index to be a non-negative safe integer for ${getChainLabel(chain)}, got ${formatTransactionIndexValue(transactionIndex)}`,
   );

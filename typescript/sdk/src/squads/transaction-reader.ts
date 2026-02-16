@@ -111,6 +111,9 @@ const ARRAY_MAP = Array.prototype.map;
 const ARRAY_FILTER = Array.prototype.filter;
 const ARRAY_JOIN = Array.prototype.join;
 const ARRAY_PUSH = Array.prototype.push;
+const NUMBER_IS_INTEGER = Number.isInteger;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const NUMBER_IS_NAN = Number.isNaN;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 const BUFFER_TO_STRING = Buffer.prototype.toString as (
@@ -232,6 +235,18 @@ function arrayPushValue<Value>(values: Value[], value: Value): number {
   return ARRAY_PUSH.call(values, value);
 }
 
+function numberIsInteger(value: unknown): boolean {
+  return NUMBER_IS_INTEGER(value);
+}
+
+function numberIsSafeInteger(value: unknown): boolean {
+  return NUMBER_IS_SAFE_INTEGER(value);
+}
+
+function numberIsNaN(value: unknown): boolean {
+  return NUMBER_IS_NAN(value);
+}
+
 function arrayPushValues<Value>(
   values: Value[],
   additionalValues: readonly Value[],
@@ -285,8 +300,8 @@ function assertInstructionDiscriminator(discriminator: unknown): number {
   const discriminatorType = getUnknownValueTypeName(discriminator);
   assert(
     typeof discriminator === 'number' &&
-      Number.isInteger(discriminator) &&
-      Number.isSafeInteger(discriminator) &&
+      numberIsInteger(discriminator) &&
+      numberIsSafeInteger(discriminator) &&
       discriminator >= 0 &&
       discriminator <= 255,
     `Expected discriminator to be a non-negative safe integer in byte range [0, 255], got ${typeof discriminator === 'number' ? discriminator : discriminatorType}`,
@@ -295,16 +310,16 @@ function assertInstructionDiscriminator(discriminator: unknown): number {
 }
 
 function isPositiveSafeInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+  return typeof value === 'number' && numberIsSafeInteger(value) && value > 0;
 }
 
 function isNonNegativeSafeInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+  return typeof value === 'number' && numberIsSafeInteger(value) && value >= 0;
 }
 
 function formatIntegerValidationValue(value: unknown): string {
   if (typeof value === 'number') {
-    return Number.isNaN(value) ? 'NaN' : `${value}`;
+    return numberIsNaN(value) ? 'NaN' : `${value}`;
   }
   return getUnknownValueTypeName(value);
 }
@@ -474,7 +489,7 @@ function formatValidatorsWithAliases(
 
   if (
     typeof defaultValidatorsLengthValue !== 'number' ||
-    !Number.isSafeInteger(defaultValidatorsLengthValue) ||
+    !numberIsSafeInteger(defaultValidatorsLengthValue) ||
     defaultValidatorsLengthValue < 0
   ) {
     rootLogger.warn(
@@ -655,7 +670,7 @@ export class SquadsTransactionReader {
 
       if (
         typeof routeTokensLengthValue !== 'number' ||
-        !Number.isSafeInteger(routeTokensLengthValue) ||
+        !numberIsSafeInteger(routeTokensLengthValue) ||
         routeTokensLengthValue < 0
       ) {
         rootLogger.warn(
@@ -1756,7 +1771,7 @@ export class SquadsTransactionReader {
         for (const idx of writableIndexes) {
           if (
             typeof idx === 'number' &&
-            Number.isInteger(idx) &&
+            numberIsInteger(idx) &&
             idx >= 0 &&
             idx < addresses.length
           ) {
@@ -1766,7 +1781,7 @@ export class SquadsTransactionReader {
         for (const idx of readonlyIndexes) {
           if (
             typeof idx === 'number' &&
-            Number.isInteger(idx) &&
+            numberIsInteger(idx) &&
             idx >= 0 &&
             idx < addresses.length
           ) {
@@ -1837,7 +1852,7 @@ export class SquadsTransactionReader {
     }
     if (
       typeof instructionsLengthValue !== 'number' ||
-      !Number.isSafeInteger(instructionsLengthValue) ||
+      !numberIsSafeInteger(instructionsLengthValue) ||
       instructionsLengthValue < 0
     ) {
       const warning = `Malformed vault instructions length on ${chain}: expected non-negative safe integer, got ${getUnknownValueTypeName(instructionsLengthValue)}`;
@@ -1866,7 +1881,7 @@ export class SquadsTransactionReader {
         );
         const programIdIndex =
           typeof programIdIndexValue === 'number' &&
-          Number.isInteger(programIdIndexValue)
+          numberIsInteger(programIdIndexValue)
             ? programIdIndexValue
             : -1;
         if (programIdIndex >= accountKeys.length || programIdIndex < 0) {
@@ -1941,7 +1956,7 @@ export class SquadsTransactionReader {
         for (const accountIdxValue of accountIndexes) {
           if (
             typeof accountIdxValue !== 'number' ||
-            !Number.isInteger(accountIdxValue) ||
+            !numberIsInteger(accountIdxValue) ||
             accountIdxValue < 0
           ) {
             continue;
@@ -2531,7 +2546,7 @@ export class SquadsTransactionReader {
     }
     assert(
       typeof transactionPdaTupleLengthValue === 'number' &&
-        Number.isSafeInteger(transactionPdaTupleLengthValue) &&
+        numberIsSafeInteger(transactionPdaTupleLengthValue) &&
         transactionPdaTupleLengthValue > 0,
       `Malformed transaction PDA derivation for ${chain} at index ${transactionIndex}: expected non-empty tuple result`,
     );
@@ -3863,7 +3878,7 @@ export class SquadsTransactionReader {
         }
         if (
           typeof routersLengthValue !== 'number' ||
-          !Number.isSafeInteger(routersLengthValue) ||
+          !numberIsSafeInteger(routersLengthValue) ||
           routersLengthValue < 0
         ) {
           rootLogger.warn(
@@ -3957,7 +3972,7 @@ export class SquadsTransactionReader {
         }
         if (
           typeof gasConfigsLengthValue !== 'number' ||
-          !Number.isSafeInteger(gasConfigsLengthValue) ||
+          !numberIsSafeInteger(gasConfigsLengthValue) ||
           gasConfigsLengthValue < 0
         ) {
           rootLogger.warn(

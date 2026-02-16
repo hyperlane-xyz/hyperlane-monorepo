@@ -188,6 +188,8 @@ const ARRAY_PUSH = Array.prototype.push;
 const ARRAY_SORT = Array.prototype.sort;
 const ARRAY_INCLUDES = Array.prototype.includes;
 const ARRAY_SOME = Array.prototype.some;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const NUMBER_IS_FINITE = Number.isFinite;
 const STRING_INCLUDES = String.prototype.includes;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
@@ -312,6 +314,14 @@ function arraySomeValue<Value>(
   return ARRAY_SOME.call(values, predicate);
 }
 
+function numberIsSafeInteger(value: unknown): boolean {
+  return NUMBER_IS_SAFE_INTEGER(value);
+}
+
+function numberIsFinite(value: unknown): boolean {
+  return NUMBER_IS_FINITE(value);
+}
+
 function stringIncludesValue(value: string, searchValue: string): boolean {
   return STRING_INCLUDES.call(value, searchValue);
 }
@@ -411,7 +421,7 @@ function getArrayLengthOrThrow(
 
   if (
     typeof lengthValue !== 'number' ||
-    !Number.isSafeInteger(lengthValue) ||
+    !numberIsSafeInteger(lengthValue) ||
     lengthValue < 0
   ) {
     throw new Error(
@@ -804,7 +814,7 @@ function toSafeInteger(
 ): number {
   const { parsedValue, displayValue } = normalizeSafeIntegerValue(value);
   assert(
-    Number.isSafeInteger(parsedValue),
+    numberIsSafeInteger(parsedValue),
     `Squads ${fieldLabel} must be a JavaScript safe integer: ${displayValue}`,
   );
   const requireNonNegative = readSafeIntegerOptionFlag(
@@ -1098,7 +1108,7 @@ function getPendingProposalNativeTokenMetadataForChain(
 
   assert(
     typeof decimals === 'number' &&
-      Number.isSafeInteger(decimals) &&
+      numberIsSafeInteger(decimals) &&
       decimals >= 0,
     `Malformed native token decimals for ${chain}: expected non-negative safe integer, got ${formatSafeIntegerInputValue(decimals)}`,
   );
@@ -1158,7 +1168,7 @@ async function getVaultBalanceForPendingProposals(
 
   assert(
     typeof vaultBalance === 'number' &&
-      Number.isFinite(vaultBalance) &&
+      numberIsFinite(vaultBalance) &&
       vaultBalance >= 0,
     `Malformed vault balance for ${chain}: expected non-negative finite number, got ${formatSafeIntegerInputValue(vaultBalance)}`,
   );
@@ -1799,7 +1809,7 @@ function formatSafeIntegerInputValue(value: unknown): string {
 
 function assertNonNegativeSafeInteger(value: unknown, label: string): number {
   assert(
-    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0,
+    typeof value === 'number' && numberIsSafeInteger(value) && value >= 0,
     `Expected ${label} to be a non-negative safe integer, got ${formatSafeIntegerInputValue(value)}`,
   );
   return value;
@@ -1807,7 +1817,7 @@ function assertNonNegativeSafeInteger(value: unknown, label: string): number {
 
 function assertPositiveSafeInteger(value: unknown, label: string): number {
   assert(
-    typeof value === 'number' && Number.isSafeInteger(value) && value > 0,
+    typeof value === 'number' && numberIsSafeInteger(value) && value > 0,
     `Expected ${label} to be a positive safe integer, got ${formatSafeIntegerInputValue(value)}`,
   );
   return value;
@@ -2161,7 +2171,7 @@ export function decodePermissions(mask: unknown): string {
     `Expected permission mask to be a number, got ${getUnknownValueTypeName(mask)}`,
   );
   assert(
-    Number.isSafeInteger(mask) && mask >= 0,
+    numberIsSafeInteger(mask) && mask >= 0,
     `Expected permission mask to be a non-negative safe integer, got ${String(mask)}`,
   );
 

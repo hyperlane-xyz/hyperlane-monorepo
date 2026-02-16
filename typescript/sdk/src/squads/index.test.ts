@@ -252,6 +252,22 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\bBuffer\.isBuffer\s*\(/,
   }),
   Object.freeze({
+    label: 'Number.isSafeInteger call',
+    pattern: /\bNumber\.isSafeInteger\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Number.isInteger call',
+    pattern: /\bNumber\.isInteger\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Number.isFinite call',
+    pattern: /\bNumber\.isFinite\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Number.isNaN call',
+    pattern: /\bNumber\.isNaN\s*\(/,
+  }),
+  Object.freeze({
     label: '.entries method call',
     pattern: /\.entries\s*\(/,
   }),
@@ -519,6 +535,10 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   'Array.from call',
   'Array.isArray call',
   'Buffer.isBuffer call',
+  'Number.isSafeInteger call',
+  'Number.isInteger call',
+  'Number.isFinite call',
+  'Number.isNaN call',
   '.entries method call',
   '.keys method call',
   '.values method call',
@@ -557,8 +577,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.toSpliced method call',
   '.with method call',
 ]);
-const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 83;
-const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 59;
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 87;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 63;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {

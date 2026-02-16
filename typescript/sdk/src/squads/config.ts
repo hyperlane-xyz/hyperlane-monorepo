@@ -67,6 +67,7 @@ const OBJECT_FROM_ENTRIES = Object.fromEntries as <
 const ARRAY_MAP = Array.prototype.map;
 const ARRAY_JOIN = Array.prototype.join;
 const ARRAY_PUSH = Array.prototype.push;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const STRING_TRIM = String.prototype.trim;
 
 function readStaticSquadsConfigFieldOrThrow(
@@ -165,6 +166,10 @@ function objectFromEntries<EntryKey extends PropertyKey, EntryValue>(
   return OBJECT_FROM_ENTRIES(entries);
 }
 
+function numberIsSafeInteger(value: unknown): boolean {
+  return NUMBER_IS_SAFE_INTEGER(value);
+}
+
 export function getSquadsChains(): SquadsChainName[] {
   return [...SQUADS_CHAINS];
 }
@@ -214,7 +219,7 @@ function getArrayLengthOrThrow(
 
   if (
     typeof lengthValue !== 'number' ||
-    !Number.isSafeInteger(lengthValue) ||
+    !numberIsSafeInteger(lengthValue) ||
     lengthValue < 0
   ) {
     throw new Error(
