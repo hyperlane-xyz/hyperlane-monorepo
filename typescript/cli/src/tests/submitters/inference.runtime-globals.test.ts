@@ -462,4 +462,28 @@ describe('runtime global probe helpers', () => {
 
     expect(filesMissingSharedHelper).to.deep.equal([]);
   });
+
+  it('keeps constructor probe files on cached helper entrypoints', () => {
+    const constructorProbeFilePattern =
+      /^inference\..*constructor(?:s)?\.test\.ts$/;
+    const submitterTestDir = path.dirname(fileURLToPath(import.meta.url));
+    const constructorProbeFiles = fs
+      .readdirSync(submitterTestDir)
+      .filter((fileName) => constructorProbeFilePattern.test(fileName));
+
+    const filesUsingRawRuntimeMaps = constructorProbeFiles.filter(
+      (fileName) => {
+        const fileContent = fs.readFileSync(
+          path.join(submitterTestDir, fileName),
+          'utf8',
+        );
+        return (
+          fileContent.includes('getRuntimeFunctionValuesByLabel(') ||
+          fileContent.includes('getRuntimeIntlFunctionValuesByLabel(')
+        );
+      },
+    );
+
+    expect(filesUsingRawRuntimeMaps).to.deep.equal([]);
+  });
 });
