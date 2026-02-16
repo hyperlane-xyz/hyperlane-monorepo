@@ -224,6 +224,14 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     return strategyPath;
   };
 
+  const createExplicitStrategyWithoutSubmitterPath = () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-explicit-default-without-submitter-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {},
+    });
+    return strategyPath;
+  };
+
   it('does not look up protocol when explicit strategy has no overrides', async () => {
     let protocolCalls = 0;
 
@@ -402,6 +410,59 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
       expect(batches[0].config.submitter.type).to.equal(
         TxSubmitterType.GNOSIS_TX_BUILDER,
       );
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitter;
+      }
+    }
+  });
+
+  it('throws when explicit chain submitter exists only on Object prototype', async () => {
+    let protocolCalls = 0;
+    const strategyPath = createExplicitStrategyWithoutSubmitterPath();
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: {
+        type: TxSubmitterType.GNOSIS_TX_BUILDER,
+        chain: CHAIN,
+        safeAddress: '0x7777777777777777777777777777777777777777',
+        version: '1.0',
+      },
+    });
+
+    try {
+      let didThrow = false;
+      try {
+        await resolveSubmitterBatchesForTransactions({
+          chain: CHAIN,
+          transactions: [TX as any],
+          context: {
+            multiProvider: {
+              getProtocol: () => {
+                protocolCalls += 1;
+                return ProtocolType.Ethereum;
+              },
+            },
+          } as any,
+          strategyUrl: strategyPath,
+        });
+      } catch {
+        didThrow = true;
+      }
+      expect(didThrow).to.equal(true);
+      expect(protocolCalls).to.equal(0);
     } finally {
       if (originalDescriptor) {
         Object.defineProperty(
