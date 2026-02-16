@@ -557,6 +557,37 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('treats String strategyUrl with object-shaped non-string toString result as missing', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-strategy-url-object-shaped-non-string-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x7777777777777777777777777777777777777777',
+          version: '1.0',
+        },
+      },
+    });
+
+    const objectShapedNonString = {
+      length: strategyPath.length,
+      trim: () => strategyPath,
+    } as any;
+    const stringStrategyUrl = new String(strategyPath) as any;
+    stringStrategyUrl.toString = () => objectShapedNonString;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: stringStrategyUrl,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('treats overlong String strategyUrl as missing and falls back to jsonRpc default', async () => {
     const overlongStringStrategyUrl = new String(
       `./${'x'.repeat(5000)}.yaml`,
