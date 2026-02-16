@@ -742,6 +742,28 @@ describe('resolveSubmitterBatchesForTransactions unknown protocol fallback', () 
     );
   });
 
+  it('falls back to jsonRpc when protocol lookup returns deep-prototype string-like object without explicit strategy', async () => {
+    let cyclicPrototype: object = String.prototype;
+    for (let i = 0; i < 200; i += 1) {
+      cyclicPrototype = Object.create(cyclicPrototype);
+    }
+    const deepPrototypeStringLike = Object.create(cyclicPrototype) as any;
+    deepPrototypeStringLike.toString = () => 'ethereum';
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => deepPrototypeStringLike,
+        },
+      } as any,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('falls back to explicit default when protocol lookup returns getPrototypeOf-throwing proxy with explicit overrides', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-protocol-throwing-prototype-explicit-${Date.now()}.yaml`;
     const overrideTarget = '0x9999999999999999999999999999999999999999';
@@ -785,5 +807,29 @@ describe('resolveSubmitterBatchesForTransactions unknown protocol fallback', () 
     expect(batches[0].config.submitter.type).to.equal(
       TxSubmitterType.GNOSIS_TX_BUILDER,
     );
+  });
+
+  it('falls back to jsonRpc when protocol lookup returns getPrototypeOf-throwing proxy without explicit strategy', async () => {
+    const throwingPrototypeProxy = new Proxy(
+      {},
+      {
+        getPrototypeOf: () => {
+          throw new Error('prototype trap should not crash protocol normalization');
+        },
+      },
+    );
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => throwingPrototypeProxy as any,
+        },
+      } as any,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 });

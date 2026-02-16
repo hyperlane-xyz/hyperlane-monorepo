@@ -665,6 +665,54 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('falls back to inference when strategyUrl is deep-prototype string-like and inference context is available', async () => {
+    const safeOwner = '0x2222222222222222222222222222222222222222';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => safeOwner,
+    } as any);
+    const safeStub = sinon.stub(ISafe__factory, 'connect').returns({
+      getThreshold: async () => 1,
+      nonce: async () => 0,
+    } as any);
+
+    let prototype: object = String.prototype;
+    for (let i = 0; i < 200; i += 1) {
+      prototype = Object.create(prototype);
+    }
+    const deepPrototypeStringLike = Object.create(prototype) as any;
+    deepPrototypeStringLike.toString = () =>
+      `${tmpdir()}/should-not-load-deep-prototype-strategy.yaml`;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => 'ethereum' as any,
+            getSignerAddress: async () =>
+              '0x4444444444444444444444444444444444444444',
+            getProvider: () => ({}),
+          },
+          registry: {
+            getAddresses: async () => ({}),
+          },
+        } as any,
+        strategyUrl: deepPrototypeStringLike,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(ownableStub.callCount).to.equal(1);
+      expect(safeStub.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
+
   it('treats getPrototypeOf-throwing strategyUrl proxy as missing and falls back to jsonRpc default', async () => {
     const throwingPrototypeProxy = new Proxy(
       {},
