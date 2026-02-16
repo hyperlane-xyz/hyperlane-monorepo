@@ -2296,6 +2296,34 @@ describe('squads barrel exports', () => {
     expect(captureGlobalPattern.lastIndex).to.equal(7);
   });
 
+  it('keeps Reflect.apply pattern-discovery helper custom sticky patterns deterministic and lastIndex-safe', () => {
+    const mutationStickyPattern = /Reflect\.apply is mutated/y;
+    const captureStickyPattern = /const REFLECT_APPLY = Reflect\.apply/y;
+    mutationStickyPattern.lastIndex = 14;
+    captureStickyPattern.lastIndex = 18;
+
+    expect(
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        mutationStickyPattern,
+      ),
+    ).to.deep.equal(
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      ),
+    );
+    expect(
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        captureStickyPattern,
+      ),
+    ).to.deep.equal(
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      ),
+    );
+    expect(mutationStickyPattern.lastIndex).to.equal(14);
+    expect(captureStickyPattern.lastIndex).to.equal(18);
+  });
+
   it('keeps Reflect.apply pattern-discovery helper wrappers delegating to base pattern discovery', () => {
     const broadMutationPattern = /Reflect\.apply is mutated/;
     const broadCapturePattern = /Reflect\.apply/;
