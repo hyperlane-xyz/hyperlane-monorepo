@@ -1441,12 +1441,16 @@ function getConfigFingerprint(config: ExtendedSubmissionStrategy): string {
 
 function parseOverrideKey(key: string): { target: string; selector?: string } {
   const trimmedKey = key.trim();
-  const parts = trimmedKey.split('@');
-  if (parts.length !== 2) {
+  const separatorIndex = trimmedKey.indexOf('@');
+  if (separatorIndex < 0) {
+    return { target: trimmedKey };
+  }
+  if (separatorIndex !== trimmedKey.lastIndexOf('@')) {
     return { target: trimmedKey };
   }
 
-  const [target, maybeSelector] = parts.map((part) => part.trim());
+  const target = trimmedKey.slice(0, separatorIndex).trim();
+  const maybeSelector = trimmedKey.slice(separatorIndex + 1).trim();
   const normalizedSelector = maybeSelector.toLowerCase();
   if (/^0x[0-9a-f]{8}$/.test(normalizedSelector)) {
     return { target, selector: normalizedSelector };
