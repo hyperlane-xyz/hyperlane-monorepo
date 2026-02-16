@@ -1240,6 +1240,93 @@ const NEW_EXPRESSION_CONSTRUCTOR_NAMES = [
   'Boolean',
 ] as const;
 
+const GLOBAL_CONSTRUCTOR_QUALIFIERS = [
+  'globalThis',
+  'window',
+  'global',
+  'self',
+];
+
+function readStaticGlobalQualifierResolution(
+  qualifierExpression: ts.Expression,
+): boolean | typeof STATIC_PRIMITIVE_UNKNOWN {
+  const unwrappedQualifier = unwrapInitializerExpression(qualifierExpression);
+  if (ts.isIdentifier(unwrappedQualifier)) {
+    return GLOBAL_CONSTRUCTOR_QUALIFIERS.includes(unwrappedQualifier.text)
+      ? true
+      : STATIC_PRIMITIVE_UNKNOWN;
+  }
+
+  if (ts.isConditionalExpression(unwrappedQualifier)) {
+    const selectorCondition = readStaticBooleanCondition(
+      unwrappedQualifier.condition,
+    );
+    if (selectorCondition === true) {
+      return readStaticGlobalQualifierResolution(unwrappedQualifier.whenTrue);
+    }
+    if (selectorCondition === false) {
+      return readStaticGlobalQualifierResolution(unwrappedQualifier.whenFalse);
+    }
+    return mergeStaticDeleteTargetResults(
+      readStaticGlobalQualifierResolution(unwrappedQualifier.whenTrue),
+      readStaticGlobalQualifierResolution(unwrappedQualifier.whenFalse),
+    );
+  }
+
+  if (ts.isBinaryExpression(unwrappedQualifier)) {
+    if (unwrappedQualifier.operatorToken.kind === ts.SyntaxKind.CommaToken) {
+      return readStaticGlobalQualifierResolution(unwrappedQualifier.right);
+    }
+    if (
+      unwrappedQualifier.operatorToken.kind ===
+      ts.SyntaxKind.QuestionQuestionToken
+    ) {
+      const leftNullish = readStaticNullishCondition(unwrappedQualifier.left);
+      if (leftNullish === true) {
+        return readStaticGlobalQualifierResolution(unwrappedQualifier.right);
+      }
+      if (leftNullish === false) {
+        return readStaticGlobalQualifierResolution(unwrappedQualifier.left);
+      }
+      return mergeStaticDeleteTargetResults(
+        readStaticGlobalQualifierResolution(unwrappedQualifier.left),
+        readStaticGlobalQualifierResolution(unwrappedQualifier.right),
+      );
+    }
+    if (
+      unwrappedQualifier.operatorToken.kind ===
+        ts.SyntaxKind.AmpersandAmpersandToken ||
+      unwrappedQualifier.operatorToken.kind === ts.SyntaxKind.BarBarToken
+    ) {
+      const leftCondition = readStaticBooleanCondition(unwrappedQualifier.left);
+      if (
+        unwrappedQualifier.operatorToken.kind ===
+        ts.SyntaxKind.AmpersandAmpersandToken
+      ) {
+        if (leftCondition === true) {
+          return readStaticGlobalQualifierResolution(unwrappedQualifier.right);
+        }
+        if (leftCondition === false) {
+          return readStaticGlobalQualifierResolution(unwrappedQualifier.left);
+        }
+      } else {
+        if (leftCondition === true) {
+          return readStaticGlobalQualifierResolution(unwrappedQualifier.left);
+        }
+        if (leftCondition === false) {
+          return readStaticGlobalQualifierResolution(unwrappedQualifier.right);
+        }
+      }
+      return mergeStaticDeleteTargetResults(
+        readStaticGlobalQualifierResolution(unwrappedQualifier.left),
+        readStaticGlobalQualifierResolution(unwrappedQualifier.right),
+      );
+    }
+  }
+
+  return STATIC_PRIMITIVE_UNKNOWN;
+}
+
 function readStaticKnownConstructorName(
   constructorExpression: ts.Expression,
 ): string | typeof STATIC_PRIMITIVE_UNKNOWN {
@@ -1253,13 +1340,10 @@ function readStaticKnownConstructorName(
     if (!unwrappedConstructor.argumentExpression) {
       return STATIC_PRIMITIVE_UNKNOWN;
     }
-    const qualifier = unwrapInitializerExpression(
+    const qualifierIsKnownGlobal = readStaticGlobalQualifierResolution(
       unwrappedConstructor.expression,
     );
-    if (!ts.isIdentifier(qualifier)) {
-      return STATIC_PRIMITIVE_UNKNOWN;
-    }
-    if (!['globalThis', 'window', 'global', 'self'].includes(qualifier.text)) {
+    if (qualifierIsKnownGlobal !== true) {
       return STATIC_PRIMITIVE_UNKNOWN;
     }
     const propertyNameValue = readStaticPrimitiveValue(
@@ -1279,13 +1363,10 @@ function readStaticKnownConstructorName(
   if (!ts.isPropertyAccessExpression(unwrappedConstructor)) {
     return STATIC_PRIMITIVE_UNKNOWN;
   }
-  const qualifier = unwrapInitializerExpression(
+  const qualifierIsKnownGlobal = readStaticGlobalQualifierResolution(
     unwrappedConstructor.expression,
   );
-  if (!ts.isIdentifier(qualifier)) {
-    return STATIC_PRIMITIVE_UNKNOWN;
-  }
-  if (!['globalThis', 'window', 'global', 'self'].includes(qualifier.text)) {
+  if (qualifierIsKnownGlobal !== true) {
     return STATIC_PRIMITIVE_UNKNOWN;
   }
   return unwrappedConstructor.name.text;
@@ -9539,6 +9620,25 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality direct-delete conditional-global-qualifier-new-constructor-target predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (((delete ((new (((marker === 1 ? globalThis : self) as any).Date)() as any).safe) === true)) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('keeps strict-equality direct-delete conditional-mixed-new-constructor-length predicates conservative for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -9561,6 +9661,23 @@ describe('Safe migration guards', () => {
       'const marker = Math.random();',
       "const baseline = require('./fixtures/guard-module.js').default;",
       "if (((delete ((new ((globalThis as any)[marker === 1 ? 'Array' : 'Date'])() as any).length) === false)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-equality direct-delete conditional-mixed-global-qualifier-new-constructor-target predicates conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'const fallback = {} as any;',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      'if (((delete ((new (((marker === 1 ? globalThis : fallback) as any).Date)() as any).safe) === true)) reqAlias = () => undefined;',
       "reqAlias('./fixtures/other-module.js').default;",
       'void baseline;',
     ].join('\n');
@@ -16126,6 +16243,24 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/guard-module.js');
   });
 
+  it('treats strict-equality direct-delete conditional-global-qualifier-new-constructor-target predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      'if (((delete ((new (((marker === 1 ? globalThis : self) as any).Date)() as any).safe) === true)) {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
   it('keeps strict-equality direct-delete conditional-mixed-new-constructor-length predicates conservative for module-source aliases in symbol sources', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
@@ -16144,6 +16279,20 @@ describe('Safe migration guards', () => {
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'const marker = Math.random();',
       "if (((delete ((new ((globalThis as any)[marker === 1 ? 'Array' : 'Date'])() as any).length) === false)) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-equality direct-delete conditional-mixed-global-qualifier-new-constructor-target predicates conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      'const fallback = {} as any;',
+      "if (((delete ((new (((marker === 1 ? globalThis : fallback) as any).Date)() as any).safe) === true)) moduleAlias = { default: 'not-a-module' };",
       'const postIfDefault = moduleAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
@@ -29504,6 +29653,30 @@ describe('Safe migration guards', () => {
     );
   });
 
+  it('treats strict-equality direct-delete conditional-global-qualifier-new-constructor-target predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (((delete ((new (((marker === 1 ? globalThis : self) as any).Date)() as any).safe) === true)) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('keeps strict-equality direct-delete conditional-mixed-new-constructor-length predicates conservative for module specifiers', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -29531,6 +29704,28 @@ describe('Safe migration guards', () => {
       'const marker = Math.random();',
       "const baseline = require('./fixtures/guard-module.js');",
       "if (((delete ((new ((globalThis as any)[marker === 1 ? 'Array' : 'Date'])() as any).length) === false)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-equality direct-delete conditional-mixed-global-qualifier-new-constructor-target predicates conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'const fallback = {} as any;',
+      "const baseline = require('./fixtures/guard-module.js');",
+      'if (((delete ((new (((marker === 1 ? globalThis : fallback) as any).Date)() as any).safe) === true)) reqAlias = () => undefined;',
       "reqAlias('./fixtures/other-module.js');",
       'void baseline;',
     ].join('\n');
