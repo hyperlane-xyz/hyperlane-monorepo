@@ -269,13 +269,13 @@ function getArrayElementOrThrow(
   index: number,
   label: string,
 ): unknown {
-  try {
-    return values[index];
-  } catch (error) {
+  const { propertyValue, readError } = inspectPropertyValue(values, index);
+  if (readError) {
     throw new Error(
-      `Failed to read ${label}[${index}]: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read ${label}[${index}]: ${formatUnknownErrorForMessage(readError)}`,
     );
   }
+  return propertyValue;
 }
 
 function formatUnknownErrorForMessage(error: unknown): string {
@@ -379,10 +379,9 @@ export function normalizeSquadsAddressList(
   const entryCount = getArrayLengthOrThrow(normalizedValues, 'address list');
 
   for (let index = 0; index < entryCount; index += 1) {
-    let value: unknown;
-    try {
-      value = normalizedValues[index];
-    } catch {
+    const { propertyValue: value, readError: valueReadError } =
+      inspectPropertyValue(normalizedValues, index);
+    if (valueReadError) {
       invalidEntries += 1;
       continue;
     }
@@ -416,10 +415,9 @@ export function parseSquadsMultisigMembers(
   );
 
   for (let index = 0; index < memberCount; index += 1) {
-    let member: unknown;
-    try {
-      member = normalizedMembers[index];
-    } catch {
+    const { propertyValue: member, readError: memberReadError } =
+      inspectPropertyValue(normalizedMembers, index);
+    if (memberReadError) {
       invalidEntries += 1;
       continue;
     }
@@ -507,10 +505,9 @@ function parseSquadsProposalVoteErrorFromUnknownLogs(
 
   const logEntries: string[] = [];
   for (let index = 0; index < logEntryCount; index += 1) {
-    let entry: unknown;
-    try {
-      entry = normalizedValue[index];
-    } catch {
+    const { propertyValue: entry, readError: entryReadError } =
+      inspectPropertyValue(normalizedValue, index);
+    if (entryReadError) {
       continue;
     }
     if (typeof entry === 'string') {
@@ -529,11 +526,8 @@ function getRecordFieldValue(
   record: Record<string, unknown>,
   fieldName: string,
 ): unknown {
-  try {
-    return record[fieldName];
-  } catch {
-    return undefined;
-  }
+  const { propertyValue, readError } = inspectPropertyValue(record, fieldName);
+  return readError ? undefined : propertyValue;
 }
 
 function getRecordKeys(record: Record<string, unknown>): string[] {

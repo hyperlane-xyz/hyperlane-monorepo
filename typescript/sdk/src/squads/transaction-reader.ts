@@ -464,12 +464,11 @@ export class SquadsTransactionReader {
         tokenIndex < routeTokensLengthValue;
         tokenIndex += 1
       ) {
-        let token: unknown;
-        try {
-          token = normalizedRouteTokens[tokenIndex];
-        } catch (error) {
+        const { propertyValue: token, readError: tokenReadError } =
+          inspectPropertyValue(normalizedRouteTokens, tokenIndex);
+        if (tokenReadError) {
           rootLogger.warn(
-            `Failed to read warp route token at index ${tokenIndex} for ${routeName}: ${stringifyUnknownSquadsError(error)}`,
+            `Failed to read warp route token at index ${tokenIndex} for ${routeName}: ${stringifyUnknownSquadsError(tokenReadError)}`,
           );
           continue;
         }
@@ -2201,12 +2200,13 @@ export class SquadsTransactionReader {
       `Malformed transaction PDA derivation for ${chain} at index ${transactionIndex}: expected non-empty tuple result`,
     );
 
-    let transactionPda: unknown;
-    try {
-      transactionPda = normalizedTransactionPdaTuple[0];
-    } catch (error) {
+    const {
+      propertyValue: transactionPda,
+      readError: transactionPdaReadError,
+    } = inspectPropertyValue(normalizedTransactionPdaTuple, 0);
+    if (transactionPdaReadError) {
       throw new Error(
-        `Failed to read transaction PDA tuple entry for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read transaction PDA tuple entry for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(transactionPdaReadError)}`,
       );
     }
     const {
@@ -2558,12 +2558,13 @@ export class SquadsTransactionReader {
     }
 
     const route = `${originChain} -> ${normalizedRemoteChain}`;
-    let expectedConfig: SvmMultisigConfigMap[ChainName];
-    try {
-      expectedConfig = config[normalizedRemoteChain];
-    } catch (error) {
+    const {
+      propertyValue: expectedConfig,
+      readError: expectedConfigReadError,
+    } = inspectPropertyValue(config, normalizedRemoteChain);
+    if (expectedConfigReadError) {
       issues.push(
-        `Malformed expected config for route ${route}: failed to read route entry (${stringifyUnknownSquadsError(error)})`,
+        `Malformed expected config for route ${route}: failed to read route entry (${stringifyUnknownSquadsError(expectedConfigReadError)})`,
       );
       return { matches: false, issues };
     }

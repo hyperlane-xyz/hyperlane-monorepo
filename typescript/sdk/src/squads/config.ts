@@ -139,12 +139,11 @@ function normalizeChainListValues(
   const normalizedChains: string[] = [];
   const chainCount = getArrayLengthOrThrow(normalizedChainValues, listLabel);
   for (let index = 0; index < chainCount; index += 1) {
-    let chain: unknown;
-    try {
-      chain = normalizedChainValues[index];
-    } catch (error) {
+    const { propertyValue: chain, readError: chainReadError } =
+      inspectPropertyValue(normalizedChainValues, index);
+    if (chainReadError) {
       throw new Error(
-        `Failed to read ${listLabel}[${index}]: ${formatUnknownListError(error)}`,
+        `Failed to read ${listLabel}[${index}]: ${formatUnknownListError(chainReadError)}`,
       );
     }
     if (typeof chain !== 'string') {
