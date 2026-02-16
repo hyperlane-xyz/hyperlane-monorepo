@@ -45483,6 +45483,55 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
+  it('keeps nullish-logical conditional delete-key variant coverage matrix complete', () => {
+    const sourceText = fs.readFileSync(__filename, 'utf8');
+    const variantPattern =
+      /it\('(?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-([a-z-]+)-conditional-([a-z-]+)-(?:fallback-length|mixed-fallback) predicates/g;
+
+    const observedVariantsByFamily = new Map<string, Set<string>>();
+    for (const match of sourceText.matchAll(variantPattern)) {
+      const family = match[1];
+      const variant = match[2];
+      const existing = observedVariantsByFamily.get(family) ?? new Set();
+      existing.add(variant);
+      observedVariantsByFamily.set(family, existing);
+    }
+
+    const expectedFamilies = [
+      'leading-undefined',
+      'leading-void',
+      'left-null',
+      'right-null',
+      'right-undefined',
+      'right-void',
+    ];
+    const expectedVariants = [
+      'comma',
+      'concat',
+      'empty-string',
+      'false',
+      'falsy',
+      'null',
+      'template',
+      'undefined',
+      'void',
+    ];
+
+    expect([...observedVariantsByFamily.keys()].sort()).to.deep.equal(
+      [...expectedFamilies].sort(),
+    );
+    for (const family of expectedFamilies) {
+      expect(
+        observedVariantsByFamily.has(family),
+        `Missing conditional coverage family ${family}`,
+      ).to.equal(true);
+      expect(
+        [...(observedVariantsByFamily.get(family) ?? new Set())].sort(),
+        `Unexpected conditional variants for family ${family}`,
+      ).to.deep.equal([...expectedVariants].sort());
+    }
+  });
+
   it('prevents sdk source imports from infra paths', () => {
     const sourceFilePaths = collectSdkSourceFilePaths(
       path.resolve(process.cwd(), 'src'),
