@@ -45712,9 +45712,12 @@ describe('Safe migration guards', () => {
       /it\('(?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-([a-z-]+)-conditional-([a-z-]+)-(fallback-length|mixed-fallback) predicates (?:as deterministic|conservative) for (module specifiers|symbol sources|module-source aliases in symbol sources)'/g;
 
     const observedEntries = new Set<string>();
+    const observedEntryCounts = new Map<string, number>();
     for (const match of sourceText.matchAll(entryPattern)) {
       const [, family, variant, predicateType, context] = match;
-      observedEntries.add(`${family}|${variant}|${predicateType}|${context}`);
+      const key = `${family}|${variant}|${predicateType}|${context}`;
+      observedEntries.add(key);
+      observedEntryCounts.set(key, (observedEntryCounts.get(key) ?? 0) + 1);
     }
 
     const families = [
@@ -45762,6 +45765,12 @@ describe('Safe migration guards', () => {
     expect([...observedEntries].sort()).to.deep.equal(
       [...expectedEntries].sort(),
     );
+    for (const [key, count] of observedEntryCounts.entries()) {
+      expect(
+        count,
+        `Expected exactly one conditional coverage entry for ${key}`,
+      ).to.equal(1);
+    }
   });
 
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
