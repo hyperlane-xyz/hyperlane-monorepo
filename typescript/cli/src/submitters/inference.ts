@@ -1452,6 +1452,11 @@ function parseOverrideKey(key: string): { target: string; selector?: string } {
   return { target: trimmedKey };
 }
 
+function isUsableOverrideKey(overrideKey: string): boolean {
+  const trimmedKey = overrideKey.trim();
+  return trimmedKey.length > 0 && !trimmedKey.includes('\0');
+}
+
 function tryNormalizeEvmAddress(address: string): string | null {
   try {
     return normalizeEvmAddressFlexible(address);
@@ -1491,6 +1496,12 @@ function buildExplicitOverrideIndexes({
   }
 
   for (const [overrideKey, submitter] of Object.entries(overrides)) {
+    if (!isUsableOverrideKey(overrideKey)) {
+      logger.debug(
+        `Skipping unusable submitter override key '${overrideKey}' for ${submitter.chain}`,
+      );
+      continue;
+    }
     if (protocol === ProtocolType.Ethereum) {
       const parsed = parseOverrideKey(overrideKey);
       if (!parsed.target.trim()) {
@@ -1636,7 +1647,7 @@ function hasUsableOverrideKeys(
     return false;
   }
 
-  return Object.keys(overrides).some((overrideKey) => overrideKey.trim().length > 0);
+  return Object.keys(overrides).some(isUsableOverrideKey);
 }
 
 function normalizeOptionalPath(value: unknown): string | undefined {
