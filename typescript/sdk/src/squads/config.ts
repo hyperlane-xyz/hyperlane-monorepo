@@ -56,7 +56,7 @@ const {
   readError: squadsConfigEntriesReadError,
 } = inspectObjectEntries(squadsConfigs);
 if (squadsConfigEntriesReadError) {
-  throw new Error(
+  throw createError(
     `Failed to read squads config entries: ${formatUnknownListError(squadsConfigEntriesReadError)}`,
   );
 }
@@ -76,6 +76,7 @@ const ARRAY_PUSH = Array.prototype.push;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const STRING_FUNCTION = String;
 const STRING_TRIM = String.prototype.trim;
+const ERROR_CONSTRUCTOR = Error as new (message?: string) => Error;
 const SET_CONSTRUCTOR = Set as new <Value>(
   values?: Iterable<Value>,
 ) => Set<Value>;
@@ -90,12 +91,12 @@ function readStaticSquadsConfigFieldOrThrow(
     fieldName,
   );
   if (readError) {
-    throw new Error(
+    throw createError(
       `Failed to read ${fieldName} for squads chain ${chainName}: ${formatUnknownListError(readError)}`,
     );
   }
   if (typeof propertyValue !== 'string') {
-    throw new Error(
+    throw createError(
       `Malformed ${fieldName} for squads chain ${chainName}: expected string, got ${getUnknownValueTypeName(propertyValue)}`,
     );
   }
@@ -126,7 +127,7 @@ export type SquadsChainName = keyof typeof squadsConfigs;
 const { keys: untypedSquadsChainKeys, readError: squadsChainKeysReadError } =
   inspectObjectKeys(squadsConfigs);
 if (squadsChainKeysReadError) {
-  throw new Error(
+  throw createError(
     `Failed to read squads config chain names: ${formatUnknownListError(squadsChainKeysReadError)}`,
   );
 }
@@ -183,6 +184,10 @@ function numberIsSafeInteger(value: unknown): boolean {
   return NUMBER_IS_SAFE_INTEGER(value);
 }
 
+function createError(message?: string): Error {
+  return new ERROR_CONSTRUCTOR(message);
+}
+
 function stringFromValue(value: unknown): string {
   return STRING_FUNCTION(value);
 }
@@ -231,7 +236,7 @@ function getArrayLengthOrThrow(
   const { propertyValue: lengthValue, readError: lengthReadError } =
     inspectPropertyValue(values, 'length');
   if (lengthReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read ${listLabel} length: ${formatUnknownListError(lengthReadError)}`,
     );
   }
@@ -241,7 +246,7 @@ function getArrayLengthOrThrow(
     !numberIsSafeInteger(lengthValue) ||
     lengthValue < 0
   ) {
-    throw new Error(
+    throw createError(
       `Malformed ${listLabel} length: expected non-negative safe integer, got ${formatLengthValue(lengthValue)}`,
     );
   }
@@ -256,7 +261,7 @@ function normalizeChainListValues(
   const { isArray, readFailed: arrayInspectionFailed } =
     inspectArrayValue(chains);
   if (arrayInspectionFailed || !isArray) {
-    throw new Error(
+    throw createError(
       `Expected ${listLabel} to be an array, got ${getUnknownValueTypeName(chains)}`,
     );
   }
@@ -268,12 +273,12 @@ function normalizeChainListValues(
     const { propertyValue: chain, readError: chainReadError } =
       inspectPropertyValue(normalizedChainValues, index);
     if (chainReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read ${listLabel}[${index}]: ${formatUnknownListError(chainReadError)}`,
       );
     }
     if (typeof chain !== 'string') {
-      throw new Error(
+      throw createError(
         `Expected ${listLabel}[${index}] to be a string, got ${getUnknownValueTypeName(chain)}`,
       );
     }
@@ -350,7 +355,7 @@ export function getUnsupportedSquadsChainsErrorMessage(
     'unsupported squads chains',
   );
   if (normalizedNonSquadsChains.length === 0) {
-    throw new Error(
+    throw createError(
       'Expected at least one unsupported squads chain to format error message',
     );
   }
@@ -361,7 +366,7 @@ export function getUnsupportedSquadsChainsErrorMessage(
   );
 
   if (normalizedConfiguredSquadsChains.length === 0) {
-    throw new Error('Expected at least one configured squads chain');
+    throw createError('Expected at least one configured squads chain');
   }
 
   const formattedUnsupportedChains = formatUniqueChainNamesForDisplay(
@@ -389,7 +394,7 @@ export function resolveSquadsChains(chains?: unknown): SquadsChainName[] {
   const { squadsChains, nonSquadsChains } =
     partitionNormalizedSquadsChains(normalizedChains);
   if (nonSquadsChains.length > 0) {
-    throw new Error(getUnsupportedSquadsChainsErrorMessage(nonSquadsChains));
+    throw createError(getUnsupportedSquadsChainsErrorMessage(nonSquadsChains));
   }
 
   return [...squadsChains];
@@ -399,28 +404,28 @@ export function assertIsSquadsChain(
   chainName: unknown,
 ): asserts chainName is SquadsChainName {
   if (typeof chainName !== 'string') {
-    throw new Error(
+    throw createError(
       `Expected chain name to be a string, got ${getUnknownValueTypeName(chainName)}`,
     );
   }
 
   if (isSquadsChain(chainName)) return;
 
-  throw new Error(
+  throw createError(
     `Squads config not found on chain ${chainName}. Available Squads chains: ${SQUADS_CHAINS_DISPLAY_LIST}`,
   );
 }
 
 function normalizeChainNameForSquadsLookup(chainName: unknown): string {
   if (typeof chainName !== 'string') {
-    throw new Error(
+    throw createError(
       `Expected chain name to be a string, got ${getUnknownValueTypeName(chainName)}`,
     );
   }
 
   const normalizedChainName = stringTrim(chainName);
   if (normalizedChainName.length === 0) {
-    throw new Error('Expected chain name to be a non-empty string');
+    throw createError('Expected chain name to be a non-empty string');
   }
 
   return normalizedChainName;
