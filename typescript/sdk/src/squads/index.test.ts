@@ -165,6 +165,8 @@ const EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS = Object.freeze([
     expectedReflectApplyInvocationCount: 1,
   }),
 ]);
+const EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNT = 5;
+const EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNT = 17;
 const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE =
   Object.freeze([
     Object.freeze({
@@ -1731,6 +1733,18 @@ describe('squads barrel exports', () => {
     ]);
   });
 
+  it('keeps expected canonical sdk squads total Reflect.apply identifier-reference count', () => {
+    expect(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNT,
+    ).to.equal(5);
+  });
+
+  it('keeps expected canonical sdk squads total REFLECT_APPLY invocation count', () => {
+    expect(EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNT).to.equal(
+      17,
+    );
+  });
+
   it('keeps expected canonical sdk squads Reflect.apply mutation runtime coverage map', () => {
     expect(
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE,
@@ -2315,6 +2329,51 @@ describe('squads barrel exports', () => {
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.map(
         ({ runtimeSourcePath }) => runtimeSourcePath,
       ),
+    );
+  });
+
+  it('keeps sdk Reflect.apply identifier and REFLECT_APPLY invocation totals aligned with runtime sources', () => {
+    const identifierReferenceCountTotalFromTable =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.reduce(
+        (sum, { expectedReflectApplyIdentifierReferenceCount }) =>
+          sum + expectedReflectApplyIdentifierReferenceCount,
+        0,
+      );
+    const invocationCountTotalFromTable =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.reduce(
+        (sum, { expectedReflectApplyInvocationCount }) =>
+          sum + expectedReflectApplyInvocationCount,
+        0,
+      );
+    expect(identifierReferenceCountTotalFromTable).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNT,
+    );
+    expect(invocationCountTotalFromTable).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNT,
+    );
+
+    let discoveredIdentifierReferenceCountTotal = 0;
+    let discoveredInvocationCountTotal = 0;
+    for (const runtimeSourcePath of listSdkSquadsNonTestSourceFilePaths()
+      .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
+      .sort(compareLexicographically)) {
+      const absoluteSourcePath = path.join(SDK_PACKAGE_ROOT, runtimeSourcePath);
+      const source = fs.readFileSync(absoluteSourcePath, 'utf8');
+      discoveredIdentifierReferenceCountTotal += countOccurrences(
+        source,
+        'Reflect.apply',
+      );
+      discoveredInvocationCountTotal += countOccurrences(
+        source,
+        'REFLECT_APPLY(',
+      );
+    }
+
+    expect(discoveredIdentifierReferenceCountTotal).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNT,
+    );
+    expect(discoveredInvocationCountTotal).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNT,
     );
   });
 
