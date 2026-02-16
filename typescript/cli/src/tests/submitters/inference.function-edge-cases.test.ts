@@ -35,6 +35,30 @@ describe('resolveSubmitterBatchesForTransactions function edge case probes', () 
       label: 'class-expression-function-object',
       probeValue: class ProbeClass {},
     },
+    {
+      label: 'throwing-then-getter-function-object',
+      probeValue: Object.defineProperty(
+        function throwingThenGetterProbe() {},
+        'then',
+        {
+          get: () => {
+            throw new Error('broken then getter');
+          },
+        },
+      ),
+    },
+    {
+      label: 'throwing-getaddress-getter-function-object',
+      probeValue: Object.defineProperty(
+        function throwingGetAddressGetterProbe() {},
+        'getAddress',
+        {
+          get: () => {
+            throw new Error('broken getAddress getter');
+          },
+        },
+      ),
+    },
   ] as const;
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {

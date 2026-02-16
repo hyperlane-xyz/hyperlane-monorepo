@@ -40,13 +40,21 @@ describe('resolveSubmitterBatchesForTransactions primitive edge case probes', ()
     { label: 'epsilon-number-primitive', probeValue: Number.EPSILON },
     { label: 'min-value-number-primitive', probeValue: Number.MIN_VALUE },
     { label: 'max-value-number-primitive', probeValue: Number.MAX_VALUE },
+    { label: 'nan-number-primitive', probeValue: Number.NaN },
+    { label: 'positive-infinity-number-primitive', probeValue: Infinity },
+    { label: 'negative-infinity-number-primitive', probeValue: -Infinity },
     { label: 'empty-string-primitive', probeValue: '' },
     { label: 'whitespace-string-primitive', probeValue: '   ' },
     { label: 'hex-string-primitive', probeValue: '0xdeadbeef' },
     { label: 'unicode-string-primitive', probeValue: '🛰️ interchain' },
     { label: 'escaped-string-primitive', probeValue: '\\n\\t\\r\\0' },
+    { label: 'undefined-primitive', probeValue: undefined },
+    { label: 'null-primitive', probeValue: null },
     { label: 'symbol-local-primitive', probeValue: Symbol('local') },
-    { label: 'symbol-global-primitive', probeValue: Symbol.for('global-probe') },
+    {
+      label: 'symbol-global-primitive',
+      probeValue: Symbol.for('global-probe'),
+    },
     { label: 'bigint-zero-primitive', probeValue: 0n },
     { label: 'bigint-positive-primitive', probeValue: 42n },
     { label: 'bigint-negative-primitive', probeValue: -42n },
@@ -70,7 +78,10 @@ describe('resolveSubmitterBatchesForTransactions primitive edge case probes', ()
     ).to.equal(TxSubmitterType.JSON_RPC);
   };
 
-  const createDirectSetup = (probeValue: unknown, asyncTryGetSigner: boolean) => {
+  const createDirectSetup = (
+    probeValue: unknown,
+    asyncTryGetSigner: boolean,
+  ) => {
     const timelockOwnerA = '0x5151515151515151515151515151515151515152';
     const timelockOwnerB = '0x5252525252525252525252525252525252525253';
     const proposerIca = '0x5353535353535353535353535353535353535354';

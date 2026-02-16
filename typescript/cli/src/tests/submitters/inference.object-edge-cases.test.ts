@@ -48,6 +48,33 @@ describe('resolveSubmitterBatchesForTransactions object edge case probes', () =>
       probeValue: new Proxy({ tag: 'proxy' }, {}),
       directGetLogsCallCount: 5,
     },
+    {
+      label: 'throwing-then-getter-object',
+      probeValue: Object.defineProperty({}, 'then', {
+        get: () => {
+          throw new Error('broken then getter');
+        },
+      }),
+      directGetLogsCallCount: 5,
+    },
+    {
+      label: 'throwing-getaddress-getter-object',
+      probeValue: Object.defineProperty({}, 'getAddress', {
+        get: () => {
+          throw new Error('broken getAddress getter');
+        },
+      }),
+      directGetLogsCallCount: 5,
+    },
+    {
+      label: 'revoked-proxy-object',
+      probeValue: (() => {
+        const { proxy, revoke } = Proxy.revocable({ tag: 'revoked' }, {});
+        revoke();
+        return proxy;
+      })(),
+      directGetLogsCallCount: 5,
+    },
   ] as const;
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
@@ -339,7 +366,9 @@ describe('resolveSubmitterBatchesForTransactions object edge case probes', () =>
         expectTimelockJsonRpcBatches(batches);
         expect(setup.getOriginSignerProbeCalls()).to.equal(1);
         expect(setup.getOriginSignerAddressLookups()).to.equal(1);
-        expect(setup.provider.getLogs.callCount).to.equal(directGetLogsCallCount);
+        expect(setup.provider.getLogs.callCount).to.equal(
+          directGetLogsCallCount,
+        );
       } finally {
         setup.restore();
       }
@@ -359,7 +388,9 @@ describe('resolveSubmitterBatchesForTransactions object edge case probes', () =>
         expectTimelockJsonRpcBatches(batches);
         expect(setup.getOriginSignerProbeCalls()).to.equal(1);
         expect(setup.getOriginSignerAddressLookups()).to.equal(1);
-        expect(setup.provider.getLogs.callCount).to.equal(directGetLogsCallCount);
+        expect(setup.provider.getLogs.callCount).to.equal(
+          directGetLogsCallCount,
+        );
       } finally {
         setup.restore();
       }
