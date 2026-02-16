@@ -3718,6 +3718,84 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('fails with contextual error when provider promise-like inspection fails', async () => {
+    const mpp = {
+      getSolanaWeb3Provider: () =>
+        new Proxy(
+          {},
+          {
+            get(target, property, receiver) {
+              if (property === 'then') {
+                throw new Error('then unavailable');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ),
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to inspect solana provider for solanamainnet: failed to read promise-like then field (Error: then unavailable)',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Failed to inspect solana provider for solanamainnet: failed to read promise-like then field (Error: then unavailable)',
+      },
+    ]);
+  });
+
+  it('fails with placeholder fallback when provider promise-like inspection throws generic-object Error messages', async () => {
+    const mpp = {
+      getSolanaWeb3Provider: () =>
+        new Proxy(
+          {},
+          {
+            get(target, property, receiver) {
+              if (property === 'then') {
+                throw new Error('[object Object]');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ),
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to inspect solana provider for solanamainnet: failed to read promise-like then field ([unstringifiable error])',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Failed to inspect solana provider for solanamainnet: failed to read promise-like then field ([unstringifiable error])',
+      },
+    ]);
+  });
+
   it('fails with contextual error when provider is missing getAccountInfo', async () => {
     const mpp = {
       getSolanaWeb3Provider: () => ({}),
