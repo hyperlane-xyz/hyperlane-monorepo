@@ -12,6 +12,10 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import {
+  getRequiredRuntimeFunctionValueByLabel,
+  getRuntimeFunctionValuesByLabel,
+} from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions symbol constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -21,6 +25,10 @@ describe('resolveSubmitterBatchesForTransactions symbol constructor probes', () 
     data: '0x',
     chainId: 31338,
   };
+  const SYMBOL_CONSTRUCTOR_PROBE = getRequiredRuntimeFunctionValueByLabel(
+    'symbol-constructor-object',
+    getRuntimeFunctionValuesByLabel(),
+  );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);
@@ -121,12 +129,12 @@ describe('resolveSubmitterBatchesForTransactions symbol constructor probes', () 
           ? async (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Symbol;
+              return SYMBOL_CONSTRUCTOR_PROBE;
             }
           : (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Symbol;
+              return SYMBOL_CONSTRUCTOR_PROBE;
             },
       },
       registry: {
@@ -258,12 +266,12 @@ describe('resolveSubmitterBatchesForTransactions symbol constructor probes', () 
           ? async (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Symbol;
+              return SYMBOL_CONSTRUCTOR_PROBE;
             }
           : (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Symbol;
+              return SYMBOL_CONSTRUCTOR_PROBE;
             },
       },
       registry: {
