@@ -3203,6 +3203,44 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('accepts all canonical protocol enum values during protocol validation', () => {
+    const readerAnyForProtocol = (
+      protocol: ProtocolType,
+    ): {
+      resolveProtocolTypeForWarpRoute: (
+        routeName: string,
+        chain: string,
+      ) => ProtocolType | null;
+    } =>
+      new SquadsTransactionReader(
+        {
+          tryGetProtocol: () => protocol,
+        } as unknown as MultiProtocolProvider,
+        {
+          resolveCoreProgramIds: () => ({
+            mailbox: 'mailbox-program-id',
+            multisig_ism_message_id: 'multisig-ism-program-id',
+          }),
+        },
+      ) as unknown as {
+        resolveProtocolTypeForWarpRoute: (
+          routeName: string,
+          chain: string,
+        ) => ProtocolType | null;
+      };
+
+    const canonicalProtocolTypes = Object.values(
+      ProtocolType,
+    ) as ProtocolType[];
+    for (let index = 0; index < canonicalProtocolTypes.length; index += 1) {
+      const protocol = canonicalProtocolTypes[index];
+      const resolved = readerAnyForProtocol(
+        protocol,
+      ).resolveProtocolTypeForWarpRoute('routeA', 'solanamainnet');
+      expect(resolved).to.equal(protocol);
+    }
+  });
+
   it('throws contextual errors for malformed protocol lookup value types', () => {
     const mpp = {
       tryGetProtocol: () => 1,

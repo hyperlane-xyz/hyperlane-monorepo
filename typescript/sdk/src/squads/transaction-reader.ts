@@ -106,7 +106,16 @@ const SET_ADD = Set.prototype.add;
 const MAP_HAS = Map.prototype.has;
 const MAP_GET = Map.prototype.get;
 const MAP_SET = Map.prototype.set;
-const VALID_PROTOCOL_TYPES = new Set(Object.values(ProtocolType));
+const VALID_PROTOCOL_TYPES = new Set<ProtocolType>([
+  ProtocolType.Ethereum,
+  ProtocolType.Sealevel,
+  ProtocolType.Cosmos,
+  ProtocolType.CosmosNative,
+  ProtocolType.Starknet,
+  ProtocolType.Radix,
+  ProtocolType.Aleo,
+  ProtocolType.Unknown,
+]);
 
 function getErrorMessageFromErrorInstance(error: unknown): string | undefined {
   const { matches: errorIsErrorInstance, readFailed: errorInstanceReadFailed } =
