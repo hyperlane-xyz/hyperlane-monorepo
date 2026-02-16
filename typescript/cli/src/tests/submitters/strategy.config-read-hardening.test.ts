@@ -184,4 +184,43 @@ describe('readChainSubmissionStrategyConfig hardening', () => {
       }
     }
   });
+
+  it('throws when chain submitter exists only on Object prototype', async () => {
+    const strategyPath = createStrategyPath({
+      [CHAIN]: {},
+    });
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: {
+        type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN,
+      },
+    });
+
+    try {
+      let didThrow = false;
+      try {
+        await readChainSubmissionStrategyConfig(strategyPath);
+      } catch {
+        didThrow = true;
+      }
+      expect(didThrow).to.equal(true);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as Record<string, unknown>).submitter;
+      }
+    }
+  });
 });

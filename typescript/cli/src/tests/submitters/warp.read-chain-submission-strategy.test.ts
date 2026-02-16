@@ -184,4 +184,37 @@ describe('warp readChainSubmissionStrategy hardening', () => {
       }
     }
   });
+
+  it('throws when chain submitter exists only on Object prototype', () => {
+    const strategyPath = createStrategyPath({
+      [CHAIN]: {},
+    });
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: {
+        type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN,
+      },
+    });
+
+    try {
+      expect(() => readChainSubmissionStrategy(strategyPath)).to.throw();
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as Record<string, unknown>).submitter;
+      }
+    }
+  });
 });
