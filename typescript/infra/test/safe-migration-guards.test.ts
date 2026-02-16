@@ -46148,7 +46148,11 @@ describe('Safe migration guards', () => {
   });
 
   it('keeps infra required safe helper allowlist aligned with sdk allowlist', () => {
-    const sdkRequiredAllowlist = new Set(getSdkRequiredSafeExportAllowlist());
+    const sdkRequiredAllowlistEntries = getSdkRequiredSafeExportAllowlist();
+    const sdkRequiredAllowlist = new Set(sdkRequiredAllowlistEntries);
+    expect(sdkRequiredAllowlist.size).to.equal(
+      sdkRequiredAllowlistEntries.length,
+    );
     expect(sdkRequiredAllowlist.size).to.be.greaterThan(
       0,
       'Expected sdk required safe export allowlist to be non-empty',
@@ -46185,7 +46189,11 @@ describe('Safe migration guards', () => {
   });
 
   it('keeps sdk non-runtime safe helpers excluded from runtime-required set', () => {
-    const sdkNonRuntimeAllowlist = getSdkNonRuntimeSafeExportAllowlist();
+    const sdkNonRuntimeAllowlistEntries = getSdkNonRuntimeSafeExportAllowlist();
+    const sdkNonRuntimeAllowlist = sdkNonRuntimeAllowlistEntries;
+    expect(new Set(sdkNonRuntimeAllowlistEntries).size).to.equal(
+      sdkNonRuntimeAllowlistEntries.length,
+    );
     const sdkNonRuntimeAllowlistSet = new Set(sdkNonRuntimeAllowlist);
     const sdkRequiredAllowlist = new Set(getSdkRequiredSafeExportAllowlist());
     const runtimeRequiredExports = REQUIRED_SAFE_HELPER_EXPORTS.filter(

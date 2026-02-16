@@ -45932,8 +45932,10 @@ describe('Gnosis Safe migration guards', () => {
   });
 
   it('keeps sdk required safe helper allowlist aligned with infra allowlist', () => {
-    const infraRequiredAllowlist = new Set(
-      getInfraRequiredSafeHelperAllowlist(),
+    const infraRequiredAllowlistEntries = getInfraRequiredSafeHelperAllowlist();
+    const infraRequiredAllowlist = new Set(infraRequiredAllowlistEntries);
+    expect(infraRequiredAllowlist.size).to.equal(
+      infraRequiredAllowlistEntries.length,
     );
     expect(infraRequiredAllowlist.size).to.be.greaterThan(
       0,
