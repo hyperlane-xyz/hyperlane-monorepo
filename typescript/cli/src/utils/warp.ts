@@ -111,7 +111,16 @@ export async function resolveWarpRouteId({
 
   assert(!context.skipConfirmation, 'Warp route ID is required (use -w)');
 
-  const { ids: routeIds } = filterWarpRoutesIds(source);
+  let routeIds: string[];
+
+  if (chains && chains.length > 0) {
+    const warpConfigs = await context.registry.getWarpRoutes();
+    const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
+    routeIds = Object.keys(filtered);
+  } else {
+    const result = filterWarpRoutesIds(source);
+    routeIds = result.ids;
+  }
 
   assert(routeIds.length !== 0, 'No warp routes found in registry');
 

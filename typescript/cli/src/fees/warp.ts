@@ -93,7 +93,9 @@ export async function runWarpRouteFees({
   for (const token of warpCoreConfig.tokens) {
     const chainAddresses = registryAddresses[token.chainName];
     if (chainAddresses?.mailbox) {
-      mailboxMetadata[token.chainName] = { mailbox: chainAddresses.mailbox };
+      mailboxMetadata[token.chainName] = {
+        mailbox: chainAddresses.mailbox,
+      };
     }
   }
   const multiProviderWithMailbox =
