@@ -60,6 +60,7 @@ const SQUADS_CONFIG_ENTRIES = untypedSquadsConfigEntries as Array<
 >;
 const ARRAY_MAP = Array.prototype.map;
 const ARRAY_JOIN = Array.prototype.join;
+const ARRAY_PUSH = Array.prototype.push;
 const STRING_TRIM = String.prototype.trim;
 
 function readStaticSquadsConfigFieldOrThrow(
@@ -146,6 +147,10 @@ function arrayJoinValues(
   separator: string,
 ): string {
   return ARRAY_JOIN.call(values, separator);
+}
+
+function arrayPushValue<Value>(values: Value[], value: Value): number {
+  return ARRAY_PUSH.call(values, value);
 }
 
 export function getSquadsChains(): SquadsChainName[] {
@@ -236,7 +241,7 @@ function normalizeChainListValues(
         `Expected ${listLabel}[${index}] to be a string, got ${getUnknownValueTypeName(chain)}`,
       );
     }
-    normalizedChains.push(chain);
+    arrayPushValue(normalizedChains, chain);
   }
 
   return normalizedChains;
@@ -269,9 +274,9 @@ function partitionNormalizedSquadsChains(chains: readonly string[]): {
     setAddValue(seenChains, normalizedChain);
 
     if (isSquadsChain(normalizedChain)) {
-      squadsChains.push(normalizedChain);
+      arrayPushValue(squadsChains, normalizedChain);
     } else {
-      nonSquadsChains.push(normalizedChain);
+      arrayPushValue(nonSquadsChains, normalizedChain);
     }
   }
 
@@ -294,7 +299,7 @@ function formatUniqueChainNamesForDisplay(chains: readonly string[]): string[] {
     }
 
     setAddValue(seenChainNames, formattedChain);
-    formattedUniqueChainNames.push(formattedChain);
+    arrayPushValue(formattedUniqueChainNames, formattedChain);
   }
 
   return formattedUniqueChainNames;
