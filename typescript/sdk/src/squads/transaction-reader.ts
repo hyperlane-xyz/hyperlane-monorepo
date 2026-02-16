@@ -46,6 +46,7 @@ import {
   SquadsInstructionType,
   decodePermissions,
   getSquadProposalAccount,
+  inspectPromiseLikeThenValue,
   isConfigTransaction,
   isVaultTransaction,
   parseSquadProposalTransactionIndex,
@@ -222,33 +223,6 @@ function formatIntegerValidationValue(value: unknown): string {
 function isRecordObject(value: unknown): value is Record<string, unknown> {
   const { isArray, readFailed } = inspectArrayValue(value);
   return typeof value === 'object' && value !== null && !readFailed && !isArray;
-}
-
-function getThenValue(value: unknown): {
-  thenValue: unknown;
-  readError: unknown | undefined;
-} {
-  if (
-    (typeof value !== 'object' && typeof value !== 'function') ||
-    value === null
-  ) {
-    return {
-      thenValue: undefined,
-      readError: undefined,
-    };
-  }
-
-  try {
-    return {
-      thenValue: (value as { then?: unknown }).then,
-      readError: undefined,
-    };
-  } catch (error) {
-    return {
-      thenValue: undefined,
-      readError: error,
-    };
-  }
 }
 
 function parseCoreProgramId(
@@ -696,7 +670,8 @@ export class SquadsTransactionReader {
       );
     }
 
-    const { thenValue, readError: thenReadError } = getThenValue(protocol);
+    const { thenValue, readError: thenReadError } =
+      inspectPromiseLikeThenValue(protocol);
     if (thenReadError) {
       throw new Error(
         `Failed to inspect protocol for warp route ${routeName} on ${chain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,
@@ -1292,7 +1267,8 @@ export class SquadsTransactionReader {
       `Invalid solana provider for ${chain}: expected object, got ${getUnknownValueTypeName(svmProvider)}`,
     );
 
-    const { thenValue, readError: thenReadError } = getThenValue(svmProvider);
+    const { thenValue, readError: thenReadError } =
+      inspectPromiseLikeThenValue(svmProvider);
     if (thenReadError) {
       throw new Error(
         `Failed to inspect solana provider for ${chain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,
@@ -1924,7 +1900,7 @@ export class SquadsTransactionReader {
     );
 
     const { thenValue, readError: thenReadError } =
-      getThenValue(coreProgramIds);
+      inspectPromiseLikeThenValue(coreProgramIds);
     assert(
       !thenReadError,
       `Failed to inspect core program ids for ${chain}: failed to read promise-like then field (${stringifyUnknownSquadsError(
@@ -2481,7 +2457,8 @@ export class SquadsTransactionReader {
         return null;
       }
 
-      const { thenValue, readError: thenReadError } = getThenValue(config);
+      const { thenValue, readError: thenReadError } =
+        inspectPromiseLikeThenValue(config);
       if (thenReadError) {
         rootLogger.warn(
           `Failed to inspect expected multisig config for ${chain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,
@@ -2543,7 +2520,8 @@ export class SquadsTransactionReader {
       );
     }
 
-    const { thenValue, readError: thenReadError } = getThenValue(remoteChain);
+    const { thenValue, readError: thenReadError } =
+      inspectPromiseLikeThenValue(remoteChain);
     if (thenReadError) {
       throw new Error(
         `Failed to inspect resolved ${label} for domain ${remoteDomain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,

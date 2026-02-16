@@ -204,7 +204,7 @@ function inspectArrayValue(value: unknown): {
   }
 }
 
-function inspectPromiseLikeThenValue(value: unknown): {
+export function inspectPromiseLikeThenValue(value: unknown): {
   thenValue: unknown;
   readError: unknown | undefined;
 } {
