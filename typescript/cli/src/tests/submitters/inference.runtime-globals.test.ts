@@ -109,6 +109,39 @@ describe('runtime global probe helpers', () => {
     }
   });
 
+  it('does not cache partial labels on transient file read failures', () => {
+    const baseDir = path.dirname(fileURLToPath(import.meta.url));
+    const syntheticFilePath = path.join(
+      baseDir,
+      'inference.synthetic-runtime-helper-file-read.test.ts',
+    );
+    const originalReadFileSync = fs.readFileSync;
+    let failedOnce = false;
+
+    (fs as any).readFileSync = ((targetPath: string, ...args: unknown[]) => {
+      if (
+        !failedOnce &&
+        path.basename(targetPath) === 'inference.function-edge-cases.test.ts'
+      ) {
+        failedOnce = true;
+        throw new Error('transient file read failure');
+      }
+      return (originalReadFileSync as any)(targetPath, ...args);
+    }) as typeof fs.readFileSync;
+
+    try {
+      const first =
+        getKnownObjectLikeProbeLabelsFromOtherTests(syntheticFilePath);
+      expect(first.has('arrow-function-object')).to.equal(false);
+
+      const second =
+        getKnownObjectLikeProbeLabelsFromOtherTests(syntheticFilePath);
+      expect(second.has('arrow-function-object')).to.equal(true);
+    } finally {
+      (fs as any).readFileSync = originalReadFileSync;
+    }
+  });
+
   it('exposes runtime function/object/primitive value maps with labeled keys', () => {
     const functionMap = getRuntimeFunctionValuesByLabel();
     const objectMap = getRuntimeObjectValuesByLabel();
