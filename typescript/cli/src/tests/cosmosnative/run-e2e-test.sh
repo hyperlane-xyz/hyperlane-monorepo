@@ -19,17 +19,16 @@ function resolve_docker_compose_cmd() {
 }
 
 function docker_compose() {
+  if [ "${#DOCKER_COMPOSE_CMD[@]}" -eq 0 ]; then
+    echo "Docker Compose command has not been resolved." >&2
+    return 1
+  fi
   "${DOCKER_COMPOSE_CMD[@]}" "$@"
 }
 
 function setup() {
   echo "Starting hyp chain for Cosmos Native E2E tests"
   docker_compose up --detach --wait
-
-  if [[ $? -ne 0 ]]; then
-    echo "Failure starting local cosmos chain"
-    exit 1
-  fi
 }
 
 function run() {
@@ -43,13 +42,17 @@ function run() {
 }
 
 function cleanup() {
-  docker_compose down
+  if [ "${#DOCKER_COMPOSE_CMD[@]}" -eq 0 ]; then
+    return 0
+  fi
+  docker_compose down || true
 }
+
+resolve_docker_compose_cmd
 
 # Ensure cleanup runs even on error
 trap cleanup EXIT
 
-resolve_docker_compose_cmd
 cleanup
 setup
 run
