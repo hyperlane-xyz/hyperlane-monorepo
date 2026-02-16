@@ -2797,40 +2797,40 @@ export class SquadsTransactionReader {
       } else if (types.isConfigActionAddSpendingLimit(action)) {
         let amountValue = '[invalid amount]';
         try {
-          amountValue = action.amount.toString();
+          const amountCandidate = readPropertyOrThrow(action, 'amount');
+          if (
+            amountCandidate === null ||
+            typeof amountCandidate === 'undefined'
+          ) {
+            throw new Error(
+              `Expected config-action spending-limit amount on ${chain} to be defined`,
+            );
+          }
+          amountValue = String(amountCandidate);
         } catch (error) {
           rootLogger.warn(
             `Failed to stringify config-action spending-limit amount on ${chain}: ${stringifyUnknownSquadsError(error)}`,
           );
         }
 
-        let mintValue: unknown;
-        try {
-          mintValue = action.mint;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read config-action spending-limit mint on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          mintValue = undefined;
-        }
-        let membersValue: unknown;
-        try {
-          membersValue = action.members;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read config-action spending-limit members on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          membersValue = [];
-        }
-        let destinationsValue: unknown;
-        try {
-          destinationsValue = action.destinations;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read config-action spending-limit destinations on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          destinationsValue = [];
-        }
+        const mintValue = this.readConfigActionField(
+          chain,
+          'config action spending-limit mint',
+          () => readPropertyOrThrow(action, 'mint'),
+          undefined,
+        );
+        const membersValue = this.readConfigActionField(
+          chain,
+          'config action spending-limit members',
+          () => readPropertyOrThrow(action, 'members'),
+          [],
+        );
+        const destinationsValue = this.readConfigActionField(
+          chain,
+          'config action spending-limit destinations',
+          () => readPropertyOrThrow(action, 'destinations'),
+          [],
+        );
         const vaultIndexValue = this.readConfigActionField(
           chain,
           'config action spending-limit vault index',
