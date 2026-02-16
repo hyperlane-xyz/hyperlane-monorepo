@@ -5,7 +5,6 @@
 export { AltVMJsonRpcSubmitter } from './AltVMJsonRpcSubmitter.js';
 export { AltVMCoreModule } from './AltVMCoreModule.js';
 export { AltVMCoreReader } from './AltVMCoreReader.js';
-export { coreModuleProvider } from './core-module.js';
 export {
   CoreArtifactReader,
   createCoreReader,
