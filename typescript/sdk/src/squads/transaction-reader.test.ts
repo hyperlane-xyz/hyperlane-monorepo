@@ -4676,6 +4676,84 @@ describe('squads transaction reader', () => {
     expect(result.args).to.deep.equal({});
   });
 
+  it('handles router-config arrays that throw during iteration while formatting enroll-routers instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const hostileRouters = new Proxy([{}], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error('routers unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'WarpRoute',
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.EnrollRemoteRouters
+        ],
+      data: {
+        routers: hostileRouters,
+      },
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(result.args).to.deep.equal({});
+  });
+
+  it('handles gas-config arrays that throw during iteration while formatting destination-gas instructions', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const hostileConfigs = new Proxy([{}], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error('gas configs unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    const result = readerAny.formatInstruction('solanamainnet', {
+      programId: SYSTEM_PROGRAM_ID,
+      programName: 'WarpRoute',
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.SetDestinationGasConfigs
+        ],
+      data: {
+        configs: hostileConfigs,
+      },
+      accounts: [],
+      warnings: [],
+    });
+
+    expect(result.args).to.deep.equal({});
+  });
+
   it('falls back to stable display labels when instruction metadata is malformed', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({

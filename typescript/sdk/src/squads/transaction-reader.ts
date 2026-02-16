@@ -3422,50 +3422,54 @@ export class SquadsTransactionReader {
         }
         const { isArray: routersAreArray, readFailed: routersReadFailed } =
           inspectArrayValue(routersCandidate);
-        if (!routersReadFailed && routersAreArray) {
-          for (const [index, router] of (
-            routersCandidate as readonly unknown[]
-          ).entries()) {
-            if (!isRecordObject(router)) {
-              rootLogger.warn(
-                `Skipping malformed warp enroll-router config at index ${index} on ${chain}: expected object, got ${getUnknownValueTypeName(router)}`,
-              );
-              continue;
-            }
-
-            let chainNameValue: unknown;
-            try {
-              chainNameValue = router.chainName;
-            } catch (error) {
-              rootLogger.warn(
-                `Failed to read warp enroll-router chain alias at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-              );
-              continue;
-            }
-
-            let domainValue: unknown;
-            try {
-              domainValue = router.domain;
-            } catch (error) {
-              rootLogger.warn(
-                `Failed to read warp enroll-router domain at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-              );
-              continue;
-            }
-
-            let routerValue: unknown;
-            try {
-              routerValue = router.router;
-            } catch (error) {
-              rootLogger.warn(
-                `Failed to read warp enroll-router address at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-              );
-              continue;
-            }
-
-            routers[this.getWarpDisplayKey(chainNameValue, domainValue)] =
-              this.normalizeWarpRouterValueForDisplay(routerValue);
+        const normalizedRouters =
+          !routersReadFailed && routersAreArray
+            ? this.normalizeVaultArrayField(
+                chain,
+                'warp enroll-routers configs',
+                routersCandidate as unknown[],
+              )
+            : [];
+        for (const [index, router] of normalizedRouters.entries()) {
+          if (!isRecordObject(router)) {
+            rootLogger.warn(
+              `Skipping malformed warp enroll-router config at index ${index} on ${chain}: expected object, got ${getUnknownValueTypeName(router)}`,
+            );
+            continue;
           }
+
+          let chainNameValue: unknown;
+          try {
+            chainNameValue = router.chainName;
+          } catch (error) {
+            rootLogger.warn(
+              `Failed to read warp enroll-router chain alias at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+            );
+            continue;
+          }
+
+          let domainValue: unknown;
+          try {
+            domainValue = router.domain;
+          } catch (error) {
+            rootLogger.warn(
+              `Failed to read warp enroll-router domain at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+            );
+            continue;
+          }
+
+          let routerValue: unknown;
+          try {
+            routerValue = router.router;
+          } catch (error) {
+            rootLogger.warn(
+              `Failed to read warp enroll-router address at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+            );
+            continue;
+          }
+
+          routers[this.getWarpDisplayKey(chainNameValue, domainValue)] =
+            this.normalizeWarpRouterValueForDisplay(routerValue);
         }
         tx.args = routers;
         break;
@@ -3489,50 +3493,54 @@ export class SquadsTransactionReader {
 
         const { isArray: configsAreArray, readFailed: configsReadFailed } =
           inspectArrayValue(configsCandidate);
-        if (!configsReadFailed && configsAreArray) {
-          for (const [index, config] of (
-            configsCandidate as readonly unknown[]
-          ).entries()) {
-            if (!isRecordObject(config)) {
-              rootLogger.warn(
-                `Skipping malformed warp gas config at index ${index} on ${chain}: expected object, got ${getUnknownValueTypeName(config)}`,
-              );
-              continue;
-            }
-
-            let chainNameValue: unknown;
-            try {
-              chainNameValue = config.chainName;
-            } catch (error) {
-              rootLogger.warn(
-                `Failed to read warp gas chain alias at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-              );
-              continue;
-            }
-
-            let domainValue: unknown;
-            try {
-              domainValue = config.domain;
-            } catch (error) {
-              rootLogger.warn(
-                `Failed to read warp gas domain at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-              );
-              continue;
-            }
-
-            let gasValue: unknown;
-            try {
-              gasValue = config.gas;
-            } catch (error) {
-              rootLogger.warn(
-                `Failed to read warp gas value at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-              );
-              continue;
-            }
-
-            gasConfigs[this.getWarpDisplayKey(chainNameValue, domainValue)] =
-              this.normalizeWarpGasValueForDisplay(gasValue);
+        const normalizedGasConfigs =
+          !configsReadFailed && configsAreArray
+            ? this.normalizeVaultArrayField(
+                chain,
+                'warp gas configs',
+                configsCandidate as unknown[],
+              )
+            : [];
+        for (const [index, config] of normalizedGasConfigs.entries()) {
+          if (!isRecordObject(config)) {
+            rootLogger.warn(
+              `Skipping malformed warp gas config at index ${index} on ${chain}: expected object, got ${getUnknownValueTypeName(config)}`,
+            );
+            continue;
           }
+
+          let chainNameValue: unknown;
+          try {
+            chainNameValue = config.chainName;
+          } catch (error) {
+            rootLogger.warn(
+              `Failed to read warp gas chain alias at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+            );
+            continue;
+          }
+
+          let domainValue: unknown;
+          try {
+            domainValue = config.domain;
+          } catch (error) {
+            rootLogger.warn(
+              `Failed to read warp gas domain at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+            );
+            continue;
+          }
+
+          let gasValue: unknown;
+          try {
+            gasValue = config.gas;
+          } catch (error) {
+            rootLogger.warn(
+              `Failed to read warp gas value at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+            );
+            continue;
+          }
+
+          gasConfigs[this.getWarpDisplayKey(chainNameValue, domainValue)] =
+            this.normalizeWarpGasValueForDisplay(gasValue);
         }
         tx.args = gasConfigs;
         break;
