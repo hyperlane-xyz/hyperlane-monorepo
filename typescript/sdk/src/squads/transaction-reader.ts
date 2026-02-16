@@ -61,6 +61,7 @@ import { resolveSquadsChainName, type SquadsChainName } from './config.js';
 import {
   inspectArrayValue,
   inspectInstanceOf,
+  inspectPropertyValue,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
 
@@ -423,12 +424,11 @@ export class SquadsTransactionReader {
     }
 
     for (const [routeName, warpRoute] of warpRouteEntries) {
-      let routeTokens: unknown;
-      try {
-        routeTokens = (warpRoute as { tokens?: unknown }).tokens;
-      } catch (error) {
+      const { propertyValue: routeTokens, readError: routeTokensReadError } =
+        inspectPropertyValue(warpRoute, 'tokens');
+      if (routeTokensReadError) {
         rootLogger.warn(
-          `Failed to read warp route tokens for ${routeName}: ${stringifyUnknownSquadsError(error)}`,
+          `Failed to read warp route tokens for ${routeName}: ${stringifyUnknownSquadsError(routeTokensReadError)}`,
         );
         continue;
       }
@@ -1938,13 +1938,15 @@ export class SquadsTransactionReader {
 
     const instructions: SquadsGovernTransaction[] = [];
     let actions: unknown;
-    try {
-      actions = (configTx as { actions?: unknown }).actions;
-    } catch (error) {
+    const { propertyValue: actionsValue, readError: actionsReadError } =
+      inspectPropertyValue(configTx, 'actions');
+    if (actionsReadError) {
       rootLogger.warn(
-        `Failed to read config actions for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read config actions for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(actionsReadError)}`,
       );
       actions = [];
+    } else {
+      actions = actionsValue;
     }
 
     const { isArray: actionsAreArray, readFailed: actionsReadFailed } =
@@ -3091,14 +3093,15 @@ export class SquadsTransactionReader {
     }
 
     let toBase58Value: unknown;
-    try {
-      toBase58Value = (value as { toBase58?: unknown }).toBase58;
-    } catch (error) {
+    const { propertyValue: toBase58Candidate, readError: toBase58ReadError } =
+      inspectPropertyValue(value, 'toBase58');
+    if (toBase58ReadError) {
       rootLogger.warn(
-        `Failed to read ${label} toBase58 on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read ${label} toBase58 on ${chain}: ${stringifyUnknownSquadsError(toBase58ReadError)}`,
       );
       return '[invalid address]';
     }
+    toBase58Value = toBase58Candidate;
 
     if (typeof toBase58Value !== 'function') {
       rootLogger.warn(
@@ -3168,10 +3171,9 @@ export class SquadsTransactionReader {
       return '[invalid program id]';
     }
 
-    let toBase58Value: unknown;
-    try {
-      toBase58Value = (programId as { toBase58?: unknown }).toBase58;
-    } catch {
+    const { propertyValue: toBase58Value, readError: toBase58ReadError } =
+      inspectPropertyValue(programId, 'toBase58');
+    if (toBase58ReadError) {
       return '[invalid program id]';
     }
 
