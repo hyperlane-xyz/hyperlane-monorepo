@@ -16,10 +16,12 @@ import { resolveSubmitterBatchesForTransactions } from '../../submitters/inferen
 describe('resolveSubmitterBatchesForTransactions log position getter fallback', () => {
   const CHAIN = 'anvil2';
   const ORIGIN_CHAIN = 'anvil3';
+  const ORIGIN_CHAIN_ALT = 'anvil4';
   const SIGNER = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
   const ICA_OWNER = '0x8787878787878787878787878787878787878787';
   const DESTINATION_ROUTER = '0x9090909090909090909090909090909090909090';
   const ORIGIN_ROUTER = '0x9191919191919191919191919191919191919191';
+  const ORIGIN_ROUTER_ALT = '0x9494949494949494949494949494949494949494';
   const MALFORMED_ORIGIN_ROUTER =
     '0x9292929292929292929292929292929292929292';
   const TX = {
@@ -434,6 +436,94 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
       expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
       expect(provider.getLogs.callCount).to.equal(0);
       expect(icaRouterStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
+  it('skips throwing origin registry router getters and still infers fallback ICA from later origins', async () => {
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => ICA_OWNER,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+    const destinationProvider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+    const originProvider = {};
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === DESTINATION_ROUTER.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+            interface: {
+              parseLog: () => {
+                throw new Error('no logs should be parsed');
+              },
+            },
+          } as any;
+        }
+        if (address.toLowerCase() === ORIGIN_ROUTER_ALT.toLowerCase()) {
+          return {
+            'getRemoteInterchainAccount(address,address,address)': async () =>
+              ICA_OWNER,
+          } as any;
+        }
+        throw new Error(`unexpected router ${address}`);
+      });
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: (chain: string) =>
+          chain === CHAIN ? destinationProvider : originProvider,
+        getChainName: () => ORIGIN_CHAIN_ALT,
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: DESTINATION_ROUTER,
+          },
+          [ORIGIN_CHAIN]: {
+            get interchainAccountRouter() {
+              throw new Error(
+                'origin router getter should not abort fallback derivation',
+              );
+            },
+          },
+          [ORIGIN_CHAIN_ALT]: {
+            interchainAccountRouter: ORIGIN_ROUTER_ALT,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      expect((batches[0].config.submitter as any).chain).to.equal(
+        ORIGIN_CHAIN_ALT,
+      );
+      expect(destinationProvider.getLogs.callCount).to.equal(1);
+      expect(icaRouterStub.callCount).to.equal(2);
     } finally {
       ownableStub.restore();
       safeStub.restore();

@@ -310,6 +310,18 @@ function getParsedLogArg(
   }
 }
 
+function getObjectField(value: unknown, field: string): unknown {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return undefined;
+  }
+
+  try {
+    return (value as Record<string, unknown>)[field];
+  } catch {
+    return undefined;
+  }
+}
+
 function normalizeEvmAddressFromUnknown(value: unknown): Address | null {
   if (typeof value !== 'string' && !isBoxedStringObject(value)) {
     return null;
@@ -826,8 +838,10 @@ async function inferIcaSubmitterFromAccount({
 
   const registryAddresses = await getRegistryAddresses(context, cache);
   const destinationAddresses = registryAddresses[destinationChain];
-  const destinationRouterAddress =
-    destinationAddresses?.interchainAccountRouter;
+  const destinationRouterAddress = getObjectField(
+    destinationAddresses,
+    'interchainAccountRouter',
+  );
   if (!destinationRouterAddress) {
     cache.icaByChainAndAddress.set(cacheId, null);
     return null;
@@ -982,7 +996,10 @@ async function inferIcaSubmitterFromAccount({
           continue;
         }
 
-        const originRouterAddress = originAddresses?.interchainAccountRouter;
+        const originRouterAddress = getObjectField(
+          originAddresses,
+          'interchainAccountRouter',
+        );
         if (!originRouterAddress) {
           continue;
         }
@@ -1204,7 +1221,7 @@ async function inferTimelockProposerSubmitter({
   );
   const registryAddresses = await getRegistryAddresses(context, cache);
   const destinationRouterAddressCandidate = normalizeEvmAddressFromUnknown(
-    registryAddresses[chain]?.interchainAccountRouter ?? '',
+    getObjectField(registryAddresses[chain], 'interchainAccountRouter') ?? '',
   );
   const destinationRouterAddress =
     destinationRouterAddressCandidate &&
@@ -1274,7 +1291,10 @@ async function inferTimelockProposerSubmitter({
           continue;
         }
 
-        const originRouterAddress = originAddresses?.interchainAccountRouter;
+        const originRouterAddress = getObjectField(
+          originAddresses,
+          'interchainAccountRouter',
+        );
         if (!originRouterAddress) {
           continue;
         }
@@ -1365,7 +1385,10 @@ async function inferTimelockProposerSubmitter({
         continue;
       }
 
-      const originRouterAddress = originAddresses?.interchainAccountRouter;
+      const originRouterAddress = getObjectField(
+        originAddresses,
+        'interchainAccountRouter',
+      );
       if (!originRouterAddress) {
         continue;
       }
