@@ -307,13 +307,12 @@ export function normalizeSquadsAddressValue(
       };
     }
 
-    let toBase58Candidate: unknown;
-    try {
-      toBase58Candidate = (value as { toBase58?: unknown }).toBase58;
-    } catch (error) {
+    const { propertyValue: toBase58Candidate, readError: toBase58ReadError } =
+      inspectPropertyValue(value, 'toBase58');
+    if (toBase58ReadError) {
       return {
         address: undefined,
-        error: `failed to read toBase58() method (${formatUnknownErrorForMessage(error)})`,
+        error: `failed to read toBase58() method (${formatUnknownErrorForMessage(toBase58ReadError)})`,
       };
     }
     if (typeof toBase58Candidate !== 'function') {
