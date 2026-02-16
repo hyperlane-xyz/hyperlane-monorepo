@@ -493,6 +493,23 @@ describe('squads config', () => {
     );
   });
 
+  it('rejects malformed unsupported-chain list lengths', () => {
+    const hostileUnsupportedChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          return 1n;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
+    ).to.throw(
+      'Malformed unsupported squads chains length: expected non-negative safe integer, got bigint',
+    );
+  });
+
   it('uses deterministic placeholder when configured-chain length getter throws generic-object Error messages', () => {
     const hostileConfiguredChains = new Proxy([], {
       get(target, property, receiver) {
@@ -530,6 +547,26 @@ describe('squads config', () => {
       ),
     ).to.throw(
       'Failed to read configured squads chains length: [unstringifiable error]',
+    );
+  });
+
+  it('rejects malformed configured-chain list lengths', () => {
+    const hostileConfiguredChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          return 1n;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        hostileConfiguredChains,
+      ),
+    ).to.throw(
+      'Malformed configured squads chains length: expected non-negative safe integer, got bigint',
     );
   });
 
@@ -686,6 +723,21 @@ describe('squads config', () => {
 
     expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
       'Failed to read squads chains length: [unstringifiable error]',
+    );
+  });
+
+  it('rejects malformed squads-chain list lengths during resolve', () => {
+    const hostileResolveChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          return 1n;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
+      'Malformed squads chains length: expected non-negative safe integer, got bigint',
     );
   });
 
