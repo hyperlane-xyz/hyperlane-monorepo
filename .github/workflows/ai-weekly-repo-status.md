@@ -22,13 +22,13 @@ You are a reporting agent for the Hyperlane organization. Every Monday, generate
 
 Query these repos via the GitHub API:
 
-| Repo                               | Short name |
-| ---------------------------------- | ---------- |
-| `hyperlane-xyz/hyperlane-monorepo` | monorepo   |
-| `hyperlane-xyz/hyperlane-warp-ui`  | warp-ui    |
-| `hyperlane-xyz/hyperlane-explorer` | explorer   |
-| `hyperlane-xyz/hyperlane-registry` | registry   |
-| `hyperlane-xyz/v4-docs`            | docs       |
+| Repo                                       | Short name |
+| ------------------------------------------ | ---------- |
+| `hyperlane-xyz/hyperlane-monorepo`         | monorepo   |
+| `hyperlane-xyz/hyperlane-warp-ui-template` | warp-ui    |
+| `hyperlane-xyz/hyperlane-explorer`         | explorer   |
+| `hyperlane-xyz/hyperlane-registry`         | registry   |
+| `hyperlane-xyz/v4-docs`                    | docs       |
 
 ## Step 1: Gather Data
 
