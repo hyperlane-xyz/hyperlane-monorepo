@@ -358,6 +358,33 @@ function bytes32ToEvmAddressFromUnknown(value: unknown): Address | null {
   }
 }
 
+function normalizeChainNameFromUnknown(value: unknown): ChainName | null {
+  if (typeof value !== 'string' && !isBoxedStringObject(value)) {
+    return null;
+  }
+
+  try {
+    const rawChainName = value.toString();
+    if (typeof rawChainName !== 'string') {
+      return null;
+    }
+    if (rawChainName.length > MAX_OVERRIDE_KEY_LENGTH) {
+      return null;
+    }
+    const trimmedChainName = rawChainName.trim();
+    if (
+      trimmedChainName.length === 0 ||
+      trimmedChainName.length > MAX_OVERRIDE_KEY_LENGTH ||
+      trimmedChainName.includes('\0')
+    ) {
+      return null;
+    }
+    return trimmedChainName as ChainName;
+  } catch {
+    return null;
+  }
+}
+
 function toHyperlaneDomainId(value: unknown): number | null {
   const normalizedDomain = toNonNegativeIntegerBigInt(value);
   if (normalizedDomain === null) {
@@ -578,7 +605,13 @@ function getChainNameForDomain(
   }
 
   try {
-    const chainName = context.multiProvider.getChainName(domain);
+    const chainName = normalizeChainNameFromUnknown(
+      context.multiProvider.getChainName(domain),
+    );
+    if (!chainName) {
+      cache.chainNameByDomain.set(domain, null);
+      return null;
+    }
     cache.chainNameByDomain.set(domain, chainName);
     return chainName;
   } catch {

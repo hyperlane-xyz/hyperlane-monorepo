@@ -33,7 +33,14 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
   const malformedOriginRouterBytes32 =
     `0x000000000000000000000000${MALFORMED_ORIGIN_ROUTER.slice(2)}` as const;
 
-  async function resolveFromLogs(logs: any[]) {
+  async function resolveFromLogs(
+    logs: any[],
+    options?: {
+      getChainName?: (domainId: number) => unknown;
+      expectedSubmitterType?: TxSubmitterType;
+      expectedSubmitterChain?: string;
+    },
+  ) {
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => ICA_OWNER,
     } as any);
@@ -104,6 +111,9 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
 
     const getSignerAddressStub = sinon.stub().resolves(SIGNER);
     const getChainNameStub = sinon.stub().callsFake((domainId: number) => {
+      if (options?.getChainName) {
+        return options.getChainName(domainId);
+      }
       if (domainId === 31347) {
         return ORIGIN_CHAIN;
       }
@@ -135,10 +145,16 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
       expect(batches).to.have.length(1);
       expect(ownableStub.callCount).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(1);
+      const expectedSubmitterType =
+        options?.expectedSubmitterType ?? TxSubmitterType.INTERCHAIN_ACCOUNT;
       expect(batches[0].config.submitter.type).to.equal(
-        TxSubmitterType.INTERCHAIN_ACCOUNT,
+        expectedSubmitterType,
       );
-      expect((batches[0].config.submitter as any).chain).to.equal(ORIGIN_CHAIN);
+      if (expectedSubmitterType === TxSubmitterType.INTERCHAIN_ACCOUNT) {
+        expect((batches[0].config.submitter as any).chain).to.equal(
+          options?.expectedSubmitterChain ?? ORIGIN_CHAIN,
+        );
+      }
       return batches[0].config.submitter as any;
     } finally {
       ownableStub.restore();
@@ -680,6 +696,74 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
     expect(
       inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
     ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
+
+  it('accepts boxed chain names from domain lookup during ICA event inference', async () => {
+    const inferredSubmitter = await resolveFromLogs(
+      [
+        {
+          __validLog: true,
+          topics: ['0xboxed-chain-name'],
+          data: '0x',
+          blockNumber: 656,
+          transactionIndex: 0,
+          logIndex: 0,
+        },
+      ],
+      {
+        getChainName: (domainId: number) => {
+          if (domainId === 31347) {
+            return new String(` ${ORIGIN_CHAIN} `);
+          }
+          throw new Error(`unknown domain ${domainId}`);
+        },
+        expectedSubmitterChain: ORIGIN_CHAIN,
+      },
+    );
+
+    expect(inferredSubmitter.chain).to.equal(ORIGIN_CHAIN);
+  });
+
+  it('falls back to jsonRpc when domain lookup returns overlong chain name', async () => {
+    const inferredSubmitter = await resolveFromLogs(
+      [
+        {
+          __validLog: true,
+          topics: ['0xoverlong-chain-name'],
+          data: '0x',
+          blockNumber: 657,
+          transactionIndex: 0,
+          logIndex: 0,
+        },
+      ],
+      {
+        getChainName: () => 'x'.repeat(5000),
+        expectedSubmitterType: TxSubmitterType.JSON_RPC,
+      },
+    );
+
+    expect(inferredSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('falls back to jsonRpc when domain lookup returns null-byte chain name', async () => {
+    const inferredSubmitter = await resolveFromLogs(
+      [
+        {
+          __validLog: true,
+          topics: ['0xnull-byte-chain-name'],
+          data: '0x',
+          blockNumber: 658,
+          transactionIndex: 0,
+          logIndex: 0,
+        },
+      ],
+      {
+        getChainName: () => `${ORIGIN_CHAIN}\0`,
+        expectedSubmitterType: TxSubmitterType.JSON_RPC,
+      },
+    );
+
+    expect(inferredSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
   it('infers ICA fallback derivation when origin protocol is uppercase string', async () => {
