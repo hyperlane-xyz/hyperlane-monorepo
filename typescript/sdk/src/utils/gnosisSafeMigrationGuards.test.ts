@@ -870,20 +870,46 @@ function readStaticObjectLiteralPropertyKeys(
   return propertyKeys;
 }
 
-function readStaticArrayLiteralPropertyKeys(
+function readStaticArrayIndex(propertyKey: string): number | undefined {
+  if (!/^(0|[1-9]\d*)$/.test(propertyKey)) return undefined;
+  const index = Number(propertyKey);
+  if (!Number.isSafeInteger(index)) return undefined;
+  return index;
+}
+
+function readStaticArrayInMembership(
+  propertyKey: string,
   arrayLiteral: ts.ArrayLiteralExpression,
-): Set<string> | typeof STATIC_PRIMITIVE_UNKNOWN {
-  const propertyKeys = new Set<string>(['length']);
+): boolean | typeof STATIC_PRIMITIVE_UNKNOWN {
+  if (propertyKey === 'length') return true;
+
+  const propertyIndex = readStaticArrayIndex(propertyKey);
+  const explicitIndices = new Set<number>();
+  let firstSpreadIndex: number | undefined;
+
   for (let index = 0; index < arrayLiteral.elements.length; index += 1) {
     const element = arrayLiteral.elements[index];
     if (ts.isSpreadElement(element)) {
-      return STATIC_PRIMITIVE_UNKNOWN;
+      if (firstSpreadIndex === undefined) {
+        firstSpreadIndex = index;
+      }
+      continue;
     }
     if (!ts.isOmittedExpression(element)) {
-      propertyKeys.add(String(index));
+      explicitIndices.add(index);
     }
   }
-  return propertyKeys;
+
+  if (firstSpreadIndex === undefined) {
+    if (propertyIndex === undefined) return false;
+    return explicitIndices.has(propertyIndex);
+  }
+
+  if (propertyIndex === undefined) return false;
+  if (propertyIndex < firstSpreadIndex) {
+    return explicitIndices.has(propertyIndex);
+  }
+  return STATIC_PRIMITIVE_UNKNOWN;
 }
 
 function readStaticInMembership(
@@ -900,11 +926,7 @@ function readStaticInMembership(
     return rightKeys.has(propertyKey);
   }
   if (ts.isArrayLiteralExpression(unwrapped)) {
-    const rightKeys = readStaticArrayLiteralPropertyKeys(unwrapped);
-    if (rightKeys === STATIC_PRIMITIVE_UNKNOWN) {
-      return STATIC_PRIMITIVE_UNKNOWN;
-    }
-    return rightKeys.has(propertyKey);
+    return readStaticArrayInMembership(propertyKey, unwrapped);
   }
 
   if (ts.isConditionalExpression(unwrapped)) {
@@ -7023,6 +7045,75 @@ describe('Gnosis Safe migration guards', () => {
       './fixtures/guard-module.js@fixture.ts',
     );
     expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality in spread-array length predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const rest = globalThis as any;',
+      "if (((('length' in ['safe', ...rest]) === true))) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality in spread-array pre-spread index predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const rest = globalThis as any;',
+      "if (((('0' in ['safe', ...rest]) === true))) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-comparison in spread-array post-spread predicates conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const rest = globalThis as any;',
+      "const baseline = require('./fixtures/guard-module.js');",
+      "if (((('2' in ['safe', ...rest]) === true))) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
       './fixtures/other-module.js@fixture.ts',
     );
   });
@@ -17049,6 +17140,60 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality in spread-array length predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const rest = globalThis as any;',
+      "if (((('length' in ['safe', ...rest]) === true))) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats strict-equality in spread-array pre-spread index predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const rest = globalThis as any;',
+      "if (((('0' in ['safe', ...rest]) === true))) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-comparison in spread-array post-spread predicates conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const rest = globalThis as any;',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      "if (((('2' in ['safe', ...rest]) === true))) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('treats wrapped in array predicates with matching unknown selectors as deterministic for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -21200,6 +21345,55 @@ describe('Gnosis Safe migration guards', () => {
     );
     expect(references).to.include('default@./fixtures/other-module.js');
     expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality in spread-array length predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const rest = globalThis as any;',
+      "if (((('length' in ['safe', ...rest]) === true))) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality in spread-array pre-spread index predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const rest = globalThis as any;',
+      "if (((('0' in ['safe', ...rest]) === true))) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-comparison in spread-array post-spread predicates conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const rest = globalThis as any;',
+      "if (((('2' in ['safe', ...rest]) === true))) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
   it('treats wrapped in array predicates with matching unknown selectors as deterministic for module-source aliases in symbol sources', () => {
