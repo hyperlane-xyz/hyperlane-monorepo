@@ -252,6 +252,23 @@ async function hasSignerForChain(
   cache: Cache,
   chain: ChainName,
 ): Promise<boolean> {
+  /**
+   * Signer availability probe with aggressive memoization and defensive narrowing.
+   *
+   * Why this exists:
+   * - MultiProvider implementations in the wild return many `tryGetSigner` shapes:
+   *   direct signer objects, promises, thenables, primitives, constructor functions,
+   *   malformed objects, and values with throwing getters.
+   * - Inference must never throw for malformed signer probes; it must degrade to
+   *   "no signer" and ultimately JSON-RPC fallback.
+   *
+   * Rules:
+   * - Cache by chain so repeated inference for mixed tx batches does one probe.
+   * - Prefer `getSignerAddress` when available and valid.
+   * - If signer address lookup fails, try best-effort `signer.getAddress()`.
+   * - Treat zero address / malformed addresses as no signer.
+   * - Catch all probe failures and degrade gracefully.
+   */
   const cached = cache.signerByChain.get(chain);
   if (cached !== undefined) {
     return cached;
@@ -379,7 +396,9 @@ function isEthereumProtocolChain(
 async function getRegistryAddresses(
   context: WriteCommandContext,
   cache: Cache,
-): Promise<Awaited<ReturnType<WriteCommandContext['registry']['getAddresses']>>> {
+): Promise<
+  Awaited<ReturnType<WriteCommandContext['registry']['getAddresses']>>
+> {
   if (cache.registryAddresses) {
     return cache.registryAddresses;
   }
@@ -477,7 +496,10 @@ async function getOwnerForTarget(
   }
 
   try {
-    const ownerAddress = await Ownable__factory.connect(target, provider).owner();
+    const ownerAddress = await Ownable__factory.connect(
+      target,
+      provider,
+    ).owner();
     const normalizedOwner = tryNormalizeEvmAddress(ownerAddress);
     const resolvedOwner =
       normalizedOwner && !eqAddress(normalizedOwner, EVM_ADDRESS_ZERO)
@@ -598,7 +620,8 @@ async function inferIcaSubmitterFromAccount({
 
   const registryAddresses = await getRegistryAddresses(context, cache);
   const destinationAddresses = registryAddresses[destinationChain];
-  const destinationRouterAddress = destinationAddresses?.interchainAccountRouter;
+  const destinationRouterAddress =
+    destinationAddresses?.interchainAccountRouter;
   if (!destinationRouterAddress) {
     cache.icaByChainAndAddress.set(cacheId, null);
     return null;
@@ -624,9 +647,8 @@ async function inferIcaSubmitterFromAccount({
     provider,
   );
 
-  const eventFilter = destinationRouter.filters.InterchainAccountCreated(
-    accountAddress,
-  );
+  const eventFilter =
+    destinationRouter.filters.InterchainAccountCreated(accountAddress);
   let logs: Awaited<ReturnType<typeof provider.getLogs>>;
   try {
     logs = await provider.getLogs({
@@ -761,7 +783,11 @@ async function inferIcaSubmitterFromAccount({
           if (!(await hasSignerForChain(context, cache, originChain))) {
             continue;
           }
-          const originProvider = getProviderForChain(context, cache, originChain);
+          const originProvider = getProviderForChain(
+            context,
+            cache,
+            originChain,
+          );
           if (!originProvider) {
             continue;
           }
@@ -777,7 +803,8 @@ async function inferIcaSubmitterFromAccount({
             normalizedDestinationRouterAddress,
             EVM_ADDRESS_ZERO,
           );
-          const normalizedDerivedAccount = tryNormalizeEvmAddress(derivedAccount);
+          const normalizedDerivedAccount =
+            tryNormalizeEvmAddress(derivedAccount);
           if (
             !normalizedDerivedAccount ||
             eqAddress(normalizedDerivedAccount, EVM_ADDRESS_ZERO)
@@ -804,7 +831,8 @@ async function inferIcaSubmitterFromAccount({
             owner: ownerCandidate,
             internalSubmitter,
             originInterchainAccountRouter: normalizedOriginRouterAddress,
-            destinationInterchainAccountRouter: normalizedDestinationRouterAddress,
+            destinationInterchainAccountRouter:
+              normalizedDestinationRouterAddress,
           } satisfies Extract<
             InferredSubmitter,
             { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
@@ -856,7 +884,10 @@ async function inferTimelockProposerSubmitter({
     cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
     return defaultSubmitter;
   }
-  const timelock = TimelockController__factory.connect(timelockAddress, provider);
+  const timelock = TimelockController__factory.connect(
+    timelockAddress,
+    provider,
+  );
 
   let isOpenProposerRole = false;
   let signerHasRole = false;
@@ -1041,14 +1072,9 @@ async function inferTimelockProposerSubmitter({
           );
           const derivedIcaProposer = await originRouter[
             'getRemoteInterchainAccount(address,address,address)'
-          ](
-            signerAddress,
-            destinationRouterAddress,
-            EVM_ADDRESS_ZERO,
-          );
-          const normalizedDerivedIcaProposer = tryNormalizeEvmAddress(
-            derivedIcaProposer,
-          );
+          ](signerAddress, destinationRouterAddress, EVM_ADDRESS_ZERO);
+          const normalizedDerivedIcaProposer =
+            tryNormalizeEvmAddress(derivedIcaProposer);
           if (
             !normalizedDerivedIcaProposer ||
             eqAddress(normalizedDerivedIcaProposer, EVM_ADDRESS_ZERO)
@@ -1138,9 +1164,8 @@ async function inferTimelockProposerSubmitter({
         const derivedIcaProposer = await originRouter[
           'getRemoteInterchainAccount(address,address,address)'
         ](signerAddress, destinationRouterAddress, EVM_ADDRESS_ZERO);
-        const normalizedDerivedIcaProposer = tryNormalizeEvmAddress(
-          derivedIcaProposer,
-        );
+        const normalizedDerivedIcaProposer =
+          tryNormalizeEvmAddress(derivedIcaProposer);
         if (
           !normalizedDerivedIcaProposer ||
           eqAddress(normalizedDerivedIcaProposer, EVM_ADDRESS_ZERO)
@@ -1532,6 +1557,31 @@ export async function resolveSubmitterBatchesForTransactions({
   strategyUrl,
   isExtendedChain,
 }: ResolveSubmitterBatchesParams): Promise<ResolvedSubmitterBatch[]> {
+  /**
+   * Resolve submitter config per transaction and emit ordered contiguous batches.
+   *
+   * Precedence (strict):
+   * 1) explicit strategy submitter / overrides (if provided and chain is non-extended)
+   * 2) inferred submitter from on-chain ownership + governance topology
+   * 3) jsonRpc default for the destination chain
+   *
+   * Inference model:
+   * - EVM only; non-EVM chains always use JSON-RPC default.
+   * - Probe tx target owner (with `tx.from` fallback when owner lookup is unavailable).
+   * - Infer submitter shape recursively: signer => jsonRpc, Safe =>
+   *   gnosisSafeTxBuilder, Timelock => timelockController(+proposer submitter),
+   *   ICA => interchainAccount(+internal submitter).
+   * - Enforce depth limit to prevent recursive inference loops.
+   *
+   * Batching model:
+   * - Transactions are never reordered.
+   * - Adjacent transactions with identical submitter fingerprint are coalesced.
+   * - Same submitter appearing later creates a new batch to preserve nonce/order semantics.
+   *
+   * Fault tolerance:
+   * - Any probe/inference error degrades that transaction to jsonRpc fallback.
+   * - Caches memoize negative lookups and failures to avoid repeated RPC churn.
+   */
   if (transactions.length === 0) {
     return [];
   }
