@@ -1810,6 +1810,144 @@ function readStaticDeleteResultForPropertyTarget(
   return STATIC_PRIMITIVE_UNKNOWN;
 }
 
+function readStaticDeleteResultForElementTarget(
+  targetExpression: ts.Expression,
+  argumentExpression: ts.Expression | undefined,
+): boolean | typeof STATIC_PRIMITIVE_UNKNOWN {
+  const unwrappedTarget = unwrapInitializerExpression(targetExpression);
+  if (ts.isObjectLiteralExpression(unwrappedTarget)) {
+    return true;
+  }
+  if (!argumentExpression) {
+    return STATIC_PRIMITIVE_UNKNOWN;
+  }
+
+  const unwrappedArgument = unwrapInitializerExpression(argumentExpression);
+  const primitiveArgument = readStaticPrimitiveValue(unwrappedArgument);
+  if (primitiveArgument !== STATIC_PRIMITIVE_UNKNOWN) {
+    return readStaticDeleteResultForPropertyTarget(
+      unwrappedTarget,
+      String(primitiveArgument),
+    );
+  }
+
+  if (ts.isConditionalExpression(unwrappedArgument)) {
+    const selectorCondition = readStaticBooleanCondition(
+      unwrappedArgument.condition,
+    );
+    if (selectorCondition === true) {
+      return readStaticDeleteResultForElementTarget(
+        unwrappedTarget,
+        unwrappedArgument.whenTrue,
+      );
+    }
+    if (selectorCondition === false) {
+      return readStaticDeleteResultForElementTarget(
+        unwrappedTarget,
+        unwrappedArgument.whenFalse,
+      );
+    }
+    return mergeStaticDeleteTargetResults(
+      readStaticDeleteResultForElementTarget(
+        unwrappedTarget,
+        unwrappedArgument.whenTrue,
+      ),
+      readStaticDeleteResultForElementTarget(
+        unwrappedTarget,
+        unwrappedArgument.whenFalse,
+      ),
+    );
+  }
+
+  if (ts.isBinaryExpression(unwrappedArgument)) {
+    if (unwrappedArgument.operatorToken.kind === ts.SyntaxKind.CommaToken) {
+      return readStaticDeleteResultForElementTarget(
+        unwrappedTarget,
+        unwrappedArgument.right,
+      );
+    }
+
+    if (
+      unwrappedArgument.operatorToken.kind ===
+      ts.SyntaxKind.QuestionQuestionToken
+    ) {
+      const leftNullish = readStaticNullishCondition(unwrappedArgument.left);
+      if (leftNullish === true) {
+        return readStaticDeleteResultForElementTarget(
+          unwrappedTarget,
+          unwrappedArgument.right,
+        );
+      }
+      if (leftNullish === false) {
+        return readStaticDeleteResultForElementTarget(
+          unwrappedTarget,
+          unwrappedArgument.left,
+        );
+      }
+      return mergeStaticDeleteTargetResults(
+        readStaticDeleteResultForElementTarget(
+          unwrappedTarget,
+          unwrappedArgument.left,
+        ),
+        readStaticDeleteResultForElementTarget(
+          unwrappedTarget,
+          unwrappedArgument.right,
+        ),
+      );
+    }
+
+    if (
+      unwrappedArgument.operatorToken.kind ===
+        ts.SyntaxKind.AmpersandAmpersandToken ||
+      unwrappedArgument.operatorToken.kind === ts.SyntaxKind.BarBarToken
+    ) {
+      const leftCondition = readStaticBooleanCondition(unwrappedArgument.left);
+      if (
+        unwrappedArgument.operatorToken.kind ===
+        ts.SyntaxKind.AmpersandAmpersandToken
+      ) {
+        if (leftCondition === true) {
+          return readStaticDeleteResultForElementTarget(
+            unwrappedTarget,
+            unwrappedArgument.right,
+          );
+        }
+        if (leftCondition === false) {
+          return readStaticDeleteResultForElementTarget(
+            unwrappedTarget,
+            unwrappedArgument.left,
+          );
+        }
+      } else {
+        if (leftCondition === true) {
+          return readStaticDeleteResultForElementTarget(
+            unwrappedTarget,
+            unwrappedArgument.left,
+          );
+        }
+        if (leftCondition === false) {
+          return readStaticDeleteResultForElementTarget(
+            unwrappedTarget,
+            unwrappedArgument.right,
+          );
+        }
+      }
+      return mergeStaticDeleteTargetResults(
+        readStaticDeleteResultForElementTarget(
+          unwrappedTarget,
+          unwrappedArgument.left,
+        ),
+        readStaticDeleteResultForElementTarget(
+          unwrappedTarget,
+          unwrappedArgument.right,
+        ),
+      );
+    }
+  }
+
+  return STATIC_PRIMITIVE_UNKNOWN;
+}
+
 function readStaticPrimitiveValue(
   expression: ts.Expression,
 ): StaticPrimitiveValue | typeof STATIC_PRIMITIVE_UNKNOWN {
@@ -2164,20 +2302,9 @@ function readStaticPrimitiveValue(
       );
     }
     if (ts.isElementAccessExpression(operand)) {
-      const target = unwrapInitializerExpression(operand.expression);
-      if (ts.isObjectLiteralExpression(target)) {
-        return true;
-      }
-      if (!operand.argumentExpression) return STATIC_PRIMITIVE_UNKNOWN;
-      const argumentValue = readStaticPrimitiveValue(
-        operand.argumentExpression,
-      );
-      if (argumentValue === STATIC_PRIMITIVE_UNKNOWN) {
-        return STATIC_PRIMITIVE_UNKNOWN;
-      }
-      return readStaticDeleteResultForPropertyTarget(
+      return readStaticDeleteResultForElementTarget(
         operand.expression,
-        String(argumentValue),
+        operand.argumentExpression,
       );
     }
     if (ts.isIdentifier(operand)) {
@@ -9376,6 +9503,54 @@ describe('Gnosis Safe migration guards', () => {
     const source = [
       'let reqAlias: any = require;',
       "if (((delete ([] as any)[null ?? 'length']) === false)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality direct-delete array-element-conditional-numeric-nonlength predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (((delete ([] as any)[marker === 1 ? 0 : 1]) === true)) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality direct-delete array-element-mixed-nullish-numeric predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (((delete ([] as any)[(marker === 1 ? null : 0) ?? 1]) === true)) {',
       '  reqAlias = () => undefined;',
       '} else {',
       '  reqAlias = require;',
@@ -22473,6 +22648,44 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality direct-delete array-element-conditional-numeric-nonlength predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (((delete ([] as any)[marker === 1 ? 0 : 1]) === true)) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats strict-equality direct-delete array-element-mixed-nullish-numeric predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (((delete ([] as any)[(marker === 1 ? null : 0) ?? 1]) === true)) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('keeps strict-equality direct-delete array-element-conditional-mixed-key predicates conservative for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -29159,6 +29372,42 @@ describe('Gnosis Safe migration guards', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       "if (((delete ([] as any)[null ?? 'length']) === false)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality direct-delete array-element-conditional-numeric-nonlength predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      'if (((delete ([] as any)[marker === 1 ? 0 : 1]) === true)) {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality direct-delete array-element-mixed-nullish-numeric predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      'if (((delete ([] as any)[(marker === 1 ? null : 0) ?? 1]) === true)) {',
       "  moduleAlias = require('./fixtures/other-module.js');",
       '} else {',
       "  moduleAlias = { default: 'not-a-module' };",
