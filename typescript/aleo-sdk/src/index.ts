@@ -15,3 +15,8 @@ export {
 export { AleoIgpHookReader, AleoIgpHookWriter } from './hook/igp-hook.js';
 export { AleoMailboxArtifactManager } from './mailbox/mailbox-artifact-manager.js';
 export { AleoMailboxReader, AleoMailboxWriter } from './mailbox/mailbox.js';
+export { AleoValidatorAnnounceArtifactManager } from './validator-announce/validator-announce-artifact-manager.js';
+export {
+  AleoValidatorAnnounceReader,
+  AleoValidatorAnnounceWriter,
+} from './validator-announce/validator-announce.js';
