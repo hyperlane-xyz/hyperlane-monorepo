@@ -22,6 +22,8 @@ Compatibility fixes were applied to keep build/lint/test pipelines green under T
 
 The `typescript/ccip-server` Jest path (`ts-jest`) was validated under TS6 beta to confirm runtime compatibility for existing server tests.
 
+Repository-level validation remained green under TS6 beta across `pnpm build`, `pnpm lint`, `pnpm test:ci`, and package-level `pnpm -C typescript/ccip-server test`.
+
 Rebalancer simulation startup reliability was hardened with robust local-Anvil fallback behavior when container runtimes are unavailable.
 
 Container-runtime-unavailable detection was significantly expanded and hardened across Docker/Podman/Linux socket errors, Windows named-pipe signatures, nested wrapper error shapes, and hostile accessor scenarios.
