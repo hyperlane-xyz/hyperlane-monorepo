@@ -66,6 +66,9 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
                   },
                 };
               }
+              if (log?.__returnParsedArgsDirect) {
+                return log.__parsedArgs;
+              }
               if (log?.__parsedArgs) {
                 return {
                   args: log.__parsedArgs,
@@ -599,6 +602,55 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
       inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
     ).to.equal(ORIGIN_ROUTER.toLowerCase());
   });
+
+  it('accepts direct ICA parsed args objects when parseLog returns args payload directly', async () => {
+    const inferredSubmitter = await resolveFromLogs([
+      {
+        __returnParsedArgsDirect: true,
+        __parsedArgs: {
+          origin: 31347,
+          router: originRouterBytes32,
+          owner: signerBytes32,
+          ism: ethersConstants.AddressZero,
+        },
+        topics: ['0xdirect-ica-args-object'],
+        data: '0x',
+        blockNumber: 653,
+        transactionIndex: 0,
+        logIndex: 0,
+      },
+    ]);
+
+    expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
+
+  it('accepts direct positional ICA parsed args when parseLog returns tuple payload directly', async () => {
+    const positionalArgs = [] as any[];
+    positionalArgs[1] = 31347;
+    positionalArgs[2] = originRouterBytes32;
+    positionalArgs[3] = signerBytes32;
+    positionalArgs[4] = ethersConstants.AddressZero;
+
+    const inferredSubmitter = await resolveFromLogs([
+      {
+        __returnParsedArgsDirect: true,
+        __parsedArgs: positionalArgs,
+        topics: ['0xdirect-ica-positional-args'],
+        data: '0x',
+        blockNumber: 654,
+        transactionIndex: 0,
+        logIndex: 0,
+      },
+    ]);
+
+    expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
 });
 
 describe('resolveSubmitterBatchesForTransactions timelock log position getter fallback', () => {
@@ -671,6 +723,9 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
                   );
                 },
               };
+            }
+            if (log?.__returnParsedArgsDirect) {
+              return log.__parsedArgs;
             }
             if (log?.__parsedArgs) {
               return {
@@ -857,6 +912,34 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
     await resolveFromRoleLogs({
       __parsedArgs: positionalArgs,
       topics: ['0xgrant-positional-account-getter-throw'],
+      data: '0x',
+      blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('accepts direct timelock account args objects when parseLog returns args payload directly', async () => {
+    await resolveFromRoleLogs({
+      __returnParsedArgsDirect: true,
+      __parsedArgs: {
+        account: '0x7878787878787878787878787878787878787878',
+      },
+      topics: ['0xgrant-direct-account-object'],
+      data: '0x',
+      blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('accepts direct positional timelock account args when parseLog returns tuple payload directly', async () => {
+    const positionalArgs = [] as any[];
+    positionalArgs[1] = '0x7878787878787878787878787878787878787878';
+    await resolveFromRoleLogs({
+      __returnParsedArgsDirect: true,
+      __parsedArgs: positionalArgs,
+      topics: ['0xgrant-direct-positional-account'],
       data: '0x',
       blockNumber: '1601',
       transactionIndex: '0',
