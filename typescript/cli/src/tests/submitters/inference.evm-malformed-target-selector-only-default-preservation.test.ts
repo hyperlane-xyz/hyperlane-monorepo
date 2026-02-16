@@ -279,4 +279,33 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target selector-o
       TxSubmitterType.TIMELOCK_CONTROLLER,
     );
   });
+
+  it('routes selector-matched targets while preserving default for transactions with overlong targets', async () => {
+    const strategyPath = createStrategyPath('mixed-selector-and-overlong-target');
+    writeSelectorOnlyStrategy(strategyPath);
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [
+        { ...TX, to: TARGET, data: '0xdeadbeef0000' } as any,
+        { ...TX, to: `0x${'1'.repeat(5000)}`, data: '0xdeadbeef0000' } as any,
+      ],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(2);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.TIMELOCK_CONTROLLER,
+    );
+    expect(batches[0].transactions).to.have.length(1);
+    expect(batches[1].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+    expect(batches[1].transactions).to.have.length(1);
+  });
 });

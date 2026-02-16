@@ -288,4 +288,25 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target default pr
     );
     expect(batches[1].transactions).to.have.length(1);
   });
+
+  it('routes valid targets while preserving default for transactions with overlong targets', async () => {
+    const strategyPath = createStrategyPath('mixed-valid-and-overlong-target');
+    writeTargetOverrideStrategy(strategyPath);
+
+    const batches = await resolveBatches(
+      [
+        { ...TX, data: '0xabcdef', to: TARGET },
+        { ...TX, data: '0x1234', to: `0x${'1'.repeat(5000)}` },
+      ],
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(2);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(batches[0].transactions).to.have.length(1);
+    expect(batches[1].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+    expect(batches[1].transactions).to.have.length(1);
+  });
 });
