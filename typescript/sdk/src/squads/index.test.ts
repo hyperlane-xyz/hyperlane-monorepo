@@ -2719,6 +2719,53 @@ describe('squads barrel exports', () => {
     expect(overriddenCapturePattern.lastIndex).to.equal(31);
   });
 
+  it('keeps Reflect.apply wrapper discovery stable for custom patterns with overridden exec methods', () => {
+    const baselineMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const baselineCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const overriddenMutationPattern = /Reflect\.apply is mutated/gi;
+    const overriddenCapturePattern = /const REFLECT_APPLY = Reflect\.apply/iy;
+    overriddenMutationPattern.lastIndex = 59;
+    overriddenCapturePattern.lastIndex = 61;
+
+    Object.defineProperty(overriddenMutationPattern, 'exec', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected Reflect.apply mutation wrapper discovery to use an isolated RegExp matcher',
+        );
+      },
+    });
+    Object.defineProperty(overriddenCapturePattern, 'exec', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected Reflect.apply capture wrapper discovery to use an isolated RegExp matcher',
+        );
+      },
+    });
+
+    expect(
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        overriddenMutationPattern,
+      ),
+    ).to.deep.equal(baselineMutationPaths);
+    expect(
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        overriddenCapturePattern,
+      ),
+    ).to.deep.equal(baselineCapturePaths);
+    expect(overriddenMutationPattern.lastIndex).to.equal(59);
+    expect(overriddenCapturePattern.lastIndex).to.equal(61);
+  });
+
   it('keeps Reflect.apply pattern-discovery helper defaults repeatable and lastIndex-safe', () => {
     const originalMutationTitlePatternLastIndex =
       REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN.lastIndex;
