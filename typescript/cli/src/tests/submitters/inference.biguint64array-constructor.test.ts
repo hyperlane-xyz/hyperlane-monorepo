@@ -12,10 +12,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
-import {
-  getRequiredRuntimeFunctionValueByLabel,
-  getRuntimeFunctionValuesByLabel,
-} from './inference.runtime-globals.js';
+import { getRequiredRuntimeFunctionValueByLabel } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions biguint64array constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -26,10 +23,7 @@ describe('resolveSubmitterBatchesForTransactions biguint64array constructor prob
     chainId: 31338,
   };
   const BIGUINT64ARRAY_CONSTRUCTOR_PROBE =
-    getRequiredRuntimeFunctionValueByLabel(
-      'biguint64array-constructor-object',
-      getRuntimeFunctionValuesByLabel(),
-    );
+    getRequiredRuntimeFunctionValueByLabel('biguint64array-constructor-object');
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);

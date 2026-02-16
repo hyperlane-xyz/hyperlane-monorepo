@@ -12,10 +12,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
-import {
-  getRequiredRuntimeFunctionValueByLabel,
-  getRuntimeFunctionValuesByLabel,
-} from './inference.runtime-globals.js';
+import { getRequiredRuntimeFunctionValueByLabel } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions sharedarraybuffer constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -28,7 +25,6 @@ describe('resolveSubmitterBatchesForTransactions sharedarraybuffer constructor p
   const SHAREDARRAYBUFFER_CONSTRUCTOR_PROBE =
     getRequiredRuntimeFunctionValueByLabel(
       'sharedarraybuffer-constructor-object',
-      getRuntimeFunctionValuesByLabel(),
     );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
