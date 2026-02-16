@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -e
 
-DOCKER_COMPOSE_CMD=""
+DOCKER_COMPOSE_CMD=()
 
 function resolve_docker_compose_cmd() {
   if docker compose version >/dev/null 2>&1; then
-    DOCKER_COMPOSE_CMD="docker compose"
+    DOCKER_COMPOSE_CMD=(docker compose)
     return 0
   fi
 
   if command -v docker-compose >/dev/null 2>&1; then
-    DOCKER_COMPOSE_CMD="docker-compose"
+    DOCKER_COMPOSE_CMD=(docker-compose)
     return 0
   fi
 
@@ -19,8 +19,7 @@ function resolve_docker_compose_cmd() {
 }
 
 function docker_compose() {
-  # shellcheck disable=SC2086
-  ${DOCKER_COMPOSE_CMD} "$@"
+  "${DOCKER_COMPOSE_CMD[@]}" "$@"
 }
 
 function setup() {
