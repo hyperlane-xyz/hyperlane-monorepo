@@ -226,6 +226,11 @@ describe('runtime global probe helpers', () => {
     ).to.equal(null);
     expect(
       getProbeLabelFromInferenceTestTitle(
+        '  caches array-constructor-object origin signer probes across timelock ICA inferences  ',
+      ),
+    ).to.equal('array-constructor-object');
+    expect(
+      getProbeLabelFromInferenceTestTitle(
         'prefix caches array-constructor-object origin signer probes across timelock ICA inferences',
       ),
     ).to.equal(null);

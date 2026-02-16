@@ -194,7 +194,7 @@ export function getRuntimePrimitiveValuesByLabel(): Map<string, unknown> {
 export function getProbeLabelFromInferenceTestTitle(
   title: string,
 ): string | null {
-  const match = title.match(PROBE_LABEL_FROM_TEST_TITLE_REGEX);
+  const match = title.trim().match(PROBE_LABEL_FROM_TEST_TITLE_REGEX);
   return match?.[1] ?? null;
 }
 
