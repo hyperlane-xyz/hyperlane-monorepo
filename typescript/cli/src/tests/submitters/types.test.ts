@@ -123,6 +123,25 @@ describe('ExtendedChainSubmissionStrategySchema', () => {
     expect(result.success).to.equal(false);
   });
 
+  it('fails when override submitter exists only on prototype during preprocessing', () => {
+    const input = {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+        submitterOverrides: {
+          [ADDRESS_1]: Object.create({
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          }),
+        },
+      },
+    };
+
+    const result = ExtendedChainSubmissionStrategySchema.safeParse(input);
+    expect(result.success).to.equal(false);
+  });
+
   it('fails when ICA override owner and safe address mismatch', () => {
     const input = {
       [CHAIN]: {
