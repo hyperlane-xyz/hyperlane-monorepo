@@ -520,6 +520,58 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
     }
   });
 
+  it('falls back to jsonRpc when destination chain is prototype-literal and registry router is only available via prototype chain lookup', async () => {
+    const prototypeChain = '__proto__';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => ICA_OWNER,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+    const provider = {
+      getLogs: sinon.stub().throws(new Error('getLogs should not run')),
+    };
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .throws(new Error('ICA router connect should not run'));
+    const registryPayload = Object.create({
+      interchainAccountRouter: DESTINATION_ROUTER,
+    });
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+        getChainName: () => ORIGIN_CHAIN,
+      },
+      registry: {
+        getAddresses: async () => registryPayload,
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: prototypeChain as any,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect((batches[0].config.submitter as any).chain).to.equal(prototypeChain);
+      expect(provider.getLogs.callCount).to.equal(0);
+      expect(icaRouterStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when registry getAddresses returns non-object payload', async () => {
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => ICA_OWNER,

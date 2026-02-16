@@ -868,7 +868,10 @@ async function inferIcaSubmitterFromAccount({
   }
 
   const registryAddresses = await getRegistryAddresses(context, cache);
-  const destinationAddresses = registryAddresses[destinationChain];
+  const destinationAddresses = getOwnObjectField(
+    registryAddresses,
+    destinationChain,
+  );
   const destinationRouterAddress = getOwnObjectField(
     destinationAddresses,
     'interchainAccountRouter',
@@ -1251,9 +1254,9 @@ async function inferTimelockProposerSubmitter({
     (account) => !eqAddress(account, EVM_ADDRESS_ZERO),
   );
   const registryAddresses = await getRegistryAddresses(context, cache);
+  const chainRegistryAddresses = getOwnObjectField(registryAddresses, chain);
   const destinationRouterAddressCandidate = normalizeEvmAddressFromUnknown(
-    getOwnObjectField(registryAddresses[chain], 'interchainAccountRouter') ??
-      '',
+    getOwnObjectField(chainRegistryAddresses, 'interchainAccountRouter') ?? '',
   );
   const destinationRouterAddress =
     destinationRouterAddressCandidate &&
