@@ -158,3 +158,19 @@ export function getProbeLabelFromInferenceTestTitle(
   const match = title.match(PROBE_LABEL_FROM_TEST_TITLE_REGEX);
   return match?.[1] ?? null;
 }
+
+export function getFallbackPrimitiveProbeValueFromLabel(
+  label: string,
+): unknown {
+  if (label.endsWith('-undefined-primitive')) return undefined;
+  if (label.endsWith('-number-primitive')) {
+    if (label.startsWith('infinity-')) return Number.POSITIVE_INFINITY;
+    if (label.startsWith('nan-')) return Number.NaN;
+    return 0;
+  }
+  if (label.endsWith('-boolean-primitive')) return false;
+  if (label.endsWith('-bigint-primitive')) return 0n;
+  if (label.endsWith('-symbol-primitive')) return Symbol(label);
+  if (label.endsWith('-string-primitive')) return label;
+  return undefined;
+}

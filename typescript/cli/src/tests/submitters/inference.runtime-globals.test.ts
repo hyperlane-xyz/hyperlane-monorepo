@@ -5,6 +5,7 @@ import { expect } from 'chai';
 
 import {
   SUPPORTED_RUNTIME_PRIMITIVE_VALUE_TYPES,
+  getFallbackPrimitiveProbeValueFromLabel,
   getKnownObjectLikeProbeLabelsFromOtherTests,
   getProbeLabelFromInferenceTestTitle,
   getRuntimeFunctionValuesByLabel,
@@ -100,5 +101,34 @@ describe('runtime global probe helpers', () => {
         'some unrelated test title that should not match',
       ),
     ).to.equal(null);
+  });
+
+  it('builds primitive fallback values from probe labels', () => {
+    expect(
+      getFallbackPrimitiveProbeValueFromLabel('undefined-undefined-primitive'),
+    ).to.equal(undefined);
+    expect(
+      getFallbackPrimitiveProbeValueFromLabel('infinity-number-primitive'),
+    ).to.equal(Number.POSITIVE_INFINITY);
+    expect(
+      Number.isNaN(
+        getFallbackPrimitiveProbeValueFromLabel('nan-number-primitive'),
+      ),
+    ).to.equal(true);
+    expect(
+      getFallbackPrimitiveProbeValueFromLabel('flag-boolean-primitive'),
+    ).to.equal(false);
+    expect(
+      getFallbackPrimitiveProbeValueFromLabel('amount-bigint-primitive'),
+    ).to.equal(0n);
+    expect(
+      String(getFallbackPrimitiveProbeValueFromLabel('probe-symbol-primitive')),
+    ).to.equal('Symbol(probe-symbol-primitive)');
+    expect(
+      getFallbackPrimitiveProbeValueFromLabel('name-string-primitive'),
+    ).to.equal('name-string-primitive');
+    expect(getFallbackPrimitiveProbeValueFromLabel('unknown-label')).to.equal(
+      undefined,
+    );
   });
 });
