@@ -49,9 +49,22 @@ function redactUrl(url: string): string {
     const hasQuery = u.search.length > 0;
     const suffix = hasPath || hasQuery ? '/<redacted>' : '/';
     return `${u.protocol}//${u.host}${suffix}`;
-  } catch {
-    return url;
+  } catch (err) {
+    console.warn('Failed to parse URL for redaction', err);
+    return '<redacted-url>';
   }
+}
+
+/** Strip the raw RPC URL from error messages to avoid leaking secrets. */
+function sanitizeError(msg: string, url: string): string {
+  // Replace exact URL first
+  let sanitized = msg.replaceAll(url, '[REDACTED_RPC_URL]');
+  // Also redact the URL without trailing slash (ethers sometimes strips it)
+  const urlNoTrailingSlash = url.replace(/\/+$/, '');
+  if (urlNoTrailingSlash !== url) {
+    sanitized = sanitized.replaceAll(urlNoTrailingSlash, '[REDACTED_RPC_URL]');
+  }
+  return sanitized;
 }
 
 async function probeUrl(
@@ -79,8 +92,8 @@ async function probeUrl(
       chainIdMismatch,
     };
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return { url, error: msg };
+    const raw = error instanceof Error ? error.message : String(error);
+    return { url, error: sanitizeError(raw, url) };
   }
 }
 
@@ -172,7 +185,10 @@ async function main() {
   const allResults: ProbeResult[] = settled.map((s, i) =>
     s.status === 'fulfilled'
       ? s.value
-      : { url: allUrls[i], error: String(s.reason) },
+      : {
+          url: allUrls[i],
+          error: sanitizeError(String(s.reason), allUrls[i]),
+        },
   );
 
   const privateResults = allResults.slice(0, privateUrls.length);
