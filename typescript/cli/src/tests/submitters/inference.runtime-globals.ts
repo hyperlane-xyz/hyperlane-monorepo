@@ -57,12 +57,9 @@ const cleanRuntimeProbeLabels: CleanRuntimeProbeLabels = JSON.parse(
           }
         };
         const globals = names.map((name) => ({ name, ...safeRead(name) }));
-        const functionLabels = Object.getOwnPropertyNames(globalThis)
-          .filter((name) => {
-            const item = globals.find((entry) => entry.name === name);
-            return item?.ok && typeof item.value === 'function';
-          })
-          .map((name) => \`\${name.toLowerCase()}-constructor-object\`)
+        const functionLabels = globals
+          .filter((item) => item.ok && typeof item.value === 'function')
+          .map((item) => \`\${item.name.toLowerCase()}-constructor-object\`)
           .sort();
         const objectLabels = globals
           .filter((item) => item.ok && item.value !== null && typeof item.value === 'object')
