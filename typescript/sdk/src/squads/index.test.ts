@@ -3101,6 +3101,30 @@ describe('squads barrel exports', () => {
     ).to.equal(EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_RUNTIME_SOURCE_COUNT);
   });
 
+  it('keeps sdk runtime Reflect.apply summary helper paths sorted unique and runtime-complete', () => {
+    const discoveredRuntimeReflectApplyCountSummaries =
+      listSdkSquadsRuntimeReflectApplyCountSummaries();
+    const discoveredRuntimeSourcePaths =
+      discoveredRuntimeReflectApplyCountSummaries.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      );
+
+    expect(new Set(discoveredRuntimeSourcePaths).size).to.equal(
+      discoveredRuntimeSourcePaths.length,
+    );
+    expect(discoveredRuntimeSourcePaths).to.deep.equal(
+      [...discoveredRuntimeSourcePaths].sort(compareLexicographically),
+    );
+    expect(discoveredRuntimeSourcePaths.length).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_RUNTIME_SOURCE_COUNT,
+    );
+    expect(discoveredRuntimeSourcePaths).to.deep.equal(
+      listSdkSquadsNonTestSourceFilePaths()
+        .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
+        .sort(compareLexicographically),
+    );
+  });
+
   it('keeps sdk Reflect.apply identifier and REFLECT_APPLY totals aligned with runtime sources', () => {
     const identifierReferenceCountTotalFromTable =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.reduce(
