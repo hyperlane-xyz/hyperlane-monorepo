@@ -1788,6 +1788,21 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps sdk Reflect.apply runtime coverage map aligned with non-barrel runtime source set', () => {
+    const mappedRuntimeSourcePaths =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      );
+    const expectedCoveredRuntimeSourcePaths =
+      listSdkSquadsNonTestSourceFilePaths()
+        .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
+        .sort(compareLexicographically);
+
+    expect(mappedRuntimeSourcePaths).to.deep.equal(
+      expectedCoveredRuntimeSourcePaths,
+    );
+  });
+
   it('keeps sdk discovered squads test files aligned with canonical test file paths', () => {
     const discoveredSquadsTestPaths = listSdkSquadsTestFilePaths();
     expect(discoveredSquadsTestPaths).to.deep.equal([
