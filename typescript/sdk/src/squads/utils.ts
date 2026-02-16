@@ -188,6 +188,7 @@ const ARRAY_PUSH = Array.prototype.push;
 const ARRAY_SORT = Array.prototype.sort;
 const ARRAY_INCLUDES = Array.prototype.includes;
 const ARRAY_SOME = Array.prototype.some;
+const MATH_MAX = Math.max;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const NUMBER_IS_FINITE = Number.isFinite;
 const STRING_INCLUDES = String.prototype.includes;
@@ -320,6 +321,10 @@ function numberIsSafeInteger(value: unknown): boolean {
 
 function numberIsFinite(value: unknown): boolean {
   return NUMBER_IS_FINITE(value);
+}
+
+function numberMax(left: number, right: number): number {
+  return MATH_MAX(left, right);
 }
 
 function stringIncludesValue(value: string, searchValue: string): boolean {
@@ -1836,7 +1841,7 @@ export function getMinimumProposalIndexToCheck(
     'lookback count',
   );
 
-  return Math.max(
+  return numberMax(
     0,
     normalizedCurrentTransactionIndex - normalizedLookbackCount,
   );
