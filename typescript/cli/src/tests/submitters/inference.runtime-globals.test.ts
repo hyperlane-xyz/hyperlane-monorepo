@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'url';
+import path from 'path';
 
 import { expect } from 'chai';
 
@@ -33,6 +34,18 @@ describe('runtime global probe helpers', () => {
 
     const second = getKnownObjectLikeProbeLabelsFromOtherTests(filePath);
     expect(second.has('__mutated-label__')).to.equal(false);
+  });
+
+  it('normalizes file paths for known-label cache lookups', () => {
+    const absoluteFilePath = fileURLToPath(import.meta.url);
+    const relativeFromCwd = path.relative(process.cwd(), absoluteFilePath);
+
+    const fromAbsolute =
+      getKnownObjectLikeProbeLabelsFromOtherTests(absoluteFilePath);
+    const fromRelative =
+      getKnownObjectLikeProbeLabelsFromOtherTests(relativeFromCwd);
+
+    expect([...fromRelative].sort()).to.deep.equal([...fromAbsolute].sort());
   });
 
   it('exposes runtime function/object/primitive value maps with labeled keys', () => {
