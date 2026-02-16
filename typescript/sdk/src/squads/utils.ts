@@ -192,11 +192,18 @@ const BIGINT_FUNCTION = BigInt as (
   value: string | number | bigint | boolean,
 ) => bigint;
 const BOOLEAN_FUNCTION = Boolean;
+const PROMISE_ALL = Promise.all.bind(Promise) as <Value>(
+  values: readonly (Value | PromiseLike<Value>)[],
+) => Promise<Value[]>;
 const MATH_MAX = Math.max;
 const NUMBER_FUNCTION = Number;
 const NUMBER_NAN = 0 / 0;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const NUMBER_IS_FINITE = Number.isFinite;
+const DATE_CONSTRUCTOR = Date;
+const DATE_TO_DATE_STRING = Date.prototype.toDateString as (
+  this: Date,
+) => string;
 const OBJECT_PROTOTYPE_TO_STRING = Object.prototype.toString as (
   this: unknown,
 ) => string;
@@ -337,6 +344,12 @@ function booleanFromValue(value: unknown): boolean {
   return BOOLEAN_FUNCTION(value);
 }
 
+function promiseAllValues<Value>(
+  values: readonly (Value | PromiseLike<Value>)[],
+): Promise<Value[]> {
+  return PROMISE_ALL(values);
+}
+
 function numberFromValue(value: unknown): number {
   return NUMBER_FUNCTION(value);
 }
@@ -359,6 +372,14 @@ function numberMax(left: number, right: number): number {
 
 function objectPrototypeToString(value: unknown): string {
   return OBJECT_PROTOTYPE_TO_STRING.call(value);
+}
+
+function dateFromUnixTimestampSeconds(unixTimestampSeconds: number): Date {
+  return new DATE_CONSTRUCTOR(unixTimestampSeconds * 1000);
+}
+
+function dateToDateString(value: Date): string {
+  return DATE_TO_DATE_STRING.call(value);
 }
 
 function stringIncludesValue(value: string, searchValue: string): boolean {
@@ -1561,7 +1582,7 @@ export async function getPendingProposalsForChains(
     );
   }
 
-  await Promise.all(
+  await promiseAllValues(
     arrayMapValues(squadsChains, async (chain) => {
       try {
         const { decimals, symbol: nativeTokenSymbol } =
@@ -1646,9 +1667,9 @@ export async function getPendingProposalsForChains(
               proposalStatus !== SquadsProposalStatus.Executing &&
               typeof statusTimestampSeconds === 'number'
             ) {
-              submissionDate = new Date(
-                statusTimestampSeconds * 1000,
-              ).toDateString();
+              submissionDate = dateToDateString(
+                dateFromUnixTimestampSeconds(statusTimestampSeconds),
+              );
             }
 
             const [transactionPda] = getTransactionPda({

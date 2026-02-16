@@ -284,6 +284,10 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\bNumber\.isNaN\s*\(/,
   }),
   Object.freeze({
+    label: 'Promise.all call',
+    pattern: /\bPromise\.all\s*\(/,
+  }),
+  Object.freeze({
     label: 'String call',
     pattern: /\bString\s*\(/,
   }),
@@ -306,6 +310,10 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
   Object.freeze({
     label: 'Math.max call',
     pattern: /\bMath\.max\s*\(/,
+  }),
+  Object.freeze({
+    label: 'new Date call',
+    pattern: /\bnew\s+Date\s*\(/,
   }),
   Object.freeze({
     label: '.entries method call',
@@ -524,6 +532,10 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\.toString\s*\(/,
   }),
   Object.freeze({
+    label: '.toDateString method call',
+    pattern: /\.toDateString\s*\(/,
+  }),
+  Object.freeze({
     label: '.subarray method call',
     pattern: /\.subarray\s*\(/,
   }),
@@ -583,12 +595,14 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   'Number.isInteger call',
   'Number.isFinite call',
   'Number.isNaN call',
+  'Promise.all call',
   'String call',
   'Boolean call',
   'BigInt call',
   'Number call',
   'Number.NaN access',
   'Math.max call',
+  'new Date call',
   '.entries method call',
   '.keys method call',
   '.values method call',
@@ -617,6 +631,7 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.split method call',
   '.replace method call',
   '.toString method call',
+  '.toDateString method call',
   '.subarray method call',
   '.slice method call',
   '.push method call',
@@ -627,8 +642,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.toSpliced method call',
   '.with method call',
 ]);
-const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 97;
-const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 73;
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 100;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 76;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
