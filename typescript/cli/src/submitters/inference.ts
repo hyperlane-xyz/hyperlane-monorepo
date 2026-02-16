@@ -293,7 +293,7 @@ function getParsedLogArg(
       return fieldValue;
     }
   } catch {
-    return undefined;
+    // Ignore named-field getter failures and continue to positional fallback.
   }
 
   if (fallbackIndex === undefined) {

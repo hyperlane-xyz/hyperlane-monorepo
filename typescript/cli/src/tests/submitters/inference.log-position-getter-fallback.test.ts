@@ -568,6 +568,37 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
       inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
     ).to.equal(ORIGIN_ROUTER.toLowerCase());
   });
+
+  it('falls back to positional ICA parsed args when named getter throws', async () => {
+    const positionalArgs = [] as any[];
+    positionalArgs[1] = 31347;
+    positionalArgs[2] = originRouterBytes32;
+    positionalArgs[3] = signerBytes32;
+    positionalArgs[4] = ethersConstants.AddressZero;
+    Object.defineProperty(positionalArgs, 'origin', {
+      get() {
+        throw new Error('named origin getter should not block positional fallback');
+      },
+      enumerable: true,
+      configurable: true,
+    });
+
+    const inferredSubmitter = await resolveFromLogs([
+      {
+        __parsedArgs: positionalArgs,
+        topics: ['0xpositional-ica-args-getter-throw'],
+        data: '0x',
+        blockNumber: 652,
+        transactionIndex: 0,
+        logIndex: 0,
+      },
+    ]);
+
+    expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
 });
 
 describe('resolveSubmitterBatchesForTransactions timelock log position getter fallback', () => {
@@ -803,6 +834,29 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
     await resolveFromRoleLogs({
       __parsedArgs: positionalArgs,
       topics: ['0xgrant-positional-account'],
+      data: '0x',
+      blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('falls back to positional timelock account fields when named getter throws', async () => {
+    const positionalArgs = [] as any[];
+    positionalArgs[1] = '0x7878787878787878787878787878787878787878';
+    Object.defineProperty(positionalArgs, 'account', {
+      get() {
+        throw new Error(
+          'named account getter should not block positional fallback',
+        );
+      },
+      enumerable: true,
+      configurable: true,
+    });
+
+    await resolveFromRoleLogs({
+      __parsedArgs: positionalArgs,
+      topics: ['0xgrant-positional-account-getter-throw'],
       data: '0x',
       blockNumber: '1601',
       transactionIndex: '0',
