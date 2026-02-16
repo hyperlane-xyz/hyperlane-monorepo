@@ -13,11 +13,13 @@ import {
 import { type IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
 import { type IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { type IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
+import { type IRawMailboxArtifactManager } from '@hyperlane-xyz/provider-sdk/mailbox';
 import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
+import { type IRawValidatorAnnounceArtifactManager } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -144,6 +146,20 @@ export class AleoProtocolProvider implements ProtocolProvider {
       ismManagerAddress,
       hookManagerAddress,
     });
+  }
+
+  createMailboxArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawMailboxArtifactManager {
+    // @TODO Implement in a follow up PR
+    throw Error('Not implemented');
+  }
+
+  createValidatorAnnounceArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawValidatorAnnounceArtifactManager | null {
+    // @TODO Implement in a follow up PR
+    throw Error('Not implemented');
   }
 
   getMinGas(): MinimumRequiredGasByAction {

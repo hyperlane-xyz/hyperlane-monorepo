@@ -18,8 +18,10 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { RadixIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { RadixMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import { RadixBase } from '../utils/base.js';
 import { RadixWarpArtifactManager } from '../warp/warp-artifact-manager.js';
+import { RadixValidatorAnnounceArtifactManager } from '../validator-announce/validator-announce-artifact-manager.js';
 
 import { NETWORKS, RadixProvider } from './provider.js';
 import { RadixSigner } from './signer.js';
@@ -60,46 +62,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
   createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
   ): IRawIsmArtifactManager {
-    assert(chainMetadata.gatewayUrls, 'gateway urls undefined');
-
-    const networkId = parseInt(chainMetadata.chainId.toString());
-    const gatewayUrl = chainMetadata.gatewayUrls[0]?.http;
-
-    assert(gatewayUrl, 'gateway url undefined');
-
-    // Get package address from metadata first
-    let packageAddress = chainMetadata.packageAddress;
-
-    // If not in metadata, try to get from NETWORKS config as fallback
-    if (!packageAddress) {
-      const networkBaseConfig = NETWORKS[networkId];
-      assert(
-        networkBaseConfig,
-        `Network with id ${networkId} not supported and no packageAddress provided in chain metadata. Supported network ids: ${Object.keys(NETWORKS).join(', ')}`,
-      );
-      packageAddress = networkBaseConfig.packageAddress;
-    }
-
-    assert(
-      packageAddress,
-      `Expected package address to be defined for radix network with id ${networkId}`,
-    );
-
-    // Initialize the Gateway API client
-    const gateway = GatewayApiClient.initialize({
-      applicationName: 'hyperlane',
-      basePath: gatewayUrl,
-      networkId,
-    });
-
-    // Create RadixBase instance with default gas multiplier
-    const base = new RadixBase(
-      networkId,
-      gateway,
-      DEFAULT_GAS_MULTIPLIER,
-      packageAddress,
-    );
-
+    const { gateway, base } = this.getCommonSetup(chainMetadata);
     return new RadixIsmArtifactManager(gateway, base);
   }
 
@@ -107,45 +70,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
   ): IRawHookArtifactManager {
-    assert(chainMetadata.gatewayUrls, 'gateway urls undefined');
-
-    const networkId = parseInt(chainMetadata.chainId.toString());
-    const gatewayUrl = chainMetadata.gatewayUrls[0]?.http;
-
-    assert(gatewayUrl, 'gateway url undefined');
-
-    // Get package address from metadata first
-    let packageAddress = chainMetadata.packageAddress;
-
-    // If not in metadata, try to get from NETWORKS config as fallback
-    if (!packageAddress) {
-      const networkBaseConfig = NETWORKS[networkId];
-      assert(
-        networkBaseConfig,
-        `Network with id ${networkId} not supported and no packageAddress provided in chain metadata. Supported network ids: ${Object.keys(NETWORKS).join(', ')}`,
-      );
-      packageAddress = networkBaseConfig.packageAddress;
-    }
-
-    assert(
-      packageAddress,
-      `Expected package address to be defined for radix network with id ${networkId}`,
-    );
-
-    // Initialize the Gateway API client
-    const gateway = GatewayApiClient.initialize({
-      applicationName: 'hyperlane',
-      basePath: gatewayUrl,
-      networkId,
-    });
-
-    // Create RadixBase instance with default gas multiplier
-    const base = new RadixBase(
-      networkId,
-      gateway,
-      DEFAULT_GAS_MULTIPLIER,
-      packageAddress,
-    );
+    const { gateway, base } = this.getCommonSetup(chainMetadata);
 
     // Get native token denom from chain metadata
     const nativeTokenDenom = chainMetadata.nativeToken?.denom || '';
@@ -165,6 +90,39 @@ export class RadixProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     _context?: { mailbox?: string },
   ): IRawWarpArtifactManager {
+    const { gateway, base } = this.getCommonSetup(chainMetadata);
+    return new RadixWarpArtifactManager(gateway, base);
+  }
+
+  createMailboxArtifactManager(chainMetadata: ChainMetadataForAltVM) {
+    const { gateway, base, domainId } = this.getCommonSetup(chainMetadata);
+    return new RadixMailboxArtifactManager(gateway, base, domainId);
+  }
+
+  createValidatorAnnounceArtifactManager(chainMetadata: ChainMetadataForAltVM) {
+    const { gateway, base } = this.getCommonSetup(chainMetadata);
+    return new RadixValidatorAnnounceArtifactManager(gateway, base);
+  }
+
+  getMinGas(): MinimumRequiredGasByAction {
+    return {
+      CORE_DEPLOY_GAS: 0n,
+      WARP_DEPLOY_GAS: 0n,
+      TEST_SEND_GAS: 0n,
+      AVS_GAS: 0n,
+      ISM_DEPLOY_GAS: 0n,
+    };
+  }
+
+  /**
+   * Common setup logic for artifact managers.
+   * Extracts gateway, base, and domainId from chain metadata.
+   */
+  private getCommonSetup(chainMetadata: ChainMetadataForAltVM): {
+    gateway: GatewayApiClient;
+    base: RadixBase;
+    domainId: number;
+  } {
     assert(chainMetadata.gatewayUrls, 'gateway urls undefined');
 
     const networkId = parseInt(chainMetadata.chainId.toString());
@@ -172,8 +130,10 @@ export class RadixProtocolProvider implements ProtocolProvider {
 
     assert(gatewayUrl, 'gateway url undefined');
 
+    // Get package address from metadata first
     let packageAddress = chainMetadata.packageAddress;
 
+    // If not in metadata, try to get from NETWORKS config as fallback
     if (!packageAddress) {
       const networkBaseConfig = NETWORKS[networkId];
       assert(
@@ -188,12 +148,14 @@ export class RadixProtocolProvider implements ProtocolProvider {
       `Expected package address to be defined for radix network with id ${networkId}`,
     );
 
+    // Initialize the Gateway API client
     const gateway = GatewayApiClient.initialize({
       applicationName: 'hyperlane',
       basePath: gatewayUrl,
       networkId,
     });
 
+    // Create RadixBase instance with default gas multiplier
     const base = new RadixBase(
       networkId,
       gateway,
@@ -201,16 +163,8 @@ export class RadixProtocolProvider implements ProtocolProvider {
       packageAddress,
     );
 
-    return new RadixWarpArtifactManager(gateway, base);
-  }
+    const domainId = chainMetadata.domainId;
 
-  getMinGas(): MinimumRequiredGasByAction {
-    return {
-      CORE_DEPLOY_GAS: 0n,
-      WARP_DEPLOY_GAS: 0n,
-      TEST_SEND_GAS: 0n,
-      AVS_GAS: 0n,
-      ISM_DEPLOY_GAS: 0n,
-    };
+    return { gateway, base, domainId };
   }
 }
