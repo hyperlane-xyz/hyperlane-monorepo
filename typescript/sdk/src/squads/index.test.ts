@@ -1461,7 +1461,7 @@ type ReflectApplyWrapperCallerRegexMutationScenario = Readonly<{
 }>;
 
 function listReflectApplyWrapperRuntimePatchScenarios(): readonly ReflectApplyWrapperRuntimePatchScenario[] {
-  return [
+  const runtimePatchScenarios: ReflectApplyWrapperRuntimePatchScenario[] = [
     {
       label: 'RegExp.prototype.exec global slot patch',
       applyPatch: () => {
@@ -1759,6 +1759,10 @@ function listReflectApplyWrapperRuntimePatchScenarios(): readonly ReflectApplyWr
       },
     },
   ];
+  for (const runtimePatchScenario of runtimePatchScenarios) {
+    Object.freeze(runtimePatchScenario);
+  }
+  return Object.freeze(runtimePatchScenarios);
 }
 
 function restoreOwnPropertyDescriptorForPattern(
@@ -1776,300 +1780,289 @@ function restoreOwnPropertyDescriptorForPattern(
 }
 
 function listReflectApplyWrapperCallerRegexMutationScenarios(): readonly ReflectApplyWrapperCallerRegexMutationScenario[] {
-  return [
-    {
-      label: 'own test override',
-      mutatePatterns: (mutationPattern, capturePattern) => {
-        const originalMutationTestDescriptor = Object.getOwnPropertyDescriptor(
-          mutationPattern,
-          'test',
-        );
-        const originalCaptureTestDescriptor = Object.getOwnPropertyDescriptor(
-          capturePattern,
-          'test',
-        );
-        Object.defineProperty(mutationPattern, 'test', {
-          configurable: true,
-          writable: true,
-          value: () => {
-            throw new Error(
-              'Expected wrapper matrix to avoid own test override dispatch',
-            );
-          },
-        });
-        Object.defineProperty(capturePattern, 'test', {
-          configurable: true,
-          writable: true,
-          value: () => {
-            throw new Error(
-              'Expected wrapper matrix to avoid own test override dispatch',
-            );
-          },
-        });
-        return () => {
-          restoreOwnPropertyDescriptorForPattern(
-            mutationPattern,
-            'test',
-            originalMutationTestDescriptor,
-          );
-          restoreOwnPropertyDescriptorForPattern(
+  const callerRegexMutationScenarios: ReflectApplyWrapperCallerRegexMutationScenario[] =
+    [
+      {
+        label: 'own test override',
+        mutatePatterns: (mutationPattern, capturePattern) => {
+          const originalMutationTestDescriptor =
+            Object.getOwnPropertyDescriptor(mutationPattern, 'test');
+          const originalCaptureTestDescriptor = Object.getOwnPropertyDescriptor(
             capturePattern,
             'test',
-            originalCaptureTestDescriptor,
           );
-        };
+          Object.defineProperty(mutationPattern, 'test', {
+            configurable: true,
+            writable: true,
+            value: () => {
+              throw new Error(
+                'Expected wrapper matrix to avoid own test override dispatch',
+              );
+            },
+          });
+          Object.defineProperty(capturePattern, 'test', {
+            configurable: true,
+            writable: true,
+            value: () => {
+              throw new Error(
+                'Expected wrapper matrix to avoid own test override dispatch',
+              );
+            },
+          });
+          return () => {
+            restoreOwnPropertyDescriptorForPattern(
+              mutationPattern,
+              'test',
+              originalMutationTestDescriptor,
+            );
+            restoreOwnPropertyDescriptorForPattern(
+              capturePattern,
+              'test',
+              originalCaptureTestDescriptor,
+            );
+          };
+        },
       },
-    },
-    {
-      label: 'own exec override',
-      mutatePatterns: (mutationPattern, capturePattern) => {
-        const originalMutationExecDescriptor = Object.getOwnPropertyDescriptor(
-          mutationPattern,
-          'exec',
-        );
-        const originalCaptureExecDescriptor = Object.getOwnPropertyDescriptor(
-          capturePattern,
-          'exec',
-        );
-        Object.defineProperty(mutationPattern, 'exec', {
-          configurable: true,
-          writable: true,
-          value: () => {
-            throw new Error(
-              'Expected wrapper matrix to avoid own exec override dispatch',
-            );
-          },
-        });
-        Object.defineProperty(capturePattern, 'exec', {
-          configurable: true,
-          writable: true,
-          value: () => {
-            throw new Error(
-              'Expected wrapper matrix to avoid own exec override dispatch',
-            );
-          },
-        });
-        return () => {
-          restoreOwnPropertyDescriptorForPattern(
-            mutationPattern,
-            'exec',
-            originalMutationExecDescriptor,
-          );
-          restoreOwnPropertyDescriptorForPattern(
+      {
+        label: 'own exec override',
+        mutatePatterns: (mutationPattern, capturePattern) => {
+          const originalMutationExecDescriptor =
+            Object.getOwnPropertyDescriptor(mutationPattern, 'exec');
+          const originalCaptureExecDescriptor = Object.getOwnPropertyDescriptor(
             capturePattern,
             'exec',
-            originalCaptureExecDescriptor,
           );
-        };
+          Object.defineProperty(mutationPattern, 'exec', {
+            configurable: true,
+            writable: true,
+            value: () => {
+              throw new Error(
+                'Expected wrapper matrix to avoid own exec override dispatch',
+              );
+            },
+          });
+          Object.defineProperty(capturePattern, 'exec', {
+            configurable: true,
+            writable: true,
+            value: () => {
+              throw new Error(
+                'Expected wrapper matrix to avoid own exec override dispatch',
+              );
+            },
+          });
+          return () => {
+            restoreOwnPropertyDescriptorForPattern(
+              mutationPattern,
+              'exec',
+              originalMutationExecDescriptor,
+            );
+            restoreOwnPropertyDescriptorForPattern(
+              capturePattern,
+              'exec',
+              originalCaptureExecDescriptor,
+            );
+          };
+        },
       },
-    },
-    {
-      label: 'own Symbol.match override',
-      mutatePatterns: (mutationPattern, capturePattern) => {
-        const originalMutationSymbolMatchDescriptor =
-          Object.getOwnPropertyDescriptor(mutationPattern, Symbol.match);
-        const originalCaptureSymbolMatchDescriptor =
-          Object.getOwnPropertyDescriptor(capturePattern, Symbol.match);
-        Object.defineProperty(mutationPattern, Symbol.match, {
-          configurable: true,
-          writable: true,
-          value: () => {
-            throw new Error(
-              'Expected wrapper matrix to avoid own Symbol.match override dispatch',
+      {
+        label: 'own Symbol.match override',
+        mutatePatterns: (mutationPattern, capturePattern) => {
+          const originalMutationSymbolMatchDescriptor =
+            Object.getOwnPropertyDescriptor(mutationPattern, Symbol.match);
+          const originalCaptureSymbolMatchDescriptor =
+            Object.getOwnPropertyDescriptor(capturePattern, Symbol.match);
+          Object.defineProperty(mutationPattern, Symbol.match, {
+            configurable: true,
+            writable: true,
+            value: () => {
+              throw new Error(
+                'Expected wrapper matrix to avoid own Symbol.match override dispatch',
+              );
+            },
+          });
+          Object.defineProperty(capturePattern, Symbol.match, {
+            configurable: true,
+            writable: true,
+            value: () => {
+              throw new Error(
+                'Expected wrapper matrix to avoid own Symbol.match override dispatch',
+              );
+            },
+          });
+          return () => {
+            restoreOwnPropertyDescriptorForPattern(
+              mutationPattern,
+              Symbol.match,
+              originalMutationSymbolMatchDescriptor,
             );
-          },
-        });
-        Object.defineProperty(capturePattern, Symbol.match, {
-          configurable: true,
-          writable: true,
-          value: () => {
-            throw new Error(
-              'Expected wrapper matrix to avoid own Symbol.match override dispatch',
+            restoreOwnPropertyDescriptorForPattern(
+              capturePattern,
+              Symbol.match,
+              originalCaptureSymbolMatchDescriptor,
             );
-          },
-        });
-        return () => {
-          restoreOwnPropertyDescriptorForPattern(
-            mutationPattern,
-            Symbol.match,
-            originalMutationSymbolMatchDescriptor,
-          );
-          restoreOwnPropertyDescriptorForPattern(
-            capturePattern,
-            Symbol.match,
-            originalCaptureSymbolMatchDescriptor,
-          );
-        };
+          };
+        },
       },
-    },
-    {
-      label: 'throwing own constructor getter',
-      mutatePatterns: (mutationPattern, capturePattern) => {
-        const originalMutationConstructorDescriptor =
-          Object.getOwnPropertyDescriptor(mutationPattern, 'constructor');
-        const originalCaptureConstructorDescriptor =
-          Object.getOwnPropertyDescriptor(capturePattern, 'constructor');
-        Object.defineProperty(mutationPattern, 'constructor', {
-          configurable: true,
-          get() {
-            throw new Error(
-              'Expected wrapper matrix to avoid own constructor getter access',
+      {
+        label: 'throwing own constructor getter',
+        mutatePatterns: (mutationPattern, capturePattern) => {
+          const originalMutationConstructorDescriptor =
+            Object.getOwnPropertyDescriptor(mutationPattern, 'constructor');
+          const originalCaptureConstructorDescriptor =
+            Object.getOwnPropertyDescriptor(capturePattern, 'constructor');
+          Object.defineProperty(mutationPattern, 'constructor', {
+            configurable: true,
+            get() {
+              throw new Error(
+                'Expected wrapper matrix to avoid own constructor getter access',
+              );
+            },
+          });
+          Object.defineProperty(capturePattern, 'constructor', {
+            configurable: true,
+            get() {
+              throw new Error(
+                'Expected wrapper matrix to avoid own constructor getter access',
+              );
+            },
+          });
+          return () => {
+            restoreOwnPropertyDescriptorForPattern(
+              mutationPattern,
+              'constructor',
+              originalMutationConstructorDescriptor,
             );
-          },
-        });
-        Object.defineProperty(capturePattern, 'constructor', {
-          configurable: true,
-          get() {
-            throw new Error(
-              'Expected wrapper matrix to avoid own constructor getter access',
+            restoreOwnPropertyDescriptorForPattern(
+              capturePattern,
+              'constructor',
+              originalCaptureConstructorDescriptor,
             );
-          },
-        });
-        return () => {
-          restoreOwnPropertyDescriptorForPattern(
-            mutationPattern,
-            'constructor',
-            originalMutationConstructorDescriptor,
-          );
-          restoreOwnPropertyDescriptorForPattern(
-            capturePattern,
-            'constructor',
-            originalCaptureConstructorDescriptor,
-          );
-        };
+          };
+        },
       },
-    },
-    {
-      label: 'shadowed own source and flags values',
-      mutatePatterns: (mutationPattern, capturePattern) => {
-        const originalMutationSourceDescriptor =
-          Object.getOwnPropertyDescriptor(mutationPattern, 'source');
-        const originalMutationFlagsDescriptor = Object.getOwnPropertyDescriptor(
-          mutationPattern,
-          'flags',
-        );
-        const originalCaptureSourceDescriptor = Object.getOwnPropertyDescriptor(
-          capturePattern,
-          'source',
-        );
-        const originalCaptureFlagsDescriptor = Object.getOwnPropertyDescriptor(
-          capturePattern,
-          'flags',
-        );
-        Object.defineProperty(mutationPattern, 'source', {
-          configurable: true,
-          value: '^$',
-        });
-        Object.defineProperty(mutationPattern, 'flags', {
-          configurable: true,
-          value: '',
-        });
-        Object.defineProperty(capturePattern, 'source', {
-          configurable: true,
-          value: '^$',
-        });
-        Object.defineProperty(capturePattern, 'flags', {
-          configurable: true,
-          value: '',
-        });
-        return () => {
-          restoreOwnPropertyDescriptorForPattern(
-            mutationPattern,
-            'source',
-            originalMutationSourceDescriptor,
-          );
-          restoreOwnPropertyDescriptorForPattern(
-            mutationPattern,
-            'flags',
-            originalMutationFlagsDescriptor,
-          );
-          restoreOwnPropertyDescriptorForPattern(
-            capturePattern,
-            'source',
-            originalCaptureSourceDescriptor,
-          );
-          restoreOwnPropertyDescriptorForPattern(
-            capturePattern,
-            'flags',
-            originalCaptureFlagsDescriptor,
-          );
-        };
+      {
+        label: 'shadowed own source and flags values',
+        mutatePatterns: (mutationPattern, capturePattern) => {
+          const originalMutationSourceDescriptor =
+            Object.getOwnPropertyDescriptor(mutationPattern, 'source');
+          const originalMutationFlagsDescriptor =
+            Object.getOwnPropertyDescriptor(mutationPattern, 'flags');
+          const originalCaptureSourceDescriptor =
+            Object.getOwnPropertyDescriptor(capturePattern, 'source');
+          const originalCaptureFlagsDescriptor =
+            Object.getOwnPropertyDescriptor(capturePattern, 'flags');
+          Object.defineProperty(mutationPattern, 'source', {
+            configurable: true,
+            value: '^$',
+          });
+          Object.defineProperty(mutationPattern, 'flags', {
+            configurable: true,
+            value: '',
+          });
+          Object.defineProperty(capturePattern, 'source', {
+            configurable: true,
+            value: '^$',
+          });
+          Object.defineProperty(capturePattern, 'flags', {
+            configurable: true,
+            value: '',
+          });
+          return () => {
+            restoreOwnPropertyDescriptorForPattern(
+              mutationPattern,
+              'source',
+              originalMutationSourceDescriptor,
+            );
+            restoreOwnPropertyDescriptorForPattern(
+              mutationPattern,
+              'flags',
+              originalMutationFlagsDescriptor,
+            );
+            restoreOwnPropertyDescriptorForPattern(
+              capturePattern,
+              'source',
+              originalCaptureSourceDescriptor,
+            );
+            restoreOwnPropertyDescriptorForPattern(
+              capturePattern,
+              'flags',
+              originalCaptureFlagsDescriptor,
+            );
+          };
+        },
       },
-    },
-    {
-      label: 'throwing own source and flags accessors',
-      mutatePatterns: (mutationPattern, capturePattern) => {
-        const originalMutationSourceDescriptor =
-          Object.getOwnPropertyDescriptor(mutationPattern, 'source');
-        const originalMutationFlagsDescriptor = Object.getOwnPropertyDescriptor(
-          mutationPattern,
-          'flags',
-        );
-        const originalCaptureSourceDescriptor = Object.getOwnPropertyDescriptor(
-          capturePattern,
-          'source',
-        );
-        const originalCaptureFlagsDescriptor = Object.getOwnPropertyDescriptor(
-          capturePattern,
-          'flags',
-        );
-        Object.defineProperty(mutationPattern, 'source', {
-          configurable: true,
-          get() {
-            throw new Error(
-              'Expected wrapper matrix to bypass throwing own source accessors',
+      {
+        label: 'throwing own source and flags accessors',
+        mutatePatterns: (mutationPattern, capturePattern) => {
+          const originalMutationSourceDescriptor =
+            Object.getOwnPropertyDescriptor(mutationPattern, 'source');
+          const originalMutationFlagsDescriptor =
+            Object.getOwnPropertyDescriptor(mutationPattern, 'flags');
+          const originalCaptureSourceDescriptor =
+            Object.getOwnPropertyDescriptor(capturePattern, 'source');
+          const originalCaptureFlagsDescriptor =
+            Object.getOwnPropertyDescriptor(capturePattern, 'flags');
+          Object.defineProperty(mutationPattern, 'source', {
+            configurable: true,
+            get() {
+              throw new Error(
+                'Expected wrapper matrix to bypass throwing own source accessors',
+              );
+            },
+          });
+          Object.defineProperty(mutationPattern, 'flags', {
+            configurable: true,
+            get() {
+              throw new Error(
+                'Expected wrapper matrix to bypass throwing own flags accessors',
+              );
+            },
+          });
+          Object.defineProperty(capturePattern, 'source', {
+            configurable: true,
+            get() {
+              throw new Error(
+                'Expected wrapper matrix to bypass throwing own source accessors',
+              );
+            },
+          });
+          Object.defineProperty(capturePattern, 'flags', {
+            configurable: true,
+            get() {
+              throw new Error(
+                'Expected wrapper matrix to bypass throwing own flags accessors',
+              );
+            },
+          });
+          return () => {
+            restoreOwnPropertyDescriptorForPattern(
+              mutationPattern,
+              'source',
+              originalMutationSourceDescriptor,
             );
-          },
-        });
-        Object.defineProperty(mutationPattern, 'flags', {
-          configurable: true,
-          get() {
-            throw new Error(
-              'Expected wrapper matrix to bypass throwing own flags accessors',
+            restoreOwnPropertyDescriptorForPattern(
+              mutationPattern,
+              'flags',
+              originalMutationFlagsDescriptor,
             );
-          },
-        });
-        Object.defineProperty(capturePattern, 'source', {
-          configurable: true,
-          get() {
-            throw new Error(
-              'Expected wrapper matrix to bypass throwing own source accessors',
+            restoreOwnPropertyDescriptorForPattern(
+              capturePattern,
+              'source',
+              originalCaptureSourceDescriptor,
             );
-          },
-        });
-        Object.defineProperty(capturePattern, 'flags', {
-          configurable: true,
-          get() {
-            throw new Error(
-              'Expected wrapper matrix to bypass throwing own flags accessors',
+            restoreOwnPropertyDescriptorForPattern(
+              capturePattern,
+              'flags',
+              originalCaptureFlagsDescriptor,
             );
-          },
-        });
-        return () => {
-          restoreOwnPropertyDescriptorForPattern(
-            mutationPattern,
-            'source',
-            originalMutationSourceDescriptor,
-          );
-          restoreOwnPropertyDescriptorForPattern(
-            mutationPattern,
-            'flags',
-            originalMutationFlagsDescriptor,
-          );
-          restoreOwnPropertyDescriptorForPattern(
-            capturePattern,
-            'source',
-            originalCaptureSourceDescriptor,
-          );
-          restoreOwnPropertyDescriptorForPattern(
-            capturePattern,
-            'flags',
-            originalCaptureFlagsDescriptor,
-          );
-        };
+          };
+        },
       },
-    },
-  ];
+    ];
+  for (const callerRegexMutationScenario of callerRegexMutationScenarios) {
+    Object.freeze(callerRegexMutationScenario);
+  }
+  return Object.freeze(callerRegexMutationScenarios);
 }
 
 describe('squads barrel exports', () => {
@@ -2994,6 +2987,37 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps Reflect.apply wrapper runtime patch matrix scenario helper frozen and snapshot-isolated', () => {
+    const initialScenarios = listReflectApplyWrapperRuntimePatchScenarios();
+    const baselineScenarioLabels = initialScenarios.map(({ label }) => label);
+    const nextScenarios = listReflectApplyWrapperRuntimePatchScenarios();
+
+    expect(Object.isFrozen(initialScenarios)).to.equal(true);
+    for (const scenario of initialScenarios) {
+      expect(Object.isFrozen(scenario)).to.equal(true);
+    }
+    expect(initialScenarios).to.not.equal(nextScenarios);
+    expect(nextScenarios.map(({ label }) => label)).to.deep.equal(
+      baselineScenarioLabels,
+    );
+    expect(() =>
+      (
+        initialScenarios as unknown as ReflectApplyWrapperRuntimePatchScenario[]
+      ).push({
+        label: 'invalid',
+        applyPatch: () => () => undefined,
+      }),
+    ).to.throw(TypeError);
+    expect(
+      () =>
+        ((initialScenarios[0] as unknown as { label: string }).label =
+          'corrupted'),
+    ).to.throw(TypeError);
+    expect(
+      listReflectApplyWrapperRuntimePatchScenarios().map(({ label }) => label),
+    ).to.deep.equal(baselineScenarioLabels);
+  });
+
   it('keeps Reflect.apply pattern-discovery helper custom patterns deterministic and lastIndex-safe', () => {
     const mutationNonGlobalPattern = /Reflect\.apply is mutated/;
     const mutationGlobalPattern = /Reflect\.apply is mutated/g;
@@ -3636,6 +3660,40 @@ describe('squads barrel exports', () => {
       expect(scenarioLabel.trim().length).to.be.greaterThan(0);
       expect(scenarioLabel).to.equal(scenarioLabel.trim());
     }
+  });
+
+  it('keeps Reflect.apply wrapper caller-regex mutation scenario helper frozen and snapshot-isolated', () => {
+    const initialScenarios =
+      listReflectApplyWrapperCallerRegexMutationScenarios();
+    const baselineScenarioLabels = initialScenarios.map(({ label }) => label);
+    const nextScenarios = listReflectApplyWrapperCallerRegexMutationScenarios();
+
+    expect(Object.isFrozen(initialScenarios)).to.equal(true);
+    for (const scenario of initialScenarios) {
+      expect(Object.isFrozen(scenario)).to.equal(true);
+    }
+    expect(initialScenarios).to.not.equal(nextScenarios);
+    expect(nextScenarios.map(({ label }) => label)).to.deep.equal(
+      baselineScenarioLabels,
+    );
+    expect(() =>
+      (
+        initialScenarios as unknown as ReflectApplyWrapperCallerRegexMutationScenario[]
+      ).push({
+        label: 'invalid',
+        mutatePatterns: () => () => undefined,
+      }),
+    ).to.throw(TypeError);
+    expect(
+      () =>
+        ((initialScenarios[0] as unknown as { label: string }).label =
+          'corrupted'),
+    ).to.throw(TypeError);
+    expect(
+      listReflectApplyWrapperCallerRegexMutationScenarios().map(
+        ({ label }) => label,
+      ),
+    ).to.deep.equal(baselineScenarioLabels);
   });
 
   it('keeps Reflect.apply wrapper custom discovery canonical across hostile caller-regex mutation matrix', () => {
