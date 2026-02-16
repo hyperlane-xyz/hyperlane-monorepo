@@ -2319,6 +2319,29 @@ describe('squads barrel exports', () => {
     ).to.deep.equal(baselineCaptureDiscovery);
   });
 
+  it('keeps stateful regex-flag stripping limited to g and y', () => {
+    const flagStripCases = [
+      { input: '', expected: '' },
+      { input: 'g', expected: '' },
+      { input: 'y', expected: '' },
+      { input: 'gy', expected: '' },
+      { input: 'yg', expected: '' },
+      { input: 'gi', expected: 'i' },
+      { input: 'ig', expected: 'i' },
+      { input: 'iy', expected: 'i' },
+      { input: 'gimy', expected: 'im' },
+      { input: 'dgimsuy', expected: 'dimsu' },
+      { input: 'ggiyy', expected: 'i' },
+      { input: 'xyz', expected: 'xz' },
+      { input: 'v', expected: 'v' },
+      { input: 'gvydmi', expected: 'vdmi' },
+    ];
+
+    for (const { input, expected } of flagStripCases) {
+      expect(stripStatefulRegexFlags(input)).to.equal(expected);
+    }
+  });
+
   it('keeps sdk squads pattern-path discovery stable for mixed stateful and non-stateful regex flags', () => {
     const baselineMutationDiscovery =
       listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/i);
