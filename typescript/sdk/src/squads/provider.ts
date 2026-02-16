@@ -1,7 +1,10 @@
 import type { accounts } from '@sqds/multisig';
 import { assert } from '@hyperlane-xyz/utils';
 import { stringifyUnknownSquadsError } from './error-format.js';
-import { inspectPromiseLikeThenValue } from './inspection.js';
+import {
+  inspectArrayValue,
+  inspectPromiseLikeThenValue,
+} from './inspection.js';
 
 export type SquadsProvider = Parameters<
   typeof accounts.Multisig.fromAccountAddress
@@ -16,26 +19,9 @@ type ProviderWithOptionalGetAccountInfo =
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
 
-function getArrayInspection(value: unknown): {
-  isArray: boolean;
-  readFailed: boolean;
-} {
-  try {
-    return {
-      isArray: Array.isArray(value),
-      readFailed: false,
-    };
-  } catch {
-    return {
-      isArray: false,
-      readFailed: true,
-    };
-  }
-}
-
 function formatValueType(value: unknown): string {
   if (value === null) return 'null';
-  const { isArray, readFailed } = getArrayInspection(value);
+  const { isArray, readFailed } = inspectArrayValue(value);
   if (readFailed) return UNREADABLE_VALUE_TYPE;
   if (isArray) return 'array';
   return typeof value;
@@ -73,7 +59,7 @@ function isGetAccountInfoFunction(
 
 export function toSquadsProvider(provider: unknown): SquadsProvider {
   const { isArray: providerIsArray, readFailed: providerTypeReadFailed } =
-    getArrayInspection(provider);
+    inspectArrayValue(provider);
 
   assert(
     typeof provider === 'object' &&

@@ -1,8 +1,38 @@
 import { expect } from 'chai';
 
-import { inspectPromiseLikeThenValue } from './inspection.js';
+import {
+  inspectArrayValue,
+  inspectPromiseLikeThenValue,
+} from './inspection.js';
 
 describe('squads inspection helpers', () => {
+  describe(inspectArrayValue.name, () => {
+    it('distinguishes arrays from non-arrays without read failures', () => {
+      expect(inspectArrayValue([])).to.deep.equal({
+        isArray: true,
+        readFailed: false,
+      });
+      expect(inspectArrayValue({})).to.deep.equal({
+        isArray: false,
+        readFailed: false,
+      });
+      expect(inspectArrayValue(null)).to.deep.equal({
+        isArray: false,
+        readFailed: false,
+      });
+    });
+
+    it('returns readFailed when array inspection throws', () => {
+      const { proxy: revokedValue, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(inspectArrayValue(revokedValue)).to.deep.equal({
+        isArray: false,
+        readFailed: true,
+      });
+    });
+  });
+
   describe(inspectPromiseLikeThenValue.name, () => {
     it('returns undefined then/readError for non-object and null values', () => {
       expect(inspectPromiseLikeThenValue(undefined)).to.deep.equal({

@@ -1,3 +1,20 @@
+export function inspectArrayValue(value: unknown): {
+  isArray: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      isArray: Array.isArray(value),
+      readFailed: false,
+    };
+  } catch {
+    return {
+      isArray: false,
+      readFailed: true,
+    };
+  }
+}
+
 export function inspectPromiseLikeThenValue(value: unknown): {
   thenValue: unknown;
   readError: unknown | undefined;
