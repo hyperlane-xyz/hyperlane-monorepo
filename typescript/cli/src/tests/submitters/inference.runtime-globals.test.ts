@@ -7,6 +7,7 @@ import sinon from 'sinon';
 
 import {
   getCachedRuntimeFunctionValuesByLabel,
+  getCachedRuntimeIntlFunctionValuesByLabel,
   getCachedRuntimeObjectValuesByLabel,
   getCachedRuntimePrimitiveValuesByLabel,
   SUPPORTED_RUNTIME_PRIMITIVE_VALUE_TYPES,
@@ -195,6 +196,13 @@ describe('runtime global probe helpers', () => {
     firstObjectMap.delete('math-object');
     const secondObjectMap = getCachedRuntimeObjectValuesByLabel();
     expect(secondObjectMap.has('math-object')).to.equal(true);
+
+    const firstIntlFunctionMap = getCachedRuntimeIntlFunctionValuesByLabel();
+    firstIntlFunctionMap.delete('intl-collator-constructor-object');
+    const secondIntlFunctionMap = getCachedRuntimeIntlFunctionValuesByLabel();
+    expect(
+      secondIntlFunctionMap.has('intl-collator-constructor-object'),
+    ).to.equal(true);
 
     const firstPrimitiveMap = getCachedRuntimePrimitiveValuesByLabel();
     firstPrimitiveMap.delete('nan-number-primitive');
@@ -495,6 +503,56 @@ describe('runtime global probe helpers', () => {
     } finally {
       Reflect.deleteProperty(globalThis, injectedObjectGlobalName);
       Reflect.deleteProperty(globalThis, injectedPrimitiveGlobalName);
+    }
+  });
+
+  it('keeps cached runtime Intl probe snapshots stable', () => {
+    // Prime cached no-map Intl helper snapshot first.
+    expect(
+      getCachedRuntimeIntlFunctionValuesByLabel().has(
+        'intl-collator-constructor-object',
+      ),
+    ).to.equal(true);
+
+    const injectedIntlProperty = '__InjectedIntlRuntimeProbeConstructor__';
+    const injectedIntlLabel = `intl-${injectedIntlProperty.toLowerCase()}-constructor-object`;
+    const injectedIntlConstructor =
+      function InjectedIntlRuntimeProbeConstructor() {
+        return undefined;
+      };
+    Object.defineProperty(Intl, injectedIntlProperty, {
+      configurable: true,
+      writable: true,
+      value: injectedIntlConstructor,
+    });
+
+    try {
+      // Fresh explicit map can observe newly injected Intl function properties.
+      const freshRuntimeIntlFunctionMap = getRuntimeIntlFunctionValuesByLabel();
+      expect(freshRuntimeIntlFunctionMap.get(injectedIntlLabel)).to.equal(
+        injectedIntlConstructor,
+      );
+
+      // Cached no-map helpers/resolvers intentionally keep a stable snapshot.
+      expect(
+        getCachedRuntimeIntlFunctionValuesByLabel().has(injectedIntlLabel),
+      ).to.equal(false);
+      const defaultResolvedCases = resolveRuntimeIntlFunctionProbeCases([
+        { label: injectedIntlLabel, directGetLogsCallCount: 1 },
+      ]);
+      expect(defaultResolvedCases).to.have.length(0);
+
+      // Explicit-map resolver remains dynamic.
+      const explicitResolvedCases = resolveRuntimeIntlFunctionProbeCases(
+        [{ label: injectedIntlLabel, directGetLogsCallCount: 1 }],
+        freshRuntimeIntlFunctionMap,
+      );
+      expect(explicitResolvedCases).to.have.length(1);
+      expect(explicitResolvedCases[0].constructorValue).to.equal(
+        injectedIntlConstructor,
+      );
+    } finally {
+      Reflect.deleteProperty(Intl, injectedIntlProperty);
     }
   });
 

@@ -220,7 +220,7 @@ export function getRuntimeIntlFunctionValuesByLabel(): Map<string, Function> {
   return runtimeIntlFunctionValueByLabel;
 }
 
-function getCachedRuntimeIntlFunctionValuesByLabel(): ReadonlyMap<
+function getCachedRuntimeIntlFunctionValuesByLabelInternal(): ReadonlyMap<
   string,
   Function
 > {
@@ -229,6 +229,13 @@ function getCachedRuntimeIntlFunctionValuesByLabel(): ReadonlyMap<
       getRuntimeIntlFunctionValuesByLabel();
   }
   return cachedRuntimeIntlFunctionValuesByLabel;
+}
+
+export function getCachedRuntimeIntlFunctionValuesByLabel(): Map<
+  string,
+  Function
+> {
+  return new Map(getCachedRuntimeIntlFunctionValuesByLabelInternal());
 }
 
 export function getRuntimeObjectValuesByLabel(): Map<string, object> {
@@ -328,7 +335,7 @@ export function resolveRuntimeIntlFunctionProbeCases(
   runtimeIntlFunctionValuesByLabel: ReadonlyMap<
     string,
     unknown
-  > = getCachedRuntimeIntlFunctionValuesByLabel(),
+  > = getCachedRuntimeIntlFunctionValuesByLabelInternal(),
 ): RuntimeFunctionProbeCase[] {
   return resolveRuntimeFunctionProbeCases(
     rawCases,
