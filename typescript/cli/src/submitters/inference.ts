@@ -1645,6 +1645,23 @@ export async function resolveSubmitterBatchesForTransactions({
     ];
   }
 
+  const explicitSubmissionStrategy: ExtendedSubmissionStrategy | undefined =
+    strategyUrl ? readChainSubmissionStrategy(strategyUrl)[chain] : undefined;
+  const explicitOverrides = explicitSubmissionStrategy?.submitterOverrides;
+  const hasExplicitOverrides = !!(
+    explicitOverrides && Object.keys(explicitOverrides).length > 0
+  );
+  if (explicitSubmissionStrategy && !hasExplicitOverrides) {
+    return [
+      {
+        config: ExtendedSubmissionStrategySchema.parse({
+          submitter: explicitSubmissionStrategy.submitter,
+        }),
+        transactions,
+      },
+    ];
+  }
+
   let protocol: ProtocolType | undefined;
   try {
     protocol = context.multiProvider.getProtocol(chain);
@@ -1655,11 +1672,6 @@ export async function resolveSubmitterBatchesForTransactions({
     );
     protocol = undefined;
   }
-
-  const explicitSubmissionStrategy: ExtendedSubmissionStrategy | undefined =
-    strategyUrl && !isExtendedChain
-      ? readChainSubmissionStrategy(strategyUrl)[chain]
-      : undefined;
 
   if (explicitSubmissionStrategy) {
     if (!protocol) {
