@@ -739,6 +739,32 @@ describe('runtime global probe helpers', () => {
     expect(filesMissingCachedHelpers).to.deep.equal([]);
   });
 
+  it('keeps global probe files free of raw runtime helper imports', () => {
+    const submitterTestDir = path.dirname(fileURLToPath(import.meta.url));
+    const globalProbeFiles = [
+      'inference.global-function-probes.test.ts',
+      'inference.global-object-probes.test.ts',
+      'inference.primitive-global-probes.test.ts',
+    ];
+    const rawRuntimeHelperNames = [
+      'getRuntimeFunctionValuesByLabel',
+      'getRuntimeObjectValuesByLabel',
+      'getRuntimePrimitiveValuesByLabel',
+    ];
+
+    const filesReferencingRawHelpers = globalProbeFiles.filter((fileName) => {
+      const fileContent = fs.readFileSync(
+        path.join(submitterTestDir, fileName),
+        'utf8',
+      );
+      return rawRuntimeHelperNames.some((helperName) =>
+        fileContent.includes(helperName),
+      );
+    });
+
+    expect(filesReferencingRawHelpers).to.deep.equal([]);
+  });
+
   it('keeps raw runtime map builders scoped to helper tests', () => {
     const submitterTestDir = path.dirname(fileURLToPath(import.meta.url));
     const submitterTestFiles = fs
