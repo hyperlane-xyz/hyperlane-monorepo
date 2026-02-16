@@ -74,6 +74,7 @@ const ARRAY_MAP = Array.prototype.map;
 const ARRAY_JOIN = Array.prototype.join;
 const ARRAY_PUSH = Array.prototype.push;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const STRING_FUNCTION = String;
 const STRING_TRIM = String.prototype.trim;
 
 function readStaticSquadsConfigFieldOrThrow(
@@ -176,6 +177,10 @@ function numberIsSafeInteger(value: unknown): boolean {
   return NUMBER_IS_SAFE_INTEGER(value);
 }
 
+function stringFromValue(value: unknown): string {
+  return STRING_FUNCTION(value);
+}
+
 export function getSquadsChains(): SquadsChainName[] {
   return [...SQUADS_CHAINS];
 }
@@ -201,7 +206,7 @@ function getUnknownValueTypeName(value: unknown): string {
 
 function formatLengthValue(value: unknown): string {
   return typeof value === 'number'
-    ? String(value)
+    ? stringFromValue(value)
     : getUnknownValueTypeName(value);
 }
 

@@ -284,6 +284,18 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\bNumber\.isNaN\s*\(/,
   }),
   Object.freeze({
+    label: 'String call',
+    pattern: /\bString\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Boolean call',
+    pattern: /\bBoolean\s*\(/,
+  }),
+  Object.freeze({
+    label: 'BigInt call',
+    pattern: /\bBigInt\s*\(/,
+  }),
+  Object.freeze({
     label: 'Number call',
     pattern: /\bNumber\s*\(/,
   }),
@@ -571,6 +583,9 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   'Number.isInteger call',
   'Number.isFinite call',
   'Number.isNaN call',
+  'String call',
+  'Boolean call',
+  'BigInt call',
   'Number call',
   'Number.NaN access',
   'Math.max call',
@@ -612,8 +627,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.toSpliced method call',
   '.with method call',
 ]);
-const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 94;
-const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 70;
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 97;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 73;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {

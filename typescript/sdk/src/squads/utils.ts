@@ -188,6 +188,10 @@ const ARRAY_PUSH = Array.prototype.push;
 const ARRAY_SORT = Array.prototype.sort;
 const ARRAY_INCLUDES = Array.prototype.includes;
 const ARRAY_SOME = Array.prototype.some;
+const BIGINT_FUNCTION = BigInt as (
+  value: string | number | bigint | boolean,
+) => bigint;
+const BOOLEAN_FUNCTION = Boolean;
 const MATH_MAX = Math.max;
 const NUMBER_FUNCTION = Number;
 const NUMBER_NAN = 0 / 0;
@@ -196,6 +200,7 @@ const NUMBER_IS_FINITE = Number.isFinite;
 const OBJECT_PROTOTYPE_TO_STRING = Object.prototype.toString as (
   this: unknown,
 ) => string;
+const STRING_FUNCTION = String;
 const STRING_INCLUDES = String.prototype.includes;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
@@ -324,12 +329,24 @@ function numberIsSafeInteger(value: unknown): boolean {
   return NUMBER_IS_SAFE_INTEGER(value);
 }
 
+function bigintFromValue(value: string | number | bigint | boolean): bigint {
+  return BIGINT_FUNCTION(value);
+}
+
+function booleanFromValue(value: unknown): boolean {
+  return BOOLEAN_FUNCTION(value);
+}
+
 function numberFromValue(value: unknown): number {
   return NUMBER_FUNCTION(value);
 }
 
 function numberNaNValue(): number {
   return NUMBER_NAN;
+}
+
+function stringFromValue(value: unknown): string {
+  return STRING_FUNCTION(value);
 }
 
 function numberIsFinite(value: unknown): boolean {
@@ -516,7 +533,7 @@ export function normalizeSquadsAddressValue(
       rawAddressValue =
         typeof toBase58Value === 'string'
           ? toBase58Value
-          : String(toBase58Value);
+          : stringFromValue(toBase58Value);
     } catch (error) {
       return {
         address: undefined,
@@ -879,7 +896,7 @@ function readSafeIntegerOptionFlag(
       readError,
     )}`,
   );
-  return Boolean(propertyValue);
+  return booleanFromValue(propertyValue);
 }
 
 function normalizeSafeIntegerValue(value: unknown): {
@@ -887,16 +904,22 @@ function normalizeSafeIntegerValue(value: unknown): {
   displayValue: string;
 } {
   if (typeof value === 'number' || typeof value === 'bigint') {
-    return { parsedValue: numberFromValue(value), displayValue: String(value) };
+    return {
+      parsedValue: numberFromValue(value),
+      displayValue: stringFromValue(value),
+    };
   }
 
   if (!value || typeof value !== 'object') {
-    return { parsedValue: numberNaNValue(), displayValue: String(value) };
+    return {
+      parsedValue: numberNaNValue(),
+      displayValue: stringFromValue(value),
+    };
   }
 
   let displayValue: string;
   try {
-    displayValue = String(value);
+    displayValue = stringFromValue(value);
   } catch {
     const { propertyValue: toStringCandidate, readError: toStringReadError } =
       inspectPropertyValue(value, 'toString');
@@ -1389,7 +1412,7 @@ function deriveProposalPdaForResolvedChain(
   try {
     proposalPdaTuple = getProposalPda({
       multisigPda,
-      transactionIndex: BigInt(transactionIndex),
+      transactionIndex: bigintFromValue(transactionIndex),
       programId,
     });
   } catch (error) {
@@ -1630,7 +1653,7 @@ export async function getPendingProposalsForChains(
 
             const [transactionPda] = getTransactionPda({
               multisigPda,
-              index: BigInt(proposalIndex),
+              index: bigintFromValue(proposalIndex),
               programId,
             });
             const txHash = formatAddressForError(transactionPda);
@@ -1828,7 +1851,7 @@ export function getSquadTxStatus(
 
 function formatSafeIntegerInputValue(value: unknown): string {
   return typeof value === 'number'
-    ? String(value)
+    ? stringFromValue(value)
     : getUnknownValueTypeName(value);
 }
 
@@ -2110,7 +2133,7 @@ function getMultisigMemberCount(
       );
       let normalizedMemberKey: string | undefined;
       try {
-        normalizedMemberKey = String(memberKey);
+        normalizedMemberKey = stringFromValue(memberKey);
       } catch {
         // handled by assertion below
       }
@@ -2197,7 +2220,7 @@ export function decodePermissions(mask: unknown): string {
   );
   assert(
     numberIsSafeInteger(mask) && mask >= 0,
-    `Expected permission mask to be a non-negative safe integer, got ${String(mask)}`,
+    `Expected permission mask to be a non-negative safe integer, got ${stringFromValue(mask)}`,
   );
 
   const permissions: string[] = [];
@@ -2230,7 +2253,7 @@ async function getNextSquadsTransactionIndex(
   );
 
   const parsedMultisig = parseSquadMultisig(multisig, `${chain} multisig`);
-  const currentIndex = BigInt(parsedMultisig.currentTransactionIndex);
+  const currentIndex = bigintFromValue(parsedMultisig.currentTransactionIndex);
   const nextIndex = currentIndex + 1n;
 
   return nextIndex;
@@ -2377,7 +2400,7 @@ function assertValidBigintTransactionIndex(
   );
   assert(
     transactionIndex >= 0n,
-    `Expected transaction index to be a non-negative bigint for ${chainLabel}, got ${String(transactionIndex)}`,
+    `Expected transaction index to be a non-negative bigint for ${chainLabel}, got ${stringFromValue(transactionIndex)}`,
   );
 
   return transactionIndex;
@@ -2906,7 +2929,7 @@ export async function getTransactionType(
 
   const [transactionPda] = getTransactionPda({
     multisigPda,
-    index: BigInt(normalizedTransactionIndex),
+    index: bigintFromValue(normalizedTransactionIndex),
     programId,
   });
 
@@ -3005,7 +3028,7 @@ export async function executeProposal(
         await instructions.vaultTransactionExecute({
           connection: svmProvider,
           multisigPda,
-          transactionIndex: BigInt(normalizedTransactionIndex),
+          transactionIndex: bigintFromValue(normalizedTransactionIndex),
           member: executorPublicKey,
           programId,
         });
@@ -3020,7 +3043,7 @@ export async function executeProposal(
     } else {
       instruction = instructions.configTransactionExecute({
         multisigPda,
-        transactionIndex: BigInt(normalizedTransactionIndex),
+        transactionIndex: bigintFromValue(normalizedTransactionIndex),
         member: executorPublicKey,
         programId,
       });

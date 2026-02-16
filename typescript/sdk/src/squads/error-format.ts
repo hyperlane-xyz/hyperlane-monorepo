@@ -3,6 +3,7 @@ import { inspectInstanceOf, inspectPropertyValue } from './inspection.js';
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
 const TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN = /\s*:\s*$/;
 const OBJECT_FREEZE = Object.freeze as <Value>(value: Value) => Readonly<Value>;
+const STRING_FUNCTION = String;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 const STRING_REPLACE = String.prototype.replace as (
@@ -13,6 +14,10 @@ const STRING_REPLACE = String.prototype.replace as (
 
 function objectFreezeValue<Value>(value: Value): Readonly<Value> {
   return OBJECT_FREEZE(value);
+}
+
+function stringFromValue(value: unknown): string {
+  return STRING_FUNCTION(value);
 }
 
 export const BUILTIN_SQUADS_ERROR_LABELS = objectFreezeValue([
@@ -178,7 +183,9 @@ export function stringifyUnknownSquadsError(
       : undefined;
   const stringifyErrorFallback = (value: unknown): string => {
     try {
-      const normalizedError = normalizeStringifiedSquadsError(String(value));
+      const normalizedError = normalizeStringifiedSquadsError(
+        stringFromValue(value),
+      );
       return normalizedError ?? placeholder;
     } catch {
       return placeholder;

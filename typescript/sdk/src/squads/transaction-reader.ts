@@ -111,9 +111,13 @@ const ARRAY_MAP = Array.prototype.map;
 const ARRAY_FILTER = Array.prototype.filter;
 const ARRAY_JOIN = Array.prototype.join;
 const ARRAY_PUSH = Array.prototype.push;
+const BIGINT_FUNCTION = BigInt as (
+  value: string | number | bigint | boolean,
+) => bigint;
 const NUMBER_IS_INTEGER = Number.isInteger;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const NUMBER_IS_NAN = Number.isNaN;
+const STRING_FUNCTION = String;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 const BUFFER_FROM = Buffer.from;
@@ -247,6 +251,14 @@ function numberIsSafeInteger(value: unknown): boolean {
 
 function numberIsNaN(value: unknown): boolean {
   return NUMBER_IS_NAN(value);
+}
+
+function bigintFromValue(value: string | number | bigint | boolean): bigint {
+  return BIGINT_FUNCTION(value);
+}
+
+function stringFromValue(value: unknown): string {
+  return STRING_FUNCTION(value);
 }
 
 function arrayPushValues<Value>(
@@ -2533,7 +2545,7 @@ export class SquadsTransactionReader {
     try {
       transactionPdaTuple = getTransactionPda({
         multisigPda: normalizedMultisigPda,
-        index: BigInt(transactionIndex),
+        index: bigintFromValue(transactionIndex),
         programId: normalizedProgramId,
       });
     } catch (error) {
@@ -3230,7 +3242,7 @@ export class SquadsTransactionReader {
               `Expected config-action spending-limit amount on ${chain} to be defined`,
             );
           }
-          amountValue = String(amountCandidate);
+          amountValue = stringFromValue(amountCandidate);
         } catch (error) {
           rootLogger.warn(
             `Failed to stringify config-action spending-limit amount on ${chain}: ${stringifyUnknownSquadsError(error)}`,
@@ -3472,7 +3484,7 @@ export class SquadsTransactionReader {
     }
 
     try {
-      const normalizedGas = stringTrim(String(gas));
+      const normalizedGas = stringTrim(stringFromValue(gas));
       return normalizedGas.length > 0 ? normalizedGas : 'unset';
     } catch {
       return 'unset';

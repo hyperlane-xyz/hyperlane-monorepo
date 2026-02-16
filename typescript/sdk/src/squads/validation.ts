@@ -2,6 +2,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import { inspectArrayValue } from './inspection.js';
 
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const STRING_FUNCTION = String;
 const STRING_TRIM = String.prototype.trim;
 
 function stringTrim(value: string): string {
@@ -10,6 +11,10 @@ function stringTrim(value: string): string {
 
 function numberIsSafeInteger(value: unknown): boolean {
   return NUMBER_IS_SAFE_INTEGER(value);
+}
+
+function stringFromValue(value: unknown): string {
+  return STRING_FUNCTION(value);
 }
 
 function getUnknownValueTypeName(value: unknown): string {
@@ -36,7 +41,7 @@ function getChainLabel(chain: unknown): string {
 
 function formatTransactionIndexValue(transactionIndex: unknown): string {
   if (typeof transactionIndex === 'number') {
-    return String(transactionIndex);
+    return stringFromValue(transactionIndex);
   }
 
   return getUnknownValueTypeName(transactionIndex);
