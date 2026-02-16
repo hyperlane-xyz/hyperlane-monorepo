@@ -1,5 +1,17 @@
-export function getOwnObjectField(value: unknown, field: string): unknown {
+export type GetOwnObjectFieldOptions = {
+  disallowedFields?: ReadonlySet<string>;
+};
+
+export function getOwnObjectField(
+  value: unknown,
+  field: string,
+  options?: GetOwnObjectFieldOptions,
+): unknown {
   if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return undefined;
+  }
+
+  if (options?.disallowedFields?.has(field)) {
     return undefined;
   }
 

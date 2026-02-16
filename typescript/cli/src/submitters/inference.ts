@@ -31,6 +31,7 @@ import {
   parseExtendedChainSubmissionStrategy,
   parseExtendedSubmissionStrategy,
 } from './types.js';
+import { getOwnObjectField as getSharedOwnObjectField } from './object.js';
 
 const logger = rootLogger.child({ module: 'submitter-inference' });
 const MAX_INFERENCE_DEPTH = 3;
@@ -313,36 +314,10 @@ function getParsedLogArg(
   return getOwnObjectField(args, `${fallbackIndex}`);
 }
 
-function getObjectField(value: unknown, field: string): unknown {
-  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
-    return undefined;
-  }
-
-  try {
-    return (value as Record<string, unknown>)[field];
-  } catch {
-    return undefined;
-  }
-}
-
 function getOwnObjectField(value: unknown, field: string): unknown {
-  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
-    return undefined;
-  }
-
-  if (DISALLOWED_PROTOTYPE_PROPERTY_LITERALS.has(field)) {
-    return undefined;
-  }
-
-  try {
-    if (!Object.prototype.hasOwnProperty.call(value, field)) {
-      return undefined;
-    }
-  } catch {
-    return undefined;
-  }
-
-  return getObjectField(value, field);
+  return getSharedOwnObjectField(value, field, {
+    disallowedFields: DISALLOWED_PROTOTYPE_PROPERTY_LITERALS,
+  });
 }
 
 function cloneOwnEnumerableObject(
