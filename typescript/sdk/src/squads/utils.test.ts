@@ -187,6 +187,18 @@ describe('squads utils', () => {
       });
     });
 
+    it('returns thenValue for function values with readable then fields', () => {
+      const thenFn = () => undefined;
+      const fnWithThen = Object.assign(() => undefined, {
+        then: thenFn,
+      });
+
+      expect(inspectPromiseLikeThenValue(fnWithThen)).to.deep.equal({
+        thenValue: thenFn,
+        readError: undefined,
+      });
+    });
+
     it('captures read errors when then accessor throws', () => {
       const { thenValue, readError } = inspectPromiseLikeThenValue(
         new Proxy(
@@ -205,6 +217,26 @@ describe('squads utils', () => {
       expect(thenValue).to.equal(undefined);
       expect(readError).to.be.instanceOf(Error);
       expect((readError as Error).message).to.equal('then unavailable');
+    });
+
+    it('captures read errors when function then accessor throws', () => {
+      const fnWithThrowingThen = new Proxy(() => undefined, {
+        get(target, property, receiver) {
+          if (property === 'then') {
+            throw new Error('function then unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      const { thenValue, readError } =
+        inspectPromiseLikeThenValue(fnWithThrowingThen);
+
+      expect(thenValue).to.equal(undefined);
+      expect(readError).to.be.instanceOf(Error);
+      expect((readError as Error).message).to.equal(
+        'function then unavailable',
+      );
     });
   });
 
