@@ -244,6 +244,10 @@ const REFLECT_APPLY_MONKEY_PATCH_PATTERN =
   /Object\.defineProperty\(\s*Reflect\s*,\s*['"]apply['"]/;
 const REFLECT_APPLY_CAPTURE_DECLARATION_PATTERN =
   /\bconst\s+REFLECT_APPLY\s*=\s*Reflect\.apply\b/;
+const REFLECT_APPLY_IDENTIFIER_REFERENCE_STATEMENT = 'Reflect.apply';
+const REFLECT_APPLY_INVOCATION_STATEMENT = 'REFLECT_APPLY(';
+const REFLECT_APPLY_CAPTURE_DECLARATION_STATEMENT =
+  'const REFLECT_APPLY = Reflect.apply as <';
 const REFLECT_APPLY_MONKEY_PATCH_STATEMENT =
   "Object.defineProperty(Reflect, 'apply', {";
 const REFLECT_APPLY_MUTATION_THROW_STATEMENT =
@@ -898,6 +902,39 @@ function countOccurrences(haystack: string, needle: string): number {
     return 0;
   }
   return haystack.split(needle).length - 1;
+}
+
+type RuntimeReflectApplyCountSummary = Readonly<{
+  runtimeSourcePath: string;
+  reflectApplyIdentifierReferenceCount: number;
+  reflectApplyInvocationCount: number;
+  reflectApplyCaptureDeclarationCount: number;
+}>;
+
+function listSdkSquadsRuntimeReflectApplyCountSummaries(): readonly RuntimeReflectApplyCountSummary[] {
+  const summaries: RuntimeReflectApplyCountSummary[] = [];
+  for (const runtimeSourcePath of listSdkSquadsNonTestSourceFilePaths()
+    .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
+    .sort(compareLexicographically)) {
+    const absoluteSourcePath = path.join(SDK_PACKAGE_ROOT, runtimeSourcePath);
+    const source = fs.readFileSync(absoluteSourcePath, 'utf8');
+    summaries.push({
+      runtimeSourcePath,
+      reflectApplyIdentifierReferenceCount: countOccurrences(
+        source,
+        REFLECT_APPLY_IDENTIFIER_REFERENCE_STATEMENT,
+      ),
+      reflectApplyInvocationCount: countOccurrences(
+        source,
+        REFLECT_APPLY_INVOCATION_STATEMENT,
+      ),
+      reflectApplyCaptureDeclarationCount: countOccurrences(
+        source,
+        REFLECT_APPLY_CAPTURE_DECLARATION_STATEMENT,
+      ),
+    });
+  }
+  return summaries;
 }
 
 function listSingleQuotedTokens(command: string): readonly string[] {
@@ -2695,6 +2732,69 @@ describe('squads barrel exports', () => {
         expect(captureDeclarationCount).to.equal(1);
       }
     }
+  });
+
+  it('keeps sdk discovered runtime Reflect.apply count summaries aligned with canonical tables', () => {
+    const identifierCountByRuntimeSourcePath = new Map<string, number>(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+        ({
+          runtimeSourcePath,
+          expectedReflectApplyIdentifierReferenceCount,
+        }) => [runtimeSourcePath, expectedReflectApplyIdentifierReferenceCount],
+      ),
+    );
+    const invocationCountByRuntimeSourcePath = new Map<string, number>(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.map(
+        ({ runtimeSourcePath, expectedReflectApplyInvocationCount }) => [
+          runtimeSourcePath,
+          expectedReflectApplyInvocationCount,
+        ],
+      ),
+    );
+    const captureDeclarationCountByRuntimeSourcePath = new Map<string, number>(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.map(
+        ({
+          runtimeSourcePath,
+          expectedReflectApplyCaptureDeclarationCount,
+        }) => [runtimeSourcePath, expectedReflectApplyCaptureDeclarationCount],
+      ),
+    );
+
+    const discoveredRuntimeReflectApplyCountSummaries =
+      listSdkSquadsRuntimeReflectApplyCountSummaries();
+    for (const {
+      runtimeSourcePath,
+      reflectApplyIdentifierReferenceCount,
+      reflectApplyInvocationCount,
+      reflectApplyCaptureDeclarationCount,
+    } of discoveredRuntimeReflectApplyCountSummaries) {
+      const expectedIdentifierCount =
+        identifierCountByRuntimeSourcePath.get(runtimeSourcePath);
+      const expectedInvocationCount =
+        invocationCountByRuntimeSourcePath.get(runtimeSourcePath);
+      const expectedCaptureDeclarationCount =
+        captureDeclarationCountByRuntimeSourcePath.get(runtimeSourcePath);
+      expect(expectedIdentifierCount).to.not.equal(undefined);
+      expect(expectedInvocationCount).to.not.equal(undefined);
+      expect(expectedCaptureDeclarationCount).to.not.equal(undefined);
+      expect(reflectApplyIdentifierReferenceCount).to.equal(
+        expectedIdentifierCount,
+      );
+      expect(reflectApplyInvocationCount).to.equal(expectedInvocationCount);
+      expect(reflectApplyCaptureDeclarationCount).to.equal(
+        expectedCaptureDeclarationCount,
+      );
+    }
+
+    expect(
+      discoveredRuntimeReflectApplyCountSummaries.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      ),
+    ).to.deep.equal(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      ),
+    );
   });
 
   it('keeps sdk Reflect.apply zero-count totals aligned across runtime tables and inventory', () => {
