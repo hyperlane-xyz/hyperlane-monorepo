@@ -237,6 +237,21 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when partition length accessor throws blank Error messages', () => {
+    const hostilePartitionList = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('   ');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
+      'Failed to read partitioned squads chains length: [unstringifiable error]',
+    );
+  });
+
   it('uses deterministic placeholder when partition length accessor throws generic-object Error messages', () => {
     const hostilePartitionList = new Proxy([], {
       get(target, property, receiver) {
@@ -372,6 +387,23 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when unsupported-chain length getter throws blank Error messages', () => {
+    const hostileUnsupportedChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('   ');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
+    ).to.throw(
+      'Failed to read unsupported squads chains length: [unstringifiable error]',
+    );
+  });
+
   it('throws contextual formatter errors when configured-chain list length getter fails', () => {
     const hostileConfiguredChains = new Proxy([], {
       get(target, property, receiver) {
@@ -482,6 +514,26 @@ describe('squads config', () => {
         hostileConfiguredChains,
       ),
     ).to.throw('Failed to read configured squads chains[0]: entry unavailable');
+  });
+
+  it('uses deterministic placeholder when configured-chain index access throws blank Error messages', () => {
+    const hostileConfiguredChains = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('   ');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        hostileConfiguredChains,
+      ),
+    ).to.throw(
+      'Failed to read configured squads chains[0]: [unstringifiable error]',
+    );
   });
 
   it('uses deterministic placeholder when configured-chain index access throws generic-object Error messages', () => {
