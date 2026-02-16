@@ -44,16 +44,63 @@ export type ExtendedSubmissionStrategy = z.infer<
   typeof ExtendedSubmissionStrategySchema
 >;
 
+function getOwnObjectField(value: unknown, field: string): unknown {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return undefined;
+  }
+
+  try {
+    if (!Object.prototype.hasOwnProperty.call(value, field)) {
+      return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  try {
+    return (value as Record<string, unknown>)[field];
+  } catch {
+    return undefined;
+  }
+}
+
+function cloneOwnEnumerableObject(
+  value: unknown,
+): Record<string, unknown> | null {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return null;
+  }
+
+  let keys: string[];
+  try {
+    keys = Object.keys(value as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+
+  const clonedObject = Object.create(null) as Record<string, unknown>;
+  for (const key of keys) {
+    clonedObject[key] = getOwnObjectField(value, key);
+  }
+
+  return clonedObject;
+}
+
 function preprocessExtendedChainSubmissionStrategy(value: unknown) {
-  const raw = (value ?? {}) as Record<string, any>;
+  const raw =
+    (cloneOwnEnumerableObject(value) as Record<string, any> | null) ??
+    (Object.create(null) as Record<string, any>);
   const preprocessedBase = preprocessChainSubmissionStrategy(raw as any) as Record<
     string,
     { submitter: SubmitterMetadata }
   >;
 
-  const result: Record<string, any> = {};
+  const result = Object.create(null) as Record<string, any>;
   for (const [chain, strategy] of Object.entries(raw)) {
-    const submitterOverrides = strategy?.submitterOverrides as
+    const submitterOverrides = getOwnObjectField(
+      strategy,
+      'submitterOverrides',
+    ) as
       | Record<string, SubmitterMetadata>
       | undefined;
 
@@ -74,7 +121,10 @@ function preprocessExtendedChainSubmissionStrategy(value: unknown) {
     }
 
     result[chain] = {
-      submitter: preprocessedBase[chain]?.submitter ?? strategy.submitter,
+      submitter:
+        (getOwnObjectField(preprocessedBase, chain) as
+          | { submitter: SubmitterMetadata }
+          | undefined)?.submitter ?? getOwnObjectField(strategy, 'submitter'),
       ...(preprocessedOverrides
         ? { submitterOverrides: preprocessedOverrides }
         : {}),
