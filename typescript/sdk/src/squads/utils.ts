@@ -25,7 +25,10 @@ import {
   isGenericObjectStringifiedValue,
   stringifyUnknownSquadsError,
 } from './error-format.js';
-import { inspectPromiseLikeThenValue } from './inspection.js';
+import {
+  inspectArrayValue,
+  inspectPromiseLikeThenValue,
+} from './inspection.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
 export { assertValidTransactionIndexInput } from './validation.js';
@@ -188,23 +191,6 @@ function tokenizeFieldName(fieldName: string): string[] {
 }
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
-
-function inspectArrayValue(value: unknown): {
-  isArray: boolean;
-  readFailed: boolean;
-} {
-  try {
-    return {
-      isArray: Array.isArray(value),
-      readFailed: false,
-    };
-  } catch {
-    return {
-      isArray: false,
-      readFailed: true,
-    };
-  }
-}
 
 function inspectInstanceOf(
   value: unknown,
