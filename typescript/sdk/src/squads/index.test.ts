@@ -2797,6 +2797,59 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps sdk runtime Reflect.apply count summaries isolated from caller mutation', () => {
+    const baselineRuntimeReflectApplyCountSummaries =
+      listSdkSquadsRuntimeReflectApplyCountSummaries();
+    expect(baselineRuntimeReflectApplyCountSummaries.length).to.be.greaterThan(
+      0,
+    );
+
+    const baselineSignatures = baselineRuntimeReflectApplyCountSummaries.map(
+      ({
+        runtimeSourcePath,
+        reflectApplyIdentifierReferenceCount,
+        reflectApplyInvocationCount,
+        reflectApplyCaptureDeclarationCount,
+      }) =>
+        `${runtimeSourcePath}:${reflectApplyIdentifierReferenceCount}:${reflectApplyInvocationCount}:${reflectApplyCaptureDeclarationCount}`,
+    );
+
+    const callerMutatedSummaries =
+      baselineRuntimeReflectApplyCountSummaries as unknown as Array<{
+        runtimeSourcePath: string;
+        reflectApplyIdentifierReferenceCount: number;
+        reflectApplyInvocationCount: number;
+        reflectApplyCaptureDeclarationCount: number;
+      }>;
+    callerMutatedSummaries.push({
+      runtimeSourcePath: 'src/squads/injected.ts',
+      reflectApplyIdentifierReferenceCount: 0,
+      reflectApplyInvocationCount: 0,
+      reflectApplyCaptureDeclarationCount: 0,
+    });
+    callerMutatedSummaries[0].reflectApplyIdentifierReferenceCount = 999;
+    callerMutatedSummaries[0].reflectApplyInvocationCount = 999;
+    callerMutatedSummaries[0].reflectApplyCaptureDeclarationCount = 999;
+
+    const subsequentRuntimeReflectApplyCountSummaries =
+      listSdkSquadsRuntimeReflectApplyCountSummaries();
+    const subsequentSignatures =
+      subsequentRuntimeReflectApplyCountSummaries.map(
+        ({
+          runtimeSourcePath,
+          reflectApplyIdentifierReferenceCount,
+          reflectApplyInvocationCount,
+          reflectApplyCaptureDeclarationCount,
+        }) =>
+          `${runtimeSourcePath}:${reflectApplyIdentifierReferenceCount}:${reflectApplyInvocationCount}:${reflectApplyCaptureDeclarationCount}`,
+      );
+
+    expect(subsequentSignatures).to.deep.equal(baselineSignatures);
+    expect(callerMutatedSummaries.length).to.not.equal(
+      subsequentRuntimeReflectApplyCountSummaries.length,
+    );
+  });
+
   it('keeps sdk Reflect.apply zero-count totals aligned across runtime tables and inventory', () => {
     const zeroIdentifierCountTotalFromTable =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.filter(
