@@ -11757,6 +11757,93 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('keeps lookup-table address parsing stable when Buffer.prototype.slice is mutated', async () => {
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const lookupTableAddress = new PublicKey(new Uint8Array(32).fill(8));
+    const lookupTableData = Buffer.concat([
+      Buffer.alloc(56),
+      lookupTableAddress.toBuffer(),
+    ]);
+    const originalBufferSlice = Buffer.prototype.slice;
+    const throwingSlice: typeof Buffer.prototype.slice = function slice() {
+      throw new Error('buffer slice unavailable');
+    };
+
+    let parsed:
+      | {
+          instructions: Array<Record<string, unknown>>;
+          warnings: string[];
+        }
+      | undefined;
+    try {
+      Object.defineProperty(Buffer.prototype, 'slice', {
+        value: throwingSlice,
+        writable: true,
+        configurable: true,
+      });
+      parsed = await readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: {
+            accountKeys: [SYSTEM_PROGRAM_ID],
+            addressTableLookups: [
+              {
+                accountKey: SYSTEM_PROGRAM_ID,
+                writableIndexes: [0],
+                readonlyIndexes: [],
+              },
+            ],
+            instructions: [
+              {
+                programIdIndex: 0,
+                accountIndexes: [1],
+                data: Buffer.from([1, 2, 3]),
+              },
+            ],
+          },
+        },
+        {
+          getAccountInfo: async () => ({
+            data: lookupTableData,
+          }),
+        },
+      );
+    } finally {
+      Object.defineProperty(Buffer.prototype, 'slice', {
+        value: originalBufferSlice,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(parsed?.warnings).to.deep.equal([]);
+    expect(parsed?.instructions[0]?.programName).to.equal('System Program');
+    const accounts = parsed?.instructions[0]?.accounts as
+      | PublicKey[]
+      | undefined;
+    expect(accounts?.map((account) => account.toBase58())).to.deep.equal([
+      lookupTableAddress.toBase58(),
+    ]);
+  });
+
   it('keeps parsing when vault account-keys getter throws', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({

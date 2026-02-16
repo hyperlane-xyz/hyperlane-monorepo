@@ -124,6 +124,11 @@ const BUFFER_SUBARRAY = Buffer.prototype.subarray as (
   begin?: number,
   end?: number,
 ) => Buffer;
+const BUFFER_SLICE = Buffer.prototype.slice as (
+  this: Buffer,
+  start?: number,
+  end?: number,
+) => Buffer;
 const VALID_PROTOCOL_TYPES = new Set<ProtocolType>([
   ProtocolType.Ethereum,
   ProtocolType.Sealevel,
@@ -248,6 +253,10 @@ function bufferToString(value: Buffer, encoding?: BufferEncoding): string {
 
 function bufferSubarray(value: Buffer, begin?: number, end?: number): Buffer {
   return BUFFER_SUBARRAY.call(value, begin, end);
+}
+
+function bufferSlice(value: Buffer, start?: number, end?: number): Buffer {
+  return BUFFER_SLICE.call(value, start, end);
 }
 
 function readPropertyOrThrow(value: unknown, property: PropertyKey): unknown {
@@ -1738,7 +1747,7 @@ export class SquadsTransactionReader {
         const addresses: PublicKey[] = [];
 
         for (let i = LOOKUP_TABLE_META_SIZE; i < data.length; i += 32) {
-          const addressBytes = data.slice(i, i + 32);
+          const addressBytes = bufferSlice(data, i, i + 32);
           if (addressBytes.length === 32) {
             arrayPushValue(addresses, new PublicKey(addressBytes));
           }
@@ -2601,7 +2610,8 @@ export class SquadsTransactionReader {
       }
 
       if (!isVaultTransaction(accountData)) {
-        const discriminator = accountData.slice(
+        const discriminator = bufferSlice(
+          accountData,
           0,
           SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
         );
