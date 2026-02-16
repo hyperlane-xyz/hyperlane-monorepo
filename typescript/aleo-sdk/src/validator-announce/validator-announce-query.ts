@@ -1,3 +1,5 @@
+import { Address } from '@provablehq/sdk';
+
 import { assert } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
@@ -5,7 +7,7 @@ import { queryMappingValue } from '../utils/base-query.js';
 import { fromAleoAddress } from '../utils/helper.js';
 
 interface ValidatorAnnounceData {
-  mailbox: string;
+  mailbox: number[];
 }
 
 /**
@@ -36,8 +38,14 @@ export async function getValidatorAnnounceConfig(
     },
   );
 
+  // Convert mailbox address from bytes to human-readable string
+  // The mailbox field is stored as [u8; 32u32] bytes on chain
+  const mailboxAddress = Address.fromBytesLe(
+    Uint8Array.from(validatorAnnounceData.mailbox),
+  ).to_string();
+
   return {
     address: validatorAnnounceAddress,
-    mailboxAddress: validatorAnnounceData.mailbox,
+    mailboxAddress,
   };
 }

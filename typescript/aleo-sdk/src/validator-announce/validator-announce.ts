@@ -14,7 +14,11 @@ import { assert } from '@hyperlane-xyz/utils';
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
 import { getMailboxConfig } from '../mailbox/mailbox-query.js';
-import { SUFFIX_LENGTH_SHORT, fromAleoAddress } from '../utils/helper.js';
+import {
+  SUFFIX_LENGTH_SHORT,
+  fromAleoAddress,
+  toAleoAddress,
+} from '../utils/helper.js';
 import {
   type AleoReceipt,
   type AnnotatedAleoTransaction,
@@ -124,6 +128,8 @@ export class AleoValidatorAnnounceWriter
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
     allReceipts.push(createReceipt);
 
+    const validatorAnnounceAddress = toAleoAddress(validatorAnnounceProgramId);
+
     const deployedArtifact: ArtifactDeployed<
       RawValidatorAnnounceConfig,
       DeployedValidatorAnnounceAddress
@@ -131,7 +137,7 @@ export class AleoValidatorAnnounceWriter
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
       deployed: {
-        address: `${validatorAnnounceProgramId}`,
+        address: validatorAnnounceAddress,
       },
     };
 
