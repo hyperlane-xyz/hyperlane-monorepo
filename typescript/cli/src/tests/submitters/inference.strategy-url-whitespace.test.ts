@@ -848,4 +848,18 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
       safeStub.restore();
     }
   });
+
+  it('treats forged String-prototype strategyUrl object as missing and falls back to jsonRpc default', async () => {
+    const forgedStrategyUrl = Object.create(String.prototype) as any;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: forgedStrategyUrl,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
 });
