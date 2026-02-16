@@ -1459,6 +1459,28 @@ type ReflectApplyWrapperCallerRegexMutationScenario = Readonly<{
     capturePattern: RegExp,
   ) => CallerRegexMutationRestorer;
 }>;
+const EXPECTED_REFLECT_APPLY_WRAPPER_RUNTIME_PATCH_SCENARIO_LABELS =
+  Object.freeze([
+    'RegExp.prototype.exec global slot patch',
+    'RegExp.prototype.test global slot patch',
+    'RegExp.prototype.flags getter global slot patch',
+    'RegExp.prototype.source getter global slot patch',
+    'Reflect.apply global slot patch',
+    'global RegExp constructor patch',
+    'RegExp.prototype Symbol.match slot patch',
+    'RegExp.prototype Symbol.match call slot override',
+    'RegExp.prototype.exec call slot override',
+    'RegExp getter call slot overrides',
+  ]);
+const EXPECTED_REFLECT_APPLY_WRAPPER_CALLER_REGEX_MUTATION_SCENARIO_LABELS =
+  Object.freeze([
+    'own test override',
+    'own exec override',
+    'own Symbol.match override',
+    'throwing own constructor getter',
+    'shadowed own source and flags values',
+    'throwing own source and flags accessors',
+  ]);
 
 function listReflectApplyWrapperRuntimePatchScenarios(): readonly ReflectApplyWrapperRuntimePatchScenario[] {
   const runtimePatchScenarios: ReflectApplyWrapperRuntimePatchScenario[] = [
@@ -2963,18 +2985,6 @@ describe('squads barrel exports', () => {
     const scenarioLabels = listReflectApplyWrapperRuntimePatchScenarios().map(
       ({ label }) => label,
     );
-    const requiredScenarioLabels = [
-      'RegExp.prototype.exec global slot patch',
-      'RegExp.prototype.test global slot patch',
-      'RegExp.prototype.source getter global slot patch',
-      'RegExp.prototype.flags getter global slot patch',
-      'Reflect.apply global slot patch',
-      'global RegExp constructor patch',
-      'RegExp.prototype Symbol.match slot patch',
-      'RegExp.prototype Symbol.match call slot override',
-      'RegExp.prototype.exec call slot override',
-      'RegExp getter call slot overrides',
-    ];
 
     expect(scenarioLabels.length).to.be.greaterThan(0);
     expect(new Set(scenarioLabels).size).to.equal(scenarioLabels.length);
@@ -2982,8 +2992,25 @@ describe('squads barrel exports', () => {
       expect(scenarioLabel.trim().length).to.be.greaterThan(0);
       expect(scenarioLabel).to.equal(scenarioLabel.trim());
     }
-    for (const requiredScenarioLabel of requiredScenarioLabels) {
-      expect(scenarioLabels.includes(requiredScenarioLabel)).to.equal(true);
+    expect(scenarioLabels).to.deep.equal([
+      ...EXPECTED_REFLECT_APPLY_WRAPPER_RUNTIME_PATCH_SCENARIO_LABELS,
+    ]);
+  });
+
+  it('keeps Reflect.apply wrapper scenario-label constants frozen, unique, and normalized', () => {
+    const scenarioLabelSets = [
+      EXPECTED_REFLECT_APPLY_WRAPPER_RUNTIME_PATCH_SCENARIO_LABELS,
+      EXPECTED_REFLECT_APPLY_WRAPPER_CALLER_REGEX_MUTATION_SCENARIO_LABELS,
+    ];
+
+    for (const scenarioLabels of scenarioLabelSets) {
+      expect(Object.isFrozen(scenarioLabels)).to.equal(true);
+      expect(scenarioLabels.length).to.be.greaterThan(0);
+      expect(new Set(scenarioLabels).size).to.equal(scenarioLabels.length);
+      for (const scenarioLabel of scenarioLabels) {
+        expect(scenarioLabel.trim().length).to.be.greaterThan(0);
+        expect(scenarioLabel).to.equal(scenarioLabel.trim());
+      }
     }
   });
 
@@ -3654,24 +3681,15 @@ describe('squads barrel exports', () => {
       listReflectApplyWrapperCallerRegexMutationScenarios().map(
         ({ label }) => label,
       );
-    const requiredScenarioLabels = [
-      'own test override',
-      'own exec override',
-      'own Symbol.match override',
-      'throwing own constructor getter',
-      'shadowed own source and flags values',
-      'throwing own source and flags accessors',
-    ];
-
     expect(scenarioLabels.length).to.be.greaterThan(0);
     expect(new Set(scenarioLabels).size).to.equal(scenarioLabels.length);
     for (const scenarioLabel of scenarioLabels) {
       expect(scenarioLabel.trim().length).to.be.greaterThan(0);
       expect(scenarioLabel).to.equal(scenarioLabel.trim());
     }
-    for (const requiredScenarioLabel of requiredScenarioLabels) {
-      expect(scenarioLabels.includes(requiredScenarioLabel)).to.equal(true);
-    }
+    expect(scenarioLabels).to.deep.equal([
+      ...EXPECTED_REFLECT_APPLY_WRAPPER_CALLER_REGEX_MUTATION_SCENARIO_LABELS,
+    ]);
   });
 
   it('keeps Reflect.apply wrapper caller-regex mutation scenario helper frozen and snapshot-isolated', () => {
