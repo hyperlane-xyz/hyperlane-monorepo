@@ -188,7 +188,7 @@ export class LiFiBridge implements IExternalBridge {
       toAddress: params.toAddress ?? params.fromAddress,
       slippage: params.slippage ?? this.config.defaultSlippage ?? 0.005,
       // Prefer faster routes for rebalancing
-      order: 'FASTEST',
+      order: 'CHEAPEST',
     });
 
     const { gasCosts, feeCosts } = this.extractCosts(
@@ -242,7 +242,7 @@ export class LiFiBridge implements IExternalBridge {
       slippage: (params.slippage ?? this.config.defaultSlippage ?? 0.005)
         .toFixed(4)
         .replace(/\.?0+$/, ''),
-      order: 'FASTEST',
+      order: 'CHEAPEST',
       integrator: this.config.integrator,
     });
 
