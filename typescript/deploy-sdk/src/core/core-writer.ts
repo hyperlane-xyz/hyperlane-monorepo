@@ -1,4 +1,7 @@
-import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk';
+import {
+  ChainMetadataForAltVM,
+  getProtocolProvider,
+} from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   ArtifactNew,
@@ -43,6 +46,43 @@ import { createHookWriter } from '../hook/hook-writer.js';
 import { createIsmWriter } from '../ism/generic-ism-writer.js';
 
 import { CoreArtifactReader } from './core-artifact-reader.js';
+
+/**
+ * Factory function to create a CoreWriter instance.
+ * Follows pattern of createHookWriter() and createIsmWriter().
+ *
+ * @param chainMetadata Chain metadata for target chain
+ * @param chainLookup Chain lookup for domain resolution
+ * @param signer Signer for transaction signing
+ * @returns CoreWriter instance
+ *
+ * @example
+ * ```typescript
+ * const writer = createCoreWriter(chainMetadata, chainLookup, signer);
+ * const { mailbox, validatorAnnounce } = await writer.create(coreArtifact);
+ * ```
+ */
+export function createCoreWriter(
+  chainMetadata: ChainMetadataForAltVM,
+  chainLookup: ChainLookup,
+  signer: ISigner<AnnotatedTx, TxReceipt>,
+): CoreWriter {
+  const protocolProvider = getProtocolProvider(chainMetadata.protocol);
+
+  const mailboxArtifactManager =
+    protocolProvider.createMailboxArtifactManager(chainMetadata);
+
+  const validatorAnnounceArtifactManager =
+    protocolProvider.createValidatorAnnounceArtifactManager(chainMetadata);
+
+  return new CoreWriter(
+    mailboxArtifactManager,
+    validatorAnnounceArtifactManager,
+    chainMetadata,
+    chainLookup,
+    signer,
+  );
+}
 
 /**
  * CoreWriter orchestrates full core deployment using the Artifact API.
