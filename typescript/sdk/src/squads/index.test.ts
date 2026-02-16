@@ -72,6 +72,7 @@ const EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS = Object.freeze([
 ]);
 const SDK_SQUADS_INDEX_SOURCE_PATH = 'src/squads/index.ts';
 const EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS = Object.freeze([
+  'src/squads/inspection.ts',
   'src/squads/provider.ts',
   'src/squads/validation.ts',
 ]);
@@ -1116,9 +1117,13 @@ describe('squads barrel exports', () => {
   });
 
   it('keeps expected canonical sdk squads internal source paths', () => {
-    expect(EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS).to.deep.equal(
-      ['src/squads/provider.ts', 'src/squads/validation.ts'],
-    );
+    expect(
+      EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS,
+    ).to.deep.equal([
+      'src/squads/inspection.ts',
+      'src/squads/provider.ts',
+      'src/squads/validation.ts',
+    ]);
   });
 
   it('keeps expected canonical sdk squads index source path', () => {
@@ -1204,8 +1209,9 @@ describe('squads barrel exports', () => {
   });
 
   it('keeps process and console decoupling patterns covering bracket optional and parenthesized access', () => {
-    expect(PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test("process?.['env']"))
-      .to.equal(true);
+    expect(
+      PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test("process?.['env']"),
+    ).to.equal(true);
     expect(
       PARENTHESIZED_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
         "(process)?.['env']",
@@ -1246,8 +1252,9 @@ describe('squads barrel exports', () => {
       ),
     ).to.equal(true);
     expect(SELF_PROCESS_REFERENCE_PATTERN.test('self.process')).to.equal(true);
-    expect(SELF_PROCESS_BRACKET_REFERENCE_PATTERN.test("self['process']")).to
-      .equal(true);
+    expect(
+      SELF_PROCESS_BRACKET_REFERENCE_PATTERN.test("self['process']"),
+    ).to.equal(true);
     expect(
       SELF_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test("self?.['process']"),
     ).to.equal(true);
@@ -1275,9 +1282,7 @@ describe('squads barrel exports', () => {
       ),
     ).to.equal(true);
     expect(
-      GLOBAL_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
-        'global?.console',
-      ),
+      GLOBAL_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test('global?.console'),
     ).to.equal(true);
     expect(
       PARENTHESIZED_GLOBAL_CONSOLE_REFERENCE_PATTERN.test(
@@ -1290,8 +1295,9 @@ describe('squads barrel exports', () => {
       ),
     ).to.equal(true);
     expect(SELF_CONSOLE_REFERENCE_PATTERN.test('self.console')).to.equal(true);
-    expect(SELF_CONSOLE_BRACKET_REFERENCE_PATTERN.test('self["console"]')).to
-      .equal(true);
+    expect(
+      SELF_CONSOLE_BRACKET_REFERENCE_PATTERN.test('self["console"]'),
+    ).to.equal(true);
     expect(
       SELF_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test('self?.console'),
     ).to.equal(true);
@@ -1304,24 +1310,28 @@ describe('squads barrel exports', () => {
       ),
     ).to.equal(true);
 
-    expect(PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test('processor?.env')).to
-      .equal(false);
+    expect(
+      PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test('processor?.env'),
+    ).to.equal(false);
     expect(
       PARENTHESIZED_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
         '(processes)?.env',
       ),
     ).to.equal(false);
-    expect(PARENTHESIZED_PROCESS_REFERENCE_PATTERN.test('(processes).env')).to
-      .equal(false);
-    expect(CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test("consoles?.['warn']"))
-      .to.equal(false);
+    expect(
+      PARENTHESIZED_PROCESS_REFERENCE_PATTERN.test('(processes).env'),
+    ).to.equal(false);
+    expect(
+      CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test("consoles?.['warn']"),
+    ).to.equal(false);
     expect(
       PARENTHESIZED_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
         "(consoles)?.['warn']('x')",
       ),
     ).to.equal(false);
-    expect(PARENTHESIZED_CONSOLE_REFERENCE_PATTERN.test("(consoles)['log']"))
-      .to.equal(false);
+    expect(
+      PARENTHESIZED_CONSOLE_REFERENCE_PATTERN.test("(consoles)['log']"),
+    ).to.equal(false);
     expect(
       GLOBAL_PROCESS_DESTRUCTURE_REFERENCE_PATTERN.test(
         'const { processor } = globalThis',
@@ -1333,18 +1343,19 @@ describe('squads barrel exports', () => {
       ),
     ).to.equal(false);
     expect(
-      PARENTHESIZED_GLOBAL_PROCESS_REFERENCE_PATTERN.test(
-        '(windows).process',
-      ),
+      PARENTHESIZED_GLOBAL_PROCESS_REFERENCE_PATTERN.test('(windows).process'),
     ).to.equal(false);
     expect(
       PARENTHESIZED_GLOBAL_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
         '(globalThiss)?.process',
       ),
     ).to.equal(false);
-    expect(SELF_PROCESS_REFERENCE_PATTERN.test('shelf.process')).to.equal(false);
-    expect(SELF_PROCESS_BRACKET_REFERENCE_PATTERN.test("shelf['process']")).to
-      .equal(false);
+    expect(SELF_PROCESS_REFERENCE_PATTERN.test('shelf.process')).to.equal(
+      false,
+    );
+    expect(
+      SELF_PROCESS_BRACKET_REFERENCE_PATTERN.test("shelf['process']"),
+    ).to.equal(false);
     expect(
       SELF_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test('shelf?.process'),
     ).to.equal(false);
@@ -1387,8 +1398,9 @@ describe('squads barrel exports', () => {
     expect(SELF_CONSOLE_REFERENCE_PATTERN.test('shelf.console')).to.equal(
       false,
     );
-    expect(SELF_CONSOLE_BRACKET_REFERENCE_PATTERN.test('shelf["console"]')).to
-      .equal(false);
+    expect(
+      SELF_CONSOLE_BRACKET_REFERENCE_PATTERN.test('shelf["console"]'),
+    ).to.equal(false);
     expect(
       SELF_CONSOLE_OPTIONAL_CHAIN_REFERENCE_PATTERN.test('shelf?.console'),
     ).to.equal(false);
@@ -1465,7 +1477,9 @@ describe('squads barrel exports', () => {
         `Expected sdk squads runtime source to avoid process optional-chaining coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
-        PARENTHESIZED_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(runtimeSource),
+        PARENTHESIZED_PROCESS_OPTIONAL_CHAIN_REFERENCE_PATTERN.test(
+          runtimeSource,
+        ),
         `Expected sdk squads runtime source to avoid parenthesized process optional-chaining coupling: ${runtimeSourcePath}`,
       ).to.equal(false);
       expect(
