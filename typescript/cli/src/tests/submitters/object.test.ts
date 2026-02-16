@@ -41,6 +41,22 @@ describe('submitter own-object helpers', () => {
     ).to.equal(undefined);
   });
 
+  it('getOwnObjectField short-circuits disallowed fields before getter access', () => {
+    const value = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(value, 'submitter', {
+      enumerable: true,
+      configurable: true,
+      get: () => {
+        throw new Error('boom');
+      },
+    });
+    expect(
+      getOwnObjectField(value, 'submitter', {
+        disallowedFields: new Set(['submitter']),
+      }),
+    ).to.equal(undefined);
+  });
+
   it('hasOwnObjectField returns false when hasOwnProperty throws', () => {
     const throwingProxy = new Proxy(
       {},
