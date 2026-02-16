@@ -2712,14 +2712,14 @@ export class SquadsTransactionReader {
         const newMemberValue = this.readConfigActionField(
           chain,
           'config action add-member payload',
-          () => action.newMember,
+          () => readPropertyOrThrow(action, 'newMember'),
           undefined,
         );
         const memberKeyValue = isRecordObject(newMemberValue)
           ? this.readConfigActionField(
               chain,
               'config action member key',
-              () => newMemberValue.key,
+              () => readPropertyOrThrow(newMemberValue, 'key'),
               undefined,
             )
           : undefined;
@@ -2733,7 +2733,7 @@ export class SquadsTransactionReader {
           ? this.readConfigActionField(
               chain,
               'config action member permissions',
-              () => newMemberValue.permissions,
+              () => readPropertyOrThrow(newMemberValue, 'permissions'),
               undefined,
             )
           : undefined;
@@ -2741,7 +2741,7 @@ export class SquadsTransactionReader {
           ? this.readConfigActionField(
               chain,
               'config action member permissions mask',
-              () => permissionsValue.mask,
+              () => readPropertyOrThrow(permissionsValue, 'mask'),
               undefined,
             )
           : undefined;
@@ -2770,7 +2770,7 @@ export class SquadsTransactionReader {
         const oldMemberValue = this.readConfigActionField(
           chain,
           'config action removed member',
-          () => action.oldMember,
+          () => readPropertyOrThrow(action, 'oldMember'),
           undefined,
         );
         const member = this.formatAddressLikeForDisplay(
@@ -2785,7 +2785,7 @@ export class SquadsTransactionReader {
         const thresholdValue = this.readConfigActionField(
           chain,
           'config action threshold',
-          () => action.newThreshold,
+          () => readPropertyOrThrow(action, 'newThreshold'),
           null,
         );
         type = SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD];
@@ -2795,7 +2795,7 @@ export class SquadsTransactionReader {
         const timeLockValue = this.readConfigActionField(
           chain,
           'config action time lock',
-          () => action.newTimeLock,
+          () => readPropertyOrThrow(action, 'newTimeLock'),
           null,
         );
         type = 'SetTimeLock';
@@ -2841,7 +2841,7 @@ export class SquadsTransactionReader {
         const vaultIndexValue = this.readConfigActionField(
           chain,
           'config action spending-limit vault index',
-          () => action.vaultIndex,
+          () => readPropertyOrThrow(action, 'vaultIndex'),
           null,
         );
 
@@ -2870,7 +2870,7 @@ export class SquadsTransactionReader {
         const spendingLimitValue = this.readConfigActionField(
           chain,
           'config action spending-limit address',
-          () => action.spendingLimit,
+          () => readPropertyOrThrow(action, 'spendingLimit'),
           undefined,
         );
         type = 'RemoveSpendingLimit';
