@@ -1,6 +1,6 @@
-import { execFileSync } from 'child_process';
-
 import { expect } from 'chai';
+
+import { getCleanRuntimeProbeLabels } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions global runtime probe coverage', () => {
   const getCoveredLabelsFromGeneratedTests = (currentTest: any) => {
@@ -24,51 +24,7 @@ describe('resolveSubmitterBatchesForTransactions global runtime probe coverage',
     return coveredLabels;
   };
 
-  const getCleanRuntimeLabels = () =>
-    JSON.parse(
-      execFileSync(
-        process.execPath,
-        [
-          '--no-warnings',
-          '-e',
-          `
-            const functionLabels = Object.getOwnPropertyNames(globalThis)
-              .filter((name) => typeof globalThis[name] === 'function')
-              .map((name) => \`\${name.toLowerCase()}-constructor-object\`)
-              .sort();
-            const objectLabels = Object.getOwnPropertyNames(globalThis)
-              .filter((name) => {
-                const value = globalThis[name];
-                return value !== null && typeof value === 'object';
-              })
-              .map((name) => \`\${name.toLowerCase()}-object\`)
-              .sort();
-            const primitiveLabels = Object.getOwnPropertyNames(globalThis)
-              .filter((name) => {
-                const value = globalThis[name];
-                return [
-                  'string',
-                  'number',
-                  'boolean',
-                  'bigint',
-                  'undefined',
-                  'symbol',
-                ].includes(typeof value);
-              })
-              .map((name) => \`\${name.toLowerCase()}-\${typeof globalThis[name]}-primitive\`)
-              .sort();
-            process.stdout.write(JSON.stringify({ functionLabels, objectLabels, primitiveLabels }));
-          `,
-        ],
-        { encoding: 'utf8' },
-      ),
-    ) as {
-      functionLabels: string[];
-      objectLabels: string[];
-      primitiveLabels: string[];
-    };
-
-  const cleanRuntimeLabels = getCleanRuntimeLabels();
+  const cleanRuntimeLabels = getCleanRuntimeProbeLabels();
 
   it('covers every runtime function-valued global with constructor probe labels', function () {
     const coveredLabels = getCoveredLabelsFromGeneratedTests(this.test);

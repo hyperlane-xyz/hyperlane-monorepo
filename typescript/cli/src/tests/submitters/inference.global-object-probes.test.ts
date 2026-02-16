@@ -1,4 +1,3 @@
-import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -17,6 +16,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import { getCleanRuntimeProbeLabels } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions global object probes', () => {
   const CHAIN = 'anvil2';
@@ -52,26 +52,7 @@ describe('resolveSubmitterBatchesForTransactions global object probes', () => {
     }
   }
 
-  const baselineObjectLabels = JSON.parse(
-    execFileSync(
-      process.execPath,
-      [
-        '--no-warnings',
-        '-e',
-        `
-          const labels = Object.getOwnPropertyNames(globalThis)
-            .filter((name) => {
-              const value = globalThis[name];
-              return value !== null && typeof value === 'object';
-            })
-            .map((name) => \`\${name.toLowerCase()}-object\`)
-            .sort();
-          process.stdout.write(JSON.stringify(labels));
-        `,
-      ],
-      { encoding: 'utf8' },
-    ),
-  ) as string[];
+  const baselineObjectLabels = getCleanRuntimeProbeLabels().objectLabels;
 
   const runtimeObjectValueByLabel = new Map<string, object>();
   for (const name of Object.getOwnPropertyNames(globalThis)) {
@@ -107,7 +88,10 @@ describe('resolveSubmitterBatchesForTransactions global object probes', () => {
     ).to.equal(TxSubmitterType.JSON_RPC);
   };
 
-  const createDirectSetup = (probeValue: object, asyncTryGetSigner: boolean) => {
+  const createDirectSetup = (
+    probeValue: object,
+    asyncTryGetSigner: boolean,
+  ) => {
     const timelockOwnerA = '0x1212121212121212121212121212121212121213';
     const timelockOwnerB = '0x1313131313131313131313131313131313131314';
     const proposerIca = '0x1414141414141414141414141414141414141415';

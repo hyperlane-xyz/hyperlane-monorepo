@@ -1,5 +1,3 @@
-import { execFileSync } from 'child_process';
-
 import { expect } from 'chai';
 import { constants as ethersConstants } from 'ethers';
 import sinon from 'sinon';
@@ -14,6 +12,10 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import {
+  getCleanRuntimeProbeLabels,
+  isSupportedRuntimePrimitiveValueType,
+} from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions primitive global probes', () => {
   const CHAIN = 'anvil2';
@@ -24,44 +26,17 @@ describe('resolveSubmitterBatchesForTransactions primitive global probes', () =>
     chainId: 31338,
   };
 
-  const baselinePrimitiveLabels = JSON.parse(
-    execFileSync(
-      process.execPath,
-      [
-        '--no-warnings',
-        '-e',
-        `
-          const labels = Object.getOwnPropertyNames(globalThis)
-            .filter((name) => {
-              const value = globalThis[name];
-              return [
-                'string',
-                'number',
-                'boolean',
-                'bigint',
-                'undefined',
-                'symbol',
-              ].includes(typeof value);
-            })
-            .map((name) => \`\${name.toLowerCase()}-\${typeof globalThis[name]}-primitive\`)
-            .sort();
-          process.stdout.write(JSON.stringify(labels));
-        `,
-      ],
-      { encoding: 'utf8' },
-    ),
-  ) as string[];
+  const baselinePrimitiveLabels = getCleanRuntimeProbeLabels().primitiveLabels;
 
   const runtimePrimitiveByLabel = new Map<string, any>();
   for (const name of Object.getOwnPropertyNames(globalThis)) {
     const value = (globalThis as any)[name];
     const valueType = typeof value;
-    if (
-      ['string', 'number', 'boolean', 'bigint', 'undefined', 'symbol'].includes(
-        valueType,
-      )
-    ) {
-      runtimePrimitiveByLabel.set(`${name.toLowerCase()}-${valueType}-primitive`, value);
+    if (isSupportedRuntimePrimitiveValueType(valueType)) {
+      runtimePrimitiveByLabel.set(
+        `${name.toLowerCase()}-${valueType}-primitive`,
+        value,
+      );
     }
   }
 
@@ -84,7 +59,8 @@ describe('resolveSubmitterBatchesForTransactions primitive global probes', () =>
     probeValue:
       runtimePrimitiveByLabel.get(label) ?? fallbackPrimitiveFromLabel(label),
     expectedOriginSignerAddressLookups:
-      label === 'nan-number-primitive' || label === 'undefined-undefined-primitive'
+      label === 'nan-number-primitive' ||
+      label === 'undefined-undefined-primitive'
         ? 0
         : 1,
   }));
@@ -107,7 +83,10 @@ describe('resolveSubmitterBatchesForTransactions primitive global probes', () =>
     ).to.equal(TxSubmitterType.JSON_RPC);
   };
 
-  const createDirectSetup = (probeValue: unknown, asyncTryGetSigner: boolean) => {
+  const createDirectSetup = (
+    probeValue: unknown,
+    asyncTryGetSigner: boolean,
+  ) => {
     const timelockOwnerA = '0x4141414141414141414141414141414141414142';
     const timelockOwnerB = '0x4242424242424242424242424242424242424243';
     const proposerIca = '0x4343434343434343434343434343434343434344';
@@ -362,95 +341,119 @@ describe('resolveSubmitterBatchesForTransactions primitive global probes', () =>
 
   PROBE_CASES.forEach(
     ({ label, probeValue, expectedOriginSignerAddressLookups }) => {
-    it(`caches ${label} origin signer probes across timelock ICA inferences`, async () => {
-      const setup = createDirectSetup(probeValue, false);
-      try {
-        const batches = await resolveSubmitterBatchesForTransactions({
-          chain: CHAIN,
-          transactions: [
-            { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-            { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
-          ],
-          context: setup.context,
-        });
-        expectTimelockJsonRpcBatches(batches);
-        expect(setup.getOriginSignerProbeCalls()).to.be.at.most(1);
-        expect(setup.getOriginSignerAddressLookups()).to.be.at.most(
-          expectedOriginSignerAddressLookups,
-        );
-        expect(setup.provider.getLogs.callCount).to.be.greaterThanOrEqual(4);
-      } finally {
-        setup.restore();
-      }
-    });
+      it(`caches ${label} origin signer probes across timelock ICA inferences`, async () => {
+        const setup = createDirectSetup(probeValue, false);
+        try {
+          const batches = await resolveSubmitterBatchesForTransactions({
+            chain: CHAIN,
+            transactions: [
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
+            ],
+            context: setup.context,
+          });
+          expectTimelockJsonRpcBatches(batches);
+          expect(setup.getOriginSignerProbeCalls()).to.be.at.most(1);
+          expect(setup.getOriginSignerAddressLookups()).to.be.at.most(
+            expectedOriginSignerAddressLookups,
+          );
+          expect(setup.provider.getLogs.callCount).to.be.greaterThanOrEqual(4);
+        } finally {
+          setup.restore();
+        }
+      });
 
-    it(`caches async ${label} origin signer probes across timelock ICA inferences`, async () => {
-      const setup = createDirectSetup(probeValue, true);
-      try {
-        const batches = await resolveSubmitterBatchesForTransactions({
-          chain: CHAIN,
-          transactions: [
-            { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-            { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
-          ],
-          context: setup.context,
-        });
-        expectTimelockJsonRpcBatches(batches);
-        expect(setup.getOriginSignerProbeCalls()).to.be.at.most(1);
-        expect(setup.getOriginSignerAddressLookups()).to.be.at.most(
-          expectedOriginSignerAddressLookups,
-        );
-        expect(setup.provider.getLogs.callCount).to.be.greaterThanOrEqual(4);
-      } finally {
-        setup.restore();
-      }
-    });
+      it(`caches async ${label} origin signer probes across timelock ICA inferences`, async () => {
+        const setup = createDirectSetup(probeValue, true);
+        try {
+          const batches = await resolveSubmitterBatchesForTransactions({
+            chain: CHAIN,
+            transactions: [
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
+            ],
+            context: setup.context,
+          });
+          expectTimelockJsonRpcBatches(batches);
+          expect(setup.getOriginSignerProbeCalls()).to.be.at.most(1);
+          expect(setup.getOriginSignerAddressLookups()).to.be.at.most(
+            expectedOriginSignerAddressLookups,
+          );
+          expect(setup.provider.getLogs.callCount).to.be.greaterThanOrEqual(4);
+        } finally {
+          setup.restore();
+        }
+      });
 
-    it(`caches event-derived ${label} origin signer probes across timelock ICA inferences`, async () => {
-      const setup = createEventDerivedSetup(probeValue, false);
-      try {
-        const batches = await resolveSubmitterBatchesForTransactions({
-          chain: CHAIN,
-          transactions: [
-            { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-            { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
-          ],
-          context: setup.context,
-        });
-        expectTimelockJsonRpcBatches(batches);
-        expect(setup.getOriginSignerProbeCalls()).to.be.at.most(1);
-        expect(setup.getOriginSignerAddressLookups()).to.be.at.most(
-          expectedOriginSignerAddressLookups,
-        );
-        expect(setup.getChainNameCalls()).to.equal(1);
-        expect(setup.provider.getLogs.callCount).to.equal(5);
-      } finally {
-        setup.restore();
-      }
-    });
+      it(`caches event-derived ${label} origin signer probes across timelock ICA inferences`, async () => {
+        const setup = createEventDerivedSetup(probeValue, false);
+        try {
+          const batches = await resolveSubmitterBatchesForTransactions({
+            chain: CHAIN,
+            transactions: [
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
+            ],
+            context: setup.context,
+          });
+          expectTimelockJsonRpcBatches(batches);
+          expect(setup.getOriginSignerProbeCalls()).to.be.at.most(1);
+          expect(setup.getOriginSignerAddressLookups()).to.be.at.most(
+            expectedOriginSignerAddressLookups,
+          );
+          expect(setup.getChainNameCalls()).to.equal(1);
+          expect(setup.provider.getLogs.callCount).to.equal(5);
+        } finally {
+          setup.restore();
+        }
+      });
 
-    it(`caches event-derived async ${label} origin signer probes across timelock ICA inferences`, async () => {
-      const setup = createEventDerivedSetup(probeValue, true);
-      try {
-        const batches = await resolveSubmitterBatchesForTransactions({
-          chain: CHAIN,
-          transactions: [
-            { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-            { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
-          ],
-          context: setup.context,
-        });
-        expectTimelockJsonRpcBatches(batches);
-        expect(setup.getOriginSignerProbeCalls()).to.be.at.most(1);
-        expect(setup.getOriginSignerAddressLookups()).to.be.at.most(
-          expectedOriginSignerAddressLookups,
-        );
-        expect(setup.getChainNameCalls()).to.equal(1);
-        expect(setup.provider.getLogs.callCount).to.equal(5);
-      } finally {
-        setup.restore();
-      }
-    });
+      it(`caches event-derived async ${label} origin signer probes across timelock ICA inferences`, async () => {
+        const setup = createEventDerivedSetup(probeValue, true);
+        try {
+          const batches = await resolveSubmitterBatchesForTransactions({
+            chain: CHAIN,
+            transactions: [
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
+            ],
+            context: setup.context,
+          });
+          expectTimelockJsonRpcBatches(batches);
+          expect(setup.getOriginSignerProbeCalls()).to.be.at.most(1);
+          expect(setup.getOriginSignerAddressLookups()).to.be.at.most(
+            expectedOriginSignerAddressLookups,
+          );
+          expect(setup.getChainNameCalls()).to.equal(1);
+          expect(setup.provider.getLogs.callCount).to.equal(5);
+        } finally {
+          setup.restore();
+        }
+      });
     },
   );
 });
