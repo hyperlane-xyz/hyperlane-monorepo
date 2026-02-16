@@ -53,6 +53,34 @@ type NamedExportSymbolReference = {
 };
 
 const DEFAULT_REQUIRE_LIKE_IDENTIFIERS = ['require'] as const;
+const NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_FAMILIES = [
+  'leading-undefined',
+  'leading-void',
+  'left-null',
+  'right-null',
+  'right-undefined',
+  'right-void',
+] as const;
+const NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_VARIANTS = [
+  'comma',
+  'concat',
+  'empty-string',
+  'false',
+  'falsy',
+  'null',
+  'template',
+  'undefined',
+  'void',
+] as const;
+const NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_PREDICATE_TYPES = [
+  'fallback-length',
+  'mixed-fallback',
+] as const;
+const NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_CONTEXTS = [
+  'module specifiers',
+  'symbol sources',
+  'module-source aliases in symbol sources',
+] as const;
 
 function normalizeNamedSymbol(symbol: string): string {
   const trimmed = symbol.trim();
@@ -45651,25 +45679,8 @@ describe('Safe migration guards', () => {
       observedVariantsByFamily.set(family, existing);
     }
 
-    const expectedFamilies = [
-      'leading-undefined',
-      'leading-void',
-      'left-null',
-      'right-null',
-      'right-undefined',
-      'right-void',
-    ];
-    const expectedVariants = [
-      'comma',
-      'concat',
-      'empty-string',
-      'false',
-      'falsy',
-      'null',
-      'template',
-      'undefined',
-      'void',
-    ];
+    const expectedFamilies = NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_FAMILIES;
+    const expectedVariants = NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_VARIANTS;
 
     expect([...observedVariantsByFamily.keys()].sort()).to.deep.equal(
       [...expectedFamilies].sort(),
@@ -45722,31 +45733,11 @@ describe('Safe migration guards', () => {
       observedEntryCounts.set(key, (observedEntryCounts.get(key) ?? 0) + 1);
     }
 
-    const families = [
-      'leading-undefined',
-      'leading-void',
-      'left-null',
-      'right-null',
-      'right-undefined',
-      'right-void',
-    ];
-    const variants = [
-      'comma',
-      'concat',
-      'empty-string',
-      'false',
-      'falsy',
-      'null',
-      'template',
-      'undefined',
-      'void',
-    ];
-    const predicateTypes = ['fallback-length', 'mixed-fallback'];
-    const contexts = [
-      'module specifiers',
-      'symbol sources',
-      'module-source aliases in symbol sources',
-    ];
+    const families = NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_FAMILIES;
+    const variants = NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_VARIANTS;
+    const predicateTypes =
+      NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_PREDICATE_TYPES;
+    const contexts = NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_CONTEXTS;
 
     const expectedEntries = new Set<string>();
     for (const family of families) {
