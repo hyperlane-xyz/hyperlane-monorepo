@@ -1603,7 +1603,14 @@ function getTransactionStringField(
 ): string | undefined {
   try {
     const value = (transaction as any)[field];
-    return typeof value === 'string' ? value : undefined;
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (value instanceof String) {
+      const normalizedValue = value.toString();
+      return typeof normalizedValue === 'string' ? normalizedValue : undefined;
+    }
+    return undefined;
   } catch {
     return undefined;
   }
