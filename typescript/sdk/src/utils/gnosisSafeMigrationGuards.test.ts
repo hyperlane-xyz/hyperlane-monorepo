@@ -28,6 +28,12 @@ type NamedExportSymbolReference = {
   symbol: string;
   isTypeOnly: boolean;
 };
+type StrictEqualityVariantEntry = {
+  family: string;
+  variant: string;
+  predicateType: string;
+  context: string;
+};
 
 const DEFAULT_REQUIRE_LIKE_IDENTIFIERS = ['require'] as const;
 const NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_FAMILIES = [
@@ -87,10 +93,6 @@ const STRICT_EQUALITY_VARIANT_CONDITIONAL_TITLE_REGEX = new RegExp(
 const STRICT_EQUALITY_NON_VARIANT_CONDITIONAL_TITLE_REGEX = new RegExp(
   String.raw`^((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-(?:left-null-|leading-undefined-|leading-void-|right-undefined-|right-void-)?conditional-(?:fallback-length|mixed-fallback)) predicates (?:as deterministic|conservative) for ${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT}$`,
 );
-const STRICT_EQUALITY_VARIANT_FAMILY_VARIANT_CAPTURE_REGEX = new RegExp(
-  String.raw`it\('(?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-([a-z-]+)-conditional-([a-z-]+)-(?:fallback-length|mixed-fallback) predicates`,
-  'g',
-);
 const STRICT_EQUALITY_VARIANT_ENTRY_CAPTURE_REGEX = new RegExp(
   String.raw`it\('(?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-([a-z-]+)-conditional-([a-z-]+)-(fallback-length|mixed-fallback) predicates (?:as deterministic|conservative) for (${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT})'`,
   'g',
@@ -118,6 +120,19 @@ function extractStrictEqualityNonVariantConditionalTitles(
     extractStrictEqualityVariantConditionalTitles(sourceText),
   );
   return allTitles.filter((title) => !variantTitleSet.has(title));
+}
+
+function extractStrictEqualityVariantEntries(
+  sourceText: string,
+): StrictEqualityVariantEntry[] {
+  return [
+    ...sourceText.matchAll(STRICT_EQUALITY_VARIANT_ENTRY_CAPTURE_REGEX),
+  ].map((match) => ({
+    family: match[1],
+    variant: match[2],
+    predicateType: match[3],
+    context: match[4],
+  }));
 }
 
 function normalizeNamedSymbol(symbol: string): string {
@@ -45574,13 +45589,10 @@ describe('Gnosis Safe migration guards', () => {
 
   it('keeps nullish-logical conditional delete-key variant coverage matrix complete', () => {
     const sourceText = fs.readFileSync(__filename, 'utf8');
+    const variantEntries = extractStrictEqualityVariantEntries(sourceText);
 
     const observedVariantsByFamily = new Map<string, Set<string>>();
-    for (const match of sourceText.matchAll(
-      STRICT_EQUALITY_VARIANT_FAMILY_VARIANT_CAPTURE_REGEX,
-    )) {
-      const family = match[1];
-      const variant = match[2];
+    for (const { family, variant } of variantEntries) {
       const existing = observedVariantsByFamily.get(family) ?? new Set();
       existing.add(variant);
       observedVariantsByFamily.set(family, existing);
@@ -45621,13 +45633,11 @@ describe('Gnosis Safe migration guards', () => {
 
   it('keeps nullish-logical conditional delete-key context matrix complete', () => {
     const sourceText = fs.readFileSync(__filename, 'utf8');
+    const variantEntries = extractStrictEqualityVariantEntries(sourceText);
 
     const observedEntries = new Set<string>();
     const observedEntryCounts = new Map<string, number>();
-    for (const match of sourceText.matchAll(
-      STRICT_EQUALITY_VARIANT_ENTRY_CAPTURE_REGEX,
-    )) {
-      const [, family, variant, predicateType, context] = match;
+    for (const { family, variant, predicateType, context } of variantEntries) {
       const key = `${family}|${variant}|${predicateType}|${context}`;
       observedEntries.add(key);
       observedEntryCounts.set(key, (observedEntryCounts.get(key) ?? 0) + 1);
