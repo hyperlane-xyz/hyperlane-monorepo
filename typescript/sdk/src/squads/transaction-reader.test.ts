@@ -10216,6 +10216,61 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('keeps warp multi-router parsing stable when Buffer.prototype.subarray is mutated', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readWarpRouteInstruction: (
+        chain: string,
+        instructionData: Buffer,
+        metadata: Record<string, string>,
+      ) => Record<string, unknown>;
+    };
+    const originalBufferSubarray = Buffer.prototype.subarray;
+    const throwingSubarray: typeof Buffer.prototype.subarray =
+      function subarray() {
+        throw new Error('buffer subarray unavailable');
+      };
+    const instructionData = createEnrollRemoteRoutersInstructionData(1000);
+
+    let parsedInstruction: Record<string, unknown> | undefined;
+    try {
+      Object.defineProperty(Buffer.prototype, 'subarray', {
+        value: throwingSubarray,
+        writable: true,
+        configurable: true,
+      });
+      parsedInstruction = readerAny.readWarpRouteInstruction(
+        'solanamainnet',
+        instructionData,
+        { symbol: 'TEST', name: 'Test Token', routeName: 'test-route' },
+      );
+    } finally {
+      Object.defineProperty(Buffer.prototype, 'subarray', {
+        value: originalBufferSubarray,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(parsedInstruction).to.deep.equal({
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.EnrollRemoteRouters
+        ],
+      data: {
+        count: 1,
+        routers: [{ domain: 1000, chainName: undefined, router: null }],
+      },
+      insight: 'Enroll 1 remote router(s)',
+      warnings: [],
+    });
+  });
+
   it('does not misclassify warp destination-gas instructions when chain lookup throws during parse', () => {
     let chainLookupCount = 0;
     const mpp = {

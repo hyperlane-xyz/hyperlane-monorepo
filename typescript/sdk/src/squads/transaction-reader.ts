@@ -118,6 +118,11 @@ const BUFFER_TO_STRING = Buffer.prototype.toString as (
   start?: number,
   end?: number,
 ) => string;
+const BUFFER_SUBARRAY = Buffer.prototype.subarray as (
+  this: Buffer,
+  begin?: number,
+  end?: number,
+) => Buffer;
 const VALID_PROTOCOL_TYPES = new Set<ProtocolType>([
   ProtocolType.Ethereum,
   ProtocolType.Sealevel,
@@ -227,6 +232,10 @@ function stringToLowerCase(value: string): string {
 
 function bufferToString(value: Buffer, encoding?: BufferEncoding): string {
   return BUFFER_TO_STRING.call(value, encoding);
+}
+
+function bufferSubarray(value: Buffer, begin?: number, end?: number): Buffer {
+  return BUFFER_SUBARRAY.call(value, begin, end);
 }
 
 function readPropertyOrThrow(value: unknown, property: PropertyKey): unknown {
@@ -875,7 +884,8 @@ export class SquadsTransactionReader {
     }
 
     const discriminator = instructionData[HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE];
-    const borshData = instructionData.subarray(
+    const borshData = bufferSubarray(
+      instructionData,
       HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE,
     );
 
@@ -1305,7 +1315,8 @@ export class SquadsTransactionReader {
     }
 
     const discriminator = instructionData[HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE];
-    const borshData = instructionData.subarray(
+    const borshData = bufferSubarray(
+      instructionData,
       HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE,
     );
 
