@@ -240,6 +240,72 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
     await resolveFromLogs([malformedGetterLog, validLog]);
   });
 
+  it('ignores blockNumber getter throws during ICA event ordering', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 503,
+      transactionIndex: 3,
+      logIndex: 3,
+    };
+    const malformedGetterLog = {
+      topics: ['0xmalformed-block-number-property-getter'],
+      data: '0x',
+      get blockNumber() {
+        throw new Error('blockNumber getter should not crash ordering');
+      },
+      transactionIndex: 999,
+      logIndex: 999,
+    };
+
+    await resolveFromLogs([malformedGetterLog, validLog]);
+  });
+
+  it('ignores transactionIndex getter throws during ICA event ordering', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 504,
+      transactionIndex: 4,
+      logIndex: 4,
+    };
+    const malformedGetterLog = {
+      topics: ['0xmalformed-transaction-index-property-getter'],
+      data: '0x',
+      blockNumber: 504,
+      get transactionIndex() {
+        throw new Error('transactionIndex getter should not crash ordering');
+      },
+      logIndex: 999,
+    };
+
+    await resolveFromLogs([malformedGetterLog, validLog]);
+  });
+
+  it('ignores logIndex getter throws during ICA event ordering', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 505,
+      transactionIndex: 5,
+      logIndex: 5,
+    };
+    const malformedGetterLog = {
+      topics: ['0xmalformed-log-index-property-getter'],
+      data: '0x',
+      blockNumber: 505,
+      transactionIndex: 5,
+      get logIndex() {
+        throw new Error('logIndex getter should not crash ordering');
+      },
+    };
+
+    await resolveFromLogs([malformedGetterLog, validLog]);
+  });
+
   it('falls back to jsonRpc when registry destination router is overlong string', async () => {
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => ICA_OWNER,
@@ -1400,6 +1466,42 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
         get toString() {
           throw new Error('logIndex toString getter should not crash');
         },
+      },
+    });
+  });
+
+  it('ignores blockNumber getter throws during timelock role ordering', async () => {
+    await resolveFromRoleLogs({
+      topics: ['0xgrant-malformed-block-number-property-getter'],
+      data: '0x',
+      get blockNumber() {
+        throw new Error('blockNumber getter should not crash');
+      },
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('ignores transactionIndex getter throws during timelock role ordering', async () => {
+    await resolveFromRoleLogs({
+      topics: ['0xgrant-malformed-transaction-index-property-getter'],
+      data: '0x',
+      blockNumber: '1600',
+      get transactionIndex() {
+        throw new Error('transactionIndex getter should not crash');
+      },
+      logIndex: '0',
+    });
+  });
+
+  it('ignores logIndex getter throws during timelock role ordering', async () => {
+    await resolveFromRoleLogs({
+      topics: ['0xgrant-malformed-log-index-property-getter'],
+      data: '0x',
+      blockNumber: '1600',
+      transactionIndex: '0',
+      get logIndex() {
+        throw new Error('logIndex getter should not crash');
       },
     });
   });

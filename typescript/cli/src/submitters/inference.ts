@@ -249,20 +249,26 @@ function compareLogsByPosition(
   a: { blockNumber?: unknown; transactionIndex?: unknown; logIndex?: unknown },
   b: { blockNumber?: unknown; transactionIndex?: unknown; logIndex?: unknown },
 ): number {
-  const blockDiff = compareLogPositionIndex(a.blockNumber, b.blockNumber);
+  const blockDiff = compareLogPositionIndex(
+    getObjectField(a, 'blockNumber'),
+    getObjectField(b, 'blockNumber'),
+  );
   if (blockDiff !== 0) {
     return blockDiff;
   }
 
   const txIndexDiff = compareLogPositionIndex(
-    a.transactionIndex,
-    b.transactionIndex,
+    getObjectField(a, 'transactionIndex'),
+    getObjectField(b, 'transactionIndex'),
   );
   if (txIndexDiff !== 0) {
     return txIndexDiff;
   }
 
-  return compareLogPositionIndex(a.logIndex, b.logIndex);
+  return compareLogPositionIndex(
+    getObjectField(a, 'logIndex'),
+    getObjectField(b, 'logIndex'),
+  );
 }
 
 function getParsedLogArgs(parsedLog: unknown): unknown | null {
