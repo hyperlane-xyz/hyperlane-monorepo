@@ -116,12 +116,9 @@ export function getKnownObjectLikeProbeLabelsFromOtherTests(
   try {
     fileNames = fs.readdirSync(submitterTestDir);
   } catch {
-    knownObjectLikeLabelsByFilePath.set(
-      normalizedFilePath,
-      knownLabelsFromOtherFiles,
-    );
     return new Set(knownLabelsFromOtherFiles);
   }
+  let hadReadFailure = false;
 
   for (const fileName of fileNames) {
     if (
@@ -140,6 +137,7 @@ export function getKnownObjectLikeProbeLabelsFromOtherTests(
         'utf8',
       );
     } catch {
+      hadReadFailure = true;
       continue;
     }
     for (const match of fileContent.matchAll(OBJECT_LIKE_PROBE_LABEL_REGEX)) {
@@ -147,10 +145,12 @@ export function getKnownObjectLikeProbeLabelsFromOtherTests(
     }
   }
 
-  knownObjectLikeLabelsByFilePath.set(
-    normalizedFilePath,
-    knownLabelsFromOtherFiles,
-  );
+  if (!hadReadFailure) {
+    knownObjectLikeLabelsByFilePath.set(
+      normalizedFilePath,
+      knownLabelsFromOtherFiles,
+    );
+  }
   return new Set(knownLabelsFromOtherFiles);
 }
 

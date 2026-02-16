@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 import path from 'path';
 
 import { expect } from 'chai';
@@ -76,6 +77,36 @@ describe('runtime global probe helpers', () => {
     );
     const labels = getKnownObjectLikeProbeLabelsFromOtherTests(unreadablePath);
     expect(labels.size).to.equal(0);
+  });
+
+  it('does not cache empty labels on transient directory read failures', () => {
+    const baseDir = path.dirname(fileURLToPath(import.meta.url));
+    const syntheticFilePath = path.join(
+      baseDir,
+      'inference.synthetic-runtime-helper.test.ts',
+    );
+    const originalReaddirSync = fs.readdirSync;
+    let failedOnce = false;
+
+    (fs as any).readdirSync = ((targetPath: string, ...args: unknown[]) => {
+      if (!failedOnce && path.resolve(targetPath) === path.resolve(baseDir)) {
+        failedOnce = true;
+        throw new Error('transient read failure');
+      }
+      return (originalReaddirSync as any)(targetPath, ...args);
+    }) as typeof fs.readdirSync;
+
+    try {
+      const first =
+        getKnownObjectLikeProbeLabelsFromOtherTests(syntheticFilePath);
+      expect(first.size).to.equal(0);
+
+      const second =
+        getKnownObjectLikeProbeLabelsFromOtherTests(syntheticFilePath);
+      expect(second.size).to.be.greaterThan(0);
+    } finally {
+      (fs as any).readdirSync = originalReaddirSync;
+    }
   });
 
   it('exposes runtime function/object/primitive value maps with labeled keys', () => {
