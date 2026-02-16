@@ -2278,6 +2278,46 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps sdk Reflect.apply identifier and REFLECT_APPLY invocation tables mutually aligned', () => {
+    const identifierCountByRuntimeSourcePath = new Map<string, number>(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+        ({
+          runtimeSourcePath,
+          expectedReflectApplyIdentifierReferenceCount,
+        }) => [runtimeSourcePath, expectedReflectApplyIdentifierReferenceCount],
+      ),
+    );
+
+    for (const {
+      runtimeSourcePath,
+      expectedReflectApplyInvocationCount,
+    } of EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS) {
+      const expectedIdentifierReferenceCount =
+        identifierCountByRuntimeSourcePath.get(runtimeSourcePath);
+      expect(
+        expectedIdentifierReferenceCount,
+        `Expected Reflect.apply identifier-count entry for runtime source: ${runtimeSourcePath}`,
+      ).to.not.equal(undefined);
+      expect(expectedReflectApplyInvocationCount).to.be.greaterThanOrEqual(0);
+
+      if (expectedReflectApplyInvocationCount > 0) {
+        expect(expectedIdentifierReferenceCount).to.equal(1);
+      } else {
+        expect(expectedIdentifierReferenceCount).to.equal(0);
+      }
+    }
+
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      ),
+    ).to.deep.equal(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      ),
+    );
+  });
+
   it('keeps Reflect.apply mutation coverage constants deeply frozen', () => {
     expect(
       Object.isFrozen(
