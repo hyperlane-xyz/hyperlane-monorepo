@@ -110,6 +110,7 @@ const ARRAY_FROM = Array.from;
 const ARRAY_MAP = Array.prototype.map;
 const ARRAY_FILTER = Array.prototype.filter;
 const ARRAY_JOIN = Array.prototype.join;
+const ARRAY_PUSH = Array.prototype.push;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 const BUFFER_TO_STRING = Buffer.prototype.toString as (
@@ -222,6 +223,17 @@ function arrayJoinValues(
   return ARRAY_JOIN.call(values, separator);
 }
 
+function arrayPushValue<Value>(values: Value[], value: Value): number {
+  return ARRAY_PUSH.call(values, value);
+}
+
+function arrayPushValues<Value>(
+  values: Value[],
+  additionalValues: readonly Value[],
+): number {
+  return ARRAY_PUSH.apply(values, additionalValues as Value[]);
+}
+
 function stringTrim(value: string): string {
   return STRING_TRIM.call(value);
 }
@@ -326,7 +338,7 @@ function normalizeValidatorSet(validators: unknown): string[] | null {
       return null;
     }
 
-    normalizedValidators.push(normalizedValidator);
+    arrayPushValue(normalizedValidators, normalizedValidator);
   }
 
   return normalizedValidators;
@@ -1728,7 +1740,7 @@ export class SquadsTransactionReader {
         for (let i = LOOKUP_TABLE_META_SIZE; i < data.length; i += 32) {
           const addressBytes = data.slice(i, i + 32);
           if (addressBytes.length === 32) {
-            addresses.push(new PublicKey(addressBytes));
+            arrayPushValue(addresses, new PublicKey(addressBytes));
           }
         }
 
@@ -1739,7 +1751,7 @@ export class SquadsTransactionReader {
             idx >= 0 &&
             idx < addresses.length
           ) {
-            accountKeys.push(addresses[idx]);
+            arrayPushValue(accountKeys, addresses[idx]);
           }
         }
         for (const idx of readonlyIndexes) {
@@ -1749,7 +1761,7 @@ export class SquadsTransactionReader {
             idx >= 0 &&
             idx < addresses.length
           ) {
-            accountKeys.push(addresses[idx]);
+            arrayPushValue(accountKeys, addresses[idx]);
           }
         }
       } catch (error) {
@@ -1796,7 +1808,7 @@ export class SquadsTransactionReader {
     } = inspectArrayValue(instructionsValue);
     if (instructionsReadFailed || !instructionsAreArray) {
       const warning = `Malformed vault instructions on ${chain}: expected array, got ${getUnknownValueTypeName(instructionsValue)}`;
-      warnings.push(warning);
+      arrayPushValue(warnings, warning);
       return { instructions: parsedInstructions, warnings };
     }
     const instructions = this.normalizeVaultArrayField(
@@ -1811,7 +1823,7 @@ export class SquadsTransactionReader {
     if (instructionsLengthReadError) {
       const warning = `Failed to read vault instructions length on ${chain}: ${stringifyUnknownSquadsError(instructionsLengthReadError)}`;
       rootLogger.warn(warning);
-      warnings.push(warning);
+      arrayPushValue(warnings, warning);
       return { instructions: parsedInstructions, warnings };
     }
     if (
@@ -1821,7 +1833,7 @@ export class SquadsTransactionReader {
     ) {
       const warning = `Malformed vault instructions length on ${chain}: expected non-negative safe integer, got ${getUnknownValueTypeName(instructionsLengthValue)}`;
       rootLogger.warn(warning);
-      warnings.push(warning);
+      arrayPushValue(warnings, warning);
       return { instructions: parsedInstructions, warnings };
     }
     const computeBudgetProgramId = ComputeBudgetProgram.programId;
@@ -1832,7 +1844,7 @@ export class SquadsTransactionReader {
       if (instructionReadError) {
         const warning = `Failed to read vault instruction ${idx} on ${chain}: ${stringifyUnknownSquadsError(instructionReadError)}`;
         rootLogger.warn(warning);
-        warnings.push(warning);
+        arrayPushValue(warnings, warning);
         continue;
       }
       try {
@@ -1870,7 +1882,7 @@ export class SquadsTransactionReader {
         if (accountIndexesReadFailed || !accountIndexesAreArray) {
           const warning = `Malformed instruction account indexes on ${chain} at ${idx}: expected array, got ${getUnknownValueTypeName(accountIndexesValue)}`;
           rootLogger.warn(warning);
-          warnings.push(warning);
+          arrayPushValue(warnings, warning);
         }
         const accountIndexes =
           !accountIndexesReadFailed && accountIndexesAreArray
@@ -1927,13 +1939,13 @@ export class SquadsTransactionReader {
           }
           if (accountIdxValue < accountKeys.length) {
             const key = accountKeys[accountIdxValue];
-            if (key) accounts.push(key);
+            if (key) arrayPushValue(accounts, key);
           }
         }
 
         if (this.isMailboxInstruction(chain, programId, corePrograms)) {
           const parsed = this.readMailboxInstruction(chain, instructionData);
-          parsedInstructions.push({
+          arrayPushValue(parsedInstructions, {
             programId,
             programName: ProgramName.MAILBOX,
             instructionType: parsed.instructionType || InstructionType.UNKNOWN,
@@ -1942,7 +1954,7 @@ export class SquadsTransactionReader {
             warnings: parsed.warnings || [],
             insight: parsed.insight,
           });
-          warnings.push(...(parsed.warnings || []));
+          arrayPushValues(warnings, parsed.warnings || []);
           continue;
         }
 
@@ -1951,7 +1963,7 @@ export class SquadsTransactionReader {
             chain,
             instructionData,
           );
-          parsedInstructions.push({
+          arrayPushValue(parsedInstructions, {
             programId,
             programName: ProgramName.MULTISIG_ISM,
             instructionType: parsed.instructionType || InstructionType.UNKNOWN,
@@ -1960,14 +1972,14 @@ export class SquadsTransactionReader {
             warnings: parsed.warnings || [],
             insight: parsed.insight,
           });
-          warnings.push(...(parsed.warnings || []));
+          arrayPushValues(warnings, parsed.warnings || []);
           continue;
         }
 
         if (
           this.isProgramIdEqual(chain, 'system', programId, SYSTEM_PROGRAM_ID)
         ) {
-          parsedInstructions.push({
+          arrayPushValue(parsedInstructions, {
             programId,
             programName: ProgramName.SYSTEM_PROGRAM,
             instructionType: InstructionType.SYSTEM_CALL,
@@ -1985,7 +1997,7 @@ export class SquadsTransactionReader {
             instructionData,
             warpRouteMetadata,
           );
-          parsedInstructions.push({
+          arrayPushValue(parsedInstructions, {
             programId,
             programName: ProgramName.WARP_ROUTE,
             instructionType: parsed.instructionType || 'WarpRouteInstruction',
@@ -1998,7 +2010,7 @@ export class SquadsTransactionReader {
             warnings: parsed.warnings || [],
             insight: parsed.insight,
           });
-          warnings.push(...(parsed.warnings || []));
+          arrayPushValues(warnings, parsed.warnings || []);
           continue;
         }
 
@@ -2008,7 +2020,7 @@ export class SquadsTransactionReader {
           formatUnknownProgramWarning(formattedUnknownProgramId),
           'This instruction could not be verified!',
         ];
-        parsedInstructions.push({
+        arrayPushValue(parsedInstructions, {
           programId,
           programName: ProgramName.UNKNOWN,
           instructionType: InstructionType.UNKNOWN,
@@ -2019,12 +2031,12 @@ export class SquadsTransactionReader {
           accounts,
           warnings: unknownWarnings,
         });
-        warnings.push(...unknownWarnings);
+        arrayPushValues(warnings, unknownWarnings);
       } catch (error) {
         const formattedError = stringifyUnknownSquadsError(error);
         const errorMsg = `Instruction ${idx}: ${formattedError}`;
-        warnings.push(`Failed to parse instruction: ${errorMsg}`);
-        parsedInstructions.push({
+        arrayPushValue(warnings, `Failed to parse instruction: ${errorMsg}`);
+        arrayPushValue(parsedInstructions, {
           programId: SYSTEM_PROGRAM_ID,
           programName: ProgramName.UNKNOWN,
           instructionType: InstructionType.PARSE_FAILED,
@@ -2104,14 +2116,14 @@ export class SquadsTransactionReader {
       } catch (error) {
         const warning = `Failed to normalize instruction ${instructionIndex} data on ${chain}: ${stringifyUnknownSquadsError(error)}`;
         rootLogger.warn(warning);
-        warnings.push(warning);
+        arrayPushValue(warnings, warning);
         return Buffer.alloc(0);
       }
     }
 
     const warning = `Malformed instruction ${instructionIndex} data on ${chain}: expected bytes, got ${getUnknownValueTypeName(value)}`;
     rootLogger.warn(warning);
-    warnings.push(warning);
+    arrayPushValue(warnings, warning);
     return Buffer.alloc(0);
   }
 
@@ -2272,7 +2284,7 @@ export class SquadsTransactionReader {
         chain,
         action as types.ConfigAction,
       );
-      if (instruction) instructions.push(instruction);
+      if (instruction) arrayPushValue(instructions, instruction);
     }
 
     const proposalPdaValue = this.readProposalDataField(
@@ -2361,7 +2373,7 @@ export class SquadsTransactionReader {
       await this.parseVaultInstructions(chain, vaultTransaction, svmProvider);
 
     if (warnings.length > 0) {
-      this.errors.push({ chain, transactionIndex, warnings });
+      arrayPushValue(this.errors, { chain, transactionIndex, warnings });
     }
 
     const proposalPdaValue = this.readProposalDataField(
@@ -2606,7 +2618,7 @@ export class SquadsTransactionReader {
         transactionPda,
       );
     } catch (error) {
-      this.errors.push({
+      arrayPushValue(this.errors, {
         chain: normalizedChain,
         transactionIndex: normalizedTransactionIndex,
         error: stringifyUnknownSquadsError(error),
@@ -2836,7 +2848,8 @@ export class SquadsTransactionReader {
   ): { matches: boolean; issues: string[] } {
     const issues: string[] = [];
     if (!isNonNegativeSafeInteger(remoteDomain)) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed remote domain for ${originChain}: expected non-negative safe integer, got ${formatIntegerValidationValue(remoteDomain)}`,
       );
       return { matches: false, issues };
@@ -2847,7 +2860,8 @@ export class SquadsTransactionReader {
       remoteChain = this.resolveChainNameForDomain(remoteDomain, 'chain');
     } catch (error) {
       const errorMessage = getErrorMessageFromErrorInstance(error);
-      issues.push(
+      arrayPushValue(
+        issues,
         errorMessage
           ? errorMessage
           : `Failed to resolve chain for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
@@ -2856,7 +2870,7 @@ export class SquadsTransactionReader {
     }
 
     if (remoteChain === null || typeof remoteChain === 'undefined') {
-      issues.push(`Unknown domain ${remoteDomain}`);
+      arrayPushValue(issues, `Unknown domain ${remoteDomain}`);
       return { matches: false, issues };
     }
 
@@ -2867,14 +2881,16 @@ export class SquadsTransactionReader {
         `resolved chain name for domain ${remoteDomain}`,
       );
     } catch (error) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed chain resolution for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
       );
       return { matches: false, issues };
     }
 
     if (!isPositiveSafeInteger(threshold)) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed validator threshold for route ${originChain} -> ${normalizedRemoteChain}: threshold must be a positive safe integer, got ${formatIntegerValidationValue(threshold)}`,
       );
       return { matches: false, issues };
@@ -2882,12 +2898,13 @@ export class SquadsTransactionReader {
 
     const config = this.loadMultisigConfig(originChain);
     if (!config) {
-      issues.push(`No expected config found for ${originChain}`);
+      arrayPushValue(issues, `No expected config found for ${originChain}`);
       return { matches: false, issues };
     }
 
     if (!isRecordObject(config)) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed expected config for ${originChain}: expected route map object`,
       );
       return { matches: false, issues };
@@ -2899,19 +2916,21 @@ export class SquadsTransactionReader {
       readError: expectedConfigReadError,
     } = inspectPropertyValue(config, normalizedRemoteChain);
     if (expectedConfigReadError) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed expected config for route ${route}: failed to read route entry (${stringifyUnknownSquadsError(expectedConfigReadError)})`,
       );
       return { matches: false, issues };
     }
 
     if (expectedConfig === null || typeof expectedConfig === 'undefined') {
-      issues.push(`No expected config for route ${route}`);
+      arrayPushValue(issues, `No expected config for route ${route}`);
       return { matches: false, issues };
     }
 
     if (!isRecordObject(expectedConfig)) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed expected config for route ${route}: expected route entry object`,
       );
       return { matches: false, issues };
@@ -2922,14 +2941,16 @@ export class SquadsTransactionReader {
       readError: expectedThresholdReadError,
     } = inspectPropertyValue(expectedConfig, 'threshold');
     if (expectedThresholdReadError) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed expected config for route ${route}: failed to read threshold (${stringifyUnknownSquadsError(expectedThresholdReadError)})`,
       );
       return { matches: false, issues };
     }
 
     if (!isPositiveSafeInteger(expectedThreshold)) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed expected config for route ${route}: threshold must be a positive safe integer`,
       );
       return { matches: false, issues };
@@ -2940,7 +2961,8 @@ export class SquadsTransactionReader {
       readError: expectedValidatorsReadError,
     } = inspectPropertyValue(expectedConfig, 'validators');
     if (expectedValidatorsReadError) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed expected config for route ${route}: failed to read validators (${stringifyUnknownSquadsError(expectedValidatorsReadError)})`,
       );
       return { matches: false, issues };
@@ -2950,13 +2972,15 @@ export class SquadsTransactionReader {
     try {
       normalizedExpectedValidators = normalizeValidatorSet(expectedValidators);
     } catch (error) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed expected config for route ${route}: failed to read validators (${stringifyUnknownSquadsError(error)})`,
       );
       return { matches: false, issues };
     }
     if (!normalizedExpectedValidators) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed expected config for route ${route}: validators must be an array of non-empty strings`,
       );
       return { matches: false, issues };
@@ -2965,7 +2989,8 @@ export class SquadsTransactionReader {
       normalizedExpectedValidators,
     );
     if (duplicateExpectedValidator) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed expected config for route ${route}: validators must be unique (duplicate: ${duplicateExpectedValidator})`,
       );
       return { matches: false, issues };
@@ -2975,13 +3000,15 @@ export class SquadsTransactionReader {
     try {
       normalizedActualValidators = normalizeValidatorSet(validators);
     } catch (error) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed validator set for route ${route}: failed to read validators (${stringifyUnknownSquadsError(error)})`,
       );
       return { matches: false, issues };
     }
     if (!normalizedActualValidators) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed validator set for route ${route}: validators must be an array of non-empty strings`,
       );
       return { matches: false, issues };
@@ -2990,14 +3017,16 @@ export class SquadsTransactionReader {
       normalizedActualValidators,
     );
     if (duplicateActualValidator) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Malformed validator set for route ${route}: validators must be unique (duplicate: ${duplicateActualValidator})`,
       );
       return { matches: false, issues };
     }
 
     if (expectedThreshold !== threshold) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Threshold mismatch: expected ${expectedThreshold}, got ${threshold}`,
       );
     }
@@ -3005,7 +3034,8 @@ export class SquadsTransactionReader {
     if (
       normalizedExpectedValidators.length !== normalizedActualValidators.length
     ) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Validator count mismatch: expected ${normalizedExpectedValidators.length}, got ${normalizedActualValidators.length}`,
       );
     }
@@ -3027,13 +3057,15 @@ export class SquadsTransactionReader {
     );
 
     if (missingValidators.length > 0) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Missing validators: ${arrayJoinValues(missingValidators, ', ')}`,
       );
     }
 
     if (unexpectedValidators.length > 0) {
-      issues.push(
+      arrayPushValue(
+        issues,
         `Unexpected validators: ${arrayJoinValues(unexpectedValidators, ', ')}`,
       );
     }
