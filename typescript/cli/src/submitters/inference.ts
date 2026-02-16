@@ -1635,6 +1635,16 @@ export async function resolveSubmitterBatchesForTransactions({
   if (transactions.length === 0) {
     return [];
   }
+
+  if (isExtendedChain) {
+    return [
+      {
+        config: getDefaultSubmitter(chain),
+        transactions,
+      },
+    ];
+  }
+
   let protocol: ProtocolType | undefined;
   try {
     protocol = context.multiProvider.getProtocol(chain);
