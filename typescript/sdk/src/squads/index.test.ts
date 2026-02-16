@@ -200,6 +200,14 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\.entries\s*\(/,
   }),
   Object.freeze({
+    label: '.keys method call',
+    pattern: /\.keys\s*\(/,
+  }),
+  Object.freeze({
+    label: '.values method call',
+    pattern: /\.values\s*\(/,
+  }),
+  Object.freeze({
     label: '.has method call',
     pattern: /\.has\s*\(/,
   }),
@@ -214,6 +222,10 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
   Object.freeze({
     label: '.set method call',
     pattern: /\.set\s*\(/,
+  }),
+  Object.freeze({
+    label: '.clear method call',
+    pattern: /\.clear\s*\(/,
   }),
   Object.freeze({
     label: '.includes method call',
