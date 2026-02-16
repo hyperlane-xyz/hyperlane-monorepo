@@ -76,6 +76,9 @@ const ARRAY_PUSH = Array.prototype.push;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const STRING_FUNCTION = String;
 const STRING_TRIM = String.prototype.trim;
+const SET_CONSTRUCTOR = Set as new <Value>(
+  values?: Iterable<Value>,
+) => Set<Value>;
 
 function readStaticSquadsConfigFieldOrThrow(
   chainName: string,
@@ -131,7 +134,7 @@ if (squadsChainKeysReadError) {
 const SQUADS_CHAINS = objectFreezeValue(
   untypedSquadsChainKeys as SquadsChainName[],
 ) as readonly SquadsChainName[];
-const SQUADS_CHAIN_SET = new Set<string>(SQUADS_CHAINS);
+const SQUADS_CHAIN_SET = createSetValue<string>(SQUADS_CHAINS);
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
 const SQUADS_CHAINS_DISPLAY_LIST = ARRAY_JOIN.call(SQUADS_CHAINS, ', ');
@@ -142,6 +145,10 @@ function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
 
 function setAddValue<Value>(set: Set<Value>, value: Value): void {
   SET_ADD.call(set, value);
+}
+
+function createSetValue<Value>(values?: Iterable<Value>): Set<Value> {
+  return new SET_CONSTRUCTOR(values);
 }
 
 function stringTrim(value: string): string {
@@ -293,7 +300,7 @@ function partitionNormalizedSquadsChains(chains: readonly string[]): {
 } {
   const squadsChains: SquadsChainName[] = [];
   const nonSquadsChains: string[] = [];
-  const seenChains = new Set<string>();
+  const seenChains = createSetValue<string>();
 
   for (const chain of chains) {
     const normalizedChain = stringTrim(chain);
@@ -318,7 +325,7 @@ function formatChainNameForDisplay(chain: string): string {
 }
 
 function formatUniqueChainNamesForDisplay(chains: readonly string[]): string[] {
-  const seenChainNames = new Set<string>();
+  const seenChainNames = createSetValue<string>();
   const formattedUniqueChainNames: string[] = [];
 
   for (const chain of chains) {

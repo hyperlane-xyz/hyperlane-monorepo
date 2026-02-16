@@ -11,6 +11,9 @@ const STRING_REPLACE = String.prototype.replace as (
   searchValue: string | RegExp,
   replaceValue: string,
 ) => string;
+const SET_CONSTRUCTOR = Set as new <Value>(
+  values?: Iterable<Value>,
+) => Set<Value>;
 const REGEXP_PROTOTYPE_TEST = RegExp.prototype.test as (
   this: RegExp,
   value: string,
@@ -39,13 +42,17 @@ export const BUILTIN_SQUADS_ERROR_LABELS = objectFreezeValue([
   'AggregateError',
 ] as const);
 
-const GENERIC_ERROR_LABELS = new Set<string>();
+const GENERIC_ERROR_LABELS = createSetValue<string>();
 const SET_ADD = Set.prototype.add;
 for (const label of BUILTIN_SQUADS_ERROR_LABELS) {
   SET_ADD.call(GENERIC_ERROR_LABELS, stringToLowerCase(label));
 }
 const SET_HAS = Set.prototype.has;
 const ERROR_LABEL_WITH_MESSAGE_PATTERN = /^([A-Za-z]*Error)\s*:\s*(.+)$/;
+
+function createSetValue<Value>(values?: Iterable<Value>): Set<Value> {
+  return new SET_CONSTRUCTOR(values);
+}
 
 function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
   return SET_HAS.call(set, value);

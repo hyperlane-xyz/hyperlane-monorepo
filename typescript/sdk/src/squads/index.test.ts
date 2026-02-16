@@ -316,6 +316,14 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\bnew\s+Date\s*\(/,
   }),
   Object.freeze({
+    label: 'new Set call',
+    pattern: /\bnew\s+Set\s*(?:<[^>\n]*>)?\s*\(/,
+  }),
+  Object.freeze({
+    label: 'new Map call',
+    pattern: /\bnew\s+Map\s*(?:<[^>\n]*>)?\s*\(/,
+  }),
+  Object.freeze({
     label: '.entries method call',
     pattern: /\.entries\s*\(/,
   }),
@@ -619,6 +627,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   'Number.NaN access',
   'Math.max call',
   'new Date call',
+  'new Set call',
+  'new Map call',
   '.entries method call',
   '.keys method call',
   '.values method call',
@@ -662,8 +672,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.toSpliced method call',
   '.with method call',
 ]);
-const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 104;
-const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 80;
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 106;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 82;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {

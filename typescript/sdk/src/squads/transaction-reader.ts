@@ -101,6 +101,12 @@ export enum WarningMessage {
 }
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
+const SET_CONSTRUCTOR = Set as new <Value>(
+  values?: Iterable<Value>,
+) => Set<Value>;
+const MAP_CONSTRUCTOR = Map as new <Key, Value>(
+  entries?: Iterable<readonly [Key, Value]>,
+) => Map<Key, Value>;
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
 const MAP_HAS = Map.prototype.has;
@@ -138,7 +144,7 @@ const BUFFER_SLICE = Buffer.prototype.slice as (
   start?: number,
   end?: number,
 ) => Buffer;
-const VALID_PROTOCOL_TYPES = new Set<ProtocolType>([
+const VALID_PROTOCOL_TYPES = createSetValue<ProtocolType>([
   ProtocolType.Ethereum,
   ProtocolType.Sealevel,
   ProtocolType.Cosmos,
@@ -186,6 +192,10 @@ function setAddValue<Value>(set: Set<Value>, value: Value): void {
   SET_ADD.call(set, value);
 }
 
+function createSetValue<Value>(values?: Iterable<Value>): Set<Value> {
+  return new SET_CONSTRUCTOR(values);
+}
+
 function mapHasValue<Key, Value>(map: Map<Key, Value>, key: Key): boolean {
   return MAP_HAS.call(map, key);
 }
@@ -195,6 +205,12 @@ function mapGetValue<Key, Value>(
   key: Key,
 ): Value | undefined {
   return MAP_GET.call(map, key);
+}
+
+function createMapValue<Key, Value>(
+  entries?: Iterable<readonly [Key, Value]>,
+): Map<Key, Value> {
+  return new MAP_CONSTRUCTOR(entries);
 }
 
 function mapSetValue<Key, Value>(
@@ -402,7 +418,7 @@ function normalizeValidatorSet(validators: unknown): string[] | null {
 }
 
 function findDuplicateValidator(validators: readonly string[]): string | null {
-  const seen = new Set<string>();
+  const seen = createSetValue<string>();
   for (const validator of validators) {
     const normalizedValidator = stringToLowerCase(validator);
     if (setHasValue(seen, normalizedValidator)) {
@@ -489,7 +505,7 @@ function formatValidatorsWithAliases(
   const config = defaultMultisigConfigs[chain];
   if (!config) return [...validators];
 
-  const aliasMap = new Map<string, string>();
+  const aliasMap = createMapValue<string, string>();
   let validatorsValue: unknown;
   try {
     validatorsValue = readPropertyOrThrow(config, 'validators');
@@ -645,9 +661,9 @@ type WarpSetIgpData = {
 export class SquadsTransactionReader {
   errors: Array<Record<string, unknown>> = [];
   private multisigConfigs: Map<SquadsChainName, SvmMultisigConfigMap | null> =
-    new Map();
+    createMapValue();
   readonly warpRouteIndex: Map<ChainName, Map<string, WarpRouteMetadata>> =
-    new Map();
+    createMapValue();
 
   constructor(
     readonly mpp: unknown,
@@ -830,7 +846,7 @@ export class SquadsTransactionReader {
 
     const chainName = normalizedChainName as ChainName;
     if (!mapHasValue(this.warpRouteIndex, chainName)) {
-      mapSetValue(this.warpRouteIndex, chainName, new Map());
+      mapSetValue(this.warpRouteIndex, chainName, createMapValue());
     }
 
     const chainIndex = mapGetValue(this.warpRouteIndex, chainName);
@@ -3098,10 +3114,10 @@ export class SquadsTransactionReader {
       );
     }
 
-    const expectedValidatorsSet = new Set(
+    const expectedValidatorsSet = createSetValue(
       arrayMapValues(normalizedExpectedValidators, (v) => stringToLowerCase(v)),
     );
-    const actualValidatorsSet = new Set(
+    const actualValidatorsSet = createSetValue(
       arrayMapValues(normalizedActualValidators, (v) => stringToLowerCase(v)),
     );
 

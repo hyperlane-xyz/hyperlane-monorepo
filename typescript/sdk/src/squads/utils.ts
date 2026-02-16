@@ -171,11 +171,17 @@ const SQUADS_ERROR_STRING_FIELDS = [
   'shortMessage',
   'details',
 ] as const;
-const SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES = new Set<string>([
+const SET_CONSTRUCTOR = Set as new <Value>(
+  values?: Iterable<Value>,
+) => Set<Value>;
+const MAP_CONSTRUCTOR = Map as new <Key, Value>(
+  entries?: Iterable<readonly [Key, Value]>,
+) => Map<Key, Value>;
+const SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES = createSetValue<string>([
   ...SQUADS_ERROR_LOG_ARRAY_FIELDS,
   ...SQUADS_ERROR_STRING_ARRAY_FIELDS,
 ]);
-const SQUADS_LOG_FIELD_NAME_CACHE = new Map<string, boolean>();
+const SQUADS_LOG_FIELD_NAME_CACHE = createMapValue<string, boolean>();
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
 const MAP_GET = Map.prototype.get;
@@ -271,11 +277,21 @@ function setAddValue<Value>(set: Set<Value>, value: Value): void {
   SET_ADD.call(set, value);
 }
 
+function createSetValue<Value>(values?: Iterable<Value>): Set<Value> {
+  return new SET_CONSTRUCTOR(values);
+}
+
 function mapGetValue<Key, Value>(
   map: Map<Key, Value>,
   key: Key,
 ): Value | undefined {
   return MAP_GET.call(map, key);
+}
+
+function createMapValue<Key, Value>(
+  entries?: Iterable<readonly [Key, Value]>,
+): Map<Key, Value> {
+  return new MAP_CONSTRUCTOR(entries);
 }
 
 function mapSetValue<Key, Value>(
@@ -812,7 +828,7 @@ export function parseSquadsProposalVoteErrorFromError(
   }
 
   const traversalQueue: unknown[] = [error];
-  const visitedObjects = new Set<object>();
+  const visitedObjects = createSetValue<object>();
   let queueIndex = 0;
 
   while (queueIndex < traversalQueue.length) {
