@@ -2572,12 +2572,13 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
-    let expectedThreshold: unknown;
-    try {
-      expectedThreshold = expectedConfig.threshold;
-    } catch (error) {
+    const {
+      propertyValue: expectedThreshold,
+      readError: expectedThresholdReadError,
+    } = inspectPropertyValue(expectedConfig, 'threshold');
+    if (expectedThresholdReadError) {
       issues.push(
-        `Malformed expected config for route ${route}: failed to read threshold (${stringifyUnknownSquadsError(error)})`,
+        `Malformed expected config for route ${route}: failed to read threshold (${stringifyUnknownSquadsError(expectedThresholdReadError)})`,
       );
       return { matches: false, issues };
     }
@@ -2589,12 +2590,13 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
-    let expectedValidators: unknown;
-    try {
-      expectedValidators = expectedConfig.validators;
-    } catch (error) {
+    const {
+      propertyValue: expectedValidators,
+      readError: expectedValidatorsReadError,
+    } = inspectPropertyValue(expectedConfig, 'validators');
+    if (expectedValidatorsReadError) {
       issues.push(
-        `Malformed expected config for route ${route}: failed to read validators (${stringifyUnknownSquadsError(error)})`,
+        `Malformed expected config for route ${route}: failed to read validators (${stringifyUnknownSquadsError(expectedValidatorsReadError)})`,
       );
       return { matches: false, issues };
     }
@@ -2926,12 +2928,11 @@ export class SquadsTransactionReader {
     label: string,
     accountInfo: { data?: unknown },
   ): Buffer {
-    let dataValue: unknown;
-    try {
-      dataValue = accountInfo.data;
-    } catch (error) {
+    const { propertyValue: dataValue, readError: dataReadError } =
+      inspectPropertyValue(accountInfo, 'data');
+    if (dataReadError) {
       throw new Error(
-        `Failed to read ${label} data on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read ${label} data on ${chain}: ${stringifyUnknownSquadsError(dataReadError)}`,
       );
     }
 
