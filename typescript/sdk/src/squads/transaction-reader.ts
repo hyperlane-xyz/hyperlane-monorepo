@@ -485,12 +485,11 @@ export class SquadsTransactionReader {
       return;
     }
 
-    let chainNameValue: unknown;
-    try {
-      chainNameValue = token.chainName;
-    } catch (error) {
+    const { propertyValue: chainNameValue, readError: chainNameReadError } =
+      inspectPropertyValue(token, 'chainName');
+    if (chainNameReadError) {
       rootLogger.warn(
-        `Failed to read warp route token chain for ${routeName}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read warp route token chain for ${routeName}: ${stringifyUnknownSquadsError(chainNameReadError)}`,
       );
       return;
     }
@@ -529,12 +528,11 @@ export class SquadsTransactionReader {
       return;
     }
 
-    let addressOrDenom: unknown;
-    try {
-      addressOrDenom = token.addressOrDenom;
-    } catch (error) {
+    const { propertyValue: addressOrDenom, readError: addressReadError } =
+      inspectPropertyValue(token, 'addressOrDenom');
+    if (addressReadError) {
       rootLogger.warn(
-        `Failed to read warp route token address for ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read warp route token address for ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(addressReadError)}`,
       );
       return;
     }
