@@ -93,6 +93,7 @@ const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS = Object.freeze([
     expectedMutationTestCount: 2,
   }),
 ]);
+const EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNT = 9;
 const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE =
   Object.freeze([
     Object.freeze({
@@ -1551,6 +1552,12 @@ describe('squads barrel exports', () => {
     ]);
   });
 
+  it('keeps expected canonical sdk squads total Reflect.apply mutation-test count', () => {
+    expect(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNT,
+    ).to.equal(9);
+  });
+
   it('keeps expected canonical sdk squads Reflect.apply mutation runtime coverage map', () => {
     expect(
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE,
@@ -1670,6 +1677,12 @@ describe('squads barrel exports', () => {
         ),
       ).size,
     ).to.equal(EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS.length);
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS.reduce(
+        (sum, { expectedMutationTestCount }) => sum + expectedMutationTestCount,
+        0,
+      ),
+    ).to.equal(EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNT);
 
     for (const {
       testPath,
@@ -1699,6 +1712,26 @@ describe('squads barrel exports', () => {
         `Expected Reflect.apply restore statement count for ${testPath}`,
       ).to.equal(expectedMutationTestCount);
     }
+  });
+
+  it('keeps sdk Reflect.apply mutation test-title counts aligned with expected total', () => {
+    const discoveredReflectApplyMutationTestPaths =
+      listSdkSquadsTestFilePathsContainingPattern(
+        REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN,
+      );
+    let discoveredMutationTitleCount = 0;
+    for (const relativeTestPath of discoveredReflectApplyMutationTestPaths) {
+      const absoluteTestPath = path.join(SDK_PACKAGE_ROOT, relativeTestPath);
+      const source = fs.readFileSync(absoluteTestPath, 'utf8');
+      discoveredMutationTitleCount += countOccurrences(
+        source,
+        'Reflect.apply is mutated',
+      );
+    }
+
+    expect(discoveredMutationTitleCount).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNT,
+    );
   });
 
   it('keeps sdk Reflect.apply mutation tests covering expected runtime source modules', () => {
