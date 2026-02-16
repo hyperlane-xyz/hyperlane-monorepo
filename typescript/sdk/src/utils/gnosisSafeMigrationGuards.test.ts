@@ -45552,6 +45552,58 @@ describe('Gnosis Safe migration guards', () => {
     expect([...ownTitles].sort()).to.deep.equal([...infraTitles].sort());
   });
 
+  it('keeps nullish-logical conditional delete-key context matrix complete', () => {
+    const sourceText = fs.readFileSync(__filename, 'utf8');
+    const entryPattern =
+      /it\('(?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-([a-z-]+)-conditional-([a-z-]+)-(fallback-length|mixed-fallback) predicates (?:as deterministic|conservative) for (module specifiers|symbol sources|module-source aliases in symbol sources)'/g;
+
+    const observedEntries = new Set<string>();
+    for (const match of sourceText.matchAll(entryPattern)) {
+      const [, family, variant, predicateType, context] = match;
+      observedEntries.add(`${family}|${variant}|${predicateType}|${context}`);
+    }
+
+    const families = [
+      'leading-undefined',
+      'leading-void',
+      'left-null',
+      'right-null',
+      'right-undefined',
+      'right-void',
+    ];
+    const variants = [
+      'comma',
+      'concat',
+      'empty-string',
+      'false',
+      'falsy',
+      'null',
+      'template',
+      'undefined',
+      'void',
+    ];
+    const predicateTypes = ['fallback-length', 'mixed-fallback'];
+    const contexts = [
+      'module specifiers',
+      'symbol sources',
+      'module-source aliases in symbol sources',
+    ];
+
+    for (const family of families) {
+      for (const variant of variants) {
+        for (const predicateType of predicateTypes) {
+          for (const context of contexts) {
+            const key = `${family}|${variant}|${predicateType}|${context}`;
+            expect(
+              observedEntries.has(key),
+              `Missing conditional coverage entry ${key}`,
+            ).to.equal(true);
+          }
+        }
+      }
+    }
+  });
+
   it('prevents sdk source imports from infra paths', () => {
     const sourceFilePaths = collectSdkSourceFilePaths(
       path.resolve(process.cwd(), 'src'),
