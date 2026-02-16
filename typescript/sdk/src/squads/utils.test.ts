@@ -1055,6 +1055,35 @@ describe('squads utils', () => {
       );
     });
 
+    it('keeps chain-label normalization stable when Reflect.apply is mutated', () => {
+      const originalReflectApply = Reflect.apply;
+      let thrownError: Error | undefined;
+
+      Object.defineProperty(Reflect, 'apply', {
+        value: () => {
+          throw new Error('reflect apply unavailable');
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        thrownError = captureSyncError(() =>
+          assertValidTransactionIndexInput(-1, '  solanamainnet  '),
+        );
+      } finally {
+        Object.defineProperty(Reflect, 'apply', {
+          value: originalReflectApply,
+          writable: true,
+          configurable: true,
+        });
+      }
+
+      expect(thrownError?.message).to.equal(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got -1',
+      );
+    });
+
     it('labels malformed chain values in transaction-index validation errors', () => {
       expect(() => assertValidTransactionIndexInput(-1, null)).to.throw(
         'Expected transaction index to be a non-negative safe integer for null, got -1',
