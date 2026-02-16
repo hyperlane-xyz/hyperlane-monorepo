@@ -62,6 +62,34 @@ describe('squads provider bridge', () => {
     expect(toSquadsProvider(providerLike)).to.equal(providerLike);
   });
 
+  it('keeps provider validation stable when Reflect.apply is mutated', () => {
+    const originalReflectApply = Reflect.apply;
+    const providerLike = {
+      getAccountInfo: async () => null,
+    };
+    let validatedProvider: unknown;
+
+    Object.defineProperty(Reflect, 'apply', {
+      value: () => {
+        throw new Error('reflect apply unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      validatedProvider = toSquadsProvider(providerLike);
+    } finally {
+      Object.defineProperty(Reflect, 'apply', {
+        value: originalReflectApply,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(validatedProvider).to.equal(providerLike);
+  });
+
   it('reads getAccountInfo once during provider validation', () => {
     let getAccountInfoReadCount = 0;
     const providerLike = createGetterBackedProvider(() => {

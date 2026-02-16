@@ -77,6 +77,44 @@ describe('squads inspection helpers', () => {
         readFailed: false,
       });
     });
+
+    it('keeps array inspection stable when Reflect.apply is mutated', () => {
+      const originalReflectApply = Reflect.apply;
+      let arrayInspectionResult:
+        | { isArray: boolean; readFailed: boolean }
+        | undefined;
+      let objectInspectionResult:
+        | { isArray: boolean; readFailed: boolean }
+        | undefined;
+
+      Object.defineProperty(Reflect, 'apply', {
+        value: () => {
+          throw new Error('reflect apply unavailable');
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        arrayInspectionResult = inspectArrayValue([]);
+        objectInspectionResult = inspectArrayValue({});
+      } finally {
+        Object.defineProperty(Reflect, 'apply', {
+          value: originalReflectApply,
+          writable: true,
+          configurable: true,
+        });
+      }
+
+      expect(arrayInspectionResult).to.deep.equal({
+        isArray: true,
+        readFailed: false,
+      });
+      expect(objectInspectionResult).to.deep.equal({
+        isArray: false,
+        readFailed: false,
+      });
+    });
   });
 
   describe(inspectObjectEntries.name, () => {
