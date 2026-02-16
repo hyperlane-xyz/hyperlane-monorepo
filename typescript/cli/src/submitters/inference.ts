@@ -1925,7 +1925,8 @@ function hasNonEmptyStringTarget(
   return (
     trimmedTarget.length > 0 &&
     trimmedTarget.length <= MAX_OVERRIDE_KEY_LENGTH &&
-    !trimmedTarget.includes('\0')
+    !trimmedTarget.includes('\0') &&
+    !DISALLOWED_PROTOTYPE_PROPERTY_LITERALS.has(trimmedTarget)
   );
 }
 
