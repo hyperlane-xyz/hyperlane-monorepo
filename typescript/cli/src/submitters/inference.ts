@@ -1845,16 +1845,22 @@ function buildExplicitOverrideIndexes({
 }
 
 function resolveExplicitSubmitterForTransaction({
+  chain,
   protocol,
   transaction,
   explicitSubmissionStrategy,
   explicitOverrideIndexes,
 }: {
+  chain: ChainName;
   protocol: ProtocolType;
   transaction: TypedAnnotatedTransaction;
   explicitSubmissionStrategy: ExtendedSubmissionStrategy;
   explicitOverrideIndexes: ExplicitOverrideIndexes;
 }): ExtendedSubmissionStrategy {
+  const explicitDefaultSubmitter = getExplicitDefaultSubmitter(
+    explicitSubmissionStrategy,
+    chain,
+  );
   const to = getTransactionStringField(transaction, 'to');
   const overrides = getOwnObjectField(
     explicitSubmissionStrategy,
@@ -1862,18 +1868,14 @@ function resolveExplicitSubmitterForTransaction({
   ) as ExtendedSubmissionStrategy['submitterOverrides'] | undefined;
 
   if (!overrides || !to) {
-    return parseExtendedSubmissionStrategyWithSubmitter(
-      explicitSubmissionStrategy.submitter,
-    );
+    return parseExtendedSubmissionStrategyWithSubmitter(explicitDefaultSubmitter);
   }
 
-  let selectedSubmitter = explicitSubmissionStrategy.submitter;
+  let selectedSubmitter = explicitDefaultSubmitter;
   if (protocol === ProtocolType.Ethereum) {
     const normalizedTarget = normalizeEvmAddressCandidate(to);
     if (!normalizedTarget) {
-      return parseExtendedSubmissionStrategyWithSubmitter(
-        explicitSubmissionStrategy.submitter,
-      );
+      return parseExtendedSubmissionStrategyWithSubmitter(explicitDefaultSubmitter);
     }
     const selector = getTxSelector(transaction);
 
@@ -1886,7 +1888,7 @@ function resolveExplicitSubmitterForTransaction({
       }
     }
 
-    if (selectedSubmitter === explicitSubmissionStrategy.submitter) {
+    if (selectedSubmitter === explicitDefaultSubmitter) {
       const targetMatch =
         explicitOverrideIndexes.evmTargetOverrides.get(normalizedTarget);
       if (targetMatch) {
@@ -1895,9 +1897,7 @@ function resolveExplicitSubmitterForTransaction({
     }
   } else {
     if (!isUsableOverrideKey(to)) {
-      return parseExtendedSubmissionStrategyWithSubmitter(
-        explicitSubmissionStrategy.submitter,
-      );
+      return parseExtendedSubmissionStrategyWithSubmitter(explicitDefaultSubmitter);
     }
     const normalizedTarget = to.trim();
     const targetMatch =
@@ -1908,6 +1908,25 @@ function resolveExplicitSubmitterForTransaction({
   }
 
   return parseExtendedSubmissionStrategyWithSubmitter(selectedSubmitter);
+}
+
+function getExplicitDefaultSubmitter(
+  explicitSubmissionStrategy: ExtendedSubmissionStrategy,
+  chain: ChainName,
+): ExtendedSubmissionStrategy['submitter'] {
+  const explicitDefaultSubmitter = getOwnObjectField(
+    explicitSubmissionStrategy,
+    'submitter',
+  );
+  if (
+    explicitDefaultSubmitter &&
+    (typeof explicitDefaultSubmitter === 'object' ||
+      typeof explicitDefaultSubmitter === 'function')
+  ) {
+    return explicitDefaultSubmitter as ExtendedSubmissionStrategy['submitter'];
+  }
+
+  return getDefaultSubmitter(chain).submitter;
 }
 
 function hasNonEmptyStringTarget(
@@ -2134,6 +2153,9 @@ export async function resolveSubmitterBatchesForTransactions({
         'submitterOverrides',
       ) as ExtendedSubmissionStrategy['submitterOverrides'] | undefined)
     : undefined;
+  const explicitDefaultSubmitter = explicitSubmissionStrategy
+    ? getExplicitDefaultSubmitter(explicitSubmissionStrategy, chain)
+    : undefined;
   const hasExplicitOverrides = hasUsableOverrideKeys(explicitOverrides);
   const hasOverrideEligibleTarget = transactions.some(hasNonEmptyStringTarget);
 
@@ -2144,7 +2166,7 @@ export async function resolveSubmitterBatchesForTransactions({
     return [
       {
         config: parseExtendedSubmissionStrategyWithSubmitter(
-          explicitSubmissionStrategy.submitter,
+          explicitDefaultSubmitter,
         ),
         transactions,
       },
@@ -2172,7 +2194,7 @@ export async function resolveSubmitterBatchesForTransactions({
       return [
         {
           config: parseExtendedSubmissionStrategyWithSubmitter(
-            explicitSubmissionStrategy.submitter,
+            explicitDefaultSubmitter,
           ),
           transactions,
         },
@@ -2188,6 +2210,7 @@ export async function resolveSubmitterBatchesForTransactions({
 
     for (const transaction of transactions) {
       const selectedConfig = resolveExplicitSubmitterForTransaction({
+        chain,
         protocol,
         transaction,
         explicitSubmissionStrategy,
