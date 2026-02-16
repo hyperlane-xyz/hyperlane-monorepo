@@ -220,8 +220,32 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\.includes\s*\(/,
   }),
   Object.freeze({
+    label: '.startsWith method call',
+    pattern: /\.startsWith\s*\(/,
+  }),
+  Object.freeze({
+    label: '.endsWith method call',
+    pattern: /\.endsWith\s*\(/,
+  }),
+  Object.freeze({
+    label: '.indexOf method call',
+    pattern: /\.indexOf\s*\(/,
+  }),
+  Object.freeze({
     label: '.some method call',
     pattern: /\.some\s*\(/,
+  }),
+  Object.freeze({
+    label: '.every method call',
+    pattern: /\.every\s*\(/,
+  }),
+  Object.freeze({
+    label: '.find method call',
+    pattern: /\.find\s*\(/,
+  }),
+  Object.freeze({
+    label: '.concat method call',
+    pattern: /\.concat\s*\(/,
   }),
   Object.freeze({
     label: '.trim method call',
