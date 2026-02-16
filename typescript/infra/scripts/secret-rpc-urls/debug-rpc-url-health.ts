@@ -1,0 +1,180 @@
+import { ethers } from 'ethers';
+
+import { ProtocolType, assert, timeout } from '@hyperlane-xyz/utils';
+
+import {
+  getSecretRpcEndpoints,
+  secretRpcEndpointsExist,
+} from '../../src/agents/index.js';
+import { getChain } from '../../config/registry.js';
+import { getArgs, withChainRequired } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
+
+const TIMEOUT_MS = 5_000;
+
+interface ProbeResult {
+  url: string;
+  blockNumber?: number;
+  blockTimestamp?: number;
+  latencyMs?: number;
+  error?: string;
+}
+
+function healthEmoji(staleness?: number): string {
+  if (staleness === undefined) return '❌';
+  if (staleness < 30) return '✅';
+  if (staleness < 120) return '⚠️';
+  return '❌';
+}
+
+/** Redact path segments after the host (often contain API keys). */
+function redactUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const hasPath = u.pathname.length > 1; // more than just "/"
+    const hasQuery = u.search.length > 0;
+    const suffix = hasPath || hasQuery ? '/<redacted>' : '/';
+    return `${u.protocol}//${u.host}${suffix}`;
+  } catch {
+    return url;
+  }
+}
+
+async function probeUrl(url: string): Promise<ProbeResult> {
+  const provider = new ethers.providers.StaticJsonRpcProvider(url);
+  const start = Date.now();
+  try {
+    const block = await timeout(
+      provider.getBlock('latest'),
+      TIMEOUT_MS,
+      `Timeout after ${TIMEOUT_MS}ms`,
+    );
+    const latencyMs = Date.now() - start;
+    return {
+      url,
+      blockNumber: block.number,
+      blockTimestamp: block.timestamp,
+      latencyMs,
+    };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return { url, error: msg };
+  }
+}
+
+function printTable(label: string, results: ProbeResult[], maxBlock: number) {
+  console.log(`\n${label}`);
+  if (results.length === 0) {
+    console.log('  (none)');
+    return;
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  const rows = results.map((r, i) => {
+    if (r.error) {
+      return {
+        '#': i + 1,
+        URL: redactUrl(r.url),
+        'Block #': '—',
+        'Block Diff': '—',
+        'Block Time': '—',
+        Staleness: '—',
+        Health: '❌',
+        Latency: '—',
+        Error: r.error.slice(0, 80),
+      };
+    }
+    const staleness = nowSec - r.blockTimestamp!;
+    return {
+      '#': i + 1,
+      URL: redactUrl(r.url),
+      'Block #': r.blockNumber!,
+      'Block Diff': maxBlock - r.blockNumber!,
+      'Block Time': new Date(r.blockTimestamp! * 1000).toISOString(),
+      Staleness: `${staleness}s`,
+      Health: healthEmoji(staleness),
+      Latency: `${r.latencyMs}ms`,
+    };
+  });
+
+  console.table(rows);
+}
+
+async function main() {
+  const { environment, chain } = await withChainRequired(getArgs()).argv;
+
+  // EVM-only guard
+  const chainMetadata = getChain(chain);
+  if (chainMetadata.protocol !== ProtocolType.Ethereum) {
+    console.log(
+      `Skipping ${chain}: non-EVM chain (protocol=${chainMetadata.protocol})`,
+    );
+    process.exit(0);
+  }
+
+  // Fetch private RPCs
+  let privateUrls: string[] = [];
+  const hasSecrets = await secretRpcEndpointsExist(environment, chain);
+  if (hasSecrets) {
+    privateUrls = await getSecretRpcEndpoints(environment, chain);
+  }
+
+  // Fetch registry RPCs (public, no secrets)
+  const envConfig = getEnvironmentConfig(environment);
+  const registry = await envConfig.getRegistry(false);
+  const metadata = await registry.getChainMetadata(chain);
+  assert(metadata, `No chain metadata for ${chain}`);
+  const allRegistryUrls = (metadata.rpcUrls ?? []).map(
+    (r: { http: string }) => r.http,
+  );
+
+  // Deduplicate: exclude registry URLs that already appear in private set
+  const privateSet = new Set(privateUrls);
+  const registryUrls = allRegistryUrls.filter(
+    (url: string) => !privateSet.has(url),
+  );
+
+  console.log(
+    `Probing ${privateUrls.length} private + ${registryUrls.length} registry RPCs for ${chain} (${environment})...`,
+  );
+
+  // Probe all URLs concurrently
+  const allUrls = [...privateUrls, ...registryUrls];
+  const settled = await Promise.allSettled(allUrls.map(probeUrl));
+  const allResults = settled.map((s, i) =>
+    s.status === 'fulfilled'
+      ? s.value
+      : { url: allUrls[i], error: String(s.reason) },
+  );
+
+  const privateResults = allResults.slice(0, privateUrls.length);
+  const registryResults = allResults.slice(privateUrls.length);
+
+  // Compute max block across all successful results
+  const maxBlock = allResults.reduce(
+    (max, r) =>
+      r.blockNumber !== undefined ? Math.max(max, r.blockNumber) : max,
+    0,
+  );
+
+  printTable(
+    `Private RPCs (${environment} / ${chain})`,
+    privateResults,
+    maxBlock,
+  );
+  printTable(
+    `Registry RPCs (${environment} / ${chain})`,
+    registryResults,
+    maxBlock,
+  );
+
+  process.exit(0);
+}
+
+main()
+  .then()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
