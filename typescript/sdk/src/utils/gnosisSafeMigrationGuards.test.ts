@@ -71,6 +71,9 @@ const NULLISH_LOGICAL_BASE_CONDITIONAL_DELETE_KEY_TITLE_STEMS = [
   'treats strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-fallback-length',
   'keeps strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-mixed-fallback',
 ] as const;
+const EXPECTED_VARIANT_CONDITIONAL_TITLE_COUNT = 324;
+const EXPECTED_NON_VARIANT_CONDITIONAL_TITLE_COUNT = 33;
+const EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT = 357;
 
 function normalizeNamedSymbol(symbol: string): string {
   const trimmed = symbol.trim();
@@ -45682,6 +45685,39 @@ describe('Gnosis Safe migration guards', () => {
         NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_CONTEXTS.length,
     );
     expect(new Set(nonVariantTitles).size).to.equal(nonVariantTitles.length);
+  });
+
+  it('keeps strict-equality conditional delete-key title cardinality stable', () => {
+    const sourceText = fs.readFileSync(__filename, 'utf8');
+    const contextFragment =
+      '(module specifiers|symbol sources|module-source aliases in symbol sources)';
+    const allTitlePattern = new RegExp(
+      String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates (?:as deterministic|conservative) for ${contextFragment})'`,
+      'g',
+    );
+    const matrixTitlePattern = new RegExp(
+      String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*-conditional-[^']*-(?:fallback-length|mixed-fallback) predicates (?:as deterministic|conservative) for ${contextFragment})'`,
+      'g',
+    );
+
+    const allTitles = [...sourceText.matchAll(allTitlePattern)].map(
+      (match) => match[1],
+    );
+    const matrixTitles = [...sourceText.matchAll(matrixTitlePattern)].map(
+      (match) => match[1],
+    );
+    const matrixTitleSet = new Set(matrixTitles);
+    const nonVariantTitles = allTitles.filter(
+      (title) => !matrixTitleSet.has(title),
+    );
+
+    expect(matrixTitles.length).to.equal(
+      EXPECTED_VARIANT_CONDITIONAL_TITLE_COUNT,
+    );
+    expect(nonVariantTitles.length).to.equal(
+      EXPECTED_NON_VARIANT_CONDITIONAL_TITLE_COUNT,
+    );
+    expect(allTitles.length).to.equal(EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT);
   });
 
   it('prevents sdk source imports from infra paths', () => {
