@@ -369,6 +369,52 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     }
   });
 
+  it('does not look up protocol when Object prototype submitter is non-writable', async () => {
+    let protocolCalls = 0;
+    const strategyPath = createExplicitStrategyPath();
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      value: null,
+    });
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => {
+              protocolCalls += 1;
+              return ProtocolType.Ethereum;
+            },
+          },
+        } as any,
+        strategyUrl: strategyPath,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(protocolCalls).to.equal(0);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitter;
+      }
+    }
+  });
+
   it('ignores inherited prototype keys when resolving explicit strategy for chain', async () => {
     const batches = await resolveSubmitterBatchesForTransactions({
       chain: 'toString' as any,

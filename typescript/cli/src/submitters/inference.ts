@@ -28,8 +28,8 @@ import { readYamlOrJson } from '../utils/files.js';
 import {
   type ExtendedChainSubmissionStrategy,
   type ExtendedSubmissionStrategy,
-  ExtendedChainSubmissionStrategySchema,
-  ExtendedSubmissionStrategySchema,
+  parseExtendedChainSubmissionStrategy,
+  parseExtendedSubmissionStrategy,
 } from './types.js';
 
 const logger = rootLogger.child({ module: 'submitter-inference' });
@@ -784,7 +784,7 @@ function parseExtendedSubmissionStrategyWithSubmitter(
 ): ExtendedSubmissionStrategy {
   const normalizedStrategy = Object.create(null) as Record<string, unknown>;
   normalizedStrategy.submitter = submitter;
-  return ExtendedSubmissionStrategySchema.parse(normalizedStrategy);
+  return parseExtendedSubmissionStrategy(normalizedStrategy);
 }
 
 function readChainSubmissionStrategy(
@@ -811,7 +811,7 @@ function readChainSubmissionStrategy(
     }
   }
 
-  const parsedChainSubmissionStrategies = ExtendedChainSubmissionStrategySchema.parse(
+  const parsedChainSubmissionStrategies = parseExtendedChainSubmissionStrategy(
     sanitizedChainSubmissionStrategies,
   );
   const normalizedChainSubmissionStrategies = Object.create(null) as Record<

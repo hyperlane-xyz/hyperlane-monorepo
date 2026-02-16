@@ -14,7 +14,7 @@ import { type CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
   type ExtendedChainSubmissionStrategy,
-  ExtendedChainSubmissionStrategySchema,
+  parseExtendedChainSubmissionStrategy,
 } from '../submitters/types.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
@@ -89,8 +89,7 @@ export async function readChainSubmissionStrategyConfig(
   log(`Reading submission strategy in ${filePath}`);
   const strategyConfig =
     readYamlOrJson<ExtendedChainSubmissionStrategy>(filePath);
-  const parseResult =
-    ExtendedChainSubmissionStrategySchema.parse(strategyConfig);
+  const parseResult = parseExtendedChainSubmissionStrategy(strategyConfig);
   return sanitizeChainSubmissionStrategy(parseResult);
 }
 
@@ -105,7 +104,7 @@ export async function createStrategyConfig({
   try {
     const strategyObj = await readYamlOrJson(outPath);
     strategy = sanitizeChainSubmissionStrategy(
-      ExtendedChainSubmissionStrategySchema.parse(strategyObj),
+      parseExtendedChainSubmissionStrategy(strategyObj),
     );
   } catch {
     writeYamlOrJson(outPath, {}, 'yaml');
@@ -201,7 +200,7 @@ export async function createStrategyConfig({
 
   try {
     const strategyConfig = sanitizeChainSubmissionStrategy(
-      ExtendedChainSubmissionStrategySchema.parse(strategyResult),
+      parseExtendedChainSubmissionStrategy(strategyResult),
     );
     logBlue(`Strategy configuration is valid. Writing to file ${outPath}:\n`);
 

@@ -2,7 +2,11 @@ import { expect } from 'chai';
 
 import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 
-import { ExtendedChainSubmissionStrategySchema } from '../../submitters/types.js';
+import {
+  ExtendedChainSubmissionStrategySchema,
+  parseExtendedChainSubmissionStrategy,
+  parseExtendedSubmissionStrategy,
+} from '../../submitters/types.js';
 
 describe('ExtendedChainSubmissionStrategySchema', () => {
   const CHAIN = 'ethereum';
@@ -311,5 +315,76 @@ describe('ExtendedChainSubmissionStrategySchema', () => {
 
     const result = ExtendedChainSubmissionStrategySchema.safeParse(input);
     expect(result.success).to.equal(false);
+  });
+});
+
+describe('strategy parse helpers', () => {
+  const CHAIN = 'ethereum';
+
+  it('parseExtendedChainSubmissionStrategy tolerates non-writable Object prototype submitter', () => {
+    const input = {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+      },
+    };
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      value: null,
+    });
+
+    try {
+      const parsed = parseExtendedChainSubmissionStrategy(input as any);
+      expect(parsed[CHAIN].submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitter;
+      }
+    }
+  });
+
+  it('parseExtendedSubmissionStrategy tolerates non-writable Object prototype submitter', () => {
+    const input = {
+      submitter: {
+        type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN,
+      },
+    };
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      value: null,
+    });
+
+    try {
+      const parsed = parseExtendedSubmissionStrategy(input as any);
+      expect(parsed.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitter;
+      }
+    }
   });
 });

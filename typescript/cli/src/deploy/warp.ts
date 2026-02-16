@@ -80,8 +80,8 @@ import { resolveSubmitterBatchesForTransactions } from '../submitters/inference.
 import {
   CustomTxSubmitterType,
   type ExtendedChainSubmissionStrategy,
-  ExtendedChainSubmissionStrategySchema,
   type ExtendedSubmissionStrategy,
+  parseExtendedChainSubmissionStrategy,
 } from '../submitters/types.js';
 import {
   indentYamlOrJson,
@@ -828,7 +828,7 @@ export function readChainSubmissionStrategy(
   const submissionStrategyFileContent = readYamlOrJson(
     submissionStrategyFilepath.trim(),
   );
-  const parsedChainSubmissionStrategies = ExtendedChainSubmissionStrategySchema.parse(
+  const parsedChainSubmissionStrategies = parseExtendedChainSubmissionStrategy(
     submissionStrategyFileContent,
   );
   const sanitizedChainSubmissionStrategies = Object.create(null) as Record<

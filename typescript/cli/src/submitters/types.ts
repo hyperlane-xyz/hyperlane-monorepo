@@ -234,4 +234,76 @@ export type ExtendedChainSubmissionStrategy = z.infer<
   typeof ExtendedChainSubmissionStrategySchema
 >;
 
+const STRATEGY_SCHEMA_PROTOTYPE_COLLISION_FIELDS = [
+  'submitter',
+  'submitterOverrides',
+] as const;
+
+function shouldTemporarilyRemovePrototypeField(
+  descriptor: PropertyDescriptor | undefined,
+): boolean {
+  if (!descriptor || !descriptor.configurable) {
+    return false;
+  }
+
+  if ('writable' in descriptor) {
+    return descriptor.writable === false;
+  }
+
+  return typeof descriptor.set !== 'function';
+}
+
+function withTemporarilyRemovedPrototypeFields<T>(callback: () => T): T {
+  const removedDescriptors: Array<{
+    field: (typeof STRATEGY_SCHEMA_PROTOTYPE_COLLISION_FIELDS)[number];
+    descriptor: PropertyDescriptor;
+  }> = [];
+
+  for (const field of STRATEGY_SCHEMA_PROTOTYPE_COLLISION_FIELDS) {
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(Object.prototype, field);
+    } catch {
+      continue;
+    }
+
+    if (!shouldTemporarilyRemovePrototypeField(descriptor)) {
+      continue;
+    }
+
+    try {
+      if (delete (Object.prototype as Record<string, unknown>)[field]) {
+        removedDescriptors.push({ field, descriptor });
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  try {
+    return callback();
+  } finally {
+    for (let i = removedDescriptors.length - 1; i >= 0; i -= 1) {
+      const { field, descriptor } = removedDescriptors[i];
+      Object.defineProperty(Object.prototype, field, descriptor);
+    }
+  }
+}
+
+export function parseExtendedSubmissionStrategy(
+  value: unknown,
+): ExtendedSubmissionStrategy {
+  return withTemporarilyRemovedPrototypeFields(() =>
+    ExtendedSubmissionStrategySchema.parse(value),
+  );
+}
+
+export function parseExtendedChainSubmissionStrategy(
+  value: unknown,
+): ExtendedChainSubmissionStrategy {
+  return withTemporarilyRemovedPrototypeFields(() =>
+    ExtendedChainSubmissionStrategySchema.parse(value),
+  );
+}
+
 export type FileTxSubmitterProps = z.infer<typeof FileTxSubmitterPropsSchema>;
