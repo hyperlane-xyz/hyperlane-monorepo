@@ -4280,6 +4280,41 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('skips provider lookup when chain metadata then accessor throws generic-object Error messages', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getChainMetadata: () =>
+          new Proxy(
+            {
+              nativeToken: {
+                decimals: 9,
+                symbol: 'SOL',
+              },
+            },
+            {
+              get(target, property, receiver) {
+                if (property === 'then') {
+                  throw new Error('[object Object]');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        ['solanamainnet'],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('skips provider lookup when chain metadata is an array', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -4333,6 +4368,40 @@ describe('squads utils', () => {
               get(target, property, receiver) {
                 if (property === 'then') {
                   throw new Error('native token then unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+        }),
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        ['solanamainnet'],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('skips provider lookup when native token metadata then accessor throws generic-object Error messages', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getChainMetadata: () => ({
+          nativeToken: new Proxy(
+            {
+              decimals: 9,
+              symbol: 'SOL',
+            },
+            {
+              get(target, property, receiver) {
+                if (property === 'then') {
+                  throw new Error('[object Object]');
                 }
                 return Reflect.get(target, property, receiver);
               },
