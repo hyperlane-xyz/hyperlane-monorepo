@@ -1592,6 +1592,16 @@ function hasNonEmptyStringTarget(
   return typeof to === 'string' && to.trim().length > 0;
 }
 
+function hasUsableOverrideKeys(
+  overrides?: ExtendedSubmissionStrategy['submitterOverrides'],
+): boolean {
+  if (!overrides) {
+    return false;
+  }
+
+  return Object.keys(overrides).some((overrideKey) => overrideKey.trim().length > 0);
+}
+
 function createCache(): Cache {
   return {
     safeByChainAndAddress: new Map(),
@@ -1655,9 +1665,7 @@ export async function resolveSubmitterBatchesForTransactions({
   const explicitSubmissionStrategy: ExtendedSubmissionStrategy | undefined =
     strategyUrl ? readChainSubmissionStrategy(strategyUrl)[chain] : undefined;
   const explicitOverrides = explicitSubmissionStrategy?.submitterOverrides;
-  const hasExplicitOverrides = !!(
-    explicitOverrides && Object.keys(explicitOverrides).length > 0
-  );
+  const hasExplicitOverrides = hasUsableOverrideKeys(explicitOverrides);
   const hasOverrideEligibleTarget = transactions.some(hasNonEmptyStringTarget);
 
   if (

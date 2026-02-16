@@ -74,6 +74,27 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     return strategyPath;
   };
 
+  const createExplicitStrategyWithWhitespaceOverrideKeyPath = () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-explicit-default-with-whitespace-override-key-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x7777777777777777777777777777777777777777',
+          version: '1.0',
+        },
+        submitterOverrides: {
+          '   ': {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+    return strategyPath;
+  };
+
   it('does not look up protocol when explicit strategy has no overrides', async () => {
     let protocolCalls = 0;
 
@@ -232,6 +253,30 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
         },
       } as any,
       strategyUrl: createExplicitStrategyWithEmptyOverridePath(),
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+    expect(protocolCalls).to.equal(0);
+  });
+
+  it('does not look up protocol when explicit strategy has only whitespace override keys', async () => {
+    let protocolCalls = 0;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => {
+            protocolCalls += 1;
+            return ProtocolType.Ethereum;
+          },
+        },
+      } as any,
+      strategyUrl: createExplicitStrategyWithWhitespaceOverrideKeyPath(),
     });
 
     expect(batches).to.have.length(1);
