@@ -2567,6 +2567,23 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps Reflect.apply pattern-discovery helper custom-wrapper snapshots isolated from caller mutation', () => {
+    assertPathSnapshotIsolation(
+      () =>
+        listReflectApplyMutationTestPathsFromPatternDiscovery(
+          /Reflect\.apply is mutated/,
+        ),
+      'Reflect.apply mutation custom-pattern helper discovery',
+    );
+    assertPathSnapshotIsolation(
+      () =>
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          /Reflect\.apply/,
+        ),
+      'Reflect.apply capture custom-pattern helper discovery',
+    );
+  });
+
   it('keeps sdk squads pattern-path discovery stable for global regex inputs', () => {
     const nonGlobalMutationPathPattern = /Reflect\.apply is mutated/;
     const globalMutationPathPattern = /Reflect\.apply is mutated/g;
