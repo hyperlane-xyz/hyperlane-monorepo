@@ -12,6 +12,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import { getRuntimeFunctionValuesByLabel } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions platform constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -22,125 +23,107 @@ describe('resolveSubmitterBatchesForTransactions platform constructor probes', (
     chainId: 31338,
   };
 
+  const runtimeFunctionValuesByLabel = getRuntimeFunctionValuesByLabel();
+
   const RAW_CONSTRUCTOR_CASES = [
     {
       label: 'broadcastchannel-constructor-object',
-      constructorValue: (globalThis as any).BroadcastChannel,
       directGetLogsCallCount: 4,
     },
     {
       label: 'crypto-constructor-object',
-      constructorValue: (globalThis as any).Crypto,
       directGetLogsCallCount: 4,
     },
     {
       label: 'cryptokey-constructor-object',
-      constructorValue: (globalThis as any).CryptoKey,
       directGetLogsCallCount: 4,
     },
     {
       label: 'subtlecrypto-constructor-object',
-      constructorValue: (globalThis as any).SubtleCrypto,
       directGetLogsCallCount: 4,
     },
     {
       label: 'messageevent-constructor-object',
-      constructorValue: (globalThis as any).MessageEvent,
       directGetLogsCallCount: 4,
     },
     {
       label: 'navigator-constructor-object',
-      constructorValue: (globalThis as any).Navigator,
       directGetLogsCallCount: 4,
     },
     {
       label: 'performanceentry-constructor-object',
-      constructorValue: (globalThis as any).PerformanceEntry,
       directGetLogsCallCount: 4,
     },
     {
       label: 'performancemark-constructor-object',
-      constructorValue: (globalThis as any).PerformanceMark,
       directGetLogsCallCount: 4,
     },
     {
       label: 'performancemeasure-constructor-object',
-      constructorValue: (globalThis as any).PerformanceMeasure,
       directGetLogsCallCount: 4,
     },
     {
       label: 'performanceobserver-constructor-object',
-      constructorValue: (globalThis as any).PerformanceObserver,
       directGetLogsCallCount: 4,
     },
     {
       label: 'performanceobserverentrylist-constructor-object',
-      constructorValue: (globalThis as any).PerformanceObserverEntryList,
       directGetLogsCallCount: 4,
     },
     {
       label: 'performanceresourcetiming-constructor-object',
-      constructorValue: (globalThis as any).PerformanceResourceTiming,
       directGetLogsCallCount: 4,
     },
     {
       label: 'websocket-constructor-object',
-      constructorValue: (globalThis as any).WebSocket,
       directGetLogsCallCount: 4,
     },
     {
       label: 'textencoderstream-constructor-object',
-      constructorValue: (globalThis as any).TextEncoderStream,
       directGetLogsCallCount: 4,
     },
     {
       label: 'textdecoderstream-constructor-object',
-      constructorValue: (globalThis as any).TextDecoderStream,
       directGetLogsCallCount: 4,
     },
     {
       label: 'readablebytestreamcontroller-constructor-object',
-      constructorValue: (globalThis as any).ReadableByteStreamController,
       directGetLogsCallCount: 4,
     },
     {
       label: 'readablestreambyobreader-constructor-object',
-      constructorValue: (globalThis as any).ReadableStreamBYOBReader,
       directGetLogsCallCount: 4,
     },
     {
       label: 'readablestreambyobrequest-constructor-object',
-      constructorValue: (globalThis as any).ReadableStreamBYOBRequest,
       directGetLogsCallCount: 4,
     },
     {
       label: 'readablestreamdefaultcontroller-constructor-object',
-      constructorValue: (globalThis as any).ReadableStreamDefaultController,
       directGetLogsCallCount: 4,
     },
     {
       label: 'readablestreamdefaultreader-constructor-object',
-      constructorValue: (globalThis as any).ReadableStreamDefaultReader,
       directGetLogsCallCount: 4,
     },
     {
       label: 'writablestreamdefaultcontroller-constructor-object',
-      constructorValue: (globalThis as any).WritableStreamDefaultController,
       directGetLogsCallCount: 4,
     },
     {
       label: 'writablestreamdefaultwriter-constructor-object',
-      constructorValue: (globalThis as any).WritableStreamDefaultWriter,
       directGetLogsCallCount: 4,
     },
     {
       label: 'transformstreamdefaultcontroller-constructor-object',
-      constructorValue: (globalThis as any).TransformStreamDefaultController,
       directGetLogsCallCount: 4,
     },
   ] as const;
 
-  const CONSTRUCTOR_CASES = RAW_CONSTRUCTOR_CASES.filter(
+  const CONSTRUCTOR_CASES = RAW_CONSTRUCTOR_CASES.map((value) => ({
+    ...value,
+    constructorValue: runtimeFunctionValuesByLabel.get(value.label),
+  })).filter(
     (
       value,
     ): value is {
@@ -432,8 +415,14 @@ describe('resolveSubmitterBatchesForTransactions platform constructor probes', (
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -454,8 +443,14 @@ describe('resolveSubmitterBatchesForTransactions platform constructor probes', (
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -476,8 +471,14 @@ describe('resolveSubmitterBatchesForTransactions platform constructor probes', (
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -497,8 +498,14 @@ describe('resolveSubmitterBatchesForTransactions platform constructor probes', (
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
