@@ -109,12 +109,12 @@ Create a single GitHub issue with:
 
 ## Step 4: Post to Slack
 
-After creating the GitHub issue, post a summary to Slack via the `SLACK_WEBHOOK_URL` secret.
+After creating the GitHub issue, post a summary to Slack via the `REPO_SUMMARY_WEBHOOK_URL` secret.
 
 Use bash to send a POST request to the webhook:
 
 ```bash
-curl -X POST "$SLACK_WEBHOOK_URL" \
+curl -X POST "$REPO_SUMMARY_WEBHOOK_URL" \
   -H 'Content-Type: application/json' \
   -d '<payload>'
 ```
@@ -158,7 +158,7 @@ The Slack payload should use Block Kit format:
 
 Keep the Slack message concise — just the summary stats and items needing attention. Link to the full GitHub issue for details.
 
-If `SLACK_WEBHOOK_URL` is not set or the POST fails, log the error but do not fail the workflow. The GitHub issue is the primary output.
+If `REPO_SUMMARY_WEBHOOK_URL` is not set or the POST fails, log the error but do not fail the workflow. The GitHub issue is the primary output.
 
 ## Important Notes
 
