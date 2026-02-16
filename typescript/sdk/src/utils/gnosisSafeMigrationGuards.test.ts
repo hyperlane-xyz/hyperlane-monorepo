@@ -80,6 +80,56 @@ const NULLISH_LOGICAL_BASE_CONDITIONAL_DELETE_KEY_TITLE_STEMS = [
 const EXPECTED_VARIANT_CONDITIONAL_TITLE_COUNT = 324;
 const EXPECTED_NON_VARIANT_CONDITIONAL_TITLE_COUNT = 33;
 const EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT = 357;
+const REQUIRED_GNOSIS_SAFE_EXPORTS = [
+  'asHex',
+  'canProposeSafeTransactions',
+  'getSafeAndService',
+  'getPendingTxsForChains',
+  'createSafeDeploymentTransaction',
+  'createSafeTransaction',
+  'createSafeTransactionData',
+  'DEFAULT_SAFE_DEPLOYMENT_VERSIONS',
+  'decodeMultiSendData',
+  'deleteAllPendingSafeTxs',
+  'deleteSafeTx',
+  'executeTx',
+  'getKnownMultiSendAddresses',
+  'getOwnerChanges',
+  'getSafe',
+  'getSafeDelegates',
+  'getSafeService',
+  'getSafeTx',
+  'hasSafeServiceTransactionPayload',
+  'isLegacySafeApi',
+  'normalizeSafeServiceUrl',
+  'ParseableSafeTx',
+  'parseSafeTx',
+  'proposeSafeTransaction',
+  'resolveSafeSigner',
+  'retrySafeApi',
+  'safeApiKeyRequired',
+  'updateSafeOwner',
+  'SafeAndService',
+  'SafeCallData',
+  'SafeDeploymentConfig',
+  'SafeDeploymentTransaction',
+  'SafeOwnerUpdateCall',
+  'SafeServiceTransaction',
+  'SafeServiceTransactionWithPayload',
+  'SafeStatus',
+  'SafeTxStatus',
+] as const;
+const NON_RUNTIME_GNOSIS_SAFE_EXPORTS = [
+  'ParseableSafeTx',
+  'SafeAndService',
+  'SafeCallData',
+  'SafeDeploymentConfig',
+  'SafeDeploymentTransaction',
+  'SafeOwnerUpdateCall',
+  'SafeServiceTransaction',
+  'SafeServiceTransactionWithPayload',
+  'SafeStatus',
+] as const;
 const STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT =
   '(module specifiers|symbol sources|module-source aliases in symbol sources)';
 const STRICT_EQUALITY_CONDITIONAL_TITLE_REGEX = new RegExp(
@@ -46004,61 +46054,18 @@ describe('Gnosis Safe migration guards', () => {
       'Expected to find named exports for ./utils/gnosisSafe.js in sdk index',
     );
 
-    const requiredExports = [
-      'asHex',
-      'canProposeSafeTransactions',
-      'getSafeAndService',
-      'getPendingTxsForChains',
-      'createSafeDeploymentTransaction',
-      'createSafeTransaction',
-      'createSafeTransactionData',
-      'DEFAULT_SAFE_DEPLOYMENT_VERSIONS',
-      'decodeMultiSendData',
-      'deleteAllPendingSafeTxs',
-      'deleteSafeTx',
-      'executeTx',
-      'getKnownMultiSendAddresses',
-      'getOwnerChanges',
-      'getSafe',
-      'getSafeDelegates',
-      'getSafeService',
-      'getSafeTx',
-      'hasSafeServiceTransactionPayload',
-      'isLegacySafeApi',
-      'normalizeSafeServiceUrl',
-      'ParseableSafeTx',
-      'parseSafeTx',
-      'proposeSafeTransaction',
-      'resolveSafeSigner',
-      'retrySafeApi',
-      'safeApiKeyRequired',
-      'updateSafeOwner',
-      'SafeAndService',
-      'SafeCallData',
-      'SafeDeploymentConfig',
-      'SafeDeploymentTransaction',
-      'SafeOwnerUpdateCall',
-      'SafeServiceTransaction',
-      'SafeServiceTransactionWithPayload',
-      'SafeStatus',
-      'SafeTxStatus',
-    ];
-
+    const requiredExports = [...REQUIRED_GNOSIS_SAFE_EXPORTS];
+    const nonRuntimeExports = new Set<string>(NON_RUNTIME_GNOSIS_SAFE_EXPORTS);
     const requiredRuntimeExports = requiredExports.filter(
-      (symbol) =>
-        ![
-          'ParseableSafeTx',
-          'SafeAndService',
-          'SafeCallData',
-          'SafeDeploymentConfig',
-          'SafeDeploymentTransaction',
-          'SafeOwnerUpdateCall',
-          'SafeServiceTransaction',
-          'SafeServiceTransactionWithPayload',
-          'SafeStatus',
-        ].includes(symbol),
+      (symbol) => !nonRuntimeExports.has(symbol),
     );
     expect(new Set(requiredExports).size).to.equal(requiredExports.length);
+    expect(new Set(NON_RUNTIME_GNOSIS_SAFE_EXPORTS).size).to.equal(
+      NON_RUNTIME_GNOSIS_SAFE_EXPORTS.length,
+    );
+    for (const nonRuntimeExport of NON_RUNTIME_GNOSIS_SAFE_EXPORTS) {
+      expect(requiredExports.includes(nonRuntimeExport)).to.equal(true);
+    }
     expect(new Set(requiredRuntimeExports).size).to.equal(
       requiredRuntimeExports.length,
     );

@@ -4538,6 +4538,33 @@ function getSdkGnosisSafeExports(): string[] {
   return [...new Set(getSdkGnosisSafeExportReferences().map((r) => r.symbol))];
 }
 
+function extractStringLiteralArrayConstant(
+  sourceText: string,
+  constantName: string,
+): string[] {
+  const constantRegex = new RegExp(
+    String.raw`const ${constantName} = \[(.*?)\] as const;`,
+    's',
+  );
+  const match = sourceText.match(constantRegex);
+  if (!match) {
+    throw new Error(`Failed to locate string-array constant ${constantName}`);
+  }
+  return [...match[1].matchAll(/'([^']+)'/g)].map((entry) => entry[1]);
+}
+
+function getSdkRequiredSafeExportAllowlist(): string[] {
+  const sdkGuardSuitePath = path.resolve(
+    process.cwd(),
+    '../sdk/src/utils/gnosisSafeMigrationGuards.test.ts',
+  );
+  const sdkGuardSuiteSource = fs.readFileSync(sdkGuardSuitePath, 'utf8');
+  return extractStringLiteralArrayConstant(
+    sdkGuardSuiteSource,
+    'REQUIRED_GNOSIS_SAFE_EXPORTS',
+  );
+}
+
 describe('Safe migration guards', () => {
   it('extracts wildcard sdk module re-exports with fallback symbols', () => {
     const source = "export * from './fixtures/guard-module.js';";
@@ -46052,6 +46079,20 @@ describe('Safe migration guards', () => {
     expect(new Set(REQUIRED_SAFE_HELPER_EXPORTS).size).to.equal(
       REQUIRED_SAFE_HELPER_EXPORTS.length,
     );
+  });
+
+  it('keeps infra required safe helper allowlist aligned with sdk allowlist', () => {
+    const sdkRequiredAllowlist = new Set(getSdkRequiredSafeExportAllowlist());
+    expect(sdkRequiredAllowlist.size).to.be.greaterThan(
+      0,
+      'Expected sdk required safe export allowlist to be non-empty',
+    );
+    for (const symbol of REQUIRED_SAFE_HELPER_EXPORTS) {
+      expect(
+        sdkRequiredAllowlist.has(symbol),
+        `Expected sdk required safe export allowlist to include ${symbol}`,
+      ).to.equal(true);
+    }
   });
 
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
