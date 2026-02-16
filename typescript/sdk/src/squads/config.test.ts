@@ -252,6 +252,21 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when partition length accessor throws opaque values', () => {
+    const hostilePartitionList = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw {};
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
+      'Failed to read partitioned squads chains length: [unstringifiable error]',
+    );
+  });
+
   it('throws contextual errors when partition list index access fails', () => {
     const hostilePartitionList = new Proxy(['solanamainnet'], {
       get(target, property, receiver) {
@@ -272,6 +287,21 @@ describe('squads config', () => {
       get(target, property, receiver) {
         if (property === '0') {
           throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
+      'Failed to read partitioned squads chains[0]: [unstringifiable error]',
+    );
+  });
+
+  it('uses deterministic placeholder when partition list index access throws opaque values', () => {
+    const hostilePartitionList = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw {};
         }
         return Reflect.get(target, property, receiver);
       },
@@ -532,6 +562,21 @@ describe('squads config', () => {
       get(target, property, receiver) {
         if (property === 'length') {
           throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
+      'Failed to read squads chains length: [unstringifiable error]',
+    );
+  });
+
+  it('uses deterministic placeholder when squads-chain length accessor throws opaque values', () => {
+    const hostileResolveChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw {};
         }
         return Reflect.get(target, property, receiver);
       },
