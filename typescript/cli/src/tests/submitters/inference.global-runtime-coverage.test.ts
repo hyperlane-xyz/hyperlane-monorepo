@@ -68,24 +68,29 @@ describe('resolveSubmitterBatchesForTransactions global runtime probe coverage',
       primitiveLabels: string[];
     };
 
+  const cleanRuntimeLabels = getCleanRuntimeLabels();
+
   it('covers every runtime function-valued global with constructor probe labels', function () {
     const coveredLabels = getCoveredLabelsFromGeneratedTests(this.test);
-    const runtimeLabels = getCleanRuntimeLabels().functionLabels;
-    const missing = runtimeLabels.filter((label) => !coveredLabels.has(label));
+    const missing = cleanRuntimeLabels.functionLabels.filter(
+      (label) => !coveredLabels.has(label),
+    );
     expect(missing).to.deep.equal([]);
   });
 
   it('covers every runtime object-valued global with object probe labels', function () {
     const coveredLabels = getCoveredLabelsFromGeneratedTests(this.test);
-    const runtimeLabels = getCleanRuntimeLabels().objectLabels;
-    const missing = runtimeLabels.filter((label) => !coveredLabels.has(label));
+    const missing = cleanRuntimeLabels.objectLabels.filter(
+      (label) => !coveredLabels.has(label),
+    );
     expect(missing).to.deep.equal([]);
   });
 
   it('covers every runtime primitive-valued global with primitive probe labels', function () {
     const coveredLabels = getCoveredLabelsFromGeneratedTests(this.test);
-    const runtimeLabels = getCleanRuntimeLabels().primitiveLabels;
-    const missing = runtimeLabels.filter((label) => !coveredLabels.has(label));
+    const missing = cleanRuntimeLabels.primitiveLabels.filter(
+      (label) => !coveredLabels.has(label),
+    );
     expect(missing).to.deep.equal([]);
   });
 });
