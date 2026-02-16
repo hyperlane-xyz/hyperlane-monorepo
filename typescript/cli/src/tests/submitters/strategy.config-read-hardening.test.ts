@@ -266,4 +266,18 @@ describe('readChainSubmissionStrategyConfig hardening', () => {
       }
     }
   });
+
+  it('throws when chain strategy is missing submitter', async () => {
+    const strategyPath = createStrategyPath({
+      [CHAIN]: {},
+    });
+
+    let didThrow = false;
+    try {
+      await readChainSubmissionStrategyConfig(strategyPath);
+    } catch {
+      didThrow = true;
+    }
+    expect(didThrow).to.equal(true);
+  });
 });

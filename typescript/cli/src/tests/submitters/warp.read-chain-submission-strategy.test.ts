@@ -260,4 +260,12 @@ describe('warp readChainSubmissionStrategy hardening', () => {
       }
     }
   });
+
+  it('throws when chain strategy is missing submitter', () => {
+    const strategyPath = createStrategyPath({
+      [CHAIN]: {},
+    });
+
+    expect(() => readChainSubmissionStrategy(strategyPath)).to.throw();
+  });
 });
