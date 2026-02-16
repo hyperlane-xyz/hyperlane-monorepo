@@ -58,7 +58,10 @@ import {
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
 import { resolveSquadsChainName, type SquadsChainName } from './config.js';
-import { inspectPromiseLikeThenValue } from './inspection.js';
+import {
+  inspectArrayValue,
+  inspectPromiseLikeThenValue,
+} from './inspection.js';
 
 export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
 export const MAILBOX_DISCRIMINATOR_SIZE = 1;
@@ -94,23 +97,6 @@ export enum WarningMessage {
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
 const VALID_PROTOCOL_TYPES = new Set(Object.values(ProtocolType));
-
-function inspectArrayValue(value: unknown): {
-  isArray: boolean;
-  readFailed: boolean;
-} {
-  try {
-    return {
-      isArray: Array.isArray(value),
-      readFailed: false,
-    };
-  } catch {
-    return {
-      isArray: false,
-      readFailed: true,
-    };
-  }
-}
 
 function inspectBufferValue(value: unknown): {
   isBuffer: boolean;
