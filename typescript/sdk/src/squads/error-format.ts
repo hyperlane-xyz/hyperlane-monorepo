@@ -16,6 +16,13 @@ const GENERIC_ERROR_LABELS = new Set(
 );
 const ERROR_LABEL_WITH_MESSAGE_PATTERN = /^([A-Za-z]*Error)\s*:\s*(.+)$/;
 
+function normalizeErrorLabel(value: string): string {
+  return value
+    .trim()
+    .replace(TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN, '')
+    .toLowerCase();
+}
+
 export function isGenericObjectStringifiedValue(value: unknown): boolean {
   if (typeof value !== 'string') {
     return false;
@@ -35,15 +42,13 @@ export function normalizeStringifiedSquadsError(
   }
 
   const trimmedFormattedError = formattedError.trim();
-  const normalizedErrorLabel = trimmedFormattedError
-    .replace(TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN, '')
-    .toLowerCase();
+  const normalizedErrorLabel = normalizeErrorLabel(trimmedFormattedError);
 
   if (
     trimmedFormattedError.length === 0 ||
     isGenericObjectStringifiedValue(trimmedFormattedError) ||
     GENERIC_ERROR_LABELS.has(normalizedErrorLabel) ||
-    isLowSignalBuiltinErrorWithGenericObjectMessage(trimmedFormattedError)
+    isLowSignalBuiltinErrorWithLowSignalMessage(trimmedFormattedError)
   ) {
     return undefined;
   }
@@ -51,9 +56,7 @@ export function normalizeStringifiedSquadsError(
   return formattedError;
 }
 
-function isLowSignalBuiltinErrorWithGenericObjectMessage(
-  value: string,
-): boolean {
+function isLowSignalBuiltinErrorWithLowSignalMessage(value: string): boolean {
   const match = ERROR_LABEL_WITH_MESSAGE_PATTERN.exec(value);
   if (!match) {
     return false;
@@ -64,7 +67,12 @@ function isLowSignalBuiltinErrorWithGenericObjectMessage(
     return false;
   }
 
-  return isGenericObjectStringifiedValue(message);
+  const normalizedMessageLabel = normalizeErrorLabel(message);
+  return (
+    normalizedMessageLabel.length === 0 ||
+    GENERIC_ERROR_LABELS.has(normalizedMessageLabel) ||
+    isGenericObjectStringifiedValue(message)
+  );
 }
 
 function normalizeUnknownStringCandidate(value: unknown): string | undefined {

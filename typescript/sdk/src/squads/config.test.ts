@@ -522,6 +522,26 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when configured-chain length getter throws bare Error labels', () => {
+    const hostileConfiguredChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('Error:');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        hostileConfiguredChains,
+      ),
+    ).to.throw(
+      'Failed to read configured squads chains length: [unstringifiable error]',
+    );
+  });
+
   it('uses deterministic placeholder when unsupported-chain length getter throws opaque object', () => {
     const hostileUnsupportedChains = new Proxy([], {
       get(target, property, receiver) {

@@ -80,6 +80,18 @@ describe('squads error-format', () => {
       ).to.equal(undefined);
     });
 
+    it('returns undefined for built-in error labels with low-signal built-in messages', () => {
+      expect(normalizeStringifiedSquadsError('Error: Error:')).to.equal(
+        undefined,
+      );
+      expect(normalizeStringifiedSquadsError('TypeError: TypeError')).to.equal(
+        undefined,
+      );
+      expect(
+        normalizeStringifiedSquadsError('AggregateError : ReferenceError :'),
+      ).to.equal(undefined);
+    });
+
     it('preserves custom error-like labels and detailed messages', () => {
       expect(normalizeStringifiedSquadsError('RpcError')).to.equal('RpcError');
       expect(normalizeStringifiedSquadsError('Error: rpc failed')).to.equal(
@@ -304,6 +316,16 @@ describe('squads error-format', () => {
 
     it('returns placeholder for Error instances with generic-object messages', () => {
       const error = new Error('[object Object]');
+
+      expect(
+        stringifyUnknownSquadsError(error, {
+          placeholder: '[fallback]',
+        }),
+      ).to.equal('[fallback]');
+    });
+
+    it('returns placeholder for Error instances with low-signal built-in messages', () => {
+      const error = new Error('Error:');
 
       expect(
         stringifyUnknownSquadsError(error, {
