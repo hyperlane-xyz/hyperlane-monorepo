@@ -36,6 +36,9 @@ const logger = rootLogger.child({ module: 'submitter-inference' });
 const MAX_INFERENCE_DEPTH = 3;
 const EVM_ADDRESS_ZERO =
   '0x0000000000000000000000000000000000000000' as Address;
+const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
+  Object.values(ProtocolType) as ProtocolType[],
+);
 type InferredSubmitter = SubmitterMetadata;
 
 type Cache = {
@@ -1602,6 +1605,14 @@ function hasUsableOverrideKeys(
   return Object.keys(overrides).some((overrideKey) => overrideKey.trim().length > 0);
 }
 
+function coerceKnownProtocolType(
+  protocol: unknown,
+): ProtocolType | undefined {
+  return KNOWN_PROTOCOL_TYPES.has(protocol as ProtocolType)
+    ? (protocol as ProtocolType)
+    : undefined;
+}
+
 function createCache(): Cache {
   return {
     safeByChainAndAddress: new Map(),
@@ -1684,7 +1695,12 @@ export async function resolveSubmitterBatchesForTransactions({
 
   let protocol: ProtocolType | undefined;
   try {
-    protocol = context.multiProvider.getProtocol(chain);
+    protocol = coerceKnownProtocolType(context.multiProvider.getProtocol(chain));
+    if (!protocol) {
+      logger.debug(
+        `Falling back to default protocol handling for ${chain}: unknown protocol type`,
+      );
+    }
   } catch (error) {
     logger.debug(
       `Falling back to default protocol handling for ${chain}`,
