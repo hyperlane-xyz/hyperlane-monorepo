@@ -28,6 +28,7 @@ import {
 import {
   inspectArrayValue,
   inspectInstanceOf,
+  inspectPropertyValue,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
 import { toSquadsProvider } from './provider.js';
@@ -688,10 +689,9 @@ function normalizeSafeIntegerValue(value: unknown): {
   try {
     displayValue = String(value);
   } catch {
-    let toStringCandidate: unknown;
-    try {
-      toStringCandidate = (value as { toString?: unknown }).toString;
-    } catch {
+    const { propertyValue: toStringCandidate, readError: toStringReadError } =
+      inspectPropertyValue(value, 'toString');
+    if (toStringReadError) {
       return {
         parsedValue: Number.NaN,
         displayValue: '[unstringifiable value]',
@@ -755,13 +755,13 @@ function getSolanaWeb3ProviderForChain(
   mpp: unknown,
   chain: SquadsChainName,
 ): SolanaWeb3Provider {
-  let getSolanaWeb3ProviderValue: unknown;
-  try {
-    getSolanaWeb3ProviderValue = (mpp as { getSolanaWeb3Provider?: unknown })
-      .getSolanaWeb3Provider;
-  } catch (error) {
+  const {
+    propertyValue: getSolanaWeb3ProviderValue,
+    readError: getSolanaWeb3ProviderReadError,
+  } = inspectPropertyValue(mpp, 'getSolanaWeb3Provider');
+  if (getSolanaWeb3ProviderReadError) {
     throw new Error(
-      `Failed to read getSolanaWeb3Provider for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read getSolanaWeb3Provider for ${chain}: ${formatUnknownErrorForMessage(getSolanaWeb3ProviderReadError)}`,
     );
   }
 
@@ -831,13 +831,13 @@ function getPendingProposalNativeTokenMetadataForChain(
   mpp: unknown,
   chain: SquadsChainName,
 ): { decimals: number; symbol: string } {
-  let getChainMetadataValue: unknown;
-  try {
-    getChainMetadataValue = (mpp as { getChainMetadata?: unknown })
-      .getChainMetadata;
-  } catch (error) {
+  const {
+    propertyValue: getChainMetadataValue,
+    readError: getChainMetadataReadError,
+  } = inspectPropertyValue(mpp, 'getChainMetadata');
+  if (getChainMetadataReadError) {
     throw new Error(
-      `Failed to read getChainMetadata accessor for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read getChainMetadata accessor for ${chain}: ${formatUnknownErrorForMessage(getChainMetadataReadError)}`,
     );
   }
 
@@ -880,12 +880,11 @@ function getPendingProposalNativeTokenMetadataForChain(
     `Malformed chain metadata for ${chain}: expected synchronous object, got promise-like value`,
   );
 
-  let nativeToken: unknown;
-  try {
-    nativeToken = (chainMetadata as { nativeToken?: unknown }).nativeToken;
-  } catch (error) {
+  const { propertyValue: nativeToken, readError: nativeTokenReadError } =
+    inspectPropertyValue(chainMetadata, 'nativeToken');
+  if (nativeTokenReadError) {
     throw new Error(
-      `Failed to read native token metadata for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read native token metadata for ${chain}: ${formatUnknownErrorForMessage(nativeTokenReadError)}`,
     );
   }
 
@@ -912,12 +911,11 @@ function getPendingProposalNativeTokenMetadataForChain(
     `Malformed native token metadata for ${chain}: expected synchronous object, got promise-like value`,
   );
 
-  let decimals: unknown;
-  try {
-    decimals = (nativeToken as { decimals?: unknown }).decimals;
-  } catch (error) {
+  const { propertyValue: decimals, readError: decimalsReadError } =
+    inspectPropertyValue(nativeToken, 'decimals');
+  if (decimalsReadError) {
     throw new Error(
-      `Failed to read native token decimals for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read native token decimals for ${chain}: ${formatUnknownErrorForMessage(decimalsReadError)}`,
     );
   }
 
@@ -928,12 +926,11 @@ function getPendingProposalNativeTokenMetadataForChain(
     `Malformed native token decimals for ${chain}: expected non-negative safe integer, got ${formatSafeIntegerInputValue(decimals)}`,
   );
 
-  let symbolValue: unknown;
-  try {
-    symbolValue = (nativeToken as { symbol?: unknown }).symbol;
-  } catch (error) {
+  const { propertyValue: symbolValue, readError: symbolReadError } =
+    inspectPropertyValue(nativeToken, 'symbol');
+  if (symbolReadError) {
     throw new Error(
-      `Failed to read native token symbol for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read native token symbol for ${chain}: ${formatUnknownErrorForMessage(symbolReadError)}`,
     );
   }
 
@@ -960,12 +957,11 @@ async function getVaultBalanceForPendingProposals(
   svmProvider: SolanaWeb3Provider,
   vault: PublicKey,
 ): Promise<number> {
-  let getBalanceValue: unknown;
-  try {
-    getBalanceValue = (svmProvider as { getBalance?: unknown }).getBalance;
-  } catch (error) {
+  const { propertyValue: getBalanceValue, readError: getBalanceReadError } =
+    inspectPropertyValue(svmProvider, 'getBalance');
+  if (getBalanceReadError) {
     throw new Error(
-      `Failed to read getBalance for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read getBalance for ${chain}: ${formatUnknownErrorForMessage(getBalanceReadError)}`,
     );
   }
 
@@ -997,12 +993,11 @@ function getSignerPublicKeyForChain(
   signerAdapter: unknown,
   chain: SquadsChainName,
 ): PublicKey {
-  let publicKeyValue: unknown;
-  try {
-    publicKeyValue = (signerAdapter as { publicKey?: unknown }).publicKey;
-  } catch (error) {
+  const { propertyValue: publicKeyValue, readError: publicKeyReadError } =
+    inspectPropertyValue(signerAdapter, 'publicKey');
+  if (publicKeyReadError) {
     throw new Error(
-      `Failed to read signer publicKey for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read signer publicKey for ${chain}: ${formatUnknownErrorForMessage(publicKeyReadError)}`,
     );
   }
 
@@ -1063,14 +1058,13 @@ function getSignerBuildAndSendTransactionForChain(
   signerAdapter: unknown,
   chain: SquadsChainName,
 ): SvmMultiProtocolSignerAdapter['buildAndSendTransaction'] {
-  let buildAndSendTransactionValue: unknown;
-  try {
-    buildAndSendTransactionValue = (
-      signerAdapter as { buildAndSendTransaction?: unknown }
-    ).buildAndSendTransaction;
-  } catch (error) {
+  const {
+    propertyValue: buildAndSendTransactionValue,
+    readError: buildAndSendTransactionReadError,
+  } = inspectPropertyValue(signerAdapter, 'buildAndSendTransaction');
+  if (buildAndSendTransactionReadError) {
     throw new Error(
-      `Failed to read signer buildAndSendTransaction for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read signer buildAndSendTransaction for ${chain}: ${formatUnknownErrorForMessage(buildAndSendTransactionReadError)}`,
     );
   }
 
@@ -2096,12 +2090,11 @@ function warnOnUnexpectedMultisigAccountOwner(
     return;
   }
 
-  let ownerValue: unknown;
-  try {
-    ownerValue = (accountInfo as { owner?: unknown }).owner;
-  } catch (error) {
+  const { propertyValue: ownerValue, readError: ownerReadError } =
+    inspectPropertyValue(accountInfo, 'owner');
+  if (ownerReadError) {
     rootLogger.warn(
-      `Failed to read multisig account owner on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read multisig account owner on ${chain}: ${formatUnknownErrorForMessage(ownerReadError)}`,
     );
     return;
   }
