@@ -1747,6 +1747,24 @@ function isStaticallyBooleanValuedExpression(
       unwrapped.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
       unwrapped.operatorToken.kind === ts.SyntaxKind.BarBarToken
     ) {
+      const leftCondition = readStaticBooleanCondition(unwrapped.left);
+      if (
+        unwrapped.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+      ) {
+        if (leftCondition === true) {
+          return isStaticallyBooleanValuedExpression(unwrapped.right);
+        }
+        if (leftCondition === false) {
+          return isStaticallyBooleanValuedExpression(unwrapped.left);
+        }
+      } else {
+        if (leftCondition === true) {
+          return isStaticallyBooleanValuedExpression(unwrapped.left);
+        }
+        if (leftCondition === false) {
+          return isStaticallyBooleanValuedExpression(unwrapped.right);
+        }
+      }
       return (
         isStaticallyBooleanValuedExpression(unwrapped.left) &&
         isStaticallyBooleanValuedExpression(unwrapped.right)
@@ -8427,6 +8445,44 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality logical-or true primitives with truthy-nonboolean-selected boolean left values as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (((((1 && (marker === 1)) || true) === true))) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats strict-equality logical-and false primitives with falsey-nonboolean-selected boolean left values as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (((((0 || (marker === 1)) && false) === false))) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('treats strict-equality logical-and false primitives with nested unknown-boolean left values as deterministic for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -13037,6 +13093,42 @@ describe('Safe migration guards', () => {
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'const marker = Math.random();',
       'if (((((false ? marker : (marker === 1)) || true) === true))) {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality logical-or true primitives with truthy-nonboolean-selected boolean left values as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      'if (((((1 && (marker === 1)) || true) === true))) {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality logical-and false primitives with falsey-nonboolean-selected boolean left values as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      'if (((((0 || (marker === 1)) && false) === false))) {',
       "  moduleAlias = require('./fixtures/other-module.js');",
       '} else {',
       "  moduleAlias = { default: 'not-a-module' };",
@@ -24398,6 +24490,54 @@ describe('Safe migration guards', () => {
       'let reqAlias: any = require;',
       'const marker = Math.random();',
       'if (((((false ? marker : (marker === 1)) || true) === true))) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality logical-or true primitives with truthy-nonboolean-selected boolean left values as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (((((1 && (marker === 1)) || true) === true))) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality logical-and false primitives with falsey-nonboolean-selected boolean left values as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (((((0 || (marker === 1)) && false) === false))) {',
       '  reqAlias = () => undefined;',
       '} else {',
       '  reqAlias = require;',
