@@ -654,19 +654,47 @@ function toSafeInteger(
     Number.isSafeInteger(parsedValue),
     `Squads ${fieldLabel} must be a JavaScript safe integer: ${displayValue}`,
   );
-  if (options?.nonNegative) {
+  const requireNonNegative = readSafeIntegerOptionFlag(
+    options,
+    fieldLabel,
+    'nonNegative',
+  );
+  if (requireNonNegative) {
     assert(
       parsedValue >= 0,
       `Squads ${fieldLabel} must be a non-negative JavaScript safe integer: ${displayValue}`,
     );
   }
-  if (options?.positive) {
+  const requirePositive = readSafeIntegerOptionFlag(
+    options,
+    fieldLabel,
+    'positive',
+  );
+  if (requirePositive) {
     assert(
       parsedValue > 0,
       `Squads ${fieldLabel} must be a positive JavaScript safe integer: ${displayValue}`,
     );
   }
   return parsedValue;
+}
+
+function readSafeIntegerOptionFlag(
+  options: unknown,
+  fieldLabel: string,
+  optionName: 'nonNegative' | 'positive',
+): boolean {
+  const { propertyValue, readError } = inspectPropertyValue(
+    options,
+    optionName,
+  );
+  assert(
+    !readError,
+    `Failed to read Squads ${fieldLabel} ${optionName} option: ${stringifyUnknownSquadsError(
+      readError,
+    )}`,
+  );
+  return Boolean(propertyValue);
 }
 
 function normalizeSafeIntegerValue(value: unknown): {

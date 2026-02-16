@@ -675,9 +675,11 @@ export class SquadsTransactionReader {
       return undefined;
     }
 
-    return this.warpRouteIndex
-      .get(chain)
-      ?.get(normalizedProgramId.toLowerCase());
+    const chainIndex = this.warpRouteIndex.get(chain);
+    if (!chainIndex) {
+      return undefined;
+    }
+    return chainIndex.get(normalizedProgramId.toLowerCase());
   }
 
   private readWarpRouteInstruction(
@@ -3464,32 +3466,31 @@ export class SquadsTransactionReader {
             continue;
           }
 
-          let chainNameValue: unknown;
-          try {
-            chainNameValue = router.chainName;
-          } catch (error) {
+          const {
+            propertyValue: chainNameValue,
+            readError: chainNameReadError,
+          } = inspectPropertyValue(router, 'chainName');
+          if (chainNameReadError) {
             rootLogger.warn(
-              `Failed to read warp enroll-router chain alias at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+              `Failed to read warp enroll-router chain alias at index ${index} on ${chain}: ${stringifyUnknownSquadsError(chainNameReadError)}`,
             );
             continue;
           }
 
-          let domainValue: unknown;
-          try {
-            domainValue = router.domain;
-          } catch (error) {
+          const { propertyValue: domainValue, readError: domainReadError } =
+            inspectPropertyValue(router, 'domain');
+          if (domainReadError) {
             rootLogger.warn(
-              `Failed to read warp enroll-router domain at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+              `Failed to read warp enroll-router domain at index ${index} on ${chain}: ${stringifyUnknownSquadsError(domainReadError)}`,
             );
             continue;
           }
 
-          let routerValue: unknown;
-          try {
-            routerValue = router.router;
-          } catch (error) {
+          const { propertyValue: routerValue, readError: routerReadError } =
+            inspectPropertyValue(router, 'router');
+          if (routerReadError) {
             rootLogger.warn(
-              `Failed to read warp enroll-router address at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+              `Failed to read warp enroll-router address at index ${index} on ${chain}: ${stringifyUnknownSquadsError(routerReadError)}`,
             );
             continue;
           }
@@ -3531,32 +3532,31 @@ export class SquadsTransactionReader {
             continue;
           }
 
-          let chainNameValue: unknown;
-          try {
-            chainNameValue = config.chainName;
-          } catch (error) {
+          const {
+            propertyValue: chainNameValue,
+            readError: chainNameReadError,
+          } = inspectPropertyValue(config, 'chainName');
+          if (chainNameReadError) {
             rootLogger.warn(
-              `Failed to read warp gas chain alias at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+              `Failed to read warp gas chain alias at index ${index} on ${chain}: ${stringifyUnknownSquadsError(chainNameReadError)}`,
             );
             continue;
           }
 
-          let domainValue: unknown;
-          try {
-            domainValue = config.domain;
-          } catch (error) {
+          const { propertyValue: domainValue, readError: domainReadError } =
+            inspectPropertyValue(config, 'domain');
+          if (domainReadError) {
             rootLogger.warn(
-              `Failed to read warp gas domain at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+              `Failed to read warp gas domain at index ${index} on ${chain}: ${stringifyUnknownSquadsError(domainReadError)}`,
             );
             continue;
           }
 
-          let gasValue: unknown;
-          try {
-            gasValue = config.gas;
-          } catch (error) {
+          const { propertyValue: gasValue, readError: gasReadError } =
+            inspectPropertyValue(config, 'gas');
+          if (gasReadError) {
             rootLogger.warn(
-              `Failed to read warp gas value at index ${index} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+              `Failed to read warp gas value at index ${index} on ${chain}: ${stringifyUnknownSquadsError(gasReadError)}`,
             );
             continue;
           }
