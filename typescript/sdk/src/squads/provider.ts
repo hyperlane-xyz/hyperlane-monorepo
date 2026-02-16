@@ -1,5 +1,6 @@
 import type { accounts } from '@sqds/multisig';
 import { assert } from '@hyperlane-xyz/utils';
+import { stringifyUnknownSquadsError } from './error-format.js';
 
 export type SquadsProvider = Parameters<
   typeof accounts.Multisig.fromAccountAddress
@@ -42,37 +43,43 @@ function formatValueType(value: unknown): string {
 
 function getProviderGetAccountInfo(value: unknown): {
   getAccountInfo: unknown;
-  readFailed: boolean;
+  readError: unknown | undefined;
 } {
   try {
     return {
       getAccountInfo: (value as ProviderWithOptionalGetAccountInfo)
         ?.getAccountInfo,
-      readFailed: false,
+      readError: undefined,
     };
-  } catch {
+  } catch (error) {
     return {
       getAccountInfo: undefined,
-      readFailed: true,
+      readError: error,
     };
   }
 }
 
 function getProviderThen(value: unknown): {
   thenValue: unknown;
-  readFailed: boolean;
+  readError: unknown | undefined;
 } {
   try {
     return {
       thenValue: (value as ProviderWithOptionalGetAccountInfo)?.then,
-      readFailed: false,
+      readError: undefined,
     };
-  } catch {
+  } catch (error) {
     return {
       thenValue: undefined,
-      readFailed: true,
+      readError: error,
     };
   }
+}
+
+function formatUnknownProviderError(error: unknown): string {
+  return stringifyUnknownSquadsError(error, {
+    preferErrorMessageForErrorInstances: true,
+  });
 }
 
 function isGetAccountInfoFunction(
@@ -93,11 +100,11 @@ export function toSquadsProvider(provider: unknown): SquadsProvider {
     `Invalid Solana provider: expected object, got ${formatValueType(provider)}`,
   );
 
-  const { thenValue, readFailed: thenReadFailed } = getProviderThen(provider);
+  const { thenValue, readError: thenReadError } = getProviderThen(provider);
   assert(
-    !thenReadFailed,
-    `Invalid Solana provider: failed to inspect promise-like then (provider: ${formatValueType(
-      provider,
+    !thenReadError,
+    `Invalid Solana provider: failed to inspect promise-like then (${formatUnknownProviderError(
+      thenReadError,
     )})`,
   );
   assert(
@@ -107,11 +114,12 @@ export function toSquadsProvider(provider: unknown): SquadsProvider {
     )})`,
   );
 
-  const { getAccountInfo, readFailed } = getProviderGetAccountInfo(provider);
+  const { getAccountInfo, readError: getAccountInfoReadError } =
+    getProviderGetAccountInfo(provider);
   assert(
-    !readFailed,
-    `Invalid Solana provider: failed to read getAccountInfo (provider: ${formatValueType(
-      provider,
+    !getAccountInfoReadError,
+    `Invalid Solana provider: failed to read getAccountInfo (${formatUnknownProviderError(
+      getAccountInfoReadError,
     )})`,
   );
 

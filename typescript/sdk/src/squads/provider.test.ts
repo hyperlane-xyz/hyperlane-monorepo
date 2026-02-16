@@ -112,7 +112,67 @@ describe('squads provider bridge', () => {
     );
 
     expect(() => toSquadsProvider(providerLike)).to.throw(
-      'Invalid Solana provider: failed to inspect promise-like then (provider: object)',
+      'Invalid Solana provider: failed to inspect promise-like then (then unavailable)',
+    );
+  });
+
+  it('uses placeholder when then accessor throws generic-object Error messages', () => {
+    const providerLike = new Proxy(
+      {
+        getAccountInfo: async () => null,
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'then') {
+            throw new Error('[object Object]');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to inspect promise-like then ([unstringifiable error])',
+    );
+  });
+
+  it('uses placeholder when then accessor throws blank Error messages', () => {
+    const providerLike = new Proxy(
+      {
+        getAccountInfo: async () => null,
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'then') {
+            throw new Error('   ');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to inspect promise-like then ([unstringifiable error])',
+    );
+  });
+
+  it('uses placeholder when then accessor throws bare Error labels', () => {
+    const providerLike = new Proxy(
+      {
+        getAccountInfo: async () => null,
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'then') {
+            throw new Error('Error:');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to inspect promise-like then ([unstringifiable error])',
     );
   });
 
@@ -122,7 +182,7 @@ describe('squads provider bridge', () => {
     });
 
     expect(() => toSquadsProvider(providerLike)).to.throw(
-      'Invalid Solana provider: failed to read getAccountInfo (provider: object)',
+      'Invalid Solana provider: failed to read getAccountInfo (getter failure)',
     );
   });
 
@@ -140,7 +200,37 @@ describe('squads provider bridge', () => {
     );
 
     expect(() => toSquadsProvider(providerLike)).to.throw(
-      'Invalid Solana provider: failed to read getAccountInfo (provider: object)',
+      'Invalid Solana provider: failed to read getAccountInfo (proxy getter failure)',
+    );
+  });
+
+  it('uses placeholder when getAccountInfo getter throws generic-object Error messages', () => {
+    const providerLike = createGetterBackedProvider(() => {
+      throw new Error('[object Object]');
+    });
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to read getAccountInfo ([unstringifiable error])',
+    );
+  });
+
+  it('uses placeholder when getAccountInfo getter throws blank Error messages', () => {
+    const providerLike = createGetterBackedProvider(() => {
+      throw new Error('   ');
+    });
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to read getAccountInfo ([unstringifiable error])',
+    );
+  });
+
+  it('uses placeholder when getAccountInfo getter throws bare Error labels', () => {
+    const providerLike = createGetterBackedProvider(() => {
+      throw new Error('Error:');
+    });
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to read getAccountInfo ([unstringifiable error])',
     );
   });
 
