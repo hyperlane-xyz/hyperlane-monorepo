@@ -1216,18 +1216,42 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
     },
   };
 
-  // if the requested chain is not defined in the config, transaction submission will crash
-  const submissionStrategy: ExtendedSubmissionStrategy | undefined =
+  const chainSubmissionStrategies =
     strategyUrl && !isExtendedChain
-      ? readChainSubmissionStrategy(strategyUrl)[chain]
-      : defaultSubmitter;
-
-  const strategyToUse = submissionStrategy ?? defaultSubmitter;
+      ? readChainSubmissionStrategy(strategyUrl)
+      : undefined;
+  const strategyToUse = resolveSubmissionStrategyForChain({
+    chain,
+    chainSubmissionStrategies,
+    defaultSubmitter,
+  });
   return getSubmitterByConfig({
     chain,
     context,
     submissionStrategy: strategyToUse,
   });
+}
+
+export function resolveSubmissionStrategyForChain({
+  chain,
+  chainSubmissionStrategies,
+  defaultSubmitter,
+}: {
+  chain: ChainName;
+  chainSubmissionStrategies?: ExtendedChainSubmissionStrategy;
+  defaultSubmitter: ExtendedSubmissionStrategy;
+}): ExtendedSubmissionStrategy {
+  const submissionStrategyCandidate = chainSubmissionStrategies
+    ? getOwnObjectField(chainSubmissionStrategies, chain)
+    : undefined;
+  const submissionStrategy =
+    submissionStrategyCandidate &&
+    (typeof submissionStrategyCandidate === 'object' ||
+      typeof submissionStrategyCandidate === 'function')
+      ? (submissionStrategyCandidate as ExtendedSubmissionStrategy)
+      : undefined;
+
+  return submissionStrategy ?? defaultSubmitter;
 }
 
 export async function getSubmitterByConfig<T extends ProtocolType>({
