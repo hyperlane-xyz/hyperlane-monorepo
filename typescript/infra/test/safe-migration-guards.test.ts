@@ -81,6 +81,19 @@ const NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_CONTEXTS = [
   'symbol sources',
   'module-source aliases in symbol sources',
 ] as const;
+const NULLISH_LOGICAL_BASE_CONDITIONAL_DELETE_KEY_TITLE_STEMS = [
+  'treats strict-equality direct-delete array-element-nullish-logical-conditional-fallback-length',
+  'keeps strict-equality direct-delete array-element-nullish-logical-conditional-mixed-fallback',
+  'treats strict-equality direct-delete array-element-nullish-logical-left-null-conditional-fallback-length',
+  'treats strict-equality direct-delete array-element-nullish-logical-leading-undefined-conditional-fallback-length',
+  'keeps strict-equality direct-delete array-element-nullish-logical-leading-undefined-conditional-mixed-fallback',
+  'treats strict-equality direct-delete array-element-nullish-logical-right-undefined-conditional-fallback-length',
+  'keeps strict-equality direct-delete array-element-nullish-logical-right-undefined-conditional-mixed-fallback',
+  'treats strict-equality direct-delete array-element-nullish-logical-right-void-conditional-fallback-length',
+  'keeps strict-equality direct-delete array-element-nullish-logical-right-void-conditional-mixed-fallback',
+  'treats strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-fallback-length',
+  'keeps strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-mixed-fallback',
+] as const;
 
 function normalizeNamedSymbol(symbol: string): string {
   const trimmed = symbol.trim();
@@ -45764,6 +45777,65 @@ describe('Safe migration guards', () => {
         `Expected exactly one conditional coverage entry for ${key}`,
       ).to.equal(1);
     }
+  });
+
+  it('keeps non-variant nullish-logical conditional delete-key coverage complete', () => {
+    const sourceText = fs.readFileSync(__filename, 'utf8');
+    const contextFragment =
+      '(module specifiers|symbol sources|module-source aliases in symbol sources)';
+    const allTitlePattern = new RegExp(
+      String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates (?:as deterministic|conservative) for ${contextFragment})'`,
+      'g',
+    );
+    const matrixTitlePattern = new RegExp(
+      String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*-conditional-[^']*-(?:fallback-length|mixed-fallback) predicates (?:as deterministic|conservative) for ${contextFragment})'`,
+      'g',
+    );
+    const nonVariantPattern = new RegExp(
+      String.raw`^((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-(?:left-null-|leading-undefined-|leading-void-|right-undefined-|right-void-)?conditional-(?:fallback-length|mixed-fallback)) predicates (?:as deterministic|conservative) for ${contextFragment}$`,
+    );
+
+    const allTitles = [...sourceText.matchAll(allTitlePattern)].map(
+      (match) => match[1],
+    );
+    const matrixTitles = new Set(
+      [...sourceText.matchAll(matrixTitlePattern)].map((match) => match[1]),
+    );
+    const nonVariantTitles = allTitles.filter(
+      (title) => !matrixTitles.has(title),
+    );
+
+    const observedContextsByStem = new Map<string, Set<string>>();
+    for (const title of nonVariantTitles) {
+      const parsed = title.match(nonVariantPattern);
+      expect(
+        parsed,
+        `Unexpected non-variant conditional title ${title}`,
+      ).to.not.equal(null);
+      const [, stem, context] = parsed as RegExpMatchArray;
+      const existing = observedContextsByStem.get(stem) ?? new Set();
+      existing.add(context);
+      observedContextsByStem.set(stem, existing);
+    }
+
+    expect([...observedContextsByStem.keys()].sort()).to.deep.equal(
+      [...NULLISH_LOGICAL_BASE_CONDITIONAL_DELETE_KEY_TITLE_STEMS].sort(),
+    );
+    for (const stem of NULLISH_LOGICAL_BASE_CONDITIONAL_DELETE_KEY_TITLE_STEMS) {
+      const observedContexts = observedContextsByStem.get(stem);
+      expect(
+        observedContexts,
+        `Missing non-variant conditional stem ${stem}`,
+      ).to.not.equal(undefined);
+      expect([...(observedContexts ?? new Set())].sort()).to.deep.equal(
+        [...NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_CONTEXTS].sort(),
+      );
+    }
+    expect(nonVariantTitles.length).to.equal(
+      NULLISH_LOGICAL_BASE_CONDITIONAL_DELETE_KEY_TITLE_STEMS.length *
+        NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_CONTEXTS.length,
+    );
+    expect(new Set(nonVariantTitles).size).to.equal(nonVariantTitles.length);
   });
 
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
