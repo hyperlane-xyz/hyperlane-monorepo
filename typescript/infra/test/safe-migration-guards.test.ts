@@ -45840,9 +45840,17 @@ describe('Safe migration guards', () => {
       extractStrictEqualityConditionalSourceFixtures(ownSourceText);
     const sdkFixtures =
       extractStrictEqualityConditionalSourceFixtures(sdkSourceText);
+    const ownTitles = new Set(
+      extractStrictEqualityConditionalTitles(ownSourceText),
+    );
+    const sdkTitles = new Set(
+      extractStrictEqualityConditionalTitles(sdkSourceText),
+    );
 
     expect(ownFixtures.size).to.equal(EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT);
     expect(sdkFixtures.size).to.equal(EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT);
+    expect([...ownFixtures.keys()].sort()).to.deep.equal([...ownTitles].sort());
+    expect([...sdkFixtures.keys()].sort()).to.deep.equal([...sdkTitles].sort());
     expect([...ownFixtures.keys()].sort()).to.deep.equal(
       [...sdkFixtures.keys()].sort(),
     );

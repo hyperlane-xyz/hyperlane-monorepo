@@ -45686,9 +45686,19 @@ describe('Gnosis Safe migration guards', () => {
       extractStrictEqualityConditionalSourceFixtures(ownSourceText);
     const infraFixtures =
       extractStrictEqualityConditionalSourceFixtures(infraSourceText);
+    const ownTitles = new Set(
+      extractStrictEqualityConditionalTitles(ownSourceText),
+    );
+    const infraTitles = new Set(
+      extractStrictEqualityConditionalTitles(infraSourceText),
+    );
 
     expect(ownFixtures.size).to.equal(EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT);
     expect(infraFixtures.size).to.equal(EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT);
+    expect([...ownFixtures.keys()].sort()).to.deep.equal([...ownTitles].sort());
+    expect([...infraFixtures.keys()].sort()).to.deep.equal(
+      [...infraTitles].sort(),
+    );
     expect([...ownFixtures.keys()].sort()).to.deep.equal(
       [...infraFixtures.keys()].sort(),
     );
