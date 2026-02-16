@@ -107,6 +107,8 @@ const MAP_HAS = Map.prototype.has;
 const MAP_GET = Map.prototype.get;
 const MAP_SET = Map.prototype.set;
 const ARRAY_FROM = Array.from;
+const STRING_TRIM = String.prototype.trim;
+const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 const VALID_PROTOCOL_TYPES = new Set<ProtocolType>([
   ProtocolType.Ethereum,
   ProtocolType.Sealevel,
@@ -185,6 +187,14 @@ function arrayFromValuesWithMap<Value, Result>(
   return ARRAY_FROM(values, mapFn);
 }
 
+function stringTrim(value: string): string {
+  return STRING_TRIM.call(value);
+}
+
+function stringToLowerCase(value: string): string {
+  return STRING_TO_LOWER_CASE.call(value);
+}
+
 function readPropertyOrThrow(value: unknown, property: PropertyKey): unknown {
   const { propertyValue, readError } = inspectPropertyValue(value, property);
   if (readError) {
@@ -199,7 +209,7 @@ function assertNonEmptyStringValue(value: unknown, label: string): string {
     typeof value === 'string',
     `Expected ${label} to be a string, got ${valueType}`,
   );
-  const normalizedValue = value.trim();
+  const normalizedValue = stringTrim(value);
   assert(
     normalizedValue.length > 0,
     `Expected ${label} to be a non-empty string, got empty string`,
@@ -268,7 +278,7 @@ function normalizeValidatorSet(validators: unknown): string[] | null {
       return null;
     }
 
-    const normalizedValidator = validator.trim();
+    const normalizedValidator = stringTrim(validator);
     if (normalizedValidator.length === 0) {
       return null;
     }
@@ -282,7 +292,7 @@ function normalizeValidatorSet(validators: unknown): string[] | null {
 function findDuplicateValidator(validators: readonly string[]): string | null {
   const seen = new Set<string>();
   for (const validator of validators) {
-    const normalizedValidator = validator.toLowerCase();
+    const normalizedValidator = stringToLowerCase(validator);
     if (setHasValue(seen, normalizedValidator)) {
       return validator;
     }
@@ -446,11 +456,11 @@ function formatValidatorsWithAliases(
       );
       continue;
     }
-    mapSetValue(aliasMap, addressValue.toLowerCase(), aliasValue);
+    mapSetValue(aliasMap, stringToLowerCase(addressValue), aliasValue);
   }
 
   return validators.map((address) => {
-    const alias = mapGetValue(aliasMap, address.toLowerCase());
+    const alias = mapGetValue(aliasMap, stringToLowerCase(address));
     return alias ? `${address} (${alias})` : address;
   });
 }
@@ -632,7 +642,7 @@ export class SquadsTransactionReader {
       return;
     }
 
-    const normalizedChainName = chainNameValue.trim();
+    const normalizedChainName = stringTrim(chainNameValue);
     if (normalizedChainName.length === 0) {
       rootLogger.warn(
         `Skipping malformed warp route token chain for ${routeName}: expected non-empty string`,
@@ -677,7 +687,7 @@ export class SquadsTransactionReader {
       return;
     }
 
-    const address = addressOrDenom.trim().toLowerCase();
+    const address = stringToLowerCase(stringTrim(addressOrDenom));
     if (!address) {
       return;
     }
@@ -690,8 +700,8 @@ export class SquadsTransactionReader {
       );
     }
     const symbol =
-      typeof symbolValue === 'string' && symbolValue.trim().length > 0
-        ? symbolValue.trim()
+      typeof symbolValue === 'string' && stringTrim(symbolValue).length > 0
+        ? stringTrim(symbolValue)
         : 'Unknown';
 
     const { propertyValue: nameValue, readError: nameReadError } =
@@ -702,8 +712,8 @@ export class SquadsTransactionReader {
       );
     }
     const name =
-      typeof nameValue === 'string' && nameValue.trim().length > 0
-        ? nameValue.trim()
+      typeof nameValue === 'string' && stringTrim(nameValue).length > 0
+        ? stringTrim(nameValue)
         : 'Unknown';
 
     const chainName = normalizedChainName as ChainName;
@@ -812,7 +822,7 @@ export class SquadsTransactionReader {
     if (!chainIndex) {
       return undefined;
     }
-    return mapGetValue(chainIndex, normalizedProgramId.toLowerCase());
+    return mapGetValue(chainIndex, stringToLowerCase(normalizedProgramId));
   }
 
   private readWarpRouteInstruction(
@@ -2950,17 +2960,17 @@ export class SquadsTransactionReader {
     }
 
     const expectedValidatorsSet = new Set(
-      normalizedExpectedValidators.map((v) => v.toLowerCase()),
+      normalizedExpectedValidators.map((v) => stringToLowerCase(v)),
     );
     const actualValidatorsSet = new Set(
-      normalizedActualValidators.map((v) => v.toLowerCase()),
+      normalizedActualValidators.map((v) => stringToLowerCase(v)),
     );
 
     const missingValidators = normalizedExpectedValidators.filter(
-      (v) => !setHasValue(actualValidatorsSet, v.toLowerCase()),
+      (v) => !setHasValue(actualValidatorsSet, stringToLowerCase(v)),
     );
     const unexpectedValidators = normalizedActualValidators.filter(
-      (v) => !setHasValue(expectedValidatorsSet, v.toLowerCase()),
+      (v) => !setHasValue(expectedValidatorsSet, stringToLowerCase(v)),
     );
 
     if (missingValidators.length > 0) {
@@ -3301,7 +3311,7 @@ export class SquadsTransactionReader {
 
   private getWarpDisplayKey(chainName: unknown, domain: unknown): string {
     if (typeof chainName === 'string') {
-      const normalizedChainName = chainName.trim();
+      const normalizedChainName = stringTrim(chainName);
       if (normalizedChainName.length > 0) {
         return normalizedChainName;
       }
@@ -3313,7 +3323,7 @@ export class SquadsTransactionReader {
     if (typeof router !== 'string') {
       return 'unenrolled';
     }
-    const normalizedRouter = router.trim();
+    const normalizedRouter = stringTrim(router);
     return normalizedRouter.length > 0 ? normalizedRouter : 'unenrolled';
   }
 
@@ -3325,12 +3335,12 @@ export class SquadsTransactionReader {
       return `${gas}`;
     }
     if (typeof gas === 'string') {
-      const normalizedGas = gas.trim();
+      const normalizedGas = stringTrim(gas);
       return normalizedGas.length > 0 ? normalizedGas : 'unset';
     }
 
     try {
-      const normalizedGas = String(gas).trim();
+      const normalizedGas = stringTrim(String(gas));
       return normalizedGas.length > 0 ? normalizedGas : 'unset';
     } catch {
       return 'unset';
@@ -3341,7 +3351,7 @@ export class SquadsTransactionReader {
     if (typeof value !== 'string') {
       return null;
     }
-    const normalizedValue = value.trim();
+    const normalizedValue = stringTrim(value);
     return normalizedValue.length > 0 ? normalizedValue : null;
   }
 

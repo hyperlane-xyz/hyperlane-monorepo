@@ -2587,6 +2587,65 @@ describe('squads transaction reader multisig verification', () => {
       ],
     });
   });
+
+  it('keeps verifier normalization stable when string trim/lowercase prototypes are mutated', () => {
+    const reader = createReaderForVerification(() => ({
+      solanatestnet: {
+        threshold: 1,
+        validators: ['validator-a'],
+      },
+    }));
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+    const originalStringTrim = String.prototype.trim;
+    const originalStringToLowerCase = String.prototype.toLowerCase;
+    const throwingTrim: typeof String.prototype.trim = function trim() {
+      throw new Error('string trim unavailable');
+    };
+    const throwingToLowerCase: typeof String.prototype.toLowerCase =
+      function toLowerCase() {
+        throw new Error('string toLowerCase unavailable');
+      };
+
+    let result: { matches: boolean; issues: string[] } | undefined;
+    try {
+      Object.defineProperty(String.prototype, 'trim', {
+        value: throwingTrim,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(String.prototype, 'toLowerCase', {
+        value: throwingToLowerCase,
+        writable: true,
+        configurable: true,
+      });
+      result = readerAny.verifyConfiguration('solanamainnet', 1000, 1, [
+        ' validator-a ',
+      ]);
+    } finally {
+      Object.defineProperty(String.prototype, 'trim', {
+        value: originalStringTrim,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(String.prototype, 'toLowerCase', {
+        value: originalStringToLowerCase,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(result).to.deep.equal({
+      matches: true,
+      issues: [],
+    });
+  });
 });
 
 describe('squads transaction reader', () => {
@@ -3196,6 +3255,73 @@ describe('squads transaction reader', () => {
 
     expect(
       reader.warpRouteIndex.get('solanamainnet')?.get('good001-map-prototype'),
+    ).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Good Token',
+      routeName: 'routeA',
+    });
+  });
+
+  it('keeps warp-route indexing stable when string trim/lowercase prototypes are mutated', () => {
+    const mpp = {
+      tryGetProtocol: () => ProtocolType.Sealevel,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      indexWarpRouteToken: (
+        routeName: string,
+        token: Record<string, unknown>,
+      ) => void;
+    };
+    const originalStringTrim = String.prototype.trim;
+    const originalStringToLowerCase = String.prototype.toLowerCase;
+    const throwingTrim: typeof String.prototype.trim = function trim() {
+      throw new Error('string trim unavailable');
+    };
+    const throwingToLowerCase: typeof String.prototype.toLowerCase =
+      function toLowerCase() {
+        throw new Error('string toLowerCase unavailable');
+      };
+
+    try {
+      Object.defineProperty(String.prototype, 'trim', {
+        value: throwingTrim,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(String.prototype, 'toLowerCase', {
+        value: throwingToLowerCase,
+        writable: true,
+        configurable: true,
+      });
+      readerAny.indexWarpRouteToken('routeA', {
+        chainName: '  solanamainnet  ',
+        addressOrDenom: ' GOOD001-STRING-PROTOTYPE ',
+        symbol: ' GOOD ',
+        name: ' Good Token ',
+      });
+    } finally {
+      Object.defineProperty(String.prototype, 'trim', {
+        value: originalStringTrim,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(String.prototype, 'toLowerCase', {
+        value: originalStringToLowerCase,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(
+      reader.warpRouteIndex
+        .get('solanamainnet')
+        ?.get('good001-string-prototype'),
     ).to.deep.equal({
       symbol: 'GOOD',
       name: 'Good Token',
