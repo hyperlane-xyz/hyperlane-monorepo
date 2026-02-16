@@ -2501,7 +2501,7 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
-    if (!remoteChain) {
+    if (remoteChain === null || typeof remoteChain === 'undefined') {
       issues.push(`Unknown domain ${remoteDomain}`);
       return { matches: false, issues };
     }
@@ -2956,7 +2956,7 @@ export class SquadsTransactionReader {
       return null;
     }
 
-    if (!remoteChain) {
+    if (remoteChain === null || typeof remoteChain === 'undefined') {
       return null;
     }
 
