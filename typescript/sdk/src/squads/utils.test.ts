@@ -875,6 +875,48 @@ describe('squads utils', () => {
         false,
       );
     });
+
+    it('keeps missing-account detection stable when includes/some prototypes are mutated', () => {
+      const originalArraySome = Array.prototype.some;
+      const originalStringIncludes = String.prototype.includes;
+      const throwingArraySome: typeof Array.prototype.some = function some() {
+        throw new Error('array some unavailable');
+      };
+      const throwingStringIncludes: typeof String.prototype.includes =
+        function includes() {
+          throw new Error('string includes unavailable');
+        };
+
+      let detectedMissingAccount: boolean | undefined;
+      try {
+        Object.defineProperty(Array.prototype, 'some', {
+          configurable: true,
+          writable: true,
+          value: throwingArraySome,
+        });
+        Object.defineProperty(String.prototype, 'includes', {
+          configurable: true,
+          writable: true,
+          value: throwingStringIncludes,
+        });
+        detectedMissingAccount = isLikelyMissingSquadsAccountError(
+          'rpc response: account not found for pubkey',
+        );
+      } finally {
+        Object.defineProperty(Array.prototype, 'some', {
+          configurable: true,
+          writable: true,
+          value: originalArraySome,
+        });
+        Object.defineProperty(String.prototype, 'includes', {
+          configurable: true,
+          writable: true,
+          value: originalStringIncludes,
+        });
+      }
+
+      expect(detectedMissingAccount).to.equal(true);
+    });
   });
 
   describe(assertValidTransactionIndexInput.name, () => {
@@ -3574,6 +3616,63 @@ describe('squads utils', () => {
       }
 
       expect(parsedError).to.equal(SquadsProposalVoteError.AlreadyApproved);
+    });
+
+    it('keeps parsing stable when includes/some prototypes are mutated', () => {
+      const originalArrayIncludes = Array.prototype.includes;
+      const originalArraySome = Array.prototype.some;
+      const originalStringIncludes = String.prototype.includes;
+      const throwingArrayIncludes: typeof Array.prototype.includes =
+        function includes() {
+          throw new Error('array includes unavailable');
+        };
+      const throwingArraySome: typeof Array.prototype.some = function some() {
+        throw new Error('array some unavailable');
+      };
+      const throwingStringIncludes: typeof String.prototype.includes =
+        function includes() {
+          throw new Error('string includes unavailable');
+        };
+
+      let parsedError: SquadsProposalVoteError | undefined;
+      try {
+        Object.defineProperty(Array.prototype, 'includes', {
+          configurable: true,
+          writable: true,
+          value: throwingArrayIncludes,
+        });
+        Object.defineProperty(Array.prototype, 'some', {
+          configurable: true,
+          writable: true,
+          value: throwingArraySome,
+        });
+        Object.defineProperty(String.prototype, 'includes', {
+          configurable: true,
+          writable: true,
+          value: throwingStringIncludes,
+        });
+        parsedError = parseSquadsProposalVoteErrorFromError({
+          transactionLogs: ['custom program error: 0x177b'],
+        });
+      } finally {
+        Object.defineProperty(Array.prototype, 'includes', {
+          configurable: true,
+          writable: true,
+          value: originalArrayIncludes,
+        });
+        Object.defineProperty(Array.prototype, 'some', {
+          configurable: true,
+          writable: true,
+          value: originalArraySome,
+        });
+        Object.defineProperty(String.prototype, 'includes', {
+          configurable: true,
+          writable: true,
+          value: originalStringIncludes,
+        });
+      }
+
+      expect(parsedError).to.equal(SquadsProposalVoteError.AlreadyRejected);
     });
 
     it('parses known vote error from aggregate errors array', () => {

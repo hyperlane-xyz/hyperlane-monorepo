@@ -181,6 +181,9 @@ const SET_ADD = Set.prototype.add;
 const MAP_GET = Map.prototype.get;
 const MAP_SET = Map.prototype.set;
 const ARRAY_FROM = Array.from;
+const ARRAY_INCLUDES = Array.prototype.includes;
+const ARRAY_SOME = Array.prototype.some;
+const STRING_INCLUDES = String.prototype.includes;
 const SAFE_INTEGER_DECIMAL_PATTERN = /^-?\d+$/;
 const LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS = [
   'account does not exist',
@@ -225,6 +228,24 @@ function mapSetValue<Key, Value>(
 
 function arrayFromValue<T>(value: ArrayLike<T>): T[] {
   return ARRAY_FROM(value);
+}
+
+function arrayIncludesValue<Value>(
+  values: readonly Value[],
+  value: Value,
+): boolean {
+  return ARRAY_INCLUDES.call(values, value);
+}
+
+function arraySomeValue<Value>(
+  values: readonly Value[],
+  predicate: (value: Value, index: number, array: readonly Value[]) => boolean,
+): boolean {
+  return ARRAY_SOME.call(values, predicate);
+}
+
+function stringIncludesValue(value: string, searchValue: string): boolean {
+  return STRING_INCLUDES.call(value, searchValue);
 }
 
 function getUnknownValueTypeName(value: unknown): string {
@@ -496,7 +517,8 @@ function isLikelyLogArrayFieldName(fieldName: string): boolean {
   }
 
   const tokens = tokenizeFieldName(fieldName);
-  const result = tokens.includes('log') || tokens.includes('logs');
+  const result =
+    arrayIncludesValue(tokens, 'log') || arrayIncludesValue(tokens, 'logs');
   mapSetValue(SQUADS_LOG_FIELD_NAME_CACHE, fieldName, result);
   return result;
 }
@@ -507,7 +529,11 @@ function parseSquadsProposalVoteErrorText(
   const normalizedLogs = logsText.toLowerCase();
 
   for (const { error, patterns } of SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS) {
-    if (patterns.some((pattern) => normalizedLogs.includes(pattern))) {
+    if (
+      arraySomeValue(patterns, (pattern) =>
+        stringIncludesValue(normalizedLogs, pattern),
+      )
+    ) {
       return error;
     }
   }
@@ -1349,8 +1375,9 @@ async function getSquadProposalAccountForResolvedChain(
 
 export function isLikelyMissingSquadsAccountError(error: unknown): boolean {
   const normalizedErrorText = formatUnknownErrorForMessage(error).toLowerCase();
-  return LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS.some((pattern) =>
-    normalizedErrorText.includes(pattern),
+  return arraySomeValue(
+    LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS,
+    (pattern) => stringIncludesValue(normalizedErrorText, pattern),
   );
 }
 
