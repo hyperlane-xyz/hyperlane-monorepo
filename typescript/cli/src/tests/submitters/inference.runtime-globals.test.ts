@@ -452,6 +452,52 @@ describe('runtime global probe helpers', () => {
     }
   });
 
+  it('keeps cached runtime object/primitive probe snapshots stable', () => {
+    // Prime cached no-arg helper snapshots first.
+    expect(getCachedRuntimeObjectValuesByLabel().has('math-object')).to.equal(
+      true,
+    );
+    expect(
+      getCachedRuntimePrimitiveValuesByLabel().has('nan-number-primitive'),
+    ).to.equal(true);
+
+    const injectedObjectGlobalName = '__InjectedRuntimeProbeObject__';
+    const injectedObjectLabel = `${injectedObjectGlobalName.toLowerCase()}-object`;
+    const injectedObjectValue = {
+      injected: true,
+    };
+
+    const injectedPrimitiveGlobalName = '__InjectedRuntimeProbePrimitive__';
+    const injectedPrimitiveLabel = `${injectedPrimitiveGlobalName.toLowerCase()}-string-primitive`;
+    const injectedPrimitiveValue = 'injected-runtime-primitive';
+
+    (globalThis as any)[injectedObjectGlobalName] = injectedObjectValue;
+    (globalThis as any)[injectedPrimitiveGlobalName] = injectedPrimitiveValue;
+
+    try {
+      // Fresh explicit maps can observe newly injected globals.
+      const freshRuntimeObjectMap = getRuntimeObjectValuesByLabel();
+      expect(freshRuntimeObjectMap.get(injectedObjectLabel)).to.equal(
+        injectedObjectValue,
+      );
+      const freshRuntimePrimitiveMap = getRuntimePrimitiveValuesByLabel();
+      expect(freshRuntimePrimitiveMap.get(injectedPrimitiveLabel)).to.equal(
+        injectedPrimitiveValue,
+      );
+
+      // Cached no-map helpers intentionally keep a stable snapshot.
+      expect(
+        getCachedRuntimeObjectValuesByLabel().has(injectedObjectLabel),
+      ).to.equal(false);
+      expect(
+        getCachedRuntimePrimitiveValuesByLabel().has(injectedPrimitiveLabel),
+      ).to.equal(false);
+    } finally {
+      Reflect.deleteProperty(globalThis, injectedObjectGlobalName);
+      Reflect.deleteProperty(globalThis, injectedPrimitiveGlobalName);
+    }
+  });
+
   it('keeps constructor probe case tables free of hardcoded globals', () => {
     const constructorProbeFilePattern =
       /^inference\..*constructor(?:s)?\.test\.ts$/;
@@ -548,6 +594,29 @@ describe('runtime global probe helpers', () => {
         );
       },
     );
+
+    expect(filesUsingRawRuntimeMaps).to.deep.equal([]);
+  });
+
+  it('keeps global probe files on cached helper entrypoints', () => {
+    const globalProbeFiles = [
+      'inference.global-function-probes.test.ts',
+      'inference.global-object-probes.test.ts',
+      'inference.primitive-global-probes.test.ts',
+    ];
+    const submitterTestDir = path.dirname(fileURLToPath(import.meta.url));
+
+    const filesUsingRawRuntimeMaps = globalProbeFiles.filter((fileName) => {
+      const fileContent = fs.readFileSync(
+        path.join(submitterTestDir, fileName),
+        'utf8',
+      );
+      return (
+        fileContent.includes('getRuntimeFunctionValuesByLabel(') ||
+        fileContent.includes('getRuntimeObjectValuesByLabel(') ||
+        fileContent.includes('getRuntimePrimitiveValuesByLabel(')
+      );
+    });
 
     expect(filesUsingRawRuntimeMaps).to.deep.equal([]);
   });
