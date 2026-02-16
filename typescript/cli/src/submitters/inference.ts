@@ -456,10 +456,11 @@ async function getSignerAddressFromSignerObject(
 
   try {
     const signerAddress = await maybeGetAddress.call(signer);
-    const normalizedSignerAddress = tryNormalizeEvmAddress(signerAddress);
+    const normalizedSignerAddress =
+      normalizeEvmAddressFromUnknown(signerAddress);
     return normalizedSignerAddress &&
       !eqAddress(normalizedSignerAddress, EVM_ADDRESS_ZERO)
-      ? (normalizedSignerAddress as Address)
+      ? normalizedSignerAddress
       : null;
   } catch {
     return null;
@@ -533,11 +534,12 @@ async function getSignerAddressForChain(
 
   try {
     const signerAddress = await context.multiProvider.getSignerAddress(chain);
-    const normalizedSignerAddress = tryNormalizeEvmAddress(signerAddress);
+    const normalizedSignerAddress =
+      normalizeEvmAddressFromUnknown(signerAddress);
     const resolvedSignerAddress =
       normalizedSignerAddress &&
       !eqAddress(normalizedSignerAddress, EVM_ADDRESS_ZERO)
-        ? (normalizedSignerAddress as Address)
+        ? normalizedSignerAddress
         : null;
     cache.signerAddressByChain.set(chain, resolvedSignerAddress);
     return resolvedSignerAddress;
@@ -607,7 +609,7 @@ async function getOwnerForTarget(
       target,
       provider,
     ).owner();
-    const normalizedOwner = tryNormalizeEvmAddress(ownerAddress);
+    const normalizedOwner = normalizeEvmAddressFromUnknown(ownerAddress);
     const resolvedOwner =
       normalizedOwner && !eqAddress(normalizedOwner, EVM_ADDRESS_ZERO)
         ? normalizedOwner
@@ -747,7 +749,7 @@ async function inferIcaSubmitterFromAccount({
     cache.icaByChainAndAddress.set(cacheId, null);
     return null;
   }
-  const normalizedDestinationRouterAddress = tryNormalizeEvmAddress(
+  const normalizedDestinationRouterAddress = normalizeEvmAddressFromUnknown(
     destinationRouterAddress,
   );
   if (
@@ -902,7 +904,7 @@ async function inferIcaSubmitterFromAccount({
           continue;
         }
         const normalizedOriginRouterAddress =
-          tryNormalizeEvmAddress(originRouterAddress);
+          normalizeEvmAddressFromUnknown(originRouterAddress);
         if (
           !normalizedOriginRouterAddress ||
           eqAddress(normalizedOriginRouterAddress, EVM_ADDRESS_ZERO)
@@ -935,7 +937,7 @@ async function inferIcaSubmitterFromAccount({
             EVM_ADDRESS_ZERO,
           );
           const normalizedDerivedAccount =
-            tryNormalizeEvmAddress(derivedAccount);
+            normalizeEvmAddressFromUnknown(derivedAccount);
           if (
             !normalizedDerivedAccount ||
             eqAddress(normalizedDerivedAccount, EVM_ADDRESS_ZERO)
@@ -1118,7 +1120,7 @@ async function inferTimelockProposerSubmitter({
     (account) => !eqAddress(account, EVM_ADDRESS_ZERO),
   );
   const registryAddresses = await getRegistryAddresses(context, cache);
-  const destinationRouterAddressCandidate = tryNormalizeEvmAddress(
+  const destinationRouterAddressCandidate = normalizeEvmAddressFromUnknown(
     registryAddresses[chain]?.interchainAccountRouter ?? '',
   );
   const destinationRouterAddress =
@@ -1194,7 +1196,7 @@ async function inferTimelockProposerSubmitter({
           continue;
         }
         const normalizedOriginRouterAddress =
-          tryNormalizeEvmAddress(originRouterAddress);
+          normalizeEvmAddressFromUnknown(originRouterAddress);
         if (
           !normalizedOriginRouterAddress ||
           eqAddress(normalizedOriginRouterAddress, EVM_ADDRESS_ZERO)
@@ -1223,7 +1225,7 @@ async function inferTimelockProposerSubmitter({
             'getRemoteInterchainAccount(address,address,address)'
           ](signerAddress, destinationRouterAddress, EVM_ADDRESS_ZERO);
           const normalizedDerivedIcaProposer =
-            tryNormalizeEvmAddress(derivedIcaProposer);
+            normalizeEvmAddressFromUnknown(derivedIcaProposer);
           if (
             !normalizedDerivedIcaProposer ||
             eqAddress(normalizedDerivedIcaProposer, EVM_ADDRESS_ZERO)
@@ -1285,7 +1287,7 @@ async function inferTimelockProposerSubmitter({
         continue;
       }
       const normalizedOriginRouterAddress =
-        tryNormalizeEvmAddress(originRouterAddress);
+        normalizeEvmAddressFromUnknown(originRouterAddress);
       if (
         !normalizedOriginRouterAddress ||
         eqAddress(normalizedOriginRouterAddress, EVM_ADDRESS_ZERO)
@@ -1314,7 +1316,7 @@ async function inferTimelockProposerSubmitter({
           'getRemoteInterchainAccount(address,address,address)'
         ](signerAddress, destinationRouterAddress, EVM_ADDRESS_ZERO);
         const normalizedDerivedIcaProposer =
-          tryNormalizeEvmAddress(derivedIcaProposer);
+          normalizeEvmAddressFromUnknown(derivedIcaProposer);
         if (
           !normalizedDerivedIcaProposer ||
           eqAddress(normalizedDerivedIcaProposer, EVM_ADDRESS_ZERO)
