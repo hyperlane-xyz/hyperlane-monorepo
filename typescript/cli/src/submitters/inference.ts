@@ -1603,7 +1603,11 @@ function hasNonEmptyStringTarget(
   transaction: TypedAnnotatedTransaction,
 ): boolean {
   const to = getTransactionStringField(transaction, 'to');
-  return typeof to === 'string' && to.trim().length > 0;
+  if (typeof to !== 'string') {
+    return false;
+  }
+  const trimmedTarget = to.trim();
+  return trimmedTarget.length > 0 && !trimmedTarget.includes('\0');
 }
 
 function getTransactionStringField(
