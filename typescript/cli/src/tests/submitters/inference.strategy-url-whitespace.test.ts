@@ -685,4 +685,52 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
     expect(batches).to.have.length(1);
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
+
+  it('falls back to inference when strategyUrl getPrototypeOf trap throws and inference context is available', async () => {
+    const safeOwner = '0x2222222222222222222222222222222222222222';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => safeOwner,
+    } as any);
+    const safeStub = sinon.stub(ISafe__factory, 'connect').returns({
+      getThreshold: async () => 1,
+      nonce: async () => 0,
+    } as any);
+    const throwingPrototypeProxy = new Proxy(
+      {},
+      {
+        getPrototypeOf: () => {
+          throw new Error('prototype trap should not crash strategy normalization');
+        },
+      },
+    );
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => 'ethereum' as any,
+            getSignerAddress: async () =>
+              '0x4444444444444444444444444444444444444444',
+            getProvider: () => ({}),
+          },
+          registry: {
+            getAddresses: async () => ({}),
+          },
+        } as any,
+        strategyUrl: throwingPrototypeProxy as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(ownableStub.callCount).to.equal(1);
+      expect(safeStub.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
 });
