@@ -2460,6 +2460,23 @@ describe('squads barrel exports', () => {
     expect(secondCaptureDiscovery).to.deep.equal(firstCaptureDiscovery);
   });
 
+  it('keeps sdk squads pattern-path discovery snapshots isolated from caller mutation', () => {
+    assertPathSnapshotIsolation(
+      () =>
+        listSdkSquadsTestFilePathsContainingPattern(
+          REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN,
+        ),
+      'sdk squads pattern test-file discovery',
+    );
+    assertPathSnapshotIsolation(
+      () =>
+        listSdkSquadsNonTestSourceFilePathsContainingPattern(
+          REFLECT_APPLY_CAPTURE_DECLARATION_PATTERN,
+        ),
+      'sdk squads pattern non-test source discovery',
+    );
+  });
+
   it('keeps sdk squads pattern-path discovery preserving caller regex lastIndex', () => {
     const reusableGlobalMutationPattern = /Reflect\.apply is mutated/g;
     const reusableGlobalCapturePattern =
