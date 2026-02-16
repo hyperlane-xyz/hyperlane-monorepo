@@ -1,17 +1,30 @@
 ---
-"@hyperlane-xyz/sdk": patch
-"@hyperlane-xyz/cli": patch
-"@hyperlane-xyz/utils": patch
-"@hyperlane-xyz/cosmos-sdk": patch
 "@hyperlane-xyz/aleo-sdk": patch
-"@hyperlane-xyz/radix-sdk": patch
-"@hyperlane-xyz/widgets": patch
-"@hyperlane-xyz/deploy-sdk": patch
+"@hyperlane-xyz/ccip-server": patch
+"@hyperlane-xyz/cli": patch
 "@hyperlane-xyz/core": patch
-"@hyperlane-xyz/starknet-core": patch
-"@hyperlane-xyz/rebalancer": patch
-"@hyperlane-xyz/tron-sdk": patch
+"@hyperlane-xyz/cosmos-sdk": patch
 "@hyperlane-xyz/cosmos-types": patch
+"@hyperlane-xyz/deploy-sdk": patch
+"@hyperlane-xyz/eslint-config": patch
+"@hyperlane-xyz/github-proxy": patch
+"@hyperlane-xyz/helloworld": patch
+"@hyperlane-xyz/http-registry-server": patch
+"@hyperlane-xyz/infra": patch
+"@hyperlane-xyz/keyfunder": patch
+"@hyperlane-xyz/metrics": patch
+"@hyperlane-xyz/provider-sdk": patch
+"@hyperlane-xyz/radix-sdk": patch
+"@hyperlane-xyz/rebalancer": patch
+"@hyperlane-xyz/rebalancer-sim": patch
+"@hyperlane-xyz/relayer": patch
+"@hyperlane-xyz/sdk": patch
+"@hyperlane-xyz/starknet-core": patch
+"@hyperlane-xyz/tron-sdk": patch
+"@hyperlane-xyz/tsconfig": patch
+"@hyperlane-xyz/utils": patch
+"@hyperlane-xyz/warp-monitor": patch
+"@hyperlane-xyz/widgets": patch
 ---
 
 The monorepo TypeScript toolchain was upgraded to 6.0.0-beta.
