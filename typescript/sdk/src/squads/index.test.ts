@@ -2959,6 +2959,249 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps Reflect.apply wrapper discovery stable when regexp exec call slot is overridden', () => {
+    const defaultMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
+    const defaultCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
+    const customMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const customCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /Reflect\.apply/,
+      );
+    const originalExecCallDescriptor = Object.getOwnPropertyDescriptor(
+      REGEXP_PROTOTYPE_EXEC,
+      'call',
+    );
+
+    Object.defineProperty(REGEXP_PROTOTYPE_EXEC, 'call', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected Reflect.apply wrapper discovery to avoid exec.call dispatch',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultCapturePaths);
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(customMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          /Reflect\.apply/,
+        ),
+      ).to.deep.equal(customCapturePaths);
+    } finally {
+      if (originalExecCallDescriptor) {
+        Object.defineProperty(
+          REGEXP_PROTOTYPE_EXEC,
+          'call',
+          originalExecCallDescriptor,
+        );
+      } else {
+        delete (REGEXP_PROTOTYPE_EXEC as unknown as { call?: unknown }).call;
+      }
+    }
+  });
+
+  it('keeps Reflect.apply wrapper discovery stable when custom regex source and flags properties are shadowed', () => {
+    const baselineMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const baselineCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const shadowedMutationPattern = /Reflect\.apply is mutated/gi;
+    const shadowedCapturePattern = /const REFLECT_APPLY = Reflect\.apply/gi;
+    shadowedMutationPattern.lastIndex = 41;
+    shadowedCapturePattern.lastIndex = 43;
+    const originalMutationSourceDescriptor = Object.getOwnPropertyDescriptor(
+      shadowedMutationPattern,
+      'source',
+    );
+    const originalMutationFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      shadowedMutationPattern,
+      'flags',
+    );
+    const originalCaptureSourceDescriptor = Object.getOwnPropertyDescriptor(
+      shadowedCapturePattern,
+      'source',
+    );
+    const originalCaptureFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      shadowedCapturePattern,
+      'flags',
+    );
+
+    Object.defineProperty(shadowedMutationPattern, 'source', {
+      configurable: true,
+      value: '^$',
+    });
+    Object.defineProperty(shadowedMutationPattern, 'flags', {
+      configurable: true,
+      value: '',
+    });
+    Object.defineProperty(shadowedCapturePattern, 'source', {
+      configurable: true,
+      value: '^$',
+    });
+    Object.defineProperty(shadowedCapturePattern, 'flags', {
+      configurable: true,
+      value: '',
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(
+          shadowedMutationPattern,
+        ),
+      ).to.deep.equal(baselineMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          shadowedCapturePattern,
+        ),
+      ).to.deep.equal(baselineCapturePaths);
+      expect(shadowedMutationPattern.lastIndex).to.equal(41);
+      expect(shadowedCapturePattern.lastIndex).to.equal(43);
+    } finally {
+      if (originalMutationSourceDescriptor) {
+        Object.defineProperty(
+          shadowedMutationPattern,
+          'source',
+          originalMutationSourceDescriptor,
+        );
+      } else {
+        delete (shadowedMutationPattern as unknown as { source?: unknown })
+          .source;
+      }
+      if (originalMutationFlagsDescriptor) {
+        Object.defineProperty(
+          shadowedMutationPattern,
+          'flags',
+          originalMutationFlagsDescriptor,
+        );
+      } else {
+        delete (shadowedMutationPattern as unknown as { flags?: unknown })
+          .flags;
+      }
+      if (originalCaptureSourceDescriptor) {
+        Object.defineProperty(
+          shadowedCapturePattern,
+          'source',
+          originalCaptureSourceDescriptor,
+        );
+      } else {
+        delete (shadowedCapturePattern as unknown as { source?: unknown })
+          .source;
+      }
+      if (originalCaptureFlagsDescriptor) {
+        Object.defineProperty(
+          shadowedCapturePattern,
+          'flags',
+          originalCaptureFlagsDescriptor,
+        );
+      } else {
+        delete (shadowedCapturePattern as unknown as { flags?: unknown }).flags;
+      }
+    }
+  });
+
+  it('keeps Reflect.apply wrapper discovery stable when regex getter call slots are overridden', () => {
+    const defaultMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
+    const defaultCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
+    const customMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const customCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /Reflect\.apply/,
+      );
+    const originalSourceGetterCallDescriptor = Object.getOwnPropertyDescriptor(
+      REGEXP_PROTOTYPE_SOURCE_GET,
+      'call',
+    );
+    const originalFlagsGetterCallDescriptor = Object.getOwnPropertyDescriptor(
+      REGEXP_PROTOTYPE_FLAGS_GET,
+      'call',
+    );
+
+    Object.defineProperty(REGEXP_PROTOTYPE_SOURCE_GET, 'call', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected Reflect.apply wrapper discovery to avoid source getter call-slot dispatch',
+        );
+      },
+    });
+    Object.defineProperty(REGEXP_PROTOTYPE_FLAGS_GET, 'call', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected Reflect.apply wrapper discovery to avoid flags getter call-slot dispatch',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultCapturePaths);
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(customMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          /Reflect\.apply/,
+        ),
+      ).to.deep.equal(customCapturePaths);
+    } finally {
+      if (originalSourceGetterCallDescriptor) {
+        Object.defineProperty(
+          REGEXP_PROTOTYPE_SOURCE_GET,
+          'call',
+          originalSourceGetterCallDescriptor,
+        );
+      } else {
+        delete (REGEXP_PROTOTYPE_SOURCE_GET as unknown as { call?: unknown })
+          .call;
+      }
+      if (originalFlagsGetterCallDescriptor) {
+        Object.defineProperty(
+          REGEXP_PROTOTYPE_FLAGS_GET,
+          'call',
+          originalFlagsGetterCallDescriptor,
+        );
+      } else {
+        delete (REGEXP_PROTOTYPE_FLAGS_GET as unknown as { call?: unknown })
+          .call;
+      }
+    }
+  });
+
   it('keeps Reflect.apply wrapper discovery stable when global RegExp is mutated', () => {
     const defaultMutationPaths =
       listReflectApplyMutationTestPathsFromPatternDiscovery();
