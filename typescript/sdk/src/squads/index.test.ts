@@ -1506,6 +1506,35 @@ function listReflectApplyWrapperRuntimePatchScenarios(): readonly ReflectApplyWr
       },
     },
     {
+      label: 'RegExp.prototype.source getter global slot patch',
+      applyPatch: () => {
+        const originalSourceDescriptor = Object.getOwnPropertyDescriptor(
+          RegExp.prototype,
+          'source',
+        );
+        Object.defineProperty(RegExp.prototype, 'source', {
+          configurable: true,
+          get() {
+            throw new Error(
+              'Expected Reflect.apply wrapper matrix test to use captured RegExp.prototype.source getter',
+            );
+          },
+        });
+        return () => {
+          if (!originalSourceDescriptor) {
+            throw new Error(
+              'Missing original RegExp.prototype.source descriptor',
+            );
+          }
+          Object.defineProperty(
+            RegExp.prototype,
+            'source',
+            originalSourceDescriptor,
+          );
+        };
+      },
+    },
+    {
       label: 'Reflect.apply global slot patch',
       applyPatch: () => {
         const originalReflectApply = Reflect.apply;
@@ -1546,6 +1575,37 @@ function listReflectApplyWrapperRuntimePatchScenarios(): readonly ReflectApplyWr
             writable: true,
             value: originalRegExp,
           });
+        };
+      },
+    },
+    {
+      label: 'RegExp.prototype Symbol.match slot patch',
+      applyPatch: () => {
+        const originalSymbolMatchDescriptor = Object.getOwnPropertyDescriptor(
+          RegExp.prototype,
+          Symbol.match,
+        );
+        Object.defineProperty(RegExp.prototype, Symbol.match, {
+          configurable: true,
+          writable: true,
+          value: () => {
+            throw new Error(
+              'Expected Reflect.apply wrapper matrix test to avoid RegExp.prototype Symbol.match dispatch',
+            );
+          },
+        });
+        return () => {
+          if (originalSymbolMatchDescriptor) {
+            Object.defineProperty(
+              RegExp.prototype,
+              Symbol.match,
+              originalSymbolMatchDescriptor,
+            );
+          } else {
+            delete (
+              RegExp.prototype as unknown as { [Symbol.match]?: unknown }
+            )[Symbol.match];
+          }
         };
       },
     },
