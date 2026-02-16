@@ -229,6 +229,30 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     );
   });
 
+  it('does not access multiProvider when explicit strategy has overrides but no transactions have usable targets', async () => {
+    const transactions = [
+      { ...TX, to: undefined },
+      { ...TX, to: '   ' },
+      { ...TX, to: 123 as any },
+    ];
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: transactions as any,
+      context: {
+        get multiProvider() {
+          throw new Error('multiProvider access should not occur');
+        },
+      } as any,
+      strategyUrl: createExplicitStrategyWithOverridePath(),
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('does not attempt inference when explicit strategy has overrides but no transactions have usable targets', async () => {
     const ownableStub = sinon
       .stub(Ownable__factory, 'connect')
