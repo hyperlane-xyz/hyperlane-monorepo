@@ -88,6 +88,44 @@ describe('resolveSubmitterBatchesForTransactions non-EVM malformed target defaul
     );
   });
 
+  it('preserves explicit default submitter when non-EVM transaction target getter throws', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-cosmos-throwing-target-getter-preserve-default-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: GNOSIS_DEFAULT_SUBMITTER,
+        submitterOverrides: {
+          [NON_EVM_OVERRIDE_TARGET]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    const txWithThrowingTargetGetter = {
+      ...TX,
+      get to() {
+        throw new Error('target getter should not crash non-EVM override routing');
+      },
+    };
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [txWithThrowingTargetGetter as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.CosmosNative,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('still applies valid non-EVM target override when transaction target is well-formed', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-cosmos-valid-target-override-with-default-preservation-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {
@@ -105,6 +143,35 @@ describe('resolveSubmitterBatchesForTransactions non-EVM malformed target defaul
     const batches = await resolveSubmitterBatchesForTransactions({
       chain: CHAIN,
       transactions: [{ ...TX, to: NON_EVM_OVERRIDE_TARGET } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.CosmosNative,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('still applies valid non-EVM target override when transaction target is a String object', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-cosmos-valid-target-string-object-override-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: GNOSIS_DEFAULT_SUBMITTER,
+        submitterOverrides: {
+          [NON_EVM_OVERRIDE_TARGET]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: new String(NON_EVM_OVERRIDE_TARGET) } as any],
       context: {
         multiProvider: {
           getProtocol: () => ProtocolType.CosmosNative,
