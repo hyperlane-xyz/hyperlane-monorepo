@@ -1194,6 +1194,60 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(0);
   });
 
+  it('returns chain-resolution failure with placeholders when chain-resolver accessor throws generic-object Error messages', () => {
+    let resolveConfigCallCount = 0;
+    const mpp = new Proxy(
+      {
+        getSolanaWeb3Provider: () => ({
+          getAccountInfo: async () => null,
+        }),
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'tryGetChainName') {
+            throw new Error('[object Object]');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    ) as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+      resolveExpectedMultisigConfig: () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+    });
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Failed to read tryGetChainName for domain 1000: [unstringifiable error]',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
   it('returns chain-resolution failure when chain-resolver function is missing', () => {
     let resolveConfigCallCount = 0;
     const mpp = {
@@ -3427,6 +3481,42 @@ describe('squads transaction reader', () => {
         get(_target, property) {
           if (property === 'getSolanaWeb3Provider') {
             throw new Error('   ');
+          }
+          return undefined;
+        },
+      },
+    ) as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to read getSolanaWeb3Provider for solanamainnet: [unstringifiable error]',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Failed to read getSolanaWeb3Provider for solanamainnet: [unstringifiable error]',
+      },
+    ]);
+  });
+
+  it('fails with placeholder error when getSolanaWeb3Provider accessor throws generic-object Error messages', async () => {
+    const mpp = new Proxy(
+      {},
+      {
+        get(_target, property) {
+          if (property === 'getSolanaWeb3Provider') {
+            throw new Error('[object Object]');
           }
           return undefined;
         },
