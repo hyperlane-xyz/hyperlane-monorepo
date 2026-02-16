@@ -71,6 +71,45 @@ describe('ExtendedChainSubmissionStrategySchema', () => {
     expect(override.internalSubmitter.chain).to.equal(CHAIN);
   });
 
+  it('ignores inherited root chain entries during preprocessing', () => {
+    const inheritedInput = Object.create({
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+      },
+    });
+
+    const parsed = ExtendedChainSubmissionStrategySchema.parse(inheritedInput);
+
+    expect(parsed[CHAIN]).to.equal(undefined);
+  });
+
+  it('ignores inherited submitterOverrides during preprocessing', () => {
+    const chainStrategy = Object.create({
+      submitterOverrides: {
+        [ADDRESS_1]: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          safeAddress: ADDRESS_2,
+        },
+      },
+    });
+    chainStrategy.submitter = {
+      type: TxSubmitterType.JSON_RPC,
+    };
+
+    const input = {
+      [CHAIN]: chainStrategy,
+    };
+
+    const parsed = ExtendedChainSubmissionStrategySchema.parse(input);
+    const parsedChainStrategy = parsed[CHAIN];
+
+    expect(parsedChainStrategy.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(parsedChainStrategy.submitter.chain).to.equal(CHAIN);
+    expect(parsedChainStrategy.submitterOverrides).to.equal(undefined);
+  });
+
   it('fails when ICA override owner and safe address mismatch', () => {
     const input = {
       [CHAIN]: {
