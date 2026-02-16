@@ -204,8 +204,40 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\bObject\.hasOwn\s*\(/,
   }),
   Object.freeze({
+    label: 'Object.create call',
+    pattern: /\bObject\.create\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Object.defineProperty call',
+    pattern: /\bObject\.defineProperty\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Object.getPrototypeOf call',
+    pattern: /\bObject\.getPrototypeOf\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Object.setPrototypeOf call',
+    pattern: /\bObject\.setPrototypeOf\s*\(/,
+  }),
+  Object.freeze({
     label: 'Reflect.ownKeys call',
     pattern: /\bReflect\.ownKeys\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Reflect.get call',
+    pattern: /\bReflect\.get\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Reflect.set call',
+    pattern: /\bReflect\.set\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Reflect.has call',
+    pattern: /\bReflect\.has\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Reflect.deleteProperty call',
+    pattern: /\bReflect\.deleteProperty\s*\(/,
   }),
   Object.freeze({
     label: 'Array.from call',
@@ -475,7 +507,15 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   'Object.getOwnPropertyNames call',
   'Object.getOwnPropertySymbols call',
   'Object.hasOwn call',
+  'Object.create call',
+  'Object.defineProperty call',
+  'Object.getPrototypeOf call',
+  'Object.setPrototypeOf call',
   'Reflect.ownKeys call',
+  'Reflect.get call',
+  'Reflect.set call',
+  'Reflect.has call',
+  'Reflect.deleteProperty call',
   'Array.from call',
   'Array.isArray call',
   'Buffer.isBuffer call',
@@ -517,8 +557,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.toSpliced method call',
   '.with method call',
 ]);
-const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 75;
-const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 51;
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 83;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 59;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
