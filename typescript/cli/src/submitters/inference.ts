@@ -345,6 +345,28 @@ function getOwnObjectField(value: unknown, field: string): unknown {
   return getObjectField(value, field);
 }
 
+function cloneOwnEnumerableObject(
+  value: unknown,
+): Record<string, unknown> | null {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return null;
+  }
+
+  let keys: string[];
+  try {
+    keys = Object.keys(value as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+
+  const clonedObject = Object.create(null) as Record<string, unknown>;
+  for (const key of keys) {
+    clonedObject[key] = getOwnObjectField(value, key);
+  }
+
+  return clonedObject;
+}
+
 function normalizeEvmAddressFromUnknown(value: unknown): Address | null {
   if (typeof value !== 'string' && !isBoxedStringObject(value)) {
     return null;
@@ -763,8 +785,26 @@ function readChainSubmissionStrategy(
   const submissionStrategyFileContent = readYamlOrJson(
     submissionStrategyFilepath.trim(),
   );
+  const rawChainSubmissionStrategies =
+    cloneOwnEnumerableObject(submissionStrategyFileContent);
+  const sanitizedChainSubmissionStrategies = Object.create(null) as Record<
+    string,
+    unknown
+  >;
+
+  if (rawChainSubmissionStrategies) {
+    for (const chainKey of Object.keys(rawChainSubmissionStrategies)) {
+      const chainStrategy = getOwnObjectField(
+        rawChainSubmissionStrategies,
+        chainKey,
+      );
+      sanitizedChainSubmissionStrategies[chainKey] =
+        cloneOwnEnumerableObject(chainStrategy) ?? chainStrategy;
+    }
+  }
+
   return ExtendedChainSubmissionStrategySchema.parse(
-    submissionStrategyFileContent,
+    sanitizedChainSubmissionStrategies,
   );
 }
 
@@ -1846,7 +1886,10 @@ function resolveExplicitSubmitterForTransaction({
   explicitOverrideIndexes: ExplicitOverrideIndexes;
 }): ExtendedSubmissionStrategy {
   const to = getTransactionStringField(transaction, 'to');
-  const overrides = explicitSubmissionStrategy.submitterOverrides;
+  const overrides = getOwnObjectField(
+    explicitSubmissionStrategy,
+    'submitterOverrides',
+  ) as ExtendedSubmissionStrategy['submitterOverrides'] | undefined;
 
   if (!overrides || !to) {
     return ExtendedSubmissionStrategySchema.parse({
@@ -2117,7 +2160,12 @@ export async function resolveSubmitterBatchesForTransactions({
       typeof explicitSubmissionStrategyCandidate === 'function')
       ? (explicitSubmissionStrategyCandidate as ExtendedSubmissionStrategy)
       : undefined;
-  const explicitOverrides = explicitSubmissionStrategy?.submitterOverrides;
+  const explicitOverrides = explicitSubmissionStrategy
+    ? (getOwnObjectField(
+        explicitSubmissionStrategy,
+        'submitterOverrides',
+      ) as ExtendedSubmissionStrategy['submitterOverrides'] | undefined)
+    : undefined;
   const hasExplicitOverrides = hasUsableOverrideKeys(explicitOverrides);
   const hasOverrideEligibleTarget = transactions.some(hasNonEmptyStringTarget);
 
@@ -2165,7 +2213,7 @@ export async function resolveSubmitterBatchesForTransactions({
 
     const explicitOverrideIndexes = buildExplicitOverrideIndexes({
       protocol,
-      overrides: explicitSubmissionStrategy.submitterOverrides,
+      overrides: explicitOverrides,
     });
     const batches: ResolvedSubmitterBatch[] = [];
     let lastBatchFingerprint: string | null = null;
