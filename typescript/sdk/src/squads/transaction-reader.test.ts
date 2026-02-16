@@ -4813,6 +4813,51 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('records exactly one error when transaction account data type inspection is unreadable', async () => {
+    const { proxy: revokedAccountData, revoke } = Proxy.revocable({}, {});
+    revoke();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: unknown,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => ({
+      data: revokedAccountData,
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Malformed transaction account data on solanamainnet: expected bytes, got [unreadable value type]',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error:
+          'Error: Malformed transaction account data on solanamainnet: expected bytes, got [unreadable value type]',
+      },
+    ]);
+  });
+
   it('uses fetched transaction account bytes without re-reading accountInfo.data', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
