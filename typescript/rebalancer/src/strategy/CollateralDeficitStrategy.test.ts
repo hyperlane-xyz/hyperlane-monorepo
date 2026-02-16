@@ -9,12 +9,15 @@ import {
 } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
+import { ExternalBridgeType } from '../config/types.js';
 import type {
+  InventoryRoute,
   RawBalances,
   Route,
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { extractBridgeConfigs } from '../test/helpers.js';
+import type { BridgeConfigWithOverride } from '../utils/index.js';
 
 import { CollateralDeficitStrategy } from './CollateralDeficitStrategy.js';
 
@@ -556,6 +559,169 @@ describe('CollateralDeficitStrategy', () => {
       );
 
       const filtered = strategy['filterByConfiguredBridges'](undefined);
+      expect(filtered).to.have.lengthOf(0);
+    });
+  });
+
+  describe('inventory execution type', () => {
+    it('should create inventory route when config is inventory type', () => {
+      const config = {
+        [chain1]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+          buffer: '1000',
+        },
+        [chain2]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+          buffer: '500',
+        },
+      };
+      const bridgeConfigs: ChainMap<BridgeConfigWithOverride> = {
+        [chain1]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+        [chain2]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+      };
+
+      const strategy = new CollateralDeficitStrategy(
+        config as any,
+        tokensByChainName,
+        testLogger,
+        bridgeConfigs,
+      );
+
+      // Start with positive balances
+      const rawBalances: RawBalances = {
+        [chain1]: 2_000_000n, // 2 USDC
+        [chain2]: 20_000_000n, // 20 USDC
+      };
+
+      // Pending transfer will drain chain1 to create deficit
+      const inflightContext = {
+        pendingTransfers: [
+          {
+            origin: chain2,
+            destination: chain1,
+            amount: 7_000_000n, // 7 USDC pending to chain1
+          },
+        ],
+        pendingRebalances: [] as StrategyRoute[],
+      };
+
+      // After reserveCollateral: chain1 = 2 - 7 = -5 USDC (deficit)
+      const routes = strategy.getRebalancingRoutes(
+        rawBalances,
+        inflightContext,
+      );
+
+      expect(routes).to.have.lengthOf(1);
+      expect(routes[0].origin).to.equal(chain2);
+      expect(routes[0].destination).to.equal(chain1);
+      expect(routes[0].executionType).to.equal('inventory');
+      expect((routes[0] as InventoryRoute).externalBridge).to.equal(
+        ExternalBridgeType.LiFi,
+      );
+    });
+
+    it('should include pending inventory rebalances with matching externalBridge in filter', () => {
+      const bridgeConfigs: ChainMap<BridgeConfigWithOverride> = {
+        [chain1]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+        [chain2]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+      };
+
+      const config = {
+        [chain1]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+          buffer: '1000',
+        },
+        [chain2]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+          buffer: '500',
+        },
+      };
+
+      const strategy = new CollateralDeficitStrategy(
+        config as any,
+        tokensByChainName,
+        testLogger,
+        bridgeConfigs,
+      );
+
+      const pendingRebalances: InventoryRoute[] = [
+        {
+          origin: chain2,
+          destination: chain1,
+          amount: 5_000_000n,
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+      ];
+
+      const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
+      expect(filtered).to.have.lengthOf(1);
+      expect((filtered[0] as InventoryRoute).externalBridge).to.equal(
+        ExternalBridgeType.LiFi,
+      );
+    });
+
+    it('should exclude pending inventory rebalances with non-matching externalBridge', () => {
+      const bridgeConfigs: ChainMap<BridgeConfigWithOverride> = {
+        [chain1]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+        [chain2]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+      };
+
+      const config = {
+        [chain1]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+          buffer: '1000',
+        },
+        [chain2]: {
+          executionType: 'inventory',
+          externalBridge: ExternalBridgeType.LiFi,
+          buffer: '500',
+        },
+      };
+
+      const strategy = new CollateralDeficitStrategy(
+        config as any,
+        tokensByChainName,
+        testLogger,
+        bridgeConfigs,
+      );
+
+      // Create a route with a different externalBridge value to test mismatch
+      // Using type assertion since we're testing the filtering logic
+      const pendingRebalances = [
+        {
+          origin: chain2,
+          destination: chain1,
+          amount: 5_000_000n,
+          executionType: 'inventory' as const,
+          externalBridge: 'nonexistent_bridge' as ExternalBridgeType, // Different bridge
+        },
+      ];
+
+      const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
       expect(filtered).to.have.lengthOf(0);
     });
   });

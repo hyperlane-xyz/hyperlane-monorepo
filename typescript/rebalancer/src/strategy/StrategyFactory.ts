@@ -3,12 +3,17 @@ import { type Logger } from 'pino';
 import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
 
 import {
+  ExecutionType,
   RebalancerStrategyOptions,
   type StrategyConfig,
 } from '../config/types.js';
 import { type IStrategy } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
-import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
+import type {
+  BridgeConfigWithOverride,
+  InventoryBridgeConfig,
+  MovableCollateralBridgeConfig,
+} from '../utils/bridgeUtils.js';
 
 import { CollateralDeficitStrategy } from './CollateralDeficitStrategy.js';
 import { CompositeStrategy } from './CompositeStrategy.js';
@@ -121,13 +126,30 @@ export class StrategyFactory {
     const bridgeConfigs: ChainMap<BridgeConfigWithOverride> = {};
 
     for (const [chain, config] of Object.entries(strategyConfig.chains)) {
-      bridgeConfigs[chain] = {
-        bridge: config.bridge,
+      const baseConfig = {
         bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount ?? 0,
-        override: config.override as ChainMap<
-          Partial<{ bridge: string; bridgeMinAcceptedAmount: string | number }>
-        >,
       };
+
+      const executionType =
+        config.executionType ?? ExecutionType.MovableCollateral;
+
+      if (executionType === ExecutionType.Inventory) {
+        bridgeConfigs[chain] = {
+          ...baseConfig,
+          executionType: 'inventory',
+          externalBridge: config.externalBridge!, // Validated by config schema
+          override: config.override as ChainMap<Partial<InventoryBridgeConfig>>,
+        };
+      } else {
+        bridgeConfigs[chain] = {
+          ...baseConfig,
+          executionType: 'movableCollateral',
+          bridge: config.bridge!, // Validated by config schema
+          override: config.override as ChainMap<
+            Partial<MovableCollateralBridgeConfig>
+          >,
+        };
+      }
     }
 
     return bridgeConfigs;

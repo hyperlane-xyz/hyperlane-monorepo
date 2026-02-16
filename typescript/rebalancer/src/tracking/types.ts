@@ -82,8 +82,8 @@ export interface RebalanceAction extends TrackedActionBase {
   messageId?: string; // Hyperlane message ID (required for rebalance_message, inventory_deposit)
   txHash?: string; // Origin transaction hash
   // Fields for inventory_movement (external bridge)
-  bridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
-  bridgeId?: string; // External bridge identifier (e.g., 'lifi')
+  externalBridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
+  externalBridgeId?: ExternalBridgeType; // External bridge identifier (e.g., 'lifi')
 }
 
 // === Type Aliases for Stores ===

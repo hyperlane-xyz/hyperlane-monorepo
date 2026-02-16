@@ -1,12 +1,8 @@
 import { Logger } from 'pino';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
-import {
-  ExecutionType,
-  getChainExecutionType,
-  getStrategyChainNames,
-} from '../config/types.js';
-import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
+import { getStrategyChainNames } from '../config/types.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import {
   type ConfirmedBlockTags,
   type MonitorEvent,
@@ -17,6 +13,10 @@ import type {
   RebalancerType,
 } from '../interfaces/IRebalancer.js';
 import type { IStrategy, StrategyRoute } from '../interfaces/IStrategy.js';
+import {
+  isInventoryRoute,
+  isMovableCollateralRoute,
+} from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import {
   type IActionTracker,
@@ -46,7 +46,7 @@ export interface RebalancerOrchestratorDeps {
 
   rebalancers: IRebalancer[];
 
-  externalBridge?: IExternalBridge;
+  externalBridgeRegistry?: Partial<ExternalBridgeRegistry>;
   metrics?: Metrics;
 }
 
@@ -57,7 +57,7 @@ export class RebalancerOrchestrator {
   private readonly rebalancerConfig: RebalancerConfig;
   private readonly logger: Logger;
   private readonly rebalancersByType: Map<RebalancerType, IRebalancer>;
-  private readonly externalBridge?: IExternalBridge;
+  private readonly externalBridgeRegistry?: Partial<ExternalBridgeRegistry>;
   private readonly metrics?: Metrics;
 
   constructor(deps: RebalancerOrchestratorDeps) {
@@ -69,7 +69,7 @@ export class RebalancerOrchestrator {
     this.rebalancersByType = new Map(
       deps.rebalancers.map((r) => [r.rebalancerType, r]),
     );
-    this.externalBridge = deps.externalBridge;
+    this.externalBridgeRegistry = deps.externalBridgeRegistry;
     this.metrics = deps.metrics;
   }
 
@@ -165,9 +165,9 @@ export class RebalancerOrchestrator {
       ]);
 
       // Sync inventory movement actions via external bridge API
-      if (this.externalBridge) {
+      if (this.externalBridgeRegistry) {
         await this.actionTracker.syncInventoryMovementActions(
-          this.externalBridge,
+          this.externalBridgeRegistry,
         );
       }
 
@@ -191,7 +191,8 @@ export class RebalancerOrchestrator {
     routes: StrategyRoute[],
     event: MonitorEvent,
   ): Promise<{ executedCount: number; failedCount: number }> {
-    const { movableCollateral, inventory } = this.classifyRoutes(routes);
+    const movableCollateral = routes.filter(isMovableCollateralRoute);
+    const inventory = routes.filter(isInventoryRoute);
 
     let executedCount = 0;
     let failedCount = 0;
@@ -214,50 +215,6 @@ export class RebalancerOrchestrator {
     }
 
     return { executedCount, failedCount };
-  }
-
-  /**
-   * Classify routes by execution method based on chain config.
-   * If either origin or destination is an inventory chain, use inventory execution.
-   */
-  private classifyRoutes(routes: StrategyRoute[]): {
-    movableCollateral: StrategyRoute[];
-    inventory: StrategyRoute[];
-  } {
-    const movableCollateral: StrategyRoute[] = [];
-    const inventory: StrategyRoute[] = [];
-
-    for (const route of routes) {
-      const originType = getChainExecutionType(
-        this.rebalancerConfig.strategyConfig,
-        route.origin,
-      );
-      const destType = getChainExecutionType(
-        this.rebalancerConfig.strategyConfig,
-        route.destination,
-      );
-
-      if (
-        originType === ExecutionType.Inventory ||
-        destType === ExecutionType.Inventory
-      ) {
-        inventory.push(route);
-      } else {
-        movableCollateral.push(route);
-      }
-    }
-
-    if (movableCollateral.length > 0 || inventory.length > 0) {
-      this.logger.debug(
-        {
-          movableCollateral: movableCollateral.length,
-          inventory: inventory.length,
-        },
-        'Routes classified by execution type',
-      );
-    }
-
-    return { movableCollateral, inventory };
   }
 
   private async executeRoutes(

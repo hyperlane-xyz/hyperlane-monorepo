@@ -15,6 +15,7 @@ import { type Metrics } from '../metrics/Metrics.js';
 import {
   type BridgeConfig,
   type BridgeConfigWithOverride,
+  createStrategyRoute,
   getBridgeConfig,
 } from '../utils/bridgeUtils.js';
 
@@ -194,14 +195,15 @@ export abstract class BaseStrategy implements IStrategy {
           deficit.chain,
         );
 
-        // Creates the balancing route
-        routes.push({
-          origin: surplus.chain,
-          destination: deficit.chain,
-          amount: transferAmount,
-          executionType: 'movableCollateral',
-          bridge: bridgeConfig.bridge,
-        });
+        // Create appropriate route type based on execution type
+        routes.push(
+          createStrategyRoute(
+            bridgeConfig,
+            surplus.chain,
+            deficit.chain,
+            transferAmount,
+          ),
+        );
       }
 
       // Decreases the amounts for the following iterations

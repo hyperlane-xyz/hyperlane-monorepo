@@ -293,6 +293,7 @@ export function buildTestBridges(
 ): ChainMap<BridgeConfigWithOverride> {
   return chains.reduce((acc, chain) => {
     acc[chain] = {
+      executionType: 'movableCollateral',
       bridge: TEST_ADDRESSES.bridge,
       bridgeMinAcceptedAmount: 0,
     };
@@ -312,6 +313,7 @@ export function extractBridgeConfigs(
 ): ChainMap<BridgeConfigWithOverride> {
   return Object.entries(chainConfig).reduce((acc, [chain, config]) => {
     acc[chain] = {
+      executionType: 'movableCollateral',
       bridge: config.bridge,
       bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount ?? 0,
     };

@@ -8,6 +8,7 @@ import type { MultiProvider, Token, WarpCore } from '@hyperlane-xyz/sdk';
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { RebalancerStrategyOptions } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import { MonitorEventType } from '../interfaces/IMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
@@ -178,12 +179,44 @@ function createMockContextFactory(
     getTokenForChain: (chain: string) =>
       warpCore.tokens.find((t) => t.chainName === chain),
     createRebalancer: (_actionTracker: IActionTracker) => rebalancer,
+    createRebalancers: async (_actionTracker: IActionTracker) => ({
+      rebalancers: [rebalancer],
+      externalBridgeRegistry: {},
+      inventoryConfig: undefined,
+    }),
     createStrategy: async () => strategy,
     createMonitor: () => monitor,
     createMetrics: async () => overrides.metrics ?? ({} as Metrics),
     createActionTracker: async () => ({
       tracker: actionTracker,
       adapter: inflightAdapter,
+    }),
+    createOrchestrator: (options: {
+      strategy: IStrategy;
+      actionTracker: IActionTracker;
+      inflightContextAdapter: InflightContextAdapter;
+      rebalancers: IRebalancer[];
+      externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
+      metrics?: Metrics;
+    }) => ({
+      executeCycle: Sinon.stub().callsFake(async (event: any) => {
+        // Simulate orchestrator behavior: call strategy, then rebalancer, then record metrics
+        const strategyWithGetRoutes = options.strategy as any;
+        const routes = strategyWithGetRoutes.getRebalancingRoutes?.() ?? [];
+        if (routes.length > 0 && options.rebalancers[0]) {
+          const results = await options.rebalancers[0].rebalance(routes);
+          if (options.metrics && results) {
+            results.forEach((result: any) => {
+              if (result.success) {
+                (options.metrics as any).recordRebalancerSuccess?.();
+              } else {
+                (options.metrics as any).recordRebalancerFailure?.();
+              }
+            });
+          }
+        }
+        return { success: true };
+      }),
     }),
   } as unknown as RebalancerContextFactory;
 }

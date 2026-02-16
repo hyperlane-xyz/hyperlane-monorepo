@@ -17,13 +17,15 @@ import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
+  ExternalBridgeType,
   getAllBridges,
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
 import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
 import { Rebalancer } from '../core/Rebalancer.js';
-import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
+import { RebalancerOrchestrator } from '../core/RebalancerOrchestrator.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
@@ -97,6 +99,8 @@ export class RebalancerContextFactory {
       },
       'Creating RebalancerContextFactory',
     );
+
+    // TODO: should we pull addressed for chains we care about, i.e those in the warp config
     const addresses = await registry.getAddresses();
 
     // The Sealevel warp adapters require the Mailbox address, so we
@@ -243,7 +247,7 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createRebalancer(
+  private createMovableCollateralRebalancer(
     actionTracker: IActionTracker,
     metrics?: Metrics,
   ): IRebalancer {
@@ -369,17 +373,16 @@ export class RebalancerContextFactory {
    *
    * @param actionTracker - ActionTracker instance for tracking inventory actions
    */
-  public async createInventoryComponents(
+  private async createInventoryRebalancerAndConfig(
     actionTracker: IActionTracker,
   ): Promise<{
     inventoryRebalancer: IRebalancer;
-    externalBridge: IExternalBridge;
+    externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
     inventoryConfig: InventoryMonitorConfig;
   } | null> {
     const { inventorySigner, externalBridges } = this.config;
-    const lifiConfig = externalBridges?.lifi;
 
-    if (!inventorySigner || !lifiConfig?.integrator) {
+    if (!inventorySigner) {
       this.logger.debug(
         'Inventory config not available, skipping inventory components creation',
       );
@@ -406,13 +409,38 @@ export class RebalancerContextFactory {
       return null;
     }
 
-    const externalBridge = new LiFiBridge(
-      {
-        integrator: lifiConfig.integrator,
-        defaultSlippage: lifiConfig.defaultSlippage,
-      },
-      this.logger,
-    );
+    // Build registry dynamically from ExternalBridgeType enum
+    const externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
+
+    for (const bridgeType of Object.values(ExternalBridgeType)) {
+      switch (bridgeType) {
+        case ExternalBridgeType.LiFi: {
+          const lifiConfig = externalBridges?.lifi;
+          if (lifiConfig?.integrator) {
+            externalBridgeRegistry[ExternalBridgeType.LiFi] = new LiFiBridge(
+              {
+                integrator: lifiConfig.integrator,
+                defaultSlippage: lifiConfig.defaultSlippage,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
+        default: {
+          // Exhaustive check - TypeScript will error if new enum value added
+          const _exhaustive: never = bridgeType;
+          throw new Error(`Unknown bridge type: ${_exhaustive}`);
+        }
+      }
+    }
+
+    if (Object.keys(externalBridgeRegistry).length === 0) {
+      this.logger.debug(
+        'No external bridges configured, skipping inventory components',
+      );
+      return null;
+    }
 
     // 3. Build inventory config
     const inventoryConfig: InventoryMonitorConfig = {
@@ -429,7 +457,7 @@ export class RebalancerContextFactory {
         inventoryChains,
       },
       actionTracker,
-      externalBridge,
+      externalBridgeRegistry,
       this.warpCore,
       this.multiProvider,
       this.logger,
@@ -443,7 +471,89 @@ export class RebalancerContextFactory {
       'Inventory components created successfully',
     );
 
-    return { inventoryRebalancer, externalBridge, inventoryConfig };
+    return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
+  }
+
+  /**
+   * Creates all rebalancers based on config execution types.
+   * Returns an array of rebalancers (movableCollateral and/or inventory)
+   * along with metadata needed for monitor and orchestrator.
+   */
+  public async createRebalancers(
+    actionTracker: IActionTracker,
+    metrics?: Metrics,
+  ): Promise<{
+    rebalancers: IRebalancer[];
+    externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
+    inventoryConfig?: InventoryMonitorConfig;
+  }> {
+    const rebalancers: IRebalancer[] = [];
+    let externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
+    let inventoryConfig: InventoryMonitorConfig | undefined;
+
+    // Check if any chains use movableCollateral execution type
+    const hasMovableCollateral = this.hasMovableCollateralChains();
+    if (hasMovableCollateral) {
+      const rebalancer = this.createMovableCollateralRebalancer(
+        actionTracker,
+        metrics,
+      );
+      rebalancers.push(rebalancer);
+    }
+
+    // Check if any chains use inventory execution type
+    const inventoryComponents =
+      await this.createInventoryRebalancerAndConfig(actionTracker);
+    if (inventoryComponents) {
+      rebalancers.push(inventoryComponents.inventoryRebalancer);
+      externalBridgeRegistry = inventoryComponents.externalBridgeRegistry;
+      inventoryConfig = inventoryComponents.inventoryConfig;
+    }
+
+    return { rebalancers, externalBridgeRegistry, inventoryConfig };
+  }
+
+  /**
+   * Creates a RebalancerOrchestrator with all required dependencies.
+   */
+  public createOrchestrator(options: {
+    strategy: IStrategy;
+    actionTracker: IActionTracker;
+    inflightContextAdapter: InflightContextAdapter;
+    rebalancers: IRebalancer[];
+    externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
+    metrics?: Metrics;
+  }): RebalancerOrchestrator {
+    this.logger.debug(
+      { warpRouteId: this.config.warpRouteId },
+      'Creating RebalancerOrchestrator',
+    );
+
+    return new RebalancerOrchestrator({
+      strategy: options.strategy,
+      actionTracker: options.actionTracker,
+      inflightContextAdapter: options.inflightContextAdapter,
+      rebalancerConfig: this.config,
+      logger: this.logger,
+      rebalancers: options.rebalancers,
+      externalBridgeRegistry: options.externalBridgeRegistry,
+      metrics: options.metrics,
+    });
+  }
+
+  private hasMovableCollateralChains(): boolean {
+    return getStrategyChainNames(this.config.strategyConfig).some(
+      (chainName) => {
+        const chainConfig = getStrategyChainConfig(
+          this.config.strategyConfig,
+          chainName,
+        );
+        return (
+          chainConfig?.executionType === ExecutionType.MovableCollateral ||
+          chainConfig?.executionType === undefined
+        ); // Default is movableCollateral
+      },
+    );
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {

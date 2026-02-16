@@ -170,7 +170,7 @@ describe('InventoryRebalancer E2E', () => {
     inventoryRebalancer = new InventoryRebalancer(
       config,
       actionTracker as unknown as IActionTracker,
-      bridge as unknown as IExternalBridge,
+      { lifi: bridge as unknown as IExternalBridge },
       warpCore as unknown as WarpCore,
       multiProvider as unknown as MultiProvider,
       testLogger,

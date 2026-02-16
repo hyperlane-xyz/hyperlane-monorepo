@@ -111,7 +111,7 @@ export class LiFiBridge implements IExternalBridge {
   private static readonly NATIVE_TOKEN_ADDRESS =
     '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
-  readonly bridgeId = 'lifi';
+  readonly externalBridgeId = 'lifi';
   readonly logger: Logger;
   private initialized = false;
   private readonly config: ExternalBridgeConfig;
