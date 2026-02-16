@@ -1195,12 +1195,13 @@ function listSdkSquadsNonTestSourceFilePathsContainingPattern(
 }
 
 const REGEXP_CONSTRUCTOR = RegExp;
+const REGEXP_PROTOTYPE_TEST = RegExp.prototype.test;
 
 function doesPatternMatchSource(source: string, pattern: RegExp): boolean {
   const sourcePattern = pattern.source;
   const flagsPattern = pattern.flags.replace(/[gy]/g, '');
   const isolatedPattern = new REGEXP_CONSTRUCTOR(sourcePattern, flagsPattern);
-  return isolatedPattern.test(source);
+  return REGEXP_PROTOTYPE_TEST.call(isolatedPattern, source);
 }
 
 function listSdkSquadsNonTestSourceFilePaths(): readonly string[] {
@@ -2389,6 +2390,45 @@ describe('squads barrel exports', () => {
         configurable: true,
         writable: true,
         value: originalRegExp,
+      });
+    }
+  });
+
+  it('keeps sdk squads pattern-path discovery stable when RegExp.prototype.test is mutated', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const originalRegExpPrototypeTest = RegExp.prototype.test;
+
+    Object.defineProperty(RegExp.prototype, 'test', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected squads pattern discovery to use captured RegExp.prototype.test',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listSdkSquadsTestFilePathsContainingPattern(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(baselineMutationDiscovery);
+      expect(
+        listSdkSquadsNonTestSourceFilePathsContainingPattern(
+          /const REFLECT_APPLY = Reflect\.apply/,
+        ),
+      ).to.deep.equal(baselineCaptureDiscovery);
+    } finally {
+      Object.defineProperty(RegExp.prototype, 'test', {
+        configurable: true,
+        writable: true,
+        value: originalRegExpPrototypeTest,
       });
     }
   });
