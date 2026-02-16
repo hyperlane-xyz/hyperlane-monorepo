@@ -1196,7 +1196,7 @@ function listSdkSquadsNonTestSourceFilePathsContainingPattern(
 
 function doesPatternMatchSource(source: string, pattern: RegExp): boolean {
   const sourcePattern = pattern.source;
-  const flagsPattern = pattern.flags;
+  const flagsPattern = pattern.flags.replace(/[gy]/g, '');
   const isolatedPattern = new RegExp(sourcePattern, flagsPattern);
   return isolatedPattern.test(source);
 }
@@ -2200,6 +2200,28 @@ describe('squads barrel exports', () => {
     ).to.deep.equal(
       listSdkSquadsNonTestSourceFilePathsContainingPattern(
         nonGlobalCapturePattern,
+      ),
+    );
+  });
+
+  it('keeps sdk squads pattern-path discovery stable for sticky regex inputs', () => {
+    const nonStickyMutationPathPattern = /Reflect\.apply is mutated/;
+    const stickyMutationPathPattern = /Reflect\.apply is mutated/y;
+    const nonStickyCapturePattern = /const REFLECT_APPLY = Reflect\.apply/;
+    const stickyCapturePattern = /const REFLECT_APPLY = Reflect\.apply/y;
+
+    expect(
+      listSdkSquadsTestFilePathsContainingPattern(stickyMutationPathPattern),
+    ).to.deep.equal(
+      listSdkSquadsTestFilePathsContainingPattern(nonStickyMutationPathPattern),
+    );
+    expect(
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        stickyCapturePattern,
+      ),
+    ).to.deep.equal(
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        nonStickyCapturePattern,
       ),
     );
   });
