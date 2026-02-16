@@ -69,6 +69,12 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
               if (log?.__returnParsedArgsDirect) {
                 return log.__parsedArgs;
               }
+              if (log?.__returnNullArgsWithDirectFields) {
+                return {
+                  args: null,
+                  ...(log.__parsedArgs ?? {}),
+                };
+              }
               if (log?.__parsedArgs) {
                 return {
                   args: log.__parsedArgs,
@@ -651,6 +657,30 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
       inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
     ).to.equal(ORIGIN_ROUTER.toLowerCase());
   });
+
+  it('accepts direct ICA parsed fields when parseLog args is null', async () => {
+    const inferredSubmitter = await resolveFromLogs([
+      {
+        __returnNullArgsWithDirectFields: true,
+        __parsedArgs: {
+          origin: 31347,
+          router: originRouterBytes32,
+          owner: signerBytes32,
+          ism: ethersConstants.AddressZero,
+        },
+        topics: ['0xdirect-ica-fields-with-null-args'],
+        data: '0x',
+        blockNumber: 655,
+        transactionIndex: 0,
+        logIndex: 0,
+      },
+    ]);
+
+    expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
 });
 
 describe('resolveSubmitterBatchesForTransactions timelock log position getter fallback', () => {
@@ -726,6 +756,12 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
             }
             if (log?.__returnParsedArgsDirect) {
               return log.__parsedArgs;
+            }
+            if (log?.__returnNullArgsWithDirectFields) {
+              return {
+                args: null,
+                ...(log.__parsedArgs ?? {}),
+              };
             }
             if (log?.__parsedArgs) {
               return {
@@ -940,6 +976,20 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
       __returnParsedArgsDirect: true,
       __parsedArgs: positionalArgs,
       topics: ['0xgrant-direct-positional-account'],
+      data: '0x',
+      blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('accepts direct timelock account fields when parseLog args is null', async () => {
+    await resolveFromRoleLogs({
+      __returnNullArgsWithDirectFields: true,
+      __parsedArgs: {
+        account: '0x7878787878787878787878787878787878787878',
+      },
+      topics: ['0xgrant-direct-account-with-null-args'],
       data: '0x',
       blockNumber: '1601',
       transactionIndex: '0',

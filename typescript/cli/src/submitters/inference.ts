@@ -273,7 +273,7 @@ function getParsedLogArgs(parsedLog: unknown): unknown | null {
 
   try {
     const args = (parsedLog as { args?: unknown }).args;
-    return args === undefined ? parsedLog : (args ?? null);
+    return args === undefined || args === null ? parsedLog : args;
   } catch {
     return parsedLog;
   }
