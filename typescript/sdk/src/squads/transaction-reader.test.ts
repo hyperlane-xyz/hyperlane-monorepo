@@ -7906,6 +7906,75 @@ describe('squads transaction reader', () => {
     expect(result.args).to.deep.equal({});
   });
 
+  it('keeps warp instruction formatting stable when Array.prototype.entries is mutated', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const originalEntries = Array.prototype.entries;
+    const throwingEntries: typeof Array.prototype.entries = function entries() {
+      throw new Error('entries unavailable');
+    };
+
+    let enrollResult: Record<string, unknown> | undefined;
+    let gasResult: Record<string, unknown> | undefined;
+    try {
+      Object.defineProperty(Array.prototype, 'entries', {
+        configurable: true,
+        writable: true,
+        value: throwingEntries,
+      });
+      enrollResult = readerAny.formatInstruction('solanamainnet', {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'WarpRoute',
+        instructionType:
+          SealevelHypTokenInstructionName[
+            SealevelHypTokenInstruction.EnrollRemoteRouters
+          ],
+        data: {
+          routers: [{ chainName: 'ethereum', domain: 1000, router: '0xabc' }],
+        },
+        accounts: [],
+        warnings: [],
+      });
+
+      gasResult = readerAny.formatInstruction('solanamainnet', {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'WarpRoute',
+        instructionType:
+          SealevelHypTokenInstructionName[
+            SealevelHypTokenInstruction.SetDestinationGasConfigs
+          ],
+        data: {
+          configs: [{ chainName: 'ethereum', domain: 1000, gas: 5n }],
+        },
+        accounts: [],
+        warnings: [],
+      });
+    } finally {
+      Object.defineProperty(Array.prototype, 'entries', {
+        configurable: true,
+        writable: true,
+        value: originalEntries,
+      });
+    }
+
+    expect(enrollResult?.args).to.deep.equal({
+      ethereum: '0xabc',
+    });
+    expect(gasResult?.args).to.deep.equal({
+      ethereum: '5',
+    });
+  });
+
   it('falls back to stable display labels when instruction metadata is malformed', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
@@ -11384,6 +11453,83 @@ describe('squads transaction reader', () => {
 
     expect(parsed).to.deep.equal({
       instructions: [],
+      warnings: [],
+    });
+  });
+
+  it('keeps parsing when Array.prototype.entries is mutated during vault parsing', async () => {
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const originalEntries = Array.prototype.entries;
+    const throwingEntries: typeof Array.prototype.entries = function entries() {
+      throw new Error('entries unavailable');
+    };
+
+    let parsed:
+      | {
+          instructions: Array<Record<string, unknown>>;
+          warnings: string[];
+        }
+      | undefined;
+    try {
+      Object.defineProperty(Array.prototype, 'entries', {
+        configurable: true,
+        writable: true,
+        value: throwingEntries,
+      });
+      parsed = await readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: {
+            accountKeys: [SYSTEM_PROGRAM_ID],
+            addressTableLookups: [],
+            instructions: [
+              {
+                programIdIndex: 0,
+                accountIndexes: [],
+                data: Buffer.from([1, 2, 3]),
+              },
+            ],
+          },
+        },
+        { getAccountInfo: async () => null },
+      );
+    } finally {
+      Object.defineProperty(Array.prototype, 'entries', {
+        configurable: true,
+        writable: true,
+        value: originalEntries,
+      });
+    }
+
+    expect(parsed).to.deep.equal({
+      instructions: [
+        {
+          programId: SYSTEM_PROGRAM_ID,
+          programName: 'System Program',
+          instructionType: 'System Call',
+          data: {},
+          accounts: [],
+          warnings: [],
+        },
+      ],
       warnings: [],
     });
   });

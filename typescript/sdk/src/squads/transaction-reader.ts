@@ -1722,9 +1722,37 @@ export class SquadsTransactionReader {
       'vault instructions',
       instructionsValue as readonly unknown[],
     );
+    const {
+      propertyValue: instructionsLengthValue,
+      readError: instructionsLengthReadError,
+    } = inspectPropertyValue(instructions, 'length');
+    if (instructionsLengthReadError) {
+      const warning = `Failed to read vault instructions length on ${chain}: ${stringifyUnknownSquadsError(instructionsLengthReadError)}`;
+      rootLogger.warn(warning);
+      warnings.push(warning);
+      return { instructions: parsedInstructions, warnings };
+    }
+    if (
+      typeof instructionsLengthValue !== 'number' ||
+      !Number.isSafeInteger(instructionsLengthValue) ||
+      instructionsLengthValue < 0
+    ) {
+      const warning = `Malformed vault instructions length on ${chain}: expected non-negative safe integer, got ${getUnknownValueTypeName(instructionsLengthValue)}`;
+      rootLogger.warn(warning);
+      warnings.push(warning);
+      return { instructions: parsedInstructions, warnings };
+    }
     const computeBudgetProgramId = ComputeBudgetProgram.programId;
 
-    for (const [idx, instruction] of instructions.entries()) {
+    for (let idx = 0; idx < instructionsLengthValue; idx += 1) {
+      const { propertyValue: instruction, readError: instructionReadError } =
+        inspectPropertyValue(instructions, idx);
+      if (instructionReadError) {
+        const warning = `Failed to read vault instruction ${idx} on ${chain}: ${stringifyUnknownSquadsError(instructionReadError)}`;
+        rootLogger.warn(warning);
+        warnings.push(warning);
+        continue;
+      }
       try {
         const programIdIndexValue = this.readVaultInstructionField(
           chain,
@@ -3691,7 +3719,35 @@ export class SquadsTransactionReader {
                 routersCandidate as readonly unknown[],
               )
             : [];
-        for (const [index, router] of normalizedRouters.entries()) {
+        const {
+          propertyValue: routersLengthValue,
+          readError: routersLengthReadError,
+        } = inspectPropertyValue(normalizedRouters, 'length');
+        if (routersLengthReadError) {
+          rootLogger.warn(
+            `Failed to read warp enroll-router configs length on ${chain}: ${stringifyUnknownSquadsError(routersLengthReadError)}`,
+          );
+          break;
+        }
+        if (
+          typeof routersLengthValue !== 'number' ||
+          !Number.isSafeInteger(routersLengthValue) ||
+          routersLengthValue < 0
+        ) {
+          rootLogger.warn(
+            `Malformed warp enroll-router configs length on ${chain}: expected non-negative safe integer, got ${getUnknownValueTypeName(routersLengthValue)}`,
+          );
+          break;
+        }
+        for (let index = 0; index < routersLengthValue; index += 1) {
+          const { propertyValue: router, readError: routerEntryReadError } =
+            inspectPropertyValue(normalizedRouters, index);
+          if (routerEntryReadError) {
+            rootLogger.warn(
+              `Failed to read warp enroll-router config at index ${index} on ${chain}: ${stringifyUnknownSquadsError(routerEntryReadError)}`,
+            );
+            continue;
+          }
           if (!isRecordObject(router)) {
             rootLogger.warn(
               `Skipping malformed warp enroll-router config at index ${index} on ${chain}: expected object, got ${getUnknownValueTypeName(router)}`,
@@ -3757,7 +3813,35 @@ export class SquadsTransactionReader {
                 configsCandidate as readonly unknown[],
               )
             : [];
-        for (const [index, config] of normalizedGasConfigs.entries()) {
+        const {
+          propertyValue: gasConfigsLengthValue,
+          readError: gasConfigsLengthReadError,
+        } = inspectPropertyValue(normalizedGasConfigs, 'length');
+        if (gasConfigsLengthReadError) {
+          rootLogger.warn(
+            `Failed to read warp gas configs length on ${chain}: ${stringifyUnknownSquadsError(gasConfigsLengthReadError)}`,
+          );
+          break;
+        }
+        if (
+          typeof gasConfigsLengthValue !== 'number' ||
+          !Number.isSafeInteger(gasConfigsLengthValue) ||
+          gasConfigsLengthValue < 0
+        ) {
+          rootLogger.warn(
+            `Malformed warp gas configs length on ${chain}: expected non-negative safe integer, got ${getUnknownValueTypeName(gasConfigsLengthValue)}`,
+          );
+          break;
+        }
+        for (let index = 0; index < gasConfigsLengthValue; index += 1) {
+          const { propertyValue: config, readError: gasConfigEntryReadError } =
+            inspectPropertyValue(normalizedGasConfigs, index);
+          if (gasConfigEntryReadError) {
+            rootLogger.warn(
+              `Failed to read warp gas config at index ${index} on ${chain}: ${stringifyUnknownSquadsError(gasConfigEntryReadError)}`,
+            );
+            continue;
+          }
           if (!isRecordObject(config)) {
             rootLogger.warn(
               `Skipping malformed warp gas config at index ${index} on ${chain}: expected object, got ${getUnknownValueTypeName(config)}`,
