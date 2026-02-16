@@ -56,6 +56,7 @@ TS6-beta compatibility was validated with:
   - Support package checks: `@hyperlane-xyz/eslint-config` importability and `@hyperlane-xyz/tsconfig` resolution via `pnpm exec tsc --showConfig -p typescript/sdk/tsconfig.json`.
   - Packages with intentionally empty CI test scripts were confirmed to report expected output (`aleo-sdk`, `tron-sdk`, `cosmos-types`, `cosmos-sdk`).
   - Existing non-blocking lint warnings remained in `typescript/widgets` (react-hooks dependency warnings), `typescript/keyfunder`/`typescript/warp-monitor`/`typescript/helloworld` (unused eslint-disable warnings in existing tests), `typescript/relayer` (pre-existing disabled-test warning), and `solidity` + `typescript/helloworld` Solhint warnings, consistent with workspace lint behavior.
+  - `typescript/relayer` unit execution also retained pre-existing pending metadata-fixture cases while reporting zero test failures.
 
 Release graph hygiene was also checked with `pnpm changeset status`, confirming a coherent patch-only bump set for this rollout.
 
