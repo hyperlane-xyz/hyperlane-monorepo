@@ -138,4 +138,62 @@ describe('resolveSubmitterBatchesForTransactions unknown protocol fallback', () 
       timelockStub.restore();
     }
   });
+
+  it('falls back to jsonRpc when protocol lookup returns a promise value without explicit strategy', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => Promise.resolve('ethereum') as any,
+        },
+      } as any,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('falls back to explicit default when protocol lookup returns a promise value with explicit overrides', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-protocol-promise-explicit-${Date.now()}.yaml`;
+    const overrideTarget = '0x9999999999999999999999999999999999999999';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x2222222222222222222222222222222222222222',
+          version: '1.0',
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: CHAIN,
+            timelockAddress: '0x3333333333333333333333333333333333333333',
+            proposerSubmitter: {
+              type: TxSubmitterType.JSON_RPC,
+              chain: CHAIN,
+            },
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any, { ...TX, to: overrideTarget } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => Promise.resolve('ethereum') as any,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+    expect(batches[0].transactions).to.have.length(2);
+  });
 });
