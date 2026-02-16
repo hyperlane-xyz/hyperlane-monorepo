@@ -59,14 +59,42 @@ const SQUADS_CONFIG_ENTRIES = untypedSquadsConfigEntries as Array<
   [SquadsChainName, (typeof squadsConfigs)[SquadsChainName]]
 >;
 
+function readStaticSquadsConfigFieldOrThrow(
+  chainName: string,
+  configValue: unknown,
+  fieldName: keyof SquadConfig,
+): string {
+  const { propertyValue, readError } = inspectPropertyValue(
+    configValue,
+    fieldName,
+  );
+  if (readError) {
+    throw new Error(
+      `Failed to read ${fieldName} for squads chain ${chainName}: ${formatUnknownListError(readError)}`,
+    );
+  }
+  if (typeof propertyValue !== 'string') {
+    throw new Error(
+      `Malformed ${fieldName} for squads chain ${chainName}: expected string, got ${getUnknownValueTypeName(propertyValue)}`,
+    );
+  }
+  return propertyValue;
+}
+
 const SQUADS_KEYS_BY_CHAIN = Object.freeze(
   Object.fromEntries(
     SQUADS_CONFIG_ENTRIES.map(([chainName, config]) => [
       chainName,
       Object.freeze({
-        multisigPda: new PublicKey(config.multisigPda),
-        programId: new PublicKey(config.programId),
-        vault: new PublicKey(config.vault),
+        multisigPda: new PublicKey(
+          readStaticSquadsConfigFieldOrThrow(chainName, config, 'multisigPda'),
+        ),
+        programId: new PublicKey(
+          readStaticSquadsConfigFieldOrThrow(chainName, config, 'programId'),
+        ),
+        vault: new PublicKey(
+          readStaticSquadsConfigFieldOrThrow(chainName, config, 'vault'),
+        ),
       }),
     ]),
   ) as Record<keyof typeof squadsConfigs, Readonly<SquadsKeys>>,
