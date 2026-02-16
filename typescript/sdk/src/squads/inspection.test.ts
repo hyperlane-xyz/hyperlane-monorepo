@@ -4,6 +4,8 @@ import {
   inspectArrayValue,
   inspectBufferValue,
   inspectInstanceOf,
+  inspectObjectEntries,
+  inspectObjectKeys,
   inspectPropertyValue,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
@@ -33,6 +35,59 @@ describe('squads inspection helpers', () => {
         isArray: false,
         readFailed: true,
       });
+    });
+  });
+
+  describe(inspectObjectEntries.name, () => {
+    it('returns entries for object values', () => {
+      expect(inspectObjectEntries({ a: 1, b: 2 })).to.deep.equal({
+        entries: [
+          ['a', 1],
+          ['b', 2],
+        ],
+        readError: undefined,
+      });
+      expect(inspectObjectEntries(null)).to.deep.equal({
+        entries: [],
+        readError: undefined,
+      });
+      expect(inspectObjectEntries('value')).to.deep.equal({
+        entries: [],
+        readError: undefined,
+      });
+    });
+
+    it('captures read errors when entries access throws', () => {
+      const { proxy: revokedValue, revoke } = Proxy.revocable({}, {});
+      revoke();
+      const inspection = inspectObjectEntries(revokedValue);
+      expect(inspection.entries).to.deep.equal([]);
+      expect(inspection.readError).to.be.instanceOf(TypeError);
+    });
+  });
+
+  describe(inspectObjectKeys.name, () => {
+    it('returns keys for object values', () => {
+      expect(inspectObjectKeys({ a: 1, b: 2 })).to.deep.equal({
+        keys: ['a', 'b'],
+        readError: undefined,
+      });
+      expect(inspectObjectKeys(null)).to.deep.equal({
+        keys: [],
+        readError: undefined,
+      });
+      expect(inspectObjectKeys('value')).to.deep.equal({
+        keys: [],
+        readError: undefined,
+      });
+    });
+
+    it('captures read errors when key access throws', () => {
+      const { proxy: revokedValue, revoke } = Proxy.revocable({}, {});
+      revoke();
+      const inspection = inspectObjectKeys(revokedValue);
+      expect(inspection.keys).to.deep.equal([]);
+      expect(inspection.readError).to.be.instanceOf(TypeError);
     });
   });
 

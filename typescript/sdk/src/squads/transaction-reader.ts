@@ -62,6 +62,7 @@ import {
   inspectArrayValue,
   inspectBufferValue,
   inspectInstanceOf,
+  inspectObjectEntries,
   inspectPropertyValue,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
@@ -406,12 +407,11 @@ export class SquadsTransactionReader {
       `Expected warp routes to be an object, got ${getUnknownValueTypeName(warpRoutes)}`,
     );
 
-    let warpRouteEntries: Array<[string, unknown]>;
-    try {
-      warpRouteEntries = Object.entries(warpRoutes);
-    } catch (error) {
+    const { entries: warpRouteEntries, readError: warpRouteEntriesReadError } =
+      inspectObjectEntries(warpRoutes);
+    if (warpRouteEntriesReadError) {
       throw new Error(
-        `Failed to read warp routes entries: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read warp routes entries: ${stringifyUnknownSquadsError(warpRouteEntriesReadError)}`,
       );
     }
 

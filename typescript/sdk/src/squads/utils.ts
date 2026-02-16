@@ -28,6 +28,7 @@ import {
 import {
   inspectArrayValue,
   inspectInstanceOf,
+  inspectObjectKeys,
   inspectPropertyValue,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
@@ -531,11 +532,8 @@ function getRecordFieldValue(
 }
 
 function getRecordKeys(record: Record<string, unknown>): string[] {
-  try {
-    return Object.keys(record);
-  } catch {
-    return [];
-  }
+  const { keys, readError } = inspectObjectKeys(record);
+  return readError ? [] : keys;
 }
 
 /**

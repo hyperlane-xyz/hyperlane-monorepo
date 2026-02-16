@@ -15,6 +15,54 @@ export function inspectArrayValue(value: unknown): {
   }
 }
 
+export function inspectObjectEntries(value: unknown): {
+  entries: [string, unknown][];
+  readError: unknown | undefined;
+} {
+  if (!value || typeof value !== 'object') {
+    return {
+      entries: [],
+      readError: undefined,
+    };
+  }
+
+  try {
+    return {
+      entries: Object.entries(value as Record<string, unknown>),
+      readError: undefined,
+    };
+  } catch (error) {
+    return {
+      entries: [],
+      readError: error,
+    };
+  }
+}
+
+export function inspectObjectKeys(value: unknown): {
+  keys: string[];
+  readError: unknown | undefined;
+} {
+  if (!value || typeof value !== 'object') {
+    return {
+      keys: [],
+      readError: undefined,
+    };
+  }
+
+  try {
+    return {
+      keys: Object.keys(value as Record<string, unknown>),
+      readError: undefined,
+    };
+  } catch (error) {
+    return {
+      keys: [],
+      readError: error,
+    };
+  }
+}
+
 export function inspectPropertyValue(
   value: unknown,
   property: PropertyKey,
