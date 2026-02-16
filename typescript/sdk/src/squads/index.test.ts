@@ -2611,6 +2611,55 @@ describe('squads barrel exports', () => {
     expect(invocationZeroSourcePaths).to.deep.equal(nonCapturedSourcePaths);
   });
 
+  it('keeps sdk per-runtime Reflect.apply count relations aligned across capture, identifier, and invocation tables', () => {
+    const captureDeclarationCountByRuntimeSourcePath = new Map<string, number>(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.map(
+        ({
+          runtimeSourcePath,
+          expectedReflectApplyCaptureDeclarationCount,
+        }) => [runtimeSourcePath, expectedReflectApplyCaptureDeclarationCount],
+      ),
+    );
+    const identifierCountByRuntimeSourcePath = new Map<string, number>(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+        ({
+          runtimeSourcePath,
+          expectedReflectApplyIdentifierReferenceCount,
+        }) => [runtimeSourcePath, expectedReflectApplyIdentifierReferenceCount],
+      ),
+    );
+    const invocationCountByRuntimeSourcePath = new Map<string, number>(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.map(
+        ({ runtimeSourcePath, expectedReflectApplyInvocationCount }) => [
+          runtimeSourcePath,
+          expectedReflectApplyInvocationCount,
+        ],
+      ),
+    );
+
+    for (const runtimeSourcePath of listSdkSquadsNonTestSourceFilePaths()
+      .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
+      .sort(compareLexicographically)) {
+      const captureDeclarationCount =
+        captureDeclarationCountByRuntimeSourcePath.get(runtimeSourcePath);
+      const identifierCount =
+        identifierCountByRuntimeSourcePath.get(runtimeSourcePath);
+      const invocationCount =
+        invocationCountByRuntimeSourcePath.get(runtimeSourcePath);
+      expect(captureDeclarationCount).to.not.equal(undefined);
+      expect(identifierCount).to.not.equal(undefined);
+      expect(invocationCount).to.not.equal(undefined);
+
+      expect(captureDeclarationCount).to.equal(identifierCount);
+      if (invocationCount === 0) {
+        expect(captureDeclarationCount).to.equal(0);
+      } else {
+        expect(invocationCount).to.be.greaterThanOrEqual(1);
+        expect(captureDeclarationCount).to.equal(1);
+      }
+    }
+  });
+
   it('keeps sdk Reflect.apply identifier and REFLECT_APPLY totals aligned with runtime sources', () => {
     const identifierReferenceCountTotalFromTable =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.reduce(
