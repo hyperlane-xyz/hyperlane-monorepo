@@ -47,6 +47,33 @@ describe('warp readChainSubmissionStrategy hardening', () => {
     }
   });
 
+  it('does not throw when Object prototype chain getter throws', () => {
+    const strategyPath = createStrategyPath({});
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      CHAIN,
+    );
+    Object.defineProperty(Object.prototype, CHAIN, {
+      configurable: true,
+      enumerable: false,
+      get: () => {
+        throw new Error('boom');
+      },
+    });
+
+    try {
+      const parsed = readChainSubmissionStrategy(strategyPath);
+      expect(Object.prototype.hasOwnProperty.call(parsed, CHAIN)).to.equal(false);
+      expect((parsed as Record<string, unknown>)[CHAIN]).to.equal(undefined);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(Object.prototype, CHAIN, originalDescriptor);
+      } else {
+        delete (Object.prototype as Record<string, unknown>)[CHAIN];
+      }
+    }
+  });
+
   it('ignores inherited submitterOverrides from Object prototype', () => {
     const strategyPath = createStrategyPath({
       [CHAIN]: {
