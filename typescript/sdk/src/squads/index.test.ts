@@ -1947,6 +1947,44 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps sdk Reflect.apply non-capture runtime inventory aligned across discovery and coverage', () => {
+    const discoveredCapturedRuntimeSourcePathSet = new Set(
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        REFLECT_APPLY_CAPTURE_DECLARATION_PATTERN,
+      ),
+    );
+    const expectedNonCapturedRuntimeSourcePaths = [
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+    ];
+    const discoveredNonCapturedRuntimeSourcePaths =
+      listSdkSquadsNonTestSourceFilePaths()
+        .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
+        .filter(
+          (sourcePath) =>
+            !discoveredCapturedRuntimeSourcePathSet.has(sourcePath),
+        )
+        .sort(compareLexicographically);
+    expect(discoveredNonCapturedRuntimeSourcePaths).to.deep.equal(
+      expectedNonCapturedRuntimeSourcePaths,
+    );
+
+    const capturedRuntimeSourcePathSet = new Set(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+    );
+    const coverageNonCapturedRuntimeSourcePaths =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      )
+        .filter(
+          (runtimeSourcePath) =>
+            !capturedRuntimeSourcePathSet.has(runtimeSourcePath),
+        )
+        .sort(compareLexicographically);
+    expect(coverageNonCapturedRuntimeSourcePaths).to.deep.equal(
+      expectedNonCapturedRuntimeSourcePaths,
+    );
+  });
+
   it('keeps Reflect.apply mutation coverage constants deeply frozen', () => {
     expect(
       Object.isFrozen(
