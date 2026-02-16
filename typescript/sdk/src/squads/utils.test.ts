@@ -9348,6 +9348,43 @@ describe('squads utils', () => {
       expect(isVaultTransaction(Buffer.from([1, 2, 3]))).to.equal(false);
       expect(isConfigTransaction(Buffer.from([1, 2, 3]))).to.equal(false);
     });
+
+    it('keeps discriminator matching stable when Uint8Array.prototype.subarray is mutated', () => {
+      const originalSubarray = Uint8Array.prototype.subarray;
+      const throwingSubarray: typeof Uint8Array.prototype.subarray =
+        function subarray() {
+          throw new Error('subarray unavailable');
+        };
+      const vaultData = new Uint8Array([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT],
+        9,
+      ]);
+      const configData = new Uint8Array([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        9,
+      ]);
+
+      let vaultMatches: boolean | undefined;
+      let configMatches: boolean | undefined;
+      try {
+        Object.defineProperty(Uint8Array.prototype, 'subarray', {
+          configurable: true,
+          writable: true,
+          value: throwingSubarray,
+        });
+        vaultMatches = isVaultTransaction(vaultData);
+        configMatches = isConfigTransaction(configData);
+      } finally {
+        Object.defineProperty(Uint8Array.prototype, 'subarray', {
+          configurable: true,
+          writable: true,
+          value: originalSubarray,
+        });
+      }
+
+      expect(vaultMatches).to.equal(true);
+      expect(configMatches).to.equal(true);
+    });
   });
 
   describe('squads enum and constant tables', () => {

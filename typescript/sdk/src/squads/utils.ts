@@ -189,6 +189,11 @@ const ARRAY_SOME = Array.prototype.some;
 const STRING_INCLUDES = String.prototype.includes;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
+const UINT8_ARRAY_SUBARRAY = Uint8Array.prototype.subarray as (
+  this: Uint8Array,
+  begin?: number,
+  end?: number,
+) => Uint8Array;
 const STRING_SPLIT = String.prototype.split as (
   this: string,
   separator: string | RegExp,
@@ -307,6 +312,14 @@ function stringTrim(value: string): string {
 
 function stringToLowerCase(value: string): string {
   return STRING_TO_LOWER_CASE.call(value);
+}
+
+function uint8ArraySubarray(
+  value: Uint8Array,
+  begin?: number,
+  end?: number,
+): Uint8Array {
+  return UINT8_ARRAY_SUBARRAY.call(value, begin, end);
 }
 
 function getUnknownValueTypeName(value: unknown): string {
@@ -2717,7 +2730,8 @@ function hasMatchingDiscriminator(
   accountData: Uint8Array,
   expectedDiscriminator: Uint8Array,
 ): boolean {
-  const discriminator = accountData.subarray(
+  const discriminator = uint8ArraySubarray(
+    accountData,
     0,
     SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
   );
@@ -2848,7 +2862,8 @@ export async function getTransactionType(
   } else if (isConfigTransaction(accountData)) {
     return SquadsAccountType.CONFIG;
   } else {
-    const discriminator = accountData.subarray(
+    const discriminator = uint8ArraySubarray(
+      accountData,
       0,
       SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
     );
