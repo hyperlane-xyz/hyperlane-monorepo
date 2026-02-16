@@ -2068,7 +2068,12 @@ function readStaticNullishCondition(
   }
   if (isStaticallyTruthyNonPrimitiveExpression(unwrapped)) return false;
   const primitiveValue = readStaticPrimitiveValue(unwrapped);
-  if (primitiveValue === STATIC_PRIMITIVE_UNKNOWN) return undefined;
+  if (primitiveValue === STATIC_PRIMITIVE_UNKNOWN) {
+    if (isStaticallyBooleanValuedExpression(unwrapped)) {
+      return false;
+    }
+    return undefined;
+  }
   return primitiveValue === null || primitiveValue === undefined;
 }
 
@@ -7546,12 +7551,57 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
-  it('keeps strict-comparison nullish-coalesced mixed prototype-overrides conservative for module specifiers', () => {
+  it('treats strict-comparison nullish-coalesced mixed prototype-overrides as deterministic for module specifiers', () => {
     const source = [
       'let reqAlias: any = require;',
       'const marker = Math.random();',
       "const baseline = require('./fixtures/guard-module.js');",
       "if ((('toString' in { __proto__: ((marker ? !left : !right) ?? (marker === 2 ? up : down)) }) === true)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-comparison nullish-coalesced boolean-comparison prototype-overrides as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if ((('toString' in { __proto__: ((marker === 1) ?? { safe: 1 }) }) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-comparison nullish-coalesced marker prototype-overrides conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = globalThis as any;',
+      "const baseline = require('./fixtures/guard-module.js');",
+      "if ((('toString' in { __proto__: (marker ?? { safe: 1 }) }) === true)) reqAlias = () => undefined;",
       "reqAlias('./fixtures/other-module.js');",
       'void baseline;',
     ].join('\n');
@@ -9593,7 +9643,7 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
-  it('keeps strict-equality typeof nullish-coalesced mixed conditional operands conservative for module specifiers', () => {
+  it('treats strict-equality typeof nullish-coalesced mixed conditional operands as deterministic for module specifiers', () => {
     const source = [
       'let reqAlias: any = require;',
       'const marker = Math.random();',
@@ -9609,7 +9659,7 @@ describe('Gnosis Safe migration guards', () => {
     expect(moduleReferences).to.include(
       './fixtures/guard-module.js@fixture.ts',
     );
-    expect(moduleReferences).to.include(
+    expect(moduleReferences).to.not.include(
       './fixtures/other-module.js@fixture.ts',
     );
   });
@@ -19310,12 +19360,47 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
-  it('keeps strict-comparison nullish-coalesced mixed prototype-overrides conservative for symbol sources', () => {
+  it('treats strict-comparison nullish-coalesced mixed prototype-overrides as deterministic for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
       'const marker = Math.random();',
       "const baseline = require('./fixtures/guard-module.js').default;",
       "if ((('toString' in { __proto__: ((marker ? !left : !right) ?? (marker === 2 ? up : down)) }) === true)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats strict-comparison nullish-coalesced boolean-comparison prototype-overrides as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if ((('toString' in { __proto__: ((marker === 1) ?? { safe: 1 }) }) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-comparison nullish-coalesced marker prototype-overrides conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = globalThis as any;',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      "if ((('toString' in { __proto__: (marker ?? { safe: 1 }) }) === true)) reqAlias = () => undefined;",
       "reqAlias('./fixtures/other-module.js').default;",
       'void baseline;',
     ].join('\n');
@@ -20912,7 +20997,7 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
-  it('keeps strict-equality typeof nullish-coalesced mixed conditional operands conservative for symbol sources', () => {
+  it('treats strict-equality typeof nullish-coalesced mixed conditional operands as deterministic for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
       'const marker = Math.random();',
@@ -20925,7 +21010,7 @@ describe('Gnosis Safe migration guards', () => {
       (reference) => `${reference.symbol}@${reference.source}`,
     );
     expect(references).to.include('default@./fixtures/guard-module.js');
-    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
   it('treats nullish-coalesced logical-and typeof false-left predicates as deterministic for symbol sources', () => {
@@ -24832,11 +24917,42 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/guard-module.js');
   });
 
-  it('keeps strict-comparison nullish-coalesced mixed prototype-overrides conservative for module-source aliases in symbol sources', () => {
+  it('treats strict-comparison nullish-coalesced mixed prototype-overrides as deterministic for module-source aliases in symbol sources', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'const marker = Math.random();',
       "if ((('toString' in { __proto__: ((marker ? !left : !right) ?? (marker === 2 ? up : down)) }) === true)) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.have.length(0);
+  });
+
+  it('treats strict-comparison nullish-coalesced boolean-comparison prototype-overrides as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if ((('toString' in { __proto__: ((marker === 1) ?? { safe: 1 }) }) === true)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-comparison nullish-coalesced marker prototype-overrides conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = globalThis as any;',
+      "if ((('toString' in { __proto__: (marker ?? { safe: 1 }) }) === true)) moduleAlias = { default: 'not-a-module' };",
       'const postIfDefault = moduleAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
@@ -26312,7 +26428,7 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/guard-module.js');
   });
 
-  it('keeps strict-equality typeof nullish-coalesced mixed conditional operands conservative for module-source aliases in symbol sources', () => {
+  it('treats strict-equality typeof nullish-coalesced mixed conditional operands as deterministic for module-source aliases in symbol sources', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'const marker = Math.random();',
@@ -26322,7 +26438,7 @@ describe('Gnosis Safe migration guards', () => {
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
     );
-    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.have.length(0);
   });
 
   it('treats nullish-coalesced logical-and typeof false-left predicates as deterministic for module-source aliases in symbol sources', () => {
