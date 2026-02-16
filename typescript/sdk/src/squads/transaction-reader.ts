@@ -314,20 +314,52 @@ function formatValidatorsWithAliases(
   if (!config) return [...validators];
 
   const aliasMap = new Map<string, string>();
-  const validatorsValue = readPropertyOrThrow(config, 'validators');
+  let validatorsValue: unknown;
+  try {
+    validatorsValue = readPropertyOrThrow(config, 'validators');
+  } catch (error) {
+    rootLogger.warn(
+      `Failed to read default multisig validators for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+    );
+    return [...validators];
+  }
   const { isArray: validatorsAreArray, readFailed: validatorsReadFailed } =
     inspectArrayValue(validatorsValue);
   if (validatorsReadFailed || !validatorsAreArray) {
+    rootLogger.warn(
+      `Malformed default multisig validators for ${chain}: expected array, got ${getUnknownValueTypeName(validatorsValue)}`,
+    );
     return [...validators];
   }
 
-  for (const validator of validatorsValue as readonly unknown[]) {
+  for (const [index, validator] of (
+    validatorsValue as readonly unknown[]
+  ).entries()) {
     if (!isRecordObject(validator)) {
+      rootLogger.warn(
+        `Skipping malformed default multisig validator at index ${index} for ${chain}: expected object, got ${getUnknownValueTypeName(
+          validator,
+        )}`,
+      );
       continue;
     }
-    const addressValue = readPropertyOrThrow(validator, 'address');
-    const aliasValue = readPropertyOrThrow(validator, 'alias');
+    let addressValue: unknown;
+    let aliasValue: unknown;
+    try {
+      addressValue = readPropertyOrThrow(validator, 'address');
+      aliasValue = readPropertyOrThrow(validator, 'alias');
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to read default multisig validator fields at index ${index} for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+      continue;
+    }
     if (typeof addressValue !== 'string' || typeof aliasValue !== 'string') {
+      rootLogger.warn(
+        `Skipping malformed default multisig validator fields at index ${index} for ${chain}: expected string address/alias, got ${getUnknownValueTypeName(
+          addressValue,
+        )}/${getUnknownValueTypeName(aliasValue)}`,
+      );
       continue;
     }
     aliasMap.set(addressValue.toLowerCase(), aliasValue);

@@ -5,6 +5,7 @@ import { accounts } from '@sqds/multisig';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { defaultMultisigConfigs } from '../consts/multisigIsm.js';
 import {
   formatUnknownInstructionWarning,
   formatUnknownProgramWarning,
@@ -6683,6 +6684,68 @@ describe('squads transaction reader', () => {
     expect(result.insight).to.equal(
       '❌ fatal mismatch: Malformed validator set for route solanamainnet -> solanatestnet: failed to read validators (Error: validators unavailable)',
     );
+  });
+
+  it('keeps formatting validator instructions when default alias validators accessor throws', () => {
+    const mpp = {
+      tryGetChainName: () => 'solanatestnet',
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const multisigConfigs = defaultMultisigConfigs as unknown as Record<
+      string,
+      unknown
+    >;
+    const originalSolanatestnetConfig = multisigConfigs.solanatestnet;
+    multisigConfigs.solanatestnet = new Proxy(
+      {
+        threshold: 1,
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'validators') {
+            throw new Error('validators unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    try {
+      const result = readerAny.formatInstruction('solanamainnet', {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'MultisigIsmMessageId',
+        instructionType:
+          SealevelMultisigIsmInstructionName[
+            SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+          ],
+        data: {
+          domain: 1000,
+          threshold: 1,
+          validators: ['validator-a'],
+        },
+        accounts: [],
+        warnings: [],
+      });
+
+      expect(result.args).to.deep.equal({
+        domain: 1000,
+        threshold: 1,
+        validators: ['validator-a'],
+      });
+    } finally {
+      multisigConfigs.solanatestnet = originalSolanatestnetConfig;
+    }
   });
 
   it('handles throwing multisig validator payload getters while formatting instructions', () => {
