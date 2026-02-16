@@ -45564,7 +45564,7 @@ describe('Gnosis Safe migration guards', () => {
     );
     const infraSourceText = fs.readFileSync(infraSuitePath, 'utf8');
     const titlePattern =
-      /it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*-conditional-[^']*-(?:fallback-length|mixed-fallback) predicates[^']*)'/g;
+      /it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates[^']*)'/g;
 
     const ownTitles = [...ownSourceText.matchAll(titlePattern)].map(
       (match) => match[1],
