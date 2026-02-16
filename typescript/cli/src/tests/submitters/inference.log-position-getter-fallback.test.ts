@@ -84,6 +84,11 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
                   ...(log.__parsedArgs ?? {}),
                 };
               }
+              if (log?.__returnInheritedArgsWrapper) {
+                return Object.create({
+                  args: log.__parsedArgs,
+                });
+              }
               if (log?.__parsedArgs) {
                 return {
                   args: log.__parsedArgs,
@@ -1366,6 +1371,41 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
     ).to.equal(ORIGIN_ROUTER.toLowerCase());
   });
 
+  it('ignores inherited ICA args wrappers and uses next valid ICA event', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 644,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const malformedArgs = {
+      origin: 31347,
+      router: malformedOriginRouterBytes32,
+      owner: signerBytes32,
+      ism: ethersConstants.AddressZero,
+    };
+    const malformedWrapperLog = {
+      __returnInheritedArgsWrapper: true,
+      __parsedArgs: malformedArgs,
+      topics: ['0xmalformed-inherited-args-wrapper'],
+      data: '0x',
+      blockNumber: 645,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+
+    const inferredSubmitter = await resolveFromLogs([
+      malformedWrapperLog,
+      validLog,
+    ]);
+
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
+
   it('accepts direct ICA parsed fields when parseLog args is null', async () => {
     const inferredSubmitter = await resolveFromLogs([
       {
@@ -1690,6 +1730,11 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
                 ...(log.__parsedArgs ?? {}),
               };
             }
+            if (log?.__returnInheritedArgsWrapper) {
+              return Object.create({
+                args: log.__parsedArgs,
+              });
+            }
             if (log?.__parsedArgs) {
               return {
                 args: log.__parsedArgs,
@@ -1967,6 +2012,20 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
       topics: ['0xgrant-direct-inherited-account'],
       data: '0x',
       blockNumber: '1598',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('ignores inherited timelock args wrappers during role ordering', async () => {
+    await resolveFromRoleLogs({
+      __returnInheritedArgsWrapper: true,
+      __parsedArgs: {
+        account: SIGNER,
+      },
+      topics: ['0xgrant-direct-inherited-args-wrapper-account'],
+      data: '0x',
+      blockNumber: '1597',
       transactionIndex: '0',
       logIndex: '0',
     });

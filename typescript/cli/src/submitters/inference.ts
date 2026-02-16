@@ -284,20 +284,12 @@ function getParsedLogArgs(parsedLog: unknown): unknown | null {
     return null;
   }
 
-  try {
-    const args = (parsedLog as { args?: unknown }).args;
-    const candidateArgs =
-      args === undefined || args === null ? parsedLog : args;
-    return candidateArgs &&
-      (typeof candidateArgs === 'object' || typeof candidateArgs === 'function')
-      ? candidateArgs
-      : null;
-  } catch {
-    return parsedLog &&
-      (typeof parsedLog === 'object' || typeof parsedLog === 'function')
-      ? parsedLog
-      : null;
-  }
+  const args = getOwnObjectField(parsedLog, 'args');
+  const candidateArgs = args === undefined || args === null ? parsedLog : args;
+  return candidateArgs &&
+    (typeof candidateArgs === 'object' || typeof candidateArgs === 'function')
+    ? candidateArgs
+    : null;
 }
 
 function getParsedLogArg(
