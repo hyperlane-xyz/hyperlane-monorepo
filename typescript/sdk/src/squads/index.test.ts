@@ -2719,6 +2719,171 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps sdk squads pattern-path discovery stable when regex source and flags properties are shadowed', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const shadowedMutationPattern = /Reflect\.apply is mutated/gi;
+    const shadowedCapturePattern = /const REFLECT_APPLY = Reflect\.apply/gi;
+    const originalMutationSourceDescriptor = Object.getOwnPropertyDescriptor(
+      shadowedMutationPattern,
+      'source',
+    );
+    const originalMutationFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      shadowedMutationPattern,
+      'flags',
+    );
+    const originalCaptureSourceDescriptor = Object.getOwnPropertyDescriptor(
+      shadowedCapturePattern,
+      'source',
+    );
+    const originalCaptureFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      shadowedCapturePattern,
+      'flags',
+    );
+
+    Object.defineProperty(shadowedMutationPattern, 'source', {
+      configurable: true,
+      value: '^$',
+    });
+    Object.defineProperty(shadowedMutationPattern, 'flags', {
+      configurable: true,
+      value: '',
+    });
+    Object.defineProperty(shadowedCapturePattern, 'source', {
+      configurable: true,
+      value: '^$',
+    });
+    Object.defineProperty(shadowedCapturePattern, 'flags', {
+      configurable: true,
+      value: '',
+    });
+
+    try {
+      expect(
+        listSdkSquadsTestFilePathsContainingPattern(shadowedMutationPattern),
+      ).to.deep.equal(baselineMutationDiscovery);
+      expect(
+        listSdkSquadsNonTestSourceFilePathsContainingPattern(
+          shadowedCapturePattern,
+        ),
+      ).to.deep.equal(baselineCaptureDiscovery);
+    } finally {
+      if (originalMutationSourceDescriptor) {
+        Object.defineProperty(
+          shadowedMutationPattern,
+          'source',
+          originalMutationSourceDescriptor,
+        );
+      } else {
+        delete (shadowedMutationPattern as unknown as { source?: unknown })
+          .source;
+      }
+      if (originalMutationFlagsDescriptor) {
+        Object.defineProperty(
+          shadowedMutationPattern,
+          'flags',
+          originalMutationFlagsDescriptor,
+        );
+      } else {
+        delete (shadowedMutationPattern as unknown as { flags?: unknown })
+          .flags;
+      }
+      if (originalCaptureSourceDescriptor) {
+        Object.defineProperty(
+          shadowedCapturePattern,
+          'source',
+          originalCaptureSourceDescriptor,
+        );
+      } else {
+        delete (shadowedCapturePattern as unknown as { source?: unknown })
+          .source;
+      }
+      if (originalCaptureFlagsDescriptor) {
+        Object.defineProperty(
+          shadowedCapturePattern,
+          'flags',
+          originalCaptureFlagsDescriptor,
+        );
+      } else {
+        delete (shadowedCapturePattern as unknown as { flags?: unknown }).flags;
+      }
+    }
+  });
+
+  it('keeps sdk squads pattern-path discovery stable when regex getter call slots are overridden', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const originalSourceGetterCallDescriptor = Object.getOwnPropertyDescriptor(
+      REGEXP_PROTOTYPE_SOURCE_GET,
+      'call',
+    );
+    const originalFlagsGetterCallDescriptor = Object.getOwnPropertyDescriptor(
+      REGEXP_PROTOTYPE_FLAGS_GET,
+      'call',
+    );
+
+    Object.defineProperty(REGEXP_PROTOTYPE_SOURCE_GET, 'call', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected squads pattern discovery to avoid source getter call-slot dispatch',
+        );
+      },
+    });
+    Object.defineProperty(REGEXP_PROTOTYPE_FLAGS_GET, 'call', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected squads pattern discovery to avoid flags getter call-slot dispatch',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listSdkSquadsTestFilePathsContainingPattern(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(baselineMutationDiscovery);
+      expect(
+        listSdkSquadsNonTestSourceFilePathsContainingPattern(
+          /const REFLECT_APPLY = Reflect\.apply/,
+        ),
+      ).to.deep.equal(baselineCaptureDiscovery);
+    } finally {
+      if (originalSourceGetterCallDescriptor) {
+        Object.defineProperty(
+          REGEXP_PROTOTYPE_SOURCE_GET,
+          'call',
+          originalSourceGetterCallDescriptor,
+        );
+      } else {
+        delete (REGEXP_PROTOTYPE_SOURCE_GET as unknown as { call?: unknown })
+          .call;
+      }
+      if (originalFlagsGetterCallDescriptor) {
+        Object.defineProperty(
+          REGEXP_PROTOTYPE_FLAGS_GET,
+          'call',
+          originalFlagsGetterCallDescriptor,
+        );
+      } else {
+        delete (REGEXP_PROTOTYPE_FLAGS_GET as unknown as { call?: unknown })
+          .call;
+      }
+    }
+  });
+
   it('keeps sdk Reflect.apply mutation tests using explicit Reflect.apply monkey-patch setup', () => {
     for (const relativeTestPath of EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS) {
       const absoluteTestPath = path.join(SDK_PACKAGE_ROOT, relativeTestPath);
