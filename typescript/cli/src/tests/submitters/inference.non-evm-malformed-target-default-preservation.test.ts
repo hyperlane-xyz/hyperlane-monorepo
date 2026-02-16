@@ -88,6 +88,68 @@ describe('resolveSubmitterBatchesForTransactions non-EVM malformed target defaul
     );
   });
 
+  it('preserves explicit default submitter when non-EVM transaction target is overlong string', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-cosmos-overlong-target-preserve-default-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: GNOSIS_DEFAULT_SUBMITTER,
+        submitterOverrides: {
+          [NON_EVM_OVERRIDE_TARGET]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: `cosmos1${'x'.repeat(5000)}` } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.CosmosNative,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
+  it('preserves explicit default submitter when non-EVM transaction target contains null byte', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-cosmos-null-byte-target-preserve-default-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: GNOSIS_DEFAULT_SUBMITTER,
+        submitterOverrides: {
+          [NON_EVM_OVERRIDE_TARGET]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: `${NON_EVM_OVERRIDE_TARGET}\0` } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.CosmosNative,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('preserves explicit default submitter when non-EVM transaction target getter throws', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-cosmos-throwing-target-getter-preserve-default-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {
@@ -182,5 +244,42 @@ describe('resolveSubmitterBatchesForTransactions non-EVM malformed target defaul
 
     expect(batches).to.have.length(1);
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('routes valid non-EVM targets while preserving default for overlong targets', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-cosmos-mixed-valid-overlong-target-default-preservation-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: GNOSIS_DEFAULT_SUBMITTER,
+        submitterOverrides: {
+          [NON_EVM_OVERRIDE_TARGET]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [
+        { ...TX, to: NON_EVM_OVERRIDE_TARGET } as any,
+        { ...TX, to: `cosmos1${'x'.repeat(5000)}` } as any,
+      ],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.CosmosNative,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(2);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(batches[0].transactions).to.have.length(1);
+    expect(batches[1].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+    expect(batches[1].transactions).to.have.length(1);
   });
 });

@@ -1625,6 +1625,11 @@ function resolveExplicitSubmitterForTransaction({
       }
     }
   } else {
+    if (!isUsableOverrideKey(to)) {
+      return ExtendedSubmissionStrategySchema.parse({
+        submitter: explicitSubmissionStrategy.submitter,
+      });
+    }
     const normalizedTarget = to.trim();
     const targetMatch =
       explicitOverrideIndexes.nonEvmTargetOverrides.get(normalizedTarget);
