@@ -149,15 +149,20 @@ describe('squads error-format', () => {
       expect(normalizedDetailedLabel).to.equal('Error: rpc failed');
     });
 
-    it('keeps normalization stable when String trim/lowercase prototypes are mutated', () => {
+    it('keeps normalization stable when String trim/lowercase/replace prototypes are mutated', () => {
       const originalStringTrim = String.prototype.trim;
       const originalStringToLowerCase = String.prototype.toLowerCase;
+      const originalStringReplace = String.prototype.replace;
       const throwingTrim: typeof String.prototype.trim = function trim() {
         throw new Error('string trim unavailable');
       };
       const throwingToLowerCase: typeof String.prototype.toLowerCase =
         function toLowerCase() {
           throw new Error('string toLowerCase unavailable');
+        };
+      const throwingReplace: typeof String.prototype.replace =
+        function replace() {
+          throw new Error('string replace unavailable');
         };
       let normalizedBuiltinLabel: string | undefined;
       let normalizedDetailedLabel: string | undefined;
@@ -173,6 +178,11 @@ describe('squads error-format', () => {
           writable: true,
           configurable: true,
         });
+        Object.defineProperty(String.prototype, 'replace', {
+          value: throwingReplace,
+          writable: true,
+          configurable: true,
+        });
         normalizedBuiltinLabel = normalizeStringifiedSquadsError(' Error ');
         normalizedDetailedLabel = normalizeStringifiedSquadsError(
           ' Error: rpc failed ',
@@ -185,6 +195,11 @@ describe('squads error-format', () => {
         });
         Object.defineProperty(String.prototype, 'toLowerCase', {
           value: originalStringToLowerCase,
+          writable: true,
+          configurable: true,
+        });
+        Object.defineProperty(String.prototype, 'replace', {
+          value: originalStringReplace,
           writable: true,
           configurable: true,
         });

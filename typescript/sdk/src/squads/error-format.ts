@@ -4,6 +4,11 @@ const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
 const TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN = /\s*:\s*$/;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
+const STRING_REPLACE = String.prototype.replace as (
+  this: string,
+  searchValue: string | RegExp,
+  replaceValue: string,
+) => string;
 export const BUILTIN_SQUADS_ERROR_LABELS = Object.freeze([
   'Error',
   'TypeError',
@@ -15,9 +20,10 @@ export const BUILTIN_SQUADS_ERROR_LABELS = Object.freeze([
   'AggregateError',
 ] as const);
 
-const GENERIC_ERROR_LABELS = new Set(
-  BUILTIN_SQUADS_ERROR_LABELS.map((label) => stringToLowerCase(label)),
-);
+const GENERIC_ERROR_LABELS = new Set<string>();
+for (const label of BUILTIN_SQUADS_ERROR_LABELS) {
+  GENERIC_ERROR_LABELS.add(stringToLowerCase(label));
+}
 const SET_HAS = Set.prototype.has;
 const ERROR_LABEL_WITH_MESSAGE_PATTERN = /^([A-Za-z]*Error)\s*:\s*(.+)$/;
 
@@ -33,9 +39,21 @@ function stringToLowerCase(value: string): string {
   return STRING_TO_LOWER_CASE.call(value);
 }
 
+function stringReplaceValue(
+  value: string,
+  searchValue: string | RegExp,
+  replaceValue: string,
+): string {
+  return STRING_REPLACE.call(value, searchValue, replaceValue);
+}
+
 function normalizeErrorLabel(value: string): string {
   return stringToLowerCase(
-    stringTrim(value).replace(TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN, ''),
+    stringReplaceValue(
+      stringTrim(value),
+      TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN,
+      '',
+    ),
   );
 }
 
@@ -44,7 +62,8 @@ export function isGenericObjectStringifiedValue(value: unknown): boolean {
     return false;
   }
 
-  const normalizedValue = stringTrim(value).replace(
+  const normalizedValue = stringReplaceValue(
+    stringTrim(value),
     TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN,
     '',
   );
