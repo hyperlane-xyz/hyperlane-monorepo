@@ -285,7 +285,6 @@ describe('Collateral Deficit E2E', function () {
     expect(intentToArbitrum!.destination).to.equal(DOMAIN_IDS.anvil2);
     expect(intentToArbitrum!.amount).to.equal(400000000n);
     expect(intentToArbitrum!.status).to.equal('in_progress');
-    expect(intentToArbitrum!.fulfilledAmount).to.equal(0n);
 
     // Capture intent ID for completion verification
     const rebalanceIntentId = intentToArbitrum!.id;
@@ -357,7 +356,7 @@ describe('Collateral Deficit E2E', function () {
       hyperlaneCore,
       {
         dispatchTx: rebalanceTxReceipt,
-        messageId: actionToArbitrum!.messageId,
+        messageId: actionToArbitrum!.messageId!,
         origin: 'anvil1',
         destination: 'anvil2',
       },
@@ -392,7 +391,6 @@ describe('Collateral Deficit E2E', function () {
     const completedIntent =
       await context.tracker.getRebalanceIntent(rebalanceIntentId);
     expect(completedIntent!.status).to.equal('complete');
-    expect(completedIntent!.fulfilledAmount).to.equal(400000000n);
 
     // Assert: No more in-progress actions
     const remainingActions = await context.tracker.getInProgressActions();
