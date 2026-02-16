@@ -2,6 +2,7 @@ import { inspectInstanceOf, inspectPropertyValue } from './inspection.js';
 
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
 const TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN = /\s*:\s*$/;
+const OBJECT_FREEZE = Object.freeze as <Value>(value: Value) => Readonly<Value>;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 const STRING_REPLACE = String.prototype.replace as (
@@ -9,7 +10,12 @@ const STRING_REPLACE = String.prototype.replace as (
   searchValue: string | RegExp,
   replaceValue: string,
 ) => string;
-export const BUILTIN_SQUADS_ERROR_LABELS = Object.freeze([
+
+function objectFreezeValue<Value>(value: Value): Readonly<Value> {
+  return OBJECT_FREEZE(value);
+}
+
+export const BUILTIN_SQUADS_ERROR_LABELS = objectFreezeValue([
   'Error',
   'TypeError',
   'RangeError',
