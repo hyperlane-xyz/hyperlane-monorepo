@@ -248,6 +248,10 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\bReflect\.deleteProperty\s*\(/,
   }),
   Object.freeze({
+    label: 'Reflect.apply call',
+    pattern: /\bReflect\.apply\s*\(/,
+  }),
+  Object.freeze({
     label: 'Array.from call',
     pattern: /\bArray\.from\s*\(/,
   }),
@@ -618,6 +622,7 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   'Reflect.set call',
   'Reflect.has call',
   'Reflect.deleteProperty call',
+  'Reflect.apply call',
   'Array.from call',
   'Array.isArray call',
   'Buffer.isBuffer call',
@@ -682,8 +687,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.toSpliced method call',
   '.with method call',
 ]);
-const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 108;
-const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 84;
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 109;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 85;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
