@@ -20,6 +20,12 @@ export type CleanRuntimeProbeLabels = {
   primitiveLabels: string[];
 };
 
+type ReadonlyCleanRuntimeProbeLabels = {
+  readonly functionLabels: readonly string[];
+  readonly objectLabels: readonly string[];
+  readonly primitiveLabels: readonly string[];
+};
+
 const INFERENCE_TEST_FILE_PREFIX = 'inference.';
 const INFERENCE_TEST_FILE_SUFFIX = '.test.ts';
 const OBJECT_LIKE_PROBE_LABEL_REGEX = /[a-z0-9_-]+-(?:constructor-)?object/g;
@@ -40,7 +46,7 @@ export function isSupportedRuntimePrimitiveValueType(
   ).includes(valueType);
 }
 
-const cleanRuntimeProbeLabels: CleanRuntimeProbeLabels = JSON.parse(
+const parsedCleanRuntimeProbeLabels = JSON.parse(
   execFileSync(
     process.execPath,
     [
@@ -76,8 +82,22 @@ const cleanRuntimeProbeLabels: CleanRuntimeProbeLabels = JSON.parse(
   ),
 ) as CleanRuntimeProbeLabels;
 
+const cleanRuntimeProbeLabels: ReadonlyCleanRuntimeProbeLabels = Object.freeze({
+  functionLabels: Object.freeze([
+    ...parsedCleanRuntimeProbeLabels.functionLabels,
+  ]),
+  objectLabels: Object.freeze([...parsedCleanRuntimeProbeLabels.objectLabels]),
+  primitiveLabels: Object.freeze([
+    ...parsedCleanRuntimeProbeLabels.primitiveLabels,
+  ]),
+});
+
 export function getCleanRuntimeProbeLabels(): CleanRuntimeProbeLabels {
-  return cleanRuntimeProbeLabels;
+  return {
+    functionLabels: [...cleanRuntimeProbeLabels.functionLabels],
+    objectLabels: [...cleanRuntimeProbeLabels.objectLabels],
+    primitiveLabels: [...cleanRuntimeProbeLabels.primitiveLabels],
+  };
 }
 
 export function getKnownObjectLikeProbeLabelsFromOtherTests(

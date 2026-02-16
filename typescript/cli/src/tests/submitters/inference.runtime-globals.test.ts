@@ -5,6 +5,7 @@ import { expect } from 'chai';
 
 import {
   SUPPORTED_RUNTIME_PRIMITIVE_VALUE_TYPES,
+  getCleanRuntimeProbeLabels,
   getFallbackPrimitiveProbeValueFromLabel,
   getKnownObjectLikeProbeLabelsFromOtherTests,
   getProbeLabelFromInferenceTestTitle,
@@ -17,6 +18,24 @@ import {
 const HELPER_ONLY_OBJECT_LIKE_LABEL = '__runtime_helper_only-object';
 
 describe('runtime global probe helpers', () => {
+  it('returns defensive copies for clean runtime label snapshots', () => {
+    const first = getCleanRuntimeProbeLabels();
+    first.functionLabels.push('__mutated_function_label__');
+    first.objectLabels.push('__mutated_object_label__');
+    first.primitiveLabels.push('__mutated_primitive_label__');
+
+    const second = getCleanRuntimeProbeLabels();
+    expect(
+      second.functionLabels.includes('__mutated_function_label__'),
+    ).to.equal(false);
+    expect(second.objectLabels.includes('__mutated_object_label__')).to.equal(
+      false,
+    );
+    expect(
+      second.primitiveLabels.includes('__mutated_primitive_label__'),
+    ).to.equal(false);
+  });
+
   it('returns object-like labels from neighboring inference test files', () => {
     const labels = getKnownObjectLikeProbeLabelsFromOtherTests(
       fileURLToPath(import.meta.url),
