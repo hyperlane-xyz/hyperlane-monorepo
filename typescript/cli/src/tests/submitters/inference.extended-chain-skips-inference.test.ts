@@ -134,4 +134,17 @@ describe('resolveSubmitterBatchesForTransactions extended-chain inference bypass
       { ...TX, data: '0xdeadbeef' } as any,
     ]);
   });
+
+  it('does not require multiProvider context on extended chains', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      isExtendedChain: true,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(batches[0].transactions).to.deep.equal([TX as any]);
+  });
 });
