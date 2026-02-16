@@ -591,6 +591,23 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when unsupported-chain index access throws opaque values', () => {
+    const hostileUnsupportedChains = new Proxy(['ethereum'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw {};
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
+    ).to.throw(
+      'Failed to read unsupported squads chains[0]: [unstringifiable error]',
+    );
+  });
+
   it('uses deterministic placeholder when squads-chain index access throws generic-object Error messages', () => {
     const hostileResolveChains = new Proxy(['solanamainnet'], {
       get(target, property, receiver) {
