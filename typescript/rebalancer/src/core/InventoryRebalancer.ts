@@ -1,16 +1,14 @@
-import { BigNumber } from 'ethers';
 import type { Logger } from 'pino';
 
 import {
   type AnnotatedEV5Transaction,
   type ChainName,
+  type EthJsonRpcBlockParameterTag,
   HyperlaneCore,
   type MultiProvider,
   TOKEN_COLLATERALIZED_STANDARDS,
-  TokenStandard,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { addBufferToGasLimit, sleep } from '@hyperlane-xyz/utils';
 
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
@@ -24,24 +22,14 @@ import type {
   PartialInventoryIntent,
   RebalanceIntent,
 } from '../tracking/types.js';
-
-/**
- * Standard address representation for native ETH in DeFi protocols (including LiFi).
- * This is the common convention used by bridges and DEXes to represent native gas tokens.
- */
-const NATIVE_TOKEN_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
-
-/**
- * Fallback gas limit for transferRemote when eth_estimateGas fails.
- * Conservative estimate for cross-chain token transfers.
- */
-const FALLBACK_TRANSFER_REMOTE_GAS_LIMIT = 300_000n;
-
-/**
- * Cost multiplier for minimum viable transfer.
- * A transfer must be worth at least this multiple of its cost to be worthwhile.
- */
-const MIN_VIABLE_COST_MULTIPLIER = 2n;
+import {
+  MIN_VIABLE_COST_MULTIPLIER,
+  calculateTransferCosts,
+} from '../utils/gasEstimation.js';
+import {
+  NATIVE_TOKEN_ADDRESS,
+  isNativeTokenStandard,
+} from '../utils/tokenUtils.js';
 
 /**
  * Buffer percentage to add when bridging inventory.
@@ -61,27 +49,6 @@ const GAS_COST_MULTIPLIER = 100n;
  * If gas exceeds this threshold, the bridge is not economically worthwhile.
  */
 const MAX_GAS_PERCENT_THRESHOLD = 10n;
-
-/**
- * Transfer cost estimate for native token transfers.
- * Contains all cost components needed for transfer decisions.
- */
-interface TransferCostEstimate {
-  /** IGP cost for the Hyperlane message */
-  igpCost: bigint;
-  /** Estimated gas cost for the transferRemote transaction (with buffer) */
-  gasCost: bigint;
-  /** Total cost = igpCost + gasCost */
-  totalCost: bigint;
-  /** Maximum transferable amount after reserving costs (availableInventory - totalCost) */
-  maxTransferable: bigint;
-  /** Minimum viable transfer (totalCost * MIN_VIABLE_COST_MULTIPLIER) */
-  minViableTransfer: bigint;
-  /** Gas quote from adapter (for passing to executeTransferRemote) */
-  gasQuote?: {
-    igpQuote: { amount: bigint };
-  };
-}
 
 /**
  * Configuration for the InventoryRebalancer.
@@ -199,99 +166,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   }
 
   /**
-   * Check if a token's balance is the same as native gas balance.
-   * For these tokens, we must reserve funds for IGP when calculating max transferable.
-   */
-  private isNativeTokenStandard(standard: TokenStandard): boolean {
-    // EvmHypNative covers all native token types including scaled variants
-    return standard === TokenStandard.EvmHypNative;
-  }
-
-  /**
-   * Estimate gas for a transferRemote transaction using eth_estimateGas.
-   * Falls back to conservative estimate if estimation fails.
-   *
-   * @param originChain - Chain where transferRemote will be called
-   * @param destinationChain - Chain where the Hyperlane message goes
-   * @param amount - Amount to transfer
-   * @returns Estimated gas limit for the transaction
-   */
-  private async estimateTransferRemoteGas(
-    originChain: ChainName,
-    destinationChain: ChainName,
-    amount: bigint,
-  ): Promise<bigint> {
-    const originToken = this.getTokenForChain(originChain);
-    if (!originToken) {
-      this.logger.warn(
-        { originChain },
-        'No token found for origin chain, using fallback gas limit',
-      );
-      return FALLBACK_TRANSFER_REMOTE_GAS_LIMIT;
-    }
-
-    try {
-      const destinationDomain =
-        this.multiProvider.getDomainId(destinationChain);
-      const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
-
-      // Quote the IGP gas first (needed for the full transaction)
-      const gasQuote = await adapter.quoteTransferRemoteGas({
-        destination: destinationDomain,
-        sender: this.config.inventorySigner,
-        recipient: this.config.inventorySigner,
-        amount,
-      });
-
-      // Populate with minimal amount for gas estimation
-      // Gas cost is independent of transfer size (just a require check in _transferFromSender),
-      // and using minimal amount prevents eth_estimateGas from failing when account balance < requested amount
-      // Note: getHypAdapter returns IHypTokenAdapter<unknown> for protocol-agnostic support.
-      // For EVM chains (which inventory rebalancing uses), the actual type is AnnotatedEV5Transaction.
-      const populatedTx = (await adapter.populateTransferRemoteTx({
-        destination: destinationDomain,
-        recipient: this.config.inventorySigner,
-        weiAmountOrId: 1n,
-        interchainGas: gasQuote,
-      })) as AnnotatedEV5Transaction;
-
-      // Estimate gas using the provider
-      const provider = this.multiProvider.getProvider(originChain);
-      const gasEstimate = await provider.estimateGas({
-        to: populatedTx.to,
-        data: populatedTx.data,
-        value: populatedTx.value,
-        from: this.config.inventorySigner,
-      });
-
-      const estimatedGas = BigInt(gasEstimate.toString());
-
-      this.logger.debug(
-        {
-          originChain,
-          destinationChain,
-          amount: amount.toString(),
-          estimatedGas: estimatedGas.toString(),
-        },
-        'Estimated transferRemote gas via eth_estimateGas',
-      );
-
-      return estimatedGas;
-    } catch (error) {
-      this.logger.warn(
-        {
-          originChain,
-          destinationChain,
-          error: (error as Error).message,
-          fallbackGas: FALLBACK_TRANSFER_REMOTE_GAS_LIMIT.toString(),
-        },
-        'Gas estimation failed, using fallback gas limit',
-      );
-      return FALLBACK_TRANSFER_REMOTE_GAS_LIMIT;
-    }
-  }
-
-  /**
    * Get the effective available inventory for a chain, accounting for
    * inventory already consumed during this execution cycle.
    *
@@ -320,113 +194,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     }
 
     return effective;
-  }
-
-  /**
-   * Calculate all transfer costs for a transferRemote operation.
-   * Consolidates IGP costs, gas costs, and derived values (max transferable, min viable).
-   *
-   * @param originChain - Chain to transfer from (where transferRemote is called)
-   * @param destinationChain - Chain to transfer to (Hyperlane message destination)
-   * @param availableInventory - Available token balance on origin chain
-   * @param requestedAmount - Requested transfer amount
-   * @returns Cost estimate with all components and derived values
-   */
-  private async calculateTransferCosts(
-    originChain: ChainName,
-    destinationChain: ChainName,
-    availableInventory: bigint,
-    requestedAmount: bigint,
-  ): Promise<TransferCostEstimate> {
-    const originToken = this.getTokenForChain(originChain);
-    if (!originToken) {
-      throw new Error(`No token found for origin chain: ${originChain}`);
-    }
-
-    const destinationDomain = this.multiProvider.getDomainId(destinationChain);
-    const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
-
-    // Always quote IGP for the gas quote (needed for populateTransferRemoteTx)
-    const gasQuote = await adapter.quoteTransferRemoteGas({
-      destination: destinationDomain,
-      sender: this.config.inventorySigner,
-      recipient: this.config.inventorySigner,
-      amount: requestedAmount,
-    });
-
-    // For non-native tokens, no cost reservation needed from token balance
-    if (!this.isNativeTokenStandard(originToken.standard)) {
-      return {
-        igpCost: 0n,
-        gasCost: 0n,
-        totalCost: 0n,
-        maxTransferable:
-          availableInventory < requestedAmount
-            ? availableInventory
-            : requestedAmount,
-        minViableTransfer: 0n,
-        gasQuote,
-      };
-    }
-
-    // For native tokens, calculate costs
-    const igpCost = gasQuote.igpQuote.amount;
-
-    // Estimate gas with buffer
-    const estimatedGasLimit = await this.estimateTransferRemoteGas(
-      originChain,
-      destinationChain,
-      requestedAmount,
-    );
-    const bufferedGasLimit = addBufferToGasLimit(
-      BigNumber.from(estimatedGasLimit.toString()),
-    );
-
-    // Get gas price and calculate cost
-    const provider = this.multiProvider.getProvider(originChain);
-    const feeData = await provider.getFeeData();
-    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
-    const gasCost = bufferedGasLimit.toBigInt() * BigInt(gasPrice.toString());
-
-    const totalCost = igpCost + gasCost;
-
-    // Calculate derived values
-    let maxTransferable: bigint;
-    if (availableInventory <= totalCost) {
-      maxTransferable = 0n;
-    } else {
-      const maxAfterReservation = availableInventory - totalCost;
-      maxTransferable =
-        maxAfterReservation < requestedAmount
-          ? maxAfterReservation
-          : requestedAmount;
-    }
-
-    const minViableTransfer = totalCost * MIN_VIABLE_COST_MULTIPLIER;
-
-    this.logger.debug(
-      {
-        originChain,
-        destinationChain,
-        availableInventory: availableInventory.toString(),
-        requestedAmount: requestedAmount.toString(),
-        igpCost: igpCost.toString(),
-        gasCost: gasCost.toString(),
-        totalCost: totalCost.toString(),
-        maxTransferable: maxTransferable.toString(),
-        minViableTransfer: minViableTransfer.toString(),
-      },
-      'Calculated transfer costs for native token',
-    );
-
-    return {
-      igpCost,
-      gasCost,
-      totalCost,
-      maxTransferable,
-      minViableTransfer,
-      gasQuote,
-    };
   }
 
   /**
@@ -658,11 +425,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Calculate transfer costs including max transferable and min viable amounts
     // transferRemote is called FROM destination TO origin (swapped direction)
-    const costs = await this.calculateTransferCosts(
+    const costs = await calculateTransferCosts(
       destination, // FROM chain (where transferRemote is called)
       origin, // TO chain (where Hyperlane message goes)
       availableInventory,
       amount,
+      this.multiProvider,
+      this.warpCore.multiProvider,
+      this.getTokenForChain.bind(this),
+      this.config.inventorySigner,
+      isNativeTokenStandard,
+      this.logger,
     );
     const { maxTransferable, minViableTransfer } = costs;
 
@@ -994,9 +767,18 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     // Use inventoryMultiProvider if available, otherwise fall back to multiProvider
     const signingProvider =
       this.config.inventoryMultiProvider ?? this.multiProvider;
+
+    // Get reorgPeriod for confirmation waiting
+    const reorgPeriod =
+      this.multiProvider.getChainMetadata(origin).blocks?.reorgPeriod ?? 32;
+
+    // Wait for reorgPeriod confirmations via SDK to ensure Monitor sees balance changes
     const receipt = await signingProvider.sendTransaction(
       origin,
       populatedTx as AnnotatedEV5Transaction,
+      {
+        waitConfirmations: reorgPeriod as number | EthJsonRpcBlockParameterTag,
+      },
     );
 
     // Extract messageId from the transaction receipt logs
@@ -1023,12 +805,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         messageId,
         intentId: intent.id,
       },
-      'TransferRemote transaction sent',
+      'TransferRemote transaction confirmed',
     );
-
-    // Wait for reorgPeriod confirmations before creating the action.
-    // This ensures Monitor will see the balance change before the next strategy cycle.
-    await this.waitForConfirmations(origin, receipt.transactionHash);
 
     // Create the inventory_deposit action with messageId for tracking
     await this.actionTracker.createRebalanceAction({
@@ -1123,13 +901,13 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     if (!sourceToken || !targetToken) return 0n;
 
     // Only applies to native tokens (need gas from same balance)
-    if (!this.isNativeTokenStandard(sourceToken.standard)) {
+    if (!isNativeTokenStandard(sourceToken.standard)) {
       return rawInventory; // ERC20s don't compete with gas
     }
 
     // Convert HypNative token addresses to LiFi's native ETH representation
     const fromTokenAddress = NATIVE_TOKEN_ADDRESS;
-    const toTokenAddress = this.isNativeTokenStandard(targetToken.standard)
+    const toTokenAddress = isNativeTokenStandard(targetToken.standard)
       ? NATIVE_TOKEN_ADDRESS
       : targetToken.addressOrDenom;
 
@@ -1244,11 +1022,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Convert HypNative token addresses to LiFi's native ETH representation
     // For HypNative tokens, addressOrDenom is the warp route contract, not the native token
-    const fromTokenAddress = this.isNativeTokenStandard(sourceToken.standard)
+    const fromTokenAddress = isNativeTokenStandard(sourceToken.standard)
       ? NATIVE_TOKEN_ADDRESS
       : sourceToken.addressOrDenom;
 
-    const toTokenAddress = this.isNativeTokenStandard(targetToken.standard)
+    const toTokenAddress = isNativeTokenStandard(targetToken.standard)
       ? NATIVE_TOKEN_ADDRESS
       : targetToken.addressOrDenom;
 
@@ -1265,11 +1043,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     // Calculate minViableTransfer for the target chain
     // If bridging less than this, the received amount won't be enough to execute transferRemote
     // So we over-bridge to ensure we can complete the intent in the next cycle
-    const costs = await this.calculateTransferCosts(
+    const costs = await calculateTransferCosts(
       targetChain, // FROM chain for transferRemote (the target of this bridge)
       sourceChain, // TO chain for transferRemote (Hyperlane message destination)
       amount, // availableInventory (not used for minViableTransfer calculation)
       amount, // requestedAmount
+      this.multiProvider,
+      this.warpCore.multiProvider,
+      this.getTokenForChain.bind(this),
+      this.config.inventorySigner,
+      isNativeTokenStandard,
+      this.logger,
     );
     const { minViableTransfer } = costs;
 
@@ -1404,88 +1188,5 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         error: (error as Error).message,
       };
     }
-  }
-
-  /**
-   * Get the reorgPeriod for a chain from its metadata.
-   * Returns a number (block count) or string (e.g., "finalized" for Polygon).
-   */
-  private getReorgPeriod(chainName: string): number | string {
-    const metadata = this.multiProvider.getChainMetadata(chainName);
-    return metadata.blocks?.reorgPeriod ?? 32;
-  }
-
-  /**
-   * Wait for a transaction to reach reorgPeriod confirmations.
-   * This ensures the transaction is in the "confirmed block" range that Monitor uses.
-   */
-  private async waitForConfirmations(
-    chainName: string,
-    txHash: string,
-  ): Promise<void> {
-    const reorgPeriod = this.getReorgPeriod(chainName);
-    const provider = this.multiProvider.getProvider(chainName);
-
-    // Handle string block tags (e.g., "finalized" for Polygon)
-    if (typeof reorgPeriod === 'string') {
-      await this.waitForFinalizedBlock(chainName, txHash, reorgPeriod);
-      return;
-    }
-
-    // Handle numeric reorgPeriod
-    this.logger.info(
-      { chain: chainName, txHash, confirmations: reorgPeriod },
-      'Waiting for reorgPeriod confirmations',
-    );
-
-    await provider.waitForTransaction(txHash, reorgPeriod);
-
-    this.logger.info(
-      { chain: chainName, txHash },
-      'Transaction confirmed at reorgPeriod depth',
-    );
-  }
-
-  /**
-   * Wait for a transaction to be included in a finalized/safe block.
-   * Used for chains like Polygon that use string block tags instead of numeric reorgPeriod.
-   */
-  private async waitForFinalizedBlock(
-    chainName: string,
-    txHash: string,
-    blockTag: string,
-  ): Promise<void> {
-    const provider = this.multiProvider.getProvider(chainName);
-    const receipt = await provider.getTransactionReceipt(txHash);
-    if (!receipt) {
-      throw new Error(`Transaction receipt not found: ${txHash}`);
-    }
-    const txBlock = receipt.blockNumber;
-
-    this.logger.info(
-      { chain: chainName, txHash, txBlock, blockTag },
-      'Waiting for transaction to be in finalized block',
-    );
-
-    const POLL_INTERVAL_MS = 2000;
-    const MAX_WAIT_MS = 60000; // 1 minute timeout
-    const startTime = Date.now();
-
-    while (Date.now() - startTime < MAX_WAIT_MS) {
-      const taggedBlock = await provider.getBlock(blockTag);
-      if (taggedBlock && taggedBlock.number >= txBlock) {
-        this.logger.info(
-          { chain: chainName, txHash, finalizedBlock: taggedBlock.number },
-          'Transaction is in finalized block range',
-        );
-        return;
-      }
-      await sleep(POLL_INTERVAL_MS);
-    }
-
-    this.logger.warn(
-      { chain: chainName, txHash, blockTag },
-      'Timeout waiting for finalized block, proceeding anyway',
-    );
   }
 }
