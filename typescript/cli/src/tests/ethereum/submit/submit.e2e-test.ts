@@ -119,11 +119,13 @@ describe('hyperlane submit', function () {
     const users = [ALICE, BOB];
     const xerc20Chains = [xerc20Chain2, xerc20Chain3];
 
-    await expectUserBalances(users, xerc20Chains, [0, 0]);
+    const initialBalances = await Promise.all(
+      users.map((user, i) => xerc20Chains[i].balanceOf(user)),
+    );
     await hyperlaneSubmit({ strategyPath, transactionsPath });
     await expectUserBalances(users, xerc20Chains, [
-      chain2MintAmount,
-      chain3MintAmount,
+      initialBalances[0].add(chain2MintAmount).toNumber(),
+      initialBalances[1].add(chain3MintAmount).toNumber(),
     ]);
   });
 
@@ -150,11 +152,13 @@ describe('hyperlane submit', function () {
     const users = [ALICE, BOB];
     const xerc20Chains = [xerc20Chain2, xerc20Chain3];
 
-    await expectUserBalances(users, xerc20Chains, [0, 0]);
+    const initialBalances = await Promise.all(
+      users.map((user, i) => xerc20Chains[i].balanceOf(user)),
+    );
     await hyperlaneSubmit({ transactionsPath });
     await expectUserBalances(users, xerc20Chains, [
-      chain2MintAmount,
-      chain3MintAmount,
+      initialBalances[0].add(chain2MintAmount).toNumber(),
+      initialBalances[1].add(chain3MintAmount).toNumber(),
     ]);
   });
 
@@ -260,14 +264,13 @@ describe('hyperlane submit', function () {
       writeYamlOrJson(transactionsPath, { invalid: 'transaction' });
 
       const chain2MintAmount = randomInt(1, 1000);
-      const transactions = await Promise.all([
-        getMintOnlyOwnerTransaction(
-          xerc20Chain2,
-          ALICE,
-          chain2MintAmount,
-          ANVIL2_CHAIN_ID,
-        ),
-      ]);
+      const transaction = await getMintOnlyOwnerTransaction(
+        xerc20Chain2,
+        ALICE,
+        chain2MintAmount,
+        ANVIL2_CHAIN_ID,
+      );
+      const transactions = [transaction];
       writeYamlOrJson(transactionsPath, transactions);
 
       await hyperlaneSubmit({ strategyPath, transactionsPath });

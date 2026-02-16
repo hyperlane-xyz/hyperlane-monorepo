@@ -37,11 +37,11 @@ import {
 import { setupAnvilTestSuite } from '../utils/anvil.js';
 
 describe('Multi-Domain Deployment', function () {
-  const anvilPort = 8546; // Use different port to avoid conflict with other tests
-  const anvil = setupAnvilTestSuite(this, anvilPort);
+  const anvil = setupAnvilTestSuite(this);
   let provider: ethers.providers.JsonRpcProvider;
 
-  before(async () => {
+  beforeEach(async () => {
+    // Create provider after anvil starts (rpc is set in beforeEach)
     provider = new ethers.providers.JsonRpcProvider(anvil.rpc);
   });
 

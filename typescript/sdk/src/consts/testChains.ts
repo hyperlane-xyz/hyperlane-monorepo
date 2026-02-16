@@ -1,11 +1,11 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
-  ChainMetadata,
   ChainTechnicalStack,
   ExplorerFamily,
 } from '../metadata/chainMetadataTypes.js';
-import { ChainMap, ChainName } from '../types.js';
+import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import type { ChainMap, ChainName } from '../types.js';
 
 export enum TestChainName {
   test1 = 'test1',

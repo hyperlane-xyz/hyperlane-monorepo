@@ -21,6 +21,7 @@ import { deserializeUnchecked, serialize } from 'borsh';
 import {
   Address,
   Domain,
+  LazyAsync,
   addressToBytes,
   assert,
   eqAddress,
@@ -355,7 +356,9 @@ export abstract class SealevelHypTokenAdapter
 {
   public readonly warpProgramPubKey: PublicKey;
   public readonly addresses: HypTokenAddresses;
-  protected cachedTokenAccountData: SealevelHyperlaneTokenData | undefined;
+  protected readonly tokenAccountData = new LazyAsync(() =>
+    this.loadTokenAccountData(),
+  );
 
   constructor(
     public readonly chainName: ChainName,
@@ -368,20 +371,19 @@ export abstract class SealevelHypTokenAdapter
   }
 
   async getTokenAccountData(): Promise<SealevelHyperlaneTokenData> {
-    if (!this.cachedTokenAccountData) {
-      const tokenPda = this.deriveHypTokenAccount();
-      const accountInfo = await this.getProvider().getAccountInfo(tokenPda);
-      if (!accountInfo)
-        throw new Error(`No account info found for ${tokenPda}`);
-      const wrappedData = deserializeUnchecked(
-        SealevelHyperlaneTokenDataSchema,
-        SealevelAccountDataWrapper,
-        accountInfo.data,
-      );
-      this.cachedTokenAccountData =
-        wrappedData.data as SealevelHyperlaneTokenData;
-    }
-    return this.cachedTokenAccountData;
+    return this.tokenAccountData.get();
+  }
+
+  private async loadTokenAccountData(): Promise<SealevelHyperlaneTokenData> {
+    const tokenPda = this.deriveHypTokenAccount();
+    const accountInfo = await this.getProvider().getAccountInfo(tokenPda);
+    if (!accountInfo) throw new Error(`No account info found for ${tokenPda}`);
+    const wrappedData = deserializeUnchecked(
+      SealevelHyperlaneTokenDataSchema,
+      SealevelAccountDataWrapper,
+      accountInfo.data,
+    );
+    return wrappedData.data as SealevelHyperlaneTokenData;
   }
 
   override async getMetadata(): Promise<TokenMetadata> {

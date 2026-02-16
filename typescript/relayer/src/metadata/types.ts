@@ -90,8 +90,7 @@ export interface MultisigMetadataBuildResult extends BaseMetadataBuildResult {
 }
 
 /** Result for aggregation ISM types */
-export interface AggregationMetadataBuildResult
-  extends BaseMetadataBuildResult {
+export interface AggregationMetadataBuildResult extends BaseMetadataBuildResult {
   type: typeof IsmType.AGGREGATION | typeof IsmType.STORAGE_AGGREGATION;
   /** Required number of passing sub-modules */
   threshold: number;

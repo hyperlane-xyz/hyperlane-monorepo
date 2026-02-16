@@ -117,7 +117,7 @@ async function deriveWarpRouteConfigs(
 
   // Get XERC20 limits if warpCoreConfig is available
   if (warpCoreConfig) {
-    await logXerc20Limits(warpCoreConfig, multiProvider);
+    await logXERC20Limits(warpCoreConfig, multiProvider);
   }
 
   // Derive and return warp route config
@@ -174,7 +174,7 @@ function validateCompatibility(
 /**
  * Logs XERC20 token limits for the given warp core config
  */
-export async function logXerc20Limits(
+export async function logXERC20Limits(
   warpCoreConfig: WarpCoreConfig,
   multiProvider: MultiProvider,
 ): Promise<void> {

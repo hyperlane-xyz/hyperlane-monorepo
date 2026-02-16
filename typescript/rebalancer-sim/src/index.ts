@@ -6,9 +6,8 @@
  */
 
 // Core simulation classes
-export { BridgeMockController } from './BridgeMockController.js';
 export { KPICollector } from './KPICollector.js';
-export { MessageTracker } from './MessageTracker.js';
+export { MockInfrastructureController } from './MockInfrastructureController.js';
 export { RebalancerSimulationHarness } from './RebalancerSimulationHarness.js';
 export {
   deployMultiDomainSimulation,

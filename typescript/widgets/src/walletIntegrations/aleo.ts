@@ -14,6 +14,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, retryAsync, sleep } from '@hyperlane-xyz/utils';
 
+import { useAleoPopup } from './aleo/AleoProviders.js';
+import { getAdapter } from './aleo/utils.js';
 import {
   AccountInfo,
   ActiveChainInfo,
@@ -22,21 +24,6 @@ import {
   WalletDetails,
   WatchAssetFns,
 } from './types.js';
-
-// Lazy initialization to avoid SSR issues with browser-only APIs
-let adapter: ShieldWalletAdapter | null = null;
-
-function getAdapter(): ShieldWalletAdapter {
-  if (!adapter) {
-    if (typeof window === 'undefined') {
-      throw new Error(
-        'ShieldWalletAdapter requires a browser environment and cannot be used during server-side rendering',
-      );
-    }
-    adapter = new ShieldWalletAdapter();
-  }
-  return adapter;
-}
 
 const MAX_POLLING_ATTEMPTS = 60;
 const POLLING_DELAY_MS = 1000;
@@ -113,13 +100,17 @@ export function useAleoWalletDetails() {
 }
 
 export function useAleoConnectFn(): () => void {
-  return async () => {
-    await getAdapter().connect(
-      Network.MAINNET,
-      WalletDecryptPermission.AutoDecrypt,
-      [],
-    );
+  const popUp = useAleoPopup();
+  assert(
+    popUp,
+    `AleoPopupProvider is not defined, make sure it is imported and wrapping your application`,
+  );
+
+  const connect = () => {
+    popUp.setShowPopUp(true);
   };
+
+  return connect;
 }
 
 export function useAleoDisconnectFn(): () => Promise<void> {

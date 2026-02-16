@@ -7,6 +7,8 @@
 import type { WarpCoreConfig } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
+import type { MockActionTracker } from './runners/MockActionTracker.js';
+
 // =============================================================================
 // BRIDGE TYPES
 // =============================================================================
@@ -413,6 +415,13 @@ export interface IRebalancerRunner {
    * Subscribe to rebalancer events
    */
   on(event: 'rebalance', listener: (e: RebalancerEvent) => void): this;
+
+  /**
+   * Get the mock action tracker (optional).
+   * If supported, SimulationEngine passes it to the infrastructure controller
+   * for direct inflight tracking updates.
+   */
+  getActionTracker?(): MockActionTracker | undefined;
 }
 
 /**

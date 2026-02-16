@@ -1,5 +1,33 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 25.1.0
+
+### Patch Changes
+
+- Updated dependencies [b930534]
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/provider-sdk@1.3.2
+
+## 25.0.0
+
+### Patch Changes
+
+- Updated dependencies [52ce778]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.1
+
+## 24.0.0
+
+### Patch Changes
+
+- b1b941e: Testcontainer startup timeout increased to 120s to prevent CI flakes when Docker image pulls are slow.
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.0
+
 ## 23.0.0
 
 ### Major Changes
@@ -75,7 +103,6 @@
 ### Minor Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility

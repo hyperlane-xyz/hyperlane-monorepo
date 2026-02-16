@@ -1,4 +1,4 @@
-import { KubernetesResources } from './agent/agent.js';
+import type { KubernetesResources } from './agent/agent.js';
 
 export interface HelmImageValues {
   repository: string;
