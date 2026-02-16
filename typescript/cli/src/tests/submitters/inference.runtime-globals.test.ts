@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { expect } from 'chai';
+import sinon from 'sinon';
 
 import {
   SUPPORTED_RUNTIME_PRIMITIVE_VALUE_TYPES,
@@ -85,16 +86,17 @@ describe('runtime global probe helpers', () => {
       baseDir,
       'inference.synthetic-runtime-helper.test.ts',
     );
-    const originalReaddirSync = fs.readdirSync;
     let failedOnce = false;
-
-    (fs as any).readdirSync = ((targetPath: string, ...args: unknown[]) => {
+    const readdirStub = sinon.stub(fs, 'readdirSync').callsFake(((
+      targetPath: string,
+      ...args: unknown[]
+    ) => {
       if (!failedOnce && path.resolve(targetPath) === path.resolve(baseDir)) {
         failedOnce = true;
         throw new Error('transient read failure');
       }
-      return (originalReaddirSync as any)(targetPath, ...args);
-    }) as typeof fs.readdirSync;
+      return (readdirStub.wrappedMethod as any)(targetPath, ...args);
+    }) as typeof fs.readdirSync);
 
     try {
       const first =
@@ -105,7 +107,7 @@ describe('runtime global probe helpers', () => {
         getKnownObjectLikeProbeLabelsFromOtherTests(syntheticFilePath);
       expect(second.size).to.be.greaterThan(0);
     } finally {
-      (fs as any).readdirSync = originalReaddirSync;
+      readdirStub.restore();
     }
   });
 
@@ -115,10 +117,11 @@ describe('runtime global probe helpers', () => {
       baseDir,
       'inference.synthetic-runtime-helper-file-read.test.ts',
     );
-    const originalReadFileSync = fs.readFileSync;
     let failedOnce = false;
-
-    (fs as any).readFileSync = ((targetPath: string, ...args: unknown[]) => {
+    const readFileStub = sinon.stub(fs, 'readFileSync').callsFake(((
+      targetPath: string,
+      ...args: unknown[]
+    ) => {
       if (
         !failedOnce &&
         path.basename(targetPath) === 'inference.function-edge-cases.test.ts'
@@ -126,8 +129,8 @@ describe('runtime global probe helpers', () => {
         failedOnce = true;
         throw new Error('transient file read failure');
       }
-      return (originalReadFileSync as any)(targetPath, ...args);
-    }) as typeof fs.readFileSync;
+      return (readFileStub.wrappedMethod as any)(targetPath, ...args);
+    }) as typeof fs.readFileSync);
 
     try {
       const first =
@@ -138,7 +141,7 @@ describe('runtime global probe helpers', () => {
         getKnownObjectLikeProbeLabelsFromOtherTests(syntheticFilePath);
       expect(second.has('arrow-function-object')).to.equal(true);
     } finally {
-      (fs as any).readFileSync = originalReadFileSync;
+      readFileStub.restore();
     }
   });
 
