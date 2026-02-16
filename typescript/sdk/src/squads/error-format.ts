@@ -11,6 +11,14 @@ const STRING_REPLACE = String.prototype.replace as (
   searchValue: string | RegExp,
   replaceValue: string,
 ) => string;
+const REGEXP_PROTOTYPE_TEST = RegExp.prototype.test as (
+  this: RegExp,
+  value: string,
+) => boolean;
+const REGEXP_PROTOTYPE_EXEC = RegExp.prototype.exec as (
+  this: RegExp,
+  value: string,
+) => RegExpExecArray | null;
 
 function objectFreezeValue<Value>(value: Value): Readonly<Value> {
   return OBJECT_FREEZE(value);
@@ -59,6 +67,14 @@ function stringReplaceValue(
   return STRING_REPLACE.call(value, searchValue, replaceValue);
 }
 
+function regexpTest(pattern: RegExp, value: string): boolean {
+  return REGEXP_PROTOTYPE_TEST.call(pattern, value);
+}
+
+function regexpExec(pattern: RegExp, value: string): RegExpExecArray | null {
+  return REGEXP_PROTOTYPE_EXEC.call(pattern, value);
+}
+
 function normalizeErrorLabel(value: string): string {
   return stringToLowerCase(
     stringReplaceValue(
@@ -79,7 +95,7 @@ export function isGenericObjectStringifiedValue(value: unknown): boolean {
     TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN,
     '',
   );
-  return GENERIC_OBJECT_STRING_PATTERN.test(normalizedValue);
+  return regexpTest(GENERIC_OBJECT_STRING_PATTERN, normalizedValue);
 }
 
 export function normalizeStringifiedSquadsError(
@@ -105,7 +121,7 @@ export function normalizeStringifiedSquadsError(
 }
 
 function isLowSignalBuiltinErrorWithLowSignalMessage(value: string): boolean {
-  const match = ERROR_LABEL_WITH_MESSAGE_PATTERN.exec(value);
+  const match = regexpExec(ERROR_LABEL_WITH_MESSAGE_PATTERN, value);
   if (!match) {
     return false;
   }

@@ -204,6 +204,10 @@ const DATE_CONSTRUCTOR = Date;
 const DATE_TO_DATE_STRING = Date.prototype.toDateString as (
   this: Date,
 ) => string;
+const REGEXP_PROTOTYPE_TEST = RegExp.prototype.test as (
+  this: RegExp,
+  value: string,
+) => boolean;
 const OBJECT_PROTOTYPE_TO_STRING = Object.prototype.toString as (
   this: unknown,
 ) => string;
@@ -380,6 +384,10 @@ function dateFromUnixTimestampSeconds(unixTimestampSeconds: number): Date {
 
 function dateToDateString(value: Date): string {
   return DATE_TO_DATE_STRING.call(value);
+}
+
+function regexpTest(pattern: RegExp, value: string): boolean {
+  return REGEXP_PROTOTYPE_TEST.call(pattern, value);
 }
 
 function stringIncludesValue(value: string, searchValue: string): boolean {
@@ -969,7 +977,7 @@ function normalizeSafeIntegerValue(value: unknown): {
     };
   }
 
-  if (!SAFE_INTEGER_DECIMAL_PATTERN.test(displayValue)) {
+  if (!regexpTest(SAFE_INTEGER_DECIMAL_PATTERN, displayValue)) {
     return {
       parsedValue: numberNaNValue(),
       displayValue,
