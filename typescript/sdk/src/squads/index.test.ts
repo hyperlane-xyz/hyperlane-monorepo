@@ -58,6 +58,18 @@ const EXPECTED_SDK_SQUADS_TEST_FILE_PATHS = Object.freeze([
   'src/squads/transaction-reader.test.ts',
   'src/squads/utils.test.ts',
 ]);
+const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS =
+  Object.freeze([
+    'src/squads/config.test.ts',
+    'src/squads/error-format.test.ts',
+    'src/squads/inspection.test.ts',
+    'src/squads/provider.test.ts',
+    'src/squads/transaction-reader.test.ts',
+    'src/squads/utils.test.ts',
+  ]);
+const REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN = /Reflect\.apply is mutated/;
+const REFLECT_APPLY_MONKEY_PATCH_PATTERN =
+  /Object\.defineProperty\(\s*Reflect\s*,\s*['"]apply['"]/;
 const EXPECTED_SDK_SQUADS_TEST_SCRIPT = `${SDK_SQUADS_TEST_COMMAND_PREFIX} ${SDK_SQUADS_TEST_TOKEN_PATHS.map((tokenPath) => `'${tokenPath}'`).join(' ')}`;
 const EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS = Object.freeze([
   "export * from './config.js';",
@@ -934,6 +946,20 @@ function listSdkSquadsTestFilePaths(): readonly string[] {
     .map((entry) => `src/squads/${entry.name}`);
 }
 
+function listSdkSquadsTestFilePathsContainingPattern(
+  pattern: RegExp,
+): readonly string[] {
+  const matchedPaths: string[] = [];
+  for (const relativeTestPath of listSdkSquadsTestFilePaths()) {
+    const absoluteTestPath = path.join(SDK_PACKAGE_ROOT, relativeTestPath);
+    const source = fs.readFileSync(absoluteTestPath, 'utf8');
+    if (pattern.test(source)) {
+      matchedPaths.push(relativeTestPath);
+    }
+  }
+  return matchedPaths.sort(compareLexicographically);
+}
+
 function listSdkSquadsNonTestSourceFilePaths(): readonly string[] {
   return listSdkSquadsDirectoryEntries(SDK_SQUADS_SOURCE_DIR)
     .filter(
@@ -1414,6 +1440,19 @@ describe('squads barrel exports', () => {
     ]);
   });
 
+  it('keeps expected canonical sdk squads Reflect.apply mutation-test file paths', () => {
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+    ).to.deep.equal([
+      'src/squads/config.test.ts',
+      'src/squads/error-format.test.ts',
+      'src/squads/inspection.test.ts',
+      'src/squads/provider.test.ts',
+      'src/squads/transaction-reader.test.ts',
+      'src/squads/utils.test.ts',
+    ]);
+  });
+
   it('keeps sdk squads test-file path constants normalized and immutable', () => {
     expect(Object.isFrozen(EXPECTED_SDK_SQUADS_TEST_FILE_PATHS)).to.equal(true);
     expect(new Set(EXPECTED_SDK_SQUADS_TEST_FILE_PATHS).size).to.equal(
@@ -1429,6 +1468,57 @@ describe('squads barrel exports', () => {
       EXPECTED_SDK_SQUADS_TEST_FILE_PATHS,
       'expected sdk squads test path constant',
     );
+  });
+
+  it('keeps sdk squads Reflect.apply mutation-test path constants normalized and immutable', () => {
+    expect(
+      Object.isFrozen(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+      ),
+    ).to.equal(true);
+    expect(
+      new Set(EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS).size,
+    ).to.equal(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS.length,
+    );
+    expect(
+      [...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS].sort(
+        compareLexicographically,
+      ),
+    ).to.deep.equal([
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+    ]);
+    for (const testPath of EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS) {
+      assertSdkSquadsTestTokenShape(
+        testPath,
+        'expected sdk squads Reflect.apply mutation test path',
+      );
+    }
+    assertRelativePathsResolveToFiles(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+      'expected sdk squads Reflect.apply mutation test path constant',
+    );
+  });
+
+  it('keeps sdk Reflect.apply mutation tests aligned with expected test-file paths', () => {
+    const discoveredReflectApplyMutationTestPaths =
+      listSdkSquadsTestFilePathsContainingPattern(
+        REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN,
+      );
+    expect(discoveredReflectApplyMutationTestPaths).to.deep.equal([
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+    ]);
+  });
+
+  it('keeps sdk Reflect.apply mutation tests using explicit Reflect.apply monkey-patch setup', () => {
+    for (const relativeTestPath of EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS) {
+      const absoluteTestPath = path.join(SDK_PACKAGE_ROOT, relativeTestPath);
+      const source = fs.readFileSync(absoluteTestPath, 'utf8');
+      expect(
+        REFLECT_APPLY_MONKEY_PATCH_PATTERN.test(source),
+        `Expected Reflect.apply mutation test file to monkey-patch Reflect.apply: ${relativeTestPath}`,
+      ).to.equal(true);
+    }
   });
 
   it('keeps sdk discovered squads test files aligned with canonical test file paths', () => {
