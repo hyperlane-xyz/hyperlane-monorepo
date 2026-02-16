@@ -183,6 +183,9 @@ export function getRuntimePrimitiveValuesByLabel(): Map<string, unknown> {
   const runtimePrimitiveByLabel = new Map<string, unknown>();
   for (const name of Object.getOwnPropertyNames(globalThis)) {
     const value = tryGetGlobalValueByName(name);
+    if (value === MISSING_GLOBAL_VALUE) {
+      continue;
+    }
     const valueType = typeof value;
     if (isSupportedRuntimePrimitiveValueType(valueType)) {
       runtimePrimitiveByLabel.set(

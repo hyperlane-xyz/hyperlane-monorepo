@@ -130,6 +130,7 @@ describe('runtime global probe helpers', () => {
       expect(functionMap.has(`${lowered}-constructor-object`)).to.equal(false);
       expect(objectMap.has(`${lowered}-object`)).to.equal(false);
       expect(primitiveMap.has(`${lowered}-string-primitive`)).to.equal(false);
+      expect(primitiveMap.has(`${lowered}-symbol-primitive`)).to.equal(false);
     } finally {
       Reflect.deleteProperty(globalThis, throwingGlobalName);
     }
