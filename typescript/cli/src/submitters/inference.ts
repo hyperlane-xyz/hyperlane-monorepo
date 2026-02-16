@@ -215,12 +215,7 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
   }
 
   if (typeof value === 'object' && value !== null) {
-    let maybeToString: unknown;
-    try {
-      maybeToString = (value as { toString?: unknown }).toString;
-    } catch {
-      return null;
-    }
+    const maybeToString = getSharedObjectField(value, 'toString');
     if (typeof maybeToString !== 'function') {
       return null;
     }
