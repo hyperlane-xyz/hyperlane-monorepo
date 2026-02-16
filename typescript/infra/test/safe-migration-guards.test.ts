@@ -717,6 +717,24 @@ const DEFAULT_ARRAY_PROTOTYPE_KEYS = new Set([
   ...Object.getOwnPropertyNames(Array.prototype),
   ...Object.getOwnPropertyNames(Object.prototype),
 ]);
+const DEFAULT_FUNCTION_PROTOTYPE_KEYS = new Set([
+  ...Object.getOwnPropertyNames(Function.prototype),
+  ...Object.getOwnPropertyNames(Object.prototype),
+]);
+const DEFAULT_FUNCTION_EXPRESSION_OWN_KEYS = new Set(
+  Object.getOwnPropertyNames(function functionLiteralSample() {}),
+);
+const DEFAULT_ARROW_FUNCTION_OWN_KEYS = new Set(
+  Object.getOwnPropertyNames(() => undefined),
+);
+const DEFAULT_CLASS_EXPRESSION_OWN_KEYS = new Set(
+  Object.getOwnPropertyNames(class ClassLiteralSample {}),
+);
+const DEFAULT_REGEXP_OWN_KEYS = new Set(Object.getOwnPropertyNames(/sample/));
+const DEFAULT_REGEXP_PROTOTYPE_KEYS = new Set([
+  ...Object.getOwnPropertyNames(RegExp.prototype),
+  ...Object.getOwnPropertyNames(Object.prototype),
+]);
 
 function readStaticPropertyName(
   propertyName: ts.PropertyName,
@@ -859,6 +877,27 @@ function readStaticArrayInMembership(
   return STATIC_PRIMITIVE_UNKNOWN;
 }
 
+function readStaticFunctionInMembership(
+  propertyKey: string,
+  expression: ts.FunctionExpression | ts.ArrowFunction | ts.ClassExpression,
+): boolean {
+  const ownKeys = ts.isFunctionExpression(expression)
+    ? DEFAULT_FUNCTION_EXPRESSION_OWN_KEYS
+    : ts.isArrowFunction(expression)
+      ? DEFAULT_ARROW_FUNCTION_OWN_KEYS
+      : DEFAULT_CLASS_EXPRESSION_OWN_KEYS;
+  return (
+    ownKeys.has(propertyKey) || DEFAULT_FUNCTION_PROTOTYPE_KEYS.has(propertyKey)
+  );
+}
+
+function readStaticRegExpInMembership(propertyKey: string): boolean {
+  return (
+    DEFAULT_REGEXP_OWN_KEYS.has(propertyKey) ||
+    DEFAULT_REGEXP_PROTOTYPE_KEYS.has(propertyKey)
+  );
+}
+
 function readStaticInMembership(
   propertyKey: string,
   rightExpression: ts.Expression,
@@ -870,6 +909,16 @@ function readStaticInMembership(
   }
   if (ts.isArrayLiteralExpression(unwrapped)) {
     return readStaticArrayInMembership(propertyKey, unwrapped);
+  }
+  if (
+    ts.isFunctionExpression(unwrapped) ||
+    ts.isArrowFunction(unwrapped) ||
+    ts.isClassExpression(unwrapped)
+  ) {
+    return readStaticFunctionInMembership(propertyKey, unwrapped);
+  }
+  if (ts.isRegularExpressionLiteral(unwrapped)) {
+    return readStaticRegExpInMembership(propertyKey);
   }
 
   if (ts.isConditionalExpression(unwrapped)) {
@@ -7453,6 +7502,60 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality function-prototype in predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if ((('call' in (() => 1)) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats strict-inequality arrow-prototype-key in predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if ((('prototype' in (() => 1)) !== true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats strict-equality regexp-prototype in predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if ((('test' in /safe/) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('treats strict-equality in array primitives as deterministic for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -11744,6 +11847,57 @@ describe('Safe migration guards', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       "if ((('map' in ['safe']) === true)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality function-prototype in predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "if ((('call' in (() => 1)) === true)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-inequality arrow-prototype-key in predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "if ((('prototype' in (() => 1)) !== true)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality regexp-prototype in predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "if ((('test' in /safe/) === true)) {",
       "  moduleAlias = require('./fixtures/other-module.js');",
       '} else {',
       "  moduleAlias = { default: 'not-a-module' };",
@@ -22467,6 +22621,75 @@ describe('Safe migration guards', () => {
     const source = [
       'let reqAlias: any = require;',
       "if ((('map' in ['safe']) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality function-prototype in predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if ((('call' in (() => 1)) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-inequality arrow-prototype-key in predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if ((('prototype' in (() => 1)) !== true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality regexp-prototype in predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if ((('test' in /safe/) === true)) {",
       '  reqAlias = () => undefined;',
       '} else {',
       '  reqAlias = require;',
