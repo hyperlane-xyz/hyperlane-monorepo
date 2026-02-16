@@ -22,7 +22,7 @@ use snarkvm::{
 };
 use snarkvm_console_account::{Address, PrivateKey};
 use tokio::sync::RwLock;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
@@ -477,7 +477,7 @@ impl<C: AleoClient> AleoProvider<C> {
                 {
                     Ok(tx) => Ok::<_, ChainCommunicationError>(tx),
                     Err(e) => {
-                        debug!(
+                        warn!(
                             error = %e,
                             "Delegated proving failed, falling back to local proving"
                         );
