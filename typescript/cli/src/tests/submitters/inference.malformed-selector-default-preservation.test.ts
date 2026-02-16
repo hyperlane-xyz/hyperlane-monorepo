@@ -178,4 +178,43 @@ describe('resolveSubmitterBatchesForTransactions malformed selector default pres
       TxSubmitterType.GNOSIS_TX_BUILDER,
     );
   });
+
+  it('preserves explicit default submitter when selector override key has malformed selector syntax and no target override exists', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-selector-invalid-selector-syntax-preserve-default-${Date.now()}.yaml`;
+    const overrideTarget = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: GNOSIS_DEFAULT_SUBMITTER,
+        submitterOverrides: {
+          [`${overrideTarget}@deadbeef`]: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: CHAIN,
+            timelockAddress: '0x6666666666666666666666666666666666666666',
+            proposerSubmitter: {
+              type: TxSubmitterType.JSON_RPC,
+              chain: CHAIN,
+            },
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [
+        { ...TX, to: overrideTarget, data: '0xdeadbeef0000' } as any,
+      ],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
 });
