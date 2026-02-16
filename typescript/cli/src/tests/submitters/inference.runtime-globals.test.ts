@@ -343,4 +343,26 @@ describe('runtime global probe helpers', () => {
       'Missing runtime function probe value for label "__missing-constructor-object"',
     );
   });
+
+  it('keeps constructor probe case tables free of hardcoded globals', () => {
+    const constructorProbeFilePattern =
+      /^inference\..*constructor(?:s)?\.test\.ts$/;
+    const hardcodedConstructorAssignmentPattern =
+      /constructorValue:\s*[A-Z][A-Za-z0-9_.]*(?=,\s*directGetLogsCallCount)/g;
+    const submitterTestDir = path.dirname(fileURLToPath(import.meta.url));
+    const constructorProbeFiles = fs
+      .readdirSync(submitterTestDir)
+      .filter((fileName) => constructorProbeFilePattern.test(fileName));
+
+    const hardcodedAssignments = constructorProbeFiles.flatMap((fileName) => {
+      const filePath = path.join(submitterTestDir, fileName);
+      const fileContent = fs.readFileSync(filePath, 'utf8');
+      const matches = [
+        ...fileContent.matchAll(hardcodedConstructorAssignmentPattern),
+      ];
+      return matches.map((match) => `${fileName}: ${match[0]}`);
+    });
+
+    expect(hardcodedAssignments).to.deep.equal([]);
+  });
 });
