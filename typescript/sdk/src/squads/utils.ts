@@ -430,11 +430,9 @@ export function parseSquadsMultisigMembers(
       continue;
     }
 
-    const memberRecord = member as { key?: unknown; permissions?: unknown };
-    let memberKeyValue: unknown;
-    try {
-      memberKeyValue = memberRecord.key;
-    } catch {
+    const { propertyValue: memberKeyValue, readError: memberKeyReadError } =
+      inspectPropertyValue(member, 'key');
+    if (memberKeyReadError) {
       invalidEntries += 1;
       continue;
     }
@@ -444,15 +442,14 @@ export function parseSquadsMultisigMembers(
       continue;
     }
 
-    let permissionsValue: unknown;
-    try {
-      permissionsValue = memberRecord.permissions;
-    } catch {
-      permissionsValue = null;
-    }
+    const { propertyValue: permissionsValue, readError: permissionsReadError } =
+      inspectPropertyValue(member, 'permissions');
     parsedMembers.push({
       key: normalizedMemberKey.address,
-      permissions: permissionsValue ?? null,
+      permissions:
+        permissionsReadError || typeof permissionsValue === 'undefined'
+          ? null
+          : permissionsValue,
     });
   }
 
@@ -2601,12 +2598,11 @@ function readTransactionAccountDataForType(
   chain: SquadsChainName,
   accountInfo: { data?: unknown },
 ): Uint8Array {
-  let dataValue: unknown;
-  try {
-    dataValue = accountInfo.data;
-  } catch (error) {
+  const { propertyValue: dataValue, readError: dataReadError } =
+    inspectPropertyValue(accountInfo, 'data');
+  if (dataReadError) {
     throw new Error(
-      `Failed to read transaction account data on ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read transaction account data on ${chain}: ${formatUnknownErrorForMessage(dataReadError)}`,
     );
   }
 
