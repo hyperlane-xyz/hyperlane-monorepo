@@ -23,6 +23,7 @@ export type CleanRuntimeProbeLabels = {
 const INFERENCE_TEST_FILE_PREFIX = 'inference.';
 const INFERENCE_TEST_FILE_SUFFIX = '.test.ts';
 const OBJECT_LIKE_PROBE_LABEL_REGEX = /[a-z0-9_-]+-(?:constructor-)?object/g;
+const knownObjectLikeLabelsByFilePath = new Map<string, ReadonlySet<string>>();
 
 export function isSupportedRuntimePrimitiveValueType(
   valueType: string,
@@ -69,9 +70,15 @@ export function getCleanRuntimeProbeLabels(): CleanRuntimeProbeLabels {
 export function getKnownObjectLikeProbeLabelsFromOtherTests(
   currentFilePath: string,
 ): Set<string> {
+  const normalizedFilePath = path.resolve(currentFilePath);
+  const cached = knownObjectLikeLabelsByFilePath.get(normalizedFilePath);
+  if (cached) {
+    return new Set(cached);
+  }
+
   const knownLabelsFromOtherFiles = new Set<string>();
-  const currentFileName = path.basename(currentFilePath);
-  const submitterTestDir = path.dirname(currentFilePath);
+  const currentFileName = path.basename(normalizedFilePath);
+  const submitterTestDir = path.dirname(normalizedFilePath);
 
   for (const fileName of fs.readdirSync(submitterTestDir)) {
     if (
@@ -91,7 +98,11 @@ export function getKnownObjectLikeProbeLabelsFromOtherTests(
     }
   }
 
-  return knownLabelsFromOtherFiles;
+  knownObjectLikeLabelsByFilePath.set(
+    normalizedFilePath,
+    knownLabelsFromOtherFiles,
+  );
+  return new Set(knownLabelsFromOtherFiles);
 }
 
 export function getRuntimeFunctionValuesByLabel(): Map<string, Function> {
