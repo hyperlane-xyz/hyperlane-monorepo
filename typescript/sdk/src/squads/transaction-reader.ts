@@ -46,7 +46,6 @@ import {
   SquadsInstructionType,
   decodePermissions,
   getSquadProposalAccount,
-  inspectPromiseLikeThenValue,
   isConfigTransaction,
   isVaultTransaction,
   parseSquadProposalTransactionIndex,
@@ -59,6 +58,7 @@ import {
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
 import { resolveSquadsChainName, type SquadsChainName } from './config.js';
+import { inspectPromiseLikeThenValue } from './inspection.js';
 
 export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
 export const MAILBOX_DISCRIMINATOR_SIZE = 1;
