@@ -22,99 +22,54 @@ describe('resolveSubmitterBatchesForTransactions global function probes', () => 
     chainId: 31338,
   };
 
-  const RAW_PROBE_CASES = [
-    { label: 'buffer-constructor-object', probeValue: (globalThis as any).Buffer },
-    {
-      label: 'iterator-constructor-object',
-      probeValue: (globalThis as any).Iterator,
-    },
-    {
-      label: 'performance-constructor-object',
-      probeValue: (globalThis as any).Performance,
-    },
-    { label: 'assert-constructor-object', probeValue: (globalThis as any).assert },
-    { label: 'atob-constructor-object', probeValue: (globalThis as any).atob },
-    { label: 'btoa-constructor-object', probeValue: (globalThis as any).btoa },
-    {
-      label: 'clearimmediate-constructor-object',
-      probeValue: (globalThis as any).clearImmediate,
-    },
-    {
-      label: 'clearinterval-constructor-object',
-      probeValue: (globalThis as any).clearInterval,
-    },
-    {
-      label: 'cleartimeout-constructor-object',
-      probeValue: (globalThis as any).clearTimeout,
-    },
-    {
-      label: 'decodeuri-constructor-object',
-      probeValue: (globalThis as any).decodeURI,
-    },
-    {
-      label: 'decodeuricomponent-constructor-object',
-      probeValue: (globalThis as any).decodeURIComponent,
-    },
-    {
-      label: 'encodeuri-constructor-object',
-      probeValue: (globalThis as any).encodeURI,
-    },
-    {
-      label: 'encodeuricomponent-constructor-object',
-      probeValue: (globalThis as any).encodeURIComponent,
-    },
-    {
-      label: 'escape-constructor-object',
-      probeValue: (globalThis as any).escape,
-    },
-    { label: 'eval-constructor-object', probeValue: (globalThis as any).eval },
-    { label: 'events-constructor-object', probeValue: (globalThis as any).events },
-    { label: 'fetch-constructor-object', probeValue: (globalThis as any).fetch },
-    {
-      label: 'isfinite-constructor-object',
-      probeValue: (globalThis as any).isFinite,
-    },
-    { label: 'isnan-constructor-object', probeValue: (globalThis as any).isNaN },
-    {
-      label: 'parsefloat-constructor-object',
-      probeValue: (globalThis as any).parseFloat,
-    },
-    {
-      label: 'parseint-constructor-object',
-      probeValue: (globalThis as any).parseInt,
-    },
-    {
-      label: 'queuemicrotask-constructor-object',
-      probeValue: (globalThis as any).queueMicrotask,
-    },
-    { label: 'require-constructor-object', probeValue: (globalThis as any).require },
-    {
-      label: 'setimmediate-constructor-object',
-      probeValue: (globalThis as any).setImmediate,
-    },
-    {
-      label: 'setinterval-constructor-object',
-      probeValue: (globalThis as any).setInterval,
-    },
-    {
-      label: 'settimeout-constructor-object',
-      probeValue: (globalThis as any).setTimeout,
-    },
-    { label: 'stream-constructor-object', probeValue: (globalThis as any).stream },
-    {
-      label: 'structuredclone-constructor-object',
-      probeValue: (globalThis as any).structuredClone,
-    },
-    {
-      label: 'unescape-constructor-object',
-      probeValue: (globalThis as any).unescape,
-    },
+  const PROBE_LABELS = [
+    'assert-constructor-object',
+    'atob-constructor-object',
+    'btoa-constructor-object',
+    'buffer-constructor-object',
+    'clearimmediate-constructor-object',
+    'clearinterval-constructor-object',
+    'cleartimeout-constructor-object',
+    'decodeuri-constructor-object',
+    'decodeuricomponent-constructor-object',
+    'encodeuri-constructor-object',
+    'encodeuricomponent-constructor-object',
+    'escape-constructor-object',
+    'eval-constructor-object',
+    'events-constructor-object',
+    'fetch-constructor-object',
+    'isfinite-constructor-object',
+    'isnan-constructor-object',
+    'iterator-constructor-object',
+    'parsefloat-constructor-object',
+    'parseint-constructor-object',
+    'performance-constructor-object',
+    'queuemicrotask-constructor-object',
+    'require-constructor-object',
+    'setimmediate-constructor-object',
+    'setinterval-constructor-object',
+    'settimeout-constructor-object',
+    'stream-constructor-object',
+    'structuredclone-constructor-object',
+    'unescape-constructor-object',
   ] as const;
 
-  const PROBE_CASES = RAW_PROBE_CASES.filter(
-    (value): value is { label: string; probeValue: Function } =>
-      typeof value.probeValue === 'function',
-  );
+  const runtimeFunctionValueByLabel = new Map<string, Function>();
+  for (const name of Object.getOwnPropertyNames(globalThis)) {
+    const value = (globalThis as any)[name];
+    if (typeof value === 'function') {
+      runtimeFunctionValueByLabel.set(`${name.toLowerCase()}-constructor-object`, value);
+    }
+  }
+
+  const PROBE_CASES = PROBE_LABELS.map((label) => ({
+    label,
+    probeValue:
+      runtimeFunctionValueByLabel.get(label) ??
+      (function fallbackGlobalProbeValue() {
+        return undefined;
+      } as Function),
+  }));
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);
