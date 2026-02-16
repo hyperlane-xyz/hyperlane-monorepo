@@ -107,6 +107,9 @@ const MAP_HAS = Map.prototype.has;
 const MAP_GET = Map.prototype.get;
 const MAP_SET = Map.prototype.set;
 const ARRAY_FROM = Array.from;
+const ARRAY_MAP = Array.prototype.map;
+const ARRAY_FILTER = Array.prototype.filter;
+const ARRAY_JOIN = Array.prototype.join;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 const VALID_PROTOCOL_TYPES = new Set<ProtocolType>([
@@ -185,6 +188,27 @@ function arrayFromValuesWithMap<Value, Result>(
   mapFn: (value: Value, index: number) => Result,
 ): Result[] {
   return ARRAY_FROM(values, mapFn);
+}
+
+function arrayMapValues<Value, Result>(
+  values: readonly Value[],
+  mapFn: (value: Value, index: number, array: readonly Value[]) => Result,
+): Result[] {
+  return ARRAY_MAP.call(values, mapFn) as Result[];
+}
+
+function arrayFilterValues<Value>(
+  values: readonly Value[],
+  predicate: (value: Value, index: number, array: readonly Value[]) => boolean,
+): Value[] {
+  return ARRAY_FILTER.call(values, predicate) as Value[];
+}
+
+function arrayJoinValues(
+  values: readonly unknown[],
+  separator: string,
+): string {
+  return ARRAY_JOIN.call(values, separator);
 }
 
 function stringTrim(value: string): string {
@@ -459,7 +483,7 @@ function formatValidatorsWithAliases(
     mapSetValue(aliasMap, stringToLowerCase(addressValue), aliasValue);
   }
 
-  return validators.map((address) => {
+  return arrayMapValues(validators, (address) => {
     const alias = mapGetValue(aliasMap, stringToLowerCase(address));
     return alias ? `${address} (${alias})` : address;
   });
@@ -897,15 +921,18 @@ export class SquadsTransactionReader {
             !configsReadFailed && configsAreArray,
             `Malformed warp route router configs on ${chain}: expected array, got ${getUnknownValueTypeName(configsValue)}`,
           );
-          const routers = (configsValue as readonly unknown[]).map((config) => {
-            const domain = readPropertyOrThrow(config, 'domain');
-            return {
-              domain,
-              chainName:
-                this.tryResolveRemoteChainNameForDisplay(domain) ?? undefined,
-              router: readPropertyOrThrow(config, 'routerAddress'),
-            };
-          });
+          const routers = arrayMapValues(
+            configsValue as readonly unknown[],
+            (config) => {
+              const domain = readPropertyOrThrow(config, 'domain');
+              return {
+                domain,
+                chainName:
+                  this.tryResolveRemoteChainNameForDisplay(domain) ?? undefined,
+                router: readPropertyOrThrow(config, 'routerAddress'),
+              };
+            },
+          );
 
           return {
             instructionType:
@@ -935,15 +962,18 @@ export class SquadsTransactionReader {
             !configsReadFailed && configsAreArray,
             `Malformed warp route gas configs on ${chain}: expected array, got ${getUnknownValueTypeName(configsValue)}`,
           );
-          const configs = (configsValue as readonly unknown[]).map((config) => {
-            const domain = readPropertyOrThrow(config, 'domain');
-            return {
-              domain,
-              chainName:
-                this.tryResolveRemoteChainNameForDisplay(domain) ?? undefined,
-              gas: readPropertyOrThrow(config, 'gas'),
-            };
-          });
+          const configs = arrayMapValues(
+            configsValue as readonly unknown[],
+            (config) => {
+              const domain = readPropertyOrThrow(config, 'domain');
+              return {
+                domain,
+                chainName:
+                  this.tryResolveRemoteChainNameForDisplay(domain) ?? undefined,
+                gas: readPropertyOrThrow(config, 'gas'),
+              };
+            },
+          );
 
           return {
             instructionType:
@@ -2339,7 +2369,7 @@ export class SquadsTransactionReader {
         'multisig PDA',
         multisigPdaValue,
       ),
-      instructions: parsedInstructions.map((inst) =>
+      instructions: arrayMapValues(parsedInstructions, (inst) =>
         this.formatInstruction(chain, inst),
       ),
     };
@@ -2960,25 +2990,31 @@ export class SquadsTransactionReader {
     }
 
     const expectedValidatorsSet = new Set(
-      normalizedExpectedValidators.map((v) => stringToLowerCase(v)),
+      arrayMapValues(normalizedExpectedValidators, (v) => stringToLowerCase(v)),
     );
     const actualValidatorsSet = new Set(
-      normalizedActualValidators.map((v) => stringToLowerCase(v)),
+      arrayMapValues(normalizedActualValidators, (v) => stringToLowerCase(v)),
     );
 
-    const missingValidators = normalizedExpectedValidators.filter(
+    const missingValidators = arrayFilterValues(
+      normalizedExpectedValidators,
       (v) => !setHasValue(actualValidatorsSet, stringToLowerCase(v)),
     );
-    const unexpectedValidators = normalizedActualValidators.filter(
+    const unexpectedValidators = arrayFilterValues(
+      normalizedActualValidators,
       (v) => !setHasValue(expectedValidatorsSet, stringToLowerCase(v)),
     );
 
     if (missingValidators.length > 0) {
-      issues.push(`Missing validators: ${missingValidators.join(', ')}`);
+      issues.push(
+        `Missing validators: ${arrayJoinValues(missingValidators, ', ')}`,
+      );
     }
 
     if (unexpectedValidators.length > 0) {
-      issues.push(`Unexpected validators: ${unexpectedValidators.join(', ')}`);
+      issues.push(
+        `Unexpected validators: ${arrayJoinValues(unexpectedValidators, ', ')}`,
+      );
     }
 
     return { matches: issues.length === 0, issues };
@@ -3581,7 +3617,7 @@ export class SquadsTransactionReader {
 
         tx.insight = verification.matches
           ? `✅ matches expected config for ${chainInfo}`
-          : `❌ fatal mismatch: ${verification.issues.join(', ')}`;
+          : `❌ fatal mismatch: ${arrayJoinValues(verification.issues, ', ')}`;
         break;
       }
 

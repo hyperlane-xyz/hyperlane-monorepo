@@ -2588,6 +2588,84 @@ describe('squads transaction reader multisig verification', () => {
     });
   });
 
+  it('keeps verifier mismatch reporting stable when Array map/filter/join prototypes are mutated', () => {
+    const reader = createReaderForVerification(() => ({
+      solanatestnet: {
+        threshold: 3,
+        validators: ['validator-a', 'validator-b', 'validator-c'],
+      },
+    }));
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+    const originalArrayMap = Array.prototype.map;
+    const originalArrayFilter = Array.prototype.filter;
+    const originalArrayJoin = Array.prototype.join;
+    const throwingMap: typeof Array.prototype.map = function map() {
+      throw new Error('array map unavailable');
+    };
+    const throwingFilter: typeof Array.prototype.filter = function filter() {
+      throw new Error('array filter unavailable');
+    };
+    const throwingJoin: typeof Array.prototype.join = function join() {
+      throw new Error('array join unavailable');
+    };
+
+    let result: { matches: boolean; issues: string[] } | undefined;
+    try {
+      Object.defineProperty(Array.prototype, 'map', {
+        value: throwingMap,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(Array.prototype, 'filter', {
+        value: throwingFilter,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(Array.prototype, 'join', {
+        value: throwingJoin,
+        writable: true,
+        configurable: true,
+      });
+      result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+        'validator-a',
+        'validator-d',
+      ]);
+    } finally {
+      Object.defineProperty(Array.prototype, 'map', {
+        value: originalArrayMap,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(Array.prototype, 'filter', {
+        value: originalArrayFilter,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(Array.prototype, 'join', {
+        value: originalArrayJoin,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Threshold mismatch: expected 3, got 2',
+        'Validator count mismatch: expected 3, got 2',
+        'Missing validators: validator-b, validator-c',
+        'Unexpected validators: validator-d',
+      ],
+    });
+  });
+
   it('keeps verifier normalization stable when string trim/lowercase prototypes are mutated', () => {
     const reader = createReaderForVerification(() => ({
       solanatestnet: {
@@ -10070,6 +10148,60 @@ describe('squads transaction reader', () => {
     );
 
     expect(chainLookupCount).to.equal(1);
+    expect(parsedInstruction).to.deep.equal({
+      instructionType:
+        SealevelHypTokenInstructionName[
+          SealevelHypTokenInstruction.EnrollRemoteRouters
+        ],
+      data: {
+        count: 1,
+        routers: [{ domain: 1000, chainName: undefined, router: null }],
+      },
+      insight: 'Enroll 1 remote router(s)',
+      warnings: [],
+    });
+  });
+
+  it('keeps warp multi-router parsing stable when Array.prototype.map is mutated', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readWarpRouteInstruction: (
+        chain: string,
+        instructionData: Buffer,
+        metadata: Record<string, string>,
+      ) => Record<string, unknown>;
+    };
+    const originalArrayMap = Array.prototype.map;
+    const throwingMap: typeof Array.prototype.map = function map() {
+      throw new Error('array map unavailable');
+    };
+    const instructionData = createEnrollRemoteRoutersInstructionData(1000);
+
+    let parsedInstruction: Record<string, unknown> | undefined;
+    try {
+      Object.defineProperty(Array.prototype, 'map', {
+        value: throwingMap,
+        writable: true,
+        configurable: true,
+      });
+      parsedInstruction = readerAny.readWarpRouteInstruction(
+        'solanamainnet',
+        instructionData,
+        { symbol: 'TEST', name: 'Test Token', routeName: 'test-route' },
+      );
+    } finally {
+      Object.defineProperty(Array.prototype, 'map', {
+        value: originalArrayMap,
+        writable: true,
+        configurable: true,
+      });
+    }
+
     expect(parsedInstruction).to.deep.equal({
       instructionType:
         SealevelHypTokenInstructionName[
