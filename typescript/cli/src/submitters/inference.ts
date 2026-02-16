@@ -41,6 +41,7 @@ const MAX_STRATEGY_PATH_LENGTH = 4096;
 const MAX_OVERRIDE_KEY_LENGTH = 4096;
 const MAX_SELECTOR_SCAN_LENGTH = 1024;
 const MAX_BOXED_STRING_PROTOTYPE_DEPTH = 128;
+const MAX_REGISTRY_CHAIN_ENTRIES = 4096;
 const TX_SELECTOR_PREFIX_REGEX = /^\s*(0[xX][0-9a-fA-F]{8})/;
 const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
   (Object.values(ProtocolType) as ProtocolType[]).filter(
@@ -48,6 +49,9 @@ const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
   ),
 );
 type InferredSubmitter = SubmitterMetadata;
+type RegistryAddresses = Awaited<
+  ReturnType<WriteCommandContext['registry']['getAddresses']>
+>;
 
 type Cache = {
   safeByChainAndAddress: Map<string, boolean>;
@@ -63,9 +67,7 @@ type Cache = {
   >;
   protocolIsEthereumByChain: Map<string, boolean>;
   chainNameByDomain: Map<number, ChainName | null>;
-  registryAddresses?: Awaited<
-    ReturnType<WriteCommandContext['registry']['getAddresses']>
-  >;
+  registryAddresses?: RegistryAddresses;
 };
 
 type InferSubmitterFromAddressParams = {
@@ -385,6 +387,40 @@ function normalizeChainNameFromUnknown(value: unknown): ChainName | null {
   }
 }
 
+function normalizeRegistryAddressesFromUnknown(raw: unknown): RegistryAddresses {
+  const normalizedRegistryAddresses: Record<string, unknown> = {};
+  if (!raw || (typeof raw !== 'object' && typeof raw !== 'function')) {
+    return normalizedRegistryAddresses as RegistryAddresses;
+  }
+
+  let entries: [string, unknown][];
+  try {
+    entries = Object.entries(raw as Record<string, unknown>);
+  } catch {
+    return normalizedRegistryAddresses as RegistryAddresses;
+  }
+
+  let normalizedEntries = 0;
+  for (const [chainKey, addresses] of entries) {
+    if (normalizedEntries >= MAX_REGISTRY_CHAIN_ENTRIES) {
+      break;
+    }
+
+    const normalizedChain = normalizeChainNameFromUnknown(chainKey);
+    if (!normalizedChain) {
+      continue;
+    }
+
+    normalizedRegistryAddresses[normalizedChain] =
+      addresses && (typeof addresses === 'object' || typeof addresses === 'function')
+        ? addresses
+        : {};
+    normalizedEntries += 1;
+  }
+
+  return normalizedRegistryAddresses as RegistryAddresses;
+}
+
 function toHyperlaneDomainId(value: unknown): number | null {
   const normalizedDomain = toNonNegativeIntegerBigInt(value);
   if (normalizedDomain === null) {
@@ -550,21 +586,16 @@ function isEthereumProtocolChain(
 async function getRegistryAddresses(
   context: WriteCommandContext,
   cache: Cache,
-): Promise<
-  Awaited<ReturnType<WriteCommandContext['registry']['getAddresses']>>
-> {
+): Promise<RegistryAddresses> {
   if (cache.registryAddresses) {
     return cache.registryAddresses;
   }
   try {
     const registryAddresses = await context.registry.getAddresses();
-    cache.registryAddresses = (registryAddresses ?? {}) as Awaited<
-      ReturnType<WriteCommandContext['registry']['getAddresses']>
-    >;
+    cache.registryAddresses =
+      normalizeRegistryAddressesFromUnknown(registryAddresses);
   } catch {
-    cache.registryAddresses = {} as Awaited<
-      ReturnType<WriteCommandContext['registry']['getAddresses']>
-    >;
+    cache.registryAddresses = {} as RegistryAddresses;
   }
   return cache.registryAddresses;
 }
