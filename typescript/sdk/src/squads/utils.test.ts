@@ -4496,6 +4496,62 @@ describe('squads utils', () => {
       expect(providerLookupChains).to.deep.equal(['solanamainnet']);
     });
 
+    it('keeps proposal scanning stable when Array map/join prototypes are mutated', async () => {
+      const providerLookupChains: string[] = [];
+      const mpp = {
+        getChainMetadata: () => ({
+          nativeToken: {
+            decimals: 9,
+            symbol: 'SOL',
+          },
+        }),
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChains.push(chain);
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+      const originalArrayMap = Array.prototype.map;
+      const originalArrayJoin = Array.prototype.join;
+      const throwingMap: typeof Array.prototype.map = function map() {
+        throw new Error('array map unavailable');
+      };
+      const throwingJoin: typeof Array.prototype.join = function join() {
+        throw new Error('array join unavailable');
+      };
+
+      let proposals: unknown;
+      try {
+        Object.defineProperty(Array.prototype, 'map', {
+          configurable: true,
+          writable: true,
+          value: throwingMap,
+        });
+        Object.defineProperty(Array.prototype, 'join', {
+          configurable: true,
+          writable: true,
+          value: throwingJoin,
+        });
+        proposals = await getPendingProposalsForChains(
+          [' solanamainnet ', 'unsupported'],
+          mpp,
+        );
+      } finally {
+        Object.defineProperty(Array.prototype, 'map', {
+          configurable: true,
+          writable: true,
+          value: originalArrayMap,
+        });
+        Object.defineProperty(Array.prototype, 'join', {
+          configurable: true,
+          writable: true,
+          value: originalArrayJoin,
+        });
+      }
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupChains).to.deep.equal(['solanamainnet']);
+    });
+
     it('skips provider lookups when all input chains are unsupported', async () => {
       let providerLookupCalled = false;
       const mpp = {

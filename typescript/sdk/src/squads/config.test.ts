@@ -598,6 +598,36 @@ describe('squads config', () => {
     );
   });
 
+  it('keeps unsupported-chain formatting stable when Array.prototype.join is mutated', () => {
+    const originalArrayJoin = Array.prototype.join;
+    const throwingJoin: typeof Array.prototype.join = function join() {
+      throw new Error('array join unavailable');
+    };
+    let errorMessage = '';
+
+    try {
+      Object.defineProperty(Array.prototype, 'join', {
+        value: throwingJoin,
+        writable: true,
+        configurable: true,
+      });
+      errorMessage = getUnsupportedSquadsChainsErrorMessage(
+        ['  ethereum  ', 'ethereum', 'soon'],
+        [' solanamainnet ', 'solanamainnet'],
+      );
+    } finally {
+      Object.defineProperty(Array.prototype, 'join', {
+        value: originalArrayJoin,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(errorMessage).to.equal(
+      'Squads configuration not found for chains: ethereum, soon. Available Squads chains: solanamainnet',
+    );
+  });
+
   it('rejects malformed formatter inputs', () => {
     expect(() => getUnsupportedSquadsChainsErrorMessage('ethereum')).to.throw(
       'Expected unsupported squads chains to be an array, got string',

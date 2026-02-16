@@ -58,6 +58,9 @@ if (squadsConfigEntriesReadError) {
 const SQUADS_CONFIG_ENTRIES = untypedSquadsConfigEntries as Array<
   [SquadsChainName, (typeof squadsConfigs)[SquadsChainName]]
 >;
+const ARRAY_MAP = Array.prototype.map;
+const ARRAY_JOIN = Array.prototype.join;
+const STRING_TRIM = String.prototype.trim;
 
 function readStaticSquadsConfigFieldOrThrow(
   chainName: string,
@@ -83,7 +86,7 @@ function readStaticSquadsConfigFieldOrThrow(
 
 const SQUADS_KEYS_BY_CHAIN = Object.freeze(
   Object.fromEntries(
-    SQUADS_CONFIG_ENTRIES.map(([chainName, config]) => [
+    arrayMapValues(SQUADS_CONFIG_ENTRIES, ([chainName, config]) => [
       chainName,
       Object.freeze({
         multisigPda: new PublicKey(
@@ -117,8 +120,7 @@ const SQUADS_CHAIN_SET = new Set<string>(SQUADS_CHAINS);
 const SQUADS_CHAIN_SET_HAS = SQUADS_CHAIN_SET.has.bind(SQUADS_CHAIN_SET);
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
-const STRING_TRIM = String.prototype.trim;
-const SQUADS_CHAINS_DISPLAY_LIST = SQUADS_CHAINS.join(', ');
+const SQUADS_CHAINS_DISPLAY_LIST = ARRAY_JOIN.call(SQUADS_CHAINS, ', ');
 
 function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
   return SET_HAS.call(set, value);
@@ -130,6 +132,20 @@ function setAddValue<Value>(set: Set<Value>, value: Value): void {
 
 function stringTrim(value: string): string {
   return STRING_TRIM.call(value);
+}
+
+function arrayMapValues<Value, Result>(
+  values: readonly Value[],
+  mapFn: (value: Value, index: number, array: readonly Value[]) => Result,
+): Result[] {
+  return ARRAY_MAP.call(values, mapFn) as Result[];
+}
+
+function arrayJoinValues(
+  values: readonly unknown[],
+  separator: string,
+): string {
+  return ARRAY_JOIN.call(values, separator);
 }
 
 export function getSquadsChains(): SquadsChainName[] {
@@ -315,8 +331,8 @@ export function getUnsupportedSquadsChainsErrorMessage(
   );
 
   return (
-    `Squads configuration not found for chains: ${formattedUnsupportedChains.join(', ')}. ` +
-    `Available Squads chains: ${formattedConfiguredChains.join(', ')}`
+    `Squads configuration not found for chains: ${arrayJoinValues(formattedUnsupportedChains, ', ')}. ` +
+    `Available Squads chains: ${arrayJoinValues(formattedConfiguredChains, ', ')}`
   );
 }
 

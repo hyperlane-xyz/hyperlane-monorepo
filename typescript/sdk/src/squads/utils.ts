@@ -181,11 +181,24 @@ const SET_ADD = Set.prototype.add;
 const MAP_GET = Map.prototype.get;
 const MAP_SET = Map.prototype.set;
 const ARRAY_FROM = Array.from;
+const ARRAY_MAP = Array.prototype.map;
+const ARRAY_FILTER = Array.prototype.filter;
+const ARRAY_JOIN = Array.prototype.join;
 const ARRAY_INCLUDES = Array.prototype.includes;
 const ARRAY_SOME = Array.prototype.some;
 const STRING_INCLUDES = String.prototype.includes;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
+const STRING_SPLIT = String.prototype.split as (
+  this: string,
+  separator: string | RegExp,
+  limit?: number,
+) => string[];
+const STRING_REPLACE = String.prototype.replace as (
+  this: string,
+  searchValue: string | RegExp,
+  replaceValue: string,
+) => string;
 const SAFE_INTEGER_DECIMAL_PATTERN = /^-?\d+$/;
 const LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS = [
   'account does not exist',
@@ -196,11 +209,16 @@ const LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS = [
 
 function tokenizeFieldName(fieldName: string): string[] {
   const normalizedFieldName = stringToLowerCase(
-    fieldName
-      .replace(/([a-z])([A-Z])/g, '$1_$2')
-      .replace(/[^a-zA-Z0-9]+/g, '_'),
+    stringReplaceValue(
+      stringReplaceValue(fieldName, /([a-z])([A-Z])/g, '$1_$2'),
+      /[^a-zA-Z0-9]+/g,
+      '_',
+    ),
   );
-  return normalizedFieldName.split('_').filter((token) => token.length > 0);
+  return arrayFilterValues(
+    stringSplitValue(normalizedFieldName, '_'),
+    (token) => token.length > 0,
+  );
 }
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
@@ -232,6 +250,27 @@ function arrayFromValue<T>(value: ArrayLike<T>): T[] {
   return ARRAY_FROM(value);
 }
 
+function arrayMapValues<Value, Result>(
+  values: readonly Value[],
+  mapFn: (value: Value, index: number, array: readonly Value[]) => Result,
+): Result[] {
+  return ARRAY_MAP.call(values, mapFn) as Result[];
+}
+
+function arrayFilterValues<Value>(
+  values: readonly Value[],
+  predicate: (value: Value, index: number, array: readonly Value[]) => boolean,
+): Value[] {
+  return ARRAY_FILTER.call(values, predicate) as Value[];
+}
+
+function arrayJoinValues(
+  values: readonly unknown[],
+  separator: string,
+): string {
+  return ARRAY_JOIN.call(values, separator);
+}
+
 function arrayIncludesValue<Value>(
   values: readonly Value[],
   value: Value,
@@ -248,6 +287,18 @@ function arraySomeValue<Value>(
 
 function stringIncludesValue(value: string, searchValue: string): boolean {
   return STRING_INCLUDES.call(value, searchValue);
+}
+
+function stringSplitValue(value: string, separator: string | RegExp): string[] {
+  return STRING_SPLIT.call(value, separator) as string[];
+}
+
+function stringReplaceValue(
+  value: string,
+  searchValue: string | RegExp,
+  replaceValue: string,
+): string {
+  return STRING_REPLACE.call(value, searchValue, replaceValue);
 }
 
 function stringTrim(value: string): string {
@@ -588,7 +639,7 @@ function parseSquadsProposalVoteErrorFromUnknownLogs(
     return undefined;
   }
 
-  return parseSquadsProposalVoteErrorText(logEntries.join('\n'));
+  return parseSquadsProposalVoteErrorText(arrayJoinValues(logEntries, '\n'));
 }
 
 function getRecordFieldValue(
@@ -1402,12 +1453,15 @@ export async function getPendingProposalsForChains(
 
   if (nonSquadsChains.length > 0) {
     rootLogger.warn(
-      `Skipping chains without Squads config: ${nonSquadsChains.join(', ')}`,
+      `Skipping chains without Squads config: ${arrayJoinValues(
+        nonSquadsChains,
+        ', ',
+      )}`,
     );
   }
 
   await Promise.all(
-    squadsChains.map(async (chain) => {
+    arrayMapValues(squadsChains, async (chain) => {
       try {
         const { decimals, symbol: nativeTokenSymbol } =
           getPendingProposalNativeTokenMetadataForChain(mpp, chain);
@@ -2072,7 +2126,7 @@ export function decodePermissions(mask: unknown): string {
   if (mask & SquadsPermission.VOTER) permissions.push('Voter');
   if (mask & SquadsPermission.EXECUTOR) permissions.push('Executor');
 
-  return permissions.length > 0 ? permissions.join(', ') : 'None';
+  return permissions.length > 0 ? arrayJoinValues(permissions, ', ') : 'None';
 }
 
 async function getNextSquadsTransactionIndex(
@@ -2799,7 +2853,10 @@ export async function getTransactionType(
       SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
     );
     throw new Error(
-      `Unknown transaction type with discriminator: [${arrayFromValue(discriminator).join(', ')}]. Expected VaultTransaction or ConfigTransaction.`,
+      `Unknown transaction type with discriminator: [${arrayJoinValues(
+        arrayFromValue(discriminator),
+        ', ',
+      )}]. Expected VaultTransaction or ConfigTransaction.`,
     );
   }
 }
