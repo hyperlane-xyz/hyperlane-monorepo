@@ -697,4 +697,48 @@ describe('resolveSubmitterBatchesForTransactions unknown protocol fallback', () 
       TxSubmitterType.GNOSIS_TX_BUILDER,
     );
   });
+
+  it('falls back to explicit default when protocol lookup returns deep-prototype string-like object with explicit overrides', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-protocol-deep-prototype-string-like-explicit-${Date.now()}.yaml`;
+    const overrideTarget = '0x9999999999999999999999999999999999999999';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x2222222222222222222222222222222222222222',
+          version: '1.0',
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    let prototype: object = String.prototype;
+    for (let i = 0; i < 200; i += 1) {
+      prototype = Object.create(prototype);
+    }
+    const deepPrototypeStringLike = Object.create(prototype) as any;
+    deepPrototypeStringLike.toString = () => 'ethereum';
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: overrideTarget } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => deepPrototypeStringLike,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
 });

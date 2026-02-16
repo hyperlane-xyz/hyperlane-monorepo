@@ -633,4 +633,35 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
     expect(batches).to.have.length(1);
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
+
+  it('treats deep-prototype string-like strategyUrl as missing and falls back to jsonRpc default', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-deep-prototype-string-like-strategy-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x7777777777777777777777777777777777777777',
+          version: '1.0',
+        },
+      },
+    });
+
+    let prototype: object = String.prototype;
+    for (let i = 0; i < 200; i += 1) {
+      prototype = Object.create(prototype);
+    }
+    const deepPrototypeStringLike = Object.create(prototype) as any;
+    deepPrototypeStringLike.toString = () => strategyPath;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: deepPrototypeStringLike,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
 });

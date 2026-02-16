@@ -38,6 +38,7 @@ const EVM_ADDRESS_ZERO =
   '0x0000000000000000000000000000000000000000' as Address;
 const MAX_PROTOCOL_STRING_LENGTH = 256;
 const MAX_STRATEGY_PATH_LENGTH = 4096;
+const MAX_BOXED_STRING_PROTOTYPE_DEPTH = 128;
 const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
   (Object.values(ProtocolType) as ProtocolType[]).filter(
     (protocol) => protocol !== ProtocolType.Unknown,
@@ -1687,7 +1688,12 @@ function isBoxedStringObject(value: unknown): value is String {
   try {
     let prototype: object | null = Object.getPrototypeOf(value);
     const seenPrototypes = new Set<object>();
+    let depth = 0;
     while (prototype) {
+      depth += 1;
+      if (depth > MAX_BOXED_STRING_PROTOTYPE_DEPTH) {
+        return false;
+      }
       if (prototype === String.prototype) {
         return true;
       }
