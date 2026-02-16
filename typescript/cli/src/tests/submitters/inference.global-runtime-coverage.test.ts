@@ -1,6 +1,9 @@
 import { expect } from 'chai';
 
-import { getCleanRuntimeProbeLabels } from './inference.runtime-globals.js';
+import {
+  getCleanRuntimeProbeLabels,
+  getProbeLabelFromInferenceTestTitle,
+} from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions global runtime probe coverage', () => {
   const getCoveredLabelsFromGeneratedTests = (currentTest: any) => {
@@ -13,10 +16,8 @@ describe('resolveSubmitterBatchesForTransactions global runtime probe coverage',
       const suite = suiteStack.pop();
       for (const test of suite?.tests ?? []) {
         const title = String(test.title ?? '');
-        const match = title.match(
-          /(?:caches(?: event-derived)?(?: async)? )([a-z0-9_-]+-(?:constructor-)?object|[a-z0-9_-]+-primitive) origin signer probes across timelock ICA inferences/,
-        );
-        if (match?.[1]) coveredLabels.add(match[1]);
+        const label = getProbeLabelFromInferenceTestTitle(title);
+        if (label) coveredLabels.add(label);
       }
       suiteStack.push(...(suite?.suites ?? []));
     }

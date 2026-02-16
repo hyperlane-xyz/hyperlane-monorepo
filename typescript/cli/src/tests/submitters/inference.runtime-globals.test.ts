@@ -5,6 +5,7 @@ import { expect } from 'chai';
 import {
   SUPPORTED_RUNTIME_PRIMITIVE_VALUE_TYPES,
   getKnownObjectLikeProbeLabelsFromOtherTests,
+  getProbeLabelFromInferenceTestTitle,
   getRuntimeFunctionValuesByLabel,
   getRuntimeObjectValuesByLabel,
   getRuntimePrimitiveValuesByLabel,
@@ -60,5 +61,28 @@ describe('runtime global probe helpers', () => {
     }
     expect(isSupportedRuntimePrimitiveValueType('object')).to.equal(false);
     expect(isSupportedRuntimePrimitiveValueType('function')).to.equal(false);
+  });
+
+  it('extracts probe labels from generated test titles', () => {
+    expect(
+      getProbeLabelFromInferenceTestTitle(
+        'caches array-constructor-object origin signer probes across timelock ICA inferences',
+      ),
+    ).to.equal('array-constructor-object');
+    expect(
+      getProbeLabelFromInferenceTestTitle(
+        'caches async __filename-string-primitive origin signer probes across timelock ICA inferences',
+      ),
+    ).to.equal('__filename-string-primitive');
+    expect(
+      getProbeLabelFromInferenceTestTitle(
+        'caches event-derived async stream-object origin signer probes across timelock ICA inferences',
+      ),
+    ).to.equal('stream-object');
+    expect(
+      getProbeLabelFromInferenceTestTitle(
+        'some unrelated test title that should not match',
+      ),
+    ).to.equal(null);
   });
 });

@@ -23,6 +23,8 @@ export type CleanRuntimeProbeLabels = {
 const INFERENCE_TEST_FILE_PREFIX = 'inference.';
 const INFERENCE_TEST_FILE_SUFFIX = '.test.ts';
 const OBJECT_LIKE_PROBE_LABEL_REGEX = /[a-z0-9_-]+-(?:constructor-)?object/g;
+const PROBE_LABEL_FROM_TEST_TITLE_REGEX =
+  /(?:caches(?: event-derived)?(?: async)? )([a-z0-9_-]+-(?:constructor-)?object|[a-z0-9_-]+-primitive) origin signer probes across timelock ICA inferences/;
 const knownObjectLikeLabelsByFilePath = new Map<string, ReadonlySet<string>>();
 
 export function isSupportedRuntimePrimitiveValueType(
@@ -143,4 +145,11 @@ export function getRuntimePrimitiveValuesByLabel(): Map<string, unknown> {
     }
   }
   return runtimePrimitiveByLabel;
+}
+
+export function getProbeLabelFromInferenceTestTitle(
+  title: string,
+): string | null {
+  const match = title.match(PROBE_LABEL_FROM_TEST_TITLE_REGEX);
+  return match?.[1] ?? null;
 }
