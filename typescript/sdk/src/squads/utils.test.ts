@@ -8083,6 +8083,33 @@ describe('squads utils', () => {
       expect(providerLookupChain).to.equal(undefined);
     });
 
+    it('labels unreadable execution signer publicKey values deterministically', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const { proxy: revokedPublicKey, revoke } = Proxy.revocable({}, {});
+      revoke();
+      const signerAdapter = {
+        buildAndSendTransaction: async () => 'signature',
+        publicKey: () => revokedPublicKey,
+      };
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal('solanamainnet', mpp, 0, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid signer public key for solanamainnet: expected PublicKey, got [unreadable value type]',
+      );
+      expect(providerLookupChain).to.equal(undefined);
+    });
+
     it('throws contextual error when execution signer buildAndSendTransaction accessor fails', async () => {
       let providerLookupChain: string | undefined;
       const mpp = {
