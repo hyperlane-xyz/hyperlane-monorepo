@@ -2627,6 +2627,63 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps Reflect.apply pattern-discovery wrapper defaults represented in broad-pattern results', () => {
+    const defaultMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
+    const broadMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const defaultCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
+    const broadCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /Reflect\.apply/,
+      );
+    const broadMutationPathSet = new Set(broadMutationPaths);
+    const broadCapturePathSet = new Set(broadCapturePaths);
+
+    for (const defaultMutationPath of defaultMutationPaths) {
+      expect(broadMutationPathSet.has(defaultMutationPath)).to.equal(true);
+    }
+    for (const defaultCapturePath of defaultCapturePaths) {
+      expect(broadCapturePathSet.has(defaultCapturePath)).to.equal(true);
+    }
+  });
+
+  it('keeps Reflect.apply wrapper discovery stable when global RegExp is mutated', () => {
+    const defaultMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
+    const defaultCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
+    const originalRegExp = RegExp;
+
+    Object.defineProperty(globalThis, 'RegExp', {
+      configurable: true,
+      writable: true,
+      value: function MutatedRegExp(): never {
+        throw new Error(
+          'Expected Reflect.apply wrapper discovery to use captured RegExp constructor',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultCapturePaths);
+    } finally {
+      Object.defineProperty(globalThis, 'RegExp', {
+        configurable: true,
+        writable: true,
+        value: originalRegExp,
+      });
+    }
+  });
+
   it('keeps sdk squads pattern-path discovery stable for global regex inputs', () => {
     const nonGlobalMutationPathPattern = /Reflect\.apply is mutated/;
     const globalMutationPathPattern = /Reflect\.apply is mutated/g;
