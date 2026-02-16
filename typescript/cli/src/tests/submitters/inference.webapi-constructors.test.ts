@@ -12,6 +12,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import { getRuntimeFunctionValuesByLabel } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions web api constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -22,38 +23,47 @@ describe('resolveSubmitterBatchesForTransactions web api constructor probes', ()
     chainId: 31338,
   };
 
-  const CONSTRUCTOR_CASES = [
+  const runtimeFunctionValuesByLabel = getRuntimeFunctionValuesByLabel();
+
+  const RAW_CONSTRUCTOR_CASES = [
     {
       label: 'abortcontroller-constructor-object',
-      constructorValue: AbortController,
       directGetLogsCallCount: 4,
     },
     {
       label: 'abortsignal-constructor-object',
-      constructorValue: AbortSignal,
       directGetLogsCallCount: 4,
     },
     {
       label: 'domexception-constructor-object',
-      constructorValue: DOMException,
       directGetLogsCallCount: 4,
     },
     {
       label: 'eventtarget-constructor-object',
-      constructorValue: EventTarget,
       directGetLogsCallCount: 4,
     },
     {
       label: 'event-constructor-object',
-      constructorValue: Event,
       directGetLogsCallCount: 4,
     },
     {
       label: 'customevent-constructor-object',
-      constructorValue: CustomEvent,
       directGetLogsCallCount: 4,
     },
   ] as const;
+
+  const CONSTRUCTOR_CASES = RAW_CONSTRUCTOR_CASES.map((value) => ({
+    ...value,
+    constructorValue: runtimeFunctionValuesByLabel.get(value.label),
+  })).filter(
+    (
+      value,
+    ): value is {
+      label: string;
+      constructorValue: Function;
+      directGetLogsCallCount: number;
+    } => typeof value.constructorValue === 'function',
+  );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);
@@ -337,8 +347,14 @@ describe('resolveSubmitterBatchesForTransactions web api constructor probes', ()
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -359,8 +375,14 @@ describe('resolveSubmitterBatchesForTransactions web api constructor probes', ()
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -381,8 +403,14 @@ describe('resolveSubmitterBatchesForTransactions web api constructor probes', ()
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -402,8 +430,14 @@ describe('resolveSubmitterBatchesForTransactions web api constructor probes', ()
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });

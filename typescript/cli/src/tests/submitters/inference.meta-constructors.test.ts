@@ -12,6 +12,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import { getRuntimeFunctionValuesByLabel } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions meta constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -22,23 +23,35 @@ describe('resolveSubmitterBatchesForTransactions meta constructor probes', () =>
     chainId: 31338,
   };
 
-  const CONSTRUCTOR_CASES = [
+  const runtimeFunctionValuesByLabel = getRuntimeFunctionValuesByLabel();
+
+  const RAW_CONSTRUCTOR_CASES = [
     {
       label: 'proxy-constructor-object',
-      constructorValue: Proxy,
       directGetLogsCallCount: 5,
     },
     {
       label: 'weakref-constructor-object',
-      constructorValue: WeakRef,
       directGetLogsCallCount: 5,
     },
     {
       label: 'finalizationregistry-constructor-object',
-      constructorValue: FinalizationRegistry,
       directGetLogsCallCount: 5,
     },
   ] as const;
+
+  const CONSTRUCTOR_CASES = RAW_CONSTRUCTOR_CASES.map((value) => ({
+    ...value,
+    constructorValue: runtimeFunctionValuesByLabel.get(value.label),
+  })).filter(
+    (
+      value,
+    ): value is {
+      label: string;
+      constructorValue: Function;
+      directGetLogsCallCount: number;
+    } => typeof value.constructorValue === 'function',
+  );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);
@@ -322,8 +335,14 @@ describe('resolveSubmitterBatchesForTransactions meta constructor probes', () =>
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -344,8 +363,14 @@ describe('resolveSubmitterBatchesForTransactions meta constructor probes', () =>
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -366,8 +391,14 @@ describe('resolveSubmitterBatchesForTransactions meta constructor probes', () =>
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -387,8 +418,14 @@ describe('resolveSubmitterBatchesForTransactions meta constructor probes', () =>
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });

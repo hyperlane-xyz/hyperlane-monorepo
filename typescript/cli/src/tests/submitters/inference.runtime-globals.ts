@@ -167,6 +167,30 @@ export function getRuntimeFunctionValuesByLabel(): Map<string, Function> {
   return runtimeFunctionValueByLabel;
 }
 
+export function getRuntimeIntlFunctionValuesByLabel(): Map<string, Function> {
+  const runtimeIntlFunctionValueByLabel = new Map<string, Function>();
+  const intlValue = tryGetGlobalValueByName('Intl');
+  if (
+    intlValue === MISSING_GLOBAL_VALUE ||
+    intlValue === null ||
+    typeof intlValue !== 'object'
+  ) {
+    return runtimeIntlFunctionValueByLabel;
+  }
+
+  for (const { name, value } of getReadableRuntimeObjectPropertyEntries(
+    intlValue,
+  )) {
+    if (typeof value === 'function') {
+      runtimeIntlFunctionValueByLabel.set(
+        `intl-${name.toLowerCase()}-constructor-object`,
+        value,
+      );
+    }
+  }
+  return runtimeIntlFunctionValueByLabel;
+}
+
 export function getRuntimeObjectValuesByLabel(): Map<string, object> {
   const runtimeObjectValueByLabel = new Map<string, object>();
   for (const { name, value } of getReadableRuntimeGlobalEntries()) {
@@ -233,6 +257,22 @@ function getReadableRuntimeGlobalEntries(): Array<{
       continue;
     }
     entries.push({ name, value });
+  }
+  return entries;
+}
+
+function getReadableRuntimeObjectPropertyEntries(
+  value: object,
+): Array<{ name: string; value: unknown }> {
+  const entries: Array<{ name: string; value: unknown }> = [];
+  for (const name of Object.getOwnPropertyNames(value)) {
+    let propertyValue: unknown;
+    try {
+      propertyValue = (value as any)[name];
+    } catch {
+      continue;
+    }
+    entries.push({ name, value: propertyValue });
   }
   return entries;
 }

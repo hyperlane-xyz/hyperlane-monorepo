@@ -12,6 +12,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import { getRuntimeFunctionValuesByLabel } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions fetch constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -22,38 +23,47 @@ describe('resolveSubmitterBatchesForTransactions fetch constructor probes', () =
     chainId: 31338,
   };
 
-  const CONSTRUCTOR_CASES = [
+  const runtimeFunctionValuesByLabel = getRuntimeFunctionValuesByLabel();
+
+  const RAW_CONSTRUCTOR_CASES = [
     {
       label: 'blob-constructor-object',
-      constructorValue: Blob,
       directGetLogsCallCount: 4,
     },
     {
       label: 'file-constructor-object',
-      constructorValue: File,
       directGetLogsCallCount: 4,
     },
     {
       label: 'formdata-constructor-object',
-      constructorValue: FormData,
       directGetLogsCallCount: 4,
     },
     {
       label: 'headers-constructor-object',
-      constructorValue: Headers,
       directGetLogsCallCount: 4,
     },
     {
       label: 'request-constructor-object',
-      constructorValue: Request,
       directGetLogsCallCount: 4,
     },
     {
       label: 'response-constructor-object',
-      constructorValue: Response,
       directGetLogsCallCount: 4,
     },
   ] as const;
+
+  const CONSTRUCTOR_CASES = RAW_CONSTRUCTOR_CASES.map((value) => ({
+    ...value,
+    constructorValue: runtimeFunctionValuesByLabel.get(value.label),
+  })).filter(
+    (
+      value,
+    ): value is {
+      label: string;
+      constructorValue: Function;
+      directGetLogsCallCount: number;
+    } => typeof value.constructorValue === 'function',
+  );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);
@@ -337,8 +347,14 @@ describe('resolveSubmitterBatchesForTransactions fetch constructor probes', () =
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -359,8 +375,14 @@ describe('resolveSubmitterBatchesForTransactions fetch constructor probes', () =
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -381,8 +403,14 @@ describe('resolveSubmitterBatchesForTransactions fetch constructor probes', () =
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });
@@ -402,8 +430,14 @@ describe('resolveSubmitterBatchesForTransactions fetch constructor probes', () =
           const batches = await resolveSubmitterBatchesForTransactions({
             chain: CHAIN,
             transactions: [
-              { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
-              { ...TX, to: '0x4444444444444444444444444444444444444444' } as any,
+              {
+                ...TX,
+                to: '0x1111111111111111111111111111111111111111',
+              } as any,
+              {
+                ...TX,
+                to: '0x4444444444444444444444444444444444444444',
+              } as any,
             ],
             context: setup.context,
           });

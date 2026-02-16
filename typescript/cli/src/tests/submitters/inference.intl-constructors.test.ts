@@ -12,6 +12,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import { getRuntimeIntlFunctionValuesByLabel } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions intl constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -22,33 +23,44 @@ describe('resolveSubmitterBatchesForTransactions intl constructor probes', () =>
     chainId: 31338,
   };
 
-  const CONSTRUCTOR_CASES = [
+  const runtimeIntlFunctionValuesByLabel =
+    getRuntimeIntlFunctionValuesByLabel();
+
+  const RAW_CONSTRUCTOR_CASES = [
     {
       label: 'intl-collator-constructor-object',
-      constructorValue: Intl.Collator,
       directGetLogsCallCount: 5,
     },
     {
       label: 'intl-datetimeformat-constructor-object',
-      constructorValue: Intl.DateTimeFormat,
       directGetLogsCallCount: 5,
     },
     {
       label: 'intl-numberformat-constructor-object',
-      constructorValue: Intl.NumberFormat,
       directGetLogsCallCount: 5,
     },
     {
       label: 'intl-pluralrules-constructor-object',
-      constructorValue: Intl.PluralRules,
       directGetLogsCallCount: 5,
     },
     {
       label: 'intl-relativetimeformat-constructor-object',
-      constructorValue: Intl.RelativeTimeFormat,
       directGetLogsCallCount: 5,
     },
   ] as const;
+
+  const CONSTRUCTOR_CASES = RAW_CONSTRUCTOR_CASES.map((value) => ({
+    ...value,
+    constructorValue: runtimeIntlFunctionValuesByLabel.get(value.label),
+  })).filter(
+    (
+      value,
+    ): value is {
+      label: string;
+      constructorValue: Function;
+      directGetLogsCallCount: number;
+    } => typeof value.constructorValue === 'function',
+  );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);

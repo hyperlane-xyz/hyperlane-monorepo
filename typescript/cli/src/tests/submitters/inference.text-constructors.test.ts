@@ -12,6 +12,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import { getRuntimeFunctionValuesByLabel } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions text constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -22,18 +23,31 @@ describe('resolveSubmitterBatchesForTransactions text constructor probes', () =>
     chainId: 31338,
   };
 
-  const CONSTRUCTOR_CASES = [
+  const runtimeFunctionValuesByLabel = getRuntimeFunctionValuesByLabel();
+
+  const RAW_CONSTRUCTOR_CASES = [
     {
       label: 'textdecoder-constructor-object',
-      constructorValue: TextDecoder,
       directGetLogsCallCount: 5,
     },
     {
       label: 'textencoder-constructor-object',
-      constructorValue: TextEncoder,
       directGetLogsCallCount: 5,
     },
   ] as const;
+
+  const CONSTRUCTOR_CASES = RAW_CONSTRUCTOR_CASES.map((value) => ({
+    ...value,
+    constructorValue: runtimeFunctionValuesByLabel.get(value.label),
+  })).filter(
+    (
+      value,
+    ): value is {
+      label: string;
+      constructorValue: Function;
+      directGetLogsCallCount: number;
+    } => typeof value.constructorValue === 'function',
+  );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);

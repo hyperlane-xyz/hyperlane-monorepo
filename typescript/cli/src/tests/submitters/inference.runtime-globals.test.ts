@@ -12,6 +12,7 @@ import {
   getKnownObjectLikeProbeLabelsFromOtherTests,
   getProbeLabelFromInferenceTestTitle,
   getRuntimeFunctionValuesByLabel,
+  getRuntimeIntlFunctionValuesByLabel,
   getRuntimeObjectValuesByLabel,
   getRuntimePrimitiveValuesByLabel,
   isSupportedRuntimePrimitiveValueType,
@@ -147,14 +148,24 @@ describe('runtime global probe helpers', () => {
 
   it('exposes runtime function/object/primitive value maps with labeled keys', () => {
     const functionMap = getRuntimeFunctionValuesByLabel();
+    const intlFunctionMap = getRuntimeIntlFunctionValuesByLabel();
     const objectMap = getRuntimeObjectValuesByLabel();
     const primitiveMap = getRuntimePrimitiveValuesByLabel();
 
     expect(functionMap.size).to.be.greaterThan(0);
+    expect(intlFunctionMap.size).to.be.greaterThan(0);
+    expect(intlFunctionMap.has('intl-collator-constructor-object')).to.equal(
+      true,
+    );
     expect(objectMap.size).to.be.greaterThan(0);
     expect(primitiveMap.size).to.be.greaterThan(0);
 
     for (const [label, value] of functionMap) {
+      expect(label.endsWith('-constructor-object')).to.equal(true);
+      expect(typeof value).to.equal('function');
+    }
+    for (const [label, value] of intlFunctionMap) {
+      expect(label.startsWith('intl-')).to.equal(true);
       expect(label.endsWith('-constructor-object')).to.equal(true);
       expect(typeof value).to.equal('function');
     }
