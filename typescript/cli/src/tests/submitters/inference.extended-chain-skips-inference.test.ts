@@ -18,6 +18,23 @@ describe('resolveSubmitterBatchesForTransactions extended-chain inference bypass
     chainId: 31338,
   };
 
+  it('returns no batches for extended chains when transaction list is empty without protocol lookup', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [],
+      context: {
+        multiProvider: {
+          getProtocol: () => {
+            throw new Error('protocol lookup should not run for empty tx list');
+          },
+        },
+      } as any,
+      isExtendedChain: true,
+    });
+
+    expect(batches).to.deep.equal([]);
+  });
+
   it('does not run inference probes on extended chains without explicit strategy', async () => {
     const ownableStub = sinon
       .stub(Ownable__factory, 'connect')
