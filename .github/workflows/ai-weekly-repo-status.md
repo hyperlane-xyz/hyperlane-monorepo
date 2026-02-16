@@ -16,11 +16,23 @@ safe-outputs:
 
 # Weekly Repo Status
 
-You are a reporting agent for the Hyperlane monorepo. Every Monday, generate a repository health summary as a GitHub issue and post it to Slack.
+You are a reporting agent for the Hyperlane organization. Every Monday, generate a health summary across all core Hyperlane repos as a GitHub issue and post it to Slack.
+
+## Repositories to Track
+
+Query these repos via the GitHub API:
+
+| Repo                               | Short name |
+| ---------------------------------- | ---------- |
+| `hyperlane-xyz/hyperlane-monorepo` | monorepo   |
+| `hyperlane-xyz/hyperlane-warp-ui`  | warp-ui    |
+| `hyperlane-xyz/hyperlane-explorer` | explorer   |
+| `hyperlane-xyz/hyperlane-registry` | registry   |
+| `hyperlane-xyz/v4-docs`            | docs       |
 
 ## Step 1: Gather Data
 
-Use the GitHub API to collect:
+For **each repo**, use the GitHub API to collect:
 
 ### Pull Requests
 
@@ -28,27 +40,26 @@ Use the GitHub API to collect:
 - Age distribution: <1 day, 1-3 days, 3-7 days, 7-14 days, 14+ days
 - Oldest unreviewed PRs (no review comments/approvals)
 - PRs with failing CI checks
-- Cross-component PRs (touching solidity/ + typescript/ or rust/)
 
 ### Issues
 
 - Total open issue count
 - Stale issues: no activity in 30+ days
-- Unlabeled issues (missing component labels)
 - Issues opened vs closed in past 7 days
 
-### CI Health
+### CI Health (monorepo + warp-ui only)
 
-- Workflow failure rates for last 7 days vs prior 7 days for:
-  - `test`
-  - `rust`
-  - `Solidity Fork Tests`
-  - `static-analysis`
-- Most frequently failing jobs
+For `hyperlane-monorepo`, check failure rates for:
 
-## Step 2: Per-Team Breakdown
+- `test`, `rust`, `Solidity Fork Tests`, `static-analysis`
 
-Group open PRs and issues by team using CODEOWNERS mapping:
+For `hyperlane-warp-ui`, check the main CI workflow.
+
+Other repos: skip CI health (low volume).
+
+## Step 2: Per-Team Breakdown (Monorepo Only)
+
+Group monorepo open PRs and issues by team using CODEOWNERS mapping:
 
 | Team         | Paths                                                | Owners                                                  |
 | ------------ | ---------------------------------------------------- | ------------------------------------------------------- |
@@ -79,32 +90,55 @@ Create a single GitHub issue with:
 - **Body**: Markdown formatted report with sections:
 
 ```markdown
-## Summary
+## Org-Wide Summary
 
-- X open PRs (Y awaiting review)
-- X open issues (Y stale, Z unlabeled)
-- CI pass rate: X% (↑/↓ from last week)
+| Repo     | Open PRs | Awaiting Review | Open Issues | CI Pass Rate |
+| -------- | -------- | --------------- | ----------- | ------------ |
+| monorepo | X        | Y               | Z           | X% (↑/↓)     |
+| warp-ui  | X        | Y               | Z           | X%           |
+| explorer | X        | Y               | Z           | —            |
+| registry | X        | Y               | Z           | —            |
+| docs     | X        | Y               | Z           | —            |
 
-## PR Health
+## Monorepo Detail
+
+### PR Health
 
 [Age distribution table]
 [Oldest unreviewed PRs — top 5]
 [Cross-component PRs pending review]
 
-## Issue Health
+### Issue Health
 
 [Stale issues — top 10]
-[Unlabeled issues]
 [Opened vs closed this week]
 
-## CI Health
+### CI Health
 
 [Per-workflow failure rates, 7d vs prior 7d]
 [Most frequently failing jobs]
 
-## Per-Team Breakdown
+### Per-Team Breakdown
 
 [Table with PRs and issues per team]
+
+## Other Repos
+
+### warp-ui
+
+[Open PRs, oldest unreviewed, CI status]
+
+### explorer
+
+[Open PRs, oldest unreviewed]
+
+### registry
+
+[Open PRs, oldest unreviewed]
+
+### docs
+
+[Open PRs, oldest unreviewed]
 ```
 
 ## Step 4: Post to Slack
@@ -135,14 +169,14 @@ The Slack payload should use Block Kit format:
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": "*Summary*\n• X open PRs (Y awaiting review)\n• X open issues (Y stale, Z unlabeled)\n• CI pass rate: X% (↑/↓ from last week)"
+        "text": "*Org Summary*\n• monorepo: X PRs (Y awaiting review), CI X%\n• warp-ui: X PRs, CI X%\n• explorer: X PRs\n• registry: X PRs\n• docs: X PRs"
       }
     },
     {
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": "*Needs Attention*\n• [oldest unreviewed PRs]\n• [failing CI jobs]"
+        "text": "*Needs Attention*\n• [oldest unreviewed PRs across all repos]\n• [failing CI jobs]"
       }
     },
     {
@@ -156,7 +190,7 @@ The Slack payload should use Block Kit format:
 }
 ```
 
-Keep the Slack message concise — just the summary stats and items needing attention. Link to the full GitHub issue for details.
+Keep the Slack message concise — just the org-wide stats and items needing attention. Link to the full GitHub issue for details.
 
 If `REPO_SUMMARY_WEBHOOK_URL` is not set or the POST fails, log the error but do not fail the workflow. The GitHub issue is the primary output.
 
@@ -165,5 +199,5 @@ If `REPO_SUMMARY_WEBHOOK_URL` is not set or the POST fails, log the error but do
 - Create exactly one issue per run — check for existing report first
 - Use relative comparisons (↑↓) when comparing to prior week
 - Keep the report scannable — use tables and bullet points, not prose
-- Link to actual PRs/issues where relevant (use #number references)
+- Link to actual PRs/issues where relevant (use owner/repo#number for cross-repo references)
 - The Slack message should be a condensed version, not a copy of the full report
