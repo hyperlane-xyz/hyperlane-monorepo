@@ -2837,6 +2837,53 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps sdk Reflect.apply positive and zero count partitions exhaustive per runtime table', () => {
+    const runtimeSourceCount =
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_RUNTIME_SOURCE_COUNT;
+
+    const identifierPositiveCount =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.filter(
+        ({ expectedReflectApplyIdentifierReferenceCount }) =>
+          expectedReflectApplyIdentifierReferenceCount > 0,
+      ).length;
+    const identifierZeroCount =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.filter(
+        ({ expectedReflectApplyIdentifierReferenceCount }) =>
+          expectedReflectApplyIdentifierReferenceCount === 0,
+      ).length;
+    expect(identifierPositiveCount + identifierZeroCount).to.equal(
+      runtimeSourceCount,
+    );
+
+    const invocationPositiveCount =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.filter(
+        ({ expectedReflectApplyInvocationCount }) =>
+          expectedReflectApplyInvocationCount > 0,
+      ).length;
+    const invocationZeroCount =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.filter(
+        ({ expectedReflectApplyInvocationCount }) =>
+          expectedReflectApplyInvocationCount === 0,
+      ).length;
+    expect(invocationPositiveCount + invocationZeroCount).to.equal(
+      runtimeSourceCount,
+    );
+
+    const captureDeclarationPositiveCount =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.filter(
+        ({ expectedReflectApplyCaptureDeclarationCount }) =>
+          expectedReflectApplyCaptureDeclarationCount > 0,
+      ).length;
+    const captureDeclarationZeroCount =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.filter(
+        ({ expectedReflectApplyCaptureDeclarationCount }) =>
+          expectedReflectApplyCaptureDeclarationCount === 0,
+      ).length;
+    expect(
+      captureDeclarationPositiveCount + captureDeclarationZeroCount,
+    ).to.equal(runtimeSourceCount);
+  });
+
   it('keeps sdk Reflect.apply identifier and REFLECT_APPLY totals aligned with runtime sources', () => {
     const identifierReferenceCountTotalFromTable =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.reduce(
