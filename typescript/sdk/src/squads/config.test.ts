@@ -472,6 +472,36 @@ describe('squads config', () => {
     );
   });
 
+  it('throws contextual resolve errors when squads-chain list length accessor fails', () => {
+    const hostileResolveChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('length unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
+      'Failed to read squads chains length: length unavailable',
+    );
+  });
+
+  it('uses deterministic placeholder when squads-chain length accessor throws generic-object Error messages', () => {
+    const hostileResolveChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
+      'Failed to read squads chains length: [unstringifiable error]',
+    );
+  });
+
   it('throws contextual resolve errors when squads-chain list index access fails', () => {
     const hostileResolveChains = new Proxy(['solanamainnet'], {
       get(target, property, receiver) {
@@ -484,6 +514,40 @@ describe('squads config', () => {
 
     expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
       'Failed to read squads chains[0]: entry unavailable',
+    );
+  });
+
+  it('throws contextual formatter errors when unsupported-chain index access fails', () => {
+    const hostileUnsupportedChains = new Proxy(['ethereum'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('entry unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
+    ).to.throw(
+      'Failed to read unsupported squads chains[0]: entry unavailable',
+    );
+  });
+
+  it('uses deterministic placeholder when unsupported-chain index access throws generic-object Error messages', () => {
+    const hostileUnsupportedChains = new Proxy(['ethereum'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
+    ).to.throw(
+      'Failed to read unsupported squads chains[0]: [unstringifiable error]',
     );
   });
 
