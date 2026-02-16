@@ -46024,9 +46024,18 @@ describe('Safe migration guards', () => {
     expect(sourceText).to.not.match(/\b(?:it|describe)\.skip\(/);
   });
 
+  it('keeps required safe helper allowlist unique', () => {
+    expect(new Set(REQUIRED_SAFE_HELPER_EXPORTS).size).to.equal(
+      REQUIRED_SAFE_HELPER_EXPORTS.length,
+    );
+  });
+
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
     const runtimeRequiredExports = REQUIRED_SAFE_HELPER_EXPORTS.filter(
       (symbol) => symbol !== 'ParseableSafeTx',
+    );
+    expect(new Set(runtimeRequiredExports).size).to.equal(
+      runtimeRequiredExports.length,
     );
     const references = getSdkGnosisSafeExportReferences();
     for (const exportedSymbol of runtimeRequiredExports) {

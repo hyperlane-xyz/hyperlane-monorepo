@@ -46033,6 +46033,10 @@ describe('Gnosis Safe migration guards', () => {
           'SafeStatus',
         ].includes(symbol),
     );
+    expect(new Set(requiredExports).size).to.equal(requiredExports.length);
+    expect(new Set(requiredRuntimeExports).size).to.equal(
+      requiredRuntimeExports.length,
+    );
 
     for (const exportedSymbol of requiredExports) {
       expect(
