@@ -387,6 +387,51 @@ describe('runtime global probe helpers', () => {
     );
   });
 
+  it('keeps cached runtime function probe snapshots stable', () => {
+    // Prime the cached no-map lookup path first.
+    expect(
+      getRequiredRuntimeFunctionValueByLabel('array-constructor-object'),
+    ).to.equal(Array);
+
+    const injectedGlobalName = '__InjectedRuntimeProbeConstructor__';
+    const injectedLabel = `${injectedGlobalName.toLowerCase()}-constructor-object`;
+    const injectedConstructor = function InjectedRuntimeProbeConstructor() {
+      return undefined;
+    };
+    (globalThis as any)[injectedGlobalName] = injectedConstructor;
+
+    try {
+      // Fresh explicit maps can observe newly injected globals.
+      const freshRuntimeFunctionMap = getRuntimeFunctionValuesByLabel();
+      expect(freshRuntimeFunctionMap.get(injectedLabel)).to.equal(
+        injectedConstructor,
+      );
+
+      // Cached no-map helpers intentionally keep a stable snapshot.
+      expect(() =>
+        getRequiredRuntimeFunctionValueByLabel(injectedLabel),
+      ).to.throw(
+        `Missing runtime function probe value for label "${injectedLabel}"`,
+      );
+      const defaultResolvedCases = resolveRuntimeFunctionProbeCases([
+        { label: injectedLabel, directGetLogsCallCount: 1 },
+      ]);
+      expect(defaultResolvedCases).to.have.length(0);
+
+      // Explicit-map resolver remains dynamic.
+      const explicitResolvedCases = resolveRuntimeFunctionProbeCases(
+        [{ label: injectedLabel, directGetLogsCallCount: 1 }],
+        freshRuntimeFunctionMap,
+      );
+      expect(explicitResolvedCases).to.have.length(1);
+      expect(explicitResolvedCases[0].constructorValue).to.equal(
+        injectedConstructor,
+      );
+    } finally {
+      Reflect.deleteProperty(globalThis, injectedGlobalName);
+    }
+  });
+
   it('keeps constructor probe case tables free of hardcoded globals', () => {
     const constructorProbeFilePattern =
       /^inference\..*constructor(?:s)?\.test\.ts$/;
