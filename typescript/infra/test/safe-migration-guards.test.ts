@@ -45869,6 +45869,26 @@ describe('Safe migration guards', () => {
     expect(allTitles.length).to.equal(EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT);
   });
 
+  it('keeps strict-equality conditional expected-count constants internally consistent', () => {
+    const computedVariantCount =
+      NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_FAMILIES.length *
+      NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_VARIANTS.length *
+      NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_PREDICATE_TYPES.length *
+      NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_CONTEXTS.length;
+    const computedNonVariantCount =
+      NULLISH_LOGICAL_BASE_CONDITIONAL_DELETE_KEY_TITLE_STEMS.length *
+      NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_CONTEXTS.length;
+    const computedTotalCount = computedVariantCount + computedNonVariantCount;
+
+    expect(EXPECTED_VARIANT_CONDITIONAL_TITLE_COUNT).to.equal(
+      computedVariantCount,
+    );
+    expect(EXPECTED_NON_VARIANT_CONDITIONAL_TITLE_COUNT).to.equal(
+      computedNonVariantCount,
+    );
+    expect(EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT).to.equal(computedTotalCount);
+  });
+
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
     const runtimeRequiredExports = REQUIRED_SAFE_HELPER_EXPORTS.filter(
       (symbol) => symbol !== 'ParseableSafeTx',
