@@ -6,6 +6,7 @@ import {
   inspectInstanceOf,
   inspectObjectEntries,
   inspectObjectKeys,
+  inspectPropertyPresence,
   inspectPropertyValue,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
@@ -325,6 +326,102 @@ describe('squads inspection helpers', () => {
 
       expect(inspectPropertyValue(value, 'foo')).to.deep.equal({
         propertyValue: undefined,
+        readError: opaqueError,
+      });
+    });
+  });
+
+  describe(inspectPropertyPresence.name, () => {
+    it('returns false without readError for non-object values', () => {
+      expect(inspectPropertyPresence(undefined, 'foo')).to.deep.equal({
+        hasProperty: false,
+        readError: undefined,
+      });
+      expect(inspectPropertyPresence(null, 'foo')).to.deep.equal({
+        hasProperty: false,
+        readError: undefined,
+      });
+      expect(inspectPropertyPresence('value', 'foo')).to.deep.equal({
+        hasProperty: false,
+        readError: undefined,
+      });
+    });
+
+    it('detects readable object and function property presence', () => {
+      const functionValue = Object.assign(() => undefined, { foo: true });
+      const parent = { inherited: true };
+      const child = Object.create(parent);
+
+      expect(inspectPropertyPresence({ foo: 'bar' }, 'foo')).to.deep.equal({
+        hasProperty: true,
+        readError: undefined,
+      });
+      expect(inspectPropertyPresence({ foo: 'bar' }, 'bar')).to.deep.equal({
+        hasProperty: false,
+        readError: undefined,
+      });
+      expect(inspectPropertyPresence(functionValue, 'foo')).to.deep.equal({
+        hasProperty: true,
+        readError: undefined,
+      });
+      expect(inspectPropertyPresence(child, 'inherited')).to.deep.equal({
+        hasProperty: true,
+        readError: undefined,
+      });
+    });
+
+    it('captures read errors from throwing has traps', () => {
+      const objectValue = new Proxy(
+        {},
+        {
+          has(_target, property) {
+            if (property === 'foo') {
+              throw new Error('object has unavailable');
+            }
+            return false;
+          },
+        },
+      );
+      const functionValue = new Proxy(() => undefined, {
+        has(_target, property) {
+          if (property === 'foo') {
+            throw new Error('function has unavailable');
+          }
+          return false;
+        },
+      });
+
+      const objectInspection = inspectPropertyPresence(objectValue, 'foo');
+      expect(objectInspection.hasProperty).to.equal(false);
+      expect(objectInspection.readError).to.be.instanceOf(Error);
+      expect((objectInspection.readError as Error).message).to.equal(
+        'object has unavailable',
+      );
+
+      const functionInspection = inspectPropertyPresence(functionValue, 'foo');
+      expect(functionInspection.hasProperty).to.equal(false);
+      expect(functionInspection.readError).to.be.instanceOf(Error);
+      expect((functionInspection.readError as Error).message).to.equal(
+        'function has unavailable',
+      );
+    });
+
+    it('preserves opaque errors from has traps', () => {
+      const opaqueError = { source: 'has-trap' };
+      const value = new Proxy(
+        {},
+        {
+          has(_target, property) {
+            if (property === 'foo') {
+              throw opaqueError;
+            }
+            return false;
+          },
+        },
+      );
+
+      expect(inspectPropertyPresence(value, 'foo')).to.deep.equal({
+        hasProperty: false,
         readError: opaqueError,
       });
     });

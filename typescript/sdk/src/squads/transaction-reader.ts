@@ -63,6 +63,7 @@ import {
   inspectBufferValue,
   inspectInstanceOf,
   inspectObjectEntries,
+  inspectPropertyPresence,
   inspectPropertyValue,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
@@ -2459,27 +2460,48 @@ export class SquadsTransactionReader {
 
     let accountInfoValue: unknown = fetchedTransactionAccount;
     let accountDataValue: unknown;
-    const fetchedAccountRecord = fetchedTransactionAccount as {
-      accountInfo?: unknown;
-      accountData?: unknown;
-    };
-    try {
-      if ('accountInfo' in fetchedAccountRecord) {
-        accountInfoValue = fetchedAccountRecord.accountInfo;
-      }
-    } catch (error) {
+    const {
+      hasProperty: hasAccountInfoField,
+      readError: accountInfoFieldReadError,
+    } = inspectPropertyPresence(fetchedTransactionAccount, 'accountInfo');
+    if (accountInfoFieldReadError) {
       throw new Error(
-        `Failed to read fetched transaction account info on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read fetched transaction account info on ${chain}: ${stringifyUnknownSquadsError(accountInfoFieldReadError)}`,
       );
     }
-    try {
-      if ('accountData' in fetchedAccountRecord) {
-        accountDataValue = fetchedAccountRecord.accountData;
+    if (hasAccountInfoField) {
+      const {
+        propertyValue: fetchedAccountInfoValue,
+        readError: accountInfoReadError,
+      } = inspectPropertyValue(fetchedTransactionAccount, 'accountInfo');
+      if (accountInfoReadError) {
+        throw new Error(
+          `Failed to read fetched transaction account info on ${chain}: ${stringifyUnknownSquadsError(accountInfoReadError)}`,
+        );
       }
-    } catch (error) {
+      accountInfoValue = fetchedAccountInfoValue;
+    }
+
+    const {
+      hasProperty: hasAccountDataField,
+      readError: accountDataFieldReadError,
+    } = inspectPropertyPresence(fetchedTransactionAccount, 'accountData');
+    if (accountDataFieldReadError) {
       throw new Error(
-        `Failed to read fetched transaction account bytes on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read fetched transaction account bytes on ${chain}: ${stringifyUnknownSquadsError(accountDataFieldReadError)}`,
       );
+    }
+    if (hasAccountDataField) {
+      const {
+        propertyValue: fetchedAccountDataValue,
+        readError: accountDataReadError,
+      } = inspectPropertyValue(fetchedTransactionAccount, 'accountData');
+      if (accountDataReadError) {
+        throw new Error(
+          `Failed to read fetched transaction account bytes on ${chain}: ${stringifyUnknownSquadsError(accountDataReadError)}`,
+        );
+      }
+      accountDataValue = fetchedAccountDataValue;
     }
 
     if (

@@ -93,6 +93,36 @@ export function inspectPropertyValue(
   }
 }
 
+export function inspectPropertyPresence(
+  value: unknown,
+  property: PropertyKey,
+): {
+  hasProperty: boolean;
+  readError: unknown | undefined;
+} {
+  if (
+    (typeof value !== 'object' && typeof value !== 'function') ||
+    value === null
+  ) {
+    return {
+      hasProperty: false,
+      readError: undefined,
+    };
+  }
+
+  try {
+    return {
+      hasProperty: property in value,
+      readError: undefined,
+    };
+  } catch (error) {
+    return {
+      hasProperty: false,
+      readError: error,
+    };
+  }
+}
+
 export function inspectBufferValue(value: unknown): {
   isBuffer: boolean;
   readFailed: boolean;
