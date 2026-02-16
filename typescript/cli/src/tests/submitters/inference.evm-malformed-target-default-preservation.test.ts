@@ -87,12 +87,40 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target default pr
     );
   });
 
+  it('preserves explicit default submitter when transaction target is whitespace-only', async () => {
+    const strategyPath = createStrategyPath('whitespace-only-target');
+    writeTargetOverrideStrategy(strategyPath);
+
+    const batches = await resolveSingleBatch(
+      { ...TX, to: '   ' },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('still applies valid EVM target override when transaction target is well-formed', async () => {
     const strategyPath = createStrategyPath('valid-address');
     writeTargetOverrideStrategy(strategyPath);
 
     const batches = await resolveSingleBatch(
       { ...TX, to: TARGET },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('still applies valid EVM target override when transaction target is whitespace-padded uppercase 0X address', async () => {
+    const strategyPath = createStrategyPath('well-formed-uppercase-padded');
+    writeTargetOverrideStrategy(strategyPath);
+
+    const batches = await resolveSingleBatch(
+      { ...TX, to: `  0X${TARGET.slice(2).toUpperCase()}  ` },
       strategyPath,
     );
 

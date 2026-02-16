@@ -90,12 +90,42 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target selector-o
     );
   });
 
+  it('preserves explicit default submitter when transaction target is whitespace-only and only selector override exists', async () => {
+    const strategyPath = createStrategyPath('whitespace-only-target');
+    writeSelectorOnlyStrategy(strategyPath);
+
+    const batches = await resolveSingleBatch(
+      { ...TX, to: '   ' },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('still applies selector-specific override when transaction target is well-formed', async () => {
     const strategyPath = createStrategyPath('well-formed-target');
     writeSelectorOnlyStrategy(strategyPath);
 
     const batches = await resolveSingleBatch(
       { ...TX, to: TARGET },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.TIMELOCK_CONTROLLER,
+    );
+  });
+
+  it('still applies selector-specific override when transaction target is whitespace-padded uppercase 0X address', async () => {
+    const strategyPath = createStrategyPath('well-formed-uppercase-padded');
+    writeSelectorOnlyStrategy(strategyPath);
+
+    const batches = await resolveSingleBatch(
+      { ...TX, to: `  0X${TARGET.slice(2).toUpperCase()}  ` },
       strategyPath,
     );
 
