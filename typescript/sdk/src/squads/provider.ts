@@ -3,19 +3,13 @@ import { assert } from '@hyperlane-xyz/utils';
 import { stringifyUnknownSquadsError } from './error-format.js';
 import {
   inspectArrayValue,
+  inspectPropertyValue,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
 
 export type SquadsProvider = Parameters<
   typeof accounts.Multisig.fromAccountAddress
 >[0];
-
-type ProviderWithOptionalGetAccountInfo =
-  | {
-      getAccountInfo?: unknown;
-    }
-  | null
-  | undefined;
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
 
@@ -25,24 +19,6 @@ function formatValueType(value: unknown): string {
   if (readFailed) return UNREADABLE_VALUE_TYPE;
   if (isArray) return 'array';
   return typeof value;
-}
-
-function getProviderGetAccountInfo(value: unknown): {
-  getAccountInfo: unknown;
-  readError: unknown | undefined;
-} {
-  try {
-    return {
-      getAccountInfo: (value as ProviderWithOptionalGetAccountInfo)
-        ?.getAccountInfo,
-      readError: undefined,
-    };
-  } catch (error) {
-    return {
-      getAccountInfo: undefined,
-      readError: error,
-    };
-  }
 }
 
 function formatUnknownProviderError(error: unknown): string {
@@ -84,8 +60,8 @@ export function toSquadsProvider(provider: unknown): SquadsProvider {
     )})`,
   );
 
-  const { getAccountInfo, readError: getAccountInfoReadError } =
-    getProviderGetAccountInfo(provider);
+  const { propertyValue: getAccountInfo, readError: getAccountInfoReadError } =
+    inspectPropertyValue(provider, 'getAccountInfo');
   assert(
     !getAccountInfoReadError,
     `Invalid Solana provider: failed to read getAccountInfo (${formatUnknownProviderError(

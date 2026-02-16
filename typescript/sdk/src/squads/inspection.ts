@@ -15,8 +15,11 @@ export function inspectArrayValue(value: unknown): {
   }
 }
 
-export function inspectPromiseLikeThenValue(value: unknown): {
-  thenValue: unknown;
+export function inspectPropertyValue(
+  value: unknown,
+  property: PropertyKey,
+): {
+  propertyValue: unknown;
   readError: unknown | undefined;
 } {
   if (
@@ -24,22 +27,33 @@ export function inspectPromiseLikeThenValue(value: unknown): {
     value === null
   ) {
     return {
-      thenValue: undefined,
+      propertyValue: undefined,
       readError: undefined,
     };
   }
 
   try {
     return {
-      thenValue: (value as { then?: unknown }).then,
+      propertyValue: (value as Record<PropertyKey, unknown>)[property],
       readError: undefined,
     };
   } catch (error) {
     return {
-      thenValue: undefined,
+      propertyValue: undefined,
       readError: error,
     };
   }
+}
+
+export function inspectPromiseLikeThenValue(value: unknown): {
+  thenValue: unknown;
+  readError: unknown | undefined;
+} {
+  const { propertyValue, readError } = inspectPropertyValue(value, 'then');
+  return {
+    thenValue: propertyValue,
+    readError,
+  };
 }
 
 export function inspectInstanceOf(

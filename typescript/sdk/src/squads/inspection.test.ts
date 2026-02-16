@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import {
   inspectArrayValue,
   inspectInstanceOf,
+  inspectPropertyValue,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
 
@@ -119,6 +120,107 @@ describe('squads inspection helpers', () => {
 
       expect(inspectPromiseLikeThenValue(value)).to.deep.equal({
         thenValue: undefined,
+        readError: opaqueError,
+      });
+    });
+  });
+
+  describe(inspectPropertyValue.name, () => {
+    it('returns undefined without readError for non-object values', () => {
+      expect(inspectPropertyValue(undefined, 'foo')).to.deep.equal({
+        propertyValue: undefined,
+        readError: undefined,
+      });
+      expect(inspectPropertyValue(null, 'foo')).to.deep.equal({
+        propertyValue: undefined,
+        readError: undefined,
+      });
+      expect(inspectPropertyValue('value', 'foo')).to.deep.equal({
+        propertyValue: undefined,
+        readError: undefined,
+      });
+    });
+
+    it('returns property values for readable object and function inputs', () => {
+      const functionProperty = () => undefined;
+      const functionValue = Object.assign(() => undefined, {
+        foo: functionProperty,
+      });
+      const symbolKey = Symbol('symbol-key');
+
+      expect(inspectPropertyValue({ foo: 'bar' }, 'foo')).to.deep.equal({
+        propertyValue: 'bar',
+        readError: undefined,
+      });
+      expect(inspectPropertyValue(functionValue, 'foo')).to.deep.equal({
+        propertyValue: functionProperty,
+        readError: undefined,
+      });
+      expect(
+        inspectPropertyValue(
+          {
+            [symbolKey]: 123,
+          },
+          symbolKey,
+        ),
+      ).to.deep.equal({
+        propertyValue: 123,
+        readError: undefined,
+      });
+    });
+
+    it('captures read errors from throwing object and function accessors', () => {
+      const objectValue = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'foo') {
+              throw new Error('object property unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+      const functionValue = new Proxy(() => undefined, {
+        get(target, property, receiver) {
+          if (property === 'foo') {
+            throw new Error('function property unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      const objectInspection = inspectPropertyValue(objectValue, 'foo');
+      expect(objectInspection.propertyValue).to.equal(undefined);
+      expect(objectInspection.readError).to.be.instanceOf(Error);
+      expect((objectInspection.readError as Error).message).to.equal(
+        'object property unavailable',
+      );
+
+      const functionInspection = inspectPropertyValue(functionValue, 'foo');
+      expect(functionInspection.propertyValue).to.equal(undefined);
+      expect(functionInspection.readError).to.be.instanceOf(Error);
+      expect((functionInspection.readError as Error).message).to.equal(
+        'function property unavailable',
+      );
+    });
+
+    it('preserves opaque read errors from property accessors', () => {
+      const opaqueError = { source: 'property-getter' };
+      const value = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'foo') {
+              throw opaqueError;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      expect(inspectPropertyValue(value, 'foo')).to.deep.equal({
+        propertyValue: undefined,
         readError: opaqueError,
       });
     });
