@@ -480,4 +480,62 @@ describe('resolveSubmitterBatchesForTransactions unknown protocol fallback', () 
       TxSubmitterType.GNOSIS_TX_BUILDER,
     );
   });
+
+  it('applies explicit overrides from boxed protocol string when String Symbol.hasInstance throws', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-protocol-boxed-hasinstance-explicit-${Date.now()}.yaml`;
+    const overrideTarget = '0x9999999999999999999999999999999999999999';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x2222222222222222222222222222222222222222',
+          version: '1.0',
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    const originalHasInstanceDescriptor = Object.getOwnPropertyDescriptor(
+      String,
+      Symbol.hasInstance,
+    );
+    Object.defineProperty(String, Symbol.hasInstance, {
+      configurable: true,
+      value: () => {
+        throw new Error('String @@hasInstance should not be used');
+      },
+    });
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [{ ...TX, to: overrideTarget } as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => new String(' ETHEREUM ') as any,
+          },
+        } as any,
+        strategyUrl: strategyPath,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    } finally {
+      if (originalHasInstanceDescriptor) {
+        Object.defineProperty(
+          String,
+          Symbol.hasInstance,
+          originalHasInstanceDescriptor,
+        );
+      } else {
+        delete (String as any)[Symbol.hasInstance];
+      }
+    }
+  });
 });

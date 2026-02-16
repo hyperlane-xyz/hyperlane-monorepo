@@ -1606,7 +1606,7 @@ function getTransactionStringField(
     if (typeof value === 'string') {
       return value;
     }
-    if (value instanceof String) {
+    if (isBoxedStringObject(value)) {
       const normalizedValue = value.toString();
       return typeof normalizedValue === 'string' ? normalizedValue : undefined;
     }
@@ -1627,7 +1627,7 @@ function hasUsableOverrideKeys(
 }
 
 function normalizeOptionalPath(value: unknown): string | undefined {
-  if (typeof value === 'string' || value instanceof String) {
+  if (typeof value === 'string' || isBoxedStringObject(value)) {
     try {
       const trimmed = value.toString().trim();
       return trimmed.length > 0 ? trimmed : undefined;
@@ -1641,7 +1641,7 @@ function normalizeOptionalPath(value: unknown): string | undefined {
 function coerceKnownProtocolType(
   protocol: unknown,
 ): ProtocolType | undefined {
-  if (typeof protocol === 'string' || protocol instanceof String) {
+  if (typeof protocol === 'string' || isBoxedStringObject(protocol)) {
     try {
       const normalizedProtocol = protocol.toString().trim().toLowerCase();
       return KNOWN_PROTOCOL_TYPES.has(normalizedProtocol as ProtocolType)
@@ -1655,6 +1655,26 @@ function coerceKnownProtocolType(
   return KNOWN_PROTOCOL_TYPES.has(protocol as ProtocolType)
     ? (protocol as ProtocolType)
     : undefined;
+}
+
+function isBoxedStringObject(value: unknown): value is String {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  try {
+    let prototype: object | null = Object.getPrototypeOf(value);
+    while (prototype) {
+      if (prototype === String.prototype) {
+        return true;
+      }
+      prototype = Object.getPrototypeOf(prototype);
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
 }
 
 function createCache(): Cache {
