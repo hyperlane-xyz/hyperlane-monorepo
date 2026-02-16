@@ -45911,6 +45911,12 @@ describe('Safe migration guards', () => {
     expect(EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT).to.equal(computedTotalCount);
   });
 
+  it('keeps guard suite free of focused or skipped tests', () => {
+    const sourceText = fs.readFileSync(__filename, 'utf8');
+    expect(sourceText).to.not.match(/\b(?:it|describe)\.only\(/);
+    expect(sourceText).to.not.match(/\b(?:it|describe)\.skip\(/);
+  });
+
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
     const runtimeRequiredExports = REQUIRED_SAFE_HELPER_EXPORTS.filter(
       (symbol) => symbol !== 'ParseableSafeTx',

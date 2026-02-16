@@ -45757,6 +45757,12 @@ describe('Gnosis Safe migration guards', () => {
     expect(EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT).to.equal(computedTotalCount);
   });
 
+  it('keeps guard suite free of focused or skipped tests', () => {
+    const sourceText = fs.readFileSync(__filename, 'utf8');
+    expect(sourceText).to.not.match(/\b(?:it|describe)\.only\(/);
+    expect(sourceText).to.not.match(/\b(?:it|describe)\.skip\(/);
+  });
+
   it('prevents sdk source imports from infra paths', () => {
     const sourceFilePaths = collectSdkSourceFilePaths(
       path.resolve(process.cwd(), 'src'),
