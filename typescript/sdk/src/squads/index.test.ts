@@ -1195,13 +1195,10 @@ function listSdkSquadsNonTestSourceFilePathsContainingPattern(
 }
 
 function doesPatternMatchSource(source: string, pattern: RegExp): boolean {
-  const originalLastIndex = pattern.lastIndex;
-  pattern.lastIndex = 0;
-  try {
-    return pattern.test(source);
-  } finally {
-    pattern.lastIndex = originalLastIndex;
-  }
+  const sourcePattern = pattern.source;
+  const flagsPattern = pattern.flags;
+  const isolatedPattern = new RegExp(sourcePattern, flagsPattern);
+  return isolatedPattern.test(source);
 }
 
 function listSdkSquadsNonTestSourceFilePaths(): readonly string[] {
@@ -2250,6 +2247,51 @@ describe('squads barrel exports', () => {
     expect(reusableGlobalMutationPattern.lastIndex).to.equal(9);
     expect(reusableGlobalCapturePattern.lastIndex).to.equal(13);
     expect(reusableStickyMutationPattern.lastIndex).to.equal(5);
+  });
+
+  it('keeps sdk squads pattern-path discovery resilient to regex test overrides', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+
+    const overriddenMutationPattern = /Reflect\.apply is mutated/g;
+    const overriddenCapturePattern = /const REFLECT_APPLY = Reflect\.apply/g;
+    overriddenMutationPattern.lastIndex = 11;
+    overriddenCapturePattern.lastIndex = 17;
+
+    Object.defineProperty(overriddenMutationPattern, 'test', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected discovery helper to use an isolated RegExp matcher for mutation pattern',
+        );
+      },
+    });
+    Object.defineProperty(overriddenCapturePattern, 'test', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected discovery helper to use an isolated RegExp matcher for capture pattern',
+        );
+      },
+    });
+
+    expect(
+      listSdkSquadsTestFilePathsContainingPattern(overriddenMutationPattern),
+    ).to.deep.equal(baselineMutationDiscovery);
+    expect(
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        overriddenCapturePattern,
+      ),
+    ).to.deep.equal(baselineCaptureDiscovery);
+
+    expect(overriddenMutationPattern.lastIndex).to.equal(11);
+    expect(overriddenCapturePattern.lastIndex).to.equal(17);
   });
 
   it('keeps sdk Reflect.apply mutation tests using explicit Reflect.apply monkey-patch setup', () => {
