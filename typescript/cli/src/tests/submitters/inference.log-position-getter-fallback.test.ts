@@ -238,6 +238,92 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
       inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
     ).to.equal(ORIGIN_ROUTER.toLowerCase());
   });
+
+  it('ignores overlong router bytes32 fields and uses next valid ICA event', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 610,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const malformedRouterLog = {
+      __parsedArgs: {
+        origin: 31347,
+        router: `0x${'1'.repeat(5000)}`,
+        owner: signerBytes32,
+        ism: ethersConstants.AddressZero,
+      },
+      topics: ['0xmalformed-overlong-router-bytes32'],
+      data: '0x',
+      blockNumber: 611,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+
+    const inferredSubmitter = await resolveFromLogs([malformedRouterLog, validLog]);
+
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
+
+  it('ignores null-byte owner bytes32 fields and uses next valid ICA event', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 620,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const malformedOwnerLog = {
+      __parsedArgs: {
+        origin: 31347,
+        router: originRouterBytes32,
+        owner: `${signerBytes32}\0`,
+        ism: ethersConstants.AddressZero,
+      },
+      topics: ['0xmalformed-null-byte-owner-bytes32'],
+      data: '0x',
+      blockNumber: 621,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+
+    const inferredSubmitter = await resolveFromLogs([malformedOwnerLog, validLog]);
+
+    expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
+  });
+
+  it('ignores overlong ism fields and uses next valid ICA event', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 630,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const malformedIsmLog = {
+      __parsedArgs: {
+        origin: 31347,
+        router: originRouterBytes32,
+        owner: signerBytes32,
+        ism: `0x${'f'.repeat(5000)}`,
+      },
+      topics: ['0xmalformed-overlong-ism'],
+      data: '0x',
+      blockNumber: 631,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+
+    const inferredSubmitter = await resolveFromLogs([malformedIsmLog, validLog]);
+
+    expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
+  });
 });
 
 describe('resolveSubmitterBatchesForTransactions timelock log position getter fallback', () => {
@@ -301,7 +387,11 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
         hasRole: async () => false,
         interface: {
           getEventTopic: (name: string) => name,
-          parseLog: () => ({ args: { account: safeProposer } }),
+          parseLog: (log: any) => ({
+            args: {
+              account: log?.__parsedAccount ?? safeProposer,
+            },
+          }),
         },
       } as any);
 
@@ -382,6 +472,17 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
           throw new Error('logIndex toString getter should not crash');
         },
       },
+    });
+  });
+
+  it('ignores overlong timelock account fields during role ordering', async () => {
+    await resolveFromRoleLogs({
+      __parsedAccount: `0x${'3'.repeat(5000)}`,
+      topics: ['0xgrant-malformed-overlong-account'],
+      data: '0x',
+      blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
     });
   });
 });

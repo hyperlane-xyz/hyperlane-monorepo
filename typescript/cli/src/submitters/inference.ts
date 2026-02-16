@@ -263,6 +263,83 @@ function compareLogsByPosition(
   return compareLogPositionIndex(a.logIndex, b.logIndex);
 }
 
+function getParsedLogArgs(parsedLog: unknown): unknown | null {
+  if (
+    !parsedLog ||
+    (typeof parsedLog !== 'object' && typeof parsedLog !== 'function')
+  ) {
+    return null;
+  }
+
+  try {
+    return (parsedLog as { args?: unknown }).args ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getParsedLogArg(args: unknown, field: string): unknown {
+  if (!args || (typeof args !== 'object' && typeof args !== 'function')) {
+    return undefined;
+  }
+
+  try {
+    return (args as Record<string, unknown>)[field];
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeEvmAddressFromUnknown(value: unknown): Address | null {
+  if (typeof value !== 'string' && !isBoxedStringObject(value)) {
+    return null;
+  }
+
+  try {
+    const normalizedValue = value.toString();
+    if (typeof normalizedValue !== 'string') {
+      return null;
+    }
+    const normalizedAddress = normalizeEvmAddressCandidate(normalizedValue);
+    return normalizedAddress ? (normalizedAddress as Address) : null;
+  } catch {
+    return null;
+  }
+}
+
+function bytes32ToEvmAddressFromUnknown(value: unknown): Address | null {
+  if (typeof value !== 'string' && !isBoxedStringObject(value)) {
+    return null;
+  }
+
+  let rawValue: unknown;
+  try {
+    rawValue = value.toString();
+  } catch {
+    return null;
+  }
+  if (typeof rawValue !== 'string') {
+    return null;
+  }
+
+  const trimmedValue = rawValue.trim();
+  if (
+    trimmedValue.length === 0 ||
+    trimmedValue.length > MAX_OVERRIDE_KEY_LENGTH ||
+    trimmedValue.includes('\0')
+  ) {
+    return null;
+  }
+
+  try {
+    const address = bytes32ToAddress(trimmedValue);
+    const normalizedAddress = normalizeEvmAddressCandidate(address);
+    return normalizedAddress ? (normalizedAddress as Address) : null;
+  } catch {
+    return null;
+  }
+}
+
 function toHyperlaneDomainId(value: unknown): number | null {
   const normalizedDomain = toNonNegativeIntegerBigInt(value);
   if (normalizedDomain === null) {
@@ -715,24 +792,38 @@ async function inferIcaSubmitterFromAccount({
     let ism: Address;
     try {
       const parsed = destinationRouter.interface.parseLog(log);
-      const normalizedOriginDomain = toHyperlaneDomainId(parsed.args.origin);
+      const parsedArgs = getParsedLogArgs(parsed);
+      const normalizedOriginDomain = toHyperlaneDomainId(
+        getParsedLogArg(parsedArgs, 'origin'),
+      );
       if (normalizedOriginDomain === null) {
         continue;
       }
       originDomain = normalizedOriginDomain;
-      originRouter = bytes32ToAddress(parsed.args.router);
-      owner = bytes32ToAddress(parsed.args.owner);
+      const normalizedOriginRouter = bytes32ToEvmAddressFromUnknown(
+        getParsedLogArg(parsedArgs, 'router'),
+      );
+      const normalizedOwner = bytes32ToEvmAddressFromUnknown(
+        getParsedLogArg(parsedArgs, 'owner'),
+      );
+      if (!normalizedOriginRouter || !normalizedOwner) {
+        continue;
+      }
+      originRouter = normalizedOriginRouter;
+      owner = normalizedOwner;
       if (
         eqAddress(originRouter, EVM_ADDRESS_ZERO) ||
         eqAddress(owner, EVM_ADDRESS_ZERO)
       ) {
         continue;
       }
-      const normalizedIsm = tryNormalizeEvmAddress(parsed.args.ism as Address);
+      const normalizedIsm = normalizeEvmAddressFromUnknown(
+        getParsedLogArg(parsedArgs, 'ism'),
+      );
       if (!normalizedIsm) {
         continue;
       }
-      ism = normalizedIsm as Address;
+      ism = normalizedIsm;
     } catch {
       continue;
     }
@@ -1004,17 +1095,18 @@ async function inferTimelockProposerSubmitter({
   for (const roleLog of roleLogs) {
     try {
       const parsed = timelock.interface.parseLog(roleLog.log);
-      const normalizedAccount = tryNormalizeEvmAddress(
-        parsed.args.account as Address,
+      const parsedArgs = getParsedLogArgs(parsed);
+      const normalizedAccount = normalizeEvmAddressFromUnknown(
+        getParsedLogArg(parsedArgs, 'account'),
       );
       if (
         normalizedAccount &&
         !eqAddress(normalizedAccount, EVM_ADDRESS_ZERO)
       ) {
         if (roleLog.isGrant) {
-          granted.add(normalizedAccount as Address);
+          granted.add(normalizedAccount);
         } else {
-          granted.delete(normalizedAccount as Address);
+          granted.delete(normalizedAccount);
         }
       }
     } catch {
