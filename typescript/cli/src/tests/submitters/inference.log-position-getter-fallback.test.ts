@@ -304,6 +304,40 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
     expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
   });
 
+  it('ignores router bytes32 boxed values with throwing toString and uses next valid ICA event', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 625,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const throwingBoxedRouter = new String(originRouterBytes32) as any;
+    throwingBoxedRouter.toString = () => {
+      throw new Error('router boxed toString should not crash ICA parsing');
+    };
+    const malformedRouterLog = {
+      __parsedArgs: {
+        origin: 31347,
+        router: throwingBoxedRouter,
+        owner: signerBytes32,
+        ism: ethersConstants.AddressZero,
+      },
+      topics: ['0xmalformed-throwing-boxed-router'],
+      data: '0x',
+      blockNumber: 626,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+
+    const inferredSubmitter = await resolveFromLogs([malformedRouterLog, validLog]);
+
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
+
   it('ignores overlong ism fields and uses next valid ICA event', async () => {
     const validLog = {
       __validLog: true,
@@ -607,6 +641,23 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
     await resolveFromRoleLogs({
       __parsedAccount: '0x7878787878787878787878787878787878787878\0',
       topics: ['0xgrant-null-byte-account'],
+      data: '0x',
+      blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('ignores boxed timelock account values with throwing toString during role ordering', async () => {
+    const throwingBoxedAccount = new String(
+      '0x7878787878787878787878787878787878787878',
+    ) as any;
+    throwingBoxedAccount.toString = () => {
+      throw new Error('account boxed toString should not crash role parsing');
+    };
+    await resolveFromRoleLogs({
+      __parsedAccount: throwingBoxedAccount,
+      topics: ['0xgrant-throwing-boxed-account'],
       data: '0x',
       blockNumber: '1601',
       transactionIndex: '0',
