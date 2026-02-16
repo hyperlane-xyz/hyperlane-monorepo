@@ -3654,11 +3654,23 @@ describe('squads barrel exports', () => {
       listReflectApplyWrapperCallerRegexMutationScenarios().map(
         ({ label }) => label,
       );
+    const requiredScenarioLabels = [
+      'own test override',
+      'own exec override',
+      'own Symbol.match override',
+      'throwing own constructor getter',
+      'shadowed own source and flags values',
+      'throwing own source and flags accessors',
+    ];
+
     expect(scenarioLabels.length).to.be.greaterThan(0);
     expect(new Set(scenarioLabels).size).to.equal(scenarioLabels.length);
     for (const scenarioLabel of scenarioLabels) {
       expect(scenarioLabel.trim().length).to.be.greaterThan(0);
       expect(scenarioLabel).to.equal(scenarioLabel.trim());
+    }
+    for (const requiredScenarioLabel of requiredScenarioLabels) {
+      expect(scenarioLabels.includes(requiredScenarioLabel)).to.equal(true);
     }
   });
 
