@@ -1790,9 +1790,10 @@ function buildExplicitOverrideIndexes({
   }
 
   for (const [overrideKey, submitter] of overrideEntries) {
+    const submitterChainForLog = getSubmitterChainLabel(submitter);
     if (!isUsableOverrideKey(overrideKey)) {
       logger.debug(
-        `Skipping unusable submitter override key '${overrideKey}' for ${submitter.chain}`,
+        `Skipping unusable submitter override key '${overrideKey}' for ${submitterChainForLog}`,
       );
       continue;
     }
@@ -1800,14 +1801,14 @@ function buildExplicitOverrideIndexes({
       const parsed = parseOverrideKey(overrideKey);
       if (!parsed.target.trim()) {
         logger.debug(
-          `Skipping empty EVM submitter override key for ${submitter.chain}`,
+          `Skipping empty EVM submitter override key for ${submitterChainForLog}`,
         );
         continue;
       }
       const normalizedTarget = normalizeEvmAddressCandidate(parsed.target);
       if (!normalizedTarget) {
         logger.debug(
-          `Skipping invalid EVM submitter override key '${overrideKey}' for ${submitter.chain}`,
+          `Skipping invalid EVM submitter override key '${overrideKey}' for ${submitterChainForLog}`,
         );
         continue;
       }
@@ -1826,13 +1827,13 @@ function buildExplicitOverrideIndexes({
     const normalizedTarget = overrideKey.trim();
     if (!normalizedTarget) {
       logger.debug(
-        `Skipping empty non-EVM submitter override key for ${submitter.chain}`,
+        `Skipping empty non-EVM submitter override key for ${submitterChainForLog}`,
       );
       continue;
     }
     if (normalizedTarget.includes('@')) {
       logger.debug(
-        `Skipping selector-style non-EVM submitter override key '${overrideKey}' for ${submitter.chain}`,
+        `Skipping selector-style non-EVM submitter override key '${overrideKey}' for ${submitterChainForLog}`,
       );
       continue;
     }
@@ -1842,6 +1843,33 @@ function buildExplicitOverrideIndexes({
   }
 
   return indexes;
+}
+
+function getSubmitterChainLabel(
+  submitter: ExtendedSubmissionStrategy['submitter'],
+): string {
+  const submitterChain = getOwnObjectField(submitter, 'chain');
+  if (typeof submitterChain === 'string') {
+    const trimmedChain = submitterChain.trim();
+    if (trimmedChain.length > 0) {
+      return trimmedChain;
+    }
+  }
+  if (isBoxedStringObject(submitterChain)) {
+    try {
+      const boxedChain = submitterChain.toString();
+      if (typeof boxedChain === 'string') {
+        const trimmedBoxedChain = boxedChain.trim();
+        if (trimmedBoxedChain.length > 0) {
+          return trimmedBoxedChain;
+        }
+      }
+    } catch {
+      // no-op
+    }
+  }
+
+  return 'unknown';
 }
 
 function resolveExplicitSubmitterForTransaction({
