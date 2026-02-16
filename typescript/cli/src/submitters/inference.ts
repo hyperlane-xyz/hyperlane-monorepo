@@ -1585,6 +1585,13 @@ function resolveExplicitSubmitterForTransaction({
   });
 }
 
+function hasNonEmptyStringTarget(
+  transaction: TypedAnnotatedTransaction,
+): boolean {
+  const to = (transaction as any).to;
+  return typeof to === 'string' && to.trim().length > 0;
+}
+
 function createCache(): Cache {
   return {
     safeByChainAndAddress: new Map(),
@@ -1651,7 +1658,12 @@ export async function resolveSubmitterBatchesForTransactions({
   const hasExplicitOverrides = !!(
     explicitOverrides && Object.keys(explicitOverrides).length > 0
   );
-  if (explicitSubmissionStrategy && !hasExplicitOverrides) {
+  const hasOverrideEligibleTarget = transactions.some(hasNonEmptyStringTarget);
+
+  if (
+    explicitSubmissionStrategy &&
+    (!hasExplicitOverrides || !hasOverrideEligibleTarget)
+  ) {
     return [
       {
         config: ExtendedSubmissionStrategySchema.parse({
