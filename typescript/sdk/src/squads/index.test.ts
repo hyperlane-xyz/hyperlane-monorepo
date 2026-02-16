@@ -236,6 +236,10 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\.some\s*\(/,
   }),
   Object.freeze({
+    label: '.forEach method call',
+    pattern: /\.forEach\s*\(/,
+  }),
+  Object.freeze({
     label: '.every method call',
     pattern: /\.every\s*\(/,
   }),
@@ -246,6 +250,22 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
   Object.freeze({
     label: '.concat method call',
     pattern: /\.concat\s*\(/,
+  }),
+  Object.freeze({
+    label: '.reduce method call',
+    pattern: /\.reduce\s*\(/,
+  }),
+  Object.freeze({
+    label: '.flat method call',
+    pattern: /\.flat\s*\(/,
+  }),
+  Object.freeze({
+    label: '.flatMap method call',
+    pattern: /\.flatMap\s*\(/,
+  }),
+  Object.freeze({
+    label: '.at method call',
+    pattern: /\.at\s*\(/,
   }),
   Object.freeze({
     label: '.trim method call',
