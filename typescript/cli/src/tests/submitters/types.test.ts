@@ -685,4 +685,36 @@ describe('strategy parse helpers', () => {
       }
     }
   });
+
+  it('parseExtendedSubmissionStrategy preserves own empty submitterOverrides', () => {
+    const parsed = parseExtendedSubmissionStrategy({
+      submitter: {
+        type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN,
+      },
+      submitterOverrides: {},
+    } as any);
+
+    expect(
+      Object.prototype.hasOwnProperty.call(parsed, 'submitterOverrides'),
+    ).to.equal(true);
+    expect(parsed.submitterOverrides).to.deep.equal({});
+  });
+
+  it('parseExtendedChainSubmissionStrategy drops empty nested submitterOverrides', () => {
+    const parsed = parseExtendedChainSubmissionStrategy({
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+        submitterOverrides: {},
+      },
+    } as any);
+    const chainStrategy = parsed[CHAIN] as Record<string, unknown>;
+
+    expect(
+      Object.prototype.hasOwnProperty.call(chainStrategy, 'submitterOverrides'),
+    ).to.equal(false);
+    expect(chainStrategy.submitterOverrides).to.equal(undefined);
+  });
 });
