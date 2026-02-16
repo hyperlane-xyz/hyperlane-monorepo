@@ -39,9 +39,9 @@ TS6-beta compatibility was validated with:
 - Hardened `typescript/rebalancer-sim` targeted regression coverage (Anvil fallback/error-matrix/parity-guard suites).
 - Additional package-smoke validation:
   - Unit/CI suites: `pnpm -C typescript/sdk test:unit`, `pnpm -C typescript/infra test:ci`, `pnpm -C typescript/cli test:ci`, `pnpm -C typescript/provider-sdk test:ci`, `pnpm -C typescript/deploy-sdk test`, `pnpm -C typescript/utils test`, `pnpm -C typescript/radix-sdk test:ci`, `pnpm -C typescript/rebalancer test`.
-  - Build+lint sweeps: `typescript/provider-sdk`, `typescript/deploy-sdk`, `typescript/utils`, `typescript/cosmos-sdk`, `typescript/aleo-sdk`, `typescript/radix-sdk`, `typescript/tron-sdk`, `typescript/cosmos-types`, `typescript/widgets`, `typescript/rebalancer` (`pnpm -C <pkg> build` + `pnpm -C <pkg> lint`).
+  - Build+lint sweeps: `typescript/provider-sdk`, `typescript/deploy-sdk`, `typescript/utils`, `typescript/cosmos-sdk`, `typescript/aleo-sdk`, `typescript/radix-sdk`, `typescript/tron-sdk`, `typescript/cosmos-types`, `typescript/widgets`, `typescript/rebalancer`, `solidity` (`@hyperlane-xyz/core`), and `starknet` (`@hyperlane-xyz/starknet-core`) (`pnpm -C <pkg> build` + `pnpm -C <pkg> lint`).
   - Packages with intentionally empty CI test scripts were confirmed to report expected output (`aleo-sdk`, `tron-sdk`, `cosmos-types`).
-  - Existing non-blocking lint warnings remained in `typescript/widgets` (react-hooks dependency warnings), consistent with workspace lint behavior.
+  - Existing non-blocking lint warnings remained in `typescript/widgets` (react-hooks dependency warnings) and `solidity` (pre-existing Solhint warnings), consistent with workspace lint behavior.
 
 Release graph hygiene was also checked with `pnpm changeset status`, confirming a coherent patch-only bump set for this rollout.
 
