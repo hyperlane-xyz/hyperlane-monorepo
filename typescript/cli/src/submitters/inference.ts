@@ -51,6 +51,9 @@ const DISALLOWED_PROTOTYPE_PROPERTY_LITERALS = new Set([
   'prototype',
   'constructor',
 ]);
+const DISALLOWED_OWN_FIELD_OPTIONS = {
+  disallowedFields: DISALLOWED_PROTOTYPE_PROPERTY_LITERALS,
+} as const;
 const TX_SELECTOR_PREFIX_REGEX = /^\s*(0[xX][0-9a-fA-F]{8})/;
 const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
   (Object.values(ProtocolType) as ProtocolType[]).filter(
@@ -318,9 +321,7 @@ function getParsedLogArg(
 }
 
 function getOwnObjectField(value: unknown, field: string): unknown {
-  return getSharedOwnObjectField(value, field, {
-    disallowedFields: DISALLOWED_PROTOTYPE_PROPERTY_LITERALS,
-  });
+  return getSharedOwnObjectField(value, field, DISALLOWED_OWN_FIELD_OPTIONS);
 }
 
 function normalizeEvmAddressFromUnknown(value: unknown): Address | null {
@@ -750,9 +751,10 @@ function readChainSubmissionStrategy(
     submissionStrategyFilepath.trim(),
   );
   const rawChainSubmissionStrategies =
-    cloneSharedOwnEnumerableObject(submissionStrategyFileContent, {
-      disallowedFields: DISALLOWED_PROTOTYPE_PROPERTY_LITERALS,
-    });
+    cloneSharedOwnEnumerableObject(
+      submissionStrategyFileContent,
+      DISALLOWED_OWN_FIELD_OPTIONS,
+    );
   const sanitizedChainSubmissionStrategies = Object.create(null) as Record<
     string,
     unknown
@@ -765,9 +767,10 @@ function readChainSubmissionStrategy(
         chainKey,
       );
       sanitizedChainSubmissionStrategies[chainKey] =
-        cloneSharedOwnEnumerableObject(chainStrategy, {
-          disallowedFields: DISALLOWED_PROTOTYPE_PROPERTY_LITERALS,
-        }) ?? chainStrategy;
+        cloneSharedOwnEnumerableObject(
+          chainStrategy,
+          DISALLOWED_OWN_FIELD_OPTIONS,
+        ) ?? chainStrategy;
     }
   }
 
