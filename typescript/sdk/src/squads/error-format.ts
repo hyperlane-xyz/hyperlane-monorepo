@@ -14,6 +14,7 @@ export const BUILTIN_SQUADS_ERROR_LABELS = Object.freeze([
 const GENERIC_ERROR_LABELS = new Set(
   BUILTIN_SQUADS_ERROR_LABELS.map((label) => label.toLowerCase()),
 );
+const ERROR_LABEL_WITH_MESSAGE_PATTERN = /^([A-Za-z]*Error)\s*:\s*(.+)$/;
 
 export function isGenericObjectStringifiedValue(value: unknown): boolean {
   if (typeof value !== 'string') {
@@ -41,12 +42,29 @@ export function normalizeStringifiedSquadsError(
   if (
     trimmedFormattedError.length === 0 ||
     isGenericObjectStringifiedValue(trimmedFormattedError) ||
-    GENERIC_ERROR_LABELS.has(normalizedErrorLabel)
+    GENERIC_ERROR_LABELS.has(normalizedErrorLabel) ||
+    isLowSignalBuiltinErrorWithGenericObjectMessage(trimmedFormattedError)
   ) {
     return undefined;
   }
 
   return formattedError;
+}
+
+function isLowSignalBuiltinErrorWithGenericObjectMessage(
+  value: string,
+): boolean {
+  const match = ERROR_LABEL_WITH_MESSAGE_PATTERN.exec(value);
+  if (!match) {
+    return false;
+  }
+
+  const [, errorLabel, message] = match;
+  if (!GENERIC_ERROR_LABELS.has(errorLabel.toLowerCase())) {
+    return false;
+  }
+
+  return isGenericObjectStringifiedValue(message);
 }
 
 function normalizeUnknownStringCandidate(value: unknown): string | undefined {

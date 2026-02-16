@@ -1044,7 +1044,7 @@ describe('squads transaction reader multisig verification', () => {
     expect(result).to.deep.equal({
       matches: false,
       issues: [
-        'Failed to resolve chain for domain 1000: Error: [object Object]',
+        'Failed to resolve chain for domain 1000: [unstringifiable error]',
       ],
     });
     expect(resolveConfigCallCount).to.equal(0);
