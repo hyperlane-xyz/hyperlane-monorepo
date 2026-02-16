@@ -678,4 +678,34 @@ describe('runtime global probe helpers', () => {
 
     expect(filesUsingRawRuntimeMaps).to.deep.equal([]);
   });
+
+  it('enforces cached helper usage in global probe files', () => {
+    const submitterTestDir = path.dirname(fileURLToPath(import.meta.url));
+    const requiredCachedHelperByFile = new Map<string, string>([
+      [
+        'inference.global-function-probes.test.ts',
+        'getCachedRuntimeFunctionValuesByLabel',
+      ],
+      [
+        'inference.global-object-probes.test.ts',
+        'getCachedRuntimeObjectValuesByLabel',
+      ],
+      [
+        'inference.primitive-global-probes.test.ts',
+        'getCachedRuntimePrimitiveValuesByLabel',
+      ],
+    ]);
+
+    const filesMissingCachedHelpers = [...requiredCachedHelperByFile.entries()]
+      .filter(([fileName, helperName]) => {
+        const fileContent = fs.readFileSync(
+          path.join(submitterTestDir, fileName),
+          'utf8',
+        );
+        return !fileContent.includes(helperName);
+      })
+      .map(([fileName]) => fileName);
+
+    expect(filesMissingCachedHelpers).to.deep.equal([]);
+  });
 });
