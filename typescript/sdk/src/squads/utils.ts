@@ -176,6 +176,10 @@ const SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES = new Set<string>([
   ...SQUADS_ERROR_STRING_ARRAY_FIELDS,
 ]);
 const SQUADS_LOG_FIELD_NAME_CACHE = new Map<string, boolean>();
+const SET_HAS = Set.prototype.has;
+const SET_ADD = Set.prototype.add;
+const MAP_GET = Map.prototype.get;
+const MAP_SET = Map.prototype.set;
 const SAFE_INTEGER_DECIMAL_PATTERN = /^-?\d+$/;
 const LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS = [
   'account does not exist',
@@ -194,6 +198,29 @@ function tokenizeFieldName(fieldName: string): string[] {
 }
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
+
+function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
+  return SET_HAS.call(set, value);
+}
+
+function setAddValue<Value>(set: Set<Value>, value: Value): void {
+  SET_ADD.call(set, value);
+}
+
+function mapGetValue<Key, Value>(
+  map: Map<Key, Value>,
+  key: Key,
+): Value | undefined {
+  return MAP_GET.call(map, key);
+}
+
+function mapSetValue<Key, Value>(
+  map: Map<Key, Value>,
+  key: Key,
+  value: Value,
+): void {
+  MAP_SET.call(map, key, value);
+}
 
 function getUnknownValueTypeName(value: unknown): string {
   if (value === null) {
@@ -458,14 +485,14 @@ export function parseSquadsMultisigMembers(
 }
 
 function isLikelyLogArrayFieldName(fieldName: string): boolean {
-  const cached = SQUADS_LOG_FIELD_NAME_CACHE.get(fieldName);
+  const cached = mapGetValue(SQUADS_LOG_FIELD_NAME_CACHE, fieldName);
   if (typeof cached === 'boolean') {
     return cached;
   }
 
   const tokens = tokenizeFieldName(fieldName);
   const result = tokens.includes('log') || tokens.includes('logs');
-  SQUADS_LOG_FIELD_NAME_CACHE.set(fieldName, result);
+  mapSetValue(SQUADS_LOG_FIELD_NAME_CACHE, fieldName, result);
   return result;
 }
 
@@ -583,10 +610,10 @@ export function parseSquadsProposalVoteErrorFromError(
       continue;
     }
 
-    if (visitedObjects.has(current)) {
+    if (setHasValue(visitedObjects, current)) {
       continue;
     }
-    visitedObjects.add(current);
+    setAddValue(visitedObjects, current);
 
     const currentRecord = current as Record<string, unknown>;
     for (const logField of SQUADS_ERROR_LOG_ARRAY_FIELDS) {
@@ -618,7 +645,7 @@ export function parseSquadsProposalVoteErrorFromError(
     for (const key of getRecordKeys(currentRecord)) {
       const nestedValue = getRecordFieldValue(currentRecord, key);
       if (
-        !SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES.has(key) &&
+        !setHasValue(SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES, key) &&
         isLikelyLogArrayFieldName(key)
       ) {
         const parsedError =

@@ -120,6 +120,34 @@ describe('squads error-format', () => {
         undefined,
       );
     });
+
+    it('keeps normalization stable when Set.prototype.has is mutated', () => {
+      const originalSetHas = Set.prototype.has;
+      let normalizedBuiltinLabel: string | undefined;
+      let normalizedDetailedLabel: string | undefined;
+
+      Object.defineProperty(Set.prototype, 'has', {
+        value: () => {
+          throw new Error('set has unavailable');
+        },
+        writable: true,
+        configurable: true,
+      });
+      try {
+        normalizedBuiltinLabel = normalizeStringifiedSquadsError('Error');
+        normalizedDetailedLabel =
+          normalizeStringifiedSquadsError('Error: rpc failed');
+      } finally {
+        Object.defineProperty(Set.prototype, 'has', {
+          value: originalSetHas,
+          writable: true,
+          configurable: true,
+        });
+      }
+
+      expect(normalizedBuiltinLabel).to.equal(undefined);
+      expect(normalizedDetailedLabel).to.equal('Error: rpc failed');
+    });
   });
 
   describe(isGenericObjectStringifiedValue.name, () => {

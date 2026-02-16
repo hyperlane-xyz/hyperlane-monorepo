@@ -7392,6 +7392,87 @@ describe('squads transaction reader', () => {
     }
   });
 
+  it('keeps alias formatting stable when Map prototype get/set are mutated', () => {
+    const mpp = {
+      tryGetChainName: () => 'solanatestnet',
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const multisigConfigs = defaultMultisigConfigs as unknown as Record<
+      string,
+      unknown
+    >;
+    const originalSolanatestnetConfig = multisigConfigs.solanatestnet;
+    const originalMapGet = Map.prototype.get;
+    const originalMapSet = Map.prototype.set;
+    let formattedInstruction: Record<string, unknown> | undefined;
+    multisigConfigs.solanatestnet = {
+      threshold: 1,
+      validators: [{ address: 'validator-a', alias: 'Alias A' }],
+    };
+
+    Object.defineProperty(Map.prototype, 'get', {
+      value: () => {
+        throw new Error('map get unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(Map.prototype, 'set', {
+      value: () => {
+        throw new Error('map set unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      formattedInstruction = readerAny.formatInstruction('solanamainnet', {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'MultisigIsmMessageId',
+        instructionType:
+          SealevelMultisigIsmInstructionName[
+            SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+          ],
+        data: {
+          domain: 1000,
+          threshold: 1,
+          validators: ['validator-a'],
+        },
+        accounts: [],
+        warnings: [],
+      });
+    } finally {
+      Object.defineProperty(Map.prototype, 'get', {
+        value: originalMapGet,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(Map.prototype, 'set', {
+        value: originalMapSet,
+        writable: true,
+        configurable: true,
+      });
+      multisigConfigs.solanatestnet = originalSolanatestnetConfig;
+    }
+
+    expect(formattedInstruction?.args).to.deep.equal({
+      domain: 1000,
+      threshold: 1,
+      validators: ['validator-a (Alias A)'],
+    });
+  });
+
   it('keeps formatting validator instructions when default alias validator entries are unreadable', () => {
     const mpp = {
       tryGetChainName: () => 'solanatestnet',

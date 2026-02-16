@@ -395,11 +395,11 @@ function formatValidatorsWithAliases(
       );
       continue;
     }
-    aliasMap.set(addressValue.toLowerCase(), aliasValue);
+    mapSetValue(aliasMap, addressValue.toLowerCase(), aliasValue);
   }
 
   return validators.map((address) => {
-    const alias = aliasMap.get(address.toLowerCase());
+    const alias = mapGetValue(aliasMap, address.toLowerCase());
     return alias ? `${address} (${alias})` : address;
   });
 }

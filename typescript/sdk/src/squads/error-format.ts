@@ -16,7 +16,12 @@ export const BUILTIN_SQUADS_ERROR_LABELS = Object.freeze([
 const GENERIC_ERROR_LABELS = new Set(
   BUILTIN_SQUADS_ERROR_LABELS.map((label) => label.toLowerCase()),
 );
+const SET_HAS = Set.prototype.has;
 const ERROR_LABEL_WITH_MESSAGE_PATTERN = /^([A-Za-z]*Error)\s*:\s*(.+)$/;
+
+function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
+  return SET_HAS.call(set, value);
+}
 
 function normalizeErrorLabel(value: string): string {
   return value
@@ -49,7 +54,7 @@ export function normalizeStringifiedSquadsError(
   if (
     trimmedFormattedError.length === 0 ||
     isGenericObjectStringifiedValue(trimmedFormattedError) ||
-    GENERIC_ERROR_LABELS.has(normalizedErrorLabel) ||
+    setHasValue(GENERIC_ERROR_LABELS, normalizedErrorLabel) ||
     isLowSignalBuiltinErrorWithLowSignalMessage(trimmedFormattedError)
   ) {
     return undefined;
@@ -65,14 +70,14 @@ function isLowSignalBuiltinErrorWithLowSignalMessage(value: string): boolean {
   }
 
   const [, errorLabel, message] = match;
-  if (!GENERIC_ERROR_LABELS.has(errorLabel.toLowerCase())) {
+  if (!setHasValue(GENERIC_ERROR_LABELS, errorLabel.toLowerCase())) {
     return false;
   }
 
   const normalizedMessageLabel = normalizeErrorLabel(message);
   return (
     normalizedMessageLabel.length === 0 ||
-    GENERIC_ERROR_LABELS.has(normalizedMessageLabel) ||
+    setHasValue(GENERIC_ERROR_LABELS, normalizedMessageLabel) ||
     isGenericObjectStringifiedValue(message)
   );
 }

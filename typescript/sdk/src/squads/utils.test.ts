@@ -3496,6 +3496,86 @@ describe('squads utils', () => {
       );
     });
 
+    it('keeps parsing stable when Set prototype methods are mutated', () => {
+      const originalSetHas = Set.prototype.has;
+      const originalSetAdd = Set.prototype.add;
+      let parsedError: SquadsProposalVoteError | undefined;
+
+      Object.defineProperty(Set.prototype, 'has', {
+        value: () => {
+          throw new Error('set has unavailable');
+        },
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(Set.prototype, 'add', {
+        value: () => {
+          throw new Error('set add unavailable');
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        parsedError = parseSquadsProposalVoteErrorFromError({
+          transactionLogs: ['custom program error: 0x177b'],
+        });
+      } finally {
+        Object.defineProperty(Set.prototype, 'has', {
+          value: originalSetHas,
+          writable: true,
+          configurable: true,
+        });
+        Object.defineProperty(Set.prototype, 'add', {
+          value: originalSetAdd,
+          writable: true,
+          configurable: true,
+        });
+      }
+
+      expect(parsedError).to.equal(SquadsProposalVoteError.AlreadyRejected);
+    });
+
+    it('keeps parsing stable when Map prototype methods are mutated', () => {
+      const originalMapGet = Map.prototype.get;
+      const originalMapSet = Map.prototype.set;
+      let parsedError: SquadsProposalVoteError | undefined;
+
+      Object.defineProperty(Map.prototype, 'get', {
+        value: () => {
+          throw new Error('map get unavailable');
+        },
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(Map.prototype, 'set', {
+        value: () => {
+          throw new Error('map set unavailable');
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        parsedError = parseSquadsProposalVoteErrorFromError({
+          rpcLogs: ['custom program error: 0x177a'],
+        });
+      } finally {
+        Object.defineProperty(Map.prototype, 'get', {
+          value: originalMapGet,
+          writable: true,
+          configurable: true,
+        });
+        Object.defineProperty(Map.prototype, 'set', {
+          value: originalMapSet,
+          writable: true,
+          configurable: true,
+        });
+      }
+
+      expect(parsedError).to.equal(SquadsProposalVoteError.AlreadyApproved);
+    });
+
     it('parses known vote error from aggregate errors array', () => {
       const error = {
         errors: [{ message: 'unrelated' }, 'custom program error: 0x177a'],
