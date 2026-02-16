@@ -416,6 +416,44 @@ describe('squads config', () => {
     );
   });
 
+  it('throws contextual formatter errors when configured-chain index access fails', () => {
+    const hostileConfiguredChains = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('entry unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        hostileConfiguredChains,
+      ),
+    ).to.throw('Failed to read configured squads chains[0]: entry unavailable');
+  });
+
+  it('uses deterministic placeholder when configured-chain index access throws generic-object Error messages', () => {
+    const hostileConfiguredChains = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        hostileConfiguredChains,
+      ),
+    ).to.throw(
+      'Failed to read configured squads chains[0]: [unstringifiable error]',
+    );
+  });
+
   it('resolves explicit chains and defaults while validating runtime input', () => {
     expect(resolveSquadsChains()).to.deep.equal(getSquadsChains());
     expect(resolveSquadsChains([])).to.deep.equal(getSquadsChains());
