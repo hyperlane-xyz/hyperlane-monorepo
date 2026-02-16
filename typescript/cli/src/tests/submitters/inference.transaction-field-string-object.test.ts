@@ -132,4 +132,49 @@ describe('resolveSubmitterBatchesForTransactions transaction String-object field
       safeStub.restore();
     }
   });
+
+  it('infers gnosisSafeTxBuilder from boxed transaction from fallback when target is malformed', async () => {
+    const safeAddress = '0x2222222222222222222222222222222222222222';
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('owner lookup should not run for malformed target'));
+    const safeStub = sinon.stub(ISafe__factory, 'connect').returns({
+      getThreshold: async () => 1,
+      nonce: async () => 0,
+    } as any);
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          {
+            ...TX,
+            to: 'not-an-evm-address',
+            from: new String(safeAddress),
+          } as any,
+        ],
+        context: {
+          multiProvider: {
+            getProtocol: () => ProtocolType.Ethereum,
+            getSignerAddress: async () =>
+              '0x4444444444444444444444444444444444444444',
+            getProvider: () => ({}),
+          },
+          registry: {
+            getAddresses: async () => ({}),
+          },
+        } as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(ownableStub.callCount).to.equal(0);
+      expect(safeStub.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
 });
