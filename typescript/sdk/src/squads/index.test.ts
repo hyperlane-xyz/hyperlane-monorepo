@@ -2558,6 +2558,120 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps Reflect.apply wrapper discovery preserving custom regex lastIndex under throwing own source and flags accessors', () => {
+    const expectedMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const expectedCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const mutationPattern = /Reflect\.apply is mutated/gi;
+    const capturePattern = /const REFLECT_APPLY = Reflect\.apply/iy;
+    mutationPattern.lastIndex = 47;
+    capturePattern.lastIndex = 53;
+    const originalMutationSourceDescriptor = Object.getOwnPropertyDescriptor(
+      mutationPattern,
+      'source',
+    );
+    const originalMutationFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      mutationPattern,
+      'flags',
+    );
+    const originalCaptureSourceDescriptor = Object.getOwnPropertyDescriptor(
+      capturePattern,
+      'source',
+    );
+    const originalCaptureFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      capturePattern,
+      'flags',
+    );
+
+    Object.defineProperty(mutationPattern, 'source', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply mutation wrapper to bypass throwing own source accessor while preserving caller lastIndex',
+        );
+      },
+    });
+    Object.defineProperty(mutationPattern, 'flags', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply mutation wrapper to bypass throwing own flags accessor while preserving caller lastIndex',
+        );
+      },
+    });
+    Object.defineProperty(capturePattern, 'source', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply capture wrapper to bypass throwing own source accessor while preserving caller lastIndex',
+        );
+      },
+    });
+    Object.defineProperty(capturePattern, 'flags', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply capture wrapper to bypass throwing own flags accessor while preserving caller lastIndex',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(mutationPattern),
+      ).to.deep.equal(expectedMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          capturePattern,
+        ),
+      ).to.deep.equal(expectedCapturePaths);
+      expect(mutationPattern.lastIndex).to.equal(47);
+      expect(capturePattern.lastIndex).to.equal(53);
+    } finally {
+      if (originalMutationSourceDescriptor) {
+        Object.defineProperty(
+          mutationPattern,
+          'source',
+          originalMutationSourceDescriptor,
+        );
+      } else {
+        delete (mutationPattern as unknown as { source?: unknown }).source;
+      }
+      if (originalMutationFlagsDescriptor) {
+        Object.defineProperty(
+          mutationPattern,
+          'flags',
+          originalMutationFlagsDescriptor,
+        );
+      } else {
+        delete (mutationPattern as unknown as { flags?: unknown }).flags;
+      }
+      if (originalCaptureSourceDescriptor) {
+        Object.defineProperty(
+          capturePattern,
+          'source',
+          originalCaptureSourceDescriptor,
+        );
+      } else {
+        delete (capturePattern as unknown as { source?: unknown }).source;
+      }
+      if (originalCaptureFlagsDescriptor) {
+        Object.defineProperty(
+          capturePattern,
+          'flags',
+          originalCaptureFlagsDescriptor,
+        );
+      } else {
+        delete (capturePattern as unknown as { flags?: unknown }).flags;
+      }
+    }
+  });
+
   it('keeps Reflect.apply wrapper discovery stable for custom patterns with overridden test methods', () => {
     const baselineMutationPaths =
       listReflectApplyMutationTestPathsFromPatternDiscovery(
