@@ -1195,8 +1195,13 @@ function listSdkSquadsNonTestSourceFilePathsContainingPattern(
 }
 
 function doesPatternMatchSource(source: string, pattern: RegExp): boolean {
+  const originalLastIndex = pattern.lastIndex;
   pattern.lastIndex = 0;
-  return pattern.test(source);
+  try {
+    return pattern.test(source);
+  } finally {
+    pattern.lastIndex = originalLastIndex;
+  }
 }
 
 function listSdkSquadsNonTestSourceFilePaths(): readonly string[] {
@@ -2224,6 +2229,27 @@ describe('squads barrel exports', () => {
         reusableGlobalCapturePattern,
       );
     expect(secondCaptureDiscovery).to.deep.equal(firstCaptureDiscovery);
+  });
+
+  it('keeps sdk squads pattern-path discovery preserving caller regex lastIndex', () => {
+    const reusableGlobalMutationPattern = /Reflect\.apply is mutated/g;
+    const reusableGlobalCapturePattern =
+      /const REFLECT_APPLY = Reflect\.apply/g;
+    const reusableStickyMutationPattern = /Reflect\.apply is mutated/y;
+
+    reusableGlobalMutationPattern.lastIndex = 9;
+    reusableGlobalCapturePattern.lastIndex = 13;
+    reusableStickyMutationPattern.lastIndex = 5;
+
+    listSdkSquadsTestFilePathsContainingPattern(reusableGlobalMutationPattern);
+    listSdkSquadsNonTestSourceFilePathsContainingPattern(
+      reusableGlobalCapturePattern,
+    );
+    listSdkSquadsTestFilePathsContainingPattern(reusableStickyMutationPattern);
+
+    expect(reusableGlobalMutationPattern.lastIndex).to.equal(9);
+    expect(reusableGlobalCapturePattern.lastIndex).to.equal(13);
+    expect(reusableStickyMutationPattern.lastIndex).to.equal(5);
   });
 
   it('keeps sdk Reflect.apply mutation tests using explicit Reflect.apply monkey-patch setup', () => {
