@@ -165,6 +165,21 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target selector-o
     );
   });
 
+  it('preserves explicit default submitter when selector data is overlong malformed payload and only selector override exists', async () => {
+    const strategyPath = createStrategyPath('selector-overlong-malformed-payload');
+    writeSelectorOnlyStrategy(strategyPath);
+
+    const batches = await resolveSingleBatch(
+      { ...TX, data: `0xzzzzzzzz${'ab'.repeat(10000)}` },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('still applies selector-specific override when transaction target is well-formed', async () => {
     const strategyPath = createStrategyPath('well-formed-target');
     writeSelectorOnlyStrategy(strategyPath);
@@ -186,6 +201,24 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target selector-o
 
     const batches = await resolveSingleBatch(
       { ...TX, to: `  0X${TARGET.slice(2).toUpperCase()}  ` },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.TIMELOCK_CONTROLLER,
+    );
+  });
+
+  it('still applies selector-specific override when transaction data has whitespace-padded uppercase selector and overlong payload', async () => {
+    const strategyPath = createStrategyPath('selector-uppercase-overlong-payload');
+    writeSelectorOnlyStrategy(strategyPath);
+
+    const batches = await resolveSingleBatch(
+      {
+        ...TX,
+        data: `   0XDEADBEEF${'ab'.repeat(10000)}`,
+      },
       strategyPath,
     );
 

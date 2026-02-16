@@ -39,6 +39,7 @@ const EVM_ADDRESS_ZERO =
 const MAX_PROTOCOL_STRING_LENGTH = 256;
 const MAX_STRATEGY_PATH_LENGTH = 4096;
 const MAX_BOXED_STRING_PROTOTYPE_DEPTH = 128;
+const TX_SELECTOR_PREFIX_REGEX = /^\s*(0[xX][0-9a-fA-F]{8})/;
 const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
   (Object.values(ProtocolType) as ProtocolType[]).filter(
     (protocol) => protocol !== ProtocolType.Unknown,
@@ -1465,11 +1466,11 @@ function getTxSelector(tx: TypedAnnotatedTransaction): string | undefined {
     return undefined;
   }
 
-  const normalizedData = data.trim().toLowerCase();
-  if (!/^0x[0-9a-f]{8}/.test(normalizedData)) {
+  const match = TX_SELECTOR_PREFIX_REGEX.exec(data);
+  if (!match) {
     return undefined;
   }
-  return normalizedData.slice(0, 10).toLowerCase();
+  return match[1].toLowerCase();
 }
 
 function buildExplicitOverrideIndexes({
