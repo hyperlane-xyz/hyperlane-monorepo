@@ -2,6 +2,8 @@ export type GetOwnObjectFieldOptions = {
   disallowedFields?: ReadonlySet<string>;
 };
 
+export type CloneOwnEnumerableObjectOptions = GetOwnObjectFieldOptions;
+
 export function getOwnObjectField(
   value: unknown,
   field: string,
@@ -44,6 +46,7 @@ export function hasOwnObjectField(value: unknown, field: string): boolean {
 
 export function cloneOwnEnumerableObject(
   value: unknown,
+  options?: CloneOwnEnumerableObjectOptions,
 ): Record<string, unknown> | null {
   if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
     return null;
@@ -58,7 +61,10 @@ export function cloneOwnEnumerableObject(
 
   const clonedObject = Object.create(null) as Record<string, unknown>;
   for (const key of keys) {
-    clonedObject[key] = getOwnObjectField(value, key);
+    if (options?.disallowedFields?.has(key)) {
+      continue;
+    }
+    clonedObject[key] = getOwnObjectField(value, key, options);
   }
 
   return clonedObject;

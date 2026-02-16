@@ -31,7 +31,10 @@ import {
   parseExtendedChainSubmissionStrategy,
   parseExtendedSubmissionStrategy,
 } from './types.js';
-import { getOwnObjectField as getSharedOwnObjectField } from './object.js';
+import {
+  cloneOwnEnumerableObject as cloneSharedOwnEnumerableObject,
+  getOwnObjectField as getSharedOwnObjectField,
+} from './object.js';
 
 const logger = rootLogger.child({ module: 'submitter-inference' });
 const MAX_INFERENCE_DEPTH = 3;
@@ -323,23 +326,9 @@ function getOwnObjectField(value: unknown, field: string): unknown {
 function cloneOwnEnumerableObject(
   value: unknown,
 ): Record<string, unknown> | null {
-  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
-    return null;
-  }
-
-  let keys: string[];
-  try {
-    keys = Object.keys(value as Record<string, unknown>);
-  } catch {
-    return null;
-  }
-
-  const clonedObject = Object.create(null) as Record<string, unknown>;
-  for (const key of keys) {
-    clonedObject[key] = getOwnObjectField(value, key);
-  }
-
-  return clonedObject;
+  return cloneSharedOwnEnumerableObject(value, {
+    disallowedFields: DISALLOWED_PROTOTYPE_PROPERTY_LITERALS,
+  });
 }
 
 function normalizeEvmAddressFromUnknown(value: unknown): Address | null {

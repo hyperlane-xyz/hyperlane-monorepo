@@ -80,4 +80,16 @@ describe('submitter own-object helpers', () => {
     );
     expect(cloneOwnEnumerableObject(throwingProxy)).to.equal(null);
   });
+
+  it('cloneOwnEnumerableObject omits disallowed own fields', () => {
+    const source = {
+      submitter: { type: 'jsonRpc' },
+      keep: 1,
+    };
+
+    const cloned = cloneOwnEnumerableObject(source, {
+      disallowedFields: new Set(['submitter']),
+    });
+    expect(cloned).to.deep.equal({ keep: 1 });
+  });
 });
