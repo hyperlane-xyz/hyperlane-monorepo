@@ -416,6 +416,26 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when configured-chain length getter throws opaque values', () => {
+    const hostileConfiguredChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw {};
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        hostileConfiguredChains,
+      ),
+    ).to.throw(
+      'Failed to read configured squads chains length: [unstringifiable error]',
+    );
+  });
+
   it('throws contextual formatter errors when configured-chain index access fails', () => {
     const hostileConfiguredChains = new Proxy(['solanamainnet'], {
       get(target, property, receiver) {
@@ -439,6 +459,26 @@ describe('squads config', () => {
       get(target, property, receiver) {
         if (property === '0') {
           throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        hostileConfiguredChains,
+      ),
+    ).to.throw(
+      'Failed to read configured squads chains[0]: [unstringifiable error]',
+    );
+  });
+
+  it('uses deterministic placeholder when configured-chain index access throws opaque values', () => {
+    const hostileConfiguredChains = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw {};
         }
         return Reflect.get(target, property, receiver);
       },
