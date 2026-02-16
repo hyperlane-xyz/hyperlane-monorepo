@@ -1939,6 +1939,27 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps method-call forbidden pattern labels aligned with regexes', () => {
+    const methodCallLabelPattern = /^\.([A-Za-z0-9_]+) method call$/;
+
+    for (const { label, pattern } of FORBIDDEN_RUNTIME_HARDENING_PATTERNS) {
+      const methodLabelMatch = methodCallLabelPattern.exec(label);
+      if (!methodLabelMatch) {
+        continue;
+      }
+
+      const [, methodName] = methodLabelMatch;
+      expect(
+        pattern.test(`value.${methodName}(`),
+        `Expected ${label} pattern to match direct method-call snippet`,
+      ).to.equal(true);
+      expect(
+        pattern.test(`value.${methodName}Suffix(`),
+        `Expected ${label} pattern to avoid suffix-prefixed method names`,
+      ).to.equal(false);
+    }
+  });
+
   it('keeps recursive sdk squads discovery helpers isolated from caller mutation', () => {
     assertPathSnapshotIsolation(
       listSdkSquadsTestFilePaths,
