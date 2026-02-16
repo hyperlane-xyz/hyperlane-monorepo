@@ -1861,12 +1861,13 @@ export class SquadsTransactionReader {
       `Invalid core program ids for ${chain}: expected synchronous object result, got promise-like value`,
     );
 
-    let mailboxProgramIdValue: unknown;
-    try {
-      mailboxProgramIdValue = coreProgramIds.mailbox;
-    } catch (error) {
+    const {
+      propertyValue: mailboxProgramIdValue,
+      readError: mailboxProgramIdReadError,
+    } = inspectPropertyValue(coreProgramIds, 'mailbox');
+    if (mailboxProgramIdReadError) {
       throw new Error(
-        `Failed to read mailbox program id for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read mailbox program id for ${chain}: ${stringifyUnknownSquadsError(mailboxProgramIdReadError)}`,
       );
     }
     const mailboxProgramId = assertNonEmptyStringValue(
@@ -1874,13 +1875,13 @@ export class SquadsTransactionReader {
       `mailbox program id for ${chain}`,
     );
 
-    let multisigIsmMessageIdProgramIdValue: unknown;
-    try {
-      multisigIsmMessageIdProgramIdValue =
-        coreProgramIds.multisig_ism_message_id;
-    } catch (error) {
+    const {
+      propertyValue: multisigIsmMessageIdProgramIdValue,
+      readError: multisigIsmMessageIdProgramIdReadError,
+    } = inspectPropertyValue(coreProgramIds, 'multisig_ism_message_id');
+    if (multisigIsmMessageIdProgramIdReadError) {
       throw new Error(
-        `Failed to read multisig_ism_message_id program id for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read multisig_ism_message_id program id for ${chain}: ${stringifyUnknownSquadsError(multisigIsmMessageIdProgramIdReadError)}`,
       );
     }
     const multisigIsmMessageIdProgramId = assertNonEmptyStringValue(
@@ -2124,12 +2125,11 @@ export class SquadsTransactionReader {
       programId: PublicKey;
     },
   ): PublicKey {
-    let multisigPdaValue: unknown;
-    try {
-      multisigPdaValue = proposalData.multisigPda;
-    } catch (error) {
+    const { propertyValue: multisigPdaValue, readError: multisigPdaReadError } =
+      inspectPropertyValue(proposalData, 'multisigPda');
+    if (multisigPdaReadError) {
       throw new Error(
-        `Failed to read proposal multisig PDA for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read proposal multisig PDA for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(multisigPdaReadError)}`,
       );
     }
     const {
@@ -2142,12 +2142,11 @@ export class SquadsTransactionReader {
     );
     const normalizedMultisigPda = multisigPdaValue as PublicKey;
 
-    let programIdValue: unknown;
-    try {
-      programIdValue = proposalData.programId;
-    } catch (error) {
+    const { propertyValue: programIdValue, readError: programIdReadError } =
+      inspectPropertyValue(proposalData, 'programId');
+    if (programIdReadError) {
       throw new Error(
-        `Failed to read proposal program id for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read proposal program id for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(programIdReadError)}`,
       );
     }
     const {
