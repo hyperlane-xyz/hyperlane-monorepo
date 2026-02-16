@@ -1,9 +1,28 @@
 import { type Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
+/**
+ * Standard address representation for native ETH in DeFi protocols (including LiFi).
+ * This is the common convention used by bridges and DEXes to represent native gas tokens.
+ */
+export const NATIVE_TOKEN_ADDRESS =
+  '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+
 const REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS = new Set<TokenStandard>([
   TokenStandard.EvmHypCollateral,
   TokenStandard.EvmHypNative,
 ]);
+
+/**
+ * Check if a token's balance is the same as native gas balance.
+ * For these tokens, we must reserve funds for IGP when calculating max transferable.
+ *
+ * @param standard - The token standard to check.
+ * @returns `true` if the token is a native token standard, `false` otherwise.
+ */
+export function isNativeTokenStandard(standard: TokenStandard): boolean {
+  // EvmHypNative covers all native token types including scaled variants
+  return standard === TokenStandard.EvmHypNative;
+}
 
 /**
  * @dev This function exists because the rebalancer currently only supports a subset of collateralized token standards
