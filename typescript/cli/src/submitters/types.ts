@@ -128,12 +128,12 @@ function preprocessExtendedChainSubmissionStrategy(value: unknown) {
       );
     }
 
-    result[chain] = {
-      submitter: preprocessedSubmitter ?? ownSubmitter,
-      ...(preprocessedOverrides
-        ? { submitterOverrides: preprocessedOverrides }
-        : {}),
-    };
+    const normalizedStrategy = Object.create(null) as Record<string, unknown>;
+    normalizedStrategy.submitter = preprocessedSubmitter ?? ownSubmitter;
+    if (preprocessedOverrides) {
+      normalizedStrategy.submitterOverrides = preprocessedOverrides;
+    }
+    result[chain] = normalizedStrategy;
   }
 
   return result;
