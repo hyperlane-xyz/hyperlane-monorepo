@@ -2296,6 +2296,58 @@ describe('squads barrel exports', () => {
     expect(captureGlobalPattern.lastIndex).to.equal(7);
   });
 
+  it('keeps Reflect.apply pattern-discovery helper defaults repeatable and lastIndex-safe', () => {
+    const originalMutationTitlePatternLastIndex =
+      REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN.lastIndex;
+    const originalCaptureSearchPatternLastIndex =
+      REFLECT_APPLY_CAPTURE_DECLARATION_SEARCH_PATTERN.lastIndex;
+    REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN.lastIndex = 19;
+    REFLECT_APPLY_CAPTURE_DECLARATION_SEARCH_PATTERN.lastIndex = 23;
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(),
+      ).to.deep.equal([
+        ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+      ]);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+      ).to.deep.equal([
+        ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+      ]);
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(),
+      ).to.deep.equal([
+        ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+      ]);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+      ).to.deep.equal([
+        ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+      ]);
+      expect(REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN.lastIndex).to.equal(19);
+      expect(
+        REFLECT_APPLY_CAPTURE_DECLARATION_SEARCH_PATTERN.lastIndex,
+      ).to.equal(23);
+    } finally {
+      REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN.lastIndex =
+        originalMutationTitlePatternLastIndex;
+      REFLECT_APPLY_CAPTURE_DECLARATION_SEARCH_PATTERN.lastIndex =
+        originalCaptureSearchPatternLastIndex;
+    }
+  });
+
+  it('keeps Reflect.apply pattern-discovery helper wrapper snapshots isolated from caller mutation', () => {
+    assertPathSnapshotIsolation(
+      listReflectApplyMutationTestPathsFromPatternDiscovery,
+      'Reflect.apply mutation pattern helper discovery',
+    );
+    assertPathSnapshotIsolation(
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery,
+      'Reflect.apply capture pattern helper discovery',
+    );
+  });
+
   it('keeps sdk squads pattern-path discovery stable for global regex inputs', () => {
     const nonGlobalMutationPathPattern = /Reflect\.apply is mutated/;
     const globalMutationPathPattern = /Reflect\.apply is mutated/g;
