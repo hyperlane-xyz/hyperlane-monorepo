@@ -185,4 +185,47 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
     );
     expect(protocolCalls).to.equal(0);
   });
+
+  it('loads explicit overrides when strategyUrl has surrounding whitespace', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-strategy-url-whitespace-overrides-${Date.now()}.yaml`;
+    const overrideTarget = '0x9999999999999999999999999999999999999999';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x7777777777777777777777777777777777777777',
+            version: '1.0',
+          },
+        },
+      },
+    });
+
+    let protocolCalls = 0;
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any, { ...TX, to: overrideTarget } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => {
+            protocolCalls += 1;
+            return 'ethereum' as any;
+          },
+        },
+      } as any,
+      strategyUrl: `  ${strategyPath}  `,
+    });
+
+    expect(batches).to.have.length(2);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(batches[1].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+    expect(protocolCalls).to.equal(1);
+  });
 });
