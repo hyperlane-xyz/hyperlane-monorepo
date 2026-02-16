@@ -206,6 +206,7 @@ const NUMBER_FUNCTION = Number;
 const NUMBER_NAN = 0 / 0;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const NUMBER_IS_FINITE = Number.isFinite;
+const ERROR_CONSTRUCTOR = Error as new (message?: string) => Error;
 const DATE_CONSTRUCTOR = Date;
 const DATE_TO_DATE_STRING = Date.prototype.toDateString as (
   this: Date,
@@ -378,6 +379,10 @@ function numberNaNValue(): number {
   return NUMBER_NAN;
 }
 
+function createError(message?: string): Error {
+  return new ERROR_CONSTRUCTOR(message);
+}
+
 function stringFromValue(value: unknown): string {
   return STRING_FUNCTION(value);
 }
@@ -485,7 +490,7 @@ function getRecordFieldOrThrow(
   try {
     return record[fieldName];
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Failed to read ${label}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
@@ -498,7 +503,7 @@ function getArrayLengthOrThrow(
   const { propertyValue: lengthValue, readError: lengthReadError } =
     inspectPropertyValue(values, 'length');
   if (lengthReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read ${label} length: ${formatUnknownErrorForMessage(lengthReadError)}`,
     );
   }
@@ -508,7 +513,7 @@ function getArrayLengthOrThrow(
     !numberIsSafeInteger(lengthValue) ||
     lengthValue < 0
   ) {
-    throw new Error(
+    throw createError(
       `Malformed ${label} length: expected non-negative safe integer, got ${formatSafeIntegerInputValue(lengthValue)}`,
     );
   }
@@ -523,7 +528,7 @@ function getArrayElementOrThrow(
 ): unknown {
   const { propertyValue, readError } = inspectPropertyValue(values, index);
   if (readError) {
-    throw new Error(
+    throw createError(
       `Failed to read ${label}[${index}]: ${formatUnknownErrorForMessage(readError)}`,
     );
   }
@@ -1040,7 +1045,7 @@ function getSolanaWeb3ProviderForChain(
     readError: getSolanaWeb3ProviderReadError,
   } = inspectPropertyValue(mpp, 'getSolanaWeb3Provider');
   if (getSolanaWeb3ProviderReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read getSolanaWeb3Provider for ${chain}: ${formatUnknownErrorForMessage(getSolanaWeb3ProviderReadError)}`,
     );
   }
@@ -1054,7 +1059,7 @@ function getSolanaWeb3ProviderForChain(
   try {
     providerValue = getSolanaWeb3ProviderValue.call(mpp, chain);
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Failed to resolve solana provider for ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
@@ -1079,7 +1084,7 @@ function validateSolanaWeb3ProviderForChain(
   const { thenValue, readError: thenReadError } =
     inspectPromiseLikeThenValue(providerValue);
   if (thenReadError) {
-    throw new Error(
+    throw createError(
       `Failed to inspect solana provider for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(thenReadError)})`,
     );
   }
@@ -1094,7 +1099,7 @@ function validateSolanaWeb3ProviderForChain(
     readError: getAccountInfoReadError,
   } = inspectPropertyValue(providerValue, 'getAccountInfo');
   if (getAccountInfoReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(getAccountInfoReadError)}`,
     );
   }
@@ -1116,7 +1121,7 @@ function getPendingProposalNativeTokenMetadataForChain(
     readError: getChainMetadataReadError,
   } = inspectPropertyValue(mpp, 'getChainMetadata');
   if (getChainMetadataReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read getChainMetadata accessor for ${chain}: ${formatUnknownErrorForMessage(getChainMetadataReadError)}`,
     );
   }
@@ -1130,7 +1135,7 @@ function getPendingProposalNativeTokenMetadataForChain(
   try {
     chainMetadata = getChainMetadataValue.call(mpp, chain);
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Failed to resolve chain metadata for ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
@@ -1150,7 +1155,7 @@ function getPendingProposalNativeTokenMetadataForChain(
     readError: chainMetadataThenError,
   } = inspectPromiseLikeThenValue(chainMetadata);
   if (chainMetadataThenError) {
-    throw new Error(
+    throw createError(
       `Failed to inspect chain metadata for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(chainMetadataThenError)})`,
     );
   }
@@ -1163,7 +1168,7 @@ function getPendingProposalNativeTokenMetadataForChain(
   const { propertyValue: nativeToken, readError: nativeTokenReadError } =
     inspectPropertyValue(chainMetadata, 'nativeToken');
   if (nativeTokenReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read native token metadata for ${chain}: ${formatUnknownErrorForMessage(nativeTokenReadError)}`,
     );
   }
@@ -1181,7 +1186,7 @@ function getPendingProposalNativeTokenMetadataForChain(
   const { thenValue: nativeTokenThenValue, readError: nativeTokenThenError } =
     inspectPromiseLikeThenValue(nativeToken);
   if (nativeTokenThenError) {
-    throw new Error(
+    throw createError(
       `Failed to inspect native token metadata for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(nativeTokenThenError)})`,
     );
   }
@@ -1194,7 +1199,7 @@ function getPendingProposalNativeTokenMetadataForChain(
   const { propertyValue: decimals, readError: decimalsReadError } =
     inspectPropertyValue(nativeToken, 'decimals');
   if (decimalsReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read native token decimals for ${chain}: ${formatUnknownErrorForMessage(decimalsReadError)}`,
     );
   }
@@ -1209,7 +1214,7 @@ function getPendingProposalNativeTokenMetadataForChain(
   const { propertyValue: symbolValue, readError: symbolReadError } =
     inspectPropertyValue(nativeToken, 'symbol');
   if (symbolReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read native token symbol for ${chain}: ${formatUnknownErrorForMessage(symbolReadError)}`,
     );
   }
@@ -1240,7 +1245,7 @@ async function getVaultBalanceForPendingProposals(
   const { propertyValue: getBalanceValue, readError: getBalanceReadError } =
     inspectPropertyValue(svmProvider, 'getBalance');
   if (getBalanceReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read getBalance for ${chain}: ${formatUnknownErrorForMessage(getBalanceReadError)}`,
     );
   }
@@ -1254,7 +1259,7 @@ async function getVaultBalanceForPendingProposals(
   try {
     vaultBalance = await getBalanceValue.call(svmProvider, vault);
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Failed to fetch vault balance for ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
@@ -1276,7 +1281,7 @@ function getSignerPublicKeyForChain(
   const { propertyValue: publicKeyValue, readError: publicKeyReadError } =
     inspectPropertyValue(signerAdapter, 'publicKey');
   if (publicKeyReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read signer publicKey for ${chain}: ${formatUnknownErrorForMessage(publicKeyReadError)}`,
     );
   }
@@ -1290,7 +1295,7 @@ function getSignerPublicKeyForChain(
   try {
     signerPublicKey = publicKeyValue.call(signerAdapter);
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Failed to resolve signer public key for ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
@@ -1312,7 +1317,7 @@ function getSignerPublicKeyForChain(
     readError: signerPublicKeyThenError,
   } = inspectPromiseLikeThenValue(signerPublicKey);
   if (signerPublicKeyThenError) {
-    throw new Error(
+    throw createError(
       `Failed to inspect signer public key for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(signerPublicKeyThenError)})`,
     );
   }
@@ -1343,7 +1348,7 @@ function getSignerBuildAndSendTransactionForChain(
     readError: buildAndSendTransactionReadError,
   } = inspectPropertyValue(signerAdapter, 'buildAndSendTransaction');
   if (buildAndSendTransactionReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read signer buildAndSendTransaction for ${chain}: ${formatUnknownErrorForMessage(buildAndSendTransactionReadError)}`,
     );
   }
