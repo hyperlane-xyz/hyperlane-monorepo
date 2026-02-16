@@ -3,8 +3,6 @@
 // import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 
 export { AltVMJsonRpcSubmitter } from './AltVMJsonRpcSubmitter.js';
-export { AltVMCoreModule } from './AltVMCoreModule.js';
-export { AltVMCoreReader } from './AltVMCoreReader.js';
 export { AltVMWarpModule } from './AltVMWarpModule.js';
 export { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 export { AltVMDeployer } from './AltVMWarpDeployer.js';
