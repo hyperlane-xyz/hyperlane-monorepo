@@ -1375,6 +1375,33 @@ function readStaticKnownConstructorName(
   if (ts.isIdentifier(unwrappedConstructor)) {
     return unwrappedConstructor.text;
   }
+  if (ts.isElementAccessExpression(unwrappedConstructor)) {
+    if (!unwrappedConstructor.argumentExpression) {
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+    const qualifier = unwrapInitializerExpression(
+      unwrappedConstructor.expression,
+    );
+    if (!ts.isIdentifier(qualifier)) {
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+    if (!['globalThis', 'window', 'global', 'self'].includes(qualifier.text)) {
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+    const propertyNameValue = readStaticPrimitiveValue(
+      unwrappedConstructor.argumentExpression,
+    );
+    if (propertyNameValue === STATIC_PRIMITIVE_UNKNOWN) {
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+    if (
+      typeof propertyNameValue !== 'string' &&
+      typeof propertyNameValue !== 'number'
+    ) {
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+    return String(propertyNameValue);
+  }
   if (!ts.isPropertyAccessExpression(unwrappedConstructor)) {
     return STATIC_PRIMITIVE_UNKNOWN;
   }
@@ -1384,7 +1411,7 @@ function readStaticKnownConstructorName(
   if (!ts.isIdentifier(qualifier)) {
     return STATIC_PRIMITIVE_UNKNOWN;
   }
-  if (!['globalThis', 'window', 'global'].includes(qualifier.text)) {
+  if (!['globalThis', 'window', 'global', 'self'].includes(qualifier.text)) {
     return STATIC_PRIMITIVE_UNKNOWN;
   }
   return unwrappedConstructor.name.text;
@@ -9616,12 +9643,79 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('treats strict-equality direct-delete globalthis-element-new-constructor-target predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if (((delete ((new ((globalThis as any)['Date'])() as any).safe) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality direct-delete self-element-new-constructor-target predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if (((delete ((new ((self as any)['Date'])() as any).safe) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('keeps strict-equality direct-delete conditional-mixed-new-constructor-length predicates conservative for module specifiers', () => {
     const source = [
       'let reqAlias: any = require;',
       'const marker = Math.random();',
       "const baseline = require('./fixtures/guard-module.js');",
       'if (((delete ((new ((marker === 1 ? Array : Date) as any)() as any).length) === false)) reqAlias = () => undefined;',
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-equality direct-delete conditional-mixed-element-new-constructor-length predicates conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js');",
+      "if (((delete ((new ((globalThis as any)[marker === 1 ? 'Array' : 'Date'])() as any).length) === false)) reqAlias = () => undefined;",
       "reqAlias('./fixtures/other-module.js');",
       'void baseline;',
     ].join('\n');
@@ -22461,12 +22555,64 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality direct-delete globalthis-element-new-constructor-target predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if (((delete ((new ((globalThis as any)['Date'])() as any).safe) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats strict-equality direct-delete self-element-new-constructor-target predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if (((delete ((new ((self as any)['Date'])() as any).safe) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('keeps strict-equality direct-delete conditional-mixed-new-constructor-length predicates conservative for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
       'const marker = Math.random();',
       "const baseline = require('./fixtures/guard-module.js').default;",
       'if (((delete ((new ((marker === 1 ? Array : Date) as any)() as any).length) === false)) reqAlias = () => undefined;',
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-equality direct-delete conditional-mixed-element-new-constructor-length predicates conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      "if (((delete ((new ((globalThis as any)[marker === 1 ? 'Array' : 'Date'])() as any).length) === false)) reqAlias = () => undefined;",
       "reqAlias('./fixtures/other-module.js').default;",
       'void baseline;',
     ].join('\n');
@@ -29008,11 +29154,58 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/guard-module.js');
   });
 
+  it('treats strict-equality direct-delete globalthis-element-new-constructor-target predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "if (((delete ((new ((globalThis as any)['Date'])() as any).safe) === true)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality direct-delete self-element-new-constructor-target predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "if (((delete ((new ((self as any)['Date'])() as any).safe) === true)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
   it('keeps strict-equality direct-delete conditional-mixed-new-constructor-length predicates conservative for module-source aliases in symbol sources', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'const marker = Math.random();',
       "if (((delete ((new ((marker === 1 ? Array : Date) as any)() as any).length) === false)) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-equality direct-delete conditional-mixed-element-new-constructor-length predicates conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((delete ((new ((globalThis as any)[marker === 1 ? 'Array' : 'Date'])() as any).length) === false)) moduleAlias = { default: 'not-a-module' };",
       'const postIfDefault = moduleAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
