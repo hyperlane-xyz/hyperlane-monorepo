@@ -1196,6 +1196,26 @@ function listSdkSquadsNonTestSourceFilePathsContainingPattern(
 
 const REGEXP_CONSTRUCTOR = RegExp;
 const REGEXP_PROTOTYPE_EXEC = RegExp.prototype.exec;
+const REGEXP_PROTOTYPE_SOURCE_DESCRIPTOR = Object.getOwnPropertyDescriptor(
+  RegExp.prototype,
+  'source',
+);
+const REGEXP_PROTOTYPE_FLAGS_DESCRIPTOR = Object.getOwnPropertyDescriptor(
+  RegExp.prototype,
+  'flags',
+);
+if (
+  !REGEXP_PROTOTYPE_SOURCE_DESCRIPTOR ||
+  !REGEXP_PROTOTYPE_SOURCE_DESCRIPTOR.get ||
+  !REGEXP_PROTOTYPE_FLAGS_DESCRIPTOR ||
+  !REGEXP_PROTOTYPE_FLAGS_DESCRIPTOR.get
+) {
+  throw new Error(
+    'Expected RegExp.prototype source/flags getters to be available in runtime',
+  );
+}
+const REGEXP_PROTOTYPE_SOURCE_GET = REGEXP_PROTOTYPE_SOURCE_DESCRIPTOR.get;
+const REGEXP_PROTOTYPE_FLAGS_GET = REGEXP_PROTOTYPE_FLAGS_DESCRIPTOR.get;
 const REFLECT_APPLY = Reflect.apply as <
   ThisArg,
   Args extends unknown[],
@@ -1207,8 +1227,8 @@ const REFLECT_APPLY = Reflect.apply as <
 ) => ReturnValue;
 
 function doesPatternMatchSource(source: string, pattern: RegExp): boolean {
-  const sourcePattern = pattern.source;
-  const flagsPattern = stripStatefulRegexFlags(pattern.flags);
+  const sourcePattern = regexpPrototypeSource(pattern);
+  const flagsPattern = stripStatefulRegexFlags(regexpPrototypeFlags(pattern));
   const isolatedPattern = new REGEXP_CONSTRUCTOR(sourcePattern, flagsPattern);
   return regexpPrototypeExec(isolatedPattern, source) !== null;
 }
@@ -1228,6 +1248,14 @@ function regexpPrototypeExec(
   source: string,
 ): RegExpExecArray | null {
   return REFLECT_APPLY(REGEXP_PROTOTYPE_EXEC, pattern, [source]);
+}
+
+function regexpPrototypeSource(pattern: RegExp): string {
+  return REFLECT_APPLY(REGEXP_PROTOTYPE_SOURCE_GET, pattern, []);
+}
+
+function regexpPrototypeFlags(pattern: RegExp): string {
+  return REFLECT_APPLY(REGEXP_PROTOTYPE_FLAGS_GET, pattern, []);
 }
 
 function listSdkSquadsNonTestSourceFilePaths(): readonly string[] {
@@ -2495,6 +2523,90 @@ describe('squads barrel exports', () => {
         writable: true,
         value: originalRegExpPrototypeExec,
       });
+    }
+  });
+
+  it('keeps sdk squads pattern-path discovery stable when RegExp.prototype.source getter is mutated', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const originalSourceDescriptor = Object.getOwnPropertyDescriptor(
+      RegExp.prototype,
+      'source',
+    );
+
+    Object.defineProperty(RegExp.prototype, 'source', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected squads pattern discovery to use captured RegExp.prototype.source getter',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listSdkSquadsTestFilePathsContainingPattern(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(baselineMutationDiscovery);
+      expect(
+        listSdkSquadsNonTestSourceFilePathsContainingPattern(
+          /const REFLECT_APPLY = Reflect\.apply/,
+        ),
+      ).to.deep.equal(baselineCaptureDiscovery);
+    } finally {
+      if (!originalSourceDescriptor) {
+        throw new Error('Missing original RegExp.prototype.source descriptor');
+      }
+      Object.defineProperty(
+        RegExp.prototype,
+        'source',
+        originalSourceDescriptor,
+      );
+    }
+  });
+
+  it('keeps sdk squads pattern-path discovery stable when RegExp.prototype.flags getter is mutated', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const originalFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      RegExp.prototype,
+      'flags',
+    );
+
+    Object.defineProperty(RegExp.prototype, 'flags', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected squads pattern discovery to use captured RegExp.prototype.flags getter',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listSdkSquadsTestFilePathsContainingPattern(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(baselineMutationDiscovery);
+      expect(
+        listSdkSquadsNonTestSourceFilePathsContainingPattern(
+          /const REFLECT_APPLY = Reflect\.apply/,
+        ),
+      ).to.deep.equal(baselineCaptureDiscovery);
+    } finally {
+      if (!originalFlagsDescriptor) {
+        throw new Error('Missing original RegExp.prototype.flags descriptor');
+      }
+      Object.defineProperty(RegExp.prototype, 'flags', originalFlagsDescriptor);
     }
   });
 
