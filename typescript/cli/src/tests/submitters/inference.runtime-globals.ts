@@ -221,6 +221,22 @@ export function getRuntimePrimitiveValuesByLabel(): Map<string, unknown> {
   return runtimePrimitiveByLabel;
 }
 
+export function getRequiredRuntimeFunctionValueByLabel(
+  label: string,
+  runtimeFunctionValuesByLabel: ReadonlyMap<
+    string,
+    unknown
+  > = getRuntimeFunctionValuesByLabel(),
+): Function {
+  const runtimeFunctionValue = runtimeFunctionValuesByLabel.get(label);
+  if (typeof runtimeFunctionValue !== 'function') {
+    throw new Error(
+      `Missing runtime function probe value for label "${label}"`,
+    );
+  }
+  return runtimeFunctionValue;
+}
+
 export function resolveRuntimeFunctionProbeCases(
   rawCases: ReadonlyArray<{
     label: string;

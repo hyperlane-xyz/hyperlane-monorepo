@@ -11,6 +11,7 @@ import {
   getFallbackPrimitiveProbeValueFromLabel,
   getKnownObjectLikeProbeLabelsFromOtherTests,
   getProbeLabelFromInferenceTestTitle,
+  getRequiredRuntimeFunctionValueByLabel,
   getRuntimeFunctionValuesByLabel,
   getRuntimeIntlFunctionValuesByLabel,
   getRuntimeObjectValuesByLabel,
@@ -323,5 +324,23 @@ describe('runtime global probe helpers', () => {
     expect(resolved[0].label).to.equal('array-constructor-object');
     expect(resolved[0].directGetLogsCallCount).to.equal(4);
     expect(typeof resolved[0].constructorValue).to.equal('function');
+  });
+
+  it('returns required runtime function probe values by label', () => {
+    const runtimeFunctionMap = getRuntimeFunctionValuesByLabel();
+    expect(
+      getRequiredRuntimeFunctionValueByLabel(
+        'array-constructor-object',
+        runtimeFunctionMap,
+      ),
+    ).to.equal(Array);
+    expect(() =>
+      getRequiredRuntimeFunctionValueByLabel(
+        '__missing-constructor-object',
+        runtimeFunctionMap,
+      ),
+    ).to.throw(
+      'Missing runtime function probe value for label "__missing-constructor-object"',
+    );
   });
 });
