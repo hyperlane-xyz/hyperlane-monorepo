@@ -204,6 +204,33 @@ function inspectArrayValue(value: unknown): {
   }
 }
 
+function inspectPromiseLikeThenValue(value: unknown): {
+  thenValue: unknown;
+  readError: unknown | undefined;
+} {
+  if (
+    (typeof value !== 'object' && typeof value !== 'function') ||
+    value === null
+  ) {
+    return {
+      thenValue: undefined,
+      readError: undefined,
+    };
+  }
+
+  try {
+    return {
+      thenValue: (value as { then?: unknown }).then,
+      readError: undefined,
+    };
+  } catch (error) {
+    return {
+      thenValue: undefined,
+      readError: error,
+    };
+  }
+}
+
 function inspectInstanceOf(
   value: unknown,
   constructor: abstract new (...args: never[]) => unknown,
@@ -827,12 +854,11 @@ function validateSolanaWeb3ProviderForChain(
     `Invalid solana provider for ${chain}: expected object, got ${getUnknownValueTypeName(providerValue)}`,
   );
 
-  let thenValue: unknown;
-  try {
-    thenValue = (providerValue as { then?: unknown } | null | undefined)?.then;
-  } catch (error) {
+  const { thenValue, readError: thenReadError } =
+    inspectPromiseLikeThenValue(providerValue);
+  if (thenReadError) {
     throw new Error(
-      `Failed to inspect solana provider for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(error)})`,
+      `Failed to inspect solana provider for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(thenReadError)})`,
     );
   }
 
@@ -897,14 +923,13 @@ function getPendingProposalNativeTokenMetadataForChain(
     `Malformed chain metadata for ${chain}: expected object, got ${getUnknownValueTypeName(chainMetadata)}`,
   );
 
-  let chainMetadataThenValue: unknown;
-  try {
-    chainMetadataThenValue = (
-      chainMetadata as { then?: unknown } | null | undefined
-    )?.then;
-  } catch (error) {
+  const {
+    thenValue: chainMetadataThenValue,
+    readError: chainMetadataThenError,
+  } = inspectPromiseLikeThenValue(chainMetadata);
+  if (chainMetadataThenError) {
     throw new Error(
-      `Failed to inspect chain metadata for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(error)})`,
+      `Failed to inspect chain metadata for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(chainMetadataThenError)})`,
     );
   }
 
@@ -932,14 +957,11 @@ function getPendingProposalNativeTokenMetadataForChain(
     `Malformed native token metadata for ${chain}: expected object, got ${getUnknownValueTypeName(nativeToken)}`,
   );
 
-  let nativeTokenThenValue: unknown;
-  try {
-    nativeTokenThenValue = (
-      nativeToken as { then?: unknown } | null | undefined
-    )?.then;
-  } catch (error) {
+  const { thenValue: nativeTokenThenValue, readError: nativeTokenThenError } =
+    inspectPromiseLikeThenValue(nativeToken);
+  if (nativeTokenThenError) {
     throw new Error(
-      `Failed to inspect native token metadata for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(error)})`,
+      `Failed to inspect native token metadata for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(nativeTokenThenError)})`,
     );
   }
 
@@ -1068,14 +1090,13 @@ function getSignerPublicKeyForChain(
     `Invalid signer public key for ${chain}: expected PublicKey, got ${getUnknownValueTypeName(signerPublicKey)}`,
   );
 
-  let signerPublicKeyThenValue: unknown;
-  try {
-    signerPublicKeyThenValue = (
-      signerPublicKey as { then?: unknown } | null | undefined
-    )?.then;
-  } catch (error) {
+  const {
+    thenValue: signerPublicKeyThenValue,
+    readError: signerPublicKeyThenError,
+  } = inspectPromiseLikeThenValue(signerPublicKey);
+  if (signerPublicKeyThenError) {
     throw new Error(
-      `Failed to inspect signer public key for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(error)})`,
+      `Failed to inspect signer public key for ${chain}: failed to read promise-like then field (${formatUnknownErrorForMessage(signerPublicKeyThenError)})`,
     );
   }
 
