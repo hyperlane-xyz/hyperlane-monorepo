@@ -1261,6 +1261,47 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(1);
   });
 
+  it('caches null expected config when resolver returns unreadable object values', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(() => {
+      resolveConfigCallCount += 1;
+      const { proxy: revokedConfig, revoke } = Proxy.revocable({}, {});
+      revoke();
+      return revokedConfig as unknown as Record<
+        string,
+        { threshold: number; validators: readonly string[] }
+      >;
+    });
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const firstResult = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+    const secondResult = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      ['validator-a'],
+    );
+
+    expect(firstResult).to.deep.equal({
+      matches: false,
+      issues: ['No expected config found for solanamainnet'],
+    });
+    expect(secondResult).to.deep.equal(firstResult);
+    expect(resolveConfigCallCount).to.equal(1);
+  });
+
   it('caches null expected config when resolver accessor throws', () => {
     let resolverAccessorReadCount = 0;
     const mpp = {

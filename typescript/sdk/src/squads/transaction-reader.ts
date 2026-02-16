@@ -2364,6 +2364,15 @@ export class SquadsTransactionReader {
 
     try {
       const config = resolveExpectedMultisigConfig(chain);
+      const configType = getUnknownValueTypeName(config);
+      if (!isRecordObject(config) && configType === UNREADABLE_VALUE_TYPE) {
+        rootLogger.warn(
+          `Invalid expected multisig config for ${chain}: expected object, got ${configType}`,
+        );
+        this.multisigConfigs.set(chain, null);
+        return null;
+      }
+
       const { thenValue, readError: thenReadError } = getThenValue(config);
       if (thenReadError) {
         rootLogger.warn(
