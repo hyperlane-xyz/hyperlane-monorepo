@@ -2293,6 +2293,31 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps static-access forbidden pattern labels aligned with regexes', () => {
+    const staticAccessLabelPattern = /^([A-Za-z0-9_.]+) access$/;
+
+    for (const { label, pattern } of FORBIDDEN_RUNTIME_HARDENING_PATTERNS) {
+      const staticAccessLabelMatch = staticAccessLabelPattern.exec(label);
+      if (!staticAccessLabelMatch) {
+        continue;
+      }
+
+      const [, staticAccessPath] = staticAccessLabelMatch;
+      expect(
+        pattern.test(staticAccessPath),
+        `Expected ${label} pattern to match direct static-access snippet`,
+      ).to.equal(true);
+      expect(
+        pattern.test(`${staticAccessPath}Suffix`),
+        `Expected ${label} pattern to avoid suffix-prefixed static-access names`,
+      ).to.equal(false);
+      expect(
+        pattern.test(`prefix${staticAccessPath}`),
+        `Expected ${label} pattern to avoid prefixed static-access names`,
+      ).to.equal(false);
+    }
+  });
+
   it('keeps recursive sdk squads discovery helpers isolated from caller mutation', () => {
     assertPathSnapshotIsolation(
       listSdkSquadsTestFilePaths,
