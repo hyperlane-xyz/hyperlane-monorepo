@@ -605,14 +605,11 @@ export class SquadsTransactionReader {
     routeName: string,
     chain: string,
   ): ProtocolType | null {
-    let tryGetProtocolValue: unknown;
-    try {
-      tryGetProtocolValue = (
-        this.mpp as { tryGetProtocol?: unknown } | null | undefined
-      )?.tryGetProtocol;
-    } catch (error) {
+    const { propertyValue: tryGetProtocolValue, readError: protocolReadError } =
+      inspectPropertyValue(this.mpp, 'tryGetProtocol');
+    if (protocolReadError) {
       throw new Error(
-        `Failed to read tryGetProtocol for warp route ${routeName} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read tryGetProtocol for warp route ${routeName} on ${chain}: ${stringifyUnknownSquadsError(protocolReadError)}`,
       );
     }
 
@@ -1246,14 +1243,13 @@ export class SquadsTransactionReader {
       `Invalid solana provider for ${chain}: expected synchronous provider, got promise-like value`,
     );
 
-    let getAccountInfoValue: unknown;
-    try {
-      getAccountInfoValue = (
-        svmProvider as { getAccountInfo?: unknown } | null | undefined
-      )?.getAccountInfo;
-    } catch (error) {
+    const {
+      propertyValue: getAccountInfoValue,
+      readError: getAccountInfoReadError,
+    } = inspectPropertyValue(svmProvider, 'getAccountInfo');
+    if (getAccountInfoReadError) {
       throw new Error(
-        `Failed to read getAccountInfo for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read getAccountInfo for ${chain}: ${stringifyUnknownSquadsError(getAccountInfoReadError)}`,
       );
     }
 
@@ -2511,14 +2507,13 @@ export class SquadsTransactionReader {
     remoteDomain: number,
     label: 'chain' | 'chain alias',
   ): unknown {
-    let tryGetChainNameValue: unknown;
-    try {
-      tryGetChainNameValue = (
-        this.mpp as { tryGetChainName?: unknown } | null | undefined
-      )?.tryGetChainName;
-    } catch (error) {
+    const {
+      propertyValue: tryGetChainNameValue,
+      readError: tryGetChainNameReadError,
+    } = inspectPropertyValue(this.mpp, 'tryGetChainName');
+    if (tryGetChainNameReadError) {
       throw new Error(
-        `Failed to read tryGetChainName for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read tryGetChainName for domain ${remoteDomain}: ${stringifyUnknownSquadsError(tryGetChainNameReadError)}`,
       );
     }
 
