@@ -184,6 +184,18 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /Object\.entries\s*\(/,
   }),
   Object.freeze({
+    label: 'Object.assign call',
+    pattern: /Object\.assign\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Object.getOwnPropertyNames call',
+    pattern: /Object\.getOwnPropertyNames\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Object.getOwnPropertySymbols call',
+    pattern: /Object\.getOwnPropertySymbols\s*\(/,
+  }),
+  Object.freeze({
     label: 'Array.from call',
     pattern: /Array\.from\s*\(/,
   }),
@@ -226,6 +238,10 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
   Object.freeze({
     label: '.clear method call',
     pattern: /\.clear\s*\(/,
+  }),
+  Object.freeze({
+    label: '.delete method call',
+    pattern: /\.delete\s*\(/,
   }),
   Object.freeze({
     label: '.includes method call',
@@ -332,8 +348,32 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\.trim\s*\(/,
   }),
   Object.freeze({
+    label: '.trimStart method call',
+    pattern: /\.trimStart\s*\(/,
+  }),
+  Object.freeze({
+    label: '.trimEnd method call',
+    pattern: /\.trimEnd\s*\(/,
+  }),
+  Object.freeze({
     label: '.toLowerCase method call',
     pattern: /\.toLowerCase\s*\(/,
+  }),
+  Object.freeze({
+    label: '.toUpperCase method call',
+    pattern: /\.toUpperCase\s*\(/,
+  }),
+  Object.freeze({
+    label: '.padStart method call',
+    pattern: /\.padStart\s*\(/,
+  }),
+  Object.freeze({
+    label: '.padEnd method call',
+    pattern: /\.padEnd\s*\(/,
+  }),
+  Object.freeze({
+    label: '.repeat method call',
+    pattern: /\.repeat\s*\(/,
   }),
   Object.freeze({
     label: '.map method call',
@@ -379,6 +419,14 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     label: '.sort method call',
     pattern: /\.sort\s*\(/,
   }),
+  Object.freeze({
+    label: '.fill method call',
+    pattern: /\.fill\s*\(/,
+  }),
+  Object.freeze({
+    label: '.copyWithin method call',
+    pattern: /\.copyWithin\s*\(/,
+  }),
 ]);
 const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   'inline cast-property access',
@@ -386,6 +434,9 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   'Object.keys call',
   'Object.values call',
   'Object.entries call',
+  'Object.assign call',
+  'Object.getOwnPropertyNames call',
+  'Object.getOwnPropertySymbols call',
   'Array.from call',
   'Array.isArray call',
   'Buffer.isBuffer call',
@@ -397,10 +448,17 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.get method call',
   '.set method call',
   '.clear method call',
+  '.delete method call',
   '.includes method call',
   '.some method call',
   '.trim method call',
+  '.trimStart method call',
+  '.trimEnd method call',
   '.toLowerCase method call',
+  '.toUpperCase method call',
+  '.padStart method call',
+  '.padEnd method call',
+  '.repeat method call',
   '.map method call',
   '.filter method call',
   '.join method call',
@@ -411,9 +469,11 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.slice method call',
   '.push method call',
   '.sort method call',
+  '.fill method call',
+  '.copyWithin method call',
 ]);
-const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 54;
-const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 30;
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 66;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 42;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
