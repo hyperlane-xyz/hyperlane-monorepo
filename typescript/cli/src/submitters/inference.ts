@@ -1511,6 +1511,12 @@ function buildExplicitOverrideIndexes({
       );
       continue;
     }
+    if (normalizedTarget.includes('@')) {
+      logger.debug(
+        `Skipping selector-style non-EVM submitter override key '${overrideKey}' for ${submitter.chain}`,
+      );
+      continue;
+    }
     if (!indexes.nonEvmTargetOverrides.has(normalizedTarget)) {
       indexes.nonEvmTargetOverrides.set(normalizedTarget, submitter);
     }
