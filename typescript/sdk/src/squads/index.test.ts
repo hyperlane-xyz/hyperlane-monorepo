@@ -102,6 +102,8 @@ const EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS =
     'src/squads/utils.ts',
     'src/squads/validation.ts',
   ]);
+const EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS =
+  Object.freeze(['src/squads/inspection.ts', 'src/squads/provider.ts']);
 const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE =
   Object.freeze([
     Object.freeze({
@@ -1594,6 +1596,12 @@ describe('squads barrel exports', () => {
     ]);
   });
 
+  it('keeps expected canonical sdk squads Reflect.apply non-captured runtime source paths', () => {
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+    ).to.deep.equal(['src/squads/inspection.ts', 'src/squads/provider.ts']);
+  });
+
   it('keeps expected canonical sdk squads Reflect.apply mutation runtime coverage map', () => {
     expect(
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE,
@@ -1704,6 +1712,38 @@ describe('squads barrel exports', () => {
     assertRelativePathsResolveToFiles(
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
       'expected sdk squads Reflect.apply-captured runtime source path constant',
+    );
+  });
+
+  it('keeps sdk squads Reflect.apply non-captured runtime source-path constants normalized and immutable', () => {
+    expect(
+      Object.isFrozen(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+      ),
+    ).to.equal(true);
+    expect(
+      new Set(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+      ).size,
+    ).to.equal(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS.length,
+    );
+    expect(
+      [
+        ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+      ].sort(compareLexicographically),
+    ).to.deep.equal([
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+    ]);
+    for (const sourcePath of EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS) {
+      assertSdkSquadsNonTestSourcePathShape(
+        sourcePath,
+        'expected sdk squads Reflect.apply non-captured runtime source path',
+      );
+    }
+    assertRelativePathsResolveToFiles(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+      'expected sdk squads Reflect.apply non-captured runtime source path constant',
     );
   });
 
@@ -1880,6 +1920,33 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps sdk Reflect.apply runtime source partitioning aligned with coverage-map sources', () => {
+    const capturedRuntimeSourcePathSet = new Set(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+    );
+    const nonCapturedRuntimeSourcePathSet = new Set(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+    );
+    const coverageRuntimeSourcePaths =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      );
+
+    for (const capturedSourcePath of capturedRuntimeSourcePathSet) {
+      expect(nonCapturedRuntimeSourcePathSet.has(capturedSourcePath)).to.equal(
+        false,
+      );
+    }
+
+    const expectedPartitionedRuntimeSourcePaths = [
+      ...capturedRuntimeSourcePathSet,
+      ...nonCapturedRuntimeSourcePathSet,
+    ].sort(compareLexicographically);
+    expect(coverageRuntimeSourcePaths).to.deep.equal(
+      expectedPartitionedRuntimeSourcePaths,
+    );
+  });
+
   it('keeps Reflect.apply mutation coverage constants deeply frozen', () => {
     expect(
       Object.isFrozen(
@@ -1892,6 +1959,11 @@ describe('squads barrel exports', () => {
     expect(
       Object.isFrozen(
         EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+      ),
+    ).to.equal(true);
+    expect(
+      Object.isFrozen(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
       ),
     ).to.equal(true);
     expect(
@@ -1912,6 +1984,9 @@ describe('squads barrel exports', () => {
     ];
     const baselineCaptureRuntimeSourcePaths = [
       ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+    ];
+    const baselineNonCaptureRuntimeSourcePaths = [
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
     ];
     const baselineCountSignatures =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS.map(
@@ -1964,6 +2039,16 @@ describe('squads barrel exports', () => {
         EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS as unknown as string[]
       )[0] = 'src/squads/mutated.ts';
     }).to.throw();
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS as unknown as string[]
+      ).push('src/squads/injected.ts');
+    }).to.throw();
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS as unknown as string[]
+      )[0] = 'src/squads/mutated.ts';
+    }).to.throw();
 
     expect(() => {
       (
@@ -2005,6 +2090,9 @@ describe('squads barrel exports', () => {
     expect([
       ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
     ]).to.deep.equal(baselineCaptureRuntimeSourcePaths);
+    expect([
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+    ]).to.deep.equal(baselineNonCaptureRuntimeSourcePaths);
     expect(
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.map(
         ({ runtimeSourcePath, coveringTestPaths }) =>
