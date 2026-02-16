@@ -13,7 +13,6 @@ import {
 import {
   DOMAIN_IDS,
   type DeployedAddresses,
-  TEST_CHAINS,
   type TestChain,
 } from './fixtures/routes.js';
 import {
