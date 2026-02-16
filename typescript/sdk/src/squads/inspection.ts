@@ -41,3 +41,23 @@ export function inspectPromiseLikeThenValue(value: unknown): {
     };
   }
 }
+
+export function inspectInstanceOf(
+  value: unknown,
+  constructor: abstract new (...args: never[]) => unknown,
+): {
+  matches: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      matches: value instanceof constructor,
+      readFailed: false,
+    };
+  } catch {
+    return {
+      matches: false,
+      readFailed: true,
+    };
+  }
+}

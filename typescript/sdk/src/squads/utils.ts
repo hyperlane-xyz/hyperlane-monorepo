@@ -27,6 +27,7 @@ import {
 } from './error-format.js';
 import {
   inspectArrayValue,
+  inspectInstanceOf,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
 import { toSquadsProvider } from './provider.js';
@@ -191,26 +192,6 @@ function tokenizeFieldName(fieldName: string): string[] {
 }
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
-
-function inspectInstanceOf(
-  value: unknown,
-  constructor: abstract new (...args: never[]) => unknown,
-): {
-  matches: boolean;
-  readFailed: boolean;
-} {
-  try {
-    return {
-      matches: value instanceof constructor,
-      readFailed: false,
-    };
-  } catch {
-    return {
-      matches: false,
-      readFailed: true,
-    };
-  }
-}
 
 function getUnknownValueTypeName(value: unknown): string {
   if (value === null) {

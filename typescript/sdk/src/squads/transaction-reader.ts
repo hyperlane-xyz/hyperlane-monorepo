@@ -60,6 +60,7 @@ import { assertValidTransactionIndexInput } from './validation.js';
 import { resolveSquadsChainName, type SquadsChainName } from './config.js';
 import {
   inspectArrayValue,
+  inspectInstanceOf,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
 
@@ -110,26 +111,6 @@ function inspectBufferValue(value: unknown): {
   } catch {
     return {
       isBuffer: false,
-      readFailed: true,
-    };
-  }
-}
-
-function inspectInstanceOf(
-  value: unknown,
-  constructor: abstract new (...args: never[]) => unknown,
-): {
-  matches: boolean;
-  readFailed: boolean;
-} {
-  try {
-    return {
-      matches: value instanceof constructor,
-      readFailed: false,
-    };
-  } catch {
-    return {
-      matches: false,
       readFailed: true,
     };
   }

@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import {
   inspectArrayValue,
+  inspectInstanceOf,
   inspectPromiseLikeThenValue,
 } from './inspection.js';
 
@@ -119,6 +120,39 @@ describe('squads inspection helpers', () => {
       expect(inspectPromiseLikeThenValue(value)).to.deep.equal({
         thenValue: undefined,
         readError: opaqueError,
+      });
+    });
+  });
+
+  describe(inspectInstanceOf.name, () => {
+    it('returns match results when instanceof evaluation is readable', () => {
+      expect(inspectInstanceOf(new Error('boom'), Error)).to.deep.equal({
+        matches: true,
+        readFailed: false,
+      });
+      expect(inspectInstanceOf({}, Error)).to.deep.equal({
+        matches: false,
+        readFailed: false,
+      });
+    });
+
+    it('returns readFailed when instanceof evaluation throws', () => {
+      class ThrowingInstanceof {
+        static [Symbol.hasInstance](_value: unknown): boolean {
+          throw new Error('instanceof unavailable');
+        }
+      }
+
+      expect(
+        inspectInstanceOf(
+          {},
+          ThrowingInstanceof as unknown as abstract new (
+            ...args: never[]
+          ) => unknown,
+        ),
+      ).to.deep.equal({
+        matches: false,
+        readFailed: true,
       });
     });
   });
