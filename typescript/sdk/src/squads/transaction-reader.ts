@@ -1316,14 +1316,13 @@ export class SquadsTransactionReader {
   private getSolanaWeb3ProviderForRead(
     chain: SquadsChainName,
   ): SolanaWeb3Provider {
-    let getSolanaWeb3ProviderValue: unknown;
-    try {
-      getSolanaWeb3ProviderValue = (
-        this.mpp as { getSolanaWeb3Provider?: unknown }
-      ).getSolanaWeb3Provider;
-    } catch (error) {
+    const {
+      propertyValue: getSolanaWeb3ProviderValue,
+      readError: getSolanaWeb3ProviderReadError,
+    } = inspectPropertyValue(this.mpp, 'getSolanaWeb3Provider');
+    if (getSolanaWeb3ProviderReadError) {
       throw new Error(
-        `Failed to read getSolanaWeb3Provider for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read getSolanaWeb3Provider for ${chain}: ${stringifyUnknownSquadsError(getSolanaWeb3ProviderReadError)}`,
       );
     }
 
@@ -1574,7 +1573,7 @@ export class SquadsTransactionReader {
         const data = this.readTransactionAccountData(
           chain,
           'lookup table account',
-          lookupTableAccount as { data?: unknown },
+          lookupTableAccount,
         );
         const LOOKUP_TABLE_META_SIZE = 56;
         const addresses: PublicKey[] = [];
@@ -2136,14 +2135,13 @@ export class SquadsTransactionReader {
     transactionIndex: number,
     accountInfo: AccountInfo<Buffer>,
   ): unknown {
-    let fromAccountInfoValue: unknown;
-    try {
-      fromAccountInfoValue = (
-        accounts.ConfigTransaction as { fromAccountInfo?: unknown }
-      ).fromAccountInfo;
-    } catch (error) {
+    const {
+      propertyValue: fromAccountInfoValue,
+      readError: fromAccountInfoReadError,
+    } = inspectPropertyValue(accounts.ConfigTransaction, 'fromAccountInfo');
+    if (fromAccountInfoReadError) {
       throw new Error(
-        `Failed to read ConfigTransaction decoder for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read ConfigTransaction decoder for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(fromAccountInfoReadError)}`,
       );
     }
 
@@ -2228,14 +2226,13 @@ export class SquadsTransactionReader {
     transactionPda: PublicKey,
     squadsProvider: ReturnType<typeof toSquadsProvider>,
   ): Promise<accounts.VaultTransaction> {
-    let fromAccountAddressValue: unknown;
-    try {
-      fromAccountAddressValue = (
-        accounts.VaultTransaction as { fromAccountAddress?: unknown }
-      ).fromAccountAddress;
-    } catch (error) {
+    const {
+      propertyValue: fromAccountAddressValue,
+      readError: fromAccountAddressReadError,
+    } = inspectPropertyValue(accounts.VaultTransaction, 'fromAccountAddress');
+    if (fromAccountAddressReadError) {
       throw new Error(
-        `Failed to read VaultTransaction account loader for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read VaultTransaction account loader for ${chain}: ${stringifyUnknownSquadsError(fromAccountAddressReadError)}`,
       );
     }
 
@@ -3078,7 +3075,7 @@ export class SquadsTransactionReader {
   private readTransactionAccountData(
     chain: SquadsChainName,
     label: string,
-    accountInfo: { data?: unknown },
+    accountInfo: unknown,
   ): Buffer {
     const { propertyValue: dataValue, readError: dataReadError } =
       inspectPropertyValue(accountInfo, 'data');

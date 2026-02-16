@@ -824,13 +824,13 @@ function validateSolanaWeb3ProviderForChain(
     `Invalid solana provider for ${chain}: expected synchronous provider, got promise-like value`,
   );
 
-  let getAccountInfoValue: unknown;
-  try {
-    getAccountInfoValue = (providerValue as { getAccountInfo?: unknown })
-      .getAccountInfo;
-  } catch (error) {
+  const {
+    propertyValue: getAccountInfoValue,
+    readError: getAccountInfoReadError,
+  } = inspectPropertyValue(providerValue, 'getAccountInfo');
+  if (getAccountInfoReadError) {
     throw new Error(
-      `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(getAccountInfoReadError)}`,
     );
   }
 
@@ -1242,14 +1242,13 @@ async function getProposalAccountForResolvedChain(
   squadsProvider: ReturnType<typeof toSquadsProvider>,
   proposalPda: PublicKey,
 ): Promise<accounts.Proposal> {
-  let fromAccountAddressValue: unknown;
-  try {
-    fromAccountAddressValue = (
-      accounts.Proposal as { fromAccountAddress?: unknown }
-    ).fromAccountAddress;
-  } catch (error) {
+  const {
+    propertyValue: fromAccountAddressValue,
+    readError: fromAccountAddressReadError,
+  } = inspectPropertyValue(accounts.Proposal, 'fromAccountAddress');
+  if (fromAccountAddressReadError) {
     throw new Error(
-      `Failed to read proposal account loader for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read proposal account loader for ${chain}: ${formatUnknownErrorForMessage(fromAccountAddressReadError)}`,
     );
   }
 
@@ -2038,14 +2037,13 @@ async function getMultisigAccountForNextIndex(
   squadsProvider: ReturnType<typeof toSquadsProvider>,
   multisigPda: PublicKey,
 ): Promise<accounts.Multisig> {
-  let fromAccountAddressValue: unknown;
-  try {
-    fromAccountAddressValue = (
-      accounts.Multisig as { fromAccountAddress?: unknown }
-    ).fromAccountAddress;
-  } catch (error) {
+  const {
+    propertyValue: fromAccountAddressValue,
+    readError: fromAccountAddressReadError,
+  } = inspectPropertyValue(accounts.Multisig, 'fromAccountAddress');
+  if (fromAccountAddressReadError) {
     throw new Error(
-      `Failed to read multisig account loader for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read multisig account loader for ${chain}: ${formatUnknownErrorForMessage(fromAccountAddressReadError)}`,
     );
   }
 
@@ -2072,13 +2070,13 @@ async function getMultisigAccountInfoForNextIndex(
   svmProvider: SolanaWeb3Provider,
   multisigPda: PublicKey,
 ): Promise<unknown> {
-  let getAccountInfoValue: unknown;
-  try {
-    getAccountInfoValue = (svmProvider as { getAccountInfo?: unknown })
-      .getAccountInfo;
-  } catch (error) {
+  const {
+    propertyValue: getAccountInfoValue,
+    readError: getAccountInfoReadError,
+  } = inspectPropertyValue(svmProvider, 'getAccountInfo');
+  if (getAccountInfoReadError) {
     throw new Error(
-      `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(getAccountInfoReadError)}`,
     );
   }
 
@@ -2268,13 +2266,13 @@ async function getRecentBlockhashForProposalBuild(
   chain: SquadsChainName,
   svmProvider: SolanaWeb3Provider,
 ): Promise<string> {
-  let getLatestBlockhashValue: unknown;
-  try {
-    getLatestBlockhashValue = (svmProvider as { getLatestBlockhash?: unknown })
-      .getLatestBlockhash;
-  } catch (error) {
+  const {
+    propertyValue: getLatestBlockhashValue,
+    readError: getLatestBlockhashReadError,
+  } = inspectPropertyValue(svmProvider, 'getLatestBlockhash');
+  if (getLatestBlockhashReadError) {
     throw new Error(
-      `Failed to read getLatestBlockhash for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read getLatestBlockhash for ${chain}: ${formatUnknownErrorForMessage(getLatestBlockhashReadError)}`,
     );
   }
 
@@ -2304,13 +2302,11 @@ async function getRecentBlockhashForProposalBuild(
     `Malformed latest blockhash result for ${chain}: expected object, got ${getUnknownValueTypeName(latestBlockhashResult)}`,
   );
 
-  let blockhashValue: unknown;
-  try {
-    blockhashValue = (latestBlockhashResult as { blockhash?: unknown })
-      .blockhash;
-  } catch (error) {
+  const { propertyValue: blockhashValue, readError: blockhashReadError } =
+    inspectPropertyValue(latestBlockhashResult, 'blockhash');
+  if (blockhashReadError) {
     throw new Error(
-      `Failed to read latest blockhash value for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read latest blockhash value for ${chain}: ${formatUnknownErrorForMessage(blockhashReadError)}`,
     );
   }
 
@@ -2615,7 +2611,7 @@ function hasMatchingDiscriminator(
 
 function readTransactionAccountDataForType(
   chain: SquadsChainName,
-  accountInfo: { data?: unknown },
+  accountInfo: unknown,
 ): Uint8Array {
   const { propertyValue: dataValue, readError: dataReadError } =
     inspectPropertyValue(accountInfo, 'data');
@@ -2642,13 +2638,13 @@ async function getTransactionAccountInfoForType(
   svmProvider: SolanaWeb3Provider,
   transactionPda: PublicKey,
 ): Promise<unknown> {
-  let getAccountInfoValue: unknown;
-  try {
-    getAccountInfoValue = (svmProvider as { getAccountInfo?: unknown })
-      .getAccountInfo;
-  } catch (error) {
+  const {
+    propertyValue: getAccountInfoValue,
+    readError: getAccountInfoReadError,
+  } = inspectPropertyValue(svmProvider, 'getAccountInfo');
+  if (getAccountInfoReadError) {
     throw new Error(
-      `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+      `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(getAccountInfoReadError)}`,
     );
   }
 
@@ -2719,7 +2715,7 @@ export async function getTransactionType(
 
   const accountData = readTransactionAccountDataForType(
     normalizedChain,
-    accountInfo as { data?: unknown },
+    accountInfo,
   );
 
   if (isVaultTransaction(accountData)) {
