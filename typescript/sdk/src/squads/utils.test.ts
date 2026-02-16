@@ -22,6 +22,7 @@ import {
   getPendingProposalsForChains,
   getMinimumProposalIndexToCheck,
   isLikelyMissingSquadsAccountError,
+  inspectPromiseLikeThenValue,
   normalizeSquadsAddressList,
   normalizeSquadsAddressValue,
   parseSquadsMultisigMembers,
@@ -166,6 +167,47 @@ function createStringifiableObjectErrorWithThrowingStackAndMessageGetters(
 }
 
 describe('squads utils', () => {
+  describe(inspectPromiseLikeThenValue.name, () => {
+    it('returns undefined then/readError for non-object values', () => {
+      expect(inspectPromiseLikeThenValue(null)).to.deep.equal({
+        thenValue: undefined,
+        readError: undefined,
+      });
+      expect(inspectPromiseLikeThenValue('not-object')).to.deep.equal({
+        thenValue: undefined,
+        readError: undefined,
+      });
+    });
+
+    it('returns thenValue for object values with readable then fields', () => {
+      const thenFn = () => undefined;
+      expect(inspectPromiseLikeThenValue({ then: thenFn })).to.deep.equal({
+        thenValue: thenFn,
+        readError: undefined,
+      });
+    });
+
+    it('captures read errors when then accessor throws', () => {
+      const { thenValue, readError } = inspectPromiseLikeThenValue(
+        new Proxy(
+          {},
+          {
+            get(target, property, receiver) {
+              if (property === 'then') {
+                throw new Error('then unavailable');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ),
+      );
+
+      expect(thenValue).to.equal(undefined);
+      expect(readError).to.be.instanceOf(Error);
+      expect((readError as Error).message).to.equal('then unavailable');
+    });
+  });
+
   describe(normalizeSquadsAddressValue.name, () => {
     it('normalizes valid Solana address strings', () => {
       expect(
