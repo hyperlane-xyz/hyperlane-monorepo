@@ -117,6 +117,7 @@ const SQUADS_CHAIN_SET = new Set<string>(SQUADS_CHAINS);
 const SQUADS_CHAIN_SET_HAS = SQUADS_CHAIN_SET.has.bind(SQUADS_CHAIN_SET);
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
+const STRING_TRIM = String.prototype.trim;
 const SQUADS_CHAINS_DISPLAY_LIST = SQUADS_CHAINS.join(', ');
 
 function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
@@ -125,6 +126,10 @@ function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
 
 function setAddValue<Value>(set: Set<Value>, value: Value): void {
   SET_ADD.call(set, value);
+}
+
+function stringTrim(value: string): string {
+  return STRING_TRIM.call(value);
 }
 
 export function getSquadsChains(): SquadsChainName[] {
@@ -241,7 +246,7 @@ function partitionNormalizedSquadsChains(chains: readonly string[]): {
   const seenChains = new Set<string>();
 
   for (const chain of chains) {
-    const normalizedChain = chain.trim();
+    const normalizedChain = stringTrim(chain);
     if (setHasValue(seenChains, normalizedChain)) {
       continue;
     }
@@ -258,7 +263,7 @@ function partitionNormalizedSquadsChains(chains: readonly string[]): {
 }
 
 function formatChainNameForDisplay(chain: string): string {
-  const trimmedChain = chain.trim();
+  const trimmedChain = stringTrim(chain);
   return trimmedChain.length > 0 ? trimmedChain : '<empty>';
 }
 
@@ -356,7 +361,7 @@ function normalizeChainNameForSquadsLookup(chainName: unknown): string {
     );
   }
 
-  const normalizedChainName = chainName.trim();
+  const normalizedChainName = stringTrim(chainName);
   if (normalizedChainName.length === 0) {
     throw new Error('Expected chain name to be a non-empty string');
   }

@@ -191,6 +191,42 @@ describe('squads config', () => {
     expect(resolveSquadsChainName('\tsoon\n')).to.equal('soon');
   });
 
+  it('keeps chain normalization stable when String.prototype.trim is mutated', () => {
+    const originalStringTrim = String.prototype.trim;
+    const throwingTrim: typeof String.prototype.trim = function trim() {
+      throw new Error('string trim unavailable');
+    };
+    let resolvedChain: string | undefined;
+    let partitioned:
+      | {
+          squadsChains: string[];
+          nonSquadsChains: string[];
+        }
+      | undefined;
+
+    try {
+      Object.defineProperty(String.prototype, 'trim', {
+        value: throwingTrim,
+        writable: true,
+        configurable: true,
+      });
+      resolvedChain = resolveSquadsChainName('  soon  ');
+      partitioned = partitionSquadsChains(['  solanamainnet  ', '  badchain']);
+    } finally {
+      Object.defineProperty(String.prototype, 'trim', {
+        value: originalStringTrim,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(resolvedChain).to.equal('soon');
+    expect(partitioned).to.deep.equal({
+      squadsChains: ['solanamainnet'],
+      nonSquadsChains: ['badchain'],
+    });
+  });
+
   it('rejects malformed resolved chain-name lookups', () => {
     expect(() => resolveSquadsChainName('   ')).to.throw(
       'Expected chain name to be a non-empty string',

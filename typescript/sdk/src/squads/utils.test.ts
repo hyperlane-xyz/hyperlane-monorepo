@@ -991,6 +991,35 @@ describe('squads utils', () => {
       );
     });
 
+    it('keeps chain-label normalization stable when String.prototype.trim is mutated', () => {
+      const originalStringTrim = String.prototype.trim;
+      const throwingTrim: typeof String.prototype.trim = function trim() {
+        throw new Error('string trim unavailable');
+      };
+
+      let thrownError: Error | undefined;
+      try {
+        Object.defineProperty(String.prototype, 'trim', {
+          configurable: true,
+          writable: true,
+          value: throwingTrim,
+        });
+        thrownError = captureSyncError(() =>
+          assertValidTransactionIndexInput(-1, '  solanamainnet  '),
+        );
+      } finally {
+        Object.defineProperty(String.prototype, 'trim', {
+          configurable: true,
+          writable: true,
+          value: originalStringTrim,
+        });
+      }
+
+      expect(thrownError?.message).to.equal(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got -1',
+      );
+    });
+
     it('labels malformed chain values in transaction-index validation errors', () => {
       expect(() => assertValidTransactionIndexInput(-1, null)).to.throw(
         'Expected transaction index to be a non-negative safe integer for null, got -1',

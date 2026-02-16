@@ -1,6 +1,12 @@
 import { assert } from '@hyperlane-xyz/utils';
 import { inspectArrayValue } from './inspection.js';
 
+const STRING_TRIM = String.prototype.trim;
+
+function stringTrim(value: string): string {
+  return STRING_TRIM.call(value);
+}
+
 function getUnknownValueTypeName(value: unknown): string {
   if (value === null) {
     return 'null';
@@ -19,7 +25,7 @@ function getChainLabel(chain: unknown): string {
     return getUnknownValueTypeName(chain);
   }
 
-  const normalizedChain = chain.trim();
+  const normalizedChain = stringTrim(chain);
   return normalizedChain.length > 0 ? normalizedChain : 'empty string';
 }
 
