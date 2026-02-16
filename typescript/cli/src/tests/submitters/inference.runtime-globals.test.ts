@@ -738,4 +738,33 @@ describe('runtime global probe helpers', () => {
 
     expect(filesMissingCachedHelpers).to.deep.equal([]);
   });
+
+  it('keeps raw runtime map builders scoped to helper tests', () => {
+    const submitterTestDir = path.dirname(fileURLToPath(import.meta.url));
+    const submitterTestFiles = fs
+      .readdirSync(submitterTestDir)
+      .filter((fileName) => fileName.endsWith('.test.ts'));
+    const rawRuntimeBuilderCalls = [
+      'getRuntimeFunctionValuesByLabel(',
+      'getRuntimeIntlFunctionValuesByLabel(',
+      'getRuntimeObjectValuesByLabel(',
+      'getRuntimePrimitiveValuesByLabel(',
+    ];
+
+    const filesUsingRawRuntimeBuilders = submitterTestFiles
+      .filter((fileName) => {
+        const fileContent = fs.readFileSync(
+          path.join(submitterTestDir, fileName),
+          'utf8',
+        );
+        return rawRuntimeBuilderCalls.some((callsite) =>
+          fileContent.includes(callsite),
+        );
+      })
+      .sort();
+
+    expect(filesUsingRawRuntimeBuilders).to.deep.equal([
+      'inference.runtime-globals.test.ts',
+    ]);
+  });
 });
