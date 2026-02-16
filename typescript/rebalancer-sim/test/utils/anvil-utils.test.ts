@@ -25486,6 +25486,7 @@ describe('Anvil utils', () => {
       const byEscapeLevel = splitByEscapeLevel(
         parseDescriptors(source, matcherDescriptorPattern),
       );
+      expect(byEscapeLevel.triple.size).to.be.greaterThan(0);
       expectEscapeLevelParity(byEscapeLevel);
     });
 
@@ -25493,6 +25494,7 @@ describe('Anvil utils', () => {
       const byEscapeLevel = splitByEscapeLevel(
         parseDescriptors(source, formatterDescriptorPattern),
       );
+      expect(byEscapeLevel.triple.size).to.be.greaterThan(0);
       expectEscapeLevelParity(byEscapeLevel);
     });
 
