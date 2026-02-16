@@ -5676,6 +5676,63 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('keeps add-spending-limit config actions when members and destinations iteration throws', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatConfigAction: (
+        chain: string,
+        action: Record<string, unknown>,
+      ) => Record<string, unknown> | null;
+    };
+    const hostileMembers = new Proxy([{ toBase58: () => 'member-a' }], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          throw new Error('members unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const hostileDestinations = new Proxy(
+      [{ toBase58: () => 'destination-a' }],
+      {
+        get(target, property, receiver) {
+          if (property === Symbol.iterator) {
+            throw new Error('destinations unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    const result = readerAny.formatConfigAction('solanamainnet', {
+      __kind: 'AddSpendingLimit',
+      vaultIndex: 4,
+      mint: { toBase58: () => 'mint-address' },
+      amount: 10n,
+      members: hostileMembers,
+      destinations: hostileDestinations,
+    });
+
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Squads Multisig Configuration',
+      type: 'AddSpendingLimit',
+      args: {
+        vaultIndex: 4,
+        mint: 'mint-address',
+        amount: '10',
+        members: [],
+        destinations: [],
+      },
+      insight: 'Add spending limit for vault 4',
+    });
+  });
+
   it('keeps add-member config actions when nested field access throws', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
