@@ -385,6 +385,52 @@ describe('squads config', () => {
     );
   });
 
+  it('rejects non-string unsupported-chain entries in formatter input', () => {
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage([1 as unknown as string]),
+    ).to.throw(
+      'Expected unsupported squads chains[0] to be a string, got number',
+    );
+  });
+
+  it('rejects non-string configured-chain entries in formatter input', () => {
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        [1 as unknown as string],
+      ),
+    ).to.throw(
+      'Expected configured squads chains[0] to be a string, got number',
+    );
+  });
+
+  it('labels unreadable unsupported-chain entries in formatter input deterministically', () => {
+    const { proxy: revokedChainValue, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage([
+        revokedChainValue as unknown as string,
+      ]),
+    ).to.throw(
+      'Expected unsupported squads chains[0] to be a string, got [unreadable value type]',
+    );
+  });
+
+  it('labels unreadable configured-chain entries in formatter input deterministically', () => {
+    const { proxy: revokedChainValue, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        [revokedChainValue as unknown as string],
+      ),
+    ).to.throw(
+      'Expected configured squads chains[0] to be a string, got [unreadable value type]',
+    );
+  });
+
   it('throws contextual formatter errors when unsupported-chain list length getter fails', () => {
     const hostileUnsupportedChains = new Proxy([], {
       get(target, property, receiver) {
