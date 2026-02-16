@@ -2860,16 +2860,16 @@ describe('squads barrel exports', () => {
         reflectApplyInvocationCount: 0,
         reflectApplyCaptureDeclarationCount: 0,
       });
-    }).to.throw();
+    }).to.throw(TypeError);
     expect(() => {
       callerMutatedSummaries[0].reflectApplyIdentifierReferenceCount = 999;
-    }).to.throw();
+    }).to.throw(TypeError);
     expect(() => {
       callerMutatedSummaries[0].reflectApplyInvocationCount = 999;
-    }).to.throw();
+    }).to.throw(TypeError);
     expect(() => {
       callerMutatedSummaries[0].reflectApplyCaptureDeclarationCount = 999;
-    }).to.throw();
+    }).to.throw(TypeError);
 
     const subsequentRuntimeReflectApplyCountSummaries =
       listSdkSquadsRuntimeReflectApplyCountSummaries();
