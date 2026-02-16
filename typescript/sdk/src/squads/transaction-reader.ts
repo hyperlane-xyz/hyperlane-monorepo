@@ -3234,33 +3234,24 @@ export class SquadsTransactionReader {
         SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
       ]: {
         const data = dataValue as MultisigSetValidatorsData;
-        let domainValue: unknown;
-        try {
-          domainValue = data.domain;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read multisig domain on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          domainValue = undefined;
-        }
-        let thresholdValue: unknown;
-        try {
-          thresholdValue = data.threshold;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read multisig threshold on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          thresholdValue = undefined;
-        }
-        let validatorsValue: unknown;
-        try {
-          validatorsValue = data.validators;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read multisig validators on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          validatorsValue = undefined;
-        }
+        const domainValue = this.readProposalDataField(
+          chain,
+          'multisig domain',
+          () => readPropertyOrThrow(data, 'domain'),
+          undefined,
+        );
+        const thresholdValue = this.readProposalDataField(
+          chain,
+          'multisig threshold',
+          () => readPropertyOrThrow(data, 'threshold'),
+          undefined,
+        );
+        const validatorsValue = this.readProposalDataField(
+          chain,
+          'multisig validators',
+          () => readPropertyOrThrow(data, 'validators'),
+          undefined,
+        );
 
         const remoteDomainForDisplay =
           formatIntegerValidationValue(domainValue);
@@ -3302,15 +3293,12 @@ export class SquadsTransactionReader {
         SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
       ]: {
         const data = dataValue as MailboxSetDefaultIsmData;
-        let moduleValue: unknown;
-        try {
-          moduleValue = data.newDefaultIsm;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read mailbox default ISM on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          moduleValue = null;
-        }
+        const moduleValue = this.readProposalDataField(
+          chain,
+          'mailbox default ISM',
+          () => readPropertyOrThrow(data, 'newDefaultIsm'),
+          null,
+        );
         tx.args = {
           module: this.normalizeOptionalNonEmptyString(moduleValue),
         };
@@ -3324,15 +3312,12 @@ export class SquadsTransactionReader {
         SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP
       ]: {
         const data = dataValue as OwnershipTransferData;
-        let newOwnerValue: unknown;
-        try {
-          newOwnerValue = data.newOwner;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read ownership transfer target on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          newOwnerValue = undefined;
-        }
+        const newOwnerValue = this.readProposalDataField(
+          chain,
+          'ownership transfer target',
+          () => readPropertyOrThrow(data, 'newOwner'),
+          undefined,
+        );
         tx.args = {
           newOwner: this.normalizeOptionalNonEmptyString(newOwnerValue),
         };
@@ -3341,33 +3326,31 @@ export class SquadsTransactionReader {
 
       case SquadsInstructionName[SquadsInstructionType.ADD_MEMBER]: {
         const data = dataValue as SquadsAddMemberData;
-        let memberValue: unknown;
-        try {
-          memberValue = data.newMember;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read squads add-member target on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          memberValue = undefined;
-        }
-        let permissionsValue: unknown;
-        try {
-          permissionsValue = data.permissions;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read squads add-member permissions on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          permissionsValue = undefined;
-        }
+        const memberValue = this.readProposalDataField(
+          chain,
+          'squads add-member target',
+          () => readPropertyOrThrow(data, 'newMember'),
+          undefined,
+        );
+        const permissionsValue = this.readProposalDataField(
+          chain,
+          'squads add-member permissions',
+          () => readPropertyOrThrow(data, 'permissions'),
+          undefined,
+        );
         let permissionsMaskValue: unknown;
         if (isRecordObject(permissionsValue)) {
-          try {
-            permissionsMaskValue = permissionsValue.mask;
-          } catch (error) {
+          const { propertyValue, readError } = inspectPropertyValue(
+            permissionsValue,
+            'mask',
+          );
+          if (readError) {
             rootLogger.warn(
-              `Failed to read squads add-member permission mask on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+              `Failed to read squads add-member permission mask on ${chain}: ${stringifyUnknownSquadsError(readError)}`,
             );
             permissionsMaskValue = undefined;
+          } else {
+            permissionsMaskValue = propertyValue;
           }
         } else {
           permissionsMaskValue = undefined;
@@ -3397,30 +3380,24 @@ export class SquadsTransactionReader {
 
       case SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER]: {
         const data = dataValue as SquadsRemoveMemberData;
-        let memberValue: unknown;
-        try {
-          memberValue = data.memberToRemove;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read squads remove-member target on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          memberValue = undefined;
-        }
+        const memberValue = this.readProposalDataField(
+          chain,
+          'squads remove-member target',
+          () => readPropertyOrThrow(data, 'memberToRemove'),
+          undefined,
+        );
         tx.args = { member: this.normalizeOptionalNonEmptyString(memberValue) };
         break;
       }
 
       case SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD]: {
         const data = dataValue as SquadsChangeThresholdData;
-        let thresholdValue: unknown;
-        try {
-          thresholdValue = data.newThreshold;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read squads threshold change on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          thresholdValue = undefined;
-        }
+        const thresholdValue = this.readProposalDataField(
+          chain,
+          'squads threshold change',
+          () => readPropertyOrThrow(data, 'newThreshold'),
+          undefined,
+        );
         tx.args = {
           newThreshold:
             typeof thresholdValue === 'number' ? thresholdValue : null,
@@ -3432,33 +3409,24 @@ export class SquadsTransactionReader {
         SealevelHypTokenInstruction.EnrollRemoteRouter
       ]: {
         const data = dataValue as WarpEnrollRemoteRouterData;
-        let domainValue: unknown;
-        try {
-          domainValue = data.domain;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read warp enroll-router domain on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          domainValue = undefined;
-        }
-        let chainNameValue: unknown;
-        try {
-          chainNameValue = data.chainName;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read warp enroll-router chain alias on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          chainNameValue = undefined;
-        }
-        let routerValue: unknown;
-        try {
-          routerValue = data.router;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read warp enroll-router router on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          routerValue = undefined;
-        }
+        const domainValue = this.readProposalDataField(
+          chain,
+          'warp enroll-router domain',
+          () => readPropertyOrThrow(data, 'domain'),
+          undefined,
+        );
+        const chainNameValue = this.readProposalDataField(
+          chain,
+          'warp enroll-router chain alias',
+          () => readPropertyOrThrow(data, 'chainName'),
+          undefined,
+        );
+        const routerValue = this.readProposalDataField(
+          chain,
+          'warp enroll-router router',
+          () => readPropertyOrThrow(data, 'router'),
+          undefined,
+        );
 
         tx.args = {
           [this.getWarpDisplayKey(chainNameValue, domainValue)]:
@@ -3472,16 +3440,12 @@ export class SquadsTransactionReader {
       ]: {
         const data = dataValue as WarpEnrollRemoteRoutersData;
         const routers: Record<string, string> = {};
-        let routersCandidate: unknown;
-        try {
-          routersCandidate = data.routers;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read warp enroll-routers configs on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          tx.args = routers;
-          break;
-        }
+        const routersCandidate = this.readProposalDataField(
+          chain,
+          'warp enroll-routers configs',
+          () => readPropertyOrThrow(data, 'routers'),
+          undefined,
+        );
         const { isArray: routersAreArray, readFailed: routersReadFailed } =
           inspectArrayValue(routersCandidate);
         const normalizedRouters =
@@ -3542,16 +3506,12 @@ export class SquadsTransactionReader {
       ]: {
         const data = dataValue as WarpSetDestinationGasConfigsData;
         const gasConfigs: Record<string, string> = {};
-        let configsCandidate: unknown;
-        try {
-          configsCandidate = data.configs;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read warp gas configs on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          tx.args = gasConfigs;
-          break;
-        }
+        const configsCandidate = this.readProposalDataField(
+          chain,
+          'warp gas configs',
+          () => readPropertyOrThrow(data, 'configs'),
+          undefined,
+        );
 
         const { isArray: configsAreArray, readFailed: configsReadFailed } =
           inspectArrayValue(configsCandidate);
@@ -3612,15 +3572,12 @@ export class SquadsTransactionReader {
         SealevelHypTokenInstruction.SetInterchainSecurityModule
       ]: {
         const data = dataValue as WarpSetIsmData;
-        let ismValue: unknown;
-        try {
-          ismValue = data.ism;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read warp ISM value on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          ismValue = undefined;
-        }
+        const ismValue = this.readProposalDataField(
+          chain,
+          'warp ISM value',
+          () => readPropertyOrThrow(data, 'ism'),
+          undefined,
+        );
         tx.args = { ism: this.normalizeOptionalNonEmptyString(ismValue) };
         break;
       }
@@ -3629,15 +3586,12 @@ export class SquadsTransactionReader {
         SealevelHypTokenInstruction.SetInterchainGasPaymaster
       ]: {
         const data = dataValue as WarpSetIgpData;
-        let igpValue: unknown;
-        try {
-          igpValue = data.igp;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read warp IGP value on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          igpValue = undefined;
-        }
+        const igpValue = this.readProposalDataField(
+          chain,
+          'warp IGP value',
+          () => readPropertyOrThrow(data, 'igp'),
+          undefined,
+        );
         tx.args = isRecordObject(igpValue) ? igpValue : { igp: null };
         break;
       }
@@ -3646,15 +3600,12 @@ export class SquadsTransactionReader {
         SealevelHypTokenInstruction.TransferOwnership
       ]: {
         const data = dataValue as OwnershipTransferData;
-        let newOwnerValue: unknown;
-        try {
-          newOwnerValue = data.newOwner;
-        } catch (error) {
-          rootLogger.warn(
-            `Failed to read warp ownership transfer target on ${chain}: ${stringifyUnknownSquadsError(error)}`,
-          );
-          newOwnerValue = undefined;
-        }
+        const newOwnerValue = this.readProposalDataField(
+          chain,
+          'warp ownership transfer target',
+          () => readPropertyOrThrow(data, 'newOwner'),
+          undefined,
+        );
         tx.args = {
           newOwner: this.normalizeOptionalNonEmptyString(newOwnerValue),
         };
