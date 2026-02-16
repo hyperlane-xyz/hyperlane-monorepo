@@ -103,4 +103,58 @@ describe('MultiProtocolSignerManager strategy lookup hardening', () => {
       strategy[CHAIN].submitter.privateKey,
     );
   });
+
+  it('ignores submitter config when type exists only on submitter prototype', async () => {
+    const strategy = {
+      [CHAIN]: {
+        submitter: Object.create({
+          type: TxSubmitterType.JSON_RPC,
+        }),
+      },
+    };
+    (strategy[CHAIN].submitter as any).privateKey = `0x${'4'.repeat(64)}`;
+
+    const getSignerStub = sinon.stub().resolves({} as any);
+    sinon
+      .stub(MultiProtocolSignerFactory, 'getSignerStrategy')
+      .returns({ getSigner: getSignerStub } as any);
+
+    await MultiProtocolSignerManager.init(
+      strategy as any,
+      [CHAIN],
+      new MultiProtocolProvider({ [CHAIN]: test1 }),
+      { key: { [ProtocolType.Ethereum]: ANVIL_KEY } },
+    );
+
+    expect(getSignerStub.calledOnce).to.equal(true);
+    expect(getSignerStub.firstCall.args[0].privateKey).to.equal(ANVIL_KEY);
+  });
+
+  it('ignores inherited private keys for jsonRpc submitter strategy', async () => {
+    const submitter = Object.create({
+      privateKey: `0x${'5'.repeat(64)}`,
+    });
+    submitter.type = TxSubmitterType.JSON_RPC;
+    submitter.chain = CHAIN;
+    const strategy = {
+      [CHAIN]: {
+        submitter,
+      },
+    };
+
+    const getSignerStub = sinon.stub().resolves({} as any);
+    sinon
+      .stub(MultiProtocolSignerFactory, 'getSignerStrategy')
+      .returns({ getSigner: getSignerStub } as any);
+
+    await MultiProtocolSignerManager.init(
+      strategy as any,
+      [CHAIN],
+      new MultiProtocolProvider({ [CHAIN]: test1 }),
+      { key: { [ProtocolType.Ethereum]: ANVIL_KEY } },
+    );
+
+    expect(getSignerStub.calledOnce).to.equal(true);
+    expect(getSignerStub.firstCall.args[0].privateKey).to.equal(ANVIL_KEY);
+  });
 });

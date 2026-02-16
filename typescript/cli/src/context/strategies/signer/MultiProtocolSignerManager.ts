@@ -7,7 +7,7 @@ import {
   type MultiProtocolProvider,
   type MultiProvider,
   type ProtocolMap,
-  isJsonRpcSubmitterConfig,
+  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
@@ -70,6 +70,33 @@ function getProtocolsFromChains(
   );
 
   return Array.from(new Set(protocols));
+}
+
+function getOwnJsonRpcSignerConfig(
+  value: unknown,
+  chain: ChainName,
+): SignerConfig | undefined {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return undefined;
+  }
+
+  const type = getOwnObjectField(value, 'type');
+  if (type !== TxSubmitterType.JSON_RPC) {
+    return undefined;
+  }
+
+  const configuredChain = getOwnObjectField(value, 'chain');
+  const privateKey = getOwnObjectField(value, 'privateKey');
+  const userAddress = getOwnObjectField(value, 'userAddress');
+
+  return {
+    chain:
+      typeof configuredChain === 'string' && configuredChain.trim().length > 0
+        ? (configuredChain as ChainName)
+        : chain,
+    privateKey: typeof privateKey === 'string' ? privateKey : undefined,
+    userAddress: typeof userAddress === 'string' ? userAddress : undefined,
+  };
 }
 
 /**
@@ -177,8 +204,9 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
 
     let signerConfig: SignerConfig;
     const defaultPrivateKey = (this.options.key ?? {})[protocolType];
-    if (isJsonRpcSubmitterConfig(rawConfig)) {
-      signerConfig = rawConfig;
+    const jsonRpcSignerConfig = getOwnJsonRpcSignerConfig(rawConfig, chain);
+    if (jsonRpcSignerConfig) {
+      signerConfig = jsonRpcSignerConfig;
 
       // Even if the config is a json rpc one,
       // the private key might be undefined
