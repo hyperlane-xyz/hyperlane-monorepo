@@ -191,6 +191,15 @@ const ARRAY_SOME = Array.prototype.some;
 const STRING_INCLUDES = String.prototype.includes;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
+const STRING_SLICE = String.prototype.slice as (
+  this: string,
+  start?: number,
+  end?: number,
+) => string;
+const STRING_LOCALE_COMPARE = String.prototype.localeCompare as (
+  this: string,
+  compareString: string,
+) => number;
 const UINT8_ARRAY_SUBARRAY = Uint8Array.prototype.subarray as (
   this: Uint8Array,
   begin?: number,
@@ -325,6 +334,14 @@ function stringTrim(value: string): string {
 
 function stringToLowerCase(value: string): string {
   return STRING_TO_LOWER_CASE.call(value);
+}
+
+function stringSliceValue(value: string, start?: number, end?: number): string {
+  return STRING_SLICE.call(value, start, end);
+}
+
+function stringLocaleCompare(left: string, right: string): number {
+  return STRING_LOCALE_COMPARE.call(left, right);
 }
 
 function uint8ArraySubarray(
@@ -1593,7 +1610,7 @@ export async function getPendingProposalsForChains(
               chain,
               nonce: proposalIndex,
               status,
-              shortTxHash: `${txHash.slice(0, 6)}...${txHash.slice(-4)}`,
+              shortTxHash: `${stringSliceValue(txHash, 0, 6)}...${stringSliceValue(txHash, -4)}`,
               fullTxHash: txHash,
               approvals,
               rejections,
@@ -1622,7 +1639,7 @@ export async function getPendingProposalsForChains(
 
   return arraySortValues(
     proposals,
-    (a, b) => a.chain.localeCompare(b.chain) || a.nonce - b.nonce,
+    (a, b) => stringLocaleCompare(a.chain, b.chain) || a.nonce - b.nonce,
   );
 }
 

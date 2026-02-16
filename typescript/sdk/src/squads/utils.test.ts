@@ -5424,6 +5424,109 @@ describe('squads utils', () => {
         PublicKey.prototype.toBase58 = originalToBase58;
       }
     });
+
+    it('keeps proposal hash formatting and chain ordering stable when String slice/localeCompare prototypes are mutated', async () => {
+      const originalMultisigFromAccountAddress =
+        accounts.Multisig.fromAccountAddress;
+      const originalProposalFromAccountAddress =
+        accounts.Proposal.fromAccountAddress;
+      const originalStringSlice = String.prototype.slice;
+      const originalStringLocaleCompare = String.prototype.localeCompare;
+      const throwingSlice: typeof String.prototype.slice = function slice() {
+        throw new Error('string slice unavailable');
+      };
+      const throwingLocaleCompare: typeof String.prototype.localeCompare =
+        function localeCompare() {
+          throw new Error('string localeCompare unavailable');
+        };
+
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalMultisigFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+        (
+          accounts.Proposal as unknown as {
+            fromAccountAddress: typeof originalProposalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            status: { __kind: 'Active', timestamp: 1_725_000_000 },
+            approved: [],
+            rejected: [],
+            cancelled: [],
+            transactionIndex: 0,
+          }) as unknown as accounts.Proposal;
+        Object.defineProperty(String.prototype, 'slice', {
+          value: throwingSlice,
+          writable: true,
+          configurable: true,
+        });
+        Object.defineProperty(String.prototype, 'localeCompare', {
+          value: throwingLocaleCompare,
+          writable: true,
+          configurable: true,
+        });
+
+        const mpp = {
+          getChainMetadata: () => ({
+            nativeToken: {
+              decimals: 9,
+              symbol: 'SOL',
+            },
+          }),
+          getSolanaWeb3Provider: () => ({
+            getAccountInfo: async () => null,
+            getBalance: async () => 100,
+          }),
+        };
+
+        const proposals = await getPendingProposalsForChains(
+          ['soon', 'solanamainnet'],
+          mpp,
+        );
+
+        expect(proposals).to.have.length(2);
+        expect(proposals.map((proposal) => proposal.chain)).to.deep.equal([
+          'solanamainnet',
+          'soon',
+        ]);
+        expect(
+          proposals.map((proposal) => proposal.shortTxHash.includes('...')),
+        ).to.deep.equal([true, true]);
+        expect(
+          proposals.map((proposal) => proposal.shortTxHash.length),
+        ).to.deep.equal([13, 13]);
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalMultisigFromAccountAddress;
+          }
+        ).fromAccountAddress = originalMultisigFromAccountAddress;
+        (
+          accounts.Proposal as unknown as {
+            fromAccountAddress: typeof originalProposalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalProposalFromAccountAddress;
+        Object.defineProperty(String.prototype, 'slice', {
+          value: originalStringSlice,
+          writable: true,
+          configurable: true,
+        });
+        Object.defineProperty(String.prototype, 'localeCompare', {
+          value: originalStringLocaleCompare,
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
   });
 
   describe(getSquadProposal.name, () => {
