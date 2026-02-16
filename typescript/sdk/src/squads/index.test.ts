@@ -252,6 +252,14 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\bBuffer\.isBuffer\s*\(/,
   }),
   Object.freeze({
+    label: 'Buffer.from call',
+    pattern: /\bBuffer\.from\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Buffer.alloc call',
+    pattern: /\bBuffer\.alloc\s*\(/,
+  }),
+  Object.freeze({
     label: 'Number.isSafeInteger call',
     pattern: /\bNumber\.isSafeInteger\s*\(/,
   }),
@@ -535,6 +543,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   'Array.from call',
   'Array.isArray call',
   'Buffer.isBuffer call',
+  'Buffer.from call',
+  'Buffer.alloc call',
   'Number.isSafeInteger call',
   'Number.isInteger call',
   'Number.isFinite call',
@@ -577,8 +587,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.toSpliced method call',
   '.with method call',
 ]);
-const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 87;
-const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 63;
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 89;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 65;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {

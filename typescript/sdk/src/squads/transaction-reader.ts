@@ -116,6 +116,8 @@ const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const NUMBER_IS_NAN = Number.isNaN;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
+const BUFFER_FROM = Buffer.from;
+const BUFFER_ALLOC = Buffer.alloc;
 const BUFFER_TO_STRING = Buffer.prototype.toString as (
   this: Buffer,
   encoding?: BufferEncoding,
@@ -264,6 +266,22 @@ function stringToLowerCase(value: string): string {
 
 function bufferToString(value: Buffer, encoding?: BufferEncoding): string {
   return BUFFER_TO_STRING.call(value, encoding);
+}
+
+function bufferFromBuffer(value: Buffer): Buffer {
+  return BUFFER_FROM(value);
+}
+
+function bufferFromUint8Array(value: Uint8Array): Buffer {
+  return BUFFER_FROM(value);
+}
+
+function bufferFromReadonlyNumbers(value: readonly number[]): Buffer {
+  return BUFFER_FROM(value);
+}
+
+function bufferAlloc(size: number): Buffer {
+  return BUFFER_ALLOC(size);
 }
 
 function bufferSubarray(value: Buffer, begin?: number, end?: number): Buffer {
@@ -1944,7 +1962,7 @@ export class SquadsTransactionReader {
           idx,
           'instruction data',
           () => readPropertyOrThrow(instruction, 'data'),
-          Buffer.alloc(0),
+          bufferAlloc(0),
         );
         const instructionData = this.normalizeInstructionDataForParse(
           chain,
@@ -2116,39 +2134,39 @@ export class SquadsTransactionReader {
     const { isBuffer: valueIsBuffer, readFailed: valueBufferReadFailed } =
       inspectBufferValue(value);
     if (!valueBufferReadFailed && valueIsBuffer) {
-      return Buffer.from(value as Buffer);
+      return bufferFromBuffer(value as Buffer);
     }
     const {
       matches: valueIsUint8Array,
       readFailed: valueUint8ArrayReadFailed,
     } = inspectInstanceOf(value, Uint8Array);
     if (!valueUint8ArrayReadFailed && valueIsUint8Array) {
-      return Buffer.from(value as Uint8Array);
+      return bufferFromUint8Array(value as Uint8Array);
     }
     const {
       matches: valueIsArrayBuffer,
       readFailed: valueArrayBufferReadFailed,
     } = inspectInstanceOf(value, ArrayBuffer);
     if (!valueArrayBufferReadFailed && valueIsArrayBuffer) {
-      return Buffer.from(new Uint8Array(value as ArrayBuffer));
+      return bufferFromUint8Array(new Uint8Array(value as ArrayBuffer));
     }
     const { isArray: valueIsArray, readFailed: valueReadFailed } =
       inspectArrayValue(value);
     if (!valueReadFailed && valueIsArray) {
       try {
-        return Buffer.from(value as readonly number[]);
+        return bufferFromReadonlyNumbers(value as readonly number[]);
       } catch (error) {
         const warning = `Failed to normalize instruction ${instructionIndex} data on ${chain}: ${stringifyUnknownSquadsError(error)}`;
         rootLogger.warn(warning);
         arrayPushValue(warnings, warning);
-        return Buffer.alloc(0);
+        return bufferAlloc(0);
       }
     }
 
     const warning = `Malformed instruction ${instructionIndex} data on ${chain}: expected bytes, got ${getUnknownValueTypeName(value)}`;
     rootLogger.warn(warning);
     arrayPushValue(warnings, warning);
-    return Buffer.alloc(0);
+    return bufferAlloc(0);
   }
 
   private normalizeVaultArrayField(
@@ -3356,7 +3374,7 @@ export class SquadsTransactionReader {
       readFailed: dataValueUint8ArrayReadFailed,
     } = inspectInstanceOf(dataValue, Uint8Array);
     if (!dataValueUint8ArrayReadFailed && dataValueIsUint8Array) {
-      return Buffer.from(dataValue as Uint8Array);
+      return bufferFromUint8Array(dataValue as Uint8Array);
     }
 
     throw new Error(
