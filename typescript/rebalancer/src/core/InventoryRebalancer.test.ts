@@ -725,6 +725,253 @@ describe('InventoryRebalancer E2E', () => {
     });
   });
 
+  describe('Native Token Fee Quote Reservation', () => {
+    // Token fee quote scenarios: tests verify that tokenFeeQuote is properly deducted
+    // from maxTransferable when it represents a native token fee
+    const GAS_LIMIT = 300000n;
+    const BUFFERED_GAS_LIMIT = (GAS_LIMIT * 110n) / 100n; // 10% buffer
+    const GAS_PRICE = 10000000000n; // 10 gwei
+    const BUFFERED_GAS_COST = GAS_PRICE * BUFFERED_GAS_LIMIT;
+    const IGP_COST = 1000000n;
+    const TOKEN_FEE_AMOUNT = 500000n; // Significant token fee
+    const TOTAL_RESERVATION = IGP_COST + BUFFERED_GAS_COST;
+
+    it('deducts tokenFeeQuote when addressOrDenom is undefined (native token)', async () => {
+      // Setup: Native token with tokenFeeQuote but no addressOrDenom (undefined = native)
+      // Override the global adapterStub to include tokenFeeQuote
+      adapterStub.quoteTransferRemoteGas.resolves({
+        igpQuote: { amount: IGP_COST },
+        tokenFeeQuote: { amount: TOKEN_FEE_AMOUNT }, // No addressOrDenom = native
+      });
+
+      const arbitrumToken = {
+        chainName: ARBITRUM_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      const solanaToken = {
+        chainName: SOLANA_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      warpCore.tokens = [arbitrumToken, solanaToken];
+
+      const requestedAmount = 10000000000000000n; // 0.01 ETH
+      // Available = requested + IGP + gas + tokenFee (enough for full transfer)
+      const availableInventory =
+        requestedAmount + TOTAL_RESERVATION + TOKEN_FEE_AMOUNT;
+
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableInventory,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      // Verify tokenFee was deducted from maxTransferable
+      const populateParams =
+        adapterStub.populateTransferRemoteTx.lastCall.args[0];
+      expect(populateParams.weiAmountOrId).to.equal(requestedAmount);
+    });
+
+    it('deducts tokenFeeQuote when addressOrDenom is zero address', async () => {
+      // Setup: Native token with tokenFeeQuote and zero-address denom (isZeroishAddress)
+      const zeroAddressAdapter = {
+        quoteTransferRemoteGas: Sinon.stub().resolves({
+          igpQuote: { amount: IGP_COST },
+          tokenFeeQuote: {
+            addressOrDenom: '0x0000000000000000000000000000000000000000',
+            amount: TOKEN_FEE_AMOUNT,
+          },
+        }),
+        populateTransferRemoteTx: Sinon.stub().resolves({
+          to: '0xRouterAddress',
+          data: '0xTransferRemoteData',
+          value: 1000000n,
+        }),
+      };
+
+      const arbitrumToken = {
+        chainName: ARBITRUM_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(zeroAddressAdapter),
+      };
+      const solanaToken = {
+        chainName: SOLANA_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(zeroAddressAdapter),
+      };
+      warpCore.tokens = [arbitrumToken, solanaToken];
+
+      const requestedAmount = 10000000000000000n;
+      const availableInventory =
+        requestedAmount + TOTAL_RESERVATION + TOKEN_FEE_AMOUNT;
+
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableInventory,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      // Verify tokenFee was deducted (zero address is treated as native)
+      const populateParams =
+        zeroAddressAdapter.populateTransferRemoteTx.lastCall.args[0];
+      expect(populateParams.weiAmountOrId).to.equal(requestedAmount);
+    });
+
+    it('does NOT deduct tokenFeeQuote when addressOrDenom is ERC20 address', async () => {
+      // Setup: Native token with tokenFeeQuote but ERC20 denom (not native)
+      const erc20Address = '0x1234567890abcdef1234567890abcdef12345678';
+      const erc20Adapter = {
+        quoteTransferRemoteGas: Sinon.stub().resolves({
+          igpQuote: { amount: IGP_COST },
+          tokenFeeQuote: {
+            addressOrDenom: erc20Address,
+            amount: TOKEN_FEE_AMOUNT,
+          },
+        }),
+        populateTransferRemoteTx: Sinon.stub().resolves({
+          to: '0xRouterAddress',
+          data: '0xTransferRemoteData',
+          value: 1000000n,
+        }),
+      };
+
+      const arbitrumToken = {
+        chainName: ARBITRUM_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(erc20Adapter),
+      };
+      const solanaToken = {
+        chainName: SOLANA_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(erc20Adapter),
+      };
+      warpCore.tokens = [arbitrumToken, solanaToken];
+
+      const requestedAmount = 10000000000000000n;
+      // Available = requested + IGP + gas (NO tokenFee deduction since it's ERC20)
+      const availableInventory = requestedAmount + TOTAL_RESERVATION;
+
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableInventory,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      // Verify tokenFee was NOT deducted (ERC20 denom, not native)
+      const populateParams =
+        erc20Adapter.populateTransferRemoteTx.lastCall.args[0];
+      expect(populateParams.weiAmountOrId).to.equal(requestedAmount);
+    });
+
+    it('handles undefined tokenFeeQuote (backward compatibility with v<10)', async () => {
+      // Setup: Native token without tokenFeeQuote (old contract version)
+      const oldAdapter = {
+        quoteTransferRemoteGas: Sinon.stub().resolves({
+          igpQuote: { amount: IGP_COST },
+          // No tokenFeeQuote field
+        }),
+        populateTransferRemoteTx: Sinon.stub().resolves({
+          to: '0xRouterAddress',
+          data: '0xTransferRemoteData',
+          value: 1000000n,
+        }),
+      };
+
+      const arbitrumToken = {
+        chainName: ARBITRUM_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(oldAdapter),
+      };
+      const solanaToken = {
+        chainName: SOLANA_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(oldAdapter),
+      };
+      warpCore.tokens = [arbitrumToken, solanaToken];
+
+      const requestedAmount = 10000000000000000n;
+      // Available = requested + IGP + gas (no tokenFee since undefined)
+      const availableInventory = requestedAmount + TOTAL_RESERVATION;
+
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableInventory,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      // Verify transfer succeeded without tokenFee deduction
+      const populateParams =
+        oldAdapter.populateTransferRemoteTx.lastCall.args[0];
+      expect(populateParams.weiAmountOrId).to.equal(requestedAmount);
+    });
+
+    it('reduces maxTransferable when large tokenFeeQuote is present', async () => {
+      // Setup: Native token with large tokenFeeQuote that significantly reduces maxTransferable
+      adapterStub.quoteTransferRemoteGas.resolves({
+        igpQuote: { amount: IGP_COST },
+        tokenFeeQuote: { amount: 5000000000000000n }, // Large fee (5e15 wei)
+      });
+
+      const arbitrumToken = {
+        chainName: ARBITRUM_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      const solanaToken = {
+        chainName: SOLANA_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      warpCore.tokens = [arbitrumToken, solanaToken];
+
+      const requestedAmount = 10000000000000000n; // 0.01 ETH
+      // Available = requested + IGP + gas + large tokenFee
+      const largeTokenFee = 5000000000000000n;
+      const availableInventory =
+        requestedAmount + TOTAL_RESERVATION + largeTokenFee;
+
+      const route = createTestRoute({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableInventory,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      // Verify: Transfer succeeds with full amount (we have enough for amount + all costs)
+      // This demonstrates that tokenFeeQuote is properly deducted from maxTransferable
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+    });
+  });
+
   describe('LiFi Bridge Integration (for future inventory_movement)', () => {
     // These tests validate the mock utilities are working correctly
     // and prepare for when inventory_movement is implemented

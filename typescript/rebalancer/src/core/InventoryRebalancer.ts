@@ -5,6 +5,7 @@ import {
   type ChainName,
   type EthJsonRpcBlockParameterTag,
   HyperlaneCore,
+  type InterchainGasQuote,
   type MultiProvider,
   TOKEN_COLLATERALIZED_STANDARDS,
   type WarpCore,
@@ -784,7 +785,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   private async executeTransferRemote(
     route: InventoryRoute,
     intent: RebalanceIntent,
-    gasQuote: { igpQuote: { amount: bigint } },
+    gasQuote: InterchainGasQuote,
   ): Promise<InventoryExecutionResult> {
     const { origin, destination, amount } = route;
 
@@ -805,6 +806,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         amount: amount.toString(),
         gasQuote: {
           igpQuote: gasQuote.igpQuote.amount.toString(),
+          tokenFeeQuote: gasQuote.tokenFeeQuote?.amount?.toString() ?? 'none',
         },
       },
       'Using pre-calculated gas quote for transferRemote',
