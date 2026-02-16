@@ -196,14 +196,19 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
     }
   }
 
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as { toString?: unknown }).toString === 'function'
-  ) {
+  if (typeof value === 'object' && value !== null) {
+    let maybeToString: unknown;
+    try {
+      maybeToString = (value as { toString?: unknown }).toString;
+    } catch {
+      return null;
+    }
+    if (typeof maybeToString !== 'function') {
+      return null;
+    }
     let stringified: unknown;
     try {
-      stringified = (value as { toString: () => unknown }).toString();
+      stringified = maybeToString.call(value);
     } catch {
       return null;
     }
