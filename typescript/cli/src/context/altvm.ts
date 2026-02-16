@@ -56,11 +56,10 @@ async function loadPrivateKey(
   const chainStrategy = getOwnObjectField(strategyConfig, chain);
   const rawConfig = getOwnObjectField(chainStrategy, 'submitter');
   if (rawConfig) {
-    const typedRawConfig = rawConfig as Record<string, unknown>;
-
-    if (typedRawConfig.type === TxSubmitterType.JSON_RPC) {
+    const submitterType = getOwnObjectField(rawConfig, 'type');
+    if (submitterType === TxSubmitterType.JSON_RPC) {
       const privateKey = getOwnObjectField(
-        typedRawConfig,
+        rawConfig,
         'privateKey',
       ) as string | undefined;
       if (!privateKey) {
