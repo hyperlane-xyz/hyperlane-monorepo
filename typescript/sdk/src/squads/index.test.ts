@@ -2766,6 +2766,91 @@ describe('squads barrel exports', () => {
     expect(overriddenCapturePattern.lastIndex).to.equal(61);
   });
 
+  it('keeps Reflect.apply wrapper discovery stable for custom patterns with throwing constructor accessors', () => {
+    const baselineMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const baselineCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const throwingConstructorMutationPattern = /Reflect\.apply is mutated/gi;
+    const throwingConstructorCapturePattern =
+      /const REFLECT_APPLY = Reflect\.apply/iy;
+    throwingConstructorMutationPattern.lastIndex = 67;
+    throwingConstructorCapturePattern.lastIndex = 71;
+    const originalMutationConstructorDescriptor =
+      Object.getOwnPropertyDescriptor(
+        throwingConstructorMutationPattern,
+        'constructor',
+      );
+    const originalCaptureConstructorDescriptor =
+      Object.getOwnPropertyDescriptor(
+        throwingConstructorCapturePattern,
+        'constructor',
+      );
+
+    Object.defineProperty(throwingConstructorMutationPattern, 'constructor', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply mutation wrapper discovery to avoid caller regex constructor access',
+        );
+      },
+    });
+    Object.defineProperty(throwingConstructorCapturePattern, 'constructor', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply capture wrapper discovery to avoid caller regex constructor access',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(
+          throwingConstructorMutationPattern,
+        ),
+      ).to.deep.equal(baselineMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          throwingConstructorCapturePattern,
+        ),
+      ).to.deep.equal(baselineCapturePaths);
+      expect(throwingConstructorMutationPattern.lastIndex).to.equal(67);
+      expect(throwingConstructorCapturePattern.lastIndex).to.equal(71);
+    } finally {
+      if (originalMutationConstructorDescriptor) {
+        Object.defineProperty(
+          throwingConstructorMutationPattern,
+          'constructor',
+          originalMutationConstructorDescriptor,
+        );
+      } else {
+        delete (
+          throwingConstructorMutationPattern as unknown as {
+            constructor?: unknown;
+          }
+        ).constructor;
+      }
+      if (originalCaptureConstructorDescriptor) {
+        Object.defineProperty(
+          throwingConstructorCapturePattern,
+          'constructor',
+          originalCaptureConstructorDescriptor,
+        );
+      } else {
+        delete (
+          throwingConstructorCapturePattern as unknown as {
+            constructor?: unknown;
+          }
+        ).constructor;
+      }
+    }
+  });
+
   it('keeps Reflect.apply pattern-discovery helper defaults repeatable and lastIndex-safe', () => {
     const originalMutationTitlePatternLastIndex =
       REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN.lastIndex;
