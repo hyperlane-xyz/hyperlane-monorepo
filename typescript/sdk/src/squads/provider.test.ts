@@ -216,6 +216,26 @@ describe('squads provider bridge', () => {
     );
   });
 
+  it('uses placeholder when then accessor throws generic-object string labels', () => {
+    const providerLike = new Proxy(
+      {
+        getAccountInfo: async () => null,
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'then') {
+            throw '[object Object]';
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to inspect promise-like then ([unstringifiable error])',
+    );
+  });
+
   it('fails with stable malformed-provider error when getAccountInfo getter throws', () => {
     const providerLike = createGetterBackedProvider(() => {
       throw new Error('getter failure');
@@ -287,6 +307,16 @@ describe('squads provider bridge', () => {
   it('uses placeholder when getAccountInfo getter throws low-signal string labels', () => {
     const providerLike = createGetterBackedProvider(() => {
       throw 'Error:';
+    });
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to read getAccountInfo ([unstringifiable error])',
+    );
+  });
+
+  it('uses placeholder when getAccountInfo getter throws whitespace-only strings', () => {
+    const providerLike = createGetterBackedProvider(() => {
+      throw '   ';
     });
 
     expect(() => toSquadsProvider(providerLike)).to.throw(
