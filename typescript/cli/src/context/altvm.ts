@@ -16,29 +16,10 @@ import {
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 
+import { getOwnObjectField } from '../submitters/object.js';
 import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
 import { type SignerKeyProtocolMap } from './types.js';
-
-function getOwnObjectField(value: unknown, field: string): unknown {
-  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
-    return undefined;
-  }
-
-  try {
-    if (!Object.prototype.hasOwnProperty.call(value, field)) {
-      return undefined;
-    }
-  } catch {
-    return undefined;
-  }
-
-  try {
-    return (value as Record<string, unknown>)[field];
-  } catch {
-    return undefined;
-  }
-}
 
 async function loadPrivateKey(
   keyByProtocol: SignerKeyProtocolMap,

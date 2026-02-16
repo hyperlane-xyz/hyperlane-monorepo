@@ -16,6 +16,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { getOwnObjectField } from '../../../submitters/object.js';
 import { type ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
 import { type SignerKeyProtocolMap } from '../../types.js';
 
@@ -29,26 +30,6 @@ import { MultiProtocolSignerFactory } from './MultiProtocolSignerFactory.js';
 export interface MultiProtocolSignerOptions {
   logger?: Logger;
   key?: SignerKeyProtocolMap;
-}
-
-function getOwnObjectField(value: unknown, field: string): unknown {
-  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
-    return undefined;
-  }
-
-  try {
-    if (!Object.prototype.hasOwnProperty.call(value, field)) {
-      return undefined;
-    }
-  } catch {
-    return undefined;
-  }
-
-  try {
-    return (value as Record<string, unknown>)[field];
-  } catch {
-    return undefined;
-  }
 }
 
 function getSignerCompatibleChains(

@@ -77,6 +77,7 @@ import {
 import { WarpSendLogs } from '../send/transfer.js';
 import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
 import { resolveSubmitterBatchesForTransactions } from '../submitters/inference.js';
+import { getOwnObjectField } from '../submitters/object.js';
 import {
   CustomTxSubmitterType,
   type ExtendedChainSubmissionStrategy,
@@ -780,72 +781,15 @@ async function updateExistingWarpRoute(
  * @param submissionStrategyFilepath a filepath to the submission strategy file
  * @returns a formatted submission strategy
  */
-function getOwnObjectField(value: unknown, field: string): unknown {
-  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
-    return undefined;
-  }
-
-  try {
-    if (!Object.prototype.hasOwnProperty.call(value, field)) {
-      return undefined;
-    }
-  } catch {
-    return undefined;
-  }
-
-  try {
-    return (value as Record<string, unknown>)[field];
-  } catch {
-    return undefined;
-  }
-}
-
-function cloneOwnEnumerableObject(
-  value: unknown,
-): Record<string, unknown> | null {
-  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
-    return null;
-  }
-
-  let keys: string[];
-  try {
-    keys = Object.keys(value as Record<string, unknown>);
-  } catch {
-    return null;
-  }
-
-  const clonedObject = Object.create(null) as Record<string, unknown>;
-  for (const key of keys) {
-    clonedObject[key] = getOwnObjectField(value, key);
-  }
-
-  return clonedObject;
-}
-
 export function readChainSubmissionStrategy(
   submissionStrategyFilepath: string,
 ): ExtendedChainSubmissionStrategy {
   const submissionStrategyFileContent = readYamlOrJson(
     submissionStrategyFilepath.trim(),
   );
-  const parsedChainSubmissionStrategies = parseExtendedChainSubmissionStrategy(
+  return parseExtendedChainSubmissionStrategy(
     submissionStrategyFileContent,
   );
-  const sanitizedChainSubmissionStrategies = Object.create(null) as Record<
-    string,
-    unknown
-  >;
-
-  for (const chainKey of Object.keys(parsedChainSubmissionStrategies)) {
-    const chainStrategy = getOwnObjectField(
-      parsedChainSubmissionStrategies,
-      chainKey,
-    );
-    sanitizedChainSubmissionStrategies[chainKey] =
-      cloneOwnEnumerableObject(chainStrategy) ?? chainStrategy;
-  }
-
-  return sanitizedChainSubmissionStrategies as ExtendedChainSubmissionStrategy;
 }
 
 /**
