@@ -26,6 +26,8 @@ env:
 safe-outputs:
   create-issue:
     max: 1
+  add-comment:
+    max: 1
 ---
 
 # Weekly Repo Status
@@ -97,7 +99,7 @@ For each team, list:
 
 ## Step 3: Create Issue
 
-First check if a report for this week already exists (search for issues with `report` label created this week). If one exists, skip issue creation (still post to Slack).
+First check if a report for this week already exists (search for issues with `report` label created this week). If one exists, add a follow-up comment to that issue with the updated data instead of creating a new issue. Then proceed to Step 4.
 
 Create a single GitHub issue with:
 
