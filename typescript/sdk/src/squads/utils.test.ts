@@ -4060,6 +4060,55 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('skips provider lookup when multi-provider metadata accessor throws', async () => {
+      let providerLookupCalled = false;
+      const mpp = new Proxy(
+        {
+          getSolanaWeb3Provider: () => {
+            providerLookupCalled = true;
+            throw new Error('provider lookup should not execute');
+          },
+        },
+        {
+          get(target, property, receiver) {
+            if (property === 'getChainMetadata') {
+              throw new Error('metadata accessor unavailable');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ) as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        ['solanamainnet'],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('skips provider lookup when chain metadata lookup throws opaque value', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getChainMetadata: () => {
+          throw {};
+        },
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        ['solanamainnet'],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('skips provider lookup when chain metadata decimals are malformed', async () => {
       let providerLookupCalled = false;
       const mpp = {
