@@ -34,6 +34,7 @@ import {
   validateCoreIsmCompatibility,
 } from './utils.js';
 import { getSubmitterByStrategy } from './warp.js';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
 interface DeployParams {
   context: WriteCommandContext;
@@ -122,7 +123,7 @@ export async function runCoreDeploy(params: DeployParams) {
 
       const coreWriter = createCoreWriter(metadata, chainLookup, signer);
       const coreArtifact = coreConfigToArtifact(validatedConfig, chainLookup);
-      const result = await coreWriter.create(coreArtifact);
+      const [result] = await coreWriter.create(coreArtifact);
 
       await completeDeploy(context, 'core', initialBalances, userAddress, [
         chain,
@@ -189,10 +190,13 @@ export async function runCoreApply(params: ApplyParams) {
 
       const coreWriter = createCoreWriter(metadata, chainLookup, signer);
       const coreArtifact = coreConfigToArtifact(validatedConfig, chainLookup);
-      const transactions = await coreWriter.update(
-        deployedCoreAddresses.mailbox,
-        coreArtifact,
-      );
+      const transactions = await coreWriter.update({
+        artifactState: ArtifactState.DEPLOYED,
+        config: coreArtifact.config,
+        deployed: {
+          address: deployedCoreAddresses.mailbox,
+        },
+      });
 
       if (transactions.length) {
         logGray('Updating deployed core contracts');

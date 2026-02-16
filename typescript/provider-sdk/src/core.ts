@@ -142,7 +142,6 @@ export function coreResultToDeployedAddresses(result: {
     testRecipient: '',
     interchainAccountRouter: '',
     domainRoutingIsmFactory: '',
-    incrementalDomainRoutingIsmFactory: '',
   };
 
   // Map ISM address to factory field based on type
