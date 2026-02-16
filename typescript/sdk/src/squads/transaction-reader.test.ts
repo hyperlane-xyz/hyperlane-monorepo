@@ -6484,6 +6484,65 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('uses placeholder when fetched transaction account info presence check throws opaque values', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: unknown,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () =>
+      new Proxy(
+        {
+          accountInfo: {
+            data: Buffer.from([
+              ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+              1,
+            ]),
+          },
+        },
+        {
+          has(target, property) {
+            if (property === 'accountInfo') {
+              throw { reason: 'account-info-presence-unavailable' };
+            }
+            return Reflect.has(target, property);
+          },
+        },
+      );
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to read fetched transaction account info on solanamainnet: [unstringifiable error]',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error:
+          'Error: Failed to read fetched transaction account info on solanamainnet: [unstringifiable error]',
+      },
+    ]);
+  });
+
   it('records exactly one error when fetched transaction account bytes presence check throws', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
@@ -6539,6 +6598,65 @@ describe('squads transaction reader', () => {
         transactionIndex: 5,
         error:
           'Error: Failed to read fetched transaction account bytes on solanamainnet: Error: account bytes presence unavailable',
+      },
+    ]);
+  });
+
+  it('uses placeholder when fetched transaction account bytes presence check throws opaque values', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: unknown,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () =>
+      new Proxy(
+        {
+          accountInfo: {
+            data: Buffer.from([
+              ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+              1,
+            ]),
+          },
+        },
+        {
+          has(target, property) {
+            if (property === 'accountData') {
+              throw { reason: 'account-bytes-presence-unavailable' };
+            }
+            return Reflect.has(target, property);
+          },
+        },
+      );
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to read fetched transaction account bytes on solanamainnet: [unstringifiable error]',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error:
+          'Error: Failed to read fetched transaction account bytes on solanamainnet: [unstringifiable error]',
       },
     ]);
   });
