@@ -2749,6 +2749,216 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps Reflect.apply wrapper discovery stable when RegExp.prototype.exec global slot is patched', () => {
+    const defaultMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
+    const defaultCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
+    const customMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const customCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /Reflect\.apply/,
+      );
+    const originalRegExpPrototypeExec = RegExp.prototype.exec;
+
+    Object.defineProperty(RegExp.prototype, 'exec', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected Reflect.apply wrapper discovery to use captured RegExp.prototype.exec',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultCapturePaths);
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(customMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          /Reflect\.apply/,
+        ),
+      ).to.deep.equal(customCapturePaths);
+    } finally {
+      Object.defineProperty(RegExp.prototype, 'exec', {
+        configurable: true,
+        writable: true,
+        value: originalRegExpPrototypeExec,
+      });
+    }
+  });
+
+  it('keeps Reflect.apply wrapper discovery stable when RegExp.prototype.source getter global slot is patched', () => {
+    const defaultMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
+    const defaultCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
+    const customMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const customCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /Reflect\.apply/,
+      );
+    const originalSourceDescriptor = Object.getOwnPropertyDescriptor(
+      RegExp.prototype,
+      'source',
+    );
+
+    Object.defineProperty(RegExp.prototype, 'source', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply wrapper discovery to use captured RegExp.prototype.source getter',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultCapturePaths);
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(customMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          /Reflect\.apply/,
+        ),
+      ).to.deep.equal(customCapturePaths);
+    } finally {
+      if (!originalSourceDescriptor) {
+        throw new Error('Missing original RegExp.prototype.source descriptor');
+      }
+      Object.defineProperty(
+        RegExp.prototype,
+        'source',
+        originalSourceDescriptor,
+      );
+    }
+  });
+
+  it('keeps Reflect.apply wrapper discovery stable when RegExp.prototype.flags getter global slot is patched', () => {
+    const defaultMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
+    const defaultCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
+    const customMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const customCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /Reflect\.apply/,
+      );
+    const originalFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      RegExp.prototype,
+      'flags',
+    );
+
+    Object.defineProperty(RegExp.prototype, 'flags', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply wrapper discovery to use captured RegExp.prototype.flags getter',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultCapturePaths);
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(customMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          /Reflect\.apply/,
+        ),
+      ).to.deep.equal(customCapturePaths);
+    } finally {
+      if (!originalFlagsDescriptor) {
+        throw new Error('Missing original RegExp.prototype.flags descriptor');
+      }
+      Object.defineProperty(RegExp.prototype, 'flags', originalFlagsDescriptor);
+    }
+  });
+
+  it('keeps Reflect.apply wrapper discovery stable when Reflect.apply global slot is patched', () => {
+    const defaultMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
+    const defaultCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
+    const customMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const customCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /Reflect\.apply/,
+      );
+    const originalReflectApply = Reflect.apply;
+
+    Object.defineProperty(Reflect, 'apply', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected Reflect.apply wrapper discovery to use captured Reflect.apply',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultCapturePaths);
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(customMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          /Reflect\.apply/,
+        ),
+      ).to.deep.equal(customCapturePaths);
+    } finally {
+      Object.defineProperty(Reflect, 'apply', {
+        configurable: true,
+        writable: true,
+        value: originalReflectApply,
+      });
+    }
+  });
+
   it('keeps Reflect.apply wrapper discovery stable when global RegExp is mutated', () => {
     const defaultMutationPaths =
       listReflectApplyMutationTestPathsFromPatternDiscovery();
