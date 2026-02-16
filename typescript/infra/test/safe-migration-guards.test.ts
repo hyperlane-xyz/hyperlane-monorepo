@@ -124,6 +124,10 @@ const STRICT_EQUALITY_VARIANT_ENTRY_CAPTURE_REGEX = new RegExp(
   String.raw`it\('(?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-([a-z-]+)-conditional-([a-z-]+)-(fallback-length|mixed-fallback) predicates (?:as deterministic|conservative) for (${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT})'`,
   'g',
 );
+const STRICT_EQUALITY_CONDITIONAL_SOURCE_ARRAY_CAPTURE_REGEX = new RegExp(
+  String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates (?:as deterministic|conservative) for ${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT})',\s*\(\)\s*=>\s*\{\s*const source = \[(.*?)\]\.join\('\\n'\);`,
+  'gs',
+);
 
 function extractStrictEqualityConditionalTitles(sourceText: string): string[] {
   return [...sourceText.matchAll(STRICT_EQUALITY_CONDITIONAL_TITLE_REGEX)].map(
@@ -168,6 +172,33 @@ function extractStrictEqualityVariantEntries(
     predicateType: match[3],
     context: match[4],
   }));
+}
+
+function normalizeStrictEqualitySourceArrayBody(body: string): string {
+  return body
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+function extractStrictEqualityConditionalSourceFixtures(
+  sourceText: string,
+): Map<string, string> {
+  const fixtures = new Map<string, string>();
+  for (const match of sourceText.matchAll(
+    STRICT_EQUALITY_CONDITIONAL_SOURCE_ARRAY_CAPTURE_REGEX,
+  )) {
+    const title = match[1];
+    const sourceArrayBody = normalizeStrictEqualitySourceArrayBody(match[2]);
+    if (fixtures.has(title)) {
+      throw new Error(
+        `Duplicate strict-equality conditional source fixture title ${title}`,
+      );
+    }
+    fixtures.set(title, sourceArrayBody);
+  }
+  return fixtures;
 }
 
 function normalizeNamedSymbol(symbol: string): string {
@@ -45795,6 +45826,32 @@ describe('Safe migration guards', () => {
     expect([...ownTitles].sort()).to.deep.equal([...sdkTitles].sort());
     expect(new Set(ownTitles).size).to.equal(ownTitles.length);
     expect(new Set(sdkTitles).size).to.equal(sdkTitles.length);
+  });
+
+  it('keeps mirrored strict-equality conditional source fixtures aligned with sdk', () => {
+    const ownSourceText = fs.readFileSync(__filename, 'utf8');
+    const sdkSuitePath = path.resolve(
+      process.cwd(),
+      '../sdk/src/utils/gnosisSafeMigrationGuards.test.ts',
+    );
+    const sdkSourceText = fs.readFileSync(sdkSuitePath, 'utf8');
+
+    const ownFixtures =
+      extractStrictEqualityConditionalSourceFixtures(ownSourceText);
+    const sdkFixtures =
+      extractStrictEqualityConditionalSourceFixtures(sdkSourceText);
+
+    expect(ownFixtures.size).to.equal(EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT);
+    expect(sdkFixtures.size).to.equal(EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT);
+    expect([...ownFixtures.keys()].sort()).to.deep.equal(
+      [...sdkFixtures.keys()].sort(),
+    );
+    for (const [title, ownFixture] of ownFixtures.entries()) {
+      expect(
+        sdkFixtures.get(title),
+        `Mismatched strict-equality conditional source fixture for ${title}`,
+      ).to.equal(ownFixture);
+    }
   });
 
   it('keeps nullish-logical conditional delete-key context matrix complete', () => {
