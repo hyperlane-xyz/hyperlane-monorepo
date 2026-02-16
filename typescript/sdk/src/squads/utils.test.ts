@@ -7894,6 +7894,38 @@ describe('squads utils', () => {
       expect(providerLookupChain).to.equal('solanamainnet');
     });
 
+    it('uses placeholder when transaction account data getter throws generic-object Error messages', async () => {
+      let providerLookupChain: string | undefined;
+      const accountInfo = new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'data') {
+              throw new Error('[object Object]');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {
+            getAccountInfo: async () => accountInfo,
+          };
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType('solanamainnet', mpp, 0),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read transaction account data on solanamainnet: [unstringifiable error]',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
     it('throws stable error when transaction account data is malformed', async () => {
       let providerLookupChain: string | undefined;
       const mpp = {

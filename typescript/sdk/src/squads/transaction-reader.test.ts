@@ -3354,6 +3354,36 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('uses deterministic placeholders when provider lookup throws generic-object Error messages', async () => {
+    const mpp = {
+      getSolanaWeb3Provider: () => {
+        throw new Error('[object Object]');
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to resolve solana provider for solanamainnet: [unstringifiable error]',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Failed to resolve solana provider for solanamainnet: [unstringifiable error]',
+      },
+    ]);
+  });
+
   it('fails with contextual error when getSolanaWeb3Provider accessor throws', async () => {
     const mpp = new Proxy(
       {},
