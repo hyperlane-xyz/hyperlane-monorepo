@@ -741,4 +741,49 @@ describe('resolveSubmitterBatchesForTransactions unknown protocol fallback', () 
       TxSubmitterType.GNOSIS_TX_BUILDER,
     );
   });
+
+  it('falls back to explicit default when protocol lookup returns getPrototypeOf-throwing proxy with explicit overrides', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-protocol-throwing-prototype-explicit-${Date.now()}.yaml`;
+    const overrideTarget = '0x9999999999999999999999999999999999999999';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x2222222222222222222222222222222222222222',
+          version: '1.0',
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+    const throwingPrototypeProxy = new Proxy(
+      {},
+      {
+        getPrototypeOf: () => {
+          throw new Error('prototype trap should not crash protocol normalization');
+        },
+      },
+    );
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: overrideTarget } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => throwingPrototypeProxy as any,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
 });

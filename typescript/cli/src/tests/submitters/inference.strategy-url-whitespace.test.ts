@@ -664,4 +664,25 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
     expect(batches).to.have.length(1);
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
+
+  it('treats getPrototypeOf-throwing strategyUrl proxy as missing and falls back to jsonRpc default', async () => {
+    const throwingPrototypeProxy = new Proxy(
+      {},
+      {
+        getPrototypeOf: () => {
+          throw new Error('prototype trap should not crash strategy normalization');
+        },
+      },
+    );
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: throwingPrototypeProxy as any,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
 });
