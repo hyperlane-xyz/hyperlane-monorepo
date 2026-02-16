@@ -672,6 +672,44 @@ describe('strategy parse helpers', () => {
     }
   });
 
+  it('parseExtendedSubmissionStrategy restores throwing getter-only prototype descriptor after parse errors', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    const getter = () => {
+      throw new Error('boom');
+    };
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      get: getter,
+    });
+
+    try {
+      expect(() => parseExtendedSubmissionStrategy({} as any)).to.throw();
+      const restoredDescriptor = Object.getOwnPropertyDescriptor(
+        Object.prototype,
+        'submitter',
+      );
+      expect(restoredDescriptor).to.not.equal(undefined);
+      expect(restoredDescriptor?.configurable).to.equal(true);
+      expect(restoredDescriptor?.enumerable).to.equal(false);
+      expect(restoredDescriptor?.get).to.equal(getter);
+      expect(restoredDescriptor?.set).to.equal(undefined);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitter;
+      }
+    }
+  });
+
   it('parseExtendedSubmissionStrategy strips inherited submitterOverrides from output', () => {
     const originalDescriptor = Object.getOwnPropertyDescriptor(
       Object.prototype,
