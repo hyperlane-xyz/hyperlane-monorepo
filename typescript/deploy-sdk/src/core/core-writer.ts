@@ -4,16 +4,22 @@ import {
   ArtifactNew,
   ArtifactOnChain,
   ArtifactState,
+  isArtifactDeployed,
   isArtifactNew,
+  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedHookAddress,
+  DeployedHookArtifact,
   HookArtifactConfig,
+  mergeHookArtifacts,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   DeployedIsmAddress,
+  DeployedIsmArtifact,
   IsmArtifactConfig,
+  mergeIsmArtifacts,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   DeployedMailboxArtifact,
@@ -26,7 +32,12 @@ import {
   IRawValidatorAnnounceArtifactManager,
   RawValidatorAnnounceConfig,
 } from '@hyperlane-xyz/provider-sdk/validator-announce';
-import { Logger, ZERO_ADDRESS_HEX_32, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Logger,
+  ZERO_ADDRESS_HEX_32,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { createHookWriter } from '../hook/hook-writer.js';
 import { createIsmWriter } from '../ism/generic-ism-writer.js';
@@ -244,5 +255,213 @@ export class CoreWriter extends CoreArtifactReader {
       validatorAnnounce: validatorAnnounceArtifact,
       receipts: allReceipts,
     };
+  }
+
+  /**
+   * Updates existing core deployment.
+   *
+   * @param mailboxAddress Existing mailbox address
+   * @param expectedArtifact Expected mailbox artifact with nested ISM/hook artifacts
+   * @returns Array of update transactions
+   */
+  async update(
+    mailboxAddress: string,
+    expectedArtifact: ArtifactNew<MailboxOnChain>,
+  ): Promise<AnnotatedTx[]> {
+    const { config: expectedConfig } = expectedArtifact;
+    const updateTxs: AnnotatedTx[] = [];
+    const chainName = this.chainMetadata.name;
+
+    this.logger.info(`Starting core update on ${chainName}`);
+
+    // Read actual state (fully expanded)
+    const currentArtifact = await this.read(mailboxAddress);
+    const currentConfig = currentArtifact.config;
+
+    // Verify that reader expanded all nested artifacts
+    assert(
+      isArtifactDeployed(currentConfig.defaultIsm),
+      'Expected Core Reader to expand the ISM config',
+    );
+    assert(
+      isArtifactDeployed(currentConfig.defaultHook),
+      'Expected Core Reader to expand the default hook config',
+    );
+    assert(
+      isArtifactDeployed(currentConfig.requiredHook),
+      'Expected Core Reader to expand the required hook config',
+    );
+
+    // Update ISM
+    const { address: newIsmAddress, transactions: ismTxs } =
+      await this.deployOrUpdateIsm(
+        currentConfig.defaultIsm,
+        expectedConfig.defaultIsm,
+      );
+    updateTxs.push(...ismTxs);
+
+    // Update default hook
+    const { address: newDefaultHookAddress, transactions: defaultHookTxs } =
+      await this.deployOrUpdateHook(
+        currentConfig.defaultHook,
+        expectedConfig.defaultHook,
+        mailboxAddress,
+      );
+    updateTxs.push(...defaultHookTxs);
+
+    // Update required hook
+    const { address: newRequiredHookAddress, transactions: requiredHookTxs } =
+      await this.deployOrUpdateHook(
+        currentConfig.requiredHook,
+        expectedConfig.requiredHook,
+        mailboxAddress,
+      );
+    updateTxs.push(...requiredHookTxs);
+
+    // Update mailbox if ISM/hooks/owner changed
+    if (
+      newIsmAddress !== currentConfig.defaultIsm.deployed.address ||
+      newDefaultHookAddress !== currentConfig.defaultHook.deployed.address ||
+      newRequiredHookAddress !== currentConfig.requiredHook.deployed.address ||
+      expectedConfig.owner !== currentConfig.owner
+    ) {
+      this.logger.info(`Updating mailbox configuration on ${chainName}`);
+
+      const mailboxWriter = this.mailboxArtifactManager.createWriter(
+        'mailbox',
+        this.signer,
+      );
+
+      const updatedMailboxArtifact: DeployedMailboxArtifact = {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          owner: expectedConfig.owner,
+          defaultIsm: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: newIsmAddress },
+          },
+          defaultHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: newDefaultHookAddress },
+          },
+          requiredHook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: newRequiredHookAddress },
+          },
+        },
+        deployed: currentArtifact.deployed,
+      };
+
+      const mailboxUpdateTxs = await mailboxWriter.update(
+        updatedMailboxArtifact,
+      );
+      updateTxs.push(...mailboxUpdateTxs);
+    }
+
+    this.logger.info(`Core update complete on ${chainName}`);
+    return updateTxs;
+  }
+
+  /**
+   * Helper: Deploy or update ISM based on current vs expected.
+   * Uses IsmWriter internally, follows merge pattern from WarpTokenWriter.
+   */
+  private async deployOrUpdateIsm(
+    currentIsmArtifact: DeployedIsmArtifact,
+    expectedIsm: ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>,
+  ): Promise<{ address: string; transactions: AnnotatedTx[] }> {
+    const chainName = this.chainMetadata.name;
+
+    // If expected is UNDERIVED, use as-is
+    if (isArtifactUnderived(expectedIsm)) {
+      return { address: expectedIsm.deployed.address, transactions: [] };
+    }
+
+    const ismWriter = createIsmWriter(
+      this.chainMetadata,
+      this.chainLookup,
+      this.signer,
+    );
+
+    // Merge current with expected (preserves DEPLOYED state for unchanged nested ISMs)
+    const mergedArtifact = mergeIsmArtifacts(currentIsmArtifact, expectedIsm);
+
+    if (isArtifactNew(mergedArtifact)) {
+      // Deploy new ISM
+      this.logger.info(`Deploying new ISM on ${chainName}`);
+      const [deployed] = await ismWriter.create(mergedArtifact);
+      this.logger.info(
+        `New ISM deployed at ${deployed.deployed.address} on ${chainName}`,
+      );
+      return { address: deployed.deployed.address, transactions: [] };
+    } else if (isArtifactDeployed(mergedArtifact)) {
+      // Update in-place (only routing ISMs support updates)
+      this.logger.info(`Updating existing ISM on ${chainName}`);
+      const updateTxs = await ismWriter.update(mergedArtifact);
+      this.logger.info(
+        `ISM update generated ${updateTxs.length} transactions on ${chainName}`,
+      );
+      return {
+        address: mergedArtifact.deployed.address,
+        transactions: updateTxs,
+      };
+    }
+
+    // Should not reach here
+    return { address: expectedIsm.deployed.address, transactions: [] };
+  }
+
+  /**
+   * Helper: Deploy or update hook based on current vs expected.
+   * Uses HookWriter internally, follows merge pattern from WarpTokenWriter.
+   */
+  private async deployOrUpdateHook(
+    currentHookArtifact: DeployedHookArtifact,
+    expectedHook: ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>,
+    mailboxAddress: string,
+  ): Promise<{ address: string; transactions: AnnotatedTx[] }> {
+    const chainName = this.chainMetadata.name;
+
+    // If expected is UNDERIVED, use as-is
+    if (isArtifactUnderived(expectedHook)) {
+      return { address: expectedHook.deployed.address, transactions: [] };
+    }
+
+    const hookWriter = createHookWriter(
+      this.chainMetadata,
+      this.chainLookup,
+      this.signer,
+      { mailbox: mailboxAddress },
+    );
+
+    // Merge current with expected
+    const mergedArtifact = mergeHookArtifacts(
+      currentHookArtifact,
+      expectedHook,
+    );
+
+    if (isArtifactNew(mergedArtifact)) {
+      // Deploy new hook
+      this.logger.info(`Deploying new hook on ${chainName}`);
+      const [deployed] = await hookWriter.create(mergedArtifact);
+      this.logger.info(
+        `New hook deployed at ${deployed.deployed.address} on ${chainName}`,
+      );
+      return { address: deployed.deployed.address, transactions: [] };
+    } else if (isArtifactDeployed(mergedArtifact)) {
+      // Update in-place (only IGP hooks support updates)
+      this.logger.info(`Updating existing hook on ${chainName}`);
+      const updateTxs = await hookWriter.update(mergedArtifact);
+      this.logger.info(
+        `Hook update generated ${updateTxs.length} transactions on ${chainName}`,
+      );
+      return {
+        address: mergedArtifact.deployed.address,
+        transactions: updateTxs,
+      };
+    }
+
+    // Should not reach here
+    return { address: expectedHook.deployed.address, transactions: [] };
   }
 }
