@@ -61,8 +61,11 @@ import {
   getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDCSTAGEWarpConfig.js';
 import {
+  getEclipseUSDCRegularStrategyConfig,
   getEclipseUSDCStrategyConfig,
+  getEclipseUSDCUpgradeTimelockStrategyConfig,
   getEclipseUSDCWarpConfig,
+  getEclipseUSDCWarpFeesStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDCWarpConfig.js';
 import { getElectroneumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getElectroneumUSDCWarpConfig.js';
 import {
@@ -227,7 +230,17 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.BaseEthereumREZSTAGING]:
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
-  [WarpRouteIds.EclipseUSDC]: getEclipseUSDCStrategyConfig,
+  // Eclipse USDC governance strategies
+  // [WarpRouteIds.EclipseUSDC]: getEclipseUSDCStrategyConfig, // AW safe
+  [WarpRouteIds.EclipseUSDC]: getEclipseUSDCWarpFeesStrategyConfig,
+  // [WarpRouteIds.EclipseUSDC]: getEclipseUSDCWarpFeesStrategyConfig,
+  // [WarpRouteIds.EclipseUSDC]: getEclipseUSDCUpgradeTimelockStrategyConfig,
+  // [`${WarpRouteIds.EclipseUSDC}-regular`]: ,
+  // [`${WarpRouteIds.EclipseUSDC}-warp-fees`]:
+  //   getEclipseUSDCWarpFeesStrategyConfig,
+  // [`${WarpRouteIds.EclipseUSDC}-upgrade-timelock`]:
+  //   getEclipseUSDCUpgradeTimelockStrategyConfig,
+
   [WarpRouteIds.EclipseUSDCSTAGE]:
     getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
   [WarpRouteIds.MainnetCCTPV1]: getCCTPV1StrategyConfig,

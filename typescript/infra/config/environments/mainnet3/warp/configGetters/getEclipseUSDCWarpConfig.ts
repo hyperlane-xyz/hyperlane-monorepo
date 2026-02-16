@@ -6,12 +6,15 @@ import {
   TokenType,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { assert, difference } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getChainAddresses } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
+import { regularSafes } from '../../governance/safe/regular.js';
+import { warpFeesSafes } from '../../governance/safe/warpFees.js';
+import { awTimelocks } from '../../governance/timelock/aw.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
 import { chainOwners } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
@@ -267,65 +270,126 @@ export const getUSDCEclipseFileSubmitterStrategyConfig = () =>
     '/tmp/eclipse-usdc-combined.json',
   );
 
-export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
-  // TODO: Remove this after transferring ownership
-  const safeChains = ['ethereum', 'arbitrum', 'base', 'optimism'] as const;
-  const originSafeChain = 'ethereum';
-  const originSafeAddress = awSafes[originSafeChain];
-
+function buildEclipseUSDCSubmissionStrategy({
+  safeChains,
+  safes,
+  icaChains,
+  originSafe,
+}: {
+  safeChains: readonly string[];
+  safes: Record<string, string>;
+  icaChains: readonly string[];
+  originSafe: { chain: string; address: string };
+}): ChainSubmissionStrategy {
   const originSafeSubmitter = {
-    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
-    chain: originSafeChain,
-    safeAddress: originSafeAddress,
-    version: '1.0',
+    type: TxSubmitterType.GNOSIS_SAFE as const,
+    chain: originSafe.chain,
+    safeAddress: originSafe.address,
   };
 
-  // Safe-owned chains get direct safe submitters
   const safeStrategies: [string, SubmissionStrategy][] = safeChains.map(
     (chain) => [
       chain,
       {
         submitter: {
-          type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
+          type: TxSubmitterType.GNOSIS_SAFE as const,
           chain,
-          safeAddress: awSafes[chain],
-          version: '1.0',
+          safeAddress: safes[chain],
         },
       },
     ],
   );
 
-  // ICA-owned chains use ICA submitter with ethereum safe as origin
-  const icaChains = difference(
-    new Set<(typeof evmDeploymentChains)[number]>(evmDeploymentChains),
-    new Set<(typeof evmDeploymentChains)[number]>(safeChains),
+  const chainAddress = getChainAddresses();
+  const originInterchainAccountRouter =
+    chainAddress[originSafe.chain].interchainAccountRouter;
+  assert(
+    originInterchainAccountRouter,
+    `Could not fetch originInterchainAccountRouter for ${originSafe.chain}`,
   );
 
-  const chainAddress = getChainAddresses();
-  const icaStrategies: [string, SubmissionStrategy][] = [...icaChains].map(
-    (chain) => {
-      const originInterchainAccountRouter =
-        chainAddress[originSafeChain].interchainAccountRouter;
-      assert(
-        originInterchainAccountRouter,
-        `Could not fetch originInterchainAccountRouter for chain ${chain}`,
-      );
+  const icaStrategies: [string, SubmissionStrategy][] = icaChains.map(
+    (chain) => [
+      chain,
+      {
+        submitter: {
+          type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+          chain: originSafe.chain,
+          destinationChain: chain,
+          owner: originSafe.address,
+          originInterchainAccountRouter,
+          internalSubmitter: originSafeSubmitter,
+        },
+      },
+    ],
+  );
 
-      return [
-        chain,
-        {
-          submitter: {
+  return Object.fromEntries([...safeStrategies, ...icaStrategies]);
+}
+
+export const getEclipseUSDCAwStrategyConfig = (): ChainSubmissionStrategy =>
+  buildEclipseUSDCSubmissionStrategy({
+    safeChains: ['ethereum', 'arbitrum', 'base', 'optimism'],
+    safes: awSafes,
+    icaChains: ['polygon', 'unichain'],
+    originSafe: { chain: 'ethereum', address: awSafes.ethereum },
+  });
+
+export const getEclipseUSDCRegularStrategyConfig =
+  (): ChainSubmissionStrategy =>
+    buildEclipseUSDCSubmissionStrategy({
+      safeChains: ['ethereum', 'base', 'optimism'],
+      safes: regularSafes,
+      icaChains: ['polygon', 'unichain'],
+      originSafe: { chain: 'ethereum', address: regularSafes.ethereum },
+    });
+
+export const getEclipseUSDCWarpFeesStrategyConfig =
+  (): ChainSubmissionStrategy =>
+    buildEclipseUSDCSubmissionStrategy({
+      safeChains: ['ethereum'],
+      safes: warpFeesSafes,
+      icaChains: ['arbitrum', 'base', 'optimism', 'polygon', 'unichain'],
+      originSafe: { chain: 'ethereum', address: warpFeesSafes.ethereum },
+    });
+
+export const getEclipseUSDCUpgradeTimelockStrategyConfig =
+  (): ChainSubmissionStrategy => {
+    const originSafeChain = 'ethereum';
+    const originSafeAddress = awSafes[originSafeChain];
+
+    const chainAddress = getChainAddresses();
+    const originInterchainAccountRouter =
+      chainAddress[originSafeChain].interchainAccountRouter;
+    assert(
+      originInterchainAccountRouter,
+      `Could not fetch originInterchainAccountRouter for ${originSafeChain}`,
+    );
+
+    const originSafeSubmitter = {
+      type: TxSubmitterType.GNOSIS_SAFE as const,
+      chain: originSafeChain,
+      safeAddress: originSafeAddress,
+    };
+
+    return {
+      arbitrum: {
+        submitter: {
+          type: TxSubmitterType.TIMELOCK_CONTROLLER as const,
+          chain: 'arbitrum',
+          timelockAddress: awTimelocks.arbitrum,
+          proposerSubmitter: {
             type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
             chain: originSafeChain,
-            destinationChain: chain,
+            destinationChain: 'arbitrum',
             owner: originSafeAddress,
             originInterchainAccountRouter,
             internalSubmitter: originSafeSubmitter,
           },
         },
-      ];
-    },
-  );
+      },
+    };
+  };
 
-  return Object.fromEntries([...safeStrategies, ...icaStrategies]);
-};
+// Backward-compat alias
+export const getEclipseUSDCStrategyConfig = getEclipseUSDCAwStrategyConfig;
