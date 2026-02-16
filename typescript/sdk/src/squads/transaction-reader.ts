@@ -120,6 +120,7 @@ const ARRAY_PUSH = Array.prototype.push;
 const BIGINT_FUNCTION = BigInt as (
   value: string | number | bigint | boolean,
 ) => bigint;
+const ERROR_CONSTRUCTOR = Error as new (message?: string) => Error;
 const NUMBER_IS_INTEGER = Number.isInteger;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const NUMBER_IS_NAN = Number.isNaN;
@@ -273,6 +274,10 @@ function bigintFromValue(value: string | number | bigint | boolean): bigint {
   return BIGINT_FUNCTION(value);
 }
 
+function createError(message?: string): Error {
+  return new ERROR_CONSTRUCTOR(message);
+}
+
 function stringFromValue(value: unknown): string {
   return STRING_FUNCTION(value);
 }
@@ -386,7 +391,7 @@ function parseCoreProgramId(
   try {
     return new PublicKey(programId);
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Invalid ${label} for ${chain}: ${stringifyUnknownSquadsError(error)}`,
     );
   }
@@ -679,7 +684,7 @@ export class SquadsTransactionReader {
     const { entries: warpRouteEntries, readError: warpRouteEntriesReadError } =
       inspectObjectEntries(warpRoutes);
     if (warpRouteEntriesReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read warp routes entries: ${stringifyUnknownSquadsError(warpRouteEntriesReadError)}`,
       );
     }
@@ -865,7 +870,7 @@ export class SquadsTransactionReader {
     const { propertyValue: tryGetProtocolValue, readError: protocolReadError } =
       inspectPropertyValue(this.mpp, 'tryGetProtocol');
     if (protocolReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read tryGetProtocol for warp route ${routeName} on ${chain}: ${stringifyUnknownSquadsError(protocolReadError)}`,
       );
     }
@@ -879,14 +884,14 @@ export class SquadsTransactionReader {
     try {
       protocol = tryGetProtocolValue.call(this.mpp, chain);
     } catch (error) {
-      throw new Error(
+      throw createError(
         `Failed to resolve protocol for warp route ${routeName} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
       );
     }
 
     const protocolType = getUnknownValueTypeName(protocol);
     if (protocolType === UNREADABLE_VALUE_TYPE) {
-      throw new Error(
+      throw createError(
         `Invalid protocol for warp route ${routeName} on ${chain}: expected ProtocolType value, got ${protocolType}`,
       );
     }
@@ -894,7 +899,7 @@ export class SquadsTransactionReader {
     const { thenValue, readError: thenReadError } =
       inspectPromiseLikeThenValue(protocol);
     if (thenReadError) {
-      throw new Error(
+      throw createError(
         `Failed to inspect protocol for warp route ${routeName} on ${chain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,
       );
     }
@@ -1537,7 +1542,7 @@ export class SquadsTransactionReader {
     );
     if (!proposalData) {
       const error = `Proposal ${transactionIndex} not found on ${chain}`;
-      throw new Error(error);
+      throw createError(error);
     }
 
     const { proposal, proposalPda, multisigPda, programId } = proposalData;
@@ -1553,7 +1558,7 @@ export class SquadsTransactionReader {
       readError: getSolanaWeb3ProviderReadError,
     } = inspectPropertyValue(this.mpp, 'getSolanaWeb3Provider');
     if (getSolanaWeb3ProviderReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read getSolanaWeb3Provider for ${chain}: ${stringifyUnknownSquadsError(getSolanaWeb3ProviderReadError)}`,
       );
     }
@@ -1567,7 +1572,7 @@ export class SquadsTransactionReader {
     try {
       svmProvider = getSolanaWeb3ProviderValue.call(this.mpp, chain);
     } catch (error) {
-      throw new Error(
+      throw createError(
         `Failed to resolve solana provider for ${chain}: ${stringifyUnknownSquadsError(error)}`,
       );
     }
@@ -1584,7 +1589,7 @@ export class SquadsTransactionReader {
     const { thenValue, readError: thenReadError } =
       inspectPromiseLikeThenValue(svmProvider);
     if (thenReadError) {
-      throw new Error(
+      throw createError(
         `Failed to inspect solana provider for ${chain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,
       );
     }
@@ -1598,7 +1603,7 @@ export class SquadsTransactionReader {
       readError: getAccountInfoReadError,
     } = inspectPropertyValue(svmProvider, 'getAccountInfo');
     if (getAccountInfoReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read getAccountInfo for ${chain}: ${stringifyUnknownSquadsError(getAccountInfoReadError)}`,
       );
     }
@@ -1630,7 +1635,7 @@ export class SquadsTransactionReader {
         'transaction PDA',
         transactionPda,
       );
-      throw new Error(
+      throw createError(
         `Transaction account not found at ${transactionPdaForDisplay} on ${chain}`,
       );
     }
@@ -1670,7 +1675,7 @@ export class SquadsTransactionReader {
       readError: getAccountInfoReadError,
     } = inspectPropertyValue(svmProvider, 'getAccountInfo');
     if (getAccountInfoReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read getAccountInfo for ${chain}: ${stringifyUnknownSquadsError(getAccountInfoReadError)}`,
       );
     }
@@ -1689,7 +1694,7 @@ export class SquadsTransactionReader {
     try {
       return await getAccountInfoValue.call(svmProvider, address);
     } catch (error) {
-      throw new Error(
+      throw createError(
         `Failed to fetch ${label} ${addressForDisplay} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
       );
     }
@@ -1934,7 +1939,7 @@ export class SquadsTransactionReader {
             ? programIdIndexValue
             : -1;
         if (programIdIndex >= accountKeys.length || programIdIndex < 0) {
-          throw new Error(
+          throw createError(
             `Invalid programIdIndex: ${formatIntegerValidationValue(
               programIdIndexValue,
             )}. Account keys length: ${accountKeys.length}`,
@@ -1967,14 +1972,14 @@ export class SquadsTransactionReader {
             : [];
 
         if (accountIndexes.length > MAX_SOLANA_ACCOUNTS) {
-          throw new Error(
+          throw createError(
             `Invalid accountIndexes: length ${accountIndexes.length}`,
           );
         }
 
         const programId = accountKeys[programIdIndex];
         if (!programId) {
-          throw new Error(`Program ID not found at index ${programIdIndex}`);
+          throw createError(`Program ID not found at index ${programIdIndex}`);
         }
 
         if (
@@ -2224,7 +2229,7 @@ export class SquadsTransactionReader {
       readError: resolveCoreProgramIdsReadError,
     } = inspectPropertyValue(this.options, 'resolveCoreProgramIds');
     if (resolveCoreProgramIdsReadError) {
-      throw new Error(
+      throw createError(
         `Failed to access core program resolver for ${chain}: ${stringifyUnknownSquadsError(resolveCoreProgramIdsReadError)}`,
       );
     }
@@ -2240,7 +2245,7 @@ export class SquadsTransactionReader {
     try {
       coreProgramIds = resolveCoreProgramIds(chain);
     } catch (error) {
-      throw new Error(
+      throw createError(
         `Failed to resolve core program ids for ${chain}: ${stringifyUnknownSquadsError(error)}`,
       );
     }
@@ -2269,7 +2274,7 @@ export class SquadsTransactionReader {
       readError: mailboxProgramIdReadError,
     } = inspectPropertyValue(coreProgramIds, 'mailbox');
     if (mailboxProgramIdReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read mailbox program id for ${chain}: ${stringifyUnknownSquadsError(mailboxProgramIdReadError)}`,
       );
     }
@@ -2283,7 +2288,7 @@ export class SquadsTransactionReader {
       readError: multisigIsmMessageIdProgramIdReadError,
     } = inspectPropertyValue(coreProgramIds, 'multisig_ism_message_id');
     if (multisigIsmMessageIdProgramIdReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read multisig_ism_message_id program id for ${chain}: ${stringifyUnknownSquadsError(multisigIsmMessageIdProgramIdReadError)}`,
       );
     }
@@ -2400,7 +2405,7 @@ export class SquadsTransactionReader {
       readError: fromAccountInfoReadError,
     } = inspectPropertyValue(accounts.ConfigTransaction, 'fromAccountInfo');
     if (fromAccountInfoReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read ConfigTransaction decoder for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(fromAccountInfoReadError)}`,
       );
     }
@@ -2418,7 +2423,7 @@ export class SquadsTransactionReader {
       );
       return configTx;
     } catch (error) {
-      throw new Error(
+      throw createError(
         `Failed to decode ConfigTransaction for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
       );
     }
@@ -2491,7 +2496,7 @@ export class SquadsTransactionReader {
       readError: fromAccountAddressReadError,
     } = inspectPropertyValue(accounts.VaultTransaction, 'fromAccountAddress');
     if (fromAccountAddressReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read VaultTransaction account loader for ${chain}: ${stringifyUnknownSquadsError(fromAccountAddressReadError)}`,
       );
     }
@@ -2514,7 +2519,7 @@ export class SquadsTransactionReader {
         transactionPda,
       );
       const errorMsg = `Failed to fetch VaultTransaction at ${transactionPdaForDisplay}: ${stringifyUnknownSquadsError(error)}`;
-      throw new Error(errorMsg);
+      throw createError(errorMsg);
     }
   }
 
@@ -2529,7 +2534,7 @@ export class SquadsTransactionReader {
     const { propertyValue: multisigPdaValue, readError: multisigPdaReadError } =
       inspectPropertyValue(proposalData, 'multisigPda');
     if (multisigPdaReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read proposal multisig PDA for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(multisigPdaReadError)}`,
       );
     }
@@ -2546,7 +2551,7 @@ export class SquadsTransactionReader {
     const { propertyValue: programIdValue, readError: programIdReadError } =
       inspectPropertyValue(proposalData, 'programId');
     if (programIdReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read proposal program id for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(programIdReadError)}`,
       );
     }
@@ -2568,7 +2573,7 @@ export class SquadsTransactionReader {
         programId: normalizedProgramId,
       });
     } catch (error) {
-      throw new Error(
+      throw createError(
         `Failed to derive transaction PDA for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
       );
     }
@@ -2589,7 +2594,7 @@ export class SquadsTransactionReader {
       readError: transactionPdaTupleLengthReadError,
     } = inspectPropertyValue(normalizedTransactionPdaTuple, 'length');
     if (transactionPdaTupleLengthReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read transaction PDA tuple length for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(transactionPdaTupleLengthReadError)}`,
       );
     }
@@ -2605,7 +2610,7 @@ export class SquadsTransactionReader {
       readError: transactionPdaReadError,
     } = inspectPropertyValue(normalizedTransactionPdaTuple, 0);
     if (transactionPdaReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read transaction PDA tuple entry for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(transactionPdaReadError)}`,
       );
     }
@@ -2713,7 +2718,7 @@ export class SquadsTransactionReader {
       (typeof fetchedTransactionAccount !== 'object' &&
         typeof fetchedTransactionAccount !== 'function')
     ) {
-      throw new Error(
+      throw createError(
         `Malformed fetched transaction account on ${chain}: expected object, got ${getUnknownValueTypeName(fetchedTransactionAccount)}`,
       );
     }
@@ -2725,7 +2730,7 @@ export class SquadsTransactionReader {
       readError: accountInfoFieldReadError,
     } = inspectPropertyPresence(fetchedTransactionAccount, 'accountInfo');
     if (accountInfoFieldReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read fetched transaction account info on ${chain}: ${stringifyUnknownSquadsError(accountInfoFieldReadError)}`,
       );
     }
@@ -2735,7 +2740,7 @@ export class SquadsTransactionReader {
         readError: accountInfoReadError,
       } = inspectPropertyValue(fetchedTransactionAccount, 'accountInfo');
       if (accountInfoReadError) {
-        throw new Error(
+        throw createError(
           `Failed to read fetched transaction account info on ${chain}: ${stringifyUnknownSquadsError(accountInfoReadError)}`,
         );
       }
@@ -2747,7 +2752,7 @@ export class SquadsTransactionReader {
       readError: accountDataFieldReadError,
     } = inspectPropertyPresence(fetchedTransactionAccount, 'accountData');
     if (accountDataFieldReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read fetched transaction account bytes on ${chain}: ${stringifyUnknownSquadsError(accountDataFieldReadError)}`,
       );
     }
@@ -2757,7 +2762,7 @@ export class SquadsTransactionReader {
         readError: accountDataReadError,
       } = inspectPropertyValue(fetchedTransactionAccount, 'accountData');
       if (accountDataReadError) {
-        throw new Error(
+        throw createError(
           `Failed to read fetched transaction account bytes on ${chain}: ${stringifyUnknownSquadsError(accountDataReadError)}`,
         );
       }
@@ -2769,7 +2774,7 @@ export class SquadsTransactionReader {
       (typeof accountInfoValue !== 'object' &&
         typeof accountInfoValue !== 'function')
     ) {
-      throw new Error(
+      throw createError(
         `Malformed fetched transaction account info on ${chain}: expected object, got ${getUnknownValueTypeName(accountInfoValue)}`,
       );
     }
@@ -2873,7 +2878,7 @@ export class SquadsTransactionReader {
       readError: tryGetChainNameReadError,
     } = inspectPropertyValue(this.mpp, 'tryGetChainName');
     if (tryGetChainNameReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read tryGetChainName for domain ${remoteDomain}: ${stringifyUnknownSquadsError(tryGetChainNameReadError)}`,
       );
     }
@@ -2887,14 +2892,14 @@ export class SquadsTransactionReader {
     try {
       remoteChain = tryGetChainNameValue.call(this.mpp, remoteDomain);
     } catch (error) {
-      throw new Error(
+      throw createError(
         `Failed to resolve ${label} for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
       );
     }
 
     const remoteChainType = getUnknownValueTypeName(remoteChain);
     if (remoteChainType === UNREADABLE_VALUE_TYPE) {
-      throw new Error(
+      throw createError(
         `Malformed resolved ${label} for domain ${remoteDomain}: expected string, got ${remoteChainType}`,
       );
     }
@@ -2902,7 +2907,7 @@ export class SquadsTransactionReader {
     const { thenValue, readError: thenReadError } =
       inspectPromiseLikeThenValue(remoteChain);
     if (thenReadError) {
-      throw new Error(
+      throw createError(
         `Failed to inspect resolved ${label} for domain ${remoteDomain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,
       );
     }
@@ -3257,7 +3262,7 @@ export class SquadsTransactionReader {
             amountCandidate === null ||
             typeof amountCandidate === 'undefined'
           ) {
-            throw new Error(
+            throw createError(
               `Expected config-action spending-limit amount on ${chain} to be defined`,
             );
           }
@@ -3388,7 +3393,7 @@ export class SquadsTransactionReader {
     const { propertyValue: dataValue, readError: dataReadError } =
       inspectPropertyValue(accountInfo, 'data');
     if (dataReadError) {
-      throw new Error(
+      throw createError(
         `Failed to read ${label} data on ${chain}: ${stringifyUnknownSquadsError(dataReadError)}`,
       );
     }
@@ -3408,7 +3413,7 @@ export class SquadsTransactionReader {
       return bufferFromUint8Array(dataValue as Uint8Array);
     }
 
-    throw new Error(
+    throw createError(
       `Malformed ${label} data on ${chain}: expected bytes, got ${getUnknownValueTypeName(dataValue)}`,
     );
   }

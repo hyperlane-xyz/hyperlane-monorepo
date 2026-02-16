@@ -1466,7 +1466,7 @@ function deriveProposalPdaForResolvedChain(
       programId,
     });
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Failed to derive proposal PDA for ${chain} at index ${transactionIndex}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
@@ -1517,7 +1517,7 @@ async function getProposalAccountForResolvedChain(
     readError: fromAccountAddressReadError,
   } = inspectPropertyValue(accounts.Proposal, 'fromAccountAddress');
   if (fromAccountAddressReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read proposal account loader for ${chain}: ${formatUnknownErrorForMessage(fromAccountAddressReadError)}`,
     );
   }
@@ -1539,7 +1539,7 @@ async function getProposalAccountForResolvedChain(
       proposalPda,
     );
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Failed to fetch proposal ${proposalPdaForDisplay} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
@@ -2319,7 +2319,7 @@ async function getMultisigAccountForNextIndex(
     readError: fromAccountAddressReadError,
   } = inspectPropertyValue(accounts.Multisig, 'fromAccountAddress');
   if (fromAccountAddressReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read multisig account loader for ${chain}: ${formatUnknownErrorForMessage(fromAccountAddressReadError)}`,
     );
   }
@@ -2336,7 +2336,7 @@ async function getMultisigAccountForNextIndex(
       multisigPda,
     );
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Failed to fetch multisig ${formatAddressForError(multisigPda)} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
@@ -2352,7 +2352,7 @@ async function getMultisigAccountInfoForNextIndex(
     readError: getAccountInfoReadError,
   } = inspectPropertyValue(svmProvider, 'getAccountInfo');
   if (getAccountInfoReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(getAccountInfoReadError)}`,
     );
   }
@@ -2365,7 +2365,7 @@ async function getMultisigAccountInfoForNextIndex(
   try {
     return await getAccountInfoValue.call(svmProvider, multisigPda);
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Failed to fetch multisig account ${formatAddressForError(multisigPda)} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
@@ -2551,7 +2551,7 @@ async function getRecentBlockhashForProposalBuild(
     readError: getLatestBlockhashReadError,
   } = inspectPropertyValue(svmProvider, 'getLatestBlockhash');
   if (getLatestBlockhashReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read getLatestBlockhash for ${chain}: ${formatUnknownErrorForMessage(getLatestBlockhashReadError)}`,
     );
   }
@@ -2565,7 +2565,7 @@ async function getRecentBlockhashForProposalBuild(
   try {
     latestBlockhashResult = await getLatestBlockhashValue.call(svmProvider);
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Failed to fetch latest blockhash for ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
@@ -2585,7 +2585,7 @@ async function getRecentBlockhashForProposalBuild(
   const { propertyValue: blockhashValue, readError: blockhashReadError } =
     inspectPropertyValue(latestBlockhashResult, 'blockhash');
   if (blockhashReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read latest blockhash value for ${chain}: ${formatUnknownErrorForMessage(blockhashReadError)}`,
     );
   }
@@ -2897,7 +2897,7 @@ function readTransactionAccountDataForType(
   const { propertyValue: dataValue, readError: dataReadError } =
     inspectPropertyValue(accountInfo, 'data');
   if (dataReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read transaction account data on ${chain}: ${formatUnknownErrorForMessage(dataReadError)}`,
     );
   }
@@ -2924,7 +2924,7 @@ async function getTransactionAccountInfoForType(
     readError: getAccountInfoReadError,
   } = inspectPropertyValue(svmProvider, 'getAccountInfo');
   if (getAccountInfoReadError) {
-    throw new Error(
+    throw createError(
       `Failed to read getAccountInfo for ${chain}: ${formatUnknownErrorForMessage(getAccountInfoReadError)}`,
     );
   }
@@ -2937,7 +2937,7 @@ async function getTransactionAccountInfoForType(
   try {
     return await getAccountInfoValue.call(svmProvider, transactionPda);
   } catch (error) {
-    throw new Error(
+    throw createError(
       `Failed to fetch transaction account ${formatAddressForError(transactionPda)} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
@@ -2989,7 +2989,7 @@ export async function getTransactionType(
     transactionPda,
   );
   if (!accountInfo) {
-    throw new Error(
+    throw createError(
       `Transaction account not found at ${formatAddressForError(transactionPda)}`,
     );
   }
@@ -3009,7 +3009,7 @@ export async function getTransactionType(
       0,
       SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
     );
-    throw new Error(
+    throw createError(
       `Unknown transaction type with discriminator: [${arrayJoinValues(
         arrayFromValue(discriminator),
         ', ',
@@ -3047,7 +3047,7 @@ export async function executeProposal(
     svmProvider,
   );
   if (!proposalData) {
-    throw new Error(
+    throw createError(
       `Failed to fetch proposal ${normalizedTransactionIndex} on ${normalizedChain}`,
     );
   }
@@ -3055,7 +3055,7 @@ export async function executeProposal(
   const { proposal } = proposalData;
   const parsedProposal = parseSquadProposal(proposal);
   if (parsedProposal.status !== SquadsProposalStatus.Approved) {
-    throw new Error(
+    throw createError(
       `Proposal ${normalizedTransactionIndex} on ${normalizedChain} is not approved (status: ${parsedProposal.status})`,
     );
   }
@@ -3084,7 +3084,7 @@ export async function executeProposal(
         });
 
       if (lookupTableAccounts.length > 0) {
-        throw new Error(
+        throw createError(
           `Transaction requires ${lookupTableAccounts.length} address lookup table(s). Versioned transactions are not supported on ${normalizedChain}.`,
         );
       }
