@@ -115,7 +115,17 @@ const SQUADS_CHAINS = Object.freeze(
 ) as readonly SquadsChainName[];
 const SQUADS_CHAIN_SET = new Set<string>(SQUADS_CHAINS);
 const SQUADS_CHAIN_SET_HAS = SQUADS_CHAIN_SET.has.bind(SQUADS_CHAIN_SET);
+const SET_HAS = Set.prototype.has;
+const SET_ADD = Set.prototype.add;
 const SQUADS_CHAINS_DISPLAY_LIST = SQUADS_CHAINS.join(', ');
+
+function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
+  return SET_HAS.call(set, value);
+}
+
+function setAddValue<Value>(set: Set<Value>, value: Value): void {
+  SET_ADD.call(set, value);
+}
 
 export function getSquadsChains(): SquadsChainName[] {
   return [...SQUADS_CHAINS];
@@ -232,10 +242,10 @@ function partitionNormalizedSquadsChains(chains: readonly string[]): {
 
   for (const chain of chains) {
     const normalizedChain = chain.trim();
-    if (seenChains.has(normalizedChain)) {
+    if (setHasValue(seenChains, normalizedChain)) {
       continue;
     }
-    seenChains.add(normalizedChain);
+    setAddValue(seenChains, normalizedChain);
 
     if (isSquadsChain(normalizedChain)) {
       squadsChains.push(normalizedChain);
@@ -258,11 +268,11 @@ function formatUniqueChainNamesForDisplay(chains: readonly string[]): string[] {
 
   for (const chain of chains) {
     const formattedChain = formatChainNameForDisplay(chain);
-    if (seenChainNames.has(formattedChain)) {
+    if (setHasValue(seenChainNames, formattedChain)) {
       continue;
     }
 
-    seenChainNames.add(formattedChain);
+    setAddValue(seenChainNames, formattedChain);
     formattedUniqueChainNames.push(formattedChain);
   }
 

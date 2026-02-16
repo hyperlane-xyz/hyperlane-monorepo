@@ -259,6 +259,56 @@ describe('squads config', () => {
     });
   });
 
+  it('keeps partition dedupe stable when Set prototype methods are mutated', () => {
+    const originalSetHas = Set.prototype.has;
+    const originalSetAdd = Set.prototype.add;
+    let partitionResult:
+      | { squadsChains: string[]; nonSquadsChains: string[] }
+      | undefined;
+
+    Object.defineProperty(Set.prototype, 'has', {
+      value: () => {
+        throw new Error('set has unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(Set.prototype, 'add', {
+      value: () => {
+        throw new Error('set add unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      partitionResult = partitionSquadsChains([
+        'unknown-b',
+        ' solanamainnet ',
+        'unknown-a',
+        'soon',
+        'unknown-b',
+        'solanamainnet',
+      ]);
+    } finally {
+      Object.defineProperty(Set.prototype, 'has', {
+        value: originalSetHas,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(Set.prototype, 'add', {
+        value: originalSetAdd,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(partitionResult).to.deep.equal({
+      squadsChains: ['solanamainnet', 'soon'],
+      nonSquadsChains: ['unknown-b', 'unknown-a'],
+    });
+  });
+
   it('rejects malformed partition inputs with index-aware types', () => {
     expect(() => partitionSquadsChains('solanamainnet')).to.throw(
       'Expected partitioned squads chains to be an array, got string',
@@ -466,6 +516,49 @@ describe('squads config', () => {
       ),
     ).to.equal(
       'Squads configuration not found for chains: ethereum, <empty>, soon. Available Squads chains: <empty>, solanamainnet',
+    );
+  });
+
+  it('keeps unsupported-chain formatting stable when Set prototype methods are mutated', () => {
+    const originalSetHas = Set.prototype.has;
+    const originalSetAdd = Set.prototype.add;
+    let errorMessage = '';
+
+    Object.defineProperty(Set.prototype, 'has', {
+      value: () => {
+        throw new Error('set has unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(Set.prototype, 'add', {
+      value: () => {
+        throw new Error('set add unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      errorMessage = getUnsupportedSquadsChainsErrorMessage(
+        ['  ethereum  ', 'ethereum', 'soon'],
+        [' solanamainnet ', 'solanamainnet'],
+      );
+    } finally {
+      Object.defineProperty(Set.prototype, 'has', {
+        value: originalSetHas,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(Set.prototype, 'add', {
+        value: originalSetAdd,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(errorMessage).to.equal(
+      'Squads configuration not found for chains: ethereum, soon. Available Squads chains: solanamainnet',
     );
   });
 
