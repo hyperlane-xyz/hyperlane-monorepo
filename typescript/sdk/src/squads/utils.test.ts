@@ -3931,6 +3931,31 @@ describe('squads utils', () => {
       );
     });
 
+    it('uses placeholder when provider promise-like inspection throws bare Error labels', () => {
+      const mpp = {
+        getSolanaWeb3Provider: () =>
+          new Proxy(
+            {},
+            {
+              get(target, property, receiver) {
+                if (property === 'then') {
+                  throw new Error('Error:');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+      };
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to inspect solana provider for solanamainnet: failed to read promise-like then field ([unstringifiable error])',
+      );
+    });
+
     it('labels unreadable provider types deterministically when lookup result is revoked', () => {
       const { proxy: revokedProvider, revoke } = Proxy.revocable({}, {});
       revoke();
@@ -4439,6 +4464,41 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('skips provider lookup when chain metadata then accessor throws bare Error labels', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getChainMetadata: () =>
+          new Proxy(
+            {
+              nativeToken: {
+                decimals: 9,
+                symbol: 'SOL',
+              },
+            },
+            {
+              get(target, property, receiver) {
+                if (property === 'then') {
+                  throw new Error('Error:');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        ['solanamainnet'],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('skips provider lookup when chain metadata is an array', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -4526,6 +4586,40 @@ describe('squads utils', () => {
               get(target, property, receiver) {
                 if (property === 'then') {
                   throw new Error('[object Object]');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+        }),
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(
+        ['solanamainnet'],
+        mpp,
+      );
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('skips provider lookup when native token metadata then accessor throws bare Error labels', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getChainMetadata: () => ({
+          nativeToken: new Proxy(
+            {
+              decimals: 9,
+              symbol: 'SOL',
+            },
+            {
+              get(target, property, receiver) {
+                if (property === 'then') {
+                  throw new Error('Error:');
                 }
                 return Reflect.get(target, property, receiver);
               },
@@ -7553,6 +7647,41 @@ describe('squads utils', () => {
               get(target, property, receiver) {
                 if (property === 'then') {
                   throw new Error('[object Object]');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+      };
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to inspect signer public key for solanamainnet: failed to read promise-like then field ([unstringifiable error])',
+      );
+      expect(providerLookupChain).to.equal(undefined);
+    });
+
+    it('uses placeholder when signer publicKey promise-like inspection throws bare Error labels', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () =>
+          new Proxy(
+            {},
+            {
+              get(target, property, receiver) {
+                if (property === 'then') {
+                  throw new Error('Error:');
                 }
                 return Reflect.get(target, property, receiver);
               },
