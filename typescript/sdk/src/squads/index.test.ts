@@ -67,9 +67,38 @@ const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS =
     'src/squads/transaction-reader.test.ts',
     'src/squads/utils.test.ts',
   ]);
+const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS = Object.freeze([
+  Object.freeze({
+    testPath: 'src/squads/config.test.ts',
+    expectedMutationTestCount: 1,
+  }),
+  Object.freeze({
+    testPath: 'src/squads/error-format.test.ts',
+    expectedMutationTestCount: 2,
+  }),
+  Object.freeze({
+    testPath: 'src/squads/inspection.test.ts',
+    expectedMutationTestCount: 1,
+  }),
+  Object.freeze({
+    testPath: 'src/squads/provider.test.ts',
+    expectedMutationTestCount: 1,
+  }),
+  Object.freeze({
+    testPath: 'src/squads/transaction-reader.test.ts',
+    expectedMutationTestCount: 2,
+  }),
+  Object.freeze({
+    testPath: 'src/squads/utils.test.ts',
+    expectedMutationTestCount: 2,
+  }),
+]);
 const REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN = /Reflect\.apply is mutated/;
 const REFLECT_APPLY_MONKEY_PATCH_PATTERN =
   /Object\.defineProperty\(\s*Reflect\s*,\s*['"]apply['"]/;
+const REFLECT_APPLY_CAPTURE_STATEMENT =
+  'const originalReflectApply = Reflect.apply;';
+const REFLECT_APPLY_RESTORE_STATEMENT = 'value: originalReflectApply,';
 const EXPECTED_SDK_SQUADS_TEST_SCRIPT = `${SDK_SQUADS_TEST_COMMAND_PREFIX} ${SDK_SQUADS_TEST_TOKEN_PATHS.map((tokenPath) => `'${tokenPath}'`).join(' ')}`;
 const EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS = Object.freeze([
   "export * from './config.js';",
@@ -1453,6 +1482,37 @@ describe('squads barrel exports', () => {
     ]);
   });
 
+  it('keeps expected canonical sdk squads Reflect.apply mutation-test counts', () => {
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS,
+    ).to.deep.equal([
+      {
+        testPath: 'src/squads/config.test.ts',
+        expectedMutationTestCount: 1,
+      },
+      {
+        testPath: 'src/squads/error-format.test.ts',
+        expectedMutationTestCount: 2,
+      },
+      {
+        testPath: 'src/squads/inspection.test.ts',
+        expectedMutationTestCount: 1,
+      },
+      {
+        testPath: 'src/squads/provider.test.ts',
+        expectedMutationTestCount: 1,
+      },
+      {
+        testPath: 'src/squads/transaction-reader.test.ts',
+        expectedMutationTestCount: 2,
+      },
+      {
+        testPath: 'src/squads/utils.test.ts',
+        expectedMutationTestCount: 2,
+      },
+    ]);
+  });
+
   it('keeps sdk squads test-file path constants normalized and immutable', () => {
     expect(Object.isFrozen(EXPECTED_SDK_SQUADS_TEST_FILE_PATHS)).to.equal(true);
     expect(new Set(EXPECTED_SDK_SQUADS_TEST_FILE_PATHS).size).to.equal(
@@ -1518,6 +1578,41 @@ describe('squads barrel exports', () => {
         REFLECT_APPLY_MONKEY_PATCH_PATTERN.test(source),
         `Expected Reflect.apply mutation test file to monkey-patch Reflect.apply: ${relativeTestPath}`,
       ).to.equal(true);
+    }
+  });
+
+  it('keeps sdk Reflect.apply mutation tests capturing and restoring original apply counts', () => {
+    expect(
+      Object.isFrozen(EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS),
+    ).to.equal(true);
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS.length,
+    ).to.equal(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS.length,
+    );
+    expect(
+      new Set(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS.map(
+          ({ testPath }) => testPath,
+        ),
+      ).size,
+    ).to.equal(EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS.length);
+
+    for (const {
+      testPath,
+      expectedMutationTestCount,
+    } of EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS) {
+      const absoluteTestPath = path.join(SDK_PACKAGE_ROOT, testPath);
+      const source = fs.readFileSync(absoluteTestPath, 'utf8');
+      expect(expectedMutationTestCount).to.be.greaterThan(0);
+      expect(
+        countOccurrences(source, REFLECT_APPLY_CAPTURE_STATEMENT),
+        `Expected Reflect.apply capture statement count for ${testPath}`,
+      ).to.equal(expectedMutationTestCount);
+      expect(
+        countOccurrences(source, REFLECT_APPLY_RESTORE_STATEMENT),
+        `Expected Reflect.apply restore statement count for ${testPath}`,
+      ).to.equal(expectedMutationTestCount);
     }
   });
 
