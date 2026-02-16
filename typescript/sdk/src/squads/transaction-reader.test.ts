@@ -2108,6 +2108,60 @@ describe('squads transaction reader', () => {
     expect(reader.warpRouteIndex.has('solanamainnet')).to.equal(false);
   });
 
+  it('skips warp-route tokens when protocol lookup returns null', async () => {
+    const mpp = {
+      tryGetProtocol: () => null,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    await reader.init({
+      routeA: {
+        tokens: [
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 'GOOD001-NULL-PROTOCOL',
+            symbol: 'GOOD',
+            name: 'Good Token',
+          },
+        ],
+      },
+    });
+
+    expect(reader.warpRouteIndex.has('solanamainnet')).to.equal(false);
+  });
+
+  it('skips warp-route tokens when protocol lookup returns ProtocolType.Unknown', async () => {
+    const mpp = {
+      tryGetProtocol: () => ProtocolType.Unknown,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    await reader.init({
+      routeA: {
+        tokens: [
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 'GOOD001-UNKNOWN-PROTOCOL',
+            symbol: 'GOOD',
+            name: 'Good Token',
+          },
+        ],
+      },
+    });
+
+    expect(reader.warpRouteIndex.has('solanamainnet')).to.equal(false);
+  });
+
   it('throws contextual errors for malformed protocol lookup value types', () => {
     const mpp = {
       tryGetProtocol: () => 1,
