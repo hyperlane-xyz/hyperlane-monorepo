@@ -105,6 +105,8 @@ const STRICT_EQUALITY_CONDITIONAL_SOURCE_ARRAY_CAPTURE_REGEX = new RegExp(
   String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates (?:as deterministic|conservative) for ${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT})',\s*\(\)\s*=>\s*\{\s*const source = \[(.*?)\]\.join\('\\n'\);`,
   'gs',
 );
+const STRICT_EQUALITY_HELPER_SECTION_REGEX =
+  /const STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT =[\s\S]*?function extractStrictEqualityConditionalSourceFixtures\([\s\S]*?\n}\n/;
 
 function extractStrictEqualityConditionalTitles(sourceText: string): string[] {
   return [...sourceText.matchAll(STRICT_EQUALITY_CONDITIONAL_TITLE_REGEX)].map(
@@ -176,6 +178,14 @@ function extractStrictEqualityConditionalSourceFixtures(
     fixtures.set(title, sourceArrayBody);
   }
   return fixtures;
+}
+
+function extractStrictEqualityHelperSection(sourceText: string): string {
+  const match = sourceText.match(STRICT_EQUALITY_HELPER_SECTION_REGEX);
+  if (!match) {
+    throw new Error('Failed to locate strict-equality helper section');
+  }
+  return match[0].trim();
 }
 
 function normalizeNamedSymbol(symbol: string): string {
@@ -45672,6 +45682,21 @@ describe('Gnosis Safe migration guards', () => {
     expect([...ownTitles].sort()).to.deep.equal([...infraTitles].sort());
     expect(new Set(ownTitles).size).to.equal(ownTitles.length);
     expect(new Set(infraTitles).size).to.equal(infraTitles.length);
+  });
+
+  it('keeps strict-equality helper parsing section aligned with infra', () => {
+    const ownSourceText = fs.readFileSync(__filename, 'utf8');
+    const infraSuitePath = path.resolve(
+      process.cwd(),
+      '../infra/test/safe-migration-guards.test.ts',
+    );
+    const infraSourceText = fs.readFileSync(infraSuitePath, 'utf8');
+
+    const ownHelperSection = extractStrictEqualityHelperSection(ownSourceText);
+    const infraHelperSection =
+      extractStrictEqualityHelperSection(infraSourceText);
+
+    expect(ownHelperSection).to.equal(infraHelperSection);
   });
 
   it('keeps mirrored strict-equality conditional source fixtures aligned with infra', () => {
