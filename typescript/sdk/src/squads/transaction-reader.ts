@@ -1818,14 +1818,13 @@ export class SquadsTransactionReader {
     mailbox: PublicKey;
     multisigIsmMessageId: PublicKey;
   } {
-    let resolveCoreProgramIds:
-      | SquadsTransactionReaderOptions['resolveCoreProgramIds']
-      | undefined;
-    try {
-      resolveCoreProgramIds = this.options.resolveCoreProgramIds;
-    } catch (error) {
+    const {
+      propertyValue: resolveCoreProgramIds,
+      readError: resolveCoreProgramIdsReadError,
+    } = inspectPropertyValue(this.options, 'resolveCoreProgramIds');
+    if (resolveCoreProgramIdsReadError) {
       throw new Error(
-        `Failed to access core program resolver for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to access core program resolver for ${chain}: ${stringifyUnknownSquadsError(resolveCoreProgramIdsReadError)}`,
       );
     }
 
@@ -2381,21 +2380,26 @@ export class SquadsTransactionReader {
       return this.multisigConfigs.get(chain) ?? null;
     }
 
-    let resolveExpectedMultisigConfig:
-      | SquadsTransactionReaderOptions['resolveExpectedMultisigConfig']
-      | undefined;
-    try {
-      resolveExpectedMultisigConfig =
-        this.options.resolveExpectedMultisigConfig;
-    } catch (error) {
+    const {
+      propertyValue: resolveExpectedMultisigConfig,
+      readError: resolveExpectedMultisigConfigReadError,
+    } = inspectPropertyValue(this.options, 'resolveExpectedMultisigConfig');
+    if (resolveExpectedMultisigConfigReadError) {
       rootLogger.warn(
-        `Failed to load multisig config resolver for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to load multisig config resolver for ${chain}: ${stringifyUnknownSquadsError(resolveExpectedMultisigConfigReadError)}`,
       );
       this.multisigConfigs.set(chain, null);
       return null;
     }
 
     if (!resolveExpectedMultisigConfig) {
+      this.multisigConfigs.set(chain, null);
+      return null;
+    }
+    if (typeof resolveExpectedMultisigConfig !== 'function') {
+      rootLogger.warn(
+        `Invalid multisig config resolver for ${chain}: expected function, got ${getUnknownValueTypeName(resolveExpectedMultisigConfig)}`,
+      );
       this.multisigConfigs.set(chain, null);
       return null;
     }
