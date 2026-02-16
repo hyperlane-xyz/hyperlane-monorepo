@@ -101,6 +101,11 @@ export enum WarningMessage {
 }
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
+const SET_HAS = Set.prototype.has;
+const SET_ADD = Set.prototype.add;
+const MAP_HAS = Map.prototype.has;
+const MAP_GET = Map.prototype.get;
+const MAP_SET = Map.prototype.set;
 const VALID_PROTOCOL_TYPES = new Set(Object.values(ProtocolType));
 
 function getErrorMessageFromErrorInstance(error: unknown): string | undefined {
@@ -130,6 +135,33 @@ function getUnknownValueTypeName(value: unknown): string {
     return 'array';
   }
   return typeof value;
+}
+
+function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
+  return SET_HAS.call(set, value);
+}
+
+function setAddValue<Value>(set: Set<Value>, value: Value): void {
+  SET_ADD.call(set, value);
+}
+
+function mapHasValue<Key, Value>(map: Map<Key, Value>, key: Key): boolean {
+  return MAP_HAS.call(map, key);
+}
+
+function mapGetValue<Key, Value>(
+  map: Map<Key, Value>,
+  key: Key,
+): Value | undefined {
+  return MAP_GET.call(map, key);
+}
+
+function mapSetValue<Key, Value>(
+  map: Map<Key, Value>,
+  key: Key,
+  value: Value,
+): void {
+  MAP_SET.call(map, key, value);
 }
 
 function readPropertyOrThrow(value: unknown, property: PropertyKey): unknown {
@@ -230,10 +262,10 @@ function findDuplicateValidator(validators: readonly string[]): string | null {
   const seen = new Set<string>();
   for (const validator of validators) {
     const normalizedValidator = validator.toLowerCase();
-    if (seen.has(normalizedValidator)) {
+    if (setHasValue(seen, normalizedValidator)) {
       return validator;
     }
-    seen.add(normalizedValidator);
+    setAddValue(seen, normalizedValidator);
   }
   return null;
 }
@@ -624,11 +656,13 @@ export class SquadsTransactionReader {
         : 'Unknown';
 
     const chainName = normalizedChainName as ChainName;
-    if (!this.warpRouteIndex.has(chainName)) {
-      this.warpRouteIndex.set(chainName, new Map());
+    if (!mapHasValue(this.warpRouteIndex, chainName)) {
+      mapSetValue(this.warpRouteIndex, chainName, new Map());
     }
 
-    this.warpRouteIndex.get(chainName)!.set(address, {
+    const chainIndex = mapGetValue(this.warpRouteIndex, chainName);
+    assert(chainIndex, `Missing warp route index for ${chainName}`);
+    mapSetValue(chainIndex, address, {
       symbol,
       name,
       routeName,
@@ -687,7 +721,7 @@ export class SquadsTransactionReader {
     assert(
       protocol === null ||
         (typeof protocol === 'string' &&
-          VALID_PROTOCOL_TYPES.has(protocol as ProtocolType)),
+          setHasValue(VALID_PROTOCOL_TYPES, protocol as ProtocolType)),
       `Invalid protocol for warp route ${routeName} on ${chain}: expected ProtocolType or null, got ${protocolDisplayValue}`,
     );
 
@@ -723,11 +757,11 @@ export class SquadsTransactionReader {
       return undefined;
     }
 
-    const chainIndex = this.warpRouteIndex.get(chain);
+    const chainIndex = mapGetValue(this.warpRouteIndex, chain);
     if (!chainIndex) {
       return undefined;
     }
-    return chainIndex.get(normalizedProgramId.toLowerCase());
+    return mapGetValue(chainIndex, normalizedProgramId.toLowerCase());
   }
 
   private readWarpRouteInstruction(
@@ -2538,8 +2572,8 @@ export class SquadsTransactionReader {
   private loadMultisigConfig(
     chain: SquadsChainName,
   ): SvmMultisigConfigMap | null {
-    if (this.multisigConfigs.has(chain)) {
-      return this.multisigConfigs.get(chain) ?? null;
+    if (mapHasValue(this.multisigConfigs, chain)) {
+      return mapGetValue(this.multisigConfigs, chain) ?? null;
     }
 
     const {
@@ -2550,19 +2584,19 @@ export class SquadsTransactionReader {
       rootLogger.warn(
         `Failed to load multisig config resolver for ${chain}: ${stringifyUnknownSquadsError(resolveExpectedMultisigConfigReadError)}`,
       );
-      this.multisigConfigs.set(chain, null);
+      mapSetValue(this.multisigConfigs, chain, null);
       return null;
     }
 
     if (!resolveExpectedMultisigConfig) {
-      this.multisigConfigs.set(chain, null);
+      mapSetValue(this.multisigConfigs, chain, null);
       return null;
     }
     if (typeof resolveExpectedMultisigConfig !== 'function') {
       rootLogger.warn(
         `Invalid multisig config resolver for ${chain}: expected function, got ${getUnknownValueTypeName(resolveExpectedMultisigConfig)}`,
       );
-      this.multisigConfigs.set(chain, null);
+      mapSetValue(this.multisigConfigs, chain, null);
       return null;
     }
 
@@ -2573,7 +2607,7 @@ export class SquadsTransactionReader {
         rootLogger.warn(
           `Invalid expected multisig config for ${chain}: expected object, got ${configType}`,
         );
-        this.multisigConfigs.set(chain, null);
+        mapSetValue(this.multisigConfigs, chain, null);
         return null;
       }
 
@@ -2583,23 +2617,23 @@ export class SquadsTransactionReader {
         rootLogger.warn(
           `Failed to inspect expected multisig config for ${chain}: failed to read promise-like then field (${stringifyUnknownSquadsError(thenReadError)})`,
         );
-        this.multisigConfigs.set(chain, null);
+        mapSetValue(this.multisigConfigs, chain, null);
         return null;
       }
       if (typeof thenValue === 'function') {
         rootLogger.warn(
           `Invalid expected multisig config for ${chain}: expected synchronous object result, got promise-like value`,
         );
-        this.multisigConfigs.set(chain, null);
+        mapSetValue(this.multisigConfigs, chain, null);
         return null;
       }
-      this.multisigConfigs.set(chain, config);
+      mapSetValue(this.multisigConfigs, chain, config);
       return config;
     } catch (error) {
       rootLogger.warn(
         `Failed to load multisig config for ${chain}: ${stringifyUnknownSquadsError(error)}`,
       );
-      this.multisigConfigs.set(chain, null);
+      mapSetValue(this.multisigConfigs, chain, null);
       return null;
     }
   }
@@ -2844,10 +2878,10 @@ export class SquadsTransactionReader {
     );
 
     const missingValidators = normalizedExpectedValidators.filter(
-      (v) => !actualValidatorsSet.has(v.toLowerCase()),
+      (v) => !setHasValue(actualValidatorsSet, v.toLowerCase()),
     );
     const unexpectedValidators = normalizedActualValidators.filter(
-      (v) => !expectedValidatorsSet.has(v.toLowerCase()),
+      (v) => !setHasValue(expectedValidatorsSet, v.toLowerCase()),
     );
 
     if (missingValidators.length > 0) {

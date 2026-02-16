@@ -3084,6 +3084,125 @@ describe('squads transaction reader', () => {
     expect(reader.warpRouteIndex.has('solanamainnet')).to.equal(false);
   });
 
+  it('keeps protocol validation stable when Set.prototype.has is mutated', () => {
+    const mpp = {
+      tryGetProtocol: () => ProtocolType.Sealevel,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      resolveProtocolTypeForWarpRoute: (
+        routeName: string,
+        chain: string,
+      ) => ProtocolType | null;
+    };
+    const originalSetHas = Set.prototype.has;
+    let resolvedProtocol: ProtocolType | null = null;
+
+    Object.defineProperty(Set.prototype, 'has', {
+      value: () => {
+        throw new Error('set has unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      resolvedProtocol = readerAny.resolveProtocolTypeForWarpRoute(
+        'routeA',
+        'solanamainnet',
+      );
+    } finally {
+      Object.defineProperty(Set.prototype, 'has', {
+        value: originalSetHas,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(resolvedProtocol).to.equal(ProtocolType.Sealevel);
+  });
+
+  it('keeps warp-route indexing stable when Map prototype methods are mutated', () => {
+    const mpp = {
+      tryGetProtocol: () => ProtocolType.Sealevel,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      indexWarpRouteToken: (
+        routeName: string,
+        token: Record<string, unknown>,
+      ) => void;
+    };
+    const originalMapHas = Map.prototype.has;
+    const originalMapGet = Map.prototype.get;
+    const originalMapSet = Map.prototype.set;
+
+    Object.defineProperty(Map.prototype, 'has', {
+      value: () => {
+        throw new Error('map has unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(Map.prototype, 'get', {
+      value: () => {
+        throw new Error('map get unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(Map.prototype, 'set', {
+      value: () => {
+        throw new Error('map set unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      readerAny.indexWarpRouteToken('routeA', {
+        chainName: 'solanamainnet',
+        addressOrDenom: 'GOOD001-MAP-PROTOTYPE',
+        symbol: 'GOOD',
+        name: 'Good Token',
+      });
+    } finally {
+      Object.defineProperty(Map.prototype, 'has', {
+        value: originalMapHas,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(Map.prototype, 'get', {
+        value: originalMapGet,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(Map.prototype, 'set', {
+        value: originalMapSet,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(
+      reader.warpRouteIndex.get('solanamainnet')?.get('good001-map-prototype'),
+    ).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Good Token',
+      routeName: 'routeA',
+    });
+  });
+
   it('throws contextual errors for malformed protocol lookup value types', () => {
     const mpp = {
       tryGetProtocol: () => 1,
