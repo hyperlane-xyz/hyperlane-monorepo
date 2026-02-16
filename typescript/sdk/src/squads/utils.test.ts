@@ -3782,6 +3782,31 @@ describe('squads utils', () => {
       );
     });
 
+    it('uses placeholder when provider promise-like inspection throws generic-object Error messages', () => {
+      const mpp = {
+        getSolanaWeb3Provider: () =>
+          new Proxy(
+            {},
+            {
+              get(target, property, receiver) {
+                if (property === 'then') {
+                  throw new Error('[object Object]');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+      };
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to inspect solana provider for solanamainnet: failed to read promise-like then field ([unstringifiable error])',
+      );
+    });
+
     it('labels unreadable provider types deterministically when lookup result is revoked', () => {
       const { proxy: revokedProvider, revoke } = Proxy.revocable({}, {});
       revoke();
@@ -7313,6 +7338,41 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Failed to inspect signer public key for solanamainnet: failed to read promise-like then field (then unavailable)',
+      );
+      expect(providerLookupChain).to.equal(undefined);
+    });
+
+    it('uses placeholder when signer publicKey promise-like inspection throws generic-object Error messages', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {} as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >;
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () =>
+          new Proxy(
+            {},
+            {
+              get(target, property, receiver) {
+                if (property === 'then') {
+                  throw new Error('[object Object]');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+      };
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to inspect signer public key for solanamainnet: failed to read promise-like then field ([unstringifiable error])',
       );
       expect(providerLookupChain).to.equal(undefined);
     });
