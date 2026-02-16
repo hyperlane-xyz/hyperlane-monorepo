@@ -237,6 +237,21 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when partition length accessor throws generic-object Error messages', () => {
+    const hostilePartitionList = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
+      'Failed to read partitioned squads chains length: [unstringifiable error]',
+    );
+  });
+
   it('throws contextual errors when partition list index access fails', () => {
     const hostilePartitionList = new Proxy(['solanamainnet'], {
       get(target, property, receiver) {
@@ -249,6 +264,21 @@ describe('squads config', () => {
 
     expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
       'Failed to read partitioned squads chains[0]: entry unavailable',
+    );
+  });
+
+  it('uses deterministic placeholder when partition list index access throws generic-object Error messages', () => {
+    const hostilePartitionList = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => partitionSquadsChains(hostilePartitionList)).to.throw(
+      'Failed to read partitioned squads chains[0]: [unstringifiable error]',
     );
   });
 
@@ -376,6 +406,21 @@ describe('squads config', () => {
 
     expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
       'Failed to read squads chains[0]: entry unavailable',
+    );
+  });
+
+  it('uses deterministic placeholder when squads-chain index access throws generic-object Error messages', () => {
+    const hostileResolveChains = new Proxy(['solanamainnet'], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => resolveSquadsChains(hostileResolveChains)).to.throw(
+      'Failed to read squads chains[0]: [unstringifiable error]',
     );
   });
 
