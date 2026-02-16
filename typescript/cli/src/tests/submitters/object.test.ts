@@ -39,6 +39,39 @@ describe('submitter own-object helpers', () => {
     ).to.equal(undefined);
   });
 
+  it('getObjectField short-circuits disallowed inherited getters', () => {
+    let getterCalls = 0;
+    const parent = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(parent, 'submitter', {
+      enumerable: true,
+      configurable: true,
+      get: () => {
+        getterCalls += 1;
+        throw new Error('boom');
+      },
+    });
+    const child = Object.create(parent);
+
+    expect(
+      getObjectField(child, 'submitter', {
+        disallowedFields: new Set(['submitter']),
+      }),
+    ).to.equal(undefined);
+    expect(getterCalls).to.equal(0);
+  });
+
+  it('getObjectField returns undefined when proxy get trap throws', () => {
+    const throwingProxy = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('boom');
+        },
+      },
+    );
+    expect(getObjectField(throwingProxy, 'submitter')).to.equal(undefined);
+  });
+
   it('getOwnObjectField returns own field values', () => {
     const value = { submitter: { type: 'jsonRpc' } };
     expect(getOwnObjectField(value, 'submitter')).to.deep.equal({
