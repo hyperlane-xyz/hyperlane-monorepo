@@ -12,6 +12,10 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import {
+  getRequiredRuntimeFunctionValueByLabel,
+  getRuntimeFunctionValuesByLabel,
+} from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions sharedarraybuffer constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -21,6 +25,11 @@ describe('resolveSubmitterBatchesForTransactions sharedarraybuffer constructor p
     data: '0x',
     chainId: 31338,
   };
+  const SHAREDARRAYBUFFER_CONSTRUCTOR_PROBE =
+    getRequiredRuntimeFunctionValueByLabel(
+      'sharedarraybuffer-constructor-object',
+      getRuntimeFunctionValuesByLabel(),
+    );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);
@@ -121,12 +130,12 @@ describe('resolveSubmitterBatchesForTransactions sharedarraybuffer constructor p
           ? async (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return SharedArrayBuffer;
+              return SHAREDARRAYBUFFER_CONSTRUCTOR_PROBE;
             }
           : (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return SharedArrayBuffer;
+              return SHAREDARRAYBUFFER_CONSTRUCTOR_PROBE;
             },
       },
       registry: {
@@ -258,12 +267,12 @@ describe('resolveSubmitterBatchesForTransactions sharedarraybuffer constructor p
           ? async (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return SharedArrayBuffer;
+              return SHAREDARRAYBUFFER_CONSTRUCTOR_PROBE;
             }
           : (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return SharedArrayBuffer;
+              return SHAREDARRAYBUFFER_CONSTRUCTOR_PROBE;
             },
       },
       registry: {

@@ -12,6 +12,10 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import {
+  getRequiredRuntimeFunctionValueByLabel,
+  getRuntimeFunctionValuesByLabel,
+} from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions bigint64array constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -21,6 +25,11 @@ describe('resolveSubmitterBatchesForTransactions bigint64array constructor probe
     data: '0x',
     chainId: 31338,
   };
+  const BIGINT64ARRAY_CONSTRUCTOR_PROBE =
+    getRequiredRuntimeFunctionValueByLabel(
+      'bigint64array-constructor-object',
+      getRuntimeFunctionValuesByLabel(),
+    );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);
@@ -121,12 +130,12 @@ describe('resolveSubmitterBatchesForTransactions bigint64array constructor probe
           ? async (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return BigInt64Array;
+              return BIGINT64ARRAY_CONSTRUCTOR_PROBE;
             }
           : (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return BigInt64Array;
+              return BIGINT64ARRAY_CONSTRUCTOR_PROBE;
             },
       },
       registry: {
@@ -258,12 +267,12 @@ describe('resolveSubmitterBatchesForTransactions bigint64array constructor probe
           ? async (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return BigInt64Array;
+              return BIGINT64ARRAY_CONSTRUCTOR_PROBE;
             }
           : (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return BigInt64Array;
+              return BIGINT64ARRAY_CONSTRUCTOR_PROBE;
             },
       },
       registry: {

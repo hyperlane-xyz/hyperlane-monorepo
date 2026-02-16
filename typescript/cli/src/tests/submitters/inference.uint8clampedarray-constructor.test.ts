@@ -12,6 +12,10 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import {
+  getRequiredRuntimeFunctionValueByLabel,
+  getRuntimeFunctionValuesByLabel,
+} from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions uint8clampedarray constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -21,6 +25,11 @@ describe('resolveSubmitterBatchesForTransactions uint8clampedarray constructor p
     data: '0x',
     chainId: 31338,
   };
+  const UINT8CLAMPEDARRAY_CONSTRUCTOR_PROBE =
+    getRequiredRuntimeFunctionValueByLabel(
+      'uint8clampedarray-constructor-object',
+      getRuntimeFunctionValuesByLabel(),
+    );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);
@@ -121,12 +130,12 @@ describe('resolveSubmitterBatchesForTransactions uint8clampedarray constructor p
           ? async (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Uint8ClampedArray;
+              return UINT8CLAMPEDARRAY_CONSTRUCTOR_PROBE;
             }
           : (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Uint8ClampedArray;
+              return UINT8CLAMPEDARRAY_CONSTRUCTOR_PROBE;
             },
       },
       registry: {
@@ -258,12 +267,12 @@ describe('resolveSubmitterBatchesForTransactions uint8clampedarray constructor p
           ? async (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Uint8ClampedArray;
+              return UINT8CLAMPEDARRAY_CONSTRUCTOR_PROBE;
             }
           : (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Uint8ClampedArray;
+              return UINT8CLAMPEDARRAY_CONSTRUCTOR_PROBE;
             },
       },
       registry: {

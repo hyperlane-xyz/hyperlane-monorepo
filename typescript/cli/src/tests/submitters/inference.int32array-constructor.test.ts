@@ -12,6 +12,10 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import {
+  getRequiredRuntimeFunctionValueByLabel,
+  getRuntimeFunctionValuesByLabel,
+} from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions int32array constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -21,6 +25,10 @@ describe('resolveSubmitterBatchesForTransactions int32array constructor probes',
     data: '0x',
     chainId: 31338,
   };
+  const INT32ARRAY_CONSTRUCTOR_PROBE = getRequiredRuntimeFunctionValueByLabel(
+    'int32array-constructor-object',
+    getRuntimeFunctionValuesByLabel(),
+  );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);
@@ -121,12 +129,12 @@ describe('resolveSubmitterBatchesForTransactions int32array constructor probes',
           ? async (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Int32Array;
+              return INT32ARRAY_CONSTRUCTOR_PROBE;
             }
           : (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Int32Array;
+              return INT32ARRAY_CONSTRUCTOR_PROBE;
             },
       },
       registry: {
@@ -258,12 +266,12 @@ describe('resolveSubmitterBatchesForTransactions int32array constructor probes',
           ? async (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Int32Array;
+              return INT32ARRAY_CONSTRUCTOR_PROBE;
             }
           : (chainName: string) => {
               if (chainName === CHAIN) return {};
               originSignerProbeCalls += 1;
-              return Int32Array;
+              return INT32ARRAY_CONSTRUCTOR_PROBE;
             },
       },
       registry: {

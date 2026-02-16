@@ -12,6 +12,10 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import {
+  getRuntimeFunctionValuesByLabel,
+  resolveRuntimeFunctionProbeCases,
+} from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions error subtype constructor probes', () => {
   const CHAIN = 'anvil2';
@@ -22,43 +26,43 @@ describe('resolveSubmitterBatchesForTransactions error subtype constructor probe
     chainId: 31338,
   };
 
-  const CONSTRUCTOR_CASES = [
+  const runtimeFunctionValuesByLabel = getRuntimeFunctionValuesByLabel();
+
+  const RAW_CONSTRUCTOR_CASES = [
     {
       label: 'aggregateerror-constructor-object',
-      constructorValue: AggregateError,
       directGetLogsCallCount: 5,
     },
     {
       label: 'evalerror-constructor-object',
-      constructorValue: EvalError,
       directGetLogsCallCount: 5,
     },
     {
       label: 'rangeerror-constructor-object',
-      constructorValue: RangeError,
       directGetLogsCallCount: 5,
     },
     {
       label: 'referenceerror-constructor-object',
-      constructorValue: ReferenceError,
       directGetLogsCallCount: 5,
     },
     {
       label: 'syntaxerror-constructor-object',
-      constructorValue: SyntaxError,
       directGetLogsCallCount: 5,
     },
     {
       label: 'typeerror-constructor-object',
-      constructorValue: TypeError,
       directGetLogsCallCount: 5,
     },
     {
       label: 'urierror-constructor-object',
-      constructorValue: URIError,
       directGetLogsCallCount: 5,
     },
   ] as const;
+
+  const CONSTRUCTOR_CASES = resolveRuntimeFunctionProbeCases(
+    RAW_CONSTRUCTOR_CASES,
+    runtimeFunctionValuesByLabel,
+  );
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);
