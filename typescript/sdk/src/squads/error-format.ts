@@ -1,3 +1,5 @@
+import { inspectInstanceOf, inspectPropertyValue } from './inspection.js';
+
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
 const TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN = /\s*:\s*$/;
 export const BUILTIN_SQUADS_ERROR_LABELS = Object.freeze([
@@ -81,23 +83,6 @@ function normalizeUnknownStringCandidate(value: unknown): string | undefined {
     : undefined;
 }
 
-function inspectErrorInstance(value: unknown): {
-  isError: boolean;
-  readFailed: boolean;
-} {
-  try {
-    return {
-      isError: value instanceof Error,
-      readFailed: false,
-    };
-  } catch {
-    return {
-      isError: false,
-      readFailed: true,
-    };
-  }
-}
-
 export interface StringifyUnknownSquadsErrorOptions {
   preferErrorMessageForErrorInstances?: boolean;
   preferErrorStackForErrorInstances?: boolean;
@@ -167,23 +152,34 @@ export function stringifyUnknownSquadsError(
       return undefined;
     }
   };
+  const readNormalizedPropertyCandidate = (
+    targetValue: unknown,
+    property: PropertyKey,
+  ): string | undefined => {
+    const { propertyValue, readError } = inspectPropertyValue(
+      targetValue,
+      property,
+    );
+    if (readError) {
+      return undefined;
+    }
+    return normalizeUnknownStringCandidate(propertyValue);
+  };
 
-  const { isError, readFailed: errorInstanceReadFailed } =
-    inspectErrorInstance(error);
+  const { matches: isError, readFailed: errorInstanceReadFailed } =
+    inspectInstanceOf(error, Error);
   if (!errorInstanceReadFailed && isError) {
-    const errorInstance = error as Error;
     if (preferErrorStackForErrorInstances) {
-      const normalizedStack = readNormalizedCandidate(
-        () => errorInstance.stack,
-      );
+      const normalizedStack = readNormalizedPropertyCandidate(error, 'stack');
       if (normalizedStack) {
         return normalizedStack;
       }
     }
 
     if (preferErrorMessageForErrorInstances) {
-      const normalizedMessage = readNormalizedCandidate(
-        () => errorInstance.message,
+      const normalizedMessage = readNormalizedPropertyCandidate(
+        error,
+        'message',
       );
       if (normalizedMessage) {
         return normalizedMessage;
@@ -199,16 +195,12 @@ export function stringifyUnknownSquadsError(
   }
 
   if (error && typeof error === 'object') {
-    const normalizedStack = readNormalizedCandidate(
-      () => (error as { stack?: unknown }).stack,
-    );
+    const normalizedStack = readNormalizedPropertyCandidate(error, 'stack');
     if (normalizedStack) {
       return normalizedStack;
     }
 
-    const normalizedMessage = readNormalizedCandidate(
-      () => (error as { message?: unknown }).message,
-    );
+    const normalizedMessage = readNormalizedPropertyCandidate(error, 'message');
     if (normalizedMessage) {
       return normalizedMessage;
     }
