@@ -1,9 +1,31 @@
 #!/usr/bin/env bash
 set -e
 
+DOCKER_COMPOSE_CMD=""
+
+function resolve_docker_compose_cmd() {
+  if docker compose version >/dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD="docker compose"
+    return 0
+  fi
+
+  if command -v docker-compose >/dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+    return 0
+  fi
+
+  echo "Missing Docker Compose command. Install either 'docker compose' plugin or 'docker-compose' binary." >&2
+  exit 1
+}
+
+function docker_compose() {
+  # shellcheck disable=SC2086
+  ${DOCKER_COMPOSE_CMD} "$@"
+}
+
 function setup() {
   echo "Starting hyp chain for Cosmos Native E2E tests"
-  docker compose up --detach --wait
+  docker_compose up --detach --wait
 
   if [[ $? -ne 0 ]]; then
     echo "Failure starting local cosmos chain"
@@ -22,12 +44,13 @@ function run() {
 }
 
 function cleanup() {
-  docker compose down
+  docker_compose down
 }
 
 # Ensure cleanup runs even on error
 trap cleanup EXIT
 
+resolve_docker_compose_cmd
 cleanup
 setup
 run
