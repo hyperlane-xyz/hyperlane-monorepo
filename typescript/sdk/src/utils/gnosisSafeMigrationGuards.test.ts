@@ -46167,6 +46167,13 @@ describe('Gnosis Safe migration guards', () => {
     expect(new Set(requiredRuntimeExports).size).to.equal(
       requiredRuntimeExports.length,
     );
+    const requiredRuntimeExportSet = new Set(requiredRuntimeExports);
+    for (const nonRuntimeExport of NON_RUNTIME_GNOSIS_SAFE_EXPORTS) {
+      expect(requiredRuntimeExportSet.has(nonRuntimeExport)).to.equal(false);
+    }
+    expect(requiredRuntimeExportSet.size + nonRuntimeExports.size).to.equal(
+      requiredExports.length,
+    );
 
     for (const exportedSymbol of requiredExports) {
       expect(

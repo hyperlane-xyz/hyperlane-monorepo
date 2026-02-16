@@ -46184,6 +46184,26 @@ describe('Safe migration guards', () => {
     }
   });
 
+  it('keeps sdk non-runtime safe helpers excluded from runtime-required set', () => {
+    const sdkNonRuntimeAllowlist = getSdkNonRuntimeSafeExportAllowlist();
+    const sdkNonRuntimeAllowlistSet = new Set(sdkNonRuntimeAllowlist);
+    const sdkRequiredAllowlist = new Set(getSdkRequiredSafeExportAllowlist());
+    const runtimeRequiredExports = REQUIRED_SAFE_HELPER_EXPORTS.filter(
+      (symbol) => !sdkNonRuntimeAllowlistSet.has(symbol),
+    );
+    const runtimeRequiredSet = new Set<string>(runtimeRequiredExports);
+    for (const exportedSymbol of sdkNonRuntimeAllowlist) {
+      expect(
+        sdkRequiredAllowlist.has(exportedSymbol),
+        `Expected sdk required safe export allowlist to include ${exportedSymbol}`,
+      ).to.equal(true);
+      expect(
+        runtimeRequiredSet.has(exportedSymbol),
+        `Expected non-runtime safe export ${exportedSymbol} to be excluded from runtime-required set`,
+      ).to.equal(false);
+    }
+  });
+
   it('keeps sdk gnosis module free of default exports', () => {
     const sdkIndexPath = path.resolve(process.cwd(), '../sdk/src/index.ts');
     const sdkIndexText = fs.readFileSync(sdkIndexPath, 'utf8');
