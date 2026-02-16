@@ -1,5 +1,6 @@
 pub use block::*;
 pub use block_cursor::BlockCursor;
+pub use dual_write::DualWriteDb;
 use eyre::Result;
 pub use message::*;
 pub use payment::*;
@@ -14,6 +15,7 @@ mod generated;
 // These modules implement additional functionality for the ScraperDb
 mod block;
 mod block_cursor;
+mod dual_write;
 mod message;
 mod payment;
 mod raw_message_dispatch;

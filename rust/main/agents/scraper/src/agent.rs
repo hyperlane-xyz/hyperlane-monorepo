@@ -8,7 +8,7 @@ use hyperlane_core::{
     InterchainGasPayment, H512,
 };
 use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle, time::sleep};
-use tracing::{info, info_span, instrument, trace, Instrument};
+use tracing::{info, info_span, instrument, trace, warn, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
@@ -16,7 +16,7 @@ use hyperlane_base::{
     CoreMetrics, HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 
-use crate::{db::ScraperDb, settings::ScraperSettings, store::HyperlaneDbStore};
+use crate::{db::{DualWriteDb, ScraperDb}, settings::ScraperSettings, store::HyperlaneDbStore};
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 
@@ -60,7 +60,38 @@ impl BaseAgent for Scraper {
     where
         Self: Sized,
     {
-        let db = ScraperDb::connect(&settings.db).await?;
+        // Connect to the primary database
+        let primary_db = ScraperDb::connect(&settings.db).await?;
+
+        // Create DualWriteDb based on settings
+        let db = if settings.dual_write_enabled {
+            if let Some(secondary_url) = &settings.secondary_db {
+                info!(
+                    "Dual-write mode enabled, connecting to secondary database"
+                );
+                match ScraperDb::connect(secondary_url).await {
+                    Ok(secondary_db) => {
+                        info!("Successfully connected to secondary database for dual-write");
+                        DualWriteDb::with_dual_write(primary_db, secondary_db, true)
+                    }
+                    Err(e) => {
+                        warn!(
+                            error = ?e,
+                            "Failed to connect to secondary database, continuing with primary only"
+                        );
+                        DualWriteDb::new(primary_db)
+                    }
+                }
+            } else {
+                warn!(
+                    "Dual-write enabled but no secondary database URL provided, using primary only"
+                );
+                DualWriteDb::new(primary_db)
+            }
+        } else {
+            DualWriteDb::new(primary_db)
+        };
+
         let core = settings.build_hyperlane_core(metrics.clone());
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
@@ -239,7 +270,7 @@ impl Scraper {
         domain: &HyperlaneDomain,
         settings: &ScraperSettings,
         metrics: Arc<CoreMetrics>,
-        scraper_db: ScraperDb,
+        scraper_db: DualWriteDb,
         contract_sync_metrics: Arc<ContractSyncMetrics>,
     ) -> eyre::Result<ChainScraper> {
         info!(domain = domain.name(), "create chain scraper for domain");
@@ -268,7 +299,7 @@ impl Scraper {
         settings: &ScraperSettings,
         metrics: Arc<CoreMetrics>,
         chain_metrics: &ChainMetrics,
-        scraper_db: ScraperDb,
+        scraper_db: DualWriteDb,
         contract_sync_metrics: Arc<ContractSyncMetrics>,
     ) -> HashMap<u32, ChainScraper> {
         let mut scrapers: HashMap<u32, ChainScraper> = HashMap::new();
@@ -452,6 +483,7 @@ mod test {
     use hyperlane_ethereum as h_eth;
 
     use super::*;
+    use crate::db::ScraperDb;
 
     fn generate_test_scraper_settings() -> ScraperSettings {
         let chains = [(
@@ -542,6 +574,8 @@ mod test {
             },
             db: String::new(),
             chains_to_scrape: vec![],
+            secondary_db: None,
+            dual_write_enabled: false,
         }
     }
 
@@ -581,12 +615,13 @@ mod test {
                 .collect::<BTreeMap<_, _>>()],
         ]);
         let scraper_db = ScraperDb::with_connection(db.into_connection());
+        let dual_write_db = DualWriteDb::new(scraper_db);
 
         let scrapers = Scraper::build_chain_scrapers(
             &settings,
             core_metrics,
             &chain_metrics,
-            scraper_db,
+            dual_write_db,
             contract_sync_metrics,
         )
         .await;
