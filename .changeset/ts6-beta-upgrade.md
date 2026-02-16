@@ -32,7 +32,7 @@ Error-message extraction and formatting paths were hardened to avoid crashes and
 
 Regression guard tests were added to assert descriptor-matrix parity, exact descriptor-set cardinality, matcher/formatter base-set alignment, canonical descriptor baseline consistency, and explicit unescaped-alias baseline consistency across triple/json/double escaped `Symbol.toPrimitive` placeholder suites, preventing future drift in coverage.
 
-TS6-beta compatibility was validated across `pnpm build`, `pnpm lint`, `pnpm test:ci`, package-level `pnpm -C typescript/ccip-server test` (`ts-jest` path), targeted `typescript/rebalancer-sim` regression coverage, `pnpm -C typescript/sdk test:unit`, and `pnpm -C typescript/infra test:ci`.
+TS6-beta compatibility was validated across `pnpm build`, `pnpm lint`, `pnpm test:ci`, package-level `pnpm -C typescript/ccip-server test` (`ts-jest` path), targeted `typescript/rebalancer-sim` regression coverage, `pnpm -C typescript/sdk test:unit`, `pnpm -C typescript/infra test:ci`, and `pnpm -C typescript/cli test:ci`.
 
 Release graph hygiene was also checked with `pnpm changeset status`, confirming a coherent patch-only bump set for this rollout.
 
