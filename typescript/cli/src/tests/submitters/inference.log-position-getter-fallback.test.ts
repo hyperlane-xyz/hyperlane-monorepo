@@ -766,6 +766,54 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
     expect(inferredSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('falls back to jsonRpc when domain lookup returns boxed chain name with throwing toString', async () => {
+    const boxedChainName = new String(ORIGIN_CHAIN) as any;
+    boxedChainName.toString = () => {
+      throw new Error('chain-name toString should not crash domain lookup');
+    };
+    const inferredSubmitter = await resolveFromLogs(
+      [
+        {
+          __validLog: true,
+          topics: ['0xthrowing-boxed-chain-name'],
+          data: '0x',
+          blockNumber: 659,
+          transactionIndex: 0,
+          logIndex: 0,
+        },
+      ],
+      {
+        getChainName: () => boxedChainName,
+        expectedSubmitterType: TxSubmitterType.JSON_RPC,
+      },
+    );
+
+    expect(inferredSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('falls back to jsonRpc when domain lookup returns boxed chain name with non-string toString result', async () => {
+    const boxedChainName = new String(ORIGIN_CHAIN) as any;
+    boxedChainName.toString = () => ({ trim: () => ORIGIN_CHAIN }) as any;
+    const inferredSubmitter = await resolveFromLogs(
+      [
+        {
+          __validLog: true,
+          topics: ['0xnon-string-boxed-chain-name'],
+          data: '0x',
+          blockNumber: 660,
+          transactionIndex: 0,
+          logIndex: 0,
+        },
+      ],
+      {
+        getChainName: () => boxedChainName,
+        expectedSubmitterType: TxSubmitterType.JSON_RPC,
+      },
+    );
+
+    expect(inferredSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('infers ICA fallback derivation when origin protocol is uppercase string', async () => {
     const inferredIcaOwner = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
     const destinationRouterAddress =
