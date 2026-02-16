@@ -342,6 +342,26 @@ describe('squads config', () => {
     );
   });
 
+  it('throws contextual formatter errors when configured-chain list length getter fails', () => {
+    const hostileConfiguredChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('length unavailable');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        hostileConfiguredChains,
+      ),
+    ).to.throw(
+      'Failed to read configured squads chains length: length unavailable',
+    );
+  });
+
   it('uses deterministic placeholder when unsupported-chain length getter throws opaque object', () => {
     const hostileUnsupportedChains = new Proxy([], {
       get(target, property, receiver) {
@@ -373,6 +393,26 @@ describe('squads config', () => {
       getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
     ).to.throw(
       'Failed to read unsupported squads chains length: [unstringifiable error]',
+    );
+  });
+
+  it('uses deterministic placeholder when configured-chain length getter throws generic-object Error messages', () => {
+    const hostileConfiguredChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        hostileConfiguredChains,
+      ),
+    ).to.throw(
+      'Failed to read configured squads chains length: [unstringifiable error]',
     );
   });
 
