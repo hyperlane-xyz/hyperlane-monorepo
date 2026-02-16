@@ -819,6 +819,36 @@ describe('strategy parse helpers', () => {
     ).to.throw();
   });
 
+  it('parseExtendedChainSubmissionStrategy strips inherited chain entries from output', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      CHAIN,
+    );
+    Object.defineProperty(Object.prototype, CHAIN, {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+      },
+    });
+
+    try {
+      const parsed = parseExtendedChainSubmissionStrategy({} as any);
+      expect(Object.prototype.hasOwnProperty.call(parsed, CHAIN)).to.equal(false);
+      expect((parsed as Record<string, unknown>)[CHAIN]).to.equal(undefined);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(Object.prototype, CHAIN, originalDescriptor);
+      } else {
+        delete (Object.prototype as any)[CHAIN];
+      }
+    }
+  });
+
   it('parseExtendedChainSubmissionStrategy drops empty nested submitterOverrides', () => {
     const parsed = parseExtendedChainSubmissionStrategy({
       [CHAIN]: {

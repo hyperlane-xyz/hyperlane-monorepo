@@ -287,6 +287,11 @@ function sanitizeExtendedSubmissionStrategyOutput(
 
   const sanitizedStrategy = Object.create(null) as Record<string, unknown>;
   const submitter = getOwnObjectField(value, 'submitter');
+  if (submitter === undefined) {
+    throw new Error(
+      'Invalid submission strategy: parsed submitter is not an own field',
+    );
+  }
   sanitizedStrategy.submitter =
     cloneOwnEnumerableObject(submitter) ?? submitter;
 
@@ -328,6 +333,10 @@ function sanitizeExtendedChainSubmissionStrategyOutput(
   const sanitizedStrategy = Object.create(null) as Record<string, unknown>;
 
   for (const chainKey of Object.keys(value)) {
+    const shouldIncludeChain = hasOwnObjectField(rawValue ?? value, chainKey);
+    if (!shouldIncludeChain) {
+      continue;
+    }
     const chainStrategy = getOwnObjectField(value, chainKey);
     const rawChainStrategy = getOwnObjectField(rawValue, chainKey);
     if (
