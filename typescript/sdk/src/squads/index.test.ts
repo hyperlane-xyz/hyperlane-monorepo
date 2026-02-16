@@ -2898,27 +2898,22 @@ describe('squads barrel exports', () => {
         EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
     ).to.equal(EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_RUNTIME_SOURCE_COUNT);
 
-    let discoveredZeroIdentifierCountTotal = 0;
-    let discoveredZeroInvocationCountTotal = 0;
-    let discoveredZeroCaptureDeclarationCountTotal = 0;
-    for (const runtimeSourcePath of listSdkSquadsNonTestSourceFilePaths()
-      .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
-      .sort(compareLexicographically)) {
-      const absoluteSourcePath = path.join(SDK_PACKAGE_ROOT, runtimeSourcePath);
-      const source = fs.readFileSync(absoluteSourcePath, 'utf8');
-      if (countOccurrences(source, 'Reflect.apply') === 0) {
-        discoveredZeroIdentifierCountTotal += 1;
-      }
-      if (countOccurrences(source, 'REFLECT_APPLY(') === 0) {
-        discoveredZeroInvocationCountTotal += 1;
-      }
-      if (
-        countOccurrences(source, 'const REFLECT_APPLY = Reflect.apply as <') ===
-        0
-      ) {
-        discoveredZeroCaptureDeclarationCountTotal += 1;
-      }
-    }
+    const discoveredRuntimeReflectApplyCountSummaries =
+      listSdkSquadsRuntimeReflectApplyCountSummaries();
+    const discoveredZeroIdentifierCountTotal =
+      discoveredRuntimeReflectApplyCountSummaries.filter(
+        ({ reflectApplyIdentifierReferenceCount }) =>
+          reflectApplyIdentifierReferenceCount === 0,
+      ).length;
+    const discoveredZeroInvocationCountTotal =
+      discoveredRuntimeReflectApplyCountSummaries.filter(
+        ({ reflectApplyInvocationCount }) => reflectApplyInvocationCount === 0,
+      ).length;
+    const discoveredZeroCaptureDeclarationCountTotal =
+      discoveredRuntimeReflectApplyCountSummaries.filter(
+        ({ reflectApplyCaptureDeclarationCount }) =>
+          reflectApplyCaptureDeclarationCount === 0,
+      ).length;
 
     expect(discoveredZeroIdentifierCountTotal).to.equal(
       EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_ZERO_IDENTIFIER_REFERENCE_COUNT,
@@ -2958,26 +2953,22 @@ describe('squads barrel exports', () => {
       EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
     );
 
-    let discoveredPositiveIdentifierCountTotal = 0;
-    let discoveredPositiveInvocationCountTotal = 0;
-    let discoveredPositiveCaptureDeclarationCountTotal = 0;
-    for (const runtimeSourcePath of listSdkSquadsNonTestSourceFilePaths()
-      .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
-      .sort(compareLexicographically)) {
-      const absoluteSourcePath = path.join(SDK_PACKAGE_ROOT, runtimeSourcePath);
-      const source = fs.readFileSync(absoluteSourcePath, 'utf8');
-      if (countOccurrences(source, 'Reflect.apply') > 0) {
-        discoveredPositiveIdentifierCountTotal += 1;
-      }
-      if (countOccurrences(source, 'REFLECT_APPLY(') > 0) {
-        discoveredPositiveInvocationCountTotal += 1;
-      }
-      if (
-        countOccurrences(source, 'const REFLECT_APPLY = Reflect.apply as <') > 0
-      ) {
-        discoveredPositiveCaptureDeclarationCountTotal += 1;
-      }
-    }
+    const discoveredRuntimeReflectApplyCountSummaries =
+      listSdkSquadsRuntimeReflectApplyCountSummaries();
+    const discoveredPositiveIdentifierCountTotal =
+      discoveredRuntimeReflectApplyCountSummaries.filter(
+        ({ reflectApplyIdentifierReferenceCount }) =>
+          reflectApplyIdentifierReferenceCount > 0,
+      ).length;
+    const discoveredPositiveInvocationCountTotal =
+      discoveredRuntimeReflectApplyCountSummaries.filter(
+        ({ reflectApplyInvocationCount }) => reflectApplyInvocationCount > 0,
+      ).length;
+    const discoveredPositiveCaptureDeclarationCountTotal =
+      discoveredRuntimeReflectApplyCountSummaries.filter(
+        ({ reflectApplyCaptureDeclarationCount }) =>
+          reflectApplyCaptureDeclarationCount > 0,
+      ).length;
 
     expect(discoveredPositiveIdentifierCountTotal).to.equal(
       EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
@@ -3164,27 +3155,26 @@ describe('squads barrel exports', () => {
       EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_COUNT,
     );
 
-    let discoveredIdentifierReferenceCountTotal = 0;
-    let discoveredInvocationCountTotal = 0;
-    let discoveredCaptureDeclarationCountTotal = 0;
-    for (const runtimeSourcePath of listSdkSquadsNonTestSourceFilePaths()
-      .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
-      .sort(compareLexicographically)) {
-      const absoluteSourcePath = path.join(SDK_PACKAGE_ROOT, runtimeSourcePath);
-      const source = fs.readFileSync(absoluteSourcePath, 'utf8');
-      discoveredIdentifierReferenceCountTotal += countOccurrences(
-        source,
-        'Reflect.apply',
+    const discoveredRuntimeReflectApplyCountSummaries =
+      listSdkSquadsRuntimeReflectApplyCountSummaries();
+    const discoveredIdentifierReferenceCountTotal =
+      discoveredRuntimeReflectApplyCountSummaries.reduce(
+        (sum, { reflectApplyIdentifierReferenceCount }) =>
+          sum + reflectApplyIdentifierReferenceCount,
+        0,
       );
-      discoveredInvocationCountTotal += countOccurrences(
-        source,
-        'REFLECT_APPLY(',
+    const discoveredInvocationCountTotal =
+      discoveredRuntimeReflectApplyCountSummaries.reduce(
+        (sum, { reflectApplyInvocationCount }) =>
+          sum + reflectApplyInvocationCount,
+        0,
       );
-      discoveredCaptureDeclarationCountTotal += countOccurrences(
-        source,
-        'const REFLECT_APPLY = Reflect.apply as <',
+    const discoveredCaptureDeclarationCountTotal =
+      discoveredRuntimeReflectApplyCountSummaries.reduce(
+        (sum, { reflectApplyCaptureDeclarationCount }) =>
+          sum + reflectApplyCaptureDeclarationCount,
+        0,
       );
-    }
 
     expect(discoveredIdentifierReferenceCountTotal).to.equal(
       EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNT,
