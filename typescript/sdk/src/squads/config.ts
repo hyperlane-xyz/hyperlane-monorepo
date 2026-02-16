@@ -76,6 +76,14 @@ const ARRAY_PUSH = Array.prototype.push;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const STRING_FUNCTION = String;
 const STRING_TRIM = String.prototype.trim;
+const REFLECT_APPLY = Reflect.apply as <
+  ReturnValue,
+  ArgumentValues extends readonly unknown[],
+>(
+  target: (...args: ArgumentValues) => ReturnValue,
+  thisArgument: unknown,
+  argumentsList: ArgumentValues,
+) => ReturnValue;
 const ERROR_CONSTRUCTOR = Error as new (message?: string) => Error;
 const SET_CONSTRUCTOR = Set as new <Value>(
   values?: Iterable<Value>,
@@ -138,14 +146,26 @@ const SQUADS_CHAINS = objectFreezeValue(
 const SQUADS_CHAIN_SET = createSetValue<string>(SQUADS_CHAINS);
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
-const SQUADS_CHAINS_DISPLAY_LIST = ARRAY_JOIN.call(SQUADS_CHAINS, ', ');
+const SQUADS_CHAINS_DISPLAY_LIST = REFLECT_APPLY(
+  ARRAY_JOIN as (separator: string) => string,
+  SQUADS_CHAINS,
+  [', '],
+);
 
 function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
-  return SET_HAS.call(set, value);
+  return REFLECT_APPLY(
+    SET_HAS as (this: Set<Value>, value: Value) => boolean,
+    set,
+    [value],
+  );
 }
 
 function setAddValue<Value>(set: Set<Value>, value: Value): void {
-  SET_ADD.call(set, value);
+  REFLECT_APPLY(
+    SET_ADD as (this: Set<Value>, value: Value) => Set<Value>,
+    set,
+    [value],
+  );
 }
 
 function createSetValue<Value>(values?: Iterable<Value>): Set<Value> {
@@ -153,25 +173,40 @@ function createSetValue<Value>(values?: Iterable<Value>): Set<Value> {
 }
 
 function stringTrim(value: string): string {
-  return STRING_TRIM.call(value);
+  return REFLECT_APPLY(STRING_TRIM as () => string, value, []);
 }
 
 function arrayMapValues<Value, Result>(
   values: readonly Value[],
   mapFn: (value: Value, index: number, array: readonly Value[]) => Result,
 ): Result[] {
-  return ARRAY_MAP.call(values, mapFn) as Result[];
+  return REFLECT_APPLY(
+    ARRAY_MAP as (
+      this: readonly Value[],
+      mapFn: (value: Value, index: number, array: readonly Value[]) => Result,
+    ) => Result[],
+    values,
+    [mapFn],
+  );
 }
 
 function arrayJoinValues(
   values: readonly unknown[],
   separator: string,
 ): string {
-  return ARRAY_JOIN.call(values, separator);
+  return REFLECT_APPLY(
+    ARRAY_JOIN as (this: readonly unknown[], separator: string) => string,
+    values,
+    [separator],
+  );
 }
 
 function arrayPushValue<Value>(values: Value[], value: Value): number {
-  return ARRAY_PUSH.call(values, value);
+  return REFLECT_APPLY(
+    ARRAY_PUSH as (this: Value[], value: Value) => number,
+    values,
+    [value],
+  );
 }
 
 function objectFromEntries<EntryKey extends PropertyKey, EntryValue>(

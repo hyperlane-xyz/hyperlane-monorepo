@@ -14,6 +14,14 @@ const STRING_REPLACE = String.prototype.replace as (
 const SET_CONSTRUCTOR = Set as new <Value>(
   values?: Iterable<Value>,
 ) => Set<Value>;
+const REFLECT_APPLY = Reflect.apply as <
+  ReturnValue,
+  ArgumentValues extends readonly unknown[],
+>(
+  target: (...args: ArgumentValues) => ReturnValue,
+  thisArgument: unknown,
+  argumentsList: ArgumentValues,
+) => ReturnValue;
 const REGEXP_PROTOTYPE_TEST = RegExp.prototype.test as (
   this: RegExp,
   value: string,
@@ -45,7 +53,11 @@ export const BUILTIN_SQUADS_ERROR_LABELS = objectFreezeValue([
 const GENERIC_ERROR_LABELS = createSetValue<string>();
 const SET_ADD = Set.prototype.add;
 for (const label of BUILTIN_SQUADS_ERROR_LABELS) {
-  SET_ADD.call(GENERIC_ERROR_LABELS, stringToLowerCase(label));
+  REFLECT_APPLY(
+    SET_ADD as (this: Set<string>, value: string) => Set<string>,
+    GENERIC_ERROR_LABELS,
+    [stringToLowerCase(label)],
+  );
 }
 const SET_HAS = Set.prototype.has;
 const ERROR_LABEL_WITH_MESSAGE_PATTERN = /^([A-Za-z]*Error)\s*:\s*(.+)$/;
@@ -55,15 +67,19 @@ function createSetValue<Value>(values?: Iterable<Value>): Set<Value> {
 }
 
 function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
-  return SET_HAS.call(set, value);
+  return REFLECT_APPLY(
+    SET_HAS as (this: Set<Value>, value: Value) => boolean,
+    set,
+    [value],
+  );
 }
 
 function stringTrim(value: string): string {
-  return STRING_TRIM.call(value);
+  return REFLECT_APPLY(STRING_TRIM as () => string, value, []);
 }
 
 function stringToLowerCase(value: string): string {
-  return STRING_TO_LOWER_CASE.call(value);
+  return REFLECT_APPLY(STRING_TO_LOWER_CASE as () => string, value, []);
 }
 
 function stringReplaceValue(
@@ -71,15 +87,34 @@ function stringReplaceValue(
   searchValue: string | RegExp,
   replaceValue: string,
 ): string {
-  return STRING_REPLACE.call(value, searchValue, replaceValue);
+  return REFLECT_APPLY(
+    STRING_REPLACE as (
+      this: string,
+      searchValue: string | RegExp,
+      replaceValue: string,
+    ) => string,
+    value,
+    [searchValue, replaceValue],
+  );
 }
 
 function regexpTest(pattern: RegExp, value: string): boolean {
-  return REGEXP_PROTOTYPE_TEST.call(pattern, value);
+  return REFLECT_APPLY(
+    REGEXP_PROTOTYPE_TEST as (this: RegExp, value: string) => boolean,
+    pattern,
+    [value],
+  );
 }
 
 function regexpExec(pattern: RegExp, value: string): RegExpExecArray | null {
-  return REGEXP_PROTOTYPE_EXEC.call(pattern, value);
+  return REFLECT_APPLY(
+    REGEXP_PROTOTYPE_EXEC as (
+      this: RegExp,
+      value: string,
+    ) => RegExpExecArray | null,
+    pattern,
+    [value],
+  );
 }
 
 function normalizeErrorLabel(value: string): string {

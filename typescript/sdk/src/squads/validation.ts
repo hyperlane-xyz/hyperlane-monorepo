@@ -4,9 +4,17 @@ import { inspectArrayValue } from './inspection.js';
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const STRING_FUNCTION = String;
 const STRING_TRIM = String.prototype.trim;
+const REFLECT_APPLY = Reflect.apply as <
+  ReturnValue,
+  ArgumentValues extends readonly unknown[],
+>(
+  target: (...args: ArgumentValues) => ReturnValue,
+  thisArgument: unknown,
+  argumentsList: ArgumentValues,
+) => ReturnValue;
 
 function stringTrim(value: string): string {
-  return STRING_TRIM.call(value);
+  return REFLECT_APPLY(STRING_TRIM as () => string, value, []);
 }
 
 function numberIsSafeInteger(value: unknown): boolean {
