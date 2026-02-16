@@ -2851,6 +2851,53 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps Reflect.apply wrapper discovery stable for custom patterns with overridden Symbol.match', () => {
+    const baselineMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const baselineCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const symbolMatchMutationPattern = /Reflect\.apply is mutated/gi;
+    const symbolMatchCapturePattern = /const REFLECT_APPLY = Reflect\.apply/iy;
+    symbolMatchMutationPattern.lastIndex = 73;
+    symbolMatchCapturePattern.lastIndex = 79;
+
+    Object.defineProperty(symbolMatchMutationPattern, Symbol.match, {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected Reflect.apply mutation wrapper discovery to avoid caller Symbol.match dispatch',
+        );
+      },
+    });
+    Object.defineProperty(symbolMatchCapturePattern, Symbol.match, {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected Reflect.apply capture wrapper discovery to avoid caller Symbol.match dispatch',
+        );
+      },
+    });
+
+    expect(
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        symbolMatchMutationPattern,
+      ),
+    ).to.deep.equal(baselineMutationPaths);
+    expect(
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        symbolMatchCapturePattern,
+      ),
+    ).to.deep.equal(baselineCapturePaths);
+    expect(symbolMatchMutationPattern.lastIndex).to.equal(73);
+    expect(symbolMatchCapturePattern.lastIndex).to.equal(79);
+  });
+
   it('keeps Reflect.apply pattern-discovery helper defaults repeatable and lastIndex-safe', () => {
     const originalMutationTitlePatternLastIndex =
       REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN.lastIndex;
@@ -3202,6 +3249,66 @@ describe('squads barrel exports', () => {
         writable: true,
         value: originalReflectApply,
       });
+    }
+  });
+
+  it('keeps Reflect.apply wrapper discovery stable when RegExp.prototype Symbol.match slot is patched', () => {
+    const defaultMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
+    const defaultCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
+    const customMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const customCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /Reflect\.apply/,
+      );
+    const originalSymbolMatchDescriptor = Object.getOwnPropertyDescriptor(
+      RegExp.prototype,
+      Symbol.match,
+    );
+
+    Object.defineProperty(RegExp.prototype, Symbol.match, {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected Reflect.apply wrapper discovery to avoid RegExp.prototype Symbol.match dispatch',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+      ).to.deep.equal(defaultCapturePaths);
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(customMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          /Reflect\.apply/,
+        ),
+      ).to.deep.equal(customCapturePaths);
+    } finally {
+      if (originalSymbolMatchDescriptor) {
+        Object.defineProperty(
+          RegExp.prototype,
+          Symbol.match,
+          originalSymbolMatchDescriptor,
+        );
+      } else {
+        delete (RegExp.prototype as unknown as { [Symbol.match]?: unknown })[
+          Symbol.match
+        ];
+      }
     }
   });
 
