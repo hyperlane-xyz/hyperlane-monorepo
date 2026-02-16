@@ -1724,6 +1724,9 @@ function coerceKnownProtocolType(
       if (rawProtocol.length > MAX_PROTOCOL_STRING_LENGTH) {
         return undefined;
       }
+      if (rawProtocol.includes('\0')) {
+        return undefined;
+      }
       const normalizedProtocol = rawProtocol.trim().toLowerCase();
       if (
         normalizedProtocol.length === 0 ||
