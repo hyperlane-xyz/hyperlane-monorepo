@@ -6,7 +6,10 @@ export { AltVMJsonRpcSubmitter } from './AltVMJsonRpcSubmitter.js';
 export { AltVMCoreModule } from './AltVMCoreModule.js';
 export { AltVMCoreReader } from './AltVMCoreReader.js';
 export { coreModuleProvider } from './core-module.js';
-export { CoreArtifactReader } from './core/core-artifact-reader.js';
+export {
+  CoreArtifactReader,
+  createCoreReader,
+} from './core/core-artifact-reader.js';
 export { CoreWriter, createCoreWriter } from './core/core-writer.js';
 export { createHookReader } from './hook/hook-reader.js';
 export { HookWriter, createHookWriter } from './hook/hook-writer.js';
