@@ -20,6 +20,8 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
   const ICA_OWNER = '0x8787878787878787878787878787878787878787';
   const DESTINATION_ROUTER = '0x9090909090909090909090909090909090909090';
   const ORIGIN_ROUTER = '0x9191919191919191919191919191919191919191';
+  const MALFORMED_ORIGIN_ROUTER =
+    '0x9292929292929292929292929292929292929292';
   const TX = {
     to: '0x2222222222222222222222222222222222222222',
     data: '0x',
@@ -28,8 +30,10 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
   const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
   const originRouterBytes32 =
     `0x000000000000000000000000${ORIGIN_ROUTER.slice(2)}` as const;
+  const malformedOriginRouterBytes32 =
+    `0x000000000000000000000000${MALFORMED_ORIGIN_ROUTER.slice(2)}` as const;
 
-  async function resolveFromLogs(logs: any[], validLog: any) {
+  async function resolveFromLogs(logs: any[]) {
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => ICA_OWNER,
     } as any);
@@ -55,6 +59,11 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
           },
           interface: {
             parseLog: (log: any) => {
+              if (log?.__parsedArgs) {
+                return {
+                  args: log.__parsedArgs,
+                };
+              }
               return log?.__validLog === true
                 ? {
                     args: {
@@ -114,6 +123,7 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
         TxSubmitterType.INTERCHAIN_ACCOUNT,
       );
       expect((batches[0].config.submitter as any).chain).to.equal(ORIGIN_CHAIN);
+      return batches[0].config.submitter as any;
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -143,7 +153,7 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
       logIndex: 999,
     };
 
-    await resolveFromLogs([malformedGetterLog, validLog], validLog);
+    await resolveFromLogs([malformedGetterLog, validLog]);
   });
 
   it('ignores transactionIndex toString getter throws during ICA event ordering', async () => {
@@ -169,7 +179,7 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
       logIndex: 999,
     };
 
-    await resolveFromLogs([malformedGetterLog, validLog], validLog);
+    await resolveFromLogs([malformedGetterLog, validLog]);
   });
 
   it('ignores logIndex toString getter throws during ICA event ordering', async () => {
@@ -193,7 +203,40 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
       },
     };
 
-    await resolveFromLogs([malformedGetterLog, validLog], validLog);
+    await resolveFromLogs([malformedGetterLog, validLog]);
+  });
+
+  it('ignores scientific-notation origin domains and uses latest valid ICA event', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 600,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const malformedDomainLog = {
+      __parsedArgs: {
+        origin: '3.1347e4',
+        router: malformedOriginRouterBytes32,
+        owner: signerBytes32,
+        ism: ethersConstants.AddressZero,
+      },
+      topics: ['0xmalformed-scientific-origin-domain'],
+      data: '0x',
+      blockNumber: 601,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+
+    const inferredSubmitter = await resolveFromLogs([
+      malformedDomainLog,
+      validLog,
+    ]);
+
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
   });
 });
 

@@ -263,6 +263,20 @@ function compareLogsByPosition(
   return compareLogPositionIndex(a.logIndex, b.logIndex);
 }
 
+function toHyperlaneDomainId(value: unknown): number | null {
+  const normalizedDomain = toNonNegativeIntegerBigInt(value);
+  if (normalizedDomain === null) {
+    return null;
+  }
+  if (
+    normalizedDomain > BigInt(MAX_HYPERLANE_DOMAIN_ID) ||
+    normalizedDomain > BigInt(Number.MAX_SAFE_INTEGER)
+  ) {
+    return null;
+  }
+  return Number(normalizedDomain);
+}
+
 /**
  * Signer availability probe with aggressive memoization and defensive narrowing.
  *
@@ -701,12 +715,8 @@ async function inferIcaSubmitterFromAccount({
     let ism: Address;
     try {
       const parsed = destinationRouter.interface.parseLog(log);
-      const normalizedOriginDomain = Number(parsed.args.origin);
-      if (
-        !Number.isSafeInteger(normalizedOriginDomain) ||
-        normalizedOriginDomain < 0 ||
-        normalizedOriginDomain > MAX_HYPERLANE_DOMAIN_ID
-      ) {
+      const normalizedOriginDomain = toHyperlaneDomainId(parsed.args.origin);
+      if (normalizedOriginDomain === null) {
         continue;
       }
       originDomain = normalizedOriginDomain;
