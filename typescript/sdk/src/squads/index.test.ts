@@ -104,6 +104,37 @@ const EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS =
   ]);
 const EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS =
   Object.freeze(['src/squads/inspection.ts', 'src/squads/provider.ts']);
+const EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS =
+  Object.freeze([
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/config.ts',
+      expectedReflectApplyIdentifierReferenceCount: 1,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/error-format.ts',
+      expectedReflectApplyIdentifierReferenceCount: 1,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/inspection.ts',
+      expectedReflectApplyIdentifierReferenceCount: 0,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/provider.ts',
+      expectedReflectApplyIdentifierReferenceCount: 0,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/transaction-reader.ts',
+      expectedReflectApplyIdentifierReferenceCount: 1,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/utils.ts',
+      expectedReflectApplyIdentifierReferenceCount: 1,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/validation.ts',
+      expectedReflectApplyIdentifierReferenceCount: 1,
+    }),
+  ]);
 const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE =
   Object.freeze([
     Object.freeze({
@@ -1602,6 +1633,41 @@ describe('squads barrel exports', () => {
     ).to.deep.equal(['src/squads/inspection.ts', 'src/squads/provider.ts']);
   });
 
+  it('keeps expected canonical sdk squads Reflect.apply runtime identifier-reference counts', () => {
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS,
+    ).to.deep.equal([
+      {
+        runtimeSourcePath: 'src/squads/config.ts',
+        expectedReflectApplyIdentifierReferenceCount: 1,
+      },
+      {
+        runtimeSourcePath: 'src/squads/error-format.ts',
+        expectedReflectApplyIdentifierReferenceCount: 1,
+      },
+      {
+        runtimeSourcePath: 'src/squads/inspection.ts',
+        expectedReflectApplyIdentifierReferenceCount: 0,
+      },
+      {
+        runtimeSourcePath: 'src/squads/provider.ts',
+        expectedReflectApplyIdentifierReferenceCount: 0,
+      },
+      {
+        runtimeSourcePath: 'src/squads/transaction-reader.ts',
+        expectedReflectApplyIdentifierReferenceCount: 1,
+      },
+      {
+        runtimeSourcePath: 'src/squads/utils.ts',
+        expectedReflectApplyIdentifierReferenceCount: 1,
+      },
+      {
+        runtimeSourcePath: 'src/squads/validation.ts',
+        expectedReflectApplyIdentifierReferenceCount: 1,
+      },
+    ]);
+  });
+
   it('keeps expected canonical sdk squads Reflect.apply mutation runtime coverage map', () => {
     expect(
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE,
@@ -1745,6 +1811,38 @@ describe('squads barrel exports', () => {
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
       'expected sdk squads Reflect.apply non-captured runtime source path constant',
     );
+  });
+
+  it('keeps sdk squads Reflect.apply runtime identifier-reference count constants normalized and immutable', () => {
+    expect(
+      Object.isFrozen(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS,
+      ),
+    ).to.equal(true);
+    expect(
+      new Set(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+          ({ runtimeSourcePath }) => runtimeSourcePath,
+        ),
+      ).size,
+    ).to.equal(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.length,
+    );
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      ),
+    ).to.deep.equal(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      ).toSorted(compareLexicographically),
+    );
+    for (const referenceCountEntry of EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS) {
+      expect(Object.isFrozen(referenceCountEntry)).to.equal(true);
+      expect(
+        referenceCountEntry.expectedReflectApplyIdentifierReferenceCount,
+      ).to.be.greaterThanOrEqual(0);
+    }
   });
 
   it('keeps sdk Reflect.apply mutation tests aligned with expected test-file paths', () => {
@@ -1985,6 +2083,50 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps sdk runtime Reflect.apply identifier references aligned with capture partition tables', () => {
+    const discoveredRuntimeSourcePaths = listSdkSquadsNonTestSourceFilePaths()
+      .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
+      .sort(compareLexicographically);
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      ),
+    ).to.deep.equal(discoveredRuntimeSourcePaths);
+
+    const capturedRuntimeSourcePathSet = new Set(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+    );
+    const nonCapturedRuntimeSourcePathSet = new Set(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+    );
+
+    for (const {
+      runtimeSourcePath,
+      expectedReflectApplyIdentifierReferenceCount,
+    } of EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS) {
+      const absoluteSourcePath = path.join(SDK_PACKAGE_ROOT, runtimeSourcePath);
+      const source = fs.readFileSync(absoluteSourcePath, 'utf8');
+      expect(countOccurrences(source, 'Reflect.apply')).to.equal(
+        expectedReflectApplyIdentifierReferenceCount,
+      );
+      if (expectedReflectApplyIdentifierReferenceCount > 0) {
+        expect(capturedRuntimeSourcePathSet.has(runtimeSourcePath)).to.equal(
+          true,
+        );
+        expect(nonCapturedRuntimeSourcePathSet.has(runtimeSourcePath)).to.equal(
+          false,
+        );
+      } else {
+        expect(nonCapturedRuntimeSourcePathSet.has(runtimeSourcePath)).to.equal(
+          true,
+        );
+        expect(capturedRuntimeSourcePathSet.has(runtimeSourcePath)).to.equal(
+          false,
+        );
+      }
+    }
+  });
+
   it('keeps Reflect.apply mutation coverage constants deeply frozen', () => {
     expect(
       Object.isFrozen(
@@ -2006,6 +2148,11 @@ describe('squads barrel exports', () => {
     ).to.equal(true);
     expect(
       Object.isFrozen(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS,
+      ),
+    ).to.equal(true);
+    expect(
+      Object.isFrozen(
         EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE,
       ),
     ).to.equal(true);
@@ -2015,6 +2162,9 @@ describe('squads barrel exports', () => {
     for (const runtimeEntry of EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE) {
       expect(Object.isFrozen(runtimeEntry)).to.equal(true);
       expect(Object.isFrozen(runtimeEntry.coveringTestPaths)).to.equal(true);
+    }
+    for (const countEntry of EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS) {
+      expect(Object.isFrozen(countEntry)).to.equal(true);
     }
 
     const baselineMutationTestFilePaths = [
@@ -2026,6 +2176,11 @@ describe('squads barrel exports', () => {
     const baselineNonCaptureRuntimeSourcePaths = [
       ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
     ];
+    const baselineRuntimeReflectApplyIdentifierReferenceCounts =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+        ({ runtimeSourcePath, expectedReflectApplyIdentifierReferenceCount }) =>
+          `${runtimeSourcePath}:${expectedReflectApplyIdentifierReferenceCount}`,
+      );
     const baselineCountSignatures =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS.map(
         ({ testPath, expectedMutationTestCount }) =>
@@ -2087,6 +2242,25 @@ describe('squads barrel exports', () => {
         EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS as unknown as string[]
       )[0] = 'src/squads/mutated.ts';
     }).to.throw();
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS as unknown as Array<{
+          runtimeSourcePath: string;
+          expectedReflectApplyIdentifierReferenceCount: number;
+        }>
+      ).push({
+        runtimeSourcePath: 'src/squads/injected.ts',
+        expectedReflectApplyIdentifierReferenceCount: 1,
+      });
+    }).to.throw();
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS as unknown as Array<{
+          runtimeSourcePath: string;
+          expectedReflectApplyIdentifierReferenceCount: number;
+        }>
+      )[0].expectedReflectApplyIdentifierReferenceCount = 99;
+    }).to.throw();
 
     expect(() => {
       (
@@ -2131,6 +2305,12 @@ describe('squads barrel exports', () => {
     expect([
       ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
     ]).to.deep.equal(baselineNonCaptureRuntimeSourcePaths);
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+        ({ runtimeSourcePath, expectedReflectApplyIdentifierReferenceCount }) =>
+          `${runtimeSourcePath}:${expectedReflectApplyIdentifierReferenceCount}`,
+      ),
+    ).to.deep.equal(baselineRuntimeReflectApplyIdentifierReferenceCounts);
     expect(
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.map(
         ({ runtimeSourcePath, coveringTestPaths }) =>
