@@ -2511,6 +2511,71 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps sdk Reflect.apply positive-count source sets aligned across capture, identifier, and invocation tables', () => {
+    const capturedSourcePaths = [
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+    ].sort(compareLexicographically);
+
+    const captureDeclarationPositiveSourcePaths =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.filter(
+        ({ expectedReflectApplyCaptureDeclarationCount }) =>
+          expectedReflectApplyCaptureDeclarationCount > 0,
+      )
+        .map(({ runtimeSourcePath }) => runtimeSourcePath)
+        .sort(compareLexicographically);
+    const identifierPositiveSourcePaths =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.filter(
+        ({ expectedReflectApplyIdentifierReferenceCount }) =>
+          expectedReflectApplyIdentifierReferenceCount > 0,
+      )
+        .map(({ runtimeSourcePath }) => runtimeSourcePath)
+        .sort(compareLexicographically);
+    const invocationPositiveSourcePaths =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.filter(
+        ({ expectedReflectApplyInvocationCount }) =>
+          expectedReflectApplyInvocationCount > 0,
+      )
+        .map(({ runtimeSourcePath }) => runtimeSourcePath)
+        .sort(compareLexicographically);
+
+    expect(captureDeclarationPositiveSourcePaths).to.deep.equal(
+      capturedSourcePaths,
+    );
+    expect(identifierPositiveSourcePaths).to.deep.equal(capturedSourcePaths);
+    expect(invocationPositiveSourcePaths).to.deep.equal(capturedSourcePaths);
+
+    const nonCapturedSourcePaths = [
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+    ].sort(compareLexicographically);
+    const captureDeclarationZeroSourcePaths =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.filter(
+        ({ expectedReflectApplyCaptureDeclarationCount }) =>
+          expectedReflectApplyCaptureDeclarationCount === 0,
+      )
+        .map(({ runtimeSourcePath }) => runtimeSourcePath)
+        .sort(compareLexicographically);
+    const identifierZeroSourcePaths =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.filter(
+        ({ expectedReflectApplyIdentifierReferenceCount }) =>
+          expectedReflectApplyIdentifierReferenceCount === 0,
+      )
+        .map(({ runtimeSourcePath }) => runtimeSourcePath)
+        .sort(compareLexicographically);
+    const invocationZeroSourcePaths =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.filter(
+        ({ expectedReflectApplyInvocationCount }) =>
+          expectedReflectApplyInvocationCount === 0,
+      )
+        .map(({ runtimeSourcePath }) => runtimeSourcePath)
+        .sort(compareLexicographically);
+
+    expect(captureDeclarationZeroSourcePaths).to.deep.equal(
+      nonCapturedSourcePaths,
+    );
+    expect(identifierZeroSourcePaths).to.deep.equal(nonCapturedSourcePaths);
+    expect(invocationZeroSourcePaths).to.deep.equal(nonCapturedSourcePaths);
+  });
+
   it('keeps sdk Reflect.apply identifier and REFLECT_APPLY totals aligned with runtime sources', () => {
     const identifierReferenceCountTotalFromTable =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.reduce(
