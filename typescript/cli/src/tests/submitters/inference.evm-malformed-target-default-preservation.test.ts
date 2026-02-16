@@ -165,6 +165,26 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target default pr
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('still applies valid EVM target override when transaction data getter throws', async () => {
+    const strategyPath = createStrategyPath('throwing-data-getter');
+    writeTargetOverrideStrategy(strategyPath);
+
+    const txWithThrowingDataGetter = {
+      ...TX,
+      get data() {
+        throw new Error('data getter should not crash target override routing');
+      },
+    };
+
+    const batches = await resolveSingleBatch(
+      txWithThrowingDataGetter,
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('routes valid targets while preserving default for transactions with throwing target getters', async () => {
     const strategyPath = createStrategyPath('mixed-valid-and-throwing-target');
     writeTargetOverrideStrategy(strategyPath);

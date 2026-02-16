@@ -1452,8 +1452,8 @@ function tryNormalizeEvmAddress(address: string): string | null {
 }
 
 function getTxSelector(tx: TypedAnnotatedTransaction): string | undefined {
-  const data = (tx as any).data;
-  if (typeof data !== 'string') {
+  const data = getTransactionStringField(tx, 'data');
+  if (!data) {
     return undefined;
   }
 
@@ -1599,7 +1599,7 @@ function hasNonEmptyStringTarget(
 
 function getTransactionStringField(
   transaction: TypedAnnotatedTransaction,
-  field: 'to' | 'from',
+  field: 'to' | 'from' | 'data',
 ): string | undefined {
   try {
     const value = (transaction as any)[field];

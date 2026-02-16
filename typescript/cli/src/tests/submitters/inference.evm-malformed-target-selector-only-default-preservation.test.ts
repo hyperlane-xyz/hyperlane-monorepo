@@ -105,6 +105,28 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target selector-o
     );
   });
 
+  it('preserves explicit default submitter when transaction data getter throws and only selector override exists', async () => {
+    const strategyPath = createStrategyPath('throwing-data-getter');
+    writeSelectorOnlyStrategy(strategyPath);
+
+    const txWithThrowingDataGetter = {
+      ...TX,
+      get data() {
+        throw new Error('data getter should not crash selector override routing');
+      },
+    };
+
+    const batches = await resolveSingleBatch(
+      txWithThrowingDataGetter,
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('still applies selector-specific override when transaction target is well-formed', async () => {
     const strategyPath = createStrategyPath('well-formed-target');
     writeSelectorOnlyStrategy(strategyPath);
