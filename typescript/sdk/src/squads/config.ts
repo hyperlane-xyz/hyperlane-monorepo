@@ -2,6 +2,7 @@ import { PublicKey } from '@solana/web3.js';
 
 import { Address } from '@hyperlane-xyz/utils';
 import { stringifyUnknownSquadsError } from './error-format.js';
+import { inspectArrayValue } from './inspection.js';
 
 export type SquadConfig = {
   programId: Address;
@@ -83,23 +84,6 @@ function getUnknownValueTypeName(value: unknown): string {
   }
 
   return isArray ? 'array' : typeof value;
-}
-
-function inspectArrayValue(value: unknown): {
-  isArray: boolean;
-  readFailed: boolean;
-} {
-  try {
-    return {
-      isArray: Array.isArray(value),
-      readFailed: false,
-    };
-  } catch {
-    return {
-      isArray: false,
-      readFailed: true,
-    };
-  }
 }
 
 function formatLengthValue(value: unknown): string {
