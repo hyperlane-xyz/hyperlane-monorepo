@@ -2186,6 +2186,30 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('throws contextual errors when protocol lookup returns undefined', () => {
+    const mpp = {
+      tryGetProtocol: () => undefined,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      resolveProtocolTypeForWarpRoute: (
+        routeName: string,
+        chain: string,
+      ) => ProtocolType | null;
+    };
+
+    expect(() =>
+      readerAny.resolveProtocolTypeForWarpRoute('routeA', 'solanamainnet'),
+    ).to.throw(
+      'Invalid protocol for warp route routeA on solanamainnet: expected ProtocolType or null, got undefined',
+    );
+  });
+
   it('throws contextual errors for malformed protocol lookup string values', () => {
     const mpp = {
       tryGetProtocol: () => 'not-a-protocol',
