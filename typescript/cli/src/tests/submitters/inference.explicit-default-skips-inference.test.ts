@@ -169,6 +169,54 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     );
   });
 
+  it('does not attempt inference when explicit strategy has overrides but no transactions have usable targets', async () => {
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('ownable probe should not run'));
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('safe probe should not run'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('timelock probe should not run'));
+    let protocolCalls = 0;
+
+    try {
+      const transactions = [
+        { ...TX, to: undefined },
+        { ...TX, to: '   ' },
+        { ...TX, to: 123 as any },
+      ];
+
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: transactions as any,
+        context: {
+          multiProvider: {
+            getProtocol: () => {
+              protocolCalls += 1;
+              return ProtocolType.Ethereum;
+            },
+          },
+        } as any,
+        strategyUrl: createExplicitStrategyWithOverridePath(),
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(protocolCalls).to.equal(0);
+      expect(ownableStub.callCount).to.equal(0);
+      expect(safeStub.callCount).to.equal(0);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('does not look up protocol when explicit strategy has empty overrides object', async () => {
     let protocolCalls = 0;
 
