@@ -1012,6 +1012,44 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(0);
   });
 
+  it('returns chain-resolution failure using fallback formatting for generic object Error messages', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => {
+        throw new Error('[object Object]');
+      },
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Failed to resolve chain for domain 1000: Error: [object Object]',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
   it('returns chain-resolution failure when chain-resolver accessor throws', () => {
     let resolveConfigCallCount = 0;
     const mpp = new Proxy(

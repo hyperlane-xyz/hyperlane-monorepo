@@ -52,6 +52,7 @@ import {
 } from './utils.js';
 import {
   isGenericObjectStringifiedValue,
+  normalizeStringifiedSquadsError,
   stringifyUnknownSquadsError,
 } from './error-format.js';
 import { toSquadsProvider } from './provider.js';
@@ -156,9 +157,7 @@ function getErrorMessageFromErrorInstance(error: unknown): string | undefined {
 
   try {
     const message = (error as Error).message;
-    return typeof message === 'string' && message.trim().length > 0
-      ? message
-      : undefined;
+    return normalizeStringifiedSquadsError(message);
   } catch {
     return undefined;
   }
