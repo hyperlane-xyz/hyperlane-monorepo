@@ -4,11 +4,12 @@ import type { Logger } from 'pino';
 import {
   type AnnotatedEV5Transaction,
   type ChainName,
+  type InterchainGasQuote,
   type MultiProvider,
   type Token,
   TokenStandard,
 } from '@hyperlane-xyz/sdk';
-import { addBufferToGasLimit } from '@hyperlane-xyz/utils';
+import { addBufferToGasLimit, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 /**
  * Fallback gas limit for transferRemote when eth_estimateGas fails.
@@ -31,16 +32,16 @@ export interface TransferCostEstimate {
   igpCost: bigint;
   /** Estimated gas cost for the transferRemote transaction (with buffer) */
   gasCost: bigint;
-  /** Total cost = igpCost + gasCost */
+  /** Token fee cost (native denom only) */
+  tokenFeeCost: bigint;
+  /** Total cost = igpCost + gasCost + tokenFeeCost */
   totalCost: bigint;
   /** Maximum transferable amount after reserving costs (availableInventory - totalCost) */
   maxTransferable: bigint;
   /** Minimum viable transfer (totalCost * MIN_VIABLE_COST_MULTIPLIER) */
   minViableTransfer: bigint;
   /** Gas quote from adapter (for passing to executeTransferRemote) */
-  gasQuote?: {
-    igpQuote: { amount: bigint };
-  };
+  gasQuote?: InterchainGasQuote;
 }
 
 /**
@@ -185,6 +186,7 @@ export async function calculateTransferCosts(
     return {
       igpCost: 0n,
       gasCost: 0n,
+      tokenFeeCost: 0n,
       totalCost: 0n,
       maxTransferable:
         availableInventory < requestedAmount
@@ -197,6 +199,13 @@ export async function calculateTransferCosts(
 
   // For native tokens, calculate costs
   const igpCost = gasQuote.igpQuote.amount;
+
+  // Extract token fee cost (native denom only)
+  const tokenFeeCost =
+    !gasQuote.tokenFeeQuote?.addressOrDenom ||
+    isZeroishAddress(gasQuote.tokenFeeQuote.addressOrDenom)
+      ? (gasQuote.tokenFeeQuote?.amount ?? 0n)
+      : 0n;
 
   // Estimate gas with buffer
   const estimatedGasLimit = await estimateTransferRemoteGas(
@@ -219,7 +228,7 @@ export async function calculateTransferCosts(
   const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
   const gasCost = bufferedGasLimit.toBigInt() * BigInt(gasPrice.toString());
 
-  const totalCost = igpCost + gasCost;
+  const totalCost = igpCost + gasCost + tokenFeeCost;
 
   // Calculate derived values
   let maxTransferable: bigint;
@@ -243,6 +252,7 @@ export async function calculateTransferCosts(
       requestedAmount: requestedAmount.toString(),
       igpCost: igpCost.toString(),
       gasCost: gasCost.toString(),
+      tokenFeeCost: tokenFeeCost.toString(),
       totalCost: totalCost.toString(),
       maxTransferable: maxTransferable.toString(),
       minViableTransfer: minViableTransfer.toString(),
@@ -253,6 +263,7 @@ export async function calculateTransferCosts(
   return {
     igpCost,
     gasCost,
+    tokenFeeCost,
     totalCost,
     maxTransferable,
     minViableTransfer,

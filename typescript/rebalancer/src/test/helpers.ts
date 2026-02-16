@@ -22,8 +22,10 @@ import type {
   PreparedTransaction,
   RebalancerType,
 } from '../interfaces/IRebalancer.js';
-import type { MovableCollateralRoute } from '../interfaces/IStrategy.js';
-import type { StrategyRoute } from '../interfaces/IStrategy.js';
+import type {
+  MovableCollateralRoute,
+  StrategyRoute,
+} from '../interfaces/IStrategy.js';
 import type { BridgeConfigWithOverride } from '../utils/index.js';
 
 // === Mock Classes ===

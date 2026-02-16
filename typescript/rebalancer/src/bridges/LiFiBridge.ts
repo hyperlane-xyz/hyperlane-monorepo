@@ -188,7 +188,7 @@ export class LiFiBridge implements IExternalBridge {
       toAddress: params.toAddress ?? params.fromAddress,
       slippage: params.slippage ?? this.config.defaultSlippage ?? 0.005,
       // Prefer faster routes for rebalancing
-      order: 'FASTEST',
+      order: 'CHEAPEST',
     });
 
     const { gasCosts, feeCosts } = this.extractCosts(
@@ -242,7 +242,7 @@ export class LiFiBridge implements IExternalBridge {
       slippage: (params.slippage ?? this.config.defaultSlippage ?? 0.005)
         .toFixed(4)
         .replace(/\.?0+$/, ''),
-      order: 'FASTEST',
+      order: 'CHEAPEST',
       integrator: this.config.integrator,
     });
 
@@ -359,7 +359,6 @@ export class LiFiBridge implements IExternalBridge {
     );
 
     // Extract private key from ethers Signer (must be a Wallet)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const privateKey = (signer as any).privateKey as string | undefined;
     if (!privateKey) {
       throw new Error(
@@ -372,7 +371,6 @@ export class LiFiBridge implements IExternalBridge {
     const chain = getViemChain(fromChain);
 
     // Get RPC URL from signer's provider
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const provider = signer.provider as any;
     const rpcUrl =
       provider?.connection?.url ?? provider?._getConnection?.()?.url;
