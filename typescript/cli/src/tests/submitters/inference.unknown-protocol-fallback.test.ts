@@ -255,4 +255,74 @@ describe('resolveSubmitterBatchesForTransactions unknown protocol fallback', () 
     );
     expect(batches[0].transactions).to.have.length(2);
   });
+
+  it('applies explicit overrides when protocol lookup returns uppercase protocol string', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-protocol-uppercase-explicit-${Date.now()}.yaml`;
+    const overrideTarget = '0x9999999999999999999999999999999999999999';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x2222222222222222222222222222222222222222',
+          version: '1.0',
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: overrideTarget } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => 'ETHEREUM' as any,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('applies explicit overrides when protocol lookup returns whitespace-padded protocol string', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-protocol-whitespace-explicit-${Date.now()}.yaml`;
+    const overrideTarget = '0x9999999999999999999999999999999999999999';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x2222222222222222222222222222222222222222',
+          version: '1.0',
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: overrideTarget } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => '  ethereum  ' as any,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
 });

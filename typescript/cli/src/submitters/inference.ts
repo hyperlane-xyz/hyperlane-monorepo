@@ -1622,6 +1622,17 @@ function normalizeOptionalPath(value: unknown): string | undefined {
 function coerceKnownProtocolType(
   protocol: unknown,
 ): ProtocolType | undefined {
+  if (typeof protocol === 'string' || protocol instanceof String) {
+    try {
+      const normalizedProtocol = protocol.toString().trim().toLowerCase();
+      return KNOWN_PROTOCOL_TYPES.has(normalizedProtocol as ProtocolType)
+        ? (normalizedProtocol as ProtocolType)
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   return KNOWN_PROTOCOL_TYPES.has(protocol as ProtocolType)
     ? (protocol as ProtocolType)
     : undefined;
