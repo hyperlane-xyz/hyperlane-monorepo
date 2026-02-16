@@ -46,9 +46,14 @@ describe('resolveSubmitterBatchesForTransactions global runtime probe coverage',
             const primitiveLabels = Object.getOwnPropertyNames(globalThis)
               .filter((name) => {
                 const value = globalThis[name];
-                return ['string', 'number', 'boolean', 'bigint', 'undefined'].includes(
-                  typeof value,
-                );
+                return [
+                  'string',
+                  'number',
+                  'boolean',
+                  'bigint',
+                  'undefined',
+                  'symbol',
+                ].includes(typeof value);
               })
               .map((name) => \`\${name.toLowerCase()}-\${typeof globalThis[name]}-primitive\`)
               .sort();

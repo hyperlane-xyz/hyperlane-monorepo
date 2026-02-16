@@ -34,9 +34,14 @@ describe('resolveSubmitterBatchesForTransactions primitive global probes', () =>
           const labels = Object.getOwnPropertyNames(globalThis)
             .filter((name) => {
               const value = globalThis[name];
-              return ['string', 'number', 'boolean', 'bigint', 'undefined'].includes(
-                typeof value,
-              );
+              return [
+                'string',
+                'number',
+                'boolean',
+                'bigint',
+                'undefined',
+                'symbol',
+              ].includes(typeof value);
             })
             .map((name) => \`\${name.toLowerCase()}-\${typeof globalThis[name]}-primitive\`)
             .sort();
@@ -51,7 +56,11 @@ describe('resolveSubmitterBatchesForTransactions primitive global probes', () =>
   for (const name of Object.getOwnPropertyNames(globalThis)) {
     const value = (globalThis as any)[name];
     const valueType = typeof value;
-    if (['string', 'number', 'boolean', 'bigint', 'undefined'].includes(valueType)) {
+    if (
+      ['string', 'number', 'boolean', 'bigint', 'undefined', 'symbol'].includes(
+        valueType,
+      )
+    ) {
       runtimePrimitiveByLabel.set(`${name.toLowerCase()}-${valueType}-primitive`, value);
     }
   }
@@ -65,6 +74,7 @@ describe('resolveSubmitterBatchesForTransactions primitive global probes', () =>
     }
     if (label.endsWith('-boolean-primitive')) return false;
     if (label.endsWith('-bigint-primitive')) return 0n;
+    if (label.endsWith('-symbol-primitive')) return Symbol(label);
     if (label.endsWith('-string-primitive')) return label;
     return undefined;
   };
