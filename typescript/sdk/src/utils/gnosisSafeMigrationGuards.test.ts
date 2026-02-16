@@ -74,6 +74,43 @@ const NULLISH_LOGICAL_BASE_CONDITIONAL_DELETE_KEY_TITLE_STEMS = [
 const EXPECTED_VARIANT_CONDITIONAL_TITLE_COUNT = 324;
 const EXPECTED_NON_VARIANT_CONDITIONAL_TITLE_COUNT = 33;
 const EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT = 357;
+const STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT =
+  '(module specifiers|symbol sources|module-source aliases in symbol sources)';
+const STRICT_EQUALITY_CONDITIONAL_TITLE_REGEX = new RegExp(
+  String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates (?:as deterministic|conservative) for ${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT})'`,
+  'g',
+);
+const STRICT_EQUALITY_VARIANT_CONDITIONAL_TITLE_REGEX = new RegExp(
+  String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*-conditional-[^']*-(?:fallback-length|mixed-fallback) predicates (?:as deterministic|conservative) for ${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT})'`,
+  'g',
+);
+const STRICT_EQUALITY_NON_VARIANT_CONDITIONAL_TITLE_REGEX = new RegExp(
+  String.raw`^((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-(?:left-null-|leading-undefined-|leading-void-|right-undefined-|right-void-)?conditional-(?:fallback-length|mixed-fallback)) predicates (?:as deterministic|conservative) for ${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT}$`,
+);
+
+function extractStrictEqualityConditionalTitles(sourceText: string): string[] {
+  return [...sourceText.matchAll(STRICT_EQUALITY_CONDITIONAL_TITLE_REGEX)].map(
+    (match) => match[1],
+  );
+}
+
+function extractStrictEqualityVariantConditionalTitles(
+  sourceText: string,
+): string[] {
+  return [
+    ...sourceText.matchAll(STRICT_EQUALITY_VARIANT_CONDITIONAL_TITLE_REGEX),
+  ].map((match) => match[1]);
+}
+
+function extractStrictEqualityNonVariantConditionalTitles(
+  sourceText: string,
+): string[] {
+  const allTitles = extractStrictEqualityConditionalTitles(sourceText);
+  const variantTitleSet = new Set(
+    extractStrictEqualityVariantConditionalTitles(sourceText),
+  );
+  return allTitles.filter((title) => !variantTitleSet.has(title));
+}
 
 function normalizeNamedSymbol(symbol: string): string {
   const trimmed = symbol.trim();
@@ -45566,15 +45603,8 @@ describe('Gnosis Safe migration guards', () => {
       '../infra/test/safe-migration-guards.test.ts',
     );
     const infraSourceText = fs.readFileSync(infraSuitePath, 'utf8');
-    const titlePattern =
-      /it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates[^']*)'/g;
-
-    const ownTitles = [...ownSourceText.matchAll(titlePattern)].map(
-      (match) => match[1],
-    );
-    const infraTitles = [...infraSourceText.matchAll(titlePattern)].map(
-      (match) => match[1],
-    );
+    const ownTitles = extractStrictEqualityConditionalTitles(ownSourceText);
+    const infraTitles = extractStrictEqualityConditionalTitles(infraSourceText);
 
     expect([...ownTitles].sort()).to.deep.equal([...infraTitles].sort());
     expect(new Set(ownTitles).size).to.equal(ownTitles.length);
@@ -45630,33 +45660,14 @@ describe('Gnosis Safe migration guards', () => {
 
   it('keeps non-variant nullish-logical conditional delete-key coverage complete', () => {
     const sourceText = fs.readFileSync(__filename, 'utf8');
-    const contextFragment =
-      '(module specifiers|symbol sources|module-source aliases in symbol sources)';
-    const allTitlePattern = new RegExp(
-      String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates (?:as deterministic|conservative) for ${contextFragment})'`,
-      'g',
-    );
-    const matrixTitlePattern = new RegExp(
-      String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*-conditional-[^']*-(?:fallback-length|mixed-fallback) predicates (?:as deterministic|conservative) for ${contextFragment})'`,
-      'g',
-    );
-    const nonVariantPattern = new RegExp(
-      String.raw`^((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-(?:left-null-|leading-undefined-|leading-void-|right-undefined-|right-void-)?conditional-(?:fallback-length|mixed-fallback)) predicates (?:as deterministic|conservative) for ${contextFragment}$`,
-    );
-
-    const allTitles = [...sourceText.matchAll(allTitlePattern)].map(
-      (match) => match[1],
-    );
-    const matrixTitles = new Set(
-      [...sourceText.matchAll(matrixTitlePattern)].map((match) => match[1]),
-    );
-    const nonVariantTitles = allTitles.filter(
-      (title) => !matrixTitles.has(title),
-    );
+    const nonVariantTitles =
+      extractStrictEqualityNonVariantConditionalTitles(sourceText);
 
     const observedContextsByStem = new Map<string, Set<string>>();
     for (const title of nonVariantTitles) {
-      const parsed = title.match(nonVariantPattern);
+      const parsed = title.match(
+        STRICT_EQUALITY_NON_VARIANT_CONDITIONAL_TITLE_REGEX,
+      );
       expect(
         parsed,
         `Unexpected non-variant conditional title ${title}`,
@@ -45689,27 +45700,11 @@ describe('Gnosis Safe migration guards', () => {
 
   it('keeps strict-equality conditional delete-key title cardinality stable', () => {
     const sourceText = fs.readFileSync(__filename, 'utf8');
-    const contextFragment =
-      '(module specifiers|symbol sources|module-source aliases in symbol sources)';
-    const allTitlePattern = new RegExp(
-      String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates (?:as deterministic|conservative) for ${contextFragment})'`,
-      'g',
-    );
-    const matrixTitlePattern = new RegExp(
-      String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*-conditional-[^']*-(?:fallback-length|mixed-fallback) predicates (?:as deterministic|conservative) for ${contextFragment})'`,
-      'g',
-    );
-
-    const allTitles = [...sourceText.matchAll(allTitlePattern)].map(
-      (match) => match[1],
-    );
-    const matrixTitles = [...sourceText.matchAll(matrixTitlePattern)].map(
-      (match) => match[1],
-    );
-    const matrixTitleSet = new Set(matrixTitles);
-    const nonVariantTitles = allTitles.filter(
-      (title) => !matrixTitleSet.has(title),
-    );
+    const allTitles = extractStrictEqualityConditionalTitles(sourceText);
+    const matrixTitles =
+      extractStrictEqualityVariantConditionalTitles(sourceText);
+    const nonVariantTitles =
+      extractStrictEqualityNonVariantConditionalTitles(sourceText);
 
     expect(matrixTitles.length).to.equal(
       EXPECTED_VARIANT_CONDITIONAL_TITLE_COUNT,
