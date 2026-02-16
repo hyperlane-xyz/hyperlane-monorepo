@@ -184,6 +184,10 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /Object\.entries\s*\(/,
   }),
   Object.freeze({
+    label: 'Object.fromEntries call',
+    pattern: /Object\.fromEntries\s*\(/,
+  }),
+  Object.freeze({
     label: 'Object.assign call',
     pattern: /Object\.assign\s*\(/,
   }),
@@ -466,6 +470,7 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   'Object.keys call',
   'Object.values call',
   'Object.entries call',
+  'Object.fromEntries call',
   'Object.assign call',
   'Object.getOwnPropertyNames call',
   'Object.getOwnPropertySymbols call',
@@ -512,8 +517,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.toSpliced method call',
   '.with method call',
 ]);
-const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 74;
-const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 50;
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 75;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 51;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {

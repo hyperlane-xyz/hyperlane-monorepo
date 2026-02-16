@@ -58,6 +58,12 @@ if (squadsConfigEntriesReadError) {
 const SQUADS_CONFIG_ENTRIES = untypedSquadsConfigEntries as Array<
   [SquadsChainName, (typeof squadsConfigs)[SquadsChainName]]
 >;
+const OBJECT_FROM_ENTRIES = Object.fromEntries as <
+  EntryKey extends PropertyKey,
+  EntryValue,
+>(
+  entries: Iterable<readonly [EntryKey, EntryValue]>,
+) => Record<EntryKey, EntryValue>;
 const ARRAY_MAP = Array.prototype.map;
 const ARRAY_JOIN = Array.prototype.join;
 const ARRAY_PUSH = Array.prototype.push;
@@ -86,7 +92,7 @@ function readStaticSquadsConfigFieldOrThrow(
 }
 
 const SQUADS_KEYS_BY_CHAIN = Object.freeze(
-  Object.fromEntries(
+  objectFromEntries(
     arrayMapValues(SQUADS_CONFIG_ENTRIES, ([chainName, config]) => [
       chainName,
       Object.freeze({
@@ -151,6 +157,12 @@ function arrayJoinValues(
 
 function arrayPushValue<Value>(values: Value[], value: Value): number {
   return ARRAY_PUSH.call(values, value);
+}
+
+function objectFromEntries<EntryKey extends PropertyKey, EntryValue>(
+  entries: Iterable<readonly [EntryKey, EntryValue]>,
+): Record<EntryKey, EntryValue> {
+  return OBJECT_FROM_ENTRIES(entries);
 }
 
 export function getSquadsChains(): SquadsChainName[] {
