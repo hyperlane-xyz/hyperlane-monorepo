@@ -296,6 +296,41 @@ describe('squads utils', () => {
       });
     });
 
+    it('keeps address-string normalization stable when Reflect.apply is mutated', () => {
+      const originalReflectApply = Reflect.apply;
+      let normalizedResult:
+        | {
+            address: string | undefined;
+            error: string | undefined;
+          }
+        | undefined;
+
+      Object.defineProperty(Reflect, 'apply', {
+        value: () => {
+          throw new Error('reflect apply unavailable');
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        normalizedResult = normalizeSquadsAddressValue(
+          ' 11111111111111111111111111111111 ',
+        );
+      } finally {
+        Object.defineProperty(Reflect, 'apply', {
+          value: originalReflectApply,
+          writable: true,
+          configurable: true,
+        });
+      }
+
+      expect(normalizedResult).to.deep.equal({
+        address: '11111111111111111111111111111111',
+        error: undefined,
+      });
+    });
+
     it('rejects empty Solana address strings', () => {
       expect(normalizeSquadsAddressValue('   ')).to.deep.equal({
         address: undefined,
