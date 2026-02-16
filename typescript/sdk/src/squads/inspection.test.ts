@@ -351,6 +351,7 @@ describe('squads inspection helpers', () => {
       const functionValue = Object.assign(() => undefined, { foo: true });
       const parent = { inherited: true };
       const child = Object.create(parent);
+      const symbolKey = Symbol('presence-symbol');
 
       expect(inspectPropertyPresence({ foo: 'bar' }, 'foo')).to.deep.equal({
         hasProperty: true,
@@ -368,6 +369,26 @@ describe('squads inspection helpers', () => {
         hasProperty: true,
         readError: undefined,
       });
+      expect(
+        inspectPropertyPresence(
+          {
+            [symbolKey]: 123,
+          },
+          symbolKey,
+        ),
+      ).to.deep.equal({
+        hasProperty: true,
+        readError: undefined,
+      });
+    });
+
+    it('captures read errors for revoked proxy presence checks', () => {
+      const { proxy: revokedValue, revoke } = Proxy.revocable({}, {});
+      revoke();
+      const inspection = inspectPropertyPresence(revokedValue, 'foo');
+
+      expect(inspection.hasProperty).to.equal(false);
+      expect(inspection.readError).to.be.instanceOf(TypeError);
     });
 
     it('captures read errors from throwing has traps', () => {
