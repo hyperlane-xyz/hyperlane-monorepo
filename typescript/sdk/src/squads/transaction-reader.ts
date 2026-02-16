@@ -365,9 +365,39 @@ function formatValidatorsWithAliases(
     return [...validators];
   }
 
-  for (const [index, validator] of (
-    validatorsValue as readonly unknown[]
-  ).entries()) {
+  const normalizedDefaultValidators = validatorsValue as readonly unknown[];
+  const {
+    propertyValue: defaultValidatorsLengthValue,
+    readError: defaultValidatorsLengthReadError,
+  } = inspectPropertyValue(normalizedDefaultValidators, 'length');
+  if (defaultValidatorsLengthReadError) {
+    rootLogger.warn(
+      `Failed to read default multisig validators length for ${chain}: ${stringifyUnknownSquadsError(defaultValidatorsLengthReadError)}`,
+    );
+    return [...validators];
+  }
+
+  if (
+    typeof defaultValidatorsLengthValue !== 'number' ||
+    !Number.isSafeInteger(defaultValidatorsLengthValue) ||
+    defaultValidatorsLengthValue < 0
+  ) {
+    rootLogger.warn(
+      `Malformed default multisig validators length for ${chain}: expected non-negative safe integer, got ${getUnknownValueTypeName(defaultValidatorsLengthValue)}`,
+    );
+    return [...validators];
+  }
+
+  for (let index = 0; index < defaultValidatorsLengthValue; index += 1) {
+    const { propertyValue: validator, readError: validatorReadError } =
+      inspectPropertyValue(normalizedDefaultValidators, index);
+    if (validatorReadError) {
+      rootLogger.warn(
+        `Failed to read default multisig validator at index ${index} for ${chain}: ${stringifyUnknownSquadsError(validatorReadError)}`,
+      );
+      continue;
+    }
+
     if (!isRecordObject(validator)) {
       rootLogger.warn(
         `Skipping malformed default multisig validator at index ${index} for ${chain}: expected object, got ${getUnknownValueTypeName(

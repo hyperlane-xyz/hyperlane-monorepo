@@ -7339,6 +7339,126 @@ describe('squads transaction reader', () => {
     }
   });
 
+  it('keeps formatting validator instructions when default alias validators length accessor throws', () => {
+    const mpp = {
+      tryGetChainName: () => 'solanatestnet',
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const multisigConfigs = defaultMultisigConfigs as unknown as Record<
+      string,
+      unknown
+    >;
+    const originalSolanatestnetConfig = multisigConfigs.solanatestnet;
+    multisigConfigs.solanatestnet = {
+      threshold: 1,
+      validators: new Proxy([{ address: 'validator-a', alias: 'Alias A' }], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            throw new Error('validators length unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }),
+    };
+
+    try {
+      const result = readerAny.formatInstruction('solanamainnet', {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'MultisigIsmMessageId',
+        instructionType:
+          SealevelMultisigIsmInstructionName[
+            SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+          ],
+        data: {
+          domain: 1000,
+          threshold: 1,
+          validators: ['validator-a'],
+        },
+        accounts: [],
+        warnings: [],
+      });
+
+      expect(result.args).to.deep.equal({
+        domain: 1000,
+        threshold: 1,
+        validators: ['validator-a'],
+      });
+    } finally {
+      multisigConfigs.solanatestnet = originalSolanatestnetConfig;
+    }
+  });
+
+  it('keeps formatting validator instructions when default alias validator index access throws', () => {
+    const mpp = {
+      tryGetChainName: () => 'solanatestnet',
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatInstruction: (
+        chain: string,
+        instruction: Record<string, unknown>,
+      ) => Record<string, unknown>;
+    };
+    const multisigConfigs = defaultMultisigConfigs as unknown as Record<
+      string,
+      unknown
+    >;
+    const originalSolanatestnetConfig = multisigConfigs.solanatestnet;
+    multisigConfigs.solanatestnet = {
+      threshold: 1,
+      validators: new Proxy([{ address: 'validator-a', alias: 'Alias A' }], {
+        get(target, property, receiver) {
+          if (property === '0') {
+            throw new Error('validator entry unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      }),
+    };
+
+    try {
+      const result = readerAny.formatInstruction('solanamainnet', {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'MultisigIsmMessageId',
+        instructionType:
+          SealevelMultisigIsmInstructionName[
+            SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+          ],
+        data: {
+          domain: 1000,
+          threshold: 1,
+          validators: ['validator-a'],
+        },
+        accounts: [],
+        warnings: [],
+      });
+
+      expect(result.args).to.deep.equal({
+        domain: 1000,
+        threshold: 1,
+        validators: ['validator-a'],
+      });
+    } finally {
+      multisigConfigs.solanatestnet = originalSolanatestnetConfig;
+    }
+  });
+
   it('keeps formatting validator instructions when default alias validators value is malformed', () => {
     const mpp = {
       tryGetChainName: () => 'solanatestnet',
