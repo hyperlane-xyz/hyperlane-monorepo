@@ -92,4 +92,21 @@ describe('submitter own-object helpers', () => {
     });
     expect(cloned).to.deep.equal({ keep: 1 });
   });
+
+  it('cloneOwnEnumerableObject skips disallowed keys before getter access', () => {
+    const source = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(source, 'submitter', {
+      enumerable: true,
+      configurable: true,
+      get: () => {
+        throw new Error('boom');
+      },
+    });
+    source.keep = 1;
+
+    const cloned = cloneOwnEnumerableObject(source, {
+      disallowedFields: new Set(['submitter']),
+    });
+    expect(cloned).to.deep.equal({ keep: 1 });
+  });
 });
