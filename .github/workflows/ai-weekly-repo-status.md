@@ -188,6 +188,6 @@ If `REPO_SUMMARY_WEBHOOK_URL` is not set or the POST fails, log the error but do
 - Use relative comparisons (↑↓) when comparing to prior week
 - Keep the report scannable — use tables and bullet points, not prose
 - Link to actual PRs/issues where relevant — use full GitHub URLs in both the issue body and Slack message
-- In the GitHub issue body, use markdown links: `[#123](https://github.com/hyperlane-xyz/REPO/pull/123)`
+- In the GitHub issue body, use Markdown links: `[#123](https://github.com/hyperlane-xyz/REPO/pull/123)`
 - In Slack, use mrkdwn links: `<https://github.com/hyperlane-xyz/REPO/pull/123|#123>`
 - The Slack message should be a condensed version, not a copy of the full report

@@ -78,7 +78,7 @@ If the workflow run is associated with a PR, post a comment with:
 - For deterministic failures: explain what needs to be fixed
 - For cascading failures: point to the root cause
 
-Before posting, check for and minimize/hide previous CI Doctor comments on the same PR to avoid noise.
+Before posting, check for previous CI Doctor comments on the same PR using `get_pull_request_comments`. If a previous comment exists, include a note in your new comment referencing it to provide continuity.
 
 ## Step 4: Create Fix PRs (Deterministic Issues Only)
 
