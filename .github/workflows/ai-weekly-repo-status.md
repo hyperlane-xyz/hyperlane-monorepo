@@ -3,15 +3,18 @@ engine: claude
 
 on:
   schedule: weekly on monday
-  push:
-    branches:
-      - feat/agentic-workflows
 
 permissions:
   contents: read
   actions: read
   issues: read
   pull-requests: read
+
+network:
+  firewall: false
+
+env:
+  REPO_SUMMARY_WEBHOOK_URL: ${{ secrets.REPO_SUMMARY_WEBHOOK_URL }}
 
 safe-outputs:
   create-issue:
@@ -57,9 +60,18 @@ For `hyperlane-monorepo`, check failure rates for:
 
 - `test`, `rust`, `Solidity Fork Tests`, `static-analysis`
 
-For `hyperlane-warp-ui`, check the main CI workflow.
+For `hyperlane-warp-ui-template`, check the main CI workflow.
 
 Other repos: skip CI health (low volume).
+
+**Important**: The GitHub MCP tools do not expose workflow run endpoints. Use `bash` with the `gh` CLI to query the Actions API:
+
+```bash
+gh api "repos/OWNER/REPO/actions/workflows/WORKFLOW/runs?per_page=50" \
+  --jq '[.workflow_runs[] | select(.created_at > "DATE") | .conclusion] | group_by(.) | map({(.[0]): length}) | add'
+```
+
+Replace `DATE` with 7 days ago in ISO format. This gives failure vs success counts per workflow.
 
 ## Step 2: Per-Team Breakdown (Monorepo Only)
 
