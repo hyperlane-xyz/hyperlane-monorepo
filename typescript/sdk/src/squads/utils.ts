@@ -2298,7 +2298,7 @@ function assertValidBigintTransactionIndex(
   );
   assert(
     transactionIndex >= 0n,
-    `Expected transaction index to be a non-negative bigint for ${chainLabel}, got ${transactionIndex.toString()}`,
+    `Expected transaction index to be a non-negative bigint for ${chainLabel}, got ${String(transactionIndex)}`,
   );
 
   return transactionIndex;

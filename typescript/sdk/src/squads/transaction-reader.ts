@@ -112,6 +112,12 @@ const ARRAY_FILTER = Array.prototype.filter;
 const ARRAY_JOIN = Array.prototype.join;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
+const BUFFER_TO_STRING = Buffer.prototype.toString as (
+  this: Buffer,
+  encoding?: BufferEncoding,
+  start?: number,
+  end?: number,
+) => string;
 const VALID_PROTOCOL_TYPES = new Set<ProtocolType>([
   ProtocolType.Ethereum,
   ProtocolType.Sealevel,
@@ -217,6 +223,10 @@ function stringTrim(value: string): string {
 
 function stringToLowerCase(value: string): string {
   return STRING_TO_LOWER_CASE.call(value);
+}
+
+function bufferToString(value: Buffer, encoding?: BufferEncoding): string {
+  return BUFFER_TO_STRING.call(value, encoding);
 }
 
 function readPropertyOrThrow(value: unknown, property: PropertyKey): unknown {
@@ -1115,7 +1125,7 @@ export class SquadsTransactionReader {
             data: {
               routeName: metadata.routeName,
               symbol: metadata.symbol,
-              rawData: instructionData.toString('hex'),
+              rawData: bufferToString(instructionData, 'hex'),
             },
             insight: `${metadata.symbol} warp route instruction (${metadata.routeName})`,
             warnings: [],
@@ -1233,7 +1243,7 @@ export class SquadsTransactionReader {
         default:
           return {
             instructionType: `Unknown (discriminator: ${discriminator})`,
-            data: { rawData: instructionData.toString('hex') },
+            data: { rawData: bufferToString(instructionData, 'hex') },
             warnings: [
               formatUnknownInstructionWarning('Mailbox', discriminator),
             ],
@@ -1245,7 +1255,7 @@ export class SquadsTransactionReader {
         instructionType: InstructionType.UNKNOWN,
         data: {
           error: `Failed to deserialize: ${formattedError}`,
-          rawData: instructionData.toString('hex'),
+          rawData: bufferToString(instructionData, 'hex'),
         },
         warnings: [`Borsh deserialization failed: ${formattedError}`],
       };
@@ -1394,7 +1404,7 @@ export class SquadsTransactionReader {
         default:
           return {
             instructionType: `Unknown (discriminator: ${discriminator})`,
-            data: { rawData: instructionData.toString('hex') },
+            data: { rawData: bufferToString(instructionData, 'hex') },
             warnings: [
               formatUnknownInstructionWarning('MultisigIsm', discriminator),
             ],
@@ -1406,7 +1416,7 @@ export class SquadsTransactionReader {
         instructionType: InstructionType.UNKNOWN,
         data: {
           error: `Failed to deserialize: ${formattedError}`,
-          rawData: instructionData.toString('hex'),
+          rawData: bufferToString(instructionData, 'hex'),
         },
         warnings: [`Borsh deserialization failed: ${formattedError}`],
       };
@@ -1993,7 +2003,7 @@ export class SquadsTransactionReader {
           instructionType: InstructionType.UNKNOWN,
           data: {
             programId: formattedUnknownProgramId,
-            rawData: instructionData.toString('hex'),
+            rawData: bufferToString(instructionData, 'hex'),
           },
           accounts,
           warnings: unknownWarnings,
@@ -2573,7 +2583,7 @@ export class SquadsTransactionReader {
           SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
         );
         rootLogger.warn(
-          `Unknown transaction discriminator: ${discriminator.toString()}. Expected VaultTransaction or ConfigTransaction`,
+          `Unknown transaction discriminator: ${bufferToString(discriminator)}. Expected VaultTransaction or ConfigTransaction`,
         );
       }
 

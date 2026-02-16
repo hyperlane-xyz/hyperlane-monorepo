@@ -11417,6 +11417,92 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('keeps unknown-program raw-data formatting stable when Buffer.prototype.toString is mutated', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const originalBufferToString = Buffer.prototype.toString;
+    const throwingBufferToString: typeof Buffer.prototype.toString =
+      function toString() {
+        throw new Error('buffer toString unavailable');
+      };
+    const malformedProgramId = {
+      equals: () => false,
+      toBase58: () => 'malformed-program-id',
+    };
+
+    let parsed:
+      | {
+          instructions: Array<Record<string, unknown>>;
+          warnings: string[];
+        }
+      | undefined;
+    try {
+      Object.defineProperty(Buffer.prototype, 'toString', {
+        value: throwingBufferToString,
+        writable: true,
+        configurable: true,
+      });
+      parsed = await readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: {
+            accountKeys: [malformedProgramId as unknown as PublicKey],
+            addressTableLookups: [],
+            instructions: [
+              {
+                programIdIndex: 0,
+                accountIndexes: [],
+                data: Buffer.from([1, 2, 3]),
+              },
+            ],
+          },
+        },
+        { getAccountInfo: async () => null },
+      );
+    } finally {
+      Object.defineProperty(Buffer.prototype, 'toString', {
+        value: originalBufferToString,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(parsed?.warnings).to.deep.equal([
+      '⚠️  UNKNOWN PROGRAM: malformed-program-id',
+      'This instruction could not be verified!',
+    ]);
+    expect(parsed?.instructions).to.deep.equal([
+      {
+        programId: malformedProgramId,
+        programName: 'Unknown',
+        instructionType: 'Unknown',
+        data: {
+          programId: 'malformed-program-id',
+          rawData: '010203',
+        },
+        accounts: [],
+        warnings: [
+          '⚠️  UNKNOWN PROGRAM: malformed-program-id',
+          'This instruction could not be verified!',
+        ],
+      },
+    ]);
+  });
+
   it('keeps parsing when lookup-table warning path cannot stringify account keys', async () => {
     const nonSystemProgramId = new PublicKey(
       new Uint8Array(32).fill(7),
