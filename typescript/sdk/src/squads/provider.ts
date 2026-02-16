@@ -84,15 +84,12 @@ function isGetAccountInfoFunction(
 export function toSquadsProvider(provider: unknown): SquadsProvider {
   const { isArray: providerIsArray, readFailed: providerTypeReadFailed } =
     getArrayInspection(provider);
-  assert(
-    !providerTypeReadFailed,
-    `Invalid Solana provider: failed to inspect provider type (provider: ${formatValueType(
-      provider,
-    )})`,
-  );
 
   assert(
-    typeof provider === 'object' && provider !== null && !providerIsArray,
+    typeof provider === 'object' &&
+      provider !== null &&
+      !providerTypeReadFailed &&
+      !providerIsArray,
     `Invalid Solana provider: expected object, got ${formatValueType(provider)}`,
   );
 

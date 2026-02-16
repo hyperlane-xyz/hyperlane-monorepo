@@ -149,7 +149,7 @@ describe('squads provider bridge', () => {
     revoke();
 
     expect(() => toSquadsProvider(providerLike)).to.throw(
-      'Invalid Solana provider: failed to inspect provider type (provider: [unreadable value type])',
+      'Invalid Solana provider: expected object, got [unreadable value type]',
     );
   });
 
