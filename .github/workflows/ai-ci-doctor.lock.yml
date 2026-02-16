@@ -22,7 +22,7 @@
 # For more information: https://github.github.com/gh-aw/introduction/overview/
 #
 #
-# frontmatter-hash: 26fbd43217906a2aa234fe908f5ef4fb2a235d53559602d9eb3b62bc8800c97c
+# frontmatter-hash: b8916ce8ac9b16b1aec9860694af2fc860bafb47fd8112b55297a370707a01f4
 
 name: "CI Doctor"
 "on":
@@ -48,7 +48,8 @@ jobs:
     needs: pre_activation
     # zizmor: ignore[dangerous-triggers] - workflow_run trigger is secured with role and fork validation
     if: >
-      (needs.pre_activation.outputs.activated == 'true') && ((github.event_name != 'workflow_run') || ((github.event.workflow_run.repository.id == github.repository_id) &&
+      ((needs.pre_activation.outputs.activated == 'true') && (github.event.workflow_run.conclusion == 'failure')) &&
+      ((github.event_name != 'workflow_run') || ((github.event.workflow_run.repository.id == github.repository_id) &&
       (!(github.event.workflow_run.repository.fork))))
     runs-on: ubuntu-slim
     permissions:
@@ -1095,6 +1096,7 @@ jobs:
           if-no-files-found: ignore
 
   pre_activation:
+    if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-slim
     outputs:
       activated: ${{ steps.check_membership.outputs.is_team_member == 'true' }}
