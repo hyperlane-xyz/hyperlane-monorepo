@@ -17,6 +17,7 @@ import {
   getRuntimeObjectValuesByLabel,
   getRuntimePrimitiveValuesByLabel,
   isSupportedRuntimePrimitiveValueType,
+  resolveRuntimeIntlFunctionProbeCases,
   resolveRuntimeFunctionProbeCases,
 } from './inference.runtime-globals.js';
 
@@ -335,6 +336,36 @@ describe('runtime global probe helpers', () => {
     expect(typeof resolved[0].constructorValue).to.equal('function');
   });
 
+  it('resolves runtime Intl function probe cases by available labels', () => {
+    const resolvedWithoutMap = resolveRuntimeIntlFunctionProbeCases([
+      {
+        label: 'intl-collator-constructor-object',
+        directGetLogsCallCount: 5,
+      },
+    ]);
+    expect(resolvedWithoutMap).to.have.length(1);
+    expect(resolvedWithoutMap[0].constructorValue).to.equal(Intl.Collator);
+
+    const resolved = resolveRuntimeIntlFunctionProbeCases(
+      [
+        {
+          label: 'intl-collator-constructor-object',
+          directGetLogsCallCount: 5,
+        },
+        {
+          label: '__missing-intl-constructor-object',
+          directGetLogsCallCount: 7,
+        },
+      ],
+      getRuntimeIntlFunctionValuesByLabel(),
+    );
+
+    expect(resolved).to.have.length(1);
+    expect(resolved[0].label).to.equal('intl-collator-constructor-object');
+    expect(resolved[0].directGetLogsCallCount).to.equal(5);
+    expect(typeof resolved[0].constructorValue).to.equal('function');
+  });
+
   it('returns required runtime function probe values by label', () => {
     const runtimeFunctionMap = getRuntimeFunctionValuesByLabel();
     expect(
@@ -418,7 +449,14 @@ describe('runtime global probe helpers', () => {
         const usesGroupedProbeResolver = fileContent.includes(
           'resolveRuntimeFunctionProbeCases',
         );
-        return !usesRequiredSingleProbeHelper && !usesGroupedProbeResolver;
+        const usesGroupedIntlProbeResolver = fileContent.includes(
+          'resolveRuntimeIntlFunctionProbeCases',
+        );
+        return (
+          !usesRequiredSingleProbeHelper &&
+          !usesGroupedProbeResolver &&
+          !usesGroupedIntlProbeResolver
+        );
       },
     );
 

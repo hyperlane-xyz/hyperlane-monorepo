@@ -45,6 +45,10 @@ const knownObjectLikeLabelsByFilePath = new Map<string, ReadonlySet<string>>();
 const MISSING_GLOBAL_VALUE = Symbol('missing-global-value');
 let cachedRuntimeFunctionValuesByLabel: ReadonlyMap<string, Function> | null =
   null;
+let cachedRuntimeIntlFunctionValuesByLabel: ReadonlyMap<
+  string,
+  Function
+> | null = null;
 
 export function isSupportedRuntimePrimitiveValueType(
   valueType: string,
@@ -209,6 +213,17 @@ export function getRuntimeIntlFunctionValuesByLabel(): Map<string, Function> {
   return runtimeIntlFunctionValueByLabel;
 }
 
+function getCachedRuntimeIntlFunctionValuesByLabel(): ReadonlyMap<
+  string,
+  Function
+> {
+  if (!cachedRuntimeIntlFunctionValuesByLabel) {
+    cachedRuntimeIntlFunctionValuesByLabel =
+      getRuntimeIntlFunctionValuesByLabel();
+  }
+  return cachedRuntimeIntlFunctionValuesByLabel;
+}
+
 export function getRuntimeObjectValuesByLabel(): Map<string, object> {
   const runtimeObjectValueByLabel = new Map<string, object>();
   for (const { name, value } of getReadableRuntimeGlobalEntries()) {
@@ -268,6 +283,22 @@ export function resolveRuntimeFunctionProbeCases(
       (value): value is RuntimeFunctionProbeCase =>
         typeof value.constructorValue === 'function',
     );
+}
+
+export function resolveRuntimeIntlFunctionProbeCases(
+  rawCases: ReadonlyArray<{
+    label: string;
+    directGetLogsCallCount: number;
+  }>,
+  runtimeIntlFunctionValuesByLabel: ReadonlyMap<
+    string,
+    unknown
+  > = getCachedRuntimeIntlFunctionValuesByLabel(),
+): RuntimeFunctionProbeCase[] {
+  return resolveRuntimeFunctionProbeCases(
+    rawCases,
+    runtimeIntlFunctionValuesByLabel,
+  );
 }
 
 export function getProbeLabelFromInferenceTestTitle(
