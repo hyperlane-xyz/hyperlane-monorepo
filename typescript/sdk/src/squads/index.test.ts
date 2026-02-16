@@ -1788,6 +1788,34 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps Reflect.apply runtime coverage test-path set aligned with mutation-test tables', () => {
+    const runtimeCoverageTestPathSet = new Set<string>();
+    for (const {
+      coveringTestPaths,
+    } of EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE) {
+      for (const coveringTestPath of coveringTestPaths) {
+        runtimeCoverageTestPathSet.add(coveringTestPath);
+      }
+    }
+
+    const runtimeCoverageTestPaths = [...runtimeCoverageTestPathSet].sort(
+      compareLexicographically,
+    );
+    const expectedMutationTestPaths = [
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+    ].sort(compareLexicographically);
+    const countedMutationTestPaths = [
+      ...new Set(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS.map(
+          ({ testPath }) => testPath,
+        ),
+      ),
+    ].sort(compareLexicographically);
+
+    expect(runtimeCoverageTestPaths).to.deep.equal(expectedMutationTestPaths);
+    expect(runtimeCoverageTestPaths).to.deep.equal(countedMutationTestPaths);
+  });
+
   it('keeps sdk Reflect.apply runtime coverage map aligned with non-barrel runtime source set', () => {
     const mappedRuntimeSourcePaths =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.map(
