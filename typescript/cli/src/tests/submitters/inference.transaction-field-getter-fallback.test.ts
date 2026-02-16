@@ -320,6 +320,62 @@ describe('resolveSubmitterBatchesForTransactions transaction field getter fallba
     }
   });
 
+  it('falls back to jsonRpc when target is malformed and transaction from contains null byte', async () => {
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('owner probe should not run for malformed target'));
+    const nullByteFrom = '0x2222222222222222222222222222222222222222\0';
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          { ...TX, to: 'not-an-evm-address', from: nullByteFrom } as any,
+        ],
+        context: {
+          multiProvider: {
+            getProtocol: () => ProtocolType.Ethereum,
+          },
+        } as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(ownableStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+    }
+  });
+
+  it('falls back to jsonRpc when target is malformed and boxed transaction from contains null byte', async () => {
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('owner probe should not run for malformed target'));
+    const boxedNullByteFrom = new String(
+      '0x2222222222222222222222222222222222222222\0',
+    ) as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          { ...TX, to: 'not-an-evm-address', from: boxedNullByteFrom } as any,
+        ],
+        context: {
+          multiProvider: {
+            getProtocol: () => ProtocolType.Ethereum,
+          },
+        } as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(ownableStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when transaction target is cyclic-prototype proxy without running probes', async () => {
     const ownableStub = sinon
       .stub(Ownable__factory, 'connect')
