@@ -25,9 +25,11 @@ import {
   isGenericObjectStringifiedValue,
   stringifyUnknownSquadsError,
 } from './error-format.js';
+import { inspectPromiseLikeThenValue } from './inspection.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
 export { assertValidTransactionIndexInput } from './validation.js';
+export { inspectPromiseLikeThenValue } from './inspection.js';
 
 /**
  * Overhead added by Squads v4 when wrapping instructions in a vault transaction proposal.
@@ -200,33 +202,6 @@ function inspectArrayValue(value: unknown): {
     return {
       isArray: false,
       readFailed: true,
-    };
-  }
-}
-
-export function inspectPromiseLikeThenValue(value: unknown): {
-  thenValue: unknown;
-  readError: unknown | undefined;
-} {
-  if (
-    (typeof value !== 'object' && typeof value !== 'function') ||
-    value === null
-  ) {
-    return {
-      thenValue: undefined,
-      readError: undefined,
-    };
-  }
-
-  try {
-    return {
-      thenValue: (value as { then?: unknown }).then,
-      readError: undefined,
-    };
-  } catch (error) {
-    return {
-      thenValue: undefined,
-      readError: error,
     };
   }
 }

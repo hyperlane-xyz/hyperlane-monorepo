@@ -1,6 +1,7 @@
 import type { accounts } from '@sqds/multisig';
 import { assert } from '@hyperlane-xyz/utils';
 import { stringifyUnknownSquadsError } from './error-format.js';
+import { inspectPromiseLikeThenValue } from './inspection.js';
 
 export type SquadsProvider = Parameters<
   typeof accounts.Multisig.fromAccountAddress
@@ -9,7 +10,6 @@ export type SquadsProvider = Parameters<
 type ProviderWithOptionalGetAccountInfo =
   | {
       getAccountInfo?: unknown;
-      then?: unknown;
     }
   | null
   | undefined;
@@ -59,23 +59,6 @@ function getProviderGetAccountInfo(value: unknown): {
   }
 }
 
-function getProviderThen(value: unknown): {
-  thenValue: unknown;
-  readError: unknown | undefined;
-} {
-  try {
-    return {
-      thenValue: (value as ProviderWithOptionalGetAccountInfo)?.then,
-      readError: undefined,
-    };
-  } catch (error) {
-    return {
-      thenValue: undefined,
-      readError: error,
-    };
-  }
-}
-
 function formatUnknownProviderError(error: unknown): string {
   return stringifyUnknownSquadsError(error, {
     preferErrorMessageForErrorInstances: true,
@@ -100,7 +83,8 @@ export function toSquadsProvider(provider: unknown): SquadsProvider {
     `Invalid Solana provider: expected object, got ${formatValueType(provider)}`,
   );
 
-  const { thenValue, readError: thenReadError } = getProviderThen(provider);
+  const { thenValue, readError: thenReadError } =
+    inspectPromiseLikeThenValue(provider);
   assert(
     !thenReadError,
     `Invalid Solana provider: failed to inspect promise-like then (${formatUnknownProviderError(
