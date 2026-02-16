@@ -126,9 +126,14 @@ const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE =
       coveringTestPaths: Object.freeze(['src/squads/utils.test.ts']),
     }),
   ]);
-const REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN = /Reflect\.apply is mutated/;
+const REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN =
+  /\bit\s*\(\s*['"`][^'"`]*Reflect\.apply is mutated[^'"`]*['"`]/;
 const REFLECT_APPLY_MONKEY_PATCH_PATTERN =
   /Object\.defineProperty\(\s*Reflect\s*,\s*['"]apply['"]/;
+const REFLECT_APPLY_MONKEY_PATCH_STATEMENT =
+  "Object.defineProperty(Reflect, 'apply', {";
+const REFLECT_APPLY_MUTATION_THROW_STATEMENT =
+  "throw new Error('reflect apply unavailable');";
 const REFLECT_APPLY_CAPTURE_STATEMENT =
   'const originalReflectApply = Reflect.apply;';
 const REFLECT_APPLY_RESTORE_STATEMENT = 'value: originalReflectApply,';
@@ -1674,9 +1679,21 @@ describe('squads barrel exports', () => {
       const source = fs.readFileSync(absoluteTestPath, 'utf8');
       expect(expectedMutationTestCount).to.be.greaterThan(0);
       expect(
+        countOccurrences(source, 'Reflect.apply is mutated'),
+        `Expected Reflect.apply mutation-test title count for ${testPath}`,
+      ).to.equal(expectedMutationTestCount);
+      expect(
+        countOccurrences(source, REFLECT_APPLY_MUTATION_THROW_STATEMENT),
+        `Expected Reflect.apply mutation throw statement count for ${testPath}`,
+      ).to.equal(expectedMutationTestCount);
+      expect(
         countOccurrences(source, REFLECT_APPLY_CAPTURE_STATEMENT),
         `Expected Reflect.apply capture statement count for ${testPath}`,
       ).to.equal(expectedMutationTestCount);
+      expect(
+        countOccurrences(source, REFLECT_APPLY_MONKEY_PATCH_STATEMENT),
+        `Expected Reflect.apply monkey-patch defineProperty count for ${testPath}`,
+      ).to.equal(expectedMutationTestCount * 2);
       expect(
         countOccurrences(source, REFLECT_APPLY_RESTORE_STATEMENT),
         `Expected Reflect.apply restore statement count for ${testPath}`,
