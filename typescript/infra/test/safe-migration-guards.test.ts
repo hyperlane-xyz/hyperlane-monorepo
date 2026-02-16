@@ -45743,11 +45743,13 @@ describe('Safe migration guards', () => {
       'module-source aliases in symbol sources',
     ];
 
+    const expectedEntries = new Set<string>();
     for (const family of families) {
       for (const variant of variants) {
         for (const predicateType of predicateTypes) {
           for (const context of contexts) {
             const key = `${family}|${variant}|${predicateType}|${context}`;
+            expectedEntries.add(key);
             expect(
               observedEntries.has(key),
               `Missing conditional coverage entry ${key}`,
@@ -45756,6 +45758,10 @@ describe('Safe migration guards', () => {
         }
       }
     }
+
+    expect([...observedEntries].sort()).to.deep.equal(
+      [...expectedEntries].sort(),
+    );
   });
 
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
