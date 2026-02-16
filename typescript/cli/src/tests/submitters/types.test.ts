@@ -803,6 +803,22 @@ describe('strategy parse helpers', () => {
     }
   });
 
+  it('parseExtendedChainSubmissionStrategy rejects prototype-only nested submitter', () => {
+    const inheritedChainStrategy = Object.create({
+      submitter: {
+        type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN,
+      },
+    });
+
+    expect(
+      () =>
+        parseExtendedChainSubmissionStrategy({
+          [CHAIN]: inheritedChainStrategy,
+        } as any),
+    ).to.throw();
+  });
+
   it('parseExtendedChainSubmissionStrategy drops empty nested submitterOverrides', () => {
     const parsed = parseExtendedChainSubmissionStrategy({
       [CHAIN]: {
