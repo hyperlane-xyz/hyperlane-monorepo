@@ -380,6 +380,38 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\.sort\s*\(/,
   }),
 ]);
+const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
+  'inline cast-property access',
+  'optional chaining',
+  'Object.keys call',
+  'Object.values call',
+  'Object.entries call',
+  'Array.from call',
+  'Array.isArray call',
+  'Buffer.isBuffer call',
+  '.entries method call',
+  '.keys method call',
+  '.values method call',
+  '.has method call',
+  '.add method call',
+  '.get method call',
+  '.set method call',
+  '.clear method call',
+  '.includes method call',
+  '.some method call',
+  '.trim method call',
+  '.toLowerCase method call',
+  '.map method call',
+  '.filter method call',
+  '.join method call',
+  '.split method call',
+  '.replace method call',
+  '.toString method call',
+  '.subarray method call',
+  '.slice method call',
+  '.push method call',
+  '.sort method call',
+]);
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
@@ -1890,6 +1922,19 @@ describe('squads barrel exports', () => {
         `Expected forbidden-pattern regexes to be unique: ${regexSignature}`,
       ).to.equal(false);
       seenRegexes.add(regexSignature);
+    }
+  });
+
+  it('keeps required forbidden runtime hardening labels covered', () => {
+    const forbiddenPatternLabels = new Set<string>(
+      FORBIDDEN_RUNTIME_HARDENING_PATTERNS.map(({ label }) => label),
+    );
+
+    for (const requiredLabel of REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS) {
+      expect(
+        forbiddenPatternLabels.has(requiredLabel),
+        `Expected forbidden runtime hardening pattern table to include: ${requiredLabel}`,
+      ).to.equal(true);
     }
   });
 
