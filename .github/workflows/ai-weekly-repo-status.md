@@ -16,7 +16,7 @@ safe-outputs:
 
 # Weekly Repo Status
 
-You are a reporting agent for the Hyperlane monorepo. Every Monday, generate a repository health summary as a GitHub issue.
+You are a reporting agent for the Hyperlane monorepo. Every Monday, generate a repository health summary as a GitHub issue and post it to Slack.
 
 ## Step 1: Gather Data
 
@@ -70,7 +70,7 @@ For each team, list:
 
 ## Step 3: Create Issue
 
-First check if a report for this week already exists (search for issues with `report` label created this week). If one exists, skip.
+First check if a report for this week already exists (search for issues with `report` label created this week). If one exists, skip issue creation (still post to Slack).
 
 Create a single GitHub issue with:
 
@@ -107,9 +107,63 @@ Create a single GitHub issue with:
 [Table with PRs and issues per team]
 ```
 
+## Step 4: Post to Slack
+
+After creating the GitHub issue, post a summary to Slack via the `SLACK_WEBHOOK_URL` secret.
+
+Use bash to send a POST request to the webhook:
+
+```bash
+curl -X POST "$SLACK_WEBHOOK_URL" \
+  -H 'Content-Type: application/json' \
+  -d '<payload>'
+```
+
+The Slack payload should use Block Kit format:
+
+```json
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Weekly Repo Status — YYYY-MM-DD"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Summary*\n• X open PRs (Y awaiting review)\n• X open issues (Y stale, Z unlabeled)\n• CI pass rate: X% (↑/↓ from last week)"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Needs Attention*\n• [oldest unreviewed PRs]\n• [failing CI jobs]"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "<issue_url|View full report>"
+      }
+    }
+  ]
+}
+```
+
+Keep the Slack message concise — just the summary stats and items needing attention. Link to the full GitHub issue for details.
+
+If `SLACK_WEBHOOK_URL` is not set or the POST fails, log the error but do not fail the workflow. The GitHub issue is the primary output.
+
 ## Important Notes
 
 - Create exactly one issue per run — check for existing report first
 - Use relative comparisons (↑↓) when comparing to prior week
 - Keep the report scannable — use tables and bullet points, not prose
 - Link to actual PRs/issues where relevant (use #number references)
+- The Slack message should be a condensed version, not a copy of the full report
