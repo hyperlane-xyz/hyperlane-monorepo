@@ -32,4 +32,4 @@ Error-message extraction and formatting paths were hardened to avoid crashes and
 
 Regression guard tests were added to assert descriptor-matrix parity, exact descriptor-set cardinality, matcher/formatter base-set alignment, canonical descriptor baseline consistency, and explicit unescaped-alias baseline consistency across triple/json/double escaped `Symbol.toPrimitive` placeholder suites, preventing future drift in coverage.
 
-Known caveat: some ecosystem tooling (notably `@typescript-eslint` and `ts-jest`) may still emit TypeScript peer-range warnings while declaring `<6`, but the monorepo lint/build/test paths remain green under TS6 beta.
+Known caveat: some ecosystem tooling still advertises pre-TS6 peer ranges (for example, `@typescript-eslint` packages commonly declare `typescript >=4.8.4 <6.0.0`, some transitive utility variants declare `<5.9.0`, and `ts-jest@29.4.5` declares `typescript >=4.3 <6`), so peer warnings may still appear even though monorepo lint/build/test paths remain green under TS6 beta.
