@@ -121,6 +121,14 @@ const BIGINT_FUNCTION = BigInt as (
   value: string | number | bigint | boolean,
 ) => bigint;
 const ERROR_CONSTRUCTOR = Error as new (message?: string) => Error;
+const REFLECT_APPLY = Reflect.apply as <
+  ReturnValue,
+  ArgumentValues extends readonly unknown[],
+>(
+  target: (...args: ArgumentValues) => ReturnValue,
+  thisArgument: unknown,
+  argumentsList: ArgumentValues,
+) => ReturnValue;
 const NUMBER_IS_INTEGER = Number.isInteger;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const NUMBER_IS_NAN = Number.isNaN;
@@ -185,12 +193,26 @@ function getUnknownValueTypeName(value: unknown): string {
   return typeof value;
 }
 
+function reflectApply<ReturnValue, ArgumentValues extends readonly unknown[]>(
+  target: (...args: ArgumentValues) => ReturnValue,
+  thisArgument: unknown,
+  argumentsList: ArgumentValues,
+): ReturnValue {
+  return REFLECT_APPLY(target, thisArgument, argumentsList);
+}
+
 function setHasValue<Value>(set: Set<Value>, value: Value): boolean {
-  return SET_HAS.call(set, value);
+  return reflectApply(
+    SET_HAS as (this: Set<Value>, value: Value) => boolean,
+    set,
+    [value],
+  );
 }
 
 function setAddValue<Value>(set: Set<Value>, value: Value): void {
-  SET_ADD.call(set, value);
+  reflectApply(SET_ADD as (this: Set<Value>, value: Value) => Set<Value>, set, [
+    value,
+  ]);
 }
 
 function createSetValue<Value>(values?: Iterable<Value>): Set<Value> {
@@ -198,14 +220,22 @@ function createSetValue<Value>(values?: Iterable<Value>): Set<Value> {
 }
 
 function mapHasValue<Key, Value>(map: Map<Key, Value>, key: Key): boolean {
-  return MAP_HAS.call(map, key);
+  return reflectApply(
+    MAP_HAS as (this: Map<Key, Value>, key: Key) => boolean,
+    map,
+    [key],
+  );
 }
 
 function mapGetValue<Key, Value>(
   map: Map<Key, Value>,
   key: Key,
 ): Value | undefined {
-  return MAP_GET.call(map, key);
+  return reflectApply(
+    MAP_GET as (this: Map<Key, Value>, key: Key) => Value | undefined,
+    map,
+    [key],
+  );
 }
 
 function createMapValue<Key, Value>(
@@ -219,7 +249,15 @@ function mapSetValue<Key, Value>(
   key: Key,
   value: Value,
 ): void {
-  MAP_SET.call(map, key, value);
+  reflectApply(
+    MAP_SET as (
+      this: Map<Key, Value>,
+      key: Key,
+      value: Value,
+    ) => Map<Key, Value>,
+    map,
+    [key, value],
+  );
 }
 
 function arrayFromValues<Value>(values: readonly Value[]): Value[] {
@@ -237,25 +275,51 @@ function arrayMapValues<Value, Result>(
   values: readonly Value[],
   mapFn: (value: Value, index: number, array: readonly Value[]) => Result,
 ): Result[] {
-  return ARRAY_MAP.call(values, mapFn) as Result[];
+  return reflectApply(
+    ARRAY_MAP as (
+      this: readonly Value[],
+      mapFn: (value: Value, index: number, array: readonly Value[]) => Result,
+    ) => Result[],
+    values,
+    [mapFn],
+  );
 }
 
 function arrayFilterValues<Value>(
   values: readonly Value[],
   predicate: (value: Value, index: number, array: readonly Value[]) => boolean,
 ): Value[] {
-  return ARRAY_FILTER.call(values, predicate) as Value[];
+  return reflectApply(
+    ARRAY_FILTER as (
+      this: readonly Value[],
+      predicate: (
+        value: Value,
+        index: number,
+        array: readonly Value[],
+      ) => boolean,
+    ) => Value[],
+    values,
+    [predicate],
+  );
 }
 
 function arrayJoinValues(
   values: readonly unknown[],
   separator: string,
 ): string {
-  return ARRAY_JOIN.call(values, separator);
+  return reflectApply(
+    ARRAY_JOIN as (this: readonly unknown[], separator: string) => string,
+    values,
+    [separator],
+  );
 }
 
 function arrayPushValue<Value>(values: Value[], value: Value): number {
-  return ARRAY_PUSH.call(values, value);
+  return reflectApply(
+    ARRAY_PUSH as (this: Value[], value: Value) => number,
+    values,
+    [value],
+  );
 }
 
 function numberIsInteger(value: unknown): boolean {
@@ -293,15 +357,28 @@ function arrayPushValues<Value>(
 }
 
 function stringTrim(value: string): string {
-  return STRING_TRIM.call(value);
+  return reflectApply(STRING_TRIM as (this: string) => string, value, []);
 }
 
 function stringToLowerCase(value: string): string {
-  return STRING_TO_LOWER_CASE.call(value);
+  return reflectApply(
+    STRING_TO_LOWER_CASE as (this: string) => string,
+    value,
+    [],
+  );
 }
 
 function bufferToString(value: Buffer, encoding?: BufferEncoding): string {
-  return BUFFER_TO_STRING.call(value, encoding);
+  return reflectApply(
+    BUFFER_TO_STRING as (
+      this: Buffer,
+      encoding?: BufferEncoding,
+      start?: number,
+      end?: number,
+    ) => string,
+    value,
+    [encoding],
+  );
 }
 
 function bufferFromBuffer(value: Buffer): Buffer {
@@ -321,11 +398,19 @@ function bufferAlloc(size: number): Buffer {
 }
 
 function bufferSubarray(value: Buffer, begin?: number, end?: number): Buffer {
-  return BUFFER_SUBARRAY.call(value, begin, end);
+  return reflectApply(
+    BUFFER_SUBARRAY as (this: Buffer, begin?: number, end?: number) => Buffer,
+    value,
+    [begin, end],
+  );
 }
 
 function bufferSlice(value: Buffer, start?: number, end?: number): Buffer {
-  return BUFFER_SLICE.call(value, start, end);
+  return reflectApply(
+    BUFFER_SLICE as (this: Buffer, start?: number, end?: number) => Buffer,
+    value,
+    [start, end],
+  );
 }
 
 function readPropertyOrThrow(value: unknown, property: PropertyKey): unknown {
@@ -882,7 +967,11 @@ export class SquadsTransactionReader {
 
     let protocol: unknown;
     try {
-      protocol = tryGetProtocolValue.call(this.mpp, chain);
+      protocol = reflectApply(
+        tryGetProtocolValue as (this: unknown, chain: string) => unknown,
+        this.mpp,
+        [chain],
+      );
     } catch (error) {
       throw createError(
         `Failed to resolve protocol for warp route ${routeName} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
@@ -1570,7 +1659,14 @@ export class SquadsTransactionReader {
 
     let svmProvider: unknown;
     try {
-      svmProvider = getSolanaWeb3ProviderValue.call(this.mpp, chain);
+      svmProvider = reflectApply(
+        getSolanaWeb3ProviderValue as (
+          this: unknown,
+          chain: SquadsChainName,
+        ) => unknown,
+        this.mpp,
+        [chain],
+      );
     } catch (error) {
       throw createError(
         `Failed to resolve solana provider for ${chain}: ${stringifyUnknownSquadsError(error)}`,
@@ -1692,7 +1788,14 @@ export class SquadsTransactionReader {
     );
 
     try {
-      return await getAccountInfoValue.call(svmProvider, address);
+      return await reflectApply(
+        getAccountInfoValue as (
+          this: unknown,
+          address: unknown,
+        ) => PromiseLike<unknown> | unknown,
+        svmProvider,
+        [address],
+      );
     } catch (error) {
       throw createError(
         `Failed to fetch ${label} ${addressForDisplay} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
@@ -2416,10 +2519,14 @@ export class SquadsTransactionReader {
     );
 
     try {
-      const [configTx] = fromAccountInfoValue.call(
+      const [configTx] = reflectApply(
+        fromAccountInfoValue as (
+          this: unknown,
+          accountInfo: AccountInfo<Buffer>,
+          offset: number,
+        ) => readonly [unknown, unknown?],
         accounts.ConfigTransaction,
-        accountInfo,
-        0,
+        [accountInfo, 0],
       );
       return configTx;
     } catch (error) {
@@ -2507,10 +2614,14 @@ export class SquadsTransactionReader {
     );
 
     try {
-      return await fromAccountAddressValue.call(
+      return await reflectApply(
+        fromAccountAddressValue as (
+          this: unknown,
+          squadsProvider: ReturnType<typeof toSquadsProvider>,
+          transactionPda: PublicKey,
+        ) => PromiseLike<accounts.VaultTransaction> | accounts.VaultTransaction,
         accounts.VaultTransaction,
-        squadsProvider,
-        transactionPda,
+        [squadsProvider, transactionPda],
       );
     } catch (error) {
       const transactionPdaForDisplay = this.formatAddressLikeForDisplay(
@@ -2890,7 +3001,11 @@ export class SquadsTransactionReader {
 
     let remoteChain: unknown;
     try {
-      remoteChain = tryGetChainNameValue.call(this.mpp, remoteDomain);
+      remoteChain = reflectApply(
+        tryGetChainNameValue as (this: unknown, domain: number) => unknown,
+        this.mpp,
+        [remoteDomain],
+      );
     } catch (error) {
       throw createError(
         `Failed to resolve ${label} for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
@@ -3555,7 +3670,7 @@ export class SquadsTransactionReader {
 
     try {
       const normalizedValue = this.normalizeOptionalNonEmptyString(
-        toBase58Value.call(value),
+        reflectApply(toBase58Value as (this: unknown) => unknown, value, []),
       );
       if (
         normalizedValue &&
@@ -3627,7 +3742,11 @@ export class SquadsTransactionReader {
     }
 
     try {
-      const displayValue = toBase58Value.call(programId);
+      const displayValue = reflectApply(
+        toBase58Value as (this: unknown) => unknown,
+        programId,
+        [],
+      );
       const normalizedDisplayValue =
         this.normalizeOptionalNonEmptyString(displayValue);
       if (!normalizedDisplayValue) {
