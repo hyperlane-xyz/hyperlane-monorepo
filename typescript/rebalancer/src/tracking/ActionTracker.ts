@@ -5,10 +5,7 @@ import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 import { parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
-import type {
-  ExternalBridgeRegistry,
-  IExternalBridge,
-} from '../interfaces/IExternalBridge.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 import type {
   ExplorerMessage,

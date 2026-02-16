@@ -909,7 +909,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -917,6 +916,7 @@ describe('ActionTracker', () => {
       const action: RebalanceAction = {
         id: 'action-1',
         status: 'in_progress',
+        type: 'rebalance_message',
         intentId: 'intent-1',
         messageId: '0xmsg1',
         origin: 1,

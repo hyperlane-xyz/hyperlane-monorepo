@@ -3,7 +3,6 @@ import { type Logger } from 'pino';
 import {
   type ChainMap,
   type ChainName,
-  EthJsonRpcBlockParameterTag,
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
