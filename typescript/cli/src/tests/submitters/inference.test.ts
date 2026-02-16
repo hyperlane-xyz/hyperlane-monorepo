@@ -1500,6 +1500,47 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     );
   });
 
+  it('falls back to default explicit submitter when transaction target is non-string', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-non-string-target-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x7777777777777777777777777777777777777777',
+          version: '1.0',
+        },
+        submitterOverrides: {
+          '0x1111111111111111111111111111111111111111': {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: CHAIN,
+            timelockAddress: '0x6666666666666666666666666666666666666666',
+            proposerSubmitter: {
+              type: TxSubmitterType.JSON_RPC,
+              chain: CHAIN,
+            },
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: 12345 as any } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('uses explicit submitter when overrides are absent even if tx target is malformed', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-explicit-no-overrides-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {
@@ -1596,6 +1637,39 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     expect(batches).to.have.length(1);
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('falls back to jsonRpc when inference target is non-string and from is missing', async () => {
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('owner lookup should not be attempted'));
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [{ ...TX, to: 12345 as any } as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
+      expect(ownableStub.called).to.equal(false);
+    } finally {
+      ownableStub.restore();
+    }
   });
 
   it('caches provider lookup failures across inferred transactions', async () => {
