@@ -1788,6 +1788,118 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps Reflect.apply mutation coverage constants deeply frozen', () => {
+    expect(
+      Object.isFrozen(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+      ),
+    ).to.equal(true);
+    expect(
+      Object.isFrozen(EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS),
+    ).to.equal(true);
+    expect(
+      Object.isFrozen(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE,
+      ),
+    ).to.equal(true);
+    for (const countEntry of EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS) {
+      expect(Object.isFrozen(countEntry)).to.equal(true);
+    }
+    for (const runtimeEntry of EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE) {
+      expect(Object.isFrozen(runtimeEntry)).to.equal(true);
+      expect(Object.isFrozen(runtimeEntry.coveringTestPaths)).to.equal(true);
+    }
+
+    const baselineMutationTestFilePaths = [
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+    ];
+    const baselineCountSignatures =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS.map(
+        ({ testPath, expectedMutationTestCount }) =>
+          `${testPath}:${expectedMutationTestCount}`,
+      );
+    const baselineRuntimeCoverageSignatures =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.map(
+        ({ runtimeSourcePath, coveringTestPaths }) =>
+          `${runtimeSourcePath}->${[...coveringTestPaths].join(',')}`,
+      );
+
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS as unknown as string[]
+      ).push('src/squads/injected.test.ts');
+    }).to.throw();
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS as unknown as string[]
+      )[0] = 'src/squads/mutated.test.ts';
+    }).to.throw();
+
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS as unknown as Array<{
+          testPath: string;
+          expectedMutationTestCount: number;
+        }>
+      ).push({
+        testPath: 'src/squads/injected.test.ts',
+        expectedMutationTestCount: 1,
+      });
+    }).to.throw();
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS as unknown as Array<{
+          testPath: string;
+          expectedMutationTestCount: number;
+        }>
+      )[0].expectedMutationTestCount = 99;
+    }).to.throw();
+
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE as unknown as Array<{
+          runtimeSourcePath: string;
+          coveringTestPaths: readonly string[];
+        }>
+      ).push({
+        runtimeSourcePath: 'src/squads/injected.ts',
+        coveringTestPaths: ['src/squads/injected.test.ts'],
+      });
+    }).to.throw();
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE as unknown as Array<{
+          runtimeSourcePath: string;
+          coveringTestPaths: readonly string[];
+        }>
+      )[0].runtimeSourcePath = 'src/squads/mutated.ts';
+    }).to.throw();
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE as unknown as Array<{
+          runtimeSourcePath: string;
+          coveringTestPaths: string[];
+        }>
+      )[0].coveringTestPaths.push('src/squads/injected.test.ts');
+    }).to.throw();
+
+    expect([
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+    ]).to.deep.equal(baselineMutationTestFilePaths);
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS.map(
+        ({ testPath, expectedMutationTestCount }) =>
+          `${testPath}:${expectedMutationTestCount}`,
+      ),
+    ).to.deep.equal(baselineCountSignatures);
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.map(
+        ({ runtimeSourcePath, coveringTestPaths }) =>
+          `${runtimeSourcePath}->${[...coveringTestPaths].join(',')}`,
+      ),
+    ).to.deep.equal(baselineRuntimeCoverageSignatures);
+  });
+
   it('keeps Reflect.apply runtime coverage test-path set aligned with mutation-test tables', () => {
     const runtimeCoverageTestPathSet = new Set<string>();
     for (const {
