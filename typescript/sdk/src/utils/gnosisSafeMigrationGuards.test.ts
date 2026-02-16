@@ -58,6 +58,14 @@ function hasDefaultModifier(node: ts.Node): boolean {
   );
 }
 
+function hasStaticModifier(node: ts.Node): boolean {
+  if (!ts.canHaveModifiers(node)) return false;
+  const modifiers = ts.getModifiers(node);
+  return !!modifiers?.some(
+    (modifier: ts.Modifier) => modifier.kind === ts.SyntaxKind.StaticKeyword,
+  );
+}
+
 function hasDefaultExportInSourceFile(
   sourceText: string,
   filePath: string,
@@ -1003,17 +1011,49 @@ function readStaticArrayInMembership(
   return STATIC_PRIMITIVE_UNKNOWN;
 }
 
+function readStaticClassExpressionOwnKeys(
+  expression: ts.ClassExpression,
+): Set<string> | typeof STATIC_PRIMITIVE_UNKNOWN {
+  const ownKeys = new Set(DEFAULT_CLASS_EXPRESSION_OWN_KEYS);
+  for (const member of expression.members) {
+    if (ts.isClassStaticBlockDeclaration(member)) {
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+    if (!hasStaticModifier(member)) continue;
+    if (!member.name || ts.isPrivateIdentifier(member.name)) continue;
+    const propertyKey = readStaticPropertyName(member.name);
+    if (propertyKey === STATIC_PRIMITIVE_UNKNOWN) {
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+    ownKeys.add(propertyKey);
+  }
+  return ownKeys;
+}
+
 function readStaticFunctionInMembership(
   propertyKey: string,
   expression: ts.FunctionExpression | ts.ArrowFunction | ts.ClassExpression,
-): boolean {
-  const ownKeys = ts.isFunctionExpression(expression)
-    ? DEFAULT_FUNCTION_EXPRESSION_OWN_KEYS
-    : ts.isArrowFunction(expression)
-      ? DEFAULT_ARROW_FUNCTION_OWN_KEYS
-      : DEFAULT_CLASS_EXPRESSION_OWN_KEYS;
+): boolean | typeof STATIC_PRIMITIVE_UNKNOWN {
+  if (ts.isFunctionExpression(expression)) {
+    return (
+      DEFAULT_FUNCTION_EXPRESSION_OWN_KEYS.has(propertyKey) ||
+      DEFAULT_FUNCTION_PROTOTYPE_KEYS.has(propertyKey)
+    );
+  }
+  if (ts.isArrowFunction(expression)) {
+    return (
+      DEFAULT_ARROW_FUNCTION_OWN_KEYS.has(propertyKey) ||
+      DEFAULT_FUNCTION_PROTOTYPE_KEYS.has(propertyKey)
+    );
+  }
+  const classOwnKeys = readStaticClassExpressionOwnKeys(expression);
+  if (classOwnKeys === STATIC_PRIMITIVE_UNKNOWN) {
+    if (DEFAULT_FUNCTION_PROTOTYPE_KEYS.has(propertyKey)) return true;
+    return STATIC_PRIMITIVE_UNKNOWN;
+  }
   return (
-    ownKeys.has(propertyKey) || DEFAULT_FUNCTION_PROTOTYPE_KEYS.has(propertyKey)
+    classOwnKeys.has(propertyKey) ||
+    DEFAULT_FUNCTION_PROTOTYPE_KEYS.has(propertyKey)
   );
 }
 
@@ -7321,6 +7361,50 @@ describe('Gnosis Safe migration guards', () => {
       './fixtures/guard-module.js@fixture.ts',
     );
     expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality class-static-member in predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if ((('safe' in (class { static safe = 1 })) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-comparison class-static-block predicates conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = globalThis as any;',
+      "const baseline = require('./fixtures/guard-module.js');",
+      "if ((('safe' in (class { static { if (marker) (this as any).safe = 1; } })) === true)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
       './fixtures/other-module.js@fixture.ts',
     );
   });
@@ -17585,6 +17669,40 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality class-static-member in predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if ((('safe' in (class { static safe = 1 })) === true)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-comparison class-static-block predicates conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = globalThis as any;',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      "if ((('safe' in (class { static { if (marker) (this as any).safe = 1; } })) === true)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('treats strict-equality in array primitives as deterministic for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -21938,6 +22056,36 @@ describe('Gnosis Safe migration guards', () => {
     );
     expect(references).to.include('default@./fixtures/other-module.js');
     expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality class-static-member in predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "if ((('safe' in (class { static safe = 1 })) === true)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-comparison class-static-block predicates conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = globalThis as any;',
+      "if ((('safe' in (class { static { if (marker) (this as any).safe = 1; } })) === true)) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
   it('treats strict-equality in array primitives as deterministic for module-source aliases in symbol sources', () => {
