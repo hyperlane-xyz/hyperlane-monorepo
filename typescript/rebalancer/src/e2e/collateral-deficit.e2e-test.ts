@@ -387,7 +387,7 @@ describe('Collateral Deficit E2E', function () {
     );
     expect(completedAction!.status).to.equal('complete');
 
-    // Assert: Intent is now complete (fulfilledAmount >= amount)
+    // Assert: Intent is now complete
     const completedIntent =
       await context.tracker.getRebalanceIntent(rebalanceIntentId);
     expect(completedIntent!.status).to.equal('complete');
