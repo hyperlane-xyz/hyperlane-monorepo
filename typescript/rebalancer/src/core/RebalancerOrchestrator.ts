@@ -24,6 +24,8 @@ import {
 } from '../tracking/index.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
 
+import { InventoryRebalancer } from './InventoryRebalancer.js';
+
 /**
  * Result of a rebalancing cycle.
  * executedCount/failedCount: Counts from movable_collateral execution ONLY
@@ -218,8 +220,14 @@ export class RebalancerOrchestrator {
   private async executeRoutes(
     routes: StrategyRoute[],
     rebalancer: IRebalancer,
-    _event: MonitorEvent,
+    event: MonitorEvent,
   ): Promise<ExecutionResult[]> {
+    if (rebalancer.rebalancerType === 'inventory' && event.inventoryBalances) {
+      (rebalancer as InventoryRebalancer).setInventoryBalances(
+        event.inventoryBalances,
+      );
+    }
+
     try {
       const results = await rebalancer.rebalance(routes);
 
