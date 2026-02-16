@@ -1208,7 +1208,14 @@ export class SquadsTransactionReader {
       `Invalid multi protocol provider for ${chain}: expected getSolanaWeb3Provider function, got ${getUnknownValueTypeName(getSolanaWeb3ProviderValue)}`,
     );
 
-    const svmProvider = getSolanaWeb3ProviderValue.call(this.mpp, chain);
+    let svmProvider: unknown;
+    try {
+      svmProvider = getSolanaWeb3ProviderValue.call(this.mpp, chain);
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve solana provider for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
     const { isArray: providerIsArray, readFailed: providerReadFailed } =
       inspectArrayValue(svmProvider);
     assert(

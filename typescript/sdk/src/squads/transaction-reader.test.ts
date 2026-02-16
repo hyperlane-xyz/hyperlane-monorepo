@@ -2709,13 +2709,46 @@ describe('squads transaction reader', () => {
       reader.read('  solanamainnet  ', 0),
     );
 
-    expect(thrownError?.message).to.equal('provider lookup failed');
+    expect(thrownError?.message).to.equal(
+      'Failed to resolve solana provider for solanamainnet: Error: provider lookup failed',
+    );
     expect(providerLookupChain).to.equal('solanamainnet');
     expect(reader.errors).to.deep.equal([
       {
         chain: 'solanamainnet',
         transactionIndex: 0,
-        error: 'Error: provider lookup failed',
+        error:
+          'Error: Failed to resolve solana provider for solanamainnet: Error: provider lookup failed',
+      },
+    ]);
+  });
+
+  it('uses deterministic placeholders when provider lookup throws opaque values', async () => {
+    const mpp = {
+      getSolanaWeb3Provider: () => {
+        throw {};
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to resolve solana provider for solanamainnet: [unstringifiable error]',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Failed to resolve solana provider for solanamainnet: [unstringifiable error]',
       },
     ]);
   });
