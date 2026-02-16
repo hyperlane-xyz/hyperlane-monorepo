@@ -43,6 +43,8 @@ const PROBE_LABEL_FROM_TEST_TITLE_REGEX =
   /^caches(?: event-derived)?(?: async)? ([a-z0-9_-]+-(?:constructor-)?object|[a-z0-9_-]+-primitive) origin signer probes across timelock ICA inferences$/;
 const knownObjectLikeLabelsByFilePath = new Map<string, ReadonlySet<string>>();
 const MISSING_GLOBAL_VALUE = Symbol('missing-global-value');
+let cachedRuntimeFunctionValuesByLabel: ReadonlyMap<string, Function> | null =
+  null;
 
 export function isSupportedRuntimePrimitiveValueType(
   valueType: string,
@@ -173,6 +175,16 @@ export function getRuntimeFunctionValuesByLabel(): Map<string, Function> {
   return runtimeFunctionValueByLabel;
 }
 
+function getCachedRuntimeFunctionValuesByLabel(): ReadonlyMap<
+  string,
+  Function
+> {
+  if (!cachedRuntimeFunctionValuesByLabel) {
+    cachedRuntimeFunctionValuesByLabel = getRuntimeFunctionValuesByLabel();
+  }
+  return cachedRuntimeFunctionValuesByLabel;
+}
+
 export function getRuntimeIntlFunctionValuesByLabel(): Map<string, Function> {
   const runtimeIntlFunctionValueByLabel = new Map<string, Function>();
   const intlValue = tryGetGlobalValueByName('Intl');
@@ -226,7 +238,7 @@ export function getRequiredRuntimeFunctionValueByLabel(
   runtimeFunctionValuesByLabel: ReadonlyMap<
     string,
     unknown
-  > = getRuntimeFunctionValuesByLabel(),
+  > = getCachedRuntimeFunctionValuesByLabel(),
 ): Function {
   const runtimeFunctionValue = runtimeFunctionValuesByLabel.get(label);
   if (typeof runtimeFunctionValue !== 'function') {

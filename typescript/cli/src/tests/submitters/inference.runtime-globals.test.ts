@@ -329,6 +329,9 @@ describe('runtime global probe helpers', () => {
   it('returns required runtime function probe values by label', () => {
     const runtimeFunctionMap = getRuntimeFunctionValuesByLabel();
     expect(
+      getRequiredRuntimeFunctionValueByLabel('array-constructor-object'),
+    ).to.equal(Array);
+    expect(
       getRequiredRuntimeFunctionValueByLabel(
         'array-constructor-object',
         runtimeFunctionMap,
