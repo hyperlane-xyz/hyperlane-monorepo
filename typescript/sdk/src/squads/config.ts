@@ -2,7 +2,12 @@ import { PublicKey } from '@solana/web3.js';
 
 import { Address } from '@hyperlane-xyz/utils';
 import { stringifyUnknownSquadsError } from './error-format.js';
-import { inspectArrayValue, inspectPropertyValue } from './inspection.js';
+import {
+  inspectArrayValue,
+  inspectObjectEntries,
+  inspectObjectKeys,
+  inspectPropertyValue,
+} from './inspection.js';
 
 export type SquadConfig = {
   programId: Address;
@@ -40,9 +45,23 @@ export const squadsConfigs = Object.freeze({
   }),
 } as const satisfies Record<string, SquadConfig>);
 
+const {
+  entries: untypedSquadsConfigEntries,
+  readError: squadsConfigEntriesReadError,
+} = inspectObjectEntries(squadsConfigs);
+if (squadsConfigEntriesReadError) {
+  throw new Error(
+    `Failed to read squads config entries: ${formatUnknownListError(squadsConfigEntriesReadError)}`,
+  );
+}
+
+const SQUADS_CONFIG_ENTRIES = untypedSquadsConfigEntries as Array<
+  [SquadsChainName, (typeof squadsConfigs)[SquadsChainName]]
+>;
+
 const SQUADS_KEYS_BY_CHAIN = Object.freeze(
   Object.fromEntries(
-    Object.entries(squadsConfigs).map(([chainName, config]) => [
+    SQUADS_CONFIG_ENTRIES.map(([chainName, config]) => [
       chainName,
       Object.freeze({
         multisigPda: new PublicKey(config.multisigPda),
@@ -55,8 +74,16 @@ const SQUADS_KEYS_BY_CHAIN = Object.freeze(
 
 export type SquadsChainName = keyof typeof squadsConfigs;
 
+const { keys: untypedSquadsChainKeys, readError: squadsChainKeysReadError } =
+  inspectObjectKeys(squadsConfigs);
+if (squadsChainKeysReadError) {
+  throw new Error(
+    `Failed to read squads config chain names: ${formatUnknownListError(squadsChainKeysReadError)}`,
+  );
+}
+
 const SQUADS_CHAINS = Object.freeze(
-  Object.keys(squadsConfigs),
+  untypedSquadsChainKeys as SquadsChainName[],
 ) as readonly SquadsChainName[];
 const SQUADS_CHAINS_DISPLAY_LIST = SQUADS_CHAINS.join(', ');
 
