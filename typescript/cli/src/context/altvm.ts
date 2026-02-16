@@ -20,6 +20,26 @@ import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
 import { type SignerKeyProtocolMap } from './types.js';
 
+function getOwnObjectField(value: unknown, field: string): unknown {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return undefined;
+  }
+
+  try {
+    if (!Object.prototype.hasOwnProperty.call(value, field)) {
+      return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  try {
+    return (value as Record<string, unknown>)[field];
+  } catch {
+    return undefined;
+  }
+}
+
 async function loadPrivateKey(
   keyByProtocol: SignerKeyProtocolMap,
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
@@ -33,17 +53,23 @@ async function loadPrivateKey(
 
   // 2. If no key flag was provided we check if a strategy config
   // was provided for our chain where we can read our private key
-  if (strategyConfig[chain]) {
-    const rawConfig = strategyConfig[chain]!.submitter;
+  const chainStrategy = getOwnObjectField(strategyConfig, chain);
+  const rawConfig = getOwnObjectField(chainStrategy, 'submitter');
+  if (rawConfig) {
+    const typedRawConfig = rawConfig as Record<string, unknown>;
 
-    if (rawConfig.type === TxSubmitterType.JSON_RPC) {
-      if (!rawConfig.privateKey) {
+    if (typedRawConfig.type === TxSubmitterType.JSON_RPC) {
+      const privateKey = getOwnObjectField(
+        typedRawConfig,
+        'privateKey',
+      ) as string | undefined;
+      if (!privateKey) {
         throw new Error(
           `missing private key in strategy config for chain ${chain}`,
         );
       }
 
-      return rawConfig.privateKey;
+      return privateKey;
     }
   }
 

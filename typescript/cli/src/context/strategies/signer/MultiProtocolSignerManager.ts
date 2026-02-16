@@ -31,6 +31,26 @@ export interface MultiProtocolSignerOptions {
   key?: SignerKeyProtocolMap;
 }
 
+function getOwnObjectField(value: unknown, field: string): unknown {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return undefined;
+  }
+
+  try {
+    if (!Object.prototype.hasOwnProperty.call(value, field)) {
+      return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  try {
+    return (value as Record<string, unknown>)[field];
+  } catch {
+    return undefined;
+  }
+}
+
 function getSignerCompatibleChains(
   multiProtocolProvider: MultiProtocolProvider,
   chains: ChainName[],
@@ -152,7 +172,8 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     const signerStrategy = this.signerStrategiesByProtocol[protocolType];
     assert(signerStrategy, `No signer strategy found for chain ${chain}`);
 
-    const rawConfig = this.submissionStrategy[chain]?.submitter;
+    const chainStrategy = getOwnObjectField(this.submissionStrategy, chain);
+    const rawConfig = getOwnObjectField(chainStrategy, 'submitter');
 
     let signerConfig: SignerConfig;
     const defaultPrivateKey = (this.options.key ?? {})[protocolType];
