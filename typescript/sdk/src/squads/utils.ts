@@ -191,6 +191,9 @@ const ARRAY_SOME = Array.prototype.some;
 const MATH_MAX = Math.max;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const NUMBER_IS_FINITE = Number.isFinite;
+const OBJECT_PROTOTYPE_TO_STRING = Object.prototype.toString as (
+  this: unknown,
+) => string;
 const STRING_INCLUDES = String.prototype.includes;
 const STRING_TRIM = String.prototype.trim;
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
@@ -325,6 +328,10 @@ function numberIsFinite(value: unknown): boolean {
 
 function numberMax(left: number, right: number): number {
   return MATH_MAX(left, right);
+}
+
+function objectPrototypeToString(value: unknown): string {
+  return OBJECT_PROTOTYPE_TO_STRING.call(value);
 }
 
 function stringIncludesValue(value: string, searchValue: string): boolean {
@@ -893,7 +900,7 @@ function normalizeSafeIntegerValue(value: unknown): {
     if (typeof toStringCandidate !== 'function') {
       let objectTagValue: string;
       try {
-        objectTagValue = Object.prototype.toString.call(value);
+        objectTagValue = objectPrototypeToString(value);
       } catch {
         objectTagValue = '[unstringifiable value]';
       }
