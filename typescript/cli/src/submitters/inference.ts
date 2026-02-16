@@ -1927,19 +1927,19 @@ function getTransactionStringField(
   transaction: TypedAnnotatedTransaction,
   field: 'to' | 'from' | 'data',
 ): string | undefined {
-  try {
-    const value = (transaction as any)[field];
-    if (typeof value === 'string') {
-      return value;
-    }
-    if (isBoxedStringObject(value)) {
+  const value = getOwnObjectField(transaction, field);
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (isBoxedStringObject(value)) {
+    try {
       const normalizedValue = value.toString();
       return typeof normalizedValue === 'string' ? normalizedValue : undefined;
+    } catch {
+      return undefined;
     }
-    return undefined;
-  } catch {
-    return undefined;
   }
+  return undefined;
 }
 
 function hasUsableOverrideKeys(

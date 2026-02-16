@@ -60,6 +60,45 @@ describe('resolveSubmitterBatchesForTransactions transaction field getter fallba
     }
   });
 
+  it('falls back to jsonRpc when transaction target exists only on prototype without running probes', async () => {
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('ownable probe should not run'));
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('safe probe should not run'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('timelock probe should not run'));
+    const txWithInheritedTarget = Object.create({
+      to: '0x1111111111111111111111111111111111111111',
+    });
+    txWithInheritedTarget.data = '0x';
+    txWithInheritedTarget.chainId = 31338;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [txWithInheritedTarget as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => ProtocolType.Ethereum,
+          },
+        } as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(ownableStub.callCount).to.equal(0);
+      expect(safeStub.callCount).to.equal(0);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('still infers gnosisSafeTxBuilder when transaction from getter throws but target owner is safe', async () => {
     const safeOwner = '0x2222222222222222222222222222222222222222';
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
@@ -123,6 +162,36 @@ describe('resolveSubmitterBatchesForTransactions transaction field getter fallba
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
         transactions: [txWithMalformedTargetAndThrowingFromGetter as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => ProtocolType.Ethereum,
+          },
+        } as any,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(ownableStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+    }
+  });
+
+  it('falls back to jsonRpc when target is malformed and transaction from exists only on prototype', async () => {
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('owner probe should not run for malformed target'));
+    const txWithInheritedFrom = Object.create({
+      from: '0x2222222222222222222222222222222222222222',
+    });
+    txWithInheritedFrom.to = 'not-an-evm-address';
+    txWithInheritedFrom.data = '0x';
+    txWithInheritedFrom.chainId = 31338;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [txWithInheritedFrom as any],
         context: {
           multiProvider: {
             getProtocol: () => ProtocolType.Ethereum,
