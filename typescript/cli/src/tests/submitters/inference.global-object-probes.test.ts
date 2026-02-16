@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { expect } from 'chai';
@@ -16,7 +14,11 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
-import { getCleanRuntimeProbeLabels } from './inference.runtime-globals.js';
+import {
+  getCleanRuntimeProbeLabels,
+  getKnownObjectLikeProbeLabelsFromOtherTests,
+  getRuntimeObjectValuesByLabel,
+} from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions global object probes', () => {
   const CHAIN = 'anvil2';
@@ -28,39 +30,12 @@ describe('resolveSubmitterBatchesForTransactions global object probes', () => {
   };
 
   const thisFilePath = fileURLToPath(import.meta.url);
-  const thisFileName = path.basename(thisFilePath);
-  const submitterTestDir = path.dirname(thisFilePath);
-  const knownLabelsFromOtherFiles = new Set<string>();
-
-  for (const fileName of fs.readdirSync(submitterTestDir)) {
-    if (
-      !fileName.startsWith('inference.') ||
-      !fileName.endsWith('.test.ts') ||
-      fileName === thisFileName
-    ) {
-      continue;
-    }
-
-    const fileContent = fs.readFileSync(
-      path.join(submitterTestDir, fileName),
-      'utf8',
-    );
-    for (const match of fileContent.matchAll(
-      /[a-z0-9_-]+-(?:constructor-)?object/g,
-    )) {
-      knownLabelsFromOtherFiles.add(match[0]);
-    }
-  }
+  const knownLabelsFromOtherFiles =
+    getKnownObjectLikeProbeLabelsFromOtherTests(thisFilePath);
 
   const baselineObjectLabels = getCleanRuntimeProbeLabels().objectLabels;
 
-  const runtimeObjectValueByLabel = new Map<string, object>();
-  for (const name of Object.getOwnPropertyNames(globalThis)) {
-    const value = (globalThis as any)[name];
-    if (value !== null && typeof value === 'object') {
-      runtimeObjectValueByLabel.set(`${name.toLowerCase()}-object`, value);
-    }
-  }
+  const runtimeObjectValueByLabel = getRuntimeObjectValuesByLabel();
 
   const PROBE_CASES = baselineObjectLabels
     .map((label) => ({

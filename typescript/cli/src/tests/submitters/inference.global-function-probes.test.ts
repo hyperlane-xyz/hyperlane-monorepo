@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { expect } from 'chai';
@@ -16,7 +14,11 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
-import { getCleanRuntimeProbeLabels } from './inference.runtime-globals.js';
+import {
+  getCleanRuntimeProbeLabels,
+  getKnownObjectLikeProbeLabelsFromOtherTests,
+  getRuntimeFunctionValuesByLabel,
+} from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions global function probes', () => {
   const CHAIN = 'anvil2';
@@ -28,42 +30,12 @@ describe('resolveSubmitterBatchesForTransactions global function probes', () => 
   };
 
   const thisFilePath = fileURLToPath(import.meta.url);
-  const thisFileName = path.basename(thisFilePath);
-  const submitterTestDir = path.dirname(thisFilePath);
-  const knownLabelsFromOtherFiles = new Set<string>();
-
-  for (const fileName of fs.readdirSync(submitterTestDir)) {
-    if (
-      !fileName.startsWith('inference.') ||
-      !fileName.endsWith('.test.ts') ||
-      fileName === thisFileName
-    ) {
-      continue;
-    }
-
-    const fileContent = fs.readFileSync(
-      path.join(submitterTestDir, fileName),
-      'utf8',
-    );
-    for (const match of fileContent.matchAll(
-      /[a-z0-9_-]+-(?:constructor-)?object/g,
-    )) {
-      knownLabelsFromOtherFiles.add(match[0]);
-    }
-  }
+  const knownLabelsFromOtherFiles =
+    getKnownObjectLikeProbeLabelsFromOtherTests(thisFilePath);
 
   const baselineFunctionLabels = getCleanRuntimeProbeLabels().functionLabels;
 
-  const runtimeFunctionValueByLabel = new Map<string, Function>();
-  for (const name of Object.getOwnPropertyNames(globalThis)) {
-    const value = (globalThis as any)[name];
-    if (typeof value === 'function') {
-      runtimeFunctionValueByLabel.set(
-        `${name.toLowerCase()}-constructor-object`,
-        value,
-      );
-    }
-  }
+  const runtimeFunctionValueByLabel = getRuntimeFunctionValuesByLabel();
 
   const PROBE_CASES = baselineFunctionLabels
     .filter((label) => !knownLabelsFromOtherFiles.has(label))

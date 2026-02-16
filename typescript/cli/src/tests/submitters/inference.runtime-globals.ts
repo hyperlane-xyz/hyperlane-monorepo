@@ -1,4 +1,6 @@
 import { execFileSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 export const SUPPORTED_RUNTIME_PRIMITIVE_VALUE_TYPES = [
   'string',
@@ -17,6 +19,10 @@ export type CleanRuntimeProbeLabels = {
   objectLabels: string[];
   primitiveLabels: string[];
 };
+
+const INFERENCE_TEST_FILE_PREFIX = 'inference.';
+const INFERENCE_TEST_FILE_SUFFIX = '.test.ts';
+const OBJECT_LIKE_PROBE_LABEL_REGEX = /[a-z0-9_-]+-(?:constructor-)?object/g;
 
 export function isSupportedRuntimePrimitiveValueType(
   valueType: string,
@@ -58,4 +64,57 @@ const cleanRuntimeProbeLabels: CleanRuntimeProbeLabels = JSON.parse(
 
 export function getCleanRuntimeProbeLabels(): CleanRuntimeProbeLabels {
   return cleanRuntimeProbeLabels;
+}
+
+export function getKnownObjectLikeProbeLabelsFromOtherTests(
+  currentFilePath: string,
+): Set<string> {
+  const knownLabelsFromOtherFiles = new Set<string>();
+  const currentFileName = path.basename(currentFilePath);
+  const submitterTestDir = path.dirname(currentFilePath);
+
+  for (const fileName of fs.readdirSync(submitterTestDir)) {
+    if (
+      !fileName.startsWith(INFERENCE_TEST_FILE_PREFIX) ||
+      !fileName.endsWith(INFERENCE_TEST_FILE_SUFFIX) ||
+      fileName === currentFileName
+    ) {
+      continue;
+    }
+
+    const fileContent = fs.readFileSync(
+      path.join(submitterTestDir, fileName),
+      'utf8',
+    );
+    for (const match of fileContent.matchAll(OBJECT_LIKE_PROBE_LABEL_REGEX)) {
+      knownLabelsFromOtherFiles.add(match[0]);
+    }
+  }
+
+  return knownLabelsFromOtherFiles;
+}
+
+export function getRuntimeFunctionValuesByLabel(): Map<string, Function> {
+  const runtimeFunctionValueByLabel = new Map<string, Function>();
+  for (const name of Object.getOwnPropertyNames(globalThis)) {
+    const value = (globalThis as any)[name];
+    if (typeof value === 'function') {
+      runtimeFunctionValueByLabel.set(
+        `${name.toLowerCase()}-constructor-object`,
+        value,
+      );
+    }
+  }
+  return runtimeFunctionValueByLabel;
+}
+
+export function getRuntimeObjectValuesByLabel(): Map<string, object> {
+  const runtimeObjectValueByLabel = new Map<string, object>();
+  for (const name of Object.getOwnPropertyNames(globalThis)) {
+    const value = (globalThis as any)[name];
+    if (value !== null && typeof value === 'object') {
+      runtimeObjectValueByLabel.set(`${name.toLowerCase()}-object`, value);
+    }
+  }
+  return runtimeObjectValueByLabel;
 }
