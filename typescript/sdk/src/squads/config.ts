@@ -113,6 +113,7 @@ if (squadsChainKeysReadError) {
 const SQUADS_CHAINS = Object.freeze(
   untypedSquadsChainKeys as SquadsChainName[],
 ) as readonly SquadsChainName[];
+const SQUADS_CHAIN_SET = new Set<string>(SQUADS_CHAINS);
 const SQUADS_CHAINS_DISPLAY_LIST = SQUADS_CHAINS.join(', ');
 
 export function getSquadsChains(): SquadsChainName[] {
@@ -122,10 +123,7 @@ export function getSquadsChains(): SquadsChainName[] {
 export function isSquadsChain(
   chainName: unknown,
 ): chainName is SquadsChainName {
-  return (
-    typeof chainName === 'string' &&
-    Object.prototype.hasOwnProperty.call(squadsConfigs, chainName)
-  );
+  return typeof chainName === 'string' && SQUADS_CHAIN_SET.has(chainName);
 }
 
 function getUnknownValueTypeName(value: unknown): string {

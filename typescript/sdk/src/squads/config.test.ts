@@ -91,6 +91,34 @@ describe('squads config', () => {
     expect(isSquadsChain(null)).to.equal(false);
   });
 
+  it('keeps chain detection stable when global hasOwnProperty is mutated', () => {
+    const originalHasOwnProperty = Object.prototype.hasOwnProperty;
+    let supportedChainResult = false;
+    let unsupportedChainResult = true;
+
+    Object.defineProperty(Object.prototype, 'hasOwnProperty', {
+      value: () => {
+        throw new Error('hasOwnProperty unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      supportedChainResult = isSquadsChain('solanamainnet');
+      unsupportedChainResult = isSquadsChain('__proto__');
+    } finally {
+      Object.defineProperty(Object.prototype, 'hasOwnProperty', {
+        value: originalHasOwnProperty,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(supportedChainResult).to.equal(true);
+    expect(unsupportedChainResult).to.equal(false);
+  });
+
   it('asserts supported chains with helpful error context', () => {
     expect(() => assertIsSquadsChain('solanamainnet')).to.not.throw();
     expect(() => assertIsSquadsChain('unknown-chain')).to.throw(
