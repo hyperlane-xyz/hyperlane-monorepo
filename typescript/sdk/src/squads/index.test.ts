@@ -173,51 +173,51 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
   }),
   Object.freeze({
     label: 'Object.keys call',
-    pattern: /Object\.keys\s*\(/,
+    pattern: /\bObject\.keys\s*\(/,
   }),
   Object.freeze({
     label: 'Object.values call',
-    pattern: /Object\.values\s*\(/,
+    pattern: /\bObject\.values\s*\(/,
   }),
   Object.freeze({
     label: 'Object.entries call',
-    pattern: /Object\.entries\s*\(/,
+    pattern: /\bObject\.entries\s*\(/,
   }),
   Object.freeze({
     label: 'Object.fromEntries call',
-    pattern: /Object\.fromEntries\s*\(/,
+    pattern: /\bObject\.fromEntries\s*\(/,
   }),
   Object.freeze({
     label: 'Object.assign call',
-    pattern: /Object\.assign\s*\(/,
+    pattern: /\bObject\.assign\s*\(/,
   }),
   Object.freeze({
     label: 'Object.getOwnPropertyNames call',
-    pattern: /Object\.getOwnPropertyNames\s*\(/,
+    pattern: /\bObject\.getOwnPropertyNames\s*\(/,
   }),
   Object.freeze({
     label: 'Object.getOwnPropertySymbols call',
-    pattern: /Object\.getOwnPropertySymbols\s*\(/,
+    pattern: /\bObject\.getOwnPropertySymbols\s*\(/,
   }),
   Object.freeze({
     label: 'Object.hasOwn call',
-    pattern: /Object\.hasOwn\s*\(/,
+    pattern: /\bObject\.hasOwn\s*\(/,
   }),
   Object.freeze({
     label: 'Reflect.ownKeys call',
-    pattern: /Reflect\.ownKeys\s*\(/,
+    pattern: /\bReflect\.ownKeys\s*\(/,
   }),
   Object.freeze({
     label: 'Array.from call',
-    pattern: /Array\.from\s*\(/,
+    pattern: /\bArray\.from\s*\(/,
   }),
   Object.freeze({
     label: 'Array.isArray call',
-    pattern: /Array\.isArray\s*\(/,
+    pattern: /\bArray\.isArray\s*\(/,
   }),
   Object.freeze({
     label: 'Buffer.isBuffer call',
-    pattern: /Buffer\.isBuffer\s*\(/,
+    pattern: /\bBuffer\.isBuffer\s*\(/,
   }),
   Object.freeze({
     label: '.entries method call',
@@ -2175,6 +2175,10 @@ describe('squads barrel exports', () => {
       expect(
         pattern.test(`${staticCallee}Suffix(`),
         `Expected ${label} pattern to avoid suffix-prefixed static names`,
+      ).to.equal(false);
+      expect(
+        pattern.test(`prefix${staticCallee}(`),
+        `Expected ${label} pattern to avoid prefixed identifier static names`,
       ).to.equal(false);
     }
   });
