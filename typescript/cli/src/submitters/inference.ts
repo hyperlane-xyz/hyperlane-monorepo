@@ -42,7 +42,7 @@ const MAX_OVERRIDE_KEY_LENGTH = 4096;
 const MAX_SELECTOR_SCAN_LENGTH = 1024;
 const MAX_BOXED_STRING_PROTOTYPE_DEPTH = 128;
 const MAX_REGISTRY_CHAIN_ENTRIES = 4096;
-const DISALLOWED_CHAIN_NAME_LITERALS = new Set([
+const DISALLOWED_PROTOTYPE_PROPERTY_LITERALS = new Set([
   '__proto__',
   'prototype',
   'constructor',
@@ -412,7 +412,7 @@ function normalizeChainNameFromUnknown(value: unknown): ChainName | null {
     ) {
       return null;
     }
-    if (DISALLOWED_CHAIN_NAME_LITERALS.has(trimmedChainName)) {
+    if (DISALLOWED_PROTOTYPE_PROPERTY_LITERALS.has(trimmedChainName)) {
       return null;
     }
     return trimmedChainName as ChainName;
@@ -1702,7 +1702,8 @@ function isUsableOverrideKey(overrideKey: string): boolean {
   return (
     trimmedKey.length > 0 &&
     trimmedKey.length <= MAX_OVERRIDE_KEY_LENGTH &&
-    !trimmedKey.includes('\0')
+    !trimmedKey.includes('\0') &&
+    !DISALLOWED_PROTOTYPE_PROPERTY_LITERALS.has(trimmedKey)
   );
 }
 
