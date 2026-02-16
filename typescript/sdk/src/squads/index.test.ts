@@ -2202,6 +2202,30 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps sdk squads pattern-path discovery stable across repeated global regex reuse', () => {
+    const reusableGlobalMutationPattern = /Reflect\.apply is mutated/g;
+    const reusableGlobalCapturePattern =
+      /const REFLECT_APPLY = Reflect\.apply/g;
+
+    const firstMutationDiscovery = listSdkSquadsTestFilePathsContainingPattern(
+      reusableGlobalMutationPattern,
+    );
+    const secondMutationDiscovery = listSdkSquadsTestFilePathsContainingPattern(
+      reusableGlobalMutationPattern,
+    );
+    expect(secondMutationDiscovery).to.deep.equal(firstMutationDiscovery);
+
+    const firstCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        reusableGlobalCapturePattern,
+      );
+    const secondCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        reusableGlobalCapturePattern,
+      );
+    expect(secondCaptureDiscovery).to.deep.equal(firstCaptureDiscovery);
+  });
+
   it('keeps sdk Reflect.apply mutation tests using explicit Reflect.apply monkey-patch setup', () => {
     for (const relativeTestPath of EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS) {
       const absoluteTestPath = path.join(SDK_PACKAGE_ROOT, relativeTestPath);
