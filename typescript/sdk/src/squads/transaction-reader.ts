@@ -110,6 +110,26 @@ function inspectArrayValue(value: unknown): {
   }
 }
 
+function inspectInstanceOf(
+  value: unknown,
+  constructor: abstract new (...args: never[]) => unknown,
+): {
+  matches: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      matches: value instanceof constructor,
+      readFailed: false,
+    };
+  } catch {
+    return {
+      matches: false,
+      readFailed: true,
+    };
+  }
+}
+
 function getUnknownValueTypeName(value: unknown): string {
   if (value === null) {
     return 'null';
@@ -1313,8 +1333,12 @@ export class SquadsTransactionReader {
     label: string,
     svmProvider: SolanaWeb3Provider,
   ): Promise<unknown> {
+    const {
+      matches: addressIsPublicKey,
+      readFailed: addressReadFailedDuringInstanceCheck,
+    } = inspectInstanceOf(address, PublicKey);
     assert(
-      address instanceof PublicKey,
+      !addressReadFailedDuringInstanceCheck && addressIsPublicKey,
       `Expected ${label} address on ${chain} to be a PublicKey, got ${getUnknownValueTypeName(address)}`,
     );
 
@@ -2137,10 +2161,15 @@ export class SquadsTransactionReader {
         `Failed to read proposal multisig PDA for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
       );
     }
+    const {
+      matches: multisigPdaIsPublicKey,
+      readFailed: multisigPdaReadFailedDuringInstanceCheck,
+    } = inspectInstanceOf(multisigPdaValue, PublicKey);
     assert(
-      multisigPdaValue instanceof PublicKey,
+      !multisigPdaReadFailedDuringInstanceCheck && multisigPdaIsPublicKey,
       `Malformed proposal multisig PDA for ${chain} at index ${transactionIndex}: expected PublicKey, got ${getUnknownValueTypeName(multisigPdaValue)}`,
     );
+    const normalizedMultisigPda = multisigPdaValue as PublicKey;
 
     let programIdValue: unknown;
     try {
@@ -2150,17 +2179,22 @@ export class SquadsTransactionReader {
         `Failed to read proposal program id for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
       );
     }
+    const {
+      matches: programIdIsPublicKey,
+      readFailed: programIdReadFailedDuringInstanceCheck,
+    } = inspectInstanceOf(programIdValue, PublicKey);
     assert(
-      programIdValue instanceof PublicKey,
+      !programIdReadFailedDuringInstanceCheck && programIdIsPublicKey,
       `Malformed proposal program id for ${chain} at index ${transactionIndex}: expected PublicKey, got ${getUnknownValueTypeName(programIdValue)}`,
     );
+    const normalizedProgramId = programIdValue as PublicKey;
 
     let transactionPdaTuple: unknown;
     try {
       transactionPdaTuple = getTransactionPda({
-        multisigPda: multisigPdaValue,
+        multisigPda: normalizedMultisigPda,
         index: BigInt(transactionIndex),
-        programId: programIdValue,
+        programId: normalizedProgramId,
       });
     } catch (error) {
       throw new Error(
@@ -2202,12 +2236,16 @@ export class SquadsTransactionReader {
         `Failed to read transaction PDA tuple entry for ${chain} at index ${transactionIndex}: ${stringifyUnknownSquadsError(error)}`,
       );
     }
+    const {
+      matches: transactionPdaIsPublicKey,
+      readFailed: transactionPdaReadFailedDuringInstanceCheck,
+    } = inspectInstanceOf(transactionPda, PublicKey);
     assert(
-      transactionPda instanceof PublicKey,
+      !transactionPdaReadFailedDuringInstanceCheck && transactionPdaIsPublicKey,
       `Malformed transaction PDA derivation for ${chain} at index ${transactionIndex}: expected PublicKey at tuple index 0, got ${getUnknownValueTypeName(transactionPda)}`,
     );
 
-    return transactionPda;
+    return transactionPda as PublicKey;
   }
 
   async read(

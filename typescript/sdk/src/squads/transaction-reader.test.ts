@@ -3610,6 +3610,56 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('fails before account lookup when proposal multisig PDA type inspection is unreadable', async () => {
+    const { proxy: revokedMultisigPda, revoke } = Proxy.revocable({}, {});
+    revoke();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+    };
+    readerAny.fetchProposalData = async () => ({
+      ...createMockProposalData(5),
+      multisigPda: revokedMultisigPda,
+    });
+
+    let fetchTransactionAccountCalled = false;
+    readerAny.fetchTransactionAccount = async () => {
+      fetchTransactionAccountCalled = true;
+      return {
+        data: Buffer.from([
+          ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+          1,
+        ]),
+      };
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Malformed proposal multisig PDA for solanamainnet at index 5: expected PublicKey, got [unreadable value type]',
+    );
+    expect(fetchTransactionAccountCalled).to.equal(false);
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error:
+          'Error: Malformed proposal multisig PDA for solanamainnet at index 5: expected PublicKey, got [unreadable value type]',
+      },
+    ]);
+  });
+
   it('fails before account lookup when proposal program id getter throws', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
@@ -3707,6 +3757,56 @@ describe('squads transaction reader', () => {
         transactionIndex: 5,
         error:
           'Error: Malformed proposal program id for solanamainnet at index 5: expected PublicKey, got number',
+      },
+    ]);
+  });
+
+  it('fails before account lookup when proposal program id type inspection is unreadable', async () => {
+    const { proxy: revokedProgramId, revoke } = Proxy.revocable({}, {});
+    revoke();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+    };
+    readerAny.fetchProposalData = async () => ({
+      ...createMockProposalData(5),
+      programId: revokedProgramId,
+    });
+
+    let fetchTransactionAccountCalled = false;
+    readerAny.fetchTransactionAccount = async () => {
+      fetchTransactionAccountCalled = true;
+      return {
+        data: Buffer.from([
+          ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+          1,
+        ]),
+      };
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Malformed proposal program id for solanamainnet at index 5: expected PublicKey, got [unreadable value type]',
+    );
+    expect(fetchTransactionAccountCalled).to.equal(false);
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error:
+          'Error: Malformed proposal program id for solanamainnet at index 5: expected PublicKey, got [unreadable value type]',
       },
     ]);
   });

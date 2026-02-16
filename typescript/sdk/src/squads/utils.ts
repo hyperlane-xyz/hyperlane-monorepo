@@ -204,6 +204,26 @@ function inspectArrayValue(value: unknown): {
   }
 }
 
+function inspectInstanceOf(
+  value: unknown,
+  constructor: abstract new (...args: never[]) => unknown,
+): {
+  matches: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      matches: value instanceof constructor,
+      readFailed: false,
+    };
+  } catch {
+    return {
+      matches: false,
+      readFailed: true,
+    };
+  }
+}
+
 function getUnknownValueTypeName(value: unknown): string {
   if (value === null) {
     return 'null';
@@ -1064,12 +1084,16 @@ function getSignerPublicKeyForChain(
     `Invalid signer public key for ${chain}: expected synchronous PublicKey, got promise-like value`,
   );
 
+  const {
+    matches: signerPublicKeyIsPublicKey,
+    readFailed: signerPublicKeyReadFailedDuringInstanceCheck,
+  } = inspectInstanceOf(signerPublicKey, PublicKey);
   assert(
-    signerPublicKey instanceof PublicKey,
+    !signerPublicKeyReadFailedDuringInstanceCheck && signerPublicKeyIsPublicKey,
     `Invalid signer public key for ${chain}: expected PublicKey, got ${getUnknownValueTypeName(signerPublicKey)}`,
   );
 
-  return signerPublicKey;
+  return signerPublicKey as PublicKey;
 }
 
 function getSignerBuildAndSendTransactionForChain(
@@ -1229,12 +1253,16 @@ function deriveProposalPdaForResolvedChain(
     0,
     `proposal PDA tuple for ${chain} at index ${transactionIndex}`,
   );
+  const {
+    matches: proposalPdaIsPublicKey,
+    readFailed: proposalPdaReadFailedDuringInstanceCheck,
+  } = inspectInstanceOf(proposalPda, PublicKey);
   assert(
-    proposalPda instanceof PublicKey,
+    !proposalPdaReadFailedDuringInstanceCheck && proposalPdaIsPublicKey,
     `Malformed proposal PDA derivation for ${chain} at index ${transactionIndex}: expected PublicKey at tuple index 0, got ${getUnknownValueTypeName(proposalPda)}`,
   );
 
-  return proposalPda;
+  return proposalPda as PublicKey;
 }
 
 async function getProposalAccountForResolvedChain(
@@ -2115,16 +2143,21 @@ function warnOnUnexpectedMultisigAccountOwner(
     return;
   }
 
-  if (!(ownerValue instanceof PublicKey)) {
+  const {
+    matches: ownerIsPublicKey,
+    readFailed: ownerReadFailedDuringInstanceCheck,
+  } = inspectInstanceOf(ownerValue, PublicKey);
+  if (ownerReadFailedDuringInstanceCheck || !ownerIsPublicKey) {
     rootLogger.warn(
       `Skipping multisig owner validation on ${chain}: expected owner PublicKey, got ${getUnknownValueTypeName(ownerValue)}`,
     );
     return;
   }
+  const ownerPublicKey = ownerValue as PublicKey;
 
   let ownerMatchesExpectedProgram = false;
   try {
-    ownerMatchesExpectedProgram = ownerValue.equals(expectedProgramId);
+    ownerMatchesExpectedProgram = ownerPublicKey.equals(expectedProgramId);
   } catch (error) {
     rootLogger.warn(
       `Failed to compare multisig account owner on ${chain}: ${formatUnknownErrorForMessage(error)}`,
@@ -2135,7 +2168,7 @@ function warnOnUnexpectedMultisigAccountOwner(
   if (!ownerMatchesExpectedProgram) {
     let ownerAddress = '[unavailable owner address]';
     try {
-      ownerAddress = ownerValue.toBase58();
+      ownerAddress = ownerPublicKey.toBase58();
     } catch (error) {
       rootLogger.warn(
         `Failed to format multisig account owner on ${chain}: ${formatUnknownErrorForMessage(error)}`,
@@ -2178,11 +2211,15 @@ function assertValidBigintTransactionIndex(
 }
 
 function assertPublicKeyValue(value: unknown, label: string): PublicKey {
+  const {
+    matches: valueIsPublicKey,
+    readFailed: valueReadFailedDuringInstanceCheck,
+  } = inspectInstanceOf(value, PublicKey);
   assert(
-    value instanceof PublicKey,
+    !valueReadFailedDuringInstanceCheck && valueIsPublicKey,
     `Expected ${label} to be a PublicKey, got ${getUnknownValueTypeName(value)}`,
   );
-  return value;
+  return value as PublicKey;
 }
 
 function buildVaultTransactionMessage(
@@ -2224,11 +2261,16 @@ function normalizeProposalInstructionsForBuild(
       instructionIndex,
       `proposal instructions for ${chain}`,
     );
+    const {
+      matches: instructionIsTransactionInstruction,
+      readFailed: instructionReadFailedDuringInstanceCheck,
+    } = inspectInstanceOf(instruction, TransactionInstruction);
     assert(
-      instruction instanceof TransactionInstruction,
+      !instructionReadFailedDuringInstanceCheck &&
+        instructionIsTransactionInstruction,
       `Expected proposal instructions for ${chain}[${instructionIndex}] to be a TransactionInstruction, got ${getUnknownValueTypeName(instruction)}`,
     );
-    normalizedInstructions.push(instruction);
+    normalizedInstructions.push(instruction as TransactionInstruction);
   }
 
   return normalizedInstructions;

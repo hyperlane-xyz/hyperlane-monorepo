@@ -5483,6 +5483,32 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast when proposal creator PublicKey inspection is unreadable before provider lookup', async () => {
+      let providerLookupCalled = false;
+      const { proxy: revokedCreator, revoke } = Proxy.revocable({}, {});
+      revoke();
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          [],
+          revokedCreator,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal creator for solanamainnet to be a PublicKey, got [unreadable value type]',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('fails fast for malformed proposal instruction containers before provider lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -5553,6 +5579,32 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Expected proposal instructions for solanamainnet[0] to be a TransactionInstruction, got object',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast when proposal instruction PublicKey inspection is unreadable before provider lookup', async () => {
+      let providerLookupCalled = false;
+      const { proxy: revokedInstruction, revoke } = Proxy.revocable({}, {});
+      revoke();
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          [revokedInstruction],
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected proposal instructions for solanamainnet[0] to be a TransactionInstruction, got [unreadable value type]',
       );
       expect(providerLookupCalled).to.equal(false);
     });
