@@ -1471,6 +1471,53 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(0);
   });
 
+  it('returns chain-resolution failure with placeholders when resolved-chain promise-like inspection throws opaque values', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () =>
+        new Proxy(
+          {},
+          {
+            get(target, property, receiver) {
+              if (property === 'then') {
+                throw {};
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ) as unknown as string | undefined,
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Failed to inspect resolved chain for domain 1000: failed to read promise-like then field ([unstringifiable error])',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
   it('returns malformed-threshold issue before loading expected configuration', () => {
     let resolveConfigCallCount = 0;
     const reader = createReaderForVerification(() => {
@@ -3133,6 +3180,41 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('throws placeholder fallbacks when protocol promise-like inspection throws opaque values', () => {
+    const mpp = {
+      tryGetProtocol: () =>
+        new Proxy(
+          {},
+          {
+            get(target, property, receiver) {
+              if (property === 'then') {
+                throw {};
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ),
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      resolveProtocolTypeForWarpRoute: (
+        routeName: string,
+        chain: string,
+      ) => ProtocolType | null;
+    };
+
+    expect(() =>
+      readerAny.resolveProtocolTypeForWarpRoute('routeA', 'solanamainnet'),
+    ).to.throw(
+      'Failed to inspect protocol for warp route routeA on solanamainnet: failed to read promise-like then field ([unstringifiable error])',
+    );
+  });
+
   it('skips warp-route tokens when protocol type inspection is unreadable', async () => {
     const mpp = {
       tryGetProtocol: () => {
@@ -4091,6 +4173,45 @@ describe('squads transaction reader', () => {
             get(target, property, receiver) {
               if (property === 'then') {
                 throw new Error('Error:');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ),
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 0),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to inspect solana provider for solanamainnet: failed to read promise-like then field ([unstringifiable error])',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Failed to inspect solana provider for solanamainnet: failed to read promise-like then field ([unstringifiable error])',
+      },
+    ]);
+  });
+
+  it('fails with placeholder fallback when provider promise-like inspection throws opaque values', async () => {
+    const mpp = {
+      getSolanaWeb3Provider: () =>
+        new Proxy(
+          {},
+          {
+            get(target, property, receiver) {
+              if (property === 'then') {
+                throw {};
               }
               return Reflect.get(target, property, receiver);
             },
@@ -8940,6 +9061,51 @@ describe('squads transaction reader', () => {
             get(target, property, receiver) {
               if (property === 'then') {
                 throw new Error('Error:');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ) as unknown as { mailbox: string; multisig_ism_message_id: string },
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to inspect core program ids for solanamainnet: failed to read promise-like then field ([unstringifiable error])',
+    );
+  });
+
+  it('throws placeholder fallback when core-program-id then field access throws opaque values', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () =>
+        new Proxy(
+          {},
+          {
+            get(target, property, receiver) {
+              if (property === 'then') {
+                throw {};
               }
               return Reflect.get(target, property, receiver);
             },
