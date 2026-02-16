@@ -1637,6 +1637,38 @@ describe('squads transaction reader multisig verification', () => {
     });
   });
 
+  it('reports malformed expected validator arrays when array inspection is unreadable', () => {
+    const reader = createReaderForVerification(() => {
+      const { proxy: revokedValidators, revoke } = Proxy.revocable({}, {});
+      revoke();
+      return {
+        solanatestnet: {
+          threshold: 2,
+          validators: revokedValidators as unknown as readonly string[],
+        },
+      };
+    });
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed expected config for route solanamainnet -> solanatestnet: validators must be an array of non-empty strings',
+      ],
+    });
+  });
+
   it('reports malformed runtime validator arrays when duplicates exist', () => {
     const reader = createReaderForVerification(() => ({
       solanatestnet: {
@@ -1662,6 +1694,39 @@ describe('squads transaction reader multisig verification', () => {
       matches: false,
       issues: [
         'Malformed validator set for route solanamainnet -> solanatestnet: validators must be unique (duplicate: VALIDATOR-A)',
+      ],
+    });
+  });
+
+  it('reports malformed runtime validator arrays when array inspection is unreadable', () => {
+    const reader = createReaderForVerification(() => ({
+      solanatestnet: {
+        threshold: 2,
+        validators: ['validator-a'],
+      },
+    }));
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+    const { proxy: revokedValidators, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    const result = readerAny.verifyConfiguration(
+      'solanamainnet',
+      1000,
+      2,
+      revokedValidators as unknown as readonly string[],
+    );
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Malformed validator set for route solanamainnet -> solanatestnet: validators must be an array of non-empty strings',
       ],
     });
   });
