@@ -75,6 +75,9 @@ catalog:
   # Arbitrum
   '@arbitrum/sdk': ^4.0.0
 
+  # LiFi (cross-chain bridging)
+  '@lifi/sdk': ^3.15.4
+
   # Safe
   '@safe-global/api-kit': 4.0.0
   '@safe-global/protocol-kit': 6.1.1
