@@ -119,6 +119,27 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     expect(protocolCalls).to.equal(0);
   });
 
+  it('returns empty batches without protocol lookup when explicit strategy has overrides and no transactions', async () => {
+    let protocolCalls = 0;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [],
+      context: {
+        multiProvider: {
+          getProtocol: () => {
+            protocolCalls += 1;
+            return ProtocolType.Ethereum;
+          },
+        },
+      } as any,
+      strategyUrl: createExplicitStrategyWithOverridePath(),
+    });
+
+    expect(batches).to.deep.equal([]);
+    expect(protocolCalls).to.equal(0);
+  });
+
   it('still looks up protocol when explicit strategy has overrides', async () => {
     let protocolCalls = 0;
 
