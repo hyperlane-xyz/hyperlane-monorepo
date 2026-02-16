@@ -918,23 +918,25 @@ function listSdkSquadsRuntimeReflectApplyCountSummaries(): readonly RuntimeRefle
     .sort(compareLexicographically)) {
     const absoluteSourcePath = path.join(SDK_PACKAGE_ROOT, runtimeSourcePath);
     const source = fs.readFileSync(absoluteSourcePath, 'utf8');
-    summaries.push({
-      runtimeSourcePath,
-      reflectApplyIdentifierReferenceCount: countOccurrences(
-        source,
-        REFLECT_APPLY_IDENTIFIER_REFERENCE_STATEMENT,
-      ),
-      reflectApplyInvocationCount: countOccurrences(
-        source,
-        REFLECT_APPLY_INVOCATION_STATEMENT,
-      ),
-      reflectApplyCaptureDeclarationCount: countOccurrences(
-        source,
-        REFLECT_APPLY_CAPTURE_DECLARATION_STATEMENT,
-      ),
-    });
+    summaries.push(
+      Object.freeze({
+        runtimeSourcePath,
+        reflectApplyIdentifierReferenceCount: countOccurrences(
+          source,
+          REFLECT_APPLY_IDENTIFIER_REFERENCE_STATEMENT,
+        ),
+        reflectApplyInvocationCount: countOccurrences(
+          source,
+          REFLECT_APPLY_INVOCATION_STATEMENT,
+        ),
+        reflectApplyCaptureDeclarationCount: countOccurrences(
+          source,
+          REFLECT_APPLY_CAPTURE_DECLARATION_STATEMENT,
+        ),
+      }),
+    );
   }
-  return summaries;
+  return Object.freeze(summaries);
 }
 
 function listSingleQuotedTokens(command: string): readonly string[] {
@@ -2827,6 +2829,12 @@ describe('squads barrel exports', () => {
     expect(baselineRuntimeReflectApplyCountSummaries.length).to.be.greaterThan(
       0,
     );
+    expect(Object.isFrozen(baselineRuntimeReflectApplyCountSummaries)).to.equal(
+      true,
+    );
+    for (const summaryEntry of baselineRuntimeReflectApplyCountSummaries) {
+      expect(Object.isFrozen(summaryEntry)).to.equal(true);
+    }
 
     const baselineSignatures = baselineRuntimeReflectApplyCountSummaries.map(
       ({
@@ -2845,15 +2853,23 @@ describe('squads barrel exports', () => {
         reflectApplyInvocationCount: number;
         reflectApplyCaptureDeclarationCount: number;
       }>;
-    callerMutatedSummaries.push({
-      runtimeSourcePath: 'src/squads/injected.ts',
-      reflectApplyIdentifierReferenceCount: 0,
-      reflectApplyInvocationCount: 0,
-      reflectApplyCaptureDeclarationCount: 0,
-    });
-    callerMutatedSummaries[0].reflectApplyIdentifierReferenceCount = 999;
-    callerMutatedSummaries[0].reflectApplyInvocationCount = 999;
-    callerMutatedSummaries[0].reflectApplyCaptureDeclarationCount = 999;
+    expect(() => {
+      callerMutatedSummaries.push({
+        runtimeSourcePath: 'src/squads/injected.ts',
+        reflectApplyIdentifierReferenceCount: 0,
+        reflectApplyInvocationCount: 0,
+        reflectApplyCaptureDeclarationCount: 0,
+      });
+    }).to.throw();
+    expect(() => {
+      callerMutatedSummaries[0].reflectApplyIdentifierReferenceCount = 999;
+    }).to.throw();
+    expect(() => {
+      callerMutatedSummaries[0].reflectApplyInvocationCount = 999;
+    }).to.throw();
+    expect(() => {
+      callerMutatedSummaries[0].reflectApplyCaptureDeclarationCount = 999;
+    }).to.throw();
 
     const subsequentRuntimeReflectApplyCountSummaries =
       listSdkSquadsRuntimeReflectApplyCountSummaries();
@@ -2869,7 +2885,7 @@ describe('squads barrel exports', () => {
       );
 
     expect(subsequentSignatures).to.deep.equal(baselineSignatures);
-    expect(callerMutatedSummaries.length).to.not.equal(
+    expect(callerMutatedSummaries.length).to.equal(
       subsequentRuntimeReflectApplyCountSummaries.length,
     );
   });
