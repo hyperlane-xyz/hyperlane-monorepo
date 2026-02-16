@@ -42,6 +42,11 @@ const MAX_OVERRIDE_KEY_LENGTH = 4096;
 const MAX_SELECTOR_SCAN_LENGTH = 1024;
 const MAX_BOXED_STRING_PROTOTYPE_DEPTH = 128;
 const MAX_REGISTRY_CHAIN_ENTRIES = 4096;
+const DISALLOWED_CHAIN_NAME_LITERALS = new Set([
+  '__proto__',
+  'prototype',
+  'constructor',
+]);
 const TX_SELECTOR_PREFIX_REGEX = /^\s*(0[xX][0-9a-fA-F]{8})/;
 const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
   (Object.values(ProtocolType) as ProtocolType[]).filter(
@@ -397,6 +402,9 @@ function normalizeChainNameFromUnknown(value: unknown): ChainName | null {
       trimmedChainName.length > MAX_OVERRIDE_KEY_LENGTH ||
       trimmedChainName.includes('\0')
     ) {
+      return null;
+    }
+    if (DISALLOWED_CHAIN_NAME_LITERALS.has(trimmedChainName)) {
       return null;
     }
     return trimmedChainName as ChainName;
