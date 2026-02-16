@@ -273,6 +273,19 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     expect((batches[0].config.submitter as any).chain).to.equal('toString');
   });
 
+  it('ignores disallowed prototype-literal chain keys when resolving explicit strategy', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: '__proto__' as any,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: createExplicitStrategyPath(),
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect((batches[0].config.submitter as any).chain).to.equal('__proto__');
+  });
+
   it('returns empty batches without protocol lookup when explicit strategy has overrides and no transactions', async () => {
     let protocolCalls = 0;
 
