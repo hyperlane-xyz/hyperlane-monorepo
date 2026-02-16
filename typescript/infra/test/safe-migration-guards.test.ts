@@ -8796,6 +8796,58 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality direct-delete array-element-numeric true predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (((delete ([] as any)[0]) === true)) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats strict-equality direct-delete array-element-template-length false predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if (((delete ([] as any)[`len${'gth'}`]) === false)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-equality direct-delete array-element-dynamic-key predicates conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      'if (((delete ([] as any)[marker]) === false)) reqAlias = () => undefined;',
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('keeps strict-equality direct-delete unknown-target-element predicates conservative for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -14722,6 +14774,53 @@ describe('Safe migration guards', () => {
     );
     expect(references).to.include('default@./fixtures/other-module.js');
     expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality direct-delete array-element-numeric true predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'if (((delete ([] as any)[0]) === true)) {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality direct-delete array-element-template-length false predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      "if (((delete ([] as any)[`len${'gth'}`]) === false)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-equality direct-delete array-element-dynamic-key predicates conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[marker]) === false)) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
   it('keeps strict-equality direct-delete unknown-target-element predicates conservative for module-source aliases in symbol sources', () => {
@@ -27332,6 +27431,73 @@ describe('Safe migration guards', () => {
       './fixtures/guard-module.js@fixture.ts',
     );
     expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality direct-delete array-element-numeric true predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (((delete ([] as any)[0]) === true)) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality direct-delete array-element-template-length false predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      "if (((delete ([] as any)[`len${'gth'}`]) === false)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-equality direct-delete array-element-dynamic-key predicates conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js');",
+      'if (((delete ([] as any)[marker]) === false)) reqAlias = () => undefined;',
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
       './fixtures/other-module.js@fixture.ts',
     );
   });
