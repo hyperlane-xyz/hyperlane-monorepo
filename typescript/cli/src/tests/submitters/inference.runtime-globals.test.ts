@@ -656,6 +656,36 @@ describe('runtime global probe helpers', () => {
     expect(filesUsingRawRuntimeMaps).to.deep.equal([]);
   });
 
+  it('keeps Intl constructor probe files on cached intl resolver entrypoints', () => {
+    const submitterTestDir = path.dirname(fileURLToPath(import.meta.url));
+    const intlConstructorProbeFiles = [
+      'inference.intl-constructors.test.ts',
+      'inference.intl-more-constructors.test.ts',
+    ];
+
+    const filesMissingIntlResolver = intlConstructorProbeFiles.filter(
+      (fileName) => {
+        const fileContent = fs.readFileSync(
+          path.join(submitterTestDir, fileName),
+          'utf8',
+        );
+        return !fileContent.includes('resolveRuntimeIntlFunctionProbeCases');
+      },
+    );
+    expect(filesMissingIntlResolver).to.deep.equal([]);
+
+    const filesUsingGenericResolver = intlConstructorProbeFiles.filter(
+      (fileName) => {
+        const fileContent = fs.readFileSync(
+          path.join(submitterTestDir, fileName),
+          'utf8',
+        );
+        return fileContent.includes('resolveRuntimeFunctionProbeCases');
+      },
+    );
+    expect(filesUsingGenericResolver).to.deep.equal([]);
+  });
+
   it('keeps global probe files on cached helper entrypoints', () => {
     const globalProbeFiles = [
       'inference.global-function-probes.test.ts',
