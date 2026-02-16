@@ -247,28 +247,28 @@ function compareLogsByPosition(
   return compareLogPositionIndex(a.logIndex, b.logIndex);
 }
 
+/**
+ * Signer availability probe with aggressive memoization and defensive narrowing.
+ *
+ * Why this exists:
+ * - MultiProvider implementations in the wild return many `tryGetSigner` shapes:
+ *   direct signer objects, promises, thenables, primitives, constructor functions,
+ *   malformed objects, and values with throwing getters.
+ * - Inference must never throw for malformed signer probes; it must degrade to
+ *   "no signer" and ultimately JSON-RPC fallback.
+ *
+ * Rules:
+ * - Cache by chain so repeated inference for mixed tx batches does one probe.
+ * - Prefer `getSignerAddress` when available and valid.
+ * - If signer address lookup fails, try best-effort `signer.getAddress()`.
+ * - Treat zero address / malformed addresses as no signer.
+ * - Catch all probe failures and degrade gracefully.
+ */
 async function hasSignerForChain(
   context: WriteCommandContext,
   cache: Cache,
   chain: ChainName,
 ): Promise<boolean> {
-  /**
-   * Signer availability probe with aggressive memoization and defensive narrowing.
-   *
-   * Why this exists:
-   * - MultiProvider implementations in the wild return many `tryGetSigner` shapes:
-   *   direct signer objects, promises, thenables, primitives, constructor functions,
-   *   malformed objects, and values with throwing getters.
-   * - Inference must never throw for malformed signer probes; it must degrade to
-   *   "no signer" and ultimately JSON-RPC fallback.
-   *
-   * Rules:
-   * - Cache by chain so repeated inference for mixed tx batches does one probe.
-   * - Prefer `getSignerAddress` when available and valid.
-   * - If signer address lookup fails, try best-effort `signer.getAddress()`.
-   * - Treat zero address / malformed addresses as no signer.
-   * - Catch all probe failures and degrade gracefully.
-   */
   const cached = cache.signerByChain.get(chain);
   if (cached !== undefined) {
     return cached;
@@ -601,6 +601,20 @@ async function isTimelockContract({
   }
 }
 
+/**
+ * Infer an ICA submitter for a destination-chain account address.
+ *
+ * Resolution order:
+ * 1) parse destination `InterchainAccountCreated` logs (latest-first by exact
+ *    block/tx/log position) and validate origin chain + signer availability
+ * 2) fallback derivation via known origin routers and signer-owned owner
+ *    candidates when event inference is unavailable/incomplete
+ *
+ * Guarantees:
+ * - never throws for malformed logs, invalid domains, bad router fields, or
+ *   missing providers; returns `null` and lets caller fallback to jsonRpc.
+ * - caches both positive and negative outcomes per `(destinationChain, account)`.
+ */
 async function inferIcaSubmitterFromAccount({
   destinationChain,
   accountAddress,
@@ -608,20 +622,6 @@ async function inferIcaSubmitterFromAccount({
   cache,
   depth,
 }: InferIcaParams): Promise<InferredSubmitter | null> {
-  /**
-   * Infer an ICA submitter for a destination-chain account address.
-   *
-   * Resolution order:
-   * 1) parse destination `InterchainAccountCreated` logs (latest-first by exact
-   *    block/tx/log position) and validate origin chain + signer availability
-   * 2) fallback derivation via known origin routers and signer-owned owner
-   *    candidates when event inference is unavailable/incomplete
-   *
-   * Guarantees:
-   * - never throws for malformed logs, invalid domains, bad router fields, or
-   *   missing providers; returns `null` and lets caller fallback to jsonRpc.
-   * - caches both positive and negative outcomes per `(destinationChain, account)`.
-   */
   if (depth >= MAX_INFERENCE_DEPTH) {
     return null;
   }
@@ -865,6 +865,23 @@ async function inferIcaSubmitterFromAccount({
   }
 }
 
+/**
+ * Infer proposer submitter for a TimelockController.
+ *
+ * Strategy:
+ * - if signer can propose directly (open role or signer has proposer role):
+ *   return jsonRpc.
+ * - otherwise reconstruct current proposer set from RoleGranted/RoleRevoked logs
+ *   and prefer:
+ *   Safe proposer -> gnosisSafeTxBuilder
+ *   ICA proposer -> interchainAccount (with inferred internal submitter)
+ * - if role logs are incomplete, run signer-owned ICA derivation fallback and
+ *   verify proposer role on derived ICA account.
+ *
+ * Failure behavior:
+ * - any probe/read/parse error falls back to jsonRpc; result is memoized per
+ *   `(chain, timelockAddress)` to prevent repeated noisy RPC probes.
+ */
 async function inferTimelockProposerSubmitter({
   chain,
   timelockAddress,
@@ -872,23 +889,6 @@ async function inferTimelockProposerSubmitter({
   cache,
   depth,
 }: InferTimelockProposerParams): Promise<InferredSubmitter> {
-  /**
-   * Infer proposer submitter for a TimelockController.
-   *
-   * Strategy:
-   * - if signer can propose directly (open role or signer has proposer role):
-   *   return jsonRpc.
-   * - otherwise reconstruct current proposer set from RoleGranted/RoleRevoked logs
-   *   and prefer:
-   *   Safe proposer -> gnosisSafeTxBuilder
-   *   ICA proposer -> interchainAccount (with inferred internal submitter)
-   * - if role logs are incomplete, run signer-owned ICA derivation fallback and
-   *   verify proposer role on derived ICA account.
-   *
-   * Failure behavior:
-   * - any probe/read/parse error falls back to jsonRpc; result is memoized per
-   *   `(chain, timelockAddress)` to prevent repeated noisy RPC probes.
-   */
   const timelockKey = cacheKey(chain, timelockAddress);
   const cached = cache.timelockProposerByChainAndAddress.get(timelockKey);
   if (cached) {
@@ -1257,6 +1257,19 @@ async function inferTimelockProposerSubmitter({
   return defaultSubmitter;
 }
 
+/**
+ * Infer the controlling submitter for an on-chain owner address.
+ *
+ * Order:
+ * - signer / zero address / recursion limit => jsonRpc
+ * - Safe owner => gnosisSafeTxBuilder
+ * - Timelock owner => timelockController with inferred proposer submitter
+ * - ICA account => interchainAccount with inferred internal submitter
+ * - unknown owner type => jsonRpc
+ *
+ * This function is deliberately conservative: inability to prove a richer
+ * submitter shape is treated as jsonRpc, not as an inference error.
+ */
 async function inferSubmitterFromAddress({
   chain,
   address,
@@ -1264,19 +1277,6 @@ async function inferSubmitterFromAddress({
   cache,
   depth,
 }: InferSubmitterFromAddressParams): Promise<InferredSubmitter> {
-  /**
-   * Infer the controlling submitter for an on-chain owner address.
-   *
-   * Order:
-   * - signer / zero address / recursion limit => jsonRpc
-   * - Safe owner => gnosisSafeTxBuilder
-   * - Timelock owner => timelockController with inferred proposer submitter
-   * - ICA account => interchainAccount with inferred internal submitter
-   * - unknown owner type => jsonRpc
-   *
-   * This function is deliberately conservative: inability to prove a richer
-   * submitter shape is treated as jsonRpc, not as an inference error.
-   */
   const defaultSubmitter: InferredSubmitter = {
     chain,
     type: TxSubmitterType.JSON_RPC,
@@ -1594,6 +1594,31 @@ function createCache(): Cache {
   };
 }
 
+/**
+ * Resolve submitter config per transaction and emit ordered contiguous batches.
+ *
+ * Precedence (strict):
+ * 1) explicit strategy submitter / overrides (if provided and chain is non-extended)
+ * 2) inferred submitter from on-chain ownership + governance topology
+ * 3) jsonRpc default for the destination chain
+ *
+ * Inference model:
+ * - EVM only; non-EVM chains always use JSON-RPC default.
+ * - Probe tx target owner (with `tx.from` fallback when owner lookup is unavailable).
+ * - Infer submitter shape recursively: signer => jsonRpc, Safe =>
+ *   gnosisSafeTxBuilder, Timelock => timelockController(+proposer submitter),
+ *   ICA => interchainAccount(+internal submitter).
+ * - Enforce depth limit to prevent recursive inference loops.
+ *
+ * Batching model:
+ * - Transactions are never reordered.
+ * - Adjacent transactions with identical submitter fingerprint are coalesced.
+ * - Same submitter appearing later creates a new batch to preserve nonce/order semantics.
+ *
+ * Fault tolerance:
+ * - Any probe/inference error degrades that transaction to jsonRpc fallback.
+ * - Caches memoize negative lookups and failures to avoid repeated RPC churn.
+ */
 export async function resolveSubmitterBatchesForTransactions({
   chain,
   transactions,
@@ -1601,31 +1626,6 @@ export async function resolveSubmitterBatchesForTransactions({
   strategyUrl,
   isExtendedChain,
 }: ResolveSubmitterBatchesParams): Promise<ResolvedSubmitterBatch[]> {
-  /**
-   * Resolve submitter config per transaction and emit ordered contiguous batches.
-   *
-   * Precedence (strict):
-   * 1) explicit strategy submitter / overrides (if provided and chain is non-extended)
-   * 2) inferred submitter from on-chain ownership + governance topology
-   * 3) jsonRpc default for the destination chain
-   *
-   * Inference model:
-   * - EVM only; non-EVM chains always use JSON-RPC default.
-   * - Probe tx target owner (with `tx.from` fallback when owner lookup is unavailable).
-   * - Infer submitter shape recursively: signer => jsonRpc, Safe =>
-   *   gnosisSafeTxBuilder, Timelock => timelockController(+proposer submitter),
-   *   ICA => interchainAccount(+internal submitter).
-   * - Enforce depth limit to prevent recursive inference loops.
-   *
-   * Batching model:
-   * - Transactions are never reordered.
-   * - Adjacent transactions with identical submitter fingerprint are coalesced.
-   * - Same submitter appearing later creates a new batch to preserve nonce/order semantics.
-   *
-   * Fault tolerance:
-   * - Any probe/inference error degrades that transaction to jsonRpc fallback.
-   * - Caches memoize negative lookups and failures to avoid repeated RPC churn.
-   */
   if (transactions.length === 0) {
     return [];
   }
