@@ -30,6 +30,7 @@ const EXCLUDED_INFERENCE_TEST_FILES = new Set([
 const PROBE_LABEL_FROM_TEST_TITLE_REGEX =
   /(?:caches(?: event-derived)?(?: async)? )([a-z0-9_-]+-(?:constructor-)?object|[a-z0-9_-]+-primitive) origin signer probes across timelock ICA inferences/;
 const knownObjectLikeLabelsByFilePath = new Map<string, ReadonlySet<string>>();
+const MISSING_GLOBAL_VALUE = Symbol('missing-global-value');
 
 export function isSupportedRuntimePrimitiveValueType(
   valueType: string,
@@ -47,20 +48,29 @@ const cleanRuntimeProbeLabels: CleanRuntimeProbeLabels = JSON.parse(
       '-e',
       `
         const primitiveTypes = ${JSON.stringify(SUPPORTED_RUNTIME_PRIMITIVE_VALUE_TYPES)};
+        const names = Object.getOwnPropertyNames(globalThis);
+        const safeRead = (name) => {
+          try {
+            return { ok: true, value: globalThis[name] };
+          } catch {
+            return { ok: false, value: undefined };
+          }
+        };
+        const globals = names.map((name) => ({ name, ...safeRead(name) }));
         const functionLabels = Object.getOwnPropertyNames(globalThis)
-          .filter((name) => typeof globalThis[name] === 'function')
+          .filter((name) => {
+            const item = globals.find((entry) => entry.name === name);
+            return item?.ok && typeof item.value === 'function';
+          })
           .map((name) => \`\${name.toLowerCase()}-constructor-object\`)
           .sort();
-        const objectLabels = Object.getOwnPropertyNames(globalThis)
-          .filter((name) => {
-            const value = globalThis[name];
-            return value !== null && typeof value === 'object';
-          })
-          .map((name) => \`\${name.toLowerCase()}-object\`)
+        const objectLabels = globals
+          .filter((item) => item.ok && item.value !== null && typeof item.value === 'object')
+          .map((item) => \`\${item.name.toLowerCase()}-object\`)
           .sort();
-        const primitiveLabels = Object.getOwnPropertyNames(globalThis)
-          .filter((name) => primitiveTypes.includes(typeof globalThis[name]))
-          .map((name) => \`\${name.toLowerCase()}-\${typeof globalThis[name]}-primitive\`)
+        const primitiveLabels = globals
+          .filter((item) => item.ok && primitiveTypes.includes(typeof item.value))
+          .map((item) => \`\${item.name.toLowerCase()}-\${typeof item.value}-primitive\`)
           .sort();
         process.stdout.write(JSON.stringify({ functionLabels, objectLabels, primitiveLabels }));
       `,
@@ -115,7 +125,7 @@ export function getKnownObjectLikeProbeLabelsFromOtherTests(
 export function getRuntimeFunctionValuesByLabel(): Map<string, Function> {
   const runtimeFunctionValueByLabel = new Map<string, Function>();
   for (const name of Object.getOwnPropertyNames(globalThis)) {
-    const value = (globalThis as any)[name];
+    const value = tryGetGlobalValueByName(name);
     if (typeof value === 'function') {
       runtimeFunctionValueByLabel.set(
         `${name.toLowerCase()}-constructor-object`,
@@ -129,7 +139,7 @@ export function getRuntimeFunctionValuesByLabel(): Map<string, Function> {
 export function getRuntimeObjectValuesByLabel(): Map<string, object> {
   const runtimeObjectValueByLabel = new Map<string, object>();
   for (const name of Object.getOwnPropertyNames(globalThis)) {
-    const value = (globalThis as any)[name];
+    const value = tryGetGlobalValueByName(name);
     if (value !== null && typeof value === 'object') {
       runtimeObjectValueByLabel.set(`${name.toLowerCase()}-object`, value);
     }
@@ -140,7 +150,7 @@ export function getRuntimeObjectValuesByLabel(): Map<string, object> {
 export function getRuntimePrimitiveValuesByLabel(): Map<string, unknown> {
   const runtimePrimitiveByLabel = new Map<string, unknown>();
   for (const name of Object.getOwnPropertyNames(globalThis)) {
-    const value = (globalThis as any)[name];
+    const value = tryGetGlobalValueByName(name);
     const valueType = typeof value;
     if (isSupportedRuntimePrimitiveValueType(valueType)) {
       runtimePrimitiveByLabel.set(
@@ -173,4 +183,12 @@ export function getFallbackPrimitiveProbeValueFromLabel(
   if (label.endsWith('-symbol-primitive')) return Symbol(label);
   if (label.endsWith('-string-primitive')) return label;
   return undefined;
+}
+
+function tryGetGlobalValueByName(name: string): unknown {
+  try {
+    return (globalThis as any)[name];
+  } catch {
+    return MISSING_GLOBAL_VALUE;
+  }
 }

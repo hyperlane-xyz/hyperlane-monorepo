@@ -80,6 +80,32 @@ describe('runtime global probe helpers', () => {
     expect(isSupportedRuntimePrimitiveValueType('function')).to.equal(false);
   });
 
+  it('skips throwing global getters when building runtime maps', () => {
+    const throwingGlobalName = '__throwing_runtime_probe_getter__';
+    Object.defineProperty(globalThis, throwingGlobalName, {
+      configurable: true,
+      get: () => {
+        throw new Error('expected test getter throw');
+      },
+    });
+
+    try {
+      expect(() => getRuntimeFunctionValuesByLabel()).to.not.throw();
+      expect(() => getRuntimeObjectValuesByLabel()).to.not.throw();
+      expect(() => getRuntimePrimitiveValuesByLabel()).to.not.throw();
+
+      const functionMap = getRuntimeFunctionValuesByLabel();
+      const objectMap = getRuntimeObjectValuesByLabel();
+      const primitiveMap = getRuntimePrimitiveValuesByLabel();
+      const lowered = throwingGlobalName.toLowerCase();
+      expect(functionMap.has(`${lowered}-constructor-object`)).to.equal(false);
+      expect(objectMap.has(`${lowered}-object`)).to.equal(false);
+      expect(primitiveMap.has(`${lowered}-string-primitive`)).to.equal(false);
+    } finally {
+      Reflect.deleteProperty(globalThis, throwingGlobalName);
+    }
+  });
+
   it('extracts probe labels from generated test titles', () => {
     expect(
       getProbeLabelFromInferenceTestTitle(
