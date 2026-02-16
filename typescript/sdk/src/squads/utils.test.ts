@@ -7844,6 +7844,29 @@ describe('squads utils', () => {
       expect(providerLookupChain).to.equal('solanamainnet');
     });
 
+    it('throws stable error when transaction account data type inspection is unreadable', async () => {
+      const { proxy: revokedAccountData, revoke } = Proxy.revocable({}, {});
+      revoke();
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {
+            getAccountInfo: async () => ({ data: revokedAccountData }),
+          };
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType('solanamainnet', mpp, 0),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Malformed transaction account data on solanamainnet: expected Uint8Array, got [unreadable value type]',
+      );
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
     it('uses placeholder when transaction account data getter throws opaque value', async () => {
       let providerLookupChain: string | undefined;
       const accountInfo = new Proxy(
@@ -8421,6 +8444,18 @@ describe('squads utils', () => {
       );
       expect(() => isConfigTransaction(1)).to.throw(
         'Expected account data to be a Uint8Array, got number',
+      );
+    });
+
+    it('throws for unreadable discriminator sources deterministically', () => {
+      const { proxy: revokedAccountData, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(() => isVaultTransaction(revokedAccountData)).to.throw(
+        'Expected account data to be a Uint8Array, got [unreadable value type]',
+      );
+      expect(() => isConfigTransaction(revokedAccountData)).to.throw(
+        'Expected account data to be a Uint8Array, got [unreadable value type]',
       );
     });
 

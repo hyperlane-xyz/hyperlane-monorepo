@@ -2611,8 +2611,12 @@ export async function submitProposalToSquads(
 function assertIsDiscriminatorSource(
   accountData: unknown,
 ): asserts accountData is Uint8Array {
+  const {
+    matches: accountDataIsUint8Array,
+    readFailed: accountDataReadFailedDuringInstanceCheck,
+  } = inspectInstanceOf(accountData, Uint8Array);
   assert(
-    accountData instanceof Uint8Array,
+    !accountDataReadFailedDuringInstanceCheck && accountDataIsUint8Array,
     `Expected account data to be a Uint8Array, got ${getUnknownValueTypeName(accountData)}`,
   );
 }
@@ -2651,12 +2655,16 @@ function readTransactionAccountDataForType(
     );
   }
 
+  const {
+    matches: dataValueIsUint8Array,
+    readFailed: dataValueReadFailedDuringInstanceCheck,
+  } = inspectInstanceOf(dataValue, Uint8Array);
   assert(
-    dataValue instanceof Uint8Array,
+    !dataValueReadFailedDuringInstanceCheck && dataValueIsUint8Array,
     `Malformed transaction account data on ${chain}: expected Uint8Array, got ${getUnknownValueTypeName(dataValue)}`,
   );
 
-  return dataValue;
+  return dataValue as Uint8Array;
 }
 
 async function getTransactionAccountInfoForType(

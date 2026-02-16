@@ -110,6 +110,23 @@ function inspectArrayValue(value: unknown): {
   }
 }
 
+function inspectBufferValue(value: unknown): {
+  isBuffer: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      isBuffer: Buffer.isBuffer(value),
+      readFailed: false,
+    };
+  } catch {
+    return {
+      isBuffer: false,
+      readFailed: true,
+    };
+  }
+}
+
 function inspectInstanceOf(
   value: unknown,
   constructor: abstract new (...args: never[]) => unknown,
@@ -127,6 +144,23 @@ function inspectInstanceOf(
       matches: false,
       readFailed: true,
     };
+  }
+}
+
+function getErrorMessageFromErrorInstance(error: unknown): string | undefined {
+  const { matches: errorIsErrorInstance, readFailed: errorInstanceReadFailed } =
+    inspectInstanceOf(error, Error);
+  if (errorInstanceReadFailed || !errorIsErrorInstance) {
+    return undefined;
+  }
+
+  try {
+    const message = (error as Error).message;
+    return typeof message === 'string' && message.trim().length > 0
+      ? message
+      : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -551,9 +585,10 @@ export class SquadsTransactionReader {
         normalizedChainName,
       );
     } catch (error) {
+      const errorMessage = getErrorMessageFromErrorInstance(error);
       rootLogger.warn(
-        error instanceof Error
-          ? error.message
+        errorMessage
+          ? errorMessage
           : `Failed to resolve protocol for warp route ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(error)}`,
       );
       return;
@@ -1799,14 +1834,24 @@ export class SquadsTransactionReader {
     value: unknown,
     warnings: string[],
   ): Buffer {
-    if (Buffer.isBuffer(value)) {
-      return Buffer.from(value);
+    const { isBuffer: valueIsBuffer, readFailed: valueBufferReadFailed } =
+      inspectBufferValue(value);
+    if (!valueBufferReadFailed && valueIsBuffer) {
+      return Buffer.from(value as Buffer);
     }
-    if (value instanceof Uint8Array) {
-      return Buffer.from(value);
+    const {
+      matches: valueIsUint8Array,
+      readFailed: valueUint8ArrayReadFailed,
+    } = inspectInstanceOf(value, Uint8Array);
+    if (!valueUint8ArrayReadFailed && valueIsUint8Array) {
+      return Buffer.from(value as Uint8Array);
     }
-    if (value instanceof ArrayBuffer) {
-      return Buffer.from(new Uint8Array(value));
+    const {
+      matches: valueIsArrayBuffer,
+      readFailed: valueArrayBufferReadFailed,
+    } = inspectInstanceOf(value, ArrayBuffer);
+    if (!valueArrayBufferReadFailed && valueIsArrayBuffer) {
+      return Buffer.from(new Uint8Array(value as ArrayBuffer));
     }
     const { isArray: valueIsArray, readFailed: valueReadFailed } =
       inspectArrayValue(value);
@@ -2531,9 +2576,10 @@ export class SquadsTransactionReader {
     try {
       remoteChain = this.resolveChainNameForDomain(remoteDomain, 'chain');
     } catch (error) {
+      const errorMessage = getErrorMessageFromErrorInstance(error);
       issues.push(
-        error instanceof Error
-          ? error.message
+        errorMessage
+          ? errorMessage
           : `Failed to resolve chain for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
       );
       return { matches: false, issues };
@@ -2963,11 +3009,19 @@ export class SquadsTransactionReader {
       );
     }
 
-    if (Buffer.isBuffer(dataValue)) {
-      return dataValue;
+    const {
+      isBuffer: dataValueIsBuffer,
+      readFailed: dataValueBufferReadFailed,
+    } = inspectBufferValue(dataValue);
+    if (!dataValueBufferReadFailed && dataValueIsBuffer) {
+      return dataValue as Buffer;
     }
-    if (dataValue instanceof Uint8Array) {
-      return Buffer.from(dataValue);
+    const {
+      matches: dataValueIsUint8Array,
+      readFailed: dataValueUint8ArrayReadFailed,
+    } = inspectInstanceOf(dataValue, Uint8Array);
+    if (!dataValueUint8ArrayReadFailed && dataValueIsUint8Array) {
+      return Buffer.from(dataValue as Uint8Array);
     }
 
     throw new Error(
@@ -2986,9 +3040,10 @@ export class SquadsTransactionReader {
     try {
       remoteChain = this.resolveChainNameForDomain(remoteDomain, 'chain alias');
     } catch (error) {
+      const errorMessage = getErrorMessageFromErrorInstance(error);
       rootLogger.warn(
-        error instanceof Error
-          ? error.message
+        errorMessage
+          ? errorMessage
           : `Failed to resolve chain alias for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
       );
       return null;

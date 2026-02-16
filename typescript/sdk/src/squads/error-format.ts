@@ -55,6 +55,23 @@ function normalizeUnknownStringCandidate(value: unknown): string | undefined {
     : undefined;
 }
 
+function inspectErrorInstance(value: unknown): {
+  isError: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      isError: value instanceof Error,
+      readFailed: false,
+    };
+  } catch {
+    return {
+      isError: false,
+      readFailed: true,
+    };
+  }
+}
+
 export interface StringifyUnknownSquadsErrorOptions {
   preferErrorMessageForErrorInstances?: boolean;
   preferErrorStackForErrorInstances?: boolean;
@@ -125,16 +142,23 @@ export function stringifyUnknownSquadsError(
     }
   };
 
-  if (error instanceof Error) {
+  const { isError, readFailed: errorInstanceReadFailed } =
+    inspectErrorInstance(error);
+  if (!errorInstanceReadFailed && isError) {
+    const errorInstance = error as Error;
     if (preferErrorStackForErrorInstances) {
-      const normalizedStack = readNormalizedCandidate(() => error.stack);
+      const normalizedStack = readNormalizedCandidate(
+        () => errorInstance.stack,
+      );
       if (normalizedStack) {
         return normalizedStack;
       }
     }
 
     if (preferErrorMessageForErrorInstances) {
-      const normalizedMessage = readNormalizedCandidate(() => error.message);
+      const normalizedMessage = readNormalizedCandidate(
+        () => errorInstance.message,
+      );
       if (normalizedMessage) {
         return normalizedMessage;
       }

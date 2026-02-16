@@ -931,6 +931,49 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(0);
   });
 
+  it('returns chain-resolution failure with placeholders when resolver throws unreadable values', () => {
+    let resolveConfigCallCount = 0;
+    const { proxy: revokedChainResolverError, revoke } = Proxy.revocable(
+      {},
+      {},
+    );
+    revoke();
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => {
+        throw revokedChainResolverError;
+      },
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Failed to resolve chain for domain 1000: [unstringifiable error]',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
   it('returns chain-resolution failure when chain-resolver accessor throws', () => {
     let resolveConfigCallCount = 0;
     const mpp = new Proxy(
@@ -2117,6 +2160,56 @@ describe('squads transaction reader', () => {
     expect(reader.warpRouteIndex.has('badchain')).to.equal(false);
     expect(
       reader.warpRouteIndex.get('solanamainnet')?.get('good001'),
+    ).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Good Token',
+      routeName: 'routeA',
+    });
+  });
+
+  it('skips warp-route tokens when protocol lookup throws unreadable values during initialization', async () => {
+    let protocolLookupCount = 0;
+    const { proxy: revokedProtocolError, revoke } = Proxy.revocable({}, {});
+    revoke();
+    const mpp = {
+      tryGetProtocol: (chain: string) => {
+        protocolLookupCount += 1;
+        if (chain === 'badchain') {
+          throw revokedProtocolError;
+        }
+        return ProtocolType.Sealevel;
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    await reader.init({
+      routeA: {
+        tokens: [
+          {
+            chainName: 'badchain',
+            addressOrDenom: 'BAD001-UNREADABLE',
+            symbol: 'BAD',
+            name: 'Bad Token',
+          },
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 'GOOD001-UNREADABLE',
+            symbol: 'GOOD',
+            name: 'Good Token',
+          },
+        ],
+      },
+    });
+
+    expect(protocolLookupCount).to.equal(2);
+    expect(reader.warpRouteIndex.has('badchain')).to.equal(false);
+    expect(
+      reader.warpRouteIndex.get('solanamainnet')?.get('good001-unreadable'),
     ).to.deep.equal({
       symbol: 'GOOD',
       name: 'Good Token',
@@ -7062,6 +7155,51 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('does not misclassify multisig validator instructions when chain lookup throws unreadable values', () => {
+    const { proxy: revokedChainLookupError, revoke } = Proxy.revocable({}, {});
+    revoke();
+    const mpp = {
+      tryGetChainName: () => {
+        throw revokedChainLookupError;
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      readMultisigIsmInstruction: (
+        chain: string,
+        instructionData: Buffer,
+      ) => Record<string, unknown>;
+    };
+    const validatorHex = `0x${Buffer.from(
+      new Uint8Array(20).fill(0x11),
+    ).toString('hex')}`;
+
+    const parsedInstruction = readerAny.readMultisigIsmInstruction(
+      'solanamainnet',
+      createSetValidatorsAndThresholdInstructionData(1000, 0x11),
+    );
+
+    expect(parsedInstruction).to.deep.equal({
+      instructionType:
+        SealevelMultisigIsmInstructionName[
+          SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
+        ],
+      data: {
+        domain: 1000,
+        threshold: 1,
+        validatorCount: 1,
+        validators: [validatorHex],
+      },
+      insight: 'Set 1 validator(s) with threshold 1 for 1000',
+      warnings: [],
+    });
+  });
+
   it('does not misclassify multisig validator instructions when chain lookup returns malformed aliases', () => {
     let chainLookupCount = 0;
     const mpp = {
@@ -8804,6 +8942,63 @@ describe('squads transaction reader', () => {
     ]);
     expect(parsed.warnings).to.deep.equal([
       'Malformed instruction 0 data on solanamainnet: expected bytes, got number',
+    ]);
+  });
+
+  it('keeps system-instruction parsing when instruction data type inspection is unreadable', async () => {
+    const { proxy: revokedInstructionData, revoke } = Proxy.revocable({}, {});
+    revoke();
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const vaultTransaction = {
+      message: {
+        accountKeys: [SYSTEM_PROGRAM_ID],
+        addressTableLookups: [],
+        instructions: [
+          {
+            programIdIndex: 0,
+            accountIndexes: [],
+            data: revokedInstructionData,
+          },
+        ],
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction as unknown as Record<string, unknown>,
+      { getAccountInfo: async () => null },
+    );
+
+    expect(parsed.instructions).to.deep.equal([
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        programName: 'System Program',
+        instructionType: 'System Call',
+        data: {},
+        accounts: [],
+        warnings: [],
+      },
+    ]);
+    expect(parsed.warnings).to.deep.equal([
+      'Malformed instruction 0 data on solanamainnet: expected bytes, got [unreadable value type]',
     ]);
   });
 

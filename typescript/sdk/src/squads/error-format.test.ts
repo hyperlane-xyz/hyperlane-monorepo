@@ -139,6 +139,17 @@ describe('squads error-format', () => {
       );
     });
 
+    it('returns placeholder when Error instance inspection is unreadable', () => {
+      const { proxy: revokedError, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(
+        stringifyUnknownSquadsError(revokedError, {
+          placeholder: '[fallback]',
+        }),
+      ).to.equal('[fallback]');
+    });
+
     it('supports message-first formatting for Error instances', () => {
       expect(
         stringifyUnknownSquadsError(new Error('boom'), {
