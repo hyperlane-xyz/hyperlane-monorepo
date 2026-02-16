@@ -341,6 +341,26 @@ function getObjectField(value: unknown, field: string): unknown {
   }
 }
 
+function getOwnObjectField(value: unknown, field: string): unknown {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return undefined;
+  }
+
+  if (DISALLOWED_PROTOTYPE_PROPERTY_LITERALS.has(field)) {
+    return undefined;
+  }
+
+  try {
+    if (!Object.prototype.hasOwnProperty.call(value, field)) {
+      return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return getObjectField(value, field);
+}
+
 function normalizeEvmAddressFromUnknown(value: unknown): Address | null {
   if (typeof value !== 'string' && !isBoxedStringObject(value)) {
     return null;
@@ -2096,9 +2116,17 @@ export async function resolveSubmitterBatchesForTransactions({
   }
 
   const normalizedStrategyUrl = normalizeOptionalPath(strategyUrl);
-  const explicitSubmissionStrategy: ExtendedSubmissionStrategy | undefined =
-    normalizedStrategyUrl
-      ? readChainSubmissionStrategy(normalizedStrategyUrl)[chain]
+  const chainSubmissionStrategies = normalizedStrategyUrl
+    ? readChainSubmissionStrategy(normalizedStrategyUrl)
+    : undefined;
+  const explicitSubmissionStrategyCandidate = chainSubmissionStrategies
+    ? getOwnObjectField(chainSubmissionStrategies, chain)
+    : undefined;
+  const explicitSubmissionStrategy =
+    explicitSubmissionStrategyCandidate &&
+    (typeof explicitSubmissionStrategyCandidate === 'object' ||
+      typeof explicitSubmissionStrategyCandidate === 'function')
+      ? (explicitSubmissionStrategyCandidate as ExtendedSubmissionStrategy)
       : undefined;
   const explicitOverrides = explicitSubmissionStrategy?.submitterOverrides;
   const hasExplicitOverrides = hasUsableOverrideKeys(explicitOverrides);
