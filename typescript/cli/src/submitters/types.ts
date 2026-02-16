@@ -97,12 +97,20 @@ function preprocessExtendedChainSubmissionStrategy(value: unknown) {
 
   const result = Object.create(null) as Record<string, any>;
   for (const [chain, strategy] of Object.entries(raw)) {
+    const ownSubmitter = getOwnObjectField(strategy, 'submitter');
     const submitterOverrides = getOwnObjectField(
       strategy,
       'submitterOverrides',
     ) as
       | Record<string, SubmitterMetadata>
       | undefined;
+    const preprocessedChainStrategy = getOwnObjectField(preprocessedBase, chain) as
+      | { submitter: SubmitterMetadata }
+      | undefined;
+    const preprocessedSubmitter =
+      ownSubmitter !== undefined
+        ? preprocessedChainStrategy?.submitter
+        : undefined;
 
     let preprocessedOverrides: Record<string, SubmitterMetadata> | undefined;
     if (submitterOverrides) {
@@ -121,10 +129,7 @@ function preprocessExtendedChainSubmissionStrategy(value: unknown) {
     }
 
     result[chain] = {
-      submitter:
-        (getOwnObjectField(preprocessedBase, chain) as
-          | { submitter: SubmitterMetadata }
-          | undefined)?.submitter ?? getOwnObjectField(strategy, 'submitter'),
+      submitter: preprocessedSubmitter ?? ownSubmitter,
       ...(preprocessedOverrides
         ? { submitterOverrides: preprocessedOverrides }
         : {}),
