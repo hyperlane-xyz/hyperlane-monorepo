@@ -130,6 +130,14 @@ function getUnknownValueTypeName(value: unknown): string {
   return typeof value;
 }
 
+function readPropertyOrThrow(value: unknown, property: PropertyKey): unknown {
+  const { propertyValue, readError } = inspectPropertyValue(value, property);
+  if (readError) {
+    throw readError;
+  }
+  return propertyValue;
+}
+
 function assertNonEmptyStringValue(value: unknown, label: string): string {
   const valueType = getUnknownValueTypeName(value);
   assert(
@@ -1375,16 +1383,7 @@ export class SquadsTransactionReader {
       const lookupAccountKeyValue = this.readVaultTransactionField(
         chain,
         'lookup table account key',
-        () => {
-          const { propertyValue, readError } = inspectPropertyValue(
-            lookup,
-            'accountKey',
-          );
-          if (readError) {
-            throw readError;
-          }
-          return propertyValue;
-        },
+        () => readPropertyOrThrow(lookup, 'accountKey'),
         undefined,
       );
       try {
@@ -1399,31 +1398,13 @@ export class SquadsTransactionReader {
         const writableIndexesValue = this.readVaultTransactionField(
           chain,
           'lookup table writable indexes',
-          () => {
-            const { propertyValue, readError } = inspectPropertyValue(
-              lookup,
-              'writableIndexes',
-            );
-            if (readError) {
-              throw readError;
-            }
-            return propertyValue;
-          },
+          () => readPropertyOrThrow(lookup, 'writableIndexes'),
           [],
         );
         const readonlyIndexesValue = this.readVaultTransactionField(
           chain,
           'lookup table readonly indexes',
-          () => {
-            const { propertyValue, readError } = inspectPropertyValue(
-              lookup,
-              'readonlyIndexes',
-            );
-            if (readError) {
-              throw readError;
-            }
-            return propertyValue;
-          },
+          () => readPropertyOrThrow(lookup, 'readonlyIndexes'),
           [],
         );
         const {
@@ -1542,16 +1523,7 @@ export class SquadsTransactionReader {
           chain,
           idx,
           'program id index',
-          () => {
-            const { propertyValue, readError } = inspectPropertyValue(
-              instruction,
-              'programIdIndex',
-            );
-            if (readError) {
-              throw readError;
-            }
-            return propertyValue;
-          },
+          () => readPropertyOrThrow(instruction, 'programIdIndex'),
           -1,
         );
         const programIdIndex =
@@ -1571,16 +1543,7 @@ export class SquadsTransactionReader {
           chain,
           idx,
           'account indexes',
-          () => {
-            const { propertyValue, readError } = inspectPropertyValue(
-              instruction,
-              'accountIndexes',
-            );
-            if (readError) {
-              throw readError;
-            }
-            return propertyValue;
-          },
+          () => readPropertyOrThrow(instruction, 'accountIndexes'),
           [],
         );
         const {
@@ -1627,16 +1590,7 @@ export class SquadsTransactionReader {
           chain,
           idx,
           'instruction data',
-          () => {
-            const { propertyValue, readError } = inspectPropertyValue(
-              instruction,
-              'data',
-            );
-            if (readError) {
-              throw readError;
-            }
-            return propertyValue;
-          },
+          () => readPropertyOrThrow(instruction, 'data'),
           Buffer.alloc(0),
         );
         const instructionData = this.normalizeInstructionDataForParse(
