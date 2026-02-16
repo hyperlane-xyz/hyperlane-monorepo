@@ -2353,6 +2353,62 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps Reflect.apply pattern-discovery helper outputs sorted, deduplicated, and path-valid', () => {
+    const mutationPathsFromDefaults =
+      listReflectApplyMutationTestPathsFromPatternDiscovery();
+    const mutationPathsFromBroadPattern =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const capturePathsFromDefaults =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
+    const capturePathsFromBroadPattern =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /Reflect\.apply/,
+      );
+
+    const mutationPathSets = [
+      mutationPathsFromDefaults,
+      mutationPathsFromBroadPattern,
+    ];
+    const capturePathSets = [
+      capturePathsFromDefaults,
+      capturePathsFromBroadPattern,
+    ];
+
+    for (const mutationPaths of mutationPathSets) {
+      expect(new Set(mutationPaths).size).to.equal(mutationPaths.length);
+      expect(
+        [...mutationPaths].toSorted(compareLexicographically),
+      ).to.deep.equal(mutationPaths);
+      assertRelativePathsResolveToFiles(
+        mutationPaths,
+        'Reflect.apply wrapper mutation path discovery',
+      );
+      for (const mutationPath of mutationPaths) {
+        expect(mutationPath.startsWith('src/squads/')).to.equal(true);
+        expect(mutationPath.endsWith('.test.ts')).to.equal(true);
+      }
+    }
+
+    for (const capturePaths of capturePathSets) {
+      expect(new Set(capturePaths).size).to.equal(capturePaths.length);
+      expect(
+        [...capturePaths].toSorted(compareLexicographically),
+      ).to.deep.equal(capturePaths);
+      assertRelativePathsResolveToFiles(
+        capturePaths,
+        'Reflect.apply wrapper capture path discovery',
+      );
+      for (const capturePath of capturePaths) {
+        assertSdkSquadsNonTestSourcePathShape(
+          capturePath,
+          'Reflect.apply wrapper capture path discovery',
+        );
+      }
+    }
+  });
+
   it('keeps Reflect.apply pattern-discovery helper custom patterns resilient to throwing own source and flags accessors', () => {
     const expectedMutationPaths =
       listReflectApplyMutationTestPathsFromPatternDiscovery(
