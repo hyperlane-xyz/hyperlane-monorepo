@@ -1195,13 +1195,23 @@ function listSdkSquadsNonTestSourceFilePathsContainingPattern(
 }
 
 const REGEXP_CONSTRUCTOR = RegExp;
-const REGEXP_PROTOTYPE_TEST = RegExp.prototype.test;
+const REGEXP_PROTOTYPE_EXEC = RegExp.prototype.exec;
 
 function doesPatternMatchSource(source: string, pattern: RegExp): boolean {
   const sourcePattern = pattern.source;
-  const flagsPattern = pattern.flags.replace(/[gy]/g, '');
+  const flagsPattern = stripStatefulRegexFlags(pattern.flags);
   const isolatedPattern = new REGEXP_CONSTRUCTOR(sourcePattern, flagsPattern);
-  return REGEXP_PROTOTYPE_TEST.call(isolatedPattern, source);
+  return REGEXP_PROTOTYPE_EXEC.call(isolatedPattern, source) !== null;
+}
+
+function stripStatefulRegexFlags(flags: string): string {
+  let nonStatefulFlags = '';
+  for (const currentFlag of flags) {
+    if (currentFlag !== 'g' && currentFlag !== 'y') {
+      nonStatefulFlags += currentFlag;
+    }
+  }
+  return nonStatefulFlags;
 }
 
 function listSdkSquadsNonTestSourceFilePaths(): readonly string[] {
@@ -2429,6 +2439,45 @@ describe('squads barrel exports', () => {
         configurable: true,
         writable: true,
         value: originalRegExpPrototypeTest,
+      });
+    }
+  });
+
+  it('keeps sdk squads pattern-path discovery stable when RegExp.prototype.exec is mutated', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const originalRegExpPrototypeExec = RegExp.prototype.exec;
+
+    Object.defineProperty(RegExp.prototype, 'exec', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected squads pattern discovery to use captured RegExp.prototype.exec',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listSdkSquadsTestFilePathsContainingPattern(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(baselineMutationDiscovery);
+      expect(
+        listSdkSquadsNonTestSourceFilePathsContainingPattern(
+          /const REFLECT_APPLY = Reflect\.apply/,
+        ),
+      ).to.deep.equal(baselineCaptureDiscovery);
+    } finally {
+      Object.defineProperty(RegExp.prototype, 'exec', {
+        configurable: true,
+        writable: true,
+        value: originalRegExpPrototypeExec,
       });
     }
   });
