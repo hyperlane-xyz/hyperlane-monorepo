@@ -3,9 +3,6 @@ engine: claude
 
 on:
   schedule: weekly on monday
-  push:
-    branches:
-      - feat/agentic-workflows
 
 permissions:
   contents: read
@@ -67,14 +64,7 @@ For `hyperlane-warp-ui-template`, check the main CI workflow.
 
 Other repos: skip CI health (low volume).
 
-**Important**: The GitHub MCP tools do not expose workflow run endpoints. Use `bash` with the `gh` CLI to query the Actions API:
-
-```bash
-gh api "repos/OWNER/REPO/actions/workflows/WORKFLOW/runs?per_page=50" \
-  --jq '[.workflow_runs[] | select(.created_at > "DATE") | .conclusion] | group_by(.) | map({(.[0]): length}) | add'
-```
-
-Replace `DATE` with 7 days ago in ISO format. This gives failure vs success counts per workflow.
+Use the GitHub API to list recent workflow runs and compute pass/fail rates over the last 7 days and prior 7 days for trend comparison.
 
 ## Step 2: Per-Team Breakdown (Monorepo Only)
 
@@ -172,42 +162,14 @@ curl -X POST "$REPO_SUMMARY_WEBHOOK_URL" \
   -d '<payload>'
 ```
 
-The Slack payload should use Block Kit format:
+The Slack payload should use Block Kit format with header, org summary, needs attention, and a link to the full report.
 
-```json
-{
-  "blocks": [
-    {
-      "type": "header",
-      "text": {
-        "type": "plain_text",
-        "text": "Weekly Repo Status — YYYY-MM-DD"
-      }
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "*Org Summary*\n• monorepo: X PRs (Y awaiting review), CI X%\n• warp-ui: X PRs, CI X%\n• explorer: X PRs\n• registry: X PRs\n• docs: X PRs"
-      }
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "*Needs Attention*\n• [oldest unreviewed PRs across all repos]\n• [failing CI jobs]"
-      }
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "<issue_url|View full report>"
-      }
-    }
-  ]
-}
-```
+**Formatting rules for Slack mrkdwn:**
+
+- PR and issue references must be hyperlinked: `<https://github.com/hyperlane-xyz/REPO/pull/123|#123>` not plain `#123`
+- Use the correct repo in the URL for cross-repo references
+- Link the full report to the GitHub issue URL: `<issue_url|View full report>`
+- If the issue URL is not available (e.g. safe-output hasn't executed yet), link to the issues list instead: `<https://github.com/hyperlane-xyz/hyperlane-monorepo/issues?q=label%3Areport+sort%3Acreated-desc|View full report>`
 
 Keep the Slack message concise — just the org-wide stats and items needing attention. Link to the full GitHub issue for details.
 
@@ -218,5 +180,7 @@ If `REPO_SUMMARY_WEBHOOK_URL` is not set or the POST fails, log the error but do
 - Create exactly one issue per run — check for existing report first
 - Use relative comparisons (↑↓) when comparing to prior week
 - Keep the report scannable — use tables and bullet points, not prose
-- Link to actual PRs/issues where relevant (use owner/repo#number for cross-repo references)
+- Link to actual PRs/issues where relevant — use full GitHub URLs in both the issue body and Slack message
+- In the GitHub issue body, use markdown links: `[#123](https://github.com/hyperlane-xyz/REPO/pull/123)`
+- In Slack, use mrkdwn links: `<https://github.com/hyperlane-xyz/REPO/pull/123|#123>`
 - The Slack message should be a condensed version, not a copy of the full report
