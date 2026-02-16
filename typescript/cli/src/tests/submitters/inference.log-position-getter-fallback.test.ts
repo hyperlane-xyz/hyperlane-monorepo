@@ -1165,6 +1165,35 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
     ).to.equal(ORIGIN_ROUTER.toLowerCase());
   });
 
+  it('ignores boxed-string ICA parseLog payloads and uses next valid ICA event', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 640,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const malformedParsedPayloadLog = {
+      __returnParsedArgsDirect: true,
+      __parsedArgs: new String('malformed-ica-payload'),
+      topics: ['0xmalformed-boxed-string-direct-payload'],
+      data: '0x',
+      blockNumber: 641,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+
+    const inferredSubmitter = await resolveFromLogs([
+      malformedParsedPayloadLog,
+      validLog,
+    ]);
+
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
+
   it('accepts direct ICA parsed fields when parseLog args is null', async () => {
     const inferredSubmitter = await resolveFromLogs([
       {
@@ -1738,6 +1767,18 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
       __returnParsedArgsDirect: true,
       __parsedArgs: positionalArgs,
       topics: ['0xgrant-direct-positional-account'],
+      data: '0x',
+      blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('ignores boxed-string timelock parseLog payloads during role ordering', async () => {
+    await resolveFromRoleLogs({
+      __returnParsedArgsDirect: true,
+      __parsedArgs: new String('malformed-timelock-payload'),
+      topics: ['0xgrant-direct-boxed-string-account'],
       data: '0x',
       blockNumber: '1601',
       transactionIndex: '0',
