@@ -1833,29 +1833,146 @@ function readStaticDeleteResultForElementTarget(
           }
 
           const unwrappedExpression = unwrapInitializerExpression(expression);
-          if (!ts.isConditionalExpression(unwrappedExpression)) {
-            return false;
+          if (ts.isConditionalExpression(unwrappedExpression)) {
+            const selectorCondition = readStaticBooleanCondition(
+              unwrappedExpression.condition,
+            );
+            if (selectorCondition === true) {
+              return isNullishOrMatchingFallbackPrimitive(
+                unwrappedExpression.whenTrue,
+              );
+            }
+            if (selectorCondition === false) {
+              return isNullishOrMatchingFallbackPrimitive(
+                unwrappedExpression.whenFalse,
+              );
+            }
+            return (
+              isNullishOrMatchingFallbackPrimitive(
+                unwrappedExpression.whenTrue,
+              ) &&
+              isNullishOrMatchingFallbackPrimitive(
+                unwrappedExpression.whenFalse,
+              )
+            );
           }
 
-          const selectorCondition = readStaticBooleanCondition(
-            unwrappedExpression.condition,
-          );
-          if (selectorCondition === true) {
-            return isNullishOrMatchingFallbackPrimitive(
-              unwrappedExpression.whenTrue,
-            );
+          if (ts.isBinaryExpression(unwrappedExpression)) {
+            if (
+              unwrappedExpression.operatorToken.kind ===
+              ts.SyntaxKind.CommaToken
+            ) {
+              return isNullishOrMatchingFallbackPrimitive(
+                unwrappedExpression.right,
+              );
+            }
+
+            if (
+              unwrappedExpression.operatorToken.kind ===
+              ts.SyntaxKind.QuestionQuestionToken
+            ) {
+              const leftNullish = readStaticNullishCondition(
+                unwrappedExpression.left,
+              );
+              if (leftNullish === true) {
+                return isNullishOrMatchingFallbackPrimitive(
+                  unwrappedExpression.right,
+                );
+              }
+              if (leftNullish === false) {
+                return isNullishOrMatchingFallbackPrimitive(
+                  unwrappedExpression.left,
+                );
+              }
+              return (
+                isNullishOrMatchingFallbackPrimitive(
+                  unwrappedExpression.left,
+                ) &&
+                isNullishOrMatchingFallbackPrimitive(unwrappedExpression.right)
+              );
+            }
+
+            if (
+              unwrappedExpression.operatorToken.kind ===
+                ts.SyntaxKind.AmpersandAmpersandToken ||
+              unwrappedExpression.operatorToken.kind ===
+                ts.SyntaxKind.BarBarToken
+            ) {
+              const isBooleanGuardedFallbackExpression = (
+                candidateExpression: ts.Expression,
+              ): boolean => {
+                const unwrappedCandidate =
+                  unwrapInitializerExpression(candidateExpression);
+                if (
+                  !ts.isBinaryExpression(unwrappedCandidate) ||
+                  unwrappedCandidate.operatorToken.kind !==
+                    ts.SyntaxKind.AmpersandAmpersandToken ||
+                  !isStaticallyBooleanValuedExpression(unwrappedCandidate.left)
+                ) {
+                  return false;
+                }
+                return isNullishOrMatchingFallbackPrimitive(
+                  unwrappedCandidate.right,
+                );
+              };
+
+              const leftCondition = readStaticBooleanCondition(
+                unwrappedExpression.left,
+              );
+              if (
+                unwrappedExpression.operatorToken.kind ===
+                ts.SyntaxKind.AmpersandAmpersandToken
+              ) {
+                if (leftCondition === true) {
+                  return isNullishOrMatchingFallbackPrimitive(
+                    unwrappedExpression.right,
+                  );
+                }
+                if (leftCondition === false) {
+                  return isNullishOrMatchingFallbackPrimitive(
+                    unwrappedExpression.left,
+                  );
+                }
+              } else {
+                if (leftCondition === true) {
+                  return isNullishOrMatchingFallbackPrimitive(
+                    unwrappedExpression.left,
+                  );
+                }
+                if (leftCondition === false) {
+                  return isNullishOrMatchingFallbackPrimitive(
+                    unwrappedExpression.right,
+                  );
+                }
+                const leftNullish = readStaticNullishCondition(
+                  unwrappedExpression.left,
+                );
+                const rightNullish = readStaticNullishCondition(
+                  unwrappedExpression.right,
+                );
+                if (
+                  leftNullish === true &&
+                  isBooleanGuardedFallbackExpression(unwrappedExpression.right)
+                ) {
+                  return true;
+                }
+                if (
+                  rightNullish === true &&
+                  isBooleanGuardedFallbackExpression(unwrappedExpression.left)
+                ) {
+                  return true;
+                }
+              }
+              return (
+                isNullishOrMatchingFallbackPrimitive(
+                  unwrappedExpression.left,
+                ) &&
+                isNullishOrMatchingFallbackPrimitive(unwrappedExpression.right)
+              );
+            }
           }
-          if (selectorCondition === false) {
-            return isNullishOrMatchingFallbackPrimitive(
-              unwrappedExpression.whenFalse,
-            );
-          }
-          return (
-            isNullishOrMatchingFallbackPrimitive(
-              unwrappedExpression.whenTrue,
-            ) &&
-            isNullishOrMatchingFallbackPrimitive(unwrappedExpression.whenFalse)
-          );
+
+          return false;
         };
 
         const leftNullish = readStaticNullishCondition(nullishLeft.left);
@@ -9790,6 +9907,41 @@ describe('Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality direct-delete array-element-nullish-logical-nested-fallback-length predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((null || ((marker === 1 && 'length') || undefined)) ?? 'length')]) === false)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-equality direct-delete array-element-nullish-logical-nested-mixed-fallback predicates conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      "if (((delete ([] as any)[((null || ((marker === 1 && 'safe') || undefined)) ?? 'length')]) === false)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('treats strict-equality direct-delete array-element-conditional-numeric-nonlength predicates as deterministic for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -16699,6 +16851,37 @@ describe('Safe migration guards', () => {
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'const marker = Math.random();',
       "if (((delete ([] as any)[(((marker === 1 ? 'safe' : undefined) || undefined) ?? 'length')]) === false)) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality direct-delete array-element-nullish-logical-nested-fallback-length predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((null || ((marker === 1 && 'length') || undefined)) ?? 'length')]) === false)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-equality direct-delete array-element-nullish-logical-nested-mixed-fallback predicates conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((null || ((marker === 1 && 'safe') || undefined)) ?? 'length')]) === false)) moduleAlias = { default: 'not-a-module' };",
       'const postIfDefault = moduleAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
@@ -30309,6 +30492,51 @@ describe('Safe migration guards', () => {
       'const marker = Math.random();',
       "const baseline = require('./fixtures/guard-module.js');",
       "if (((delete ([] as any)[(((marker === 1 ? 'safe' : undefined) || undefined) ?? 'length')]) === false)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality direct-delete array-element-nullish-logical-nested-fallback-length predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((null || ((marker === 1 && 'length') || undefined)) ?? 'length')]) === false)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-equality direct-delete array-element-nullish-logical-nested-mixed-fallback predicates conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js');",
+      "if (((delete ([] as any)[((null || ((marker === 1 && 'safe') || undefined)) ?? 'length')]) === false)) reqAlias = () => undefined;",
       "reqAlias('./fixtures/other-module.js');",
       'void baseline;',
     ].join('\n');
