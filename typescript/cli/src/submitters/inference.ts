@@ -1607,8 +1607,12 @@ function hasUsableOverrideKeys(
 
 function normalizeOptionalPath(value: unknown): string | undefined {
   if (typeof value === 'string' || value instanceof String) {
-    const trimmed = value.toString().trim();
-    return trimmed.length > 0 ? trimmed : undefined;
+    try {
+      const trimmed = value.toString().trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    } catch {
+      return undefined;
+    }
   }
   return undefined;
 }
