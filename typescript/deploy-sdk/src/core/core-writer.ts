@@ -4,6 +4,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
+  Artifact,
   ArtifactNew,
   ArtifactOnChain,
   ArtifactState,
@@ -27,6 +28,7 @@ import {
 import {
   DeployedMailboxArtifact,
   IRawMailboxArtifactManager,
+  MailboxConfig,
   MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -119,7 +121,7 @@ export class CoreWriter extends CoreArtifactReader {
    * @param artifact Mailbox artifact with nested ISM and hook artifacts
    * @returns Object containing deployed mailbox, validator announce artifacts, and receipts
    */
-  async create(artifact: ArtifactNew<MailboxOnChain>): Promise<{
+  async create(artifact: ArtifactNew<MailboxConfig>): Promise<{
     mailbox: DeployedMailboxArtifact;
     validatorAnnounce: DeployedValidatorAnnounceArtifact | null;
     receipts: TxReceipt[];
@@ -306,7 +308,7 @@ export class CoreWriter extends CoreArtifactReader {
    */
   async update(
     mailboxAddress: string,
-    expectedArtifact: ArtifactNew<MailboxOnChain>,
+    expectedArtifact: ArtifactNew<MailboxConfig>,
   ): Promise<AnnotatedTx[]> {
     const { config: expectedConfig } = expectedArtifact;
     const updateTxs: AnnotatedTx[] = [];
@@ -408,11 +410,11 @@ export class CoreWriter extends CoreArtifactReader {
    */
   private async deployOrUpdateIsm(
     currentIsmArtifact: DeployedIsmArtifact,
-    expectedIsm: ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>,
+    expectedIsm: Artifact<IsmArtifactConfig, DeployedIsmAddress>,
   ): Promise<{ address: string; transactions: AnnotatedTx[] }> {
     const chainName = this.chainMetadata.name;
 
-    // If expected is UNDERIVED, use as-is
+    // If expected is UNDERIVED (just an address reference), use as-is
     if (isArtifactUnderived(expectedIsm)) {
       return { address: expectedIsm.deployed.address, transactions: [] };
     }
@@ -434,7 +436,7 @@ export class CoreWriter extends CoreArtifactReader {
         `New ISM deployed at ${deployed.deployed.address} on ${chainName}`,
       );
       return { address: deployed.deployed.address, transactions: [] };
-    } else if (isArtifactDeployed(mergedArtifact)) {
+    } else {
       // Update in-place (only routing ISMs support updates)
       this.logger.info(`Updating existing ISM on ${chainName}`);
       const updateTxs = await ismWriter.update(mergedArtifact);
@@ -446,9 +448,6 @@ export class CoreWriter extends CoreArtifactReader {
         transactions: updateTxs,
       };
     }
-
-    // Should not reach here
-    return { address: expectedIsm.deployed.address, transactions: [] };
   }
 
   /**
@@ -457,12 +456,12 @@ export class CoreWriter extends CoreArtifactReader {
    */
   private async deployOrUpdateHook(
     currentHookArtifact: DeployedHookArtifact,
-    expectedHook: ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>,
+    expectedHook: Artifact<HookArtifactConfig, DeployedHookAddress>,
     mailboxAddress: string,
   ): Promise<{ address: string; transactions: AnnotatedTx[] }> {
     const chainName = this.chainMetadata.name;
 
-    // If expected is UNDERIVED, use as-is
+    // If expected is UNDERIVED (just an address reference), use as-is
     if (isArtifactUnderived(expectedHook)) {
       return { address: expectedHook.deployed.address, transactions: [] };
     }
@@ -488,7 +487,7 @@ export class CoreWriter extends CoreArtifactReader {
         `New hook deployed at ${deployed.deployed.address} on ${chainName}`,
       );
       return { address: deployed.deployed.address, transactions: [] };
-    } else if (isArtifactDeployed(mergedArtifact)) {
+    } else {
       // Update in-place (only IGP hooks support updates)
       this.logger.info(`Updating existing hook on ${chainName}`);
       const updateTxs = await hookWriter.update(mergedArtifact);
@@ -500,8 +499,5 @@ export class CoreWriter extends CoreArtifactReader {
         transactions: updateTxs,
       };
     }
-
-    // Should not reach here
-    return { address: expectedHook.deployed.address, transactions: [] };
   }
 }
