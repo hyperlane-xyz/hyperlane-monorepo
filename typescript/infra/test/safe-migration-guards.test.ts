@@ -789,28 +789,7 @@ function readStaticPrimitiveValue(
       ) {
         return STATIC_PRIMITIVE_UNKNOWN;
       }
-      const leftExpression = unwrapInitializerExpression(unwrapped.left);
-      if (ts.isObjectLiteralExpression(leftExpression)) {
-        return constructorName === 'Object';
-      }
-      if (ts.isArrayLiteralExpression(leftExpression)) {
-        return constructorName === 'Array' || constructorName === 'Object';
-      }
-      if (
-        ts.isFunctionExpression(leftExpression) ||
-        ts.isArrowFunction(leftExpression) ||
-        ts.isClassExpression(leftExpression)
-      ) {
-        return constructorName === 'Function' || constructorName === 'Object';
-      }
-      if (ts.isRegularExpressionLiteral(leftExpression)) {
-        return constructorName === 'RegExp' || constructorName === 'Object';
-      }
-      const leftValue = readStaticPrimitiveValue(leftExpression);
-      if (leftValue === STATIC_PRIMITIVE_UNKNOWN) {
-        return STATIC_PRIMITIVE_UNKNOWN;
-      }
-      return false;
+      return readStaticInstanceofResult(unwrapped.left, constructorName);
     }
 
     if (unwrapped.operatorToken.kind === ts.SyntaxKind.InKeyword) {
@@ -1411,6 +1390,131 @@ function readStaticNonPrimitiveResult(
   }
 
   return undefined;
+}
+
+function readStaticInstanceofResult(
+  expression: ts.Expression,
+  constructorName: 'Object' | 'Array' | 'Function' | 'RegExp' | string,
+): boolean | typeof STATIC_PRIMITIVE_UNKNOWN {
+  const unwrapped = unwrapInitializerExpression(expression);
+
+  if (ts.isObjectLiteralExpression(unwrapped)) {
+    return constructorName === 'Object';
+  }
+  if (ts.isArrayLiteralExpression(unwrapped)) {
+    return constructorName === 'Array' || constructorName === 'Object';
+  }
+  if (
+    ts.isFunctionExpression(unwrapped) ||
+    ts.isArrowFunction(unwrapped) ||
+    ts.isClassExpression(unwrapped)
+  ) {
+    return constructorName === 'Function' || constructorName === 'Object';
+  }
+  if (ts.isRegularExpressionLiteral(unwrapped)) {
+    return constructorName === 'RegExp' || constructorName === 'Object';
+  }
+
+  if (ts.isConditionalExpression(unwrapped)) {
+    const selectorCondition = readStaticBooleanCondition(unwrapped.condition);
+    if (selectorCondition === true) {
+      return readStaticInstanceofResult(unwrapped.whenTrue, constructorName);
+    }
+    if (selectorCondition === false) {
+      return readStaticInstanceofResult(unwrapped.whenFalse, constructorName);
+    }
+    const whenTrueResult = readStaticInstanceofResult(
+      unwrapped.whenTrue,
+      constructorName,
+    );
+    const whenFalseResult = readStaticInstanceofResult(
+      unwrapped.whenFalse,
+      constructorName,
+    );
+    if (
+      whenTrueResult !== STATIC_PRIMITIVE_UNKNOWN &&
+      whenTrueResult === whenFalseResult
+    ) {
+      return whenTrueResult;
+    }
+    return STATIC_PRIMITIVE_UNKNOWN;
+  }
+
+  if (ts.isBinaryExpression(unwrapped)) {
+    if (unwrapped.operatorToken.kind === ts.SyntaxKind.CommaToken) {
+      return readStaticInstanceofResult(unwrapped.right, constructorName);
+    }
+
+    if (unwrapped.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+      const leftNullish = readStaticNullishCondition(unwrapped.left);
+      if (leftNullish === true) {
+        return readStaticInstanceofResult(unwrapped.right, constructorName);
+      }
+      if (leftNullish === false) {
+        return readStaticInstanceofResult(unwrapped.left, constructorName);
+      }
+      const leftResult = readStaticInstanceofResult(
+        unwrapped.left,
+        constructorName,
+      );
+      const rightResult = readStaticInstanceofResult(
+        unwrapped.right,
+        constructorName,
+      );
+      if (
+        leftResult !== STATIC_PRIMITIVE_UNKNOWN &&
+        leftResult === rightResult
+      ) {
+        return leftResult;
+      }
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+
+    if (
+      unwrapped.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+      unwrapped.operatorToken.kind === ts.SyntaxKind.BarBarToken
+    ) {
+      const leftCondition = readStaticBooleanCondition(unwrapped.left);
+      if (
+        unwrapped.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+      ) {
+        if (leftCondition === true) {
+          return readStaticInstanceofResult(unwrapped.right, constructorName);
+        }
+        if (leftCondition === false) {
+          return readStaticInstanceofResult(unwrapped.left, constructorName);
+        }
+      } else {
+        if (leftCondition === true) {
+          return readStaticInstanceofResult(unwrapped.left, constructorName);
+        }
+        if (leftCondition === false) {
+          return readStaticInstanceofResult(unwrapped.right, constructorName);
+        }
+      }
+      const leftResult = readStaticInstanceofResult(
+        unwrapped.left,
+        constructorName,
+      );
+      const rightResult = readStaticInstanceofResult(
+        unwrapped.right,
+        constructorName,
+      );
+      if (
+        leftResult !== STATIC_PRIMITIVE_UNKNOWN &&
+        leftResult === rightResult
+      ) {
+        return leftResult;
+      }
+      return STATIC_PRIMITIVE_UNKNOWN;
+    }
+  }
+
+  const primitiveValue = readStaticPrimitiveValue(unwrapped);
+  if (primitiveValue === STATIC_PRIMITIVE_UNKNOWN) {
+    return STATIC_PRIMITIVE_UNKNOWN;
+  }
+  return false;
 }
 
 function collectVarScopeStatementBindings(
@@ -6967,6 +7071,60 @@ describe('Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-comparison wrapped instanceof predicates with matching unknown selectors as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if ((((marker === 1 ? {} : []) instanceof Object) === true)) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats strict-comparison wrapped instanceof predicates with matching unknown selectors as deterministic for negative cases in symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if ((((marker === 1 ? {} : {}) instanceof Array) !== true)) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-comparison wrapped instanceof predicates with differing unknown selectors conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      'if ((((marker === 1 ? {} : []) instanceof Array) === true)) reqAlias = () => undefined;',
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('treats relational true conditions as true branches for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -10859,6 +11017,55 @@ describe('Safe migration guards', () => {
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'const marker = globalThis as any;',
       "if (((marker instanceof Object) === true)) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-comparison wrapped instanceof predicates with matching unknown selectors as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      'if ((((marker === 1 ? {} : []) instanceof Object) === true)) {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-comparison wrapped instanceof predicates with matching unknown selectors as deterministic for negative cases in module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      'if ((((marker === 1 ? {} : {}) instanceof Array) !== true)) {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-comparison wrapped instanceof predicates with differing unknown selectors conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if ((((marker === 1 ? {} : []) instanceof Array) === true)) moduleAlias = { default: 'not-a-module' };",
       'const postIfDefault = moduleAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
@@ -21175,6 +21382,75 @@ describe('Safe migration guards', () => {
       'const marker = globalThis as any;',
       "const baseline = require('./fixtures/guard-module.js');",
       'if (((marker instanceof Object) === true)) reqAlias = () => undefined;',
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-comparison wrapped instanceof predicates with matching unknown selectors as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if ((((marker === 1 ? {} : []) instanceof Object) === true)) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-comparison wrapped instanceof predicates with matching unknown selectors as deterministic for negative cases in module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if ((((marker === 1 ? {} : {}) instanceof Array) !== true)) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-comparison wrapped instanceof predicates with differing unknown selectors conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js');",
+      'if ((((marker === 1 ? {} : []) instanceof Array) === true)) reqAlias = () => undefined;',
       "reqAlias('./fixtures/other-module.js');",
       'void baseline;',
     ].join('\n');
