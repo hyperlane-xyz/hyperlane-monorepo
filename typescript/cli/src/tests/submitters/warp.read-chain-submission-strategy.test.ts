@@ -143,4 +143,45 @@ describe('warp readChainSubmissionStrategy hardening', () => {
       }
     }
   });
+
+  it('does not throw when Object prototype submitter is non-writable', () => {
+    const strategyPath = createStrategyPath({
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+      },
+    });
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitter',
+    );
+    Object.defineProperty(Object.prototype, 'submitter', {
+      configurable: true,
+      enumerable: false,
+      value: null,
+    });
+
+    try {
+      const parsed = readChainSubmissionStrategy(strategyPath);
+      const chainStrategy = (parsed as Record<string, unknown>)[CHAIN] as Record<
+        string,
+        unknown
+      >;
+
+      expect((chainStrategy.submitter as Record<string, unknown>).type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitter',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as Record<string, unknown>).submitter;
+      }
+    }
+  });
 });
