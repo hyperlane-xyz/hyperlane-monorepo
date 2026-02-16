@@ -2353,6 +2353,112 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps Reflect.apply pattern-discovery helper custom patterns resilient to throwing own source and flags accessors', () => {
+    const expectedMutationPaths =
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        /Reflect\.apply is mutated/,
+      );
+    const expectedCapturePaths =
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const mutationPattern = /Reflect\.apply is mutated/gi;
+    const capturePattern = /const REFLECT_APPLY = Reflect\.apply/gi;
+    const mutationSourceDescriptor = Object.getOwnPropertyDescriptor(
+      mutationPattern,
+      'source',
+    );
+    const mutationFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      mutationPattern,
+      'flags',
+    );
+    const captureSourceDescriptor = Object.getOwnPropertyDescriptor(
+      capturePattern,
+      'source',
+    );
+    const captureFlagsDescriptor = Object.getOwnPropertyDescriptor(
+      capturePattern,
+      'flags',
+    );
+
+    Object.defineProperty(mutationPattern, 'source', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply mutation wrapper to bypass own source accessor',
+        );
+      },
+    });
+    Object.defineProperty(mutationPattern, 'flags', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply mutation wrapper to bypass own flags accessor',
+        );
+      },
+    });
+    Object.defineProperty(capturePattern, 'source', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply capture wrapper to bypass own source accessor',
+        );
+      },
+    });
+    Object.defineProperty(capturePattern, 'flags', {
+      configurable: true,
+      get() {
+        throw new Error(
+          'Expected Reflect.apply capture wrapper to bypass own flags accessor',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listReflectApplyMutationTestPathsFromPatternDiscovery(mutationPattern),
+      ).to.deep.equal(expectedMutationPaths);
+      expect(
+        listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+          capturePattern,
+        ),
+      ).to.deep.equal(expectedCapturePaths);
+    } finally {
+      if (mutationSourceDescriptor) {
+        Object.defineProperty(
+          mutationPattern,
+          'source',
+          mutationSourceDescriptor,
+        );
+      } else {
+        delete (mutationPattern as unknown as { source?: unknown }).source;
+      }
+      if (mutationFlagsDescriptor) {
+        Object.defineProperty(
+          mutationPattern,
+          'flags',
+          mutationFlagsDescriptor,
+        );
+      } else {
+        delete (mutationPattern as unknown as { flags?: unknown }).flags;
+      }
+      if (captureSourceDescriptor) {
+        Object.defineProperty(
+          capturePattern,
+          'source',
+          captureSourceDescriptor,
+        );
+      } else {
+        delete (capturePattern as unknown as { source?: unknown }).source;
+      }
+      if (captureFlagsDescriptor) {
+        Object.defineProperty(capturePattern, 'flags', captureFlagsDescriptor);
+      } else {
+        delete (capturePattern as unknown as { flags?: unknown }).flags;
+      }
+    }
+  });
+
   it('keeps Reflect.apply pattern-discovery helper defaults repeatable and lastIndex-safe', () => {
     const originalMutationTitlePatternLastIndex =
       REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN.lastIndex;
