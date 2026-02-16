@@ -34,24 +34,12 @@ import {
   chainTargetsCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
-  symbolCommandOption,
-  warpCoreConfigCommandOption,
-  warpDeploymentConfigCommandOption,
   warpRouteIdCommandOption,
 } from './options.js';
 
 const XERC20_WARP_ROUTE_BUILDER = {
-  config: warpDeploymentConfigCommandOption,
   warpRouteId: {
     ...warpRouteIdCommandOption,
-    demandOption: false,
-  },
-  warp: {
-    ...warpCoreConfigCommandOption,
-    demandOption: false,
-  },
-  symbol: {
-    ...symbolCommandOption,
     demandOption: false,
   },
 } as const;
@@ -92,24 +80,13 @@ const apply: CommandModuleWithWriteContext<
       'Output directory for transaction receipts',
     ),
   },
-  handler: async ({
-    context,
-    symbol,
-    warp,
-    warpRouteId,
-    config: configPath,
-    chains,
-    strategy,
-    receipts,
-  }) => {
+  handler: async ({ context, warpRouteId, chains, strategy, receipts }) => {
     logCommandHeader('Hyperlane XERC20 Apply');
 
     const { warpDeployConfig, warpCoreConfig } = await getWarpConfigs({
       context,
       warpRouteId,
-      symbol,
-      warpDeployConfigPath: configPath,
-      warpCoreConfigPath: warp,
+      chains,
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
@@ -175,22 +152,13 @@ const read: CommandModuleWithContext<
       description: 'Filter to specific chain(s)',
     },
   },
-  handler: async ({
-    context,
-    symbol,
-    warp,
-    warpRouteId,
-    config: configPath,
-    chains,
-  }) => {
+  handler: async ({ context, warpRouteId, chains }) => {
     logCommandHeader('Hyperlane XERC20 Read');
 
     const { warpDeployConfig, warpCoreConfig } = await getWarpConfigs({
       context,
       warpRouteId,
-      symbol,
-      warpDeployConfigPath: configPath,
-      warpCoreConfigPath: warp,
+      chains,
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
