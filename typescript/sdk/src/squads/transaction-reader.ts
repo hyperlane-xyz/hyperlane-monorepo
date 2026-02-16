@@ -1319,13 +1319,13 @@ export class SquadsTransactionReader {
       `Expected ${label} address on ${chain} to be a PublicKey, got ${getUnknownValueTypeName(address)}`,
     );
 
-    let getAccountInfoValue: unknown;
-    try {
-      getAccountInfoValue = (svmProvider as { getAccountInfo?: unknown })
-        .getAccountInfo;
-    } catch (error) {
+    const {
+      propertyValue: getAccountInfoValue,
+      readError: getAccountInfoReadError,
+    } = inspectPropertyValue(svmProvider, 'getAccountInfo');
+    if (getAccountInfoReadError) {
       throw new Error(
-        `Failed to read getAccountInfo for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read getAccountInfo for ${chain}: ${stringifyUnknownSquadsError(getAccountInfoReadError)}`,
       );
     }
 
@@ -1399,7 +1399,16 @@ export class SquadsTransactionReader {
       const lookupAccountKeyValue = this.readVaultTransactionField(
         chain,
         'lookup table account key',
-        () => (lookup as { accountKey?: unknown }).accountKey,
+        () => {
+          const { propertyValue, readError } = inspectPropertyValue(
+            lookup,
+            'accountKey',
+          );
+          if (readError) {
+            throw readError;
+          }
+          return propertyValue;
+        },
         undefined,
       );
       try {
@@ -1414,13 +1423,31 @@ export class SquadsTransactionReader {
         const writableIndexesValue = this.readVaultTransactionField(
           chain,
           'lookup table writable indexes',
-          () => (lookup as { writableIndexes?: unknown }).writableIndexes,
+          () => {
+            const { propertyValue, readError } = inspectPropertyValue(
+              lookup,
+              'writableIndexes',
+            );
+            if (readError) {
+              throw readError;
+            }
+            return propertyValue;
+          },
           [],
         );
         const readonlyIndexesValue = this.readVaultTransactionField(
           chain,
           'lookup table readonly indexes',
-          () => (lookup as { readonlyIndexes?: unknown }).readonlyIndexes,
+          () => {
+            const { propertyValue, readError } = inspectPropertyValue(
+              lookup,
+              'readonlyIndexes',
+            );
+            if (readError) {
+              throw readError;
+            }
+            return propertyValue;
+          },
           [],
         );
         const {
@@ -1539,7 +1566,16 @@ export class SquadsTransactionReader {
           chain,
           idx,
           'program id index',
-          () => (instruction as { programIdIndex?: unknown }).programIdIndex,
+          () => {
+            const { propertyValue, readError } = inspectPropertyValue(
+              instruction,
+              'programIdIndex',
+            );
+            if (readError) {
+              throw readError;
+            }
+            return propertyValue;
+          },
           -1,
         );
         const programIdIndex =
@@ -1559,7 +1595,16 @@ export class SquadsTransactionReader {
           chain,
           idx,
           'account indexes',
-          () => (instruction as { accountIndexes?: unknown }).accountIndexes,
+          () => {
+            const { propertyValue, readError } = inspectPropertyValue(
+              instruction,
+              'accountIndexes',
+            );
+            if (readError) {
+              throw readError;
+            }
+            return propertyValue;
+          },
           [],
         );
         const {
@@ -1606,7 +1651,16 @@ export class SquadsTransactionReader {
           chain,
           idx,
           'instruction data',
-          () => (instruction as { data?: unknown }).data,
+          () => {
+            const { propertyValue, readError } = inspectPropertyValue(
+              instruction,
+              'data',
+            );
+            if (readError) {
+              throw readError;
+            }
+            return propertyValue;
+          },
           Buffer.alloc(0),
         );
         const instructionData = this.normalizeInstructionDataForParse(
