@@ -1351,7 +1351,7 @@ export class SquadsTransactionReader {
     const accountKeys = this.normalizeVaultArrayField(
       chain,
       'vault account keys',
-      accountKeysValue as unknown[],
+      accountKeysValue as readonly unknown[],
     ) as PublicKey[];
     const lookupsValue = this.readVaultTransactionField(
       chain,
@@ -1370,7 +1370,7 @@ export class SquadsTransactionReader {
     const lookups = this.normalizeVaultArrayField(
       chain,
       'vault address lookup tables',
-      lookupsValue as unknown[],
+      lookupsValue as readonly unknown[],
     );
 
     if (!lookups || lookups.length === 0) return accountKeys;
@@ -1412,7 +1412,7 @@ export class SquadsTransactionReader {
             ? this.normalizeVaultArrayField(
                 chain,
                 'lookup table writable indexes',
-                writableIndexesValue as unknown[],
+                writableIndexesValue as readonly unknown[],
               )
             : [];
         const {
@@ -1424,7 +1424,7 @@ export class SquadsTransactionReader {
             ? this.normalizeVaultArrayField(
                 chain,
                 'lookup table readonly indexes',
-                readonlyIndexesValue as unknown[],
+                readonlyIndexesValue as readonly unknown[],
               )
             : [];
 
@@ -1509,7 +1509,7 @@ export class SquadsTransactionReader {
     const instructions = this.normalizeVaultArrayField(
       chain,
       'vault instructions',
-      instructionsValue as unknown[],
+      instructionsValue as readonly unknown[],
     );
     const computeBudgetProgramId = ComputeBudgetProgram.programId;
 
@@ -1556,7 +1556,7 @@ export class SquadsTransactionReader {
             ? this.normalizeVaultArrayField(
                 chain,
                 `instruction account indexes at ${idx}`,
-                accountIndexesValue as unknown[],
+                accountIndexesValue as readonly unknown[],
               )
             : [];
 
@@ -1787,7 +1787,7 @@ export class SquadsTransactionReader {
   private normalizeVaultArrayField(
     chain: SquadsChainName,
     label: string,
-    values: unknown[],
+    values: readonly unknown[],
   ): unknown[] {
     try {
       return Array.from(values);
@@ -1931,7 +1931,7 @@ export class SquadsTransactionReader {
         ? this.normalizeVaultArrayField(
             chain,
             `config actions at ${transactionIndex}`,
-            actions as unknown[],
+            actions as readonly unknown[],
           )
         : [];
     for (const action of normalizedActions) {
@@ -3450,7 +3450,7 @@ export class SquadsTransactionReader {
             ? this.normalizeVaultArrayField(
                 chain,
                 'warp enroll-routers configs',
-                routersCandidate as unknown[],
+                routersCandidate as readonly unknown[],
               )
             : [];
         for (const [index, router] of normalizedRouters.entries()) {
@@ -3521,7 +3521,7 @@ export class SquadsTransactionReader {
             ? this.normalizeVaultArrayField(
                 chain,
                 'warp gas configs',
-                configsCandidate as unknown[],
+                configsCandidate as readonly unknown[],
               )
             : [];
         for (const [index, config] of normalizedGasConfigs.entries()) {
