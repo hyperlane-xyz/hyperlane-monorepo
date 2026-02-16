@@ -131,7 +131,7 @@ const NON_RUNTIME_GNOSIS_SAFE_EXPORTS = [
   'SafeStatus',
 ] as const;
 const STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT =
-  '(module specifiers|symbol sources|module-source aliases in symbol sources)';
+  '(?:module specifiers|symbol sources|module-source aliases in symbol sources)';
 const STRICT_EQUALITY_CONDITIONAL_TITLE_REGEX = new RegExp(
   String.raw`it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*conditional-[^']* predicates (?:as deterministic|conservative) for ${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT})'`,
   'g',
@@ -145,7 +145,7 @@ const STRICT_EQUALITY_VARIANT_CONDITIONAL_TITLE_REGEX = new RegExp(
   'g',
 );
 const STRICT_EQUALITY_NON_VARIANT_CONDITIONAL_TITLE_REGEX = new RegExp(
-  String.raw`^((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-(?:left-null-|leading-undefined-|leading-void-|right-undefined-|right-void-)?conditional-(?:fallback-length|mixed-fallback)) predicates (?:as deterministic|conservative) for ${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT}$`,
+  String.raw`^((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-(?:left-null-|leading-undefined-|leading-void-|right-undefined-|right-void-)?conditional-(?:fallback-length|mixed-fallback)) predicates (?:as deterministic|conservative) for (${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT})$`,
 );
 const STRICT_EQUALITY_VARIANT_ENTRY_CAPTURE_REGEX = new RegExp(
   String.raw`it\('(?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-([a-z-]+)-conditional-([a-z-]+)-(fallback-length|mixed-fallback) predicates (?:as deterministic|conservative) for (${STRICT_EQUALITY_CONDITIONAL_CONTEXT_FRAGMENT})'`,
@@ -45902,6 +45902,60 @@ describe('Gnosis Safe migration guards', () => {
     expect([...anyContextTitles].sort()).to.deep.equal(
       [...constrainedTitles].sort(),
     );
+  });
+
+  it('keeps strict-equality conditional source fixture structural invariants', () => {
+    const sourceText = fs.readFileSync(__filename, 'utf8');
+    const fixtures = extractStrictEqualityConditionalSourceFixtures(sourceText);
+    const expectedPerContextCount =
+      EXPECTED_TOTAL_CONDITIONAL_TITLE_COUNT /
+      NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_CONTEXTS.length;
+    expect(Number.isInteger(expectedPerContextCount)).to.equal(true);
+
+    const observedContextCounts = new Map<string, number>();
+    for (const [title, fixture] of fixtures.entries()) {
+      expect(
+        fixture.includes('const marker = Math.random();'),
+        `Expected marker setup in strict-equality conditional fixture ${title}`,
+      ).to.equal(true);
+      expect(
+        fixture.includes('delete ([] as any)['),
+        `Expected delete expression in strict-equality conditional fixture ${title}`,
+      ).to.equal(true);
+
+      const contextMatch = title.match(
+        / for (module specifiers|symbol sources|module-source aliases in symbol sources)$/,
+      );
+      expect(
+        contextMatch,
+        `Failed to parse strict-equality context in ${title}`,
+      ).to.not.equal(null);
+      const context = (contextMatch as RegExpMatchArray)[1];
+      observedContextCounts.set(
+        context,
+        (observedContextCounts.get(context) ?? 0) + 1,
+      );
+
+      if (context === 'module-source aliases in symbol sources') {
+        expect(
+          fixture.includes(
+            "let moduleAlias: any = require('./fixtures/guard-module.js');",
+          ),
+          `Expected moduleAlias setup in module-source alias fixture ${title}`,
+        ).to.equal(true);
+      } else {
+        expect(
+          fixture.includes('let reqAlias: any = require;'),
+          `Expected reqAlias setup in non-module-alias fixture ${title}`,
+        ).to.equal(true);
+      }
+    }
+
+    for (const context of NULLISH_LOGICAL_CONDITIONAL_DELETE_KEY_CONTEXTS) {
+      expect(observedContextCounts.get(context)).to.equal(
+        expectedPerContextCount,
+      );
+    }
   });
 
   it('keeps strict-equality conditional delete-key title cardinality stable', () => {
