@@ -803,9 +803,24 @@ function readChainSubmissionStrategy(
     }
   }
 
-  return ExtendedChainSubmissionStrategySchema.parse(
+  const parsedChainSubmissionStrategies = ExtendedChainSubmissionStrategySchema.parse(
     sanitizedChainSubmissionStrategies,
   );
+  const normalizedChainSubmissionStrategies = Object.create(null) as Record<
+    string,
+    unknown
+  >;
+
+  for (const chainKey of Object.keys(parsedChainSubmissionStrategies)) {
+    const chainStrategy = getOwnObjectField(
+      parsedChainSubmissionStrategies,
+      chainKey,
+    );
+    normalizedChainSubmissionStrategies[chainKey] =
+      cloneOwnEnumerableObject(chainStrategy) ?? chainStrategy;
+  }
+
+  return normalizedChainSubmissionStrategies as ExtendedChainSubmissionStrategy;
 }
 
 async function isSafeContract({
