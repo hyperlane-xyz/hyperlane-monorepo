@@ -241,20 +241,28 @@ describe('squads inspection helpers', () => {
 
     it('returns readFailed when Buffer.isBuffer throws', () => {
       const originalIsBuffer = Buffer.isBuffer;
-      const throwingIsBuffer = (() => {
+      const throwingIsBuffer: typeof Buffer.isBuffer = (
+        _value: unknown,
+      ): _value is Buffer<ArrayBufferLike> => {
         throw new Error('buffer inspection unavailable');
-      }) as unknown as typeof Buffer.isBuffer;
+      };
 
-      (Buffer as unknown as { isBuffer: typeof Buffer.isBuffer }).isBuffer =
-        throwingIsBuffer;
+      Object.defineProperty(Buffer, 'isBuffer', {
+        value: throwingIsBuffer,
+        writable: true,
+        configurable: true,
+      });
       try {
         expect(inspectBufferValue(Buffer.from([1]))).to.deep.equal({
           isBuffer: false,
           readFailed: true,
         });
       } finally {
-        (Buffer as unknown as { isBuffer: typeof Buffer.isBuffer }).isBuffer =
-          originalIsBuffer;
+        Object.defineProperty(Buffer, 'isBuffer', {
+          value: originalIsBuffer,
+          writable: true,
+          configurable: true,
+        });
       }
     });
   });
