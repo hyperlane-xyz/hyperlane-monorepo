@@ -156,8 +156,7 @@ export function getKnownObjectLikeProbeLabelsFromOtherTests(
 
 export function getRuntimeFunctionValuesByLabel(): Map<string, Function> {
   const runtimeFunctionValueByLabel = new Map<string, Function>();
-  for (const name of Object.getOwnPropertyNames(globalThis)) {
-    const value = tryGetGlobalValueByName(name);
+  for (const { name, value } of getReadableRuntimeGlobalEntries()) {
     if (typeof value === 'function') {
       runtimeFunctionValueByLabel.set(
         `${name.toLowerCase()}-constructor-object`,
@@ -170,8 +169,7 @@ export function getRuntimeFunctionValuesByLabel(): Map<string, Function> {
 
 export function getRuntimeObjectValuesByLabel(): Map<string, object> {
   const runtimeObjectValueByLabel = new Map<string, object>();
-  for (const name of Object.getOwnPropertyNames(globalThis)) {
-    const value = tryGetGlobalValueByName(name);
+  for (const { name, value } of getReadableRuntimeGlobalEntries()) {
     if (value !== null && typeof value === 'object') {
       runtimeObjectValueByLabel.set(`${name.toLowerCase()}-object`, value);
     }
@@ -181,11 +179,7 @@ export function getRuntimeObjectValuesByLabel(): Map<string, object> {
 
 export function getRuntimePrimitiveValuesByLabel(): Map<string, unknown> {
   const runtimePrimitiveByLabel = new Map<string, unknown>();
-  for (const name of Object.getOwnPropertyNames(globalThis)) {
-    const value = tryGetGlobalValueByName(name);
-    if (value === MISSING_GLOBAL_VALUE) {
-      continue;
-    }
+  for (const { name, value } of getReadableRuntimeGlobalEntries()) {
     const valueType = typeof value;
     if (isSupportedRuntimePrimitiveValueType(valueType)) {
       runtimePrimitiveByLabel.set(
@@ -226,4 +220,19 @@ function tryGetGlobalValueByName(name: string): unknown {
   } catch {
     return MISSING_GLOBAL_VALUE;
   }
+}
+
+function getReadableRuntimeGlobalEntries(): Array<{
+  name: string;
+  value: unknown;
+}> {
+  const entries: Array<{ name: string; value: unknown }> = [];
+  for (const name of Object.getOwnPropertyNames(globalThis)) {
+    const value = tryGetGlobalValueByName(name);
+    if (value === MISSING_GLOBAL_VALUE) {
+      continue;
+    }
+    entries.push({ name, value });
+  }
+  return entries;
 }
