@@ -156,6 +156,16 @@ describe('runtime global probe helpers', () => {
         'some unrelated test title that should not match',
       ),
     ).to.equal(null);
+    expect(
+      getProbeLabelFromInferenceTestTitle(
+        'prefix caches array-constructor-object origin signer probes across timelock ICA inferences',
+      ),
+    ).to.equal(null);
+    expect(
+      getProbeLabelFromInferenceTestTitle(
+        'caches array-constructor-object origin signer probes across timelock ICA inferences suffix',
+      ),
+    ).to.equal(null);
   });
 
   it('builds primitive fallback values from probe labels', () => {

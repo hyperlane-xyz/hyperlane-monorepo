@@ -34,7 +34,7 @@ const EXCLUDED_INFERENCE_TEST_FILES = new Set([
   'inference.runtime-globals.test.ts',
 ]);
 const PROBE_LABEL_FROM_TEST_TITLE_REGEX =
-  /(?:caches(?: event-derived)?(?: async)? )([a-z0-9_-]+-(?:constructor-)?object|[a-z0-9_-]+-primitive) origin signer probes across timelock ICA inferences/;
+  /^caches(?: event-derived)?(?: async)? ([a-z0-9_-]+-(?:constructor-)?object|[a-z0-9_-]+-primitive) origin signer probes across timelock ICA inferences$/;
 const knownObjectLikeLabelsByFilePath = new Map<string, ReadonlySet<string>>();
 const MISSING_GLOBAL_VALUE = Symbol('missing-global-value');
 
