@@ -2944,6 +2944,76 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('throws contextual errors when protocol promise-like inspection throws', () => {
+    const mpp = {
+      tryGetProtocol: () =>
+        new Proxy(
+          {},
+          {
+            get(target, property, receiver) {
+              if (property === 'then') {
+                throw new Error('then unavailable');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ),
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      resolveProtocolTypeForWarpRoute: (
+        routeName: string,
+        chain: string,
+      ) => ProtocolType | null;
+    };
+
+    expect(() =>
+      readerAny.resolveProtocolTypeForWarpRoute('routeA', 'solanamainnet'),
+    ).to.throw(
+      'Failed to inspect protocol for warp route routeA on solanamainnet: failed to read promise-like then field (Error: then unavailable)',
+    );
+  });
+
+  it('throws placeholder fallbacks when protocol promise-like inspection throws blank Error messages', () => {
+    const mpp = {
+      tryGetProtocol: () =>
+        new Proxy(
+          {},
+          {
+            get(target, property, receiver) {
+              if (property === 'then') {
+                throw new Error('   ');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ),
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      resolveProtocolTypeForWarpRoute: (
+        routeName: string,
+        chain: string,
+      ) => ProtocolType | null;
+    };
+
+    expect(() =>
+      readerAny.resolveProtocolTypeForWarpRoute('routeA', 'solanamainnet'),
+    ).to.throw(
+      'Failed to inspect protocol for warp route routeA on solanamainnet: failed to read promise-like then field ([unstringifiable error])',
+    );
+  });
+
   it('throws placeholder fallbacks when protocol promise-like inspection throws generic-object Error messages', () => {
     const mpp = {
       tryGetProtocol: () =>
