@@ -2127,6 +2127,39 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps sdk runtime REFLECT_APPLY invocation usage aligned with capture partition tables', () => {
+    const capturedRuntimeSourcePathSet = new Set(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+    );
+    const nonCapturedRuntimeSourcePathSet = new Set(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+    );
+
+    for (const runtimeSourcePath of listSdkSquadsNonTestSourceFilePaths()
+      .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
+      .sort(compareLexicographically)) {
+      const absoluteSourcePath = path.join(SDK_PACKAGE_ROOT, runtimeSourcePath);
+      const source = fs.readFileSync(absoluteSourcePath, 'utf8');
+      const reflectApplyInvocationCount = countOccurrences(
+        source,
+        'REFLECT_APPLY(',
+      );
+
+      if (capturedRuntimeSourcePathSet.has(runtimeSourcePath)) {
+        expect(reflectApplyInvocationCount).to.be.greaterThan(0);
+        expect(nonCapturedRuntimeSourcePathSet.has(runtimeSourcePath)).to.equal(
+          false,
+        );
+        continue;
+      }
+
+      expect(nonCapturedRuntimeSourcePathSet.has(runtimeSourcePath)).to.equal(
+        true,
+      );
+      expect(reflectApplyInvocationCount).to.equal(0);
+    }
+  });
+
   it('keeps Reflect.apply mutation coverage constants deeply frozen', () => {
     expect(
       Object.isFrozen(
