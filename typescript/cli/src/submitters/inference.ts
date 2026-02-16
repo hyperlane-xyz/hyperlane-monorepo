@@ -1404,9 +1404,8 @@ async function inferSubmitterFromTransaction({
     return defaultSubmitter;
   }
 
-  const normalizedTarget = tryNormalizeEvmAddress(to);
-  const normalizedFrom =
-    from ? tryNormalizeEvmAddress(from) : null;
+  const normalizedTarget = normalizeEvmAddressCandidate(to);
+  const normalizedFrom = from ? normalizeEvmAddressCandidate(from) : null;
   if (!normalizedTarget && !normalizedFrom) {
     return defaultSubmitter;
   }
@@ -1478,6 +1477,18 @@ function tryNormalizeEvmAddress(address: string): string | null {
   }
 }
 
+function normalizeEvmAddressCandidate(address: string): string | null {
+  const trimmedAddress = address.trim();
+  if (
+    trimmedAddress.length === 0 ||
+    trimmedAddress.length > MAX_OVERRIDE_KEY_LENGTH ||
+    trimmedAddress.includes('\0')
+  ) {
+    return null;
+  }
+  return tryNormalizeEvmAddress(trimmedAddress);
+}
+
 function getTxSelector(tx: TypedAnnotatedTransaction): string | undefined {
   const data = getTransactionStringField(tx, 'data');
   if (!data) {
@@ -1527,7 +1538,7 @@ function buildExplicitOverrideIndexes({
         );
         continue;
       }
-      const normalizedTarget = tryNormalizeEvmAddress(parsed.target);
+      const normalizedTarget = normalizeEvmAddressCandidate(parsed.target);
       if (!normalizedTarget) {
         logger.debug(
           `Skipping invalid EVM submitter override key '${overrideKey}' for ${submitter.chain}`,
@@ -1589,7 +1600,7 @@ function resolveExplicitSubmitterForTransaction({
 
   let selectedSubmitter = explicitSubmissionStrategy.submitter;
   if (protocol === ProtocolType.Ethereum) {
-    const normalizedTarget = tryNormalizeEvmAddress(to.trim());
+    const normalizedTarget = normalizeEvmAddressCandidate(to);
     if (!normalizedTarget) {
       return ExtendedSubmissionStrategySchema.parse({
         submitter: explicitSubmissionStrategy.submitter,

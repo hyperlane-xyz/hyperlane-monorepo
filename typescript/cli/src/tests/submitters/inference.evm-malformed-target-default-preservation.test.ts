@@ -117,6 +117,21 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target default pr
     );
   });
 
+  it('preserves explicit default submitter when transaction target is overlong string', async () => {
+    const strategyPath = createStrategyPath('overlong-target');
+    writeTargetOverrideStrategy(strategyPath);
+
+    const batches = await resolveSingleBatch(
+      { ...TX, to: `0x${'1'.repeat(5000)}` },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('preserves explicit default submitter when transaction target getter throws', async () => {
     const strategyPath = createStrategyPath('throwing-target-getter');
     writeTargetOverrideStrategy(strategyPath);
