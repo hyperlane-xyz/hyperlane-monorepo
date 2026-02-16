@@ -33,6 +33,7 @@ import {
 } from './types.js';
 import {
   cloneOwnEnumerableObject as cloneSharedOwnEnumerableObject,
+  getObjectField as getSharedObjectField,
   getOwnObjectField as getSharedOwnObjectField,
 } from './object.js';
 
@@ -404,7 +405,9 @@ function normalizeChainNameFromUnknown(value: unknown): ChainName | null {
   }
 }
 
-function normalizeRegistryAddressesFromUnknown(raw: unknown): RegistryAddresses {
+function normalizeRegistryAddressesFromUnknown(
+  raw: unknown,
+): RegistryAddresses {
   const normalizedRegistryAddresses: Record<string, unknown> = {};
   if (!raw || (typeof raw !== 'object' && typeof raw !== 'function')) {
     return normalizedRegistryAddresses as RegistryAddresses;
@@ -434,7 +437,8 @@ function normalizeRegistryAddressesFromUnknown(raw: unknown): RegistryAddresses 
     }
 
     normalizedRegistryAddresses[normalizedChain] =
-      addresses && (typeof addresses === 'object' || typeof addresses === 'function')
+      addresses &&
+      (typeof addresses === 'object' || typeof addresses === 'function')
         ? addresses
         : {};
     normalizedEntries += 1;
@@ -523,30 +527,11 @@ async function hasSignerForChain(
 }
 
 function getTryGetSignerMethod(multiProvider: unknown): unknown {
-  if (
-    !multiProvider ||
-    (typeof multiProvider !== 'object' && typeof multiProvider !== 'function')
-  ) {
-    return null;
-  }
-
-  try {
-    return (multiProvider as { tryGetSigner?: unknown }).tryGetSigner;
-  } catch {
-    return null;
-  }
+  return getSharedObjectField(multiProvider, 'tryGetSigner') ?? null;
 }
 
 function getThenableHandler(value: unknown): unknown {
-  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
-    return null;
-  }
-
-  try {
-    return (value as { then?: unknown }).then;
-  } catch {
-    return null;
-  }
+  return getSharedObjectField(value, 'then') ?? null;
 }
 
 async function getSignerAddressFromSignerObject(
@@ -571,15 +556,7 @@ async function getSignerAddressFromSignerObject(
 }
 
 function getSignerAddressMethod(signer: unknown): unknown {
-  if (!signer || (typeof signer !== 'object' && typeof signer !== 'function')) {
-    return null;
-  }
-
-  try {
-    return (signer as { getAddress?: unknown }).getAddress;
-  } catch {
-    return null;
-  }
+  return getSharedObjectField(signer, 'getAddress') ?? null;
 }
 
 function isEthereumProtocolChain(
@@ -750,11 +727,10 @@ function readChainSubmissionStrategy(
   const submissionStrategyFileContent = readYamlOrJson(
     submissionStrategyFilepath.trim(),
   );
-  const rawChainSubmissionStrategies =
-    cloneSharedOwnEnumerableObject(
-      submissionStrategyFileContent,
-      DISALLOWED_OWN_FIELD_OPTIONS,
-    );
+  const rawChainSubmissionStrategies = cloneSharedOwnEnumerableObject(
+    submissionStrategyFileContent,
+    DISALLOWED_OWN_FIELD_OPTIONS,
+  );
   const sanitizedChainSubmissionStrategies = Object.create(null) as Record<
     string,
     unknown
@@ -1896,14 +1872,18 @@ function resolveExplicitSubmitterForTransaction({
   ) as ExtendedSubmissionStrategy['submitterOverrides'] | undefined;
 
   if (!overrides || !to) {
-    return parseExtendedSubmissionStrategyWithSubmitter(explicitDefaultSubmitter);
+    return parseExtendedSubmissionStrategyWithSubmitter(
+      explicitDefaultSubmitter,
+    );
   }
 
   let selectedSubmitter = explicitDefaultSubmitter;
   if (protocol === ProtocolType.Ethereum) {
     const normalizedTarget = normalizeEvmAddressCandidate(to);
     if (!normalizedTarget) {
-      return parseExtendedSubmissionStrategyWithSubmitter(explicitDefaultSubmitter);
+      return parseExtendedSubmissionStrategyWithSubmitter(
+        explicitDefaultSubmitter,
+      );
     }
     const selector = getTxSelector(transaction);
 
@@ -1925,7 +1905,9 @@ function resolveExplicitSubmitterForTransaction({
     }
   } else {
     if (!isUsableOverrideKey(to)) {
-      return parseExtendedSubmissionStrategyWithSubmitter(explicitDefaultSubmitter);
+      return parseExtendedSubmissionStrategyWithSubmitter(
+        explicitDefaultSubmitter,
+      );
     }
     const normalizedTarget = to.trim();
     const targetMatch =
@@ -2020,10 +2002,7 @@ function normalizeOptionalPath(value: unknown): string | undefined {
         return undefined;
       }
       const trimmed = rawPath.trim();
-      if (
-        trimmed.length === 0 ||
-        trimmed.length > MAX_STRATEGY_PATH_LENGTH
-      ) {
+      if (trimmed.length === 0 || trimmed.length > MAX_STRATEGY_PATH_LENGTH) {
         return undefined;
       }
       if (trimmed.includes('\0')) {
@@ -2037,9 +2016,7 @@ function normalizeOptionalPath(value: unknown): string | undefined {
   return undefined;
 }
 
-function coerceKnownProtocolType(
-  protocol: unknown,
-): ProtocolType | undefined {
+function coerceKnownProtocolType(protocol: unknown): ProtocolType | undefined {
   if (typeof protocol === 'string' || isBoxedStringObject(protocol)) {
     try {
       const rawProtocol = protocol.toString();
@@ -2176,10 +2153,9 @@ export async function resolveSubmitterBatchesForTransactions({
       ? (explicitSubmissionStrategyCandidate as ExtendedSubmissionStrategy)
       : undefined;
   const explicitOverrides = explicitSubmissionStrategy
-    ? (getOwnObjectField(
-        explicitSubmissionStrategy,
-        'submitterOverrides',
-      ) as ExtendedSubmissionStrategy['submitterOverrides'] | undefined)
+    ? (getOwnObjectField(explicitSubmissionStrategy, 'submitterOverrides') as
+        | ExtendedSubmissionStrategy['submitterOverrides']
+        | undefined)
     : undefined;
   const explicitDefaultSubmitter = explicitSubmissionStrategy
     ? getExplicitDefaultSubmitter(explicitSubmissionStrategy, chain)
@@ -2203,7 +2179,9 @@ export async function resolveSubmitterBatchesForTransactions({
 
   let protocol: ProtocolType | undefined;
   try {
-    protocol = coerceKnownProtocolType(context.multiProvider.getProtocol(chain));
+    protocol = coerceKnownProtocolType(
+      context.multiProvider.getProtocol(chain),
+    );
     if (!protocol) {
       logger.debug(
         `Falling back to default protocol handling for ${chain}: unknown protocol type`,

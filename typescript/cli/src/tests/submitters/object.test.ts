@@ -2,11 +2,43 @@ import { expect } from 'chai';
 
 import {
   cloneOwnEnumerableObject,
+  getObjectField,
   getOwnObjectField,
   hasOwnObjectField,
 } from '../../submitters/object.js';
 
 describe('submitter own-object helpers', () => {
+  it('getObjectField returns inherited field values', () => {
+    const parent = { submitter: { type: 'jsonRpc' } };
+    const child = Object.create(parent);
+    expect(getObjectField(child, 'submitter')).to.deep.equal({
+      type: 'jsonRpc',
+    });
+  });
+
+  it('getObjectField returns undefined when inherited getter throws', () => {
+    const parent = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(parent, 'submitter', {
+      enumerable: true,
+      configurable: true,
+      get: () => {
+        throw new Error('boom');
+      },
+    });
+    const child = Object.create(parent);
+    expect(getObjectField(child, 'submitter')).to.equal(undefined);
+  });
+
+  it('getObjectField returns undefined for disallowed fields', () => {
+    const parent = { submitter: { type: 'jsonRpc' } };
+    const child = Object.create(parent);
+    expect(
+      getObjectField(child, 'submitter', {
+        disallowedFields: new Set(['submitter']),
+      }),
+    ).to.equal(undefined);
+  });
+
   it('getOwnObjectField returns own field values', () => {
     const value = { submitter: { type: 'jsonRpc' } };
     expect(getOwnObjectField(value, 'submitter')).to.deep.equal({

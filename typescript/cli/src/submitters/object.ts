@@ -4,6 +4,26 @@ export type GetOwnObjectFieldOptions = {
 
 export type CloneOwnEnumerableObjectOptions = GetOwnObjectFieldOptions;
 
+export function getObjectField(
+  value: unknown,
+  field: string,
+  options?: GetOwnObjectFieldOptions,
+): unknown {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return undefined;
+  }
+
+  if (options?.disallowedFields?.has(field)) {
+    return undefined;
+  }
+
+  try {
+    return Reflect.get(value as Record<string, unknown>, field);
+  } catch {
+    return undefined;
+  }
+}
+
 export function getOwnObjectField(
   value: unknown,
   field: string,
