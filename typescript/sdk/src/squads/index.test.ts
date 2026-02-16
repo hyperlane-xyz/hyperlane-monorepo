@@ -1194,10 +1194,12 @@ function listSdkSquadsNonTestSourceFilePathsContainingPattern(
   return matchedPaths.sort(compareLexicographically);
 }
 
+const REGEXP_CONSTRUCTOR = RegExp;
+
 function doesPatternMatchSource(source: string, pattern: RegExp): boolean {
   const sourcePattern = pattern.source;
   const flagsPattern = pattern.flags.replace(/[gy]/g, '');
-  const isolatedPattern = new RegExp(sourcePattern, flagsPattern);
+  const isolatedPattern = new REGEXP_CONSTRUCTOR(sourcePattern, flagsPattern);
   return isolatedPattern.test(source);
 }
 
@@ -2314,6 +2316,45 @@ describe('squads barrel exports', () => {
 
     expect(overriddenMutationPattern.lastIndex).to.equal(11);
     expect(overriddenCapturePattern.lastIndex).to.equal(17);
+  });
+
+  it('keeps sdk squads pattern-path discovery stable when global RegExp is mutated', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const originalRegExp = RegExp;
+
+    Object.defineProperty(globalThis, 'RegExp', {
+      configurable: true,
+      writable: true,
+      value: function MutatedRegExp(): never {
+        throw new Error(
+          'Expected squads pattern discovery to use captured RegExp constructor',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listSdkSquadsTestFilePathsContainingPattern(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(baselineMutationDiscovery);
+      expect(
+        listSdkSquadsNonTestSourceFilePathsContainingPattern(
+          /const REFLECT_APPLY = Reflect\.apply/,
+        ),
+      ).to.deep.equal(baselineCaptureDiscovery);
+    } finally {
+      Object.defineProperty(globalThis, 'RegExp', {
+        configurable: true,
+        writable: true,
+        value: originalRegExp,
+      });
+    }
   });
 
   it('keeps sdk Reflect.apply mutation tests using explicit Reflect.apply monkey-patch setup', () => {
