@@ -184,12 +184,33 @@ function refineExtendedChainSubmissionStrategy(
   refineChainSubmissionStrategy(value as any, ctx);
 
   Object.entries(value).forEach(([chain, strategy]) => {
-    const overrides = strategy.submitterOverrides;
-    if (!overrides) {
+    const overrides = getOwnObjectField(
+      strategy,
+      'submitterOverrides',
+    ) as Record<string, ExtendedSubmitterMetadata> | undefined;
+    if (
+      !overrides ||
+      (typeof overrides !== 'object' && typeof overrides !== 'function')
+    ) {
       return;
     }
 
-    Object.values(overrides).forEach((overrideSubmitter) => {
+    let overrideKeys: string[] = [];
+    try {
+      overrideKeys = Object.keys(overrides);
+    } catch {
+      overrideKeys = [];
+    }
+
+    overrideKeys.forEach((overrideKey) => {
+      const overrideSubmitter = getOwnObjectField(
+        overrides,
+        overrideKey,
+      ) as ExtendedSubmitterMetadata | undefined;
+      if (!overrideSubmitter) {
+        return;
+      }
+
       refineChainSubmissionStrategy(
         {
           [chain]: {

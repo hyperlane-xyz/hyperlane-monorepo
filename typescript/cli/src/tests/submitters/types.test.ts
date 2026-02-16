@@ -239,6 +239,54 @@ describe('ExtendedChainSubmissionStrategySchema', () => {
     expect(parsed[CHAIN].submitterOverrides?.[ADDRESS_3]).to.equal(undefined);
   });
 
+  it('ignores inherited submitterOverrides during refinement when Object prototype is polluted', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitterOverrides',
+    );
+    Object.defineProperty(Object.prototype, 'submitterOverrides', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: new Proxy(
+        {},
+        {
+          ownKeys: () => {
+            throw new Error('boom');
+          },
+        },
+      ),
+    });
+
+    try {
+      const parsed = ExtendedChainSubmissionStrategySchema.parse({
+        [CHAIN]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+          },
+        },
+      });
+
+      expect(parsed[CHAIN].submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(
+        Object.prototype.hasOwnProperty.call(
+          parsed[CHAIN],
+          'submitterOverrides',
+        ),
+      ).to.equal(false);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitterOverrides',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitterOverrides;
+      }
+    }
+  });
+
   it('fails when ICA override owner and safe address mismatch', () => {
     const input = {
       [CHAIN]: {
