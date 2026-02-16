@@ -21,8 +21,9 @@ export const BUILTIN_SQUADS_ERROR_LABELS = Object.freeze([
 ] as const);
 
 const GENERIC_ERROR_LABELS = new Set<string>();
+const SET_ADD = Set.prototype.add;
 for (const label of BUILTIN_SQUADS_ERROR_LABELS) {
-  GENERIC_ERROR_LABELS.add(stringToLowerCase(label));
+  SET_ADD.call(GENERIC_ERROR_LABELS, stringToLowerCase(label));
 }
 const SET_HAS = Set.prototype.has;
 const ERROR_LABEL_WITH_MESSAGE_PATTERN = /^([A-Za-z]*Error)\s*:\s*(.+)$/;
