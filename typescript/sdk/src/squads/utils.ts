@@ -797,6 +797,16 @@ function validateSolanaWeb3ProviderForChain(
   providerValue: unknown,
   chain: SquadsChainName,
 ): SolanaWeb3Provider {
+  const { isArray: providerIsArray, readFailed: providerReadFailed } =
+    inspectArrayValue(providerValue);
+  assert(
+    typeof providerValue === 'object' &&
+      providerValue !== null &&
+      !providerReadFailed &&
+      !providerIsArray,
+    `Invalid solana provider for ${chain}: expected object, got ${getUnknownValueTypeName(providerValue)}`,
+  );
+
   let thenValue: unknown;
   try {
     thenValue = (providerValue as { then?: unknown } | null | undefined)?.then;
@@ -809,16 +819,6 @@ function validateSolanaWeb3ProviderForChain(
   assert(
     typeof thenValue !== 'function',
     `Invalid solana provider for ${chain}: expected synchronous provider, got promise-like value`,
-  );
-
-  const { isArray: providerIsArray, readFailed: providerReadFailed } =
-    inspectArrayValue(providerValue);
-  assert(
-    typeof providerValue === 'object' &&
-      providerValue !== null &&
-      !providerReadFailed &&
-      !providerIsArray,
-    `Invalid solana provider for ${chain}: expected object, got ${getUnknownValueTypeName(providerValue)}`,
   );
 
   let getAccountInfoValue: unknown;
@@ -867,6 +867,16 @@ function getPendingProposalNativeTokenMetadataForChain(
     );
   }
 
+  const { isArray: chainMetadataIsArray, readFailed: chainMetadataReadFailed } =
+    inspectArrayValue(chainMetadata);
+  assert(
+    typeof chainMetadata === 'object' &&
+      chainMetadata !== null &&
+      !chainMetadataReadFailed &&
+      !chainMetadataIsArray,
+    `Malformed chain metadata for ${chain}: expected object, got ${getUnknownValueTypeName(chainMetadata)}`,
+  );
+
   let chainMetadataThenValue: unknown;
   try {
     chainMetadataThenValue = (
@@ -883,16 +893,6 @@ function getPendingProposalNativeTokenMetadataForChain(
     `Malformed chain metadata for ${chain}: expected synchronous object, got promise-like value`,
   );
 
-  const { isArray: chainMetadataIsArray, readFailed: chainMetadataReadFailed } =
-    inspectArrayValue(chainMetadata);
-  assert(
-    typeof chainMetadata === 'object' &&
-      chainMetadata !== null &&
-      !chainMetadataReadFailed &&
-      !chainMetadataIsArray,
-    `Malformed chain metadata for ${chain}: expected object, got ${getUnknownValueTypeName(chainMetadata)}`,
-  );
-
   let nativeToken: unknown;
   try {
     nativeToken = (chainMetadata as { nativeToken?: unknown }).nativeToken;
@@ -901,6 +901,16 @@ function getPendingProposalNativeTokenMetadataForChain(
       `Failed to read native token metadata for ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
   }
+
+  const { isArray: nativeTokenIsArray, readFailed: nativeTokenReadFailed } =
+    inspectArrayValue(nativeToken);
+  assert(
+    typeof nativeToken === 'object' &&
+      nativeToken !== null &&
+      !nativeTokenReadFailed &&
+      !nativeTokenIsArray,
+    `Malformed native token metadata for ${chain}: expected object, got ${getUnknownValueTypeName(nativeToken)}`,
+  );
 
   let nativeTokenThenValue: unknown;
   try {
@@ -916,16 +926,6 @@ function getPendingProposalNativeTokenMetadataForChain(
   assert(
     typeof nativeTokenThenValue !== 'function',
     `Malformed native token metadata for ${chain}: expected synchronous object, got promise-like value`,
-  );
-
-  const { isArray: nativeTokenIsArray, readFailed: nativeTokenReadFailed } =
-    inspectArrayValue(nativeToken);
-  assert(
-    typeof nativeToken === 'object' &&
-      nativeToken !== null &&
-      !nativeTokenReadFailed &&
-      !nativeTokenIsArray,
-    `Malformed native token metadata for ${chain}: expected object, got ${getUnknownValueTypeName(nativeToken)}`,
   );
 
   let decimals: unknown;

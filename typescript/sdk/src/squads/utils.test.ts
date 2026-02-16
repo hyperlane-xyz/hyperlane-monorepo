@@ -3722,6 +3722,22 @@ describe('squads utils', () => {
       );
     });
 
+    it('labels unreadable provider types deterministically when lookup result is revoked', () => {
+      const { proxy: revokedProvider, revoke } = Proxy.revocable({}, {});
+      revoke();
+      const mpp = {
+        getSolanaWeb3Provider: () => revokedProvider,
+      };
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid solana provider for solanamainnet: expected object, got [unreadable value type]',
+      );
+    });
+
     it('throws contextual error when provider getAccountInfo accessor fails', () => {
       const mpp = {
         getSolanaWeb3Provider: () =>
@@ -3804,6 +3820,27 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Invalid solana provider for solanamainnet: expected object, got array',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('rejects unreadable provider overrides before multiprovider lookup', () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      };
+      const { proxy: revokedProvider, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp, revokedProvider),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Invalid solana provider for solanamainnet: expected object, got [unreadable value type]',
       );
       expect(providerLookupCalled).to.equal(false);
     });

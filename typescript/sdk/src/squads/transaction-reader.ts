@@ -1202,6 +1202,16 @@ export class SquadsTransactionReader {
     );
 
     const svmProvider = getSolanaWeb3ProviderValue.call(this.mpp, chain);
+    const { isArray: providerIsArray, readFailed: providerReadFailed } =
+      inspectArrayValue(svmProvider);
+    assert(
+      typeof svmProvider === 'object' &&
+        svmProvider !== null &&
+        !providerReadFailed &&
+        !providerIsArray,
+      `Invalid solana provider for ${chain}: expected object, got ${getUnknownValueTypeName(svmProvider)}`,
+    );
+
     const { thenValue, readError: thenReadError } = getThenValue(svmProvider);
     if (thenReadError) {
       throw new Error(
@@ -1211,16 +1221,6 @@ export class SquadsTransactionReader {
     assert(
       typeof thenValue !== 'function',
       `Invalid solana provider for ${chain}: expected synchronous provider, got promise-like value`,
-    );
-
-    const { isArray: providerIsArray, readFailed: providerReadFailed } =
-      inspectArrayValue(svmProvider);
-    assert(
-      typeof svmProvider === 'object' &&
-        svmProvider !== null &&
-        !providerReadFailed &&
-        !providerIsArray,
-      `Invalid solana provider for ${chain}: expected object, got ${getUnknownValueTypeName(svmProvider)}`,
     );
 
     let getAccountInfoValue: unknown;

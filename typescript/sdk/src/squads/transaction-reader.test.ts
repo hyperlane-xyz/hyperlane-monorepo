@@ -2777,20 +2777,17 @@ describe('squads transaction reader', () => {
       reader.read('solanamainnet', 0),
     );
 
-    expect(thrownError?.message).to.include(
-      'Failed to inspect solana provider for solanamainnet: failed to read promise-like then field',
+    expect(thrownError?.message).to.equal(
+      'Invalid solana provider for solanamainnet: expected object, got [unreadable value type]',
     );
-    expect(thrownError?.message).to.include(
-      "Cannot perform 'get' on a proxy that has been revoked",
-    );
-    expect(reader.errors).to.have.length(1);
-    expect(reader.errors[0]).to.include({
-      chain: 'solanamainnet',
-      transactionIndex: 0,
-    });
-    expect(`${reader.errors[0]?.error ?? ''}`).to.include(
-      'Failed to inspect solana provider for solanamainnet: failed to read promise-like then field',
-    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 0,
+        error:
+          'Error: Invalid solana provider for solanamainnet: expected object, got [unreadable value type]',
+      },
+    ]);
   });
 
   it('fails with contextual error when provider is null', async () => {
