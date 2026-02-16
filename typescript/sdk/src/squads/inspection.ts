@@ -1,10 +1,15 @@
+const ARRAY_IS_ARRAY = Array.isArray;
+const OBJECT_ENTRIES = Object.entries;
+const OBJECT_KEYS = Object.keys;
+const BUFFER_IS_BUFFER = Buffer.isBuffer;
+
 export function inspectArrayValue(value: unknown): {
   isArray: boolean;
   readFailed: boolean;
 } {
   try {
     return {
-      isArray: Array.isArray(value),
+      isArray: ARRAY_IS_ARRAY(value),
       readFailed: false,
     };
   } catch {
@@ -28,7 +33,7 @@ export function inspectObjectEntries(value: unknown): {
 
   try {
     return {
-      entries: Object.entries(value as Record<string, unknown>),
+      entries: OBJECT_ENTRIES(value as Record<string, unknown>),
       readError: undefined,
     };
   } catch (error) {
@@ -52,7 +57,7 @@ export function inspectObjectKeys(value: unknown): {
 
   try {
     return {
-      keys: Object.keys(value as Record<string, unknown>),
+      keys: OBJECT_KEYS(value as Record<string, unknown>),
       readError: undefined,
     };
   } catch (error) {
@@ -129,7 +134,7 @@ export function inspectBufferValue(value: unknown): {
 } {
   try {
     return {
-      isBuffer: Buffer.isBuffer(value),
+      isBuffer: BUFFER_IS_BUFFER(value),
       readFailed: false,
     };
   } catch {

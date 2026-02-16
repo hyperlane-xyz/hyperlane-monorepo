@@ -37,6 +37,46 @@ describe('squads inspection helpers', () => {
         readFailed: true,
       });
     });
+
+    it('uses captured Array.isArray when global method is mutated', () => {
+      const originalIsArray = Array.isArray;
+      const throwingIsArray: typeof Array.isArray = (
+        _value: unknown,
+      ): _value is unknown[] => {
+        throw new Error('array inspection unavailable');
+      };
+      let arrayInspectionResult:
+        | { isArray: boolean; readFailed: boolean }
+        | undefined;
+      let objectInspectionResult:
+        | { isArray: boolean; readFailed: boolean }
+        | undefined;
+
+      Object.defineProperty(Array, 'isArray', {
+        value: throwingIsArray,
+        writable: true,
+        configurable: true,
+      });
+      try {
+        arrayInspectionResult = inspectArrayValue([]);
+        objectInspectionResult = inspectArrayValue({});
+      } finally {
+        Object.defineProperty(Array, 'isArray', {
+          value: originalIsArray,
+          writable: true,
+          configurable: true,
+        });
+      }
+
+      expect(arrayInspectionResult).to.deep.equal({
+        isArray: true,
+        readFailed: false,
+      });
+      expect(objectInspectionResult).to.deep.equal({
+        isArray: false,
+        readFailed: false,
+      });
+    });
   });
 
   describe(inspectObjectEntries.name, () => {
@@ -89,6 +129,31 @@ describe('squads inspection helpers', () => {
         readError: opaqueError,
       });
     });
+
+    it('uses captured Object.entries when global method is mutated', () => {
+      const originalObjectEntries = Object.entries;
+      const throwingObjectEntries = ((_value: object) => {
+        throw new Error('entries unavailable');
+      }) as typeof Object.entries;
+
+      Object.defineProperty(Object, 'entries', {
+        value: throwingObjectEntries,
+        writable: true,
+        configurable: true,
+      });
+      try {
+        expect(inspectObjectEntries({ a: 1 })).to.deep.equal({
+          entries: [['a', 1]],
+          readError: undefined,
+        });
+      } finally {
+        Object.defineProperty(Object, 'entries', {
+          value: originalObjectEntries,
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
   });
 
   describe(inspectObjectKeys.name, () => {
@@ -137,6 +202,31 @@ describe('squads inspection helpers', () => {
         keys: [],
         readError: opaqueError,
       });
+    });
+
+    it('uses captured Object.keys when global method is mutated', () => {
+      const originalObjectKeys = Object.keys;
+      const throwingObjectKeys = ((_value: object) => {
+        throw new Error('keys unavailable');
+      }) as typeof Object.keys;
+
+      Object.defineProperty(Object, 'keys', {
+        value: throwingObjectKeys,
+        writable: true,
+        configurable: true,
+      });
+      try {
+        expect(inspectObjectKeys({ a: 1 })).to.deep.equal({
+          keys: ['a'],
+          readError: undefined,
+        });
+      } finally {
+        Object.defineProperty(Object, 'keys', {
+          value: originalObjectKeys,
+          writable: true,
+          configurable: true,
+        });
+      }
     });
   });
 
@@ -460,7 +550,17 @@ describe('squads inspection helpers', () => {
       });
     });
 
-    it('returns readFailed when Buffer.isBuffer throws', () => {
+    it('returns readFailed when buffer inspection throws', () => {
+      const { proxy: revokedValue, revoke } = Proxy.revocable({}, {});
+      revoke();
+
+      expect(inspectBufferValue(revokedValue)).to.deep.equal({
+        isBuffer: false,
+        readFailed: true,
+      });
+    });
+
+    it('uses captured Buffer.isBuffer when global method is mutated', () => {
       const originalIsBuffer = Buffer.isBuffer;
       const throwingIsBuffer: typeof Buffer.isBuffer = (
         _value: unknown,
@@ -475,8 +575,8 @@ describe('squads inspection helpers', () => {
       });
       try {
         expect(inspectBufferValue(Buffer.from([1]))).to.deep.equal({
-          isBuffer: false,
-          readFailed: true,
+          isBuffer: true,
+          readFailed: false,
         });
       } finally {
         Object.defineProperty(Buffer, 'isBuffer', {
