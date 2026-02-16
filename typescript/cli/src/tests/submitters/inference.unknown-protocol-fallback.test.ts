@@ -832,4 +832,57 @@ describe('resolveSubmitterBatchesForTransactions unknown protocol fallback', () 
     expect(batches).to.have.length(1);
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
+
+  it('falls back to jsonRpc when protocol lookup returns null-byte string without explicit strategy', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => 'ethereum\0poisoned',
+        },
+      } as any,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('falls back to explicit default when protocol lookup returns null-byte boxed string with explicit overrides', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-protocol-null-byte-boxed-explicit-${Date.now()}.yaml`;
+    const overrideTarget = '0x9999999999999999999999999999999999999999';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x2222222222222222222222222222222222222222',
+          version: '1.0',
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+    const nullByteBoxedProtocol = new String('ethereum\0poisoned') as any;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: overrideTarget } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => nullByteBoxedProtocol,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
 });
