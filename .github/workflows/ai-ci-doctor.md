@@ -16,6 +16,10 @@ permissions:
   actions: read
   checks: read
 
+tools:
+  github:
+    toolsets: [default, actions]
+
 safe-outputs:
   add-comment:
     max: 1

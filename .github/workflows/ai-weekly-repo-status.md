@@ -16,6 +16,10 @@ permissions:
 network:
   firewall: false
 
+tools:
+  github:
+    toolsets: [default, actions]
+
 env:
   REPO_SUMMARY_WEBHOOK_URL: ${{ secrets.REPO_SUMMARY_WEBHOOK_URL }}
 

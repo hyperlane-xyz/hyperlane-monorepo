@@ -22,7 +22,7 @@
 # For more information: https://github.github.com/gh-aw/introduction/overview/
 #
 #
-# frontmatter-hash: d0e7f41631205f191dacd3dad8f25aef9abd1f5f0d55e2d0c5cb58c17e3c0742
+# frontmatter-hash: df9ab1d7f7d347fa873f7cba7ea848f6bab8b8c0827b0999ff144c6aff0a5d9e
 
 name: "Weekly Repo Status"
 "on":
@@ -463,7 +463,7 @@ jobs:
                   "GITHUB_LOCKDOWN_MODE": "$GITHUB_MCP_LOCKDOWN",
                   "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_MCP_SERVER_TOKEN",
                   "GITHUB_READ_ONLY": "1",
-                  "GITHUB_TOOLSETS": "context,repos,issues,pull_requests"
+                  "GITHUB_TOOLSETS": "context,repos,issues,pull_requests,actions"
                 }
               },
               "safeoutputs": {
