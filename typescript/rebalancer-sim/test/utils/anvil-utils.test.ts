@@ -25373,6 +25373,17 @@ describe('Anvil utils', () => {
 
   describe('Symbol.toPrimitive descriptor parity guards', () => {
     const expectedDescriptorSetSize = 40;
+    const allowedUnescapedDescriptors = [
+      'bare colon',
+      'bracketed-array placeholder',
+      'non-informative placeholder',
+      'whitespace-padded placeholder',
+    ] as const;
+    const escapePrefixes = [
+      'triple-escaped ',
+      'json-escaped ',
+      'double-escaped ',
+    ] as const;
     const source = readFileSync(new URL(import.meta.url), 'utf8');
     const matcherDescriptorPattern =
       /it\('(?:matches runtime toStringTag signals|ignores non-runtime toStringTag signals) when non-Error Symbol\.toPrimitive String\(error\) is a ([^']+)'/g;
@@ -25448,9 +25459,9 @@ describe('Anvil utils', () => {
         return grouped;
       };
       return {
-        triple: group('triple-escaped ', descriptors),
-        json: group('json-escaped ', descriptors),
-        double: group('double-escaped ', descriptors),
+        triple: group(escapePrefixes[0], descriptors),
+        json: group(escapePrefixes[1], descriptors),
+        double: group(escapePrefixes[2], descriptors),
       };
     };
 
@@ -25463,6 +25474,17 @@ describe('Anvil utils', () => {
 
     const sortedValues = (values: ReadonlySet<string>): ReadonlyArray<string> =>
       [...values].sort();
+
+    const unknownEscapeDescriptors = (
+      descriptors: ReadonlySet<string>,
+    ): ReadonlyArray<string> => {
+      return [...descriptors]
+        .filter(
+          (descriptor) =>
+            !escapePrefixes.some((prefix) => descriptor.startsWith(prefix)),
+        )
+        .sort();
+    };
 
     const expectDescriptorSetShape = (values: ReadonlySet<string>) => {
       expect(values.size).to.equal(expectedDescriptorSetSize);
@@ -25492,16 +25514,26 @@ describe('Anvil utils', () => {
     });
 
     it('keeps matcher descriptor sets equivalent across triple/json/double escape levels', () => {
-      const byEscapeLevel = splitByEscapeLevel(
-        parseDescriptors(source, matcherDescriptorPattern),
+      const matcherDescriptors = parseDescriptors(
+        source,
+        matcherDescriptorPattern,
+      );
+      const byEscapeLevel = splitByEscapeLevel(matcherDescriptors);
+      expect(unknownEscapeDescriptors(matcherDescriptors)).to.deep.equal(
+        allowedUnescapedDescriptors,
       );
       expect(byEscapeLevel.triple.size).to.be.greaterThan(0);
       expectEscapeLevelParity(byEscapeLevel);
     });
 
     it('keeps formatter descriptor sets equivalent across triple/json/double escape levels', () => {
-      const byEscapeLevel = splitByEscapeLevel(
-        parseDescriptors(source, formatterDescriptorPattern),
+      const formatterDescriptors = parseDescriptors(
+        source,
+        formatterDescriptorPattern,
+      );
+      const byEscapeLevel = splitByEscapeLevel(formatterDescriptors);
+      expect(unknownEscapeDescriptors(formatterDescriptors)).to.deep.equal(
+        allowedUnescapedDescriptors,
       );
       expect(byEscapeLevel.triple.size).to.be.greaterThan(0);
       expectEscapeLevelParity(byEscapeLevel);
