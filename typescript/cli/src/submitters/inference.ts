@@ -1625,8 +1625,15 @@ function hasNonEmptyStringTarget(
   if (typeof to !== 'string') {
     return false;
   }
+  if (to.length > MAX_OVERRIDE_KEY_LENGTH) {
+    return false;
+  }
   const trimmedTarget = to.trim();
-  return trimmedTarget.length > 0 && !trimmedTarget.includes('\0');
+  return (
+    trimmedTarget.length > 0 &&
+    trimmedTarget.length <= MAX_OVERRIDE_KEY_LENGTH &&
+    !trimmedTarget.includes('\0')
+  );
 }
 
 function getTransactionStringField(

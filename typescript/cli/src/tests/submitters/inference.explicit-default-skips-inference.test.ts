@@ -318,6 +318,51 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     );
   });
 
+  it('does not look up protocol when explicit strategy has overrides but transaction target is overlong', async () => {
+    let protocolCalls = 0;
+    const transactions = [{ ...TX, to: `0x${'1'.repeat(5000)}` }];
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: transactions as any,
+      context: {
+        multiProvider: {
+          getProtocol: () => {
+            protocolCalls += 1;
+            return ProtocolType.Ethereum;
+          },
+        },
+      } as any,
+      strategyUrl: createExplicitStrategyWithOverridePath(),
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+    expect(protocolCalls).to.equal(0);
+  });
+
+  it('does not access multiProvider when explicit strategy has overrides but boxed transaction target is overlong', async () => {
+    const boxedOverlongTarget = new String(`0x${'1'.repeat(5000)}`) as any;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: boxedOverlongTarget } as any],
+      context: {
+        get multiProvider() {
+          throw new Error('multiProvider access should not occur');
+        },
+      } as any,
+      strategyUrl: createExplicitStrategyWithOverridePath(),
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('does not look up protocol when explicit strategy has overrides but transaction target getter throws', async () => {
     let protocolCalls = 0;
     const throwingTargetTx = {
