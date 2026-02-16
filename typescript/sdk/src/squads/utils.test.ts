@@ -3663,7 +3663,7 @@ describe('squads utils', () => {
       );
     });
 
-    it('propagates provider lookup failures for supported chains', async () => {
+    it('throws contextual provider lookup errors for supported chains', async () => {
       let providerLookupCalled = false;
       const mpp = {
         getSolanaWeb3Provider: () => {
@@ -3676,7 +3676,28 @@ describe('squads utils', () => {
         getSquadAndProvider('solanamainnet', mpp),
       );
 
-      expect(thrownError?.message).to.include('provider lookup failed');
+      expect(thrownError?.message).to.equal(
+        'Failed to resolve solana provider for solanamainnet: provider lookup failed',
+      );
+      expect(providerLookupCalled).to.equal(true);
+    });
+
+    it('uses deterministic placeholder when provider lookup throws opaque value', () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw {};
+        },
+      };
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to resolve solana provider for solanamainnet: [unstringifiable error]',
+      );
       expect(providerLookupCalled).to.equal(true);
     });
 
