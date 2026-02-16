@@ -165,8 +165,40 @@ const EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS = Object.freeze([
     expectedReflectApplyInvocationCount: 1,
   }),
 ]);
+const EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS =
+  Object.freeze([
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/config.ts',
+      expectedReflectApplyCaptureDeclarationCount: 1,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/error-format.ts',
+      expectedReflectApplyCaptureDeclarationCount: 1,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/inspection.ts',
+      expectedReflectApplyCaptureDeclarationCount: 0,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/provider.ts',
+      expectedReflectApplyCaptureDeclarationCount: 0,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/transaction-reader.ts',
+      expectedReflectApplyCaptureDeclarationCount: 1,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/utils.ts',
+      expectedReflectApplyCaptureDeclarationCount: 1,
+    }),
+    Object.freeze({
+      runtimeSourcePath: 'src/squads/validation.ts',
+      expectedReflectApplyCaptureDeclarationCount: 1,
+    }),
+  ]);
 const EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNT = 5;
 const EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNT = 17;
+const EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNT = 5;
 const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE =
   Object.freeze([
     Object.freeze({
@@ -1733,6 +1765,41 @@ describe('squads barrel exports', () => {
     ]);
   });
 
+  it('keeps expected canonical sdk squads REFLECT_APPLY capture declaration counts', () => {
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS,
+    ).to.deep.equal([
+      {
+        runtimeSourcePath: 'src/squads/config.ts',
+        expectedReflectApplyCaptureDeclarationCount: 1,
+      },
+      {
+        runtimeSourcePath: 'src/squads/error-format.ts',
+        expectedReflectApplyCaptureDeclarationCount: 1,
+      },
+      {
+        runtimeSourcePath: 'src/squads/inspection.ts',
+        expectedReflectApplyCaptureDeclarationCount: 0,
+      },
+      {
+        runtimeSourcePath: 'src/squads/provider.ts',
+        expectedReflectApplyCaptureDeclarationCount: 0,
+      },
+      {
+        runtimeSourcePath: 'src/squads/transaction-reader.ts',
+        expectedReflectApplyCaptureDeclarationCount: 1,
+      },
+      {
+        runtimeSourcePath: 'src/squads/utils.ts',
+        expectedReflectApplyCaptureDeclarationCount: 1,
+      },
+      {
+        runtimeSourcePath: 'src/squads/validation.ts',
+        expectedReflectApplyCaptureDeclarationCount: 1,
+      },
+    ]);
+  });
+
   it('keeps expected canonical sdk squads total Reflect.apply identifier-reference count', () => {
     expect(
       EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNT,
@@ -1743,6 +1810,12 @@ describe('squads barrel exports', () => {
     expect(EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNT).to.equal(
       17,
     );
+  });
+
+  it('keeps expected canonical sdk squads total REFLECT_APPLY capture declaration count', () => {
+    expect(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNT,
+    ).to.equal(5);
   });
 
   it('keeps expected canonical sdk squads Reflect.apply mutation runtime coverage map', () => {
@@ -1927,6 +2000,11 @@ describe('squads barrel exports', () => {
       Object.isFrozen(EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS),
     ).to.equal(true);
     expect(
+      Object.isFrozen(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS,
+      ),
+    ).to.equal(true);
+    expect(
       new Set(
         EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.map(
           ({ runtimeSourcePath }) => runtimeSourcePath,
@@ -1946,6 +2024,38 @@ describe('squads barrel exports', () => {
       expect(Object.isFrozen(invocationCountEntry)).to.equal(true);
       expect(
         invocationCountEntry.expectedReflectApplyInvocationCount,
+      ).to.be.greaterThanOrEqual(0);
+    }
+  });
+
+  it('keeps sdk squads REFLECT_APPLY capture declaration count constants normalized and immutable', () => {
+    expect(
+      Object.isFrozen(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS,
+      ),
+    ).to.equal(true);
+    expect(
+      new Set(
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.map(
+          ({ runtimeSourcePath }) => runtimeSourcePath,
+        ),
+      ).size,
+    ).to.equal(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.length,
+    );
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      ),
+    ).to.deep.equal(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      ).toSorted(compareLexicographically),
+    );
+    for (const captureDeclarationCountEntry of EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS) {
+      expect(Object.isFrozen(captureDeclarationCountEntry)).to.equal(true);
+      expect(
+        captureDeclarationCountEntry.expectedReflectApplyCaptureDeclarationCount,
       ).to.be.greaterThanOrEqual(0);
     }
   });
@@ -2332,7 +2442,76 @@ describe('squads barrel exports', () => {
     );
   });
 
-  it('keeps sdk Reflect.apply identifier and REFLECT_APPLY invocation totals aligned with runtime sources', () => {
+  it('keeps sdk REFLECT_APPLY capture-declaration table aligned with capture partition and identifier tables', () => {
+    const captureDeclarationCountByRuntimeSourcePath = new Map<string, number>(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.map(
+        ({
+          runtimeSourcePath,
+          expectedReflectApplyCaptureDeclarationCount,
+        }) => [runtimeSourcePath, expectedReflectApplyCaptureDeclarationCount],
+      ),
+    );
+    const capturedRuntimeSourcePathSet = new Set<string>(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+    );
+    const nonCapturedRuntimeSourcePathSet = new Set<string>(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS,
+    );
+    const identifierCountByRuntimeSourcePath = new Map<string, number>(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+        ({
+          runtimeSourcePath,
+          expectedReflectApplyIdentifierReferenceCount,
+        }) => [runtimeSourcePath, expectedReflectApplyIdentifierReferenceCount],
+      ),
+    );
+
+    for (const runtimeSourcePath of listSdkSquadsNonTestSourceFilePaths()
+      .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
+      .sort(compareLexicographically)) {
+      const absoluteSourcePath = path.join(SDK_PACKAGE_ROOT, runtimeSourcePath);
+      const source = fs.readFileSync(absoluteSourcePath, 'utf8');
+      const discoveredCaptureDeclarationCount = countOccurrences(
+        source,
+        'const REFLECT_APPLY = Reflect.apply as <',
+      );
+      const expectedCaptureDeclarationCount =
+        captureDeclarationCountByRuntimeSourcePath.get(runtimeSourcePath);
+      const expectedIdentifierCount =
+        identifierCountByRuntimeSourcePath.get(runtimeSourcePath);
+      expect(expectedCaptureDeclarationCount).to.not.equal(undefined);
+      expect(expectedIdentifierCount).to.not.equal(undefined);
+      expect(discoveredCaptureDeclarationCount).to.equal(
+        expectedCaptureDeclarationCount,
+      );
+
+      if (capturedRuntimeSourcePathSet.has(runtimeSourcePath)) {
+        expect(discoveredCaptureDeclarationCount).to.equal(1);
+        expect(nonCapturedRuntimeSourcePathSet.has(runtimeSourcePath)).to.equal(
+          false,
+        );
+        expect(expectedIdentifierCount).to.equal(1);
+      } else {
+        expect(nonCapturedRuntimeSourcePathSet.has(runtimeSourcePath)).to.equal(
+          true,
+        );
+        expect(discoveredCaptureDeclarationCount).to.equal(0);
+        expect(expectedIdentifierCount).to.equal(0);
+      }
+    }
+
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      ),
+    ).to.deep.equal(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.map(
+        ({ runtimeSourcePath }) => runtimeSourcePath,
+      ),
+    );
+  });
+
+  it('keeps sdk Reflect.apply identifier and REFLECT_APPLY totals aligned with runtime sources', () => {
     const identifierReferenceCountTotalFromTable =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNTS.reduce(
         (sum, { expectedReflectApplyIdentifierReferenceCount }) =>
@@ -2345,15 +2524,25 @@ describe('squads barrel exports', () => {
           sum + expectedReflectApplyInvocationCount,
         0,
       );
+    const captureDeclarationCountTotalFromTable =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.reduce(
+        (sum, { expectedReflectApplyCaptureDeclarationCount }) =>
+          sum + expectedReflectApplyCaptureDeclarationCount,
+        0,
+      );
     expect(identifierReferenceCountTotalFromTable).to.equal(
       EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNT,
     );
     expect(invocationCountTotalFromTable).to.equal(
       EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNT,
     );
+    expect(captureDeclarationCountTotalFromTable).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNT,
+    );
 
     let discoveredIdentifierReferenceCountTotal = 0;
     let discoveredInvocationCountTotal = 0;
+    let discoveredCaptureDeclarationCountTotal = 0;
     for (const runtimeSourcePath of listSdkSquadsNonTestSourceFilePaths()
       .filter((sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH)
       .sort(compareLexicographically)) {
@@ -2367,6 +2556,10 @@ describe('squads barrel exports', () => {
         source,
         'REFLECT_APPLY(',
       );
+      discoveredCaptureDeclarationCountTotal += countOccurrences(
+        source,
+        'const REFLECT_APPLY = Reflect.apply as <',
+      );
     }
 
     expect(discoveredIdentifierReferenceCountTotal).to.equal(
@@ -2374,6 +2567,9 @@ describe('squads barrel exports', () => {
     );
     expect(discoveredInvocationCountTotal).to.equal(
       EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNT,
+    );
+    expect(discoveredCaptureDeclarationCountTotal).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNT,
     );
   });
 
@@ -2422,6 +2618,9 @@ describe('squads barrel exports', () => {
     for (const countEntry of EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS) {
       expect(Object.isFrozen(countEntry)).to.equal(true);
     }
+    for (const countEntry of EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS) {
+      expect(Object.isFrozen(countEntry)).to.equal(true);
+    }
 
     const baselineMutationTestFilePaths = [
       ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
@@ -2441,6 +2640,11 @@ describe('squads barrel exports', () => {
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNTS.map(
         ({ runtimeSourcePath, expectedReflectApplyInvocationCount }) =>
           `${runtimeSourcePath}:${expectedReflectApplyInvocationCount}`,
+      );
+    const baselineRuntimeReflectApplyCaptureDeclarationCounts =
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.map(
+        ({ runtimeSourcePath, expectedReflectApplyCaptureDeclarationCount }) =>
+          `${runtimeSourcePath}:${expectedReflectApplyCaptureDeclarationCount}`,
       );
     const baselineCountSignatures =
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_COUNTS.map(
@@ -2541,6 +2745,25 @@ describe('squads barrel exports', () => {
         }>
       )[0].expectedReflectApplyInvocationCount = 99;
     }).to.throw();
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS as unknown as Array<{
+          runtimeSourcePath: string;
+          expectedReflectApplyCaptureDeclarationCount: number;
+        }>
+      ).push({
+        runtimeSourcePath: 'src/squads/injected.ts',
+        expectedReflectApplyCaptureDeclarationCount: 1,
+      });
+    }).to.throw();
+    expect(() => {
+      (
+        EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS as unknown as Array<{
+          runtimeSourcePath: string;
+          expectedReflectApplyCaptureDeclarationCount: number;
+        }>
+      )[0].expectedReflectApplyCaptureDeclarationCount = 99;
+    }).to.throw();
 
     expect(() => {
       (
@@ -2597,6 +2820,12 @@ describe('squads barrel exports', () => {
           `${runtimeSourcePath}:${expectedReflectApplyInvocationCount}`,
       ),
     ).to.deep.equal(baselineRuntimeReflectApplyInvocationCounts);
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS.map(
+        ({ runtimeSourcePath, expectedReflectApplyCaptureDeclarationCount }) =>
+          `${runtimeSourcePath}:${expectedReflectApplyCaptureDeclarationCount}`,
+      ),
+    ).to.deep.equal(baselineRuntimeReflectApplyCaptureDeclarationCounts);
     expect(
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE.map(
         ({ runtimeSourcePath, coveringTestPaths }) =>
