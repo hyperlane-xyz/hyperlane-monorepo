@@ -147,6 +147,34 @@ describe('squads config', () => {
     expect(unsupportedChainResult).to.equal(false);
   });
 
+  it('keeps chain detection stable when Reflect.apply is mutated', () => {
+    const originalReflectApply = Reflect.apply;
+    let supportedChainResult = false;
+    let unsupportedChainResult = true;
+
+    Object.defineProperty(Reflect, 'apply', {
+      value: () => {
+        throw new Error('reflect apply unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      supportedChainResult = isSquadsChain('solanamainnet');
+      unsupportedChainResult = isSquadsChain('__proto__');
+    } finally {
+      Object.defineProperty(Reflect, 'apply', {
+        value: originalReflectApply,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(supportedChainResult).to.equal(true);
+    expect(unsupportedChainResult).to.equal(false);
+  });
+
   it('asserts supported chains with helpful error context', () => {
     expect(() => assertIsSquadsChain('solanamainnet')).to.not.throw();
     expect(() => assertIsSquadsChain('unknown-chain')).to.throw(

@@ -311,6 +311,35 @@ describe('squads transaction reader warning formatters', () => {
     ).to.equal('⚠️  UNKNOWN PROGRAM: 11111111111111111111111111111111');
   });
 
+  it('keeps unknown-program warning formatting stable when Reflect.apply is mutated', () => {
+    const originalReflectApply = Reflect.apply;
+    let warningValue: string | undefined;
+
+    Object.defineProperty(Reflect, 'apply', {
+      value: () => {
+        throw new Error('reflect apply unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      warningValue = formatUnknownProgramWarning(
+        ' 11111111111111111111111111111111 ',
+      );
+    } finally {
+      Object.defineProperty(Reflect, 'apply', {
+        value: originalReflectApply,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(warningValue).to.equal(
+      '⚠️  UNKNOWN PROGRAM: 11111111111111111111111111111111',
+    );
+  });
+
   it('throws for malformed unknown-program warning program ids', () => {
     expect(() => formatUnknownProgramWarning(null)).to.throw(
       'Expected program id to be a string, got null',

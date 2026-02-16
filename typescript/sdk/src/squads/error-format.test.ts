@@ -149,6 +149,35 @@ describe('squads error-format', () => {
       expect(normalizedDetailedLabel).to.equal('Error: rpc failed');
     });
 
+    it('keeps normalization stable when Reflect.apply is mutated', () => {
+      const originalReflectApply = Reflect.apply;
+      let normalizedBuiltinLabel: string | undefined;
+      let normalizedDetailedLabel: string | undefined;
+
+      Object.defineProperty(Reflect, 'apply', {
+        value: () => {
+          throw new Error('reflect apply unavailable');
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        normalizedBuiltinLabel = normalizeStringifiedSquadsError('Error');
+        normalizedDetailedLabel =
+          normalizeStringifiedSquadsError('Error: rpc failed');
+      } finally {
+        Object.defineProperty(Reflect, 'apply', {
+          value: originalReflectApply,
+          writable: true,
+          configurable: true,
+        });
+      }
+
+      expect(normalizedBuiltinLabel).to.equal(undefined);
+      expect(normalizedDetailedLabel).to.equal('Error: rpc failed');
+    });
+
     it('keeps normalization stable when String trim/lowercase/replace prototypes are mutated', () => {
       const originalStringTrim = String.prototype.trim;
       const originalStringToLowerCase = String.prototype.toLowerCase;
