@@ -37,7 +37,9 @@ const MAX_INFERENCE_DEPTH = 3;
 const EVM_ADDRESS_ZERO =
   '0x0000000000000000000000000000000000000000' as Address;
 const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
-  Object.values(ProtocolType) as ProtocolType[],
+  (Object.values(ProtocolType) as ProtocolType[]).filter(
+    (protocol) => protocol !== ProtocolType.Unknown,
+  ),
 );
 type InferredSubmitter = SubmitterMetadata;
 
