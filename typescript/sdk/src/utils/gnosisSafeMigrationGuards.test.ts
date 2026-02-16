@@ -45542,14 +45542,16 @@ describe('Gnosis Safe migration guards', () => {
     const titlePattern =
       /it\('((?:treats|keeps) strict-equality direct-delete array-element-nullish-logical-[^']*-conditional-[^']*-(?:fallback-length|mixed-fallback) predicates[^']*)'/g;
 
-    const ownTitles = new Set(
-      [...ownSourceText.matchAll(titlePattern)].map((match) => match[1]),
+    const ownTitles = [...ownSourceText.matchAll(titlePattern)].map(
+      (match) => match[1],
     );
-    const infraTitles = new Set(
-      [...infraSourceText.matchAll(titlePattern)].map((match) => match[1]),
+    const infraTitles = [...infraSourceText.matchAll(titlePattern)].map(
+      (match) => match[1],
     );
 
     expect([...ownTitles].sort()).to.deep.equal([...infraTitles].sort());
+    expect(new Set(ownTitles).size).to.equal(ownTitles.length);
+    expect(new Set(infraTitles).size).to.equal(infraTitles.length);
   });
 
   it('keeps nullish-logical conditional delete-key context matrix complete', () => {
