@@ -45698,6 +45698,28 @@ describe('Gnosis Safe migration guards', () => {
     expect(new Set(nonVariantTitles).size).to.equal(nonVariantTitles.length);
   });
 
+  it('keeps strict-equality conditional delete-key titles uniquely classifiable', () => {
+    const sourceText = fs.readFileSync(__filename, 'utf8');
+    const allTitles = extractStrictEqualityConditionalTitles(sourceText);
+    const variantTitleSet = new Set(
+      extractStrictEqualityVariantConditionalTitles(sourceText),
+    );
+    const nonVariantTitleSet = new Set(
+      extractStrictEqualityNonVariantConditionalTitles(sourceText),
+    );
+
+    expect(new Set(allTitles).size).to.equal(allTitles.length);
+    for (const title of allTitles) {
+      const classificationCount =
+        Number(variantTitleSet.has(title)) +
+        Number(nonVariantTitleSet.has(title));
+      expect(
+        classificationCount,
+        `Expected exactly one conditional-title classification for ${title}`,
+      ).to.equal(1);
+    }
+  });
+
   it('keeps strict-equality conditional delete-key title cardinality stable', () => {
     const sourceText = fs.readFileSync(__filename, 'utf8');
     const allTitles = extractStrictEqualityConditionalTitles(sourceText);
