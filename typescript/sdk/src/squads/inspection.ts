@@ -45,6 +45,23 @@ export function inspectPropertyValue(
   }
 }
 
+export function inspectBufferValue(value: unknown): {
+  isBuffer: boolean;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      isBuffer: Buffer.isBuffer(value),
+      readFailed: false,
+    };
+  } catch {
+    return {
+      isBuffer: false,
+      readFailed: true,
+    };
+  }
+}
+
 export function inspectPromiseLikeThenValue(value: unknown): {
   thenValue: unknown;
   readError: unknown | undefined;

@@ -60,6 +60,7 @@ import { assertValidTransactionIndexInput } from './validation.js';
 import { resolveSquadsChainName, type SquadsChainName } from './config.js';
 import {
   inspectArrayValue,
+  inspectBufferValue,
   inspectInstanceOf,
   inspectPropertyValue,
   inspectPromiseLikeThenValue,
@@ -99,23 +100,6 @@ export enum WarningMessage {
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
 const VALID_PROTOCOL_TYPES = new Set(Object.values(ProtocolType));
-
-function inspectBufferValue(value: unknown): {
-  isBuffer: boolean;
-  readFailed: boolean;
-} {
-  try {
-    return {
-      isBuffer: Buffer.isBuffer(value),
-      readFailed: false,
-    };
-  } catch {
-    return {
-      isBuffer: false,
-      readFailed: true,
-    };
-  }
-}
 
 function getErrorMessageFromErrorInstance(error: unknown): string | undefined {
   const { matches: errorIsErrorInstance, readFailed: errorInstanceReadFailed } =

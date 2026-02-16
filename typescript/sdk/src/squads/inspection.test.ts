@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import {
   inspectArrayValue,
+  inspectBufferValue,
   inspectInstanceOf,
   inspectPropertyValue,
   inspectPromiseLikeThenValue,
@@ -223,6 +224,38 @@ describe('squads inspection helpers', () => {
         propertyValue: undefined,
         readError: opaqueError,
       });
+    });
+  });
+
+  describe(inspectBufferValue.name, () => {
+    it('returns buffer detection result when Buffer.isBuffer is readable', () => {
+      expect(inspectBufferValue(Buffer.from([1, 2, 3]))).to.deep.equal({
+        isBuffer: true,
+        readFailed: false,
+      });
+      expect(inspectBufferValue(new Uint8Array([1, 2, 3]))).to.deep.equal({
+        isBuffer: false,
+        readFailed: false,
+      });
+    });
+
+    it('returns readFailed when Buffer.isBuffer throws', () => {
+      const originalIsBuffer = Buffer.isBuffer;
+      const throwingIsBuffer = (() => {
+        throw new Error('buffer inspection unavailable');
+      }) as unknown as typeof Buffer.isBuffer;
+
+      (Buffer as unknown as { isBuffer: typeof Buffer.isBuffer }).isBuffer =
+        throwingIsBuffer;
+      try {
+        expect(inspectBufferValue(Buffer.from([1]))).to.deep.equal({
+          isBuffer: false,
+          readFailed: true,
+        });
+      } finally {
+        (Buffer as unknown as { isBuffer: typeof Buffer.isBuffer }).isBuffer =
+          originalIsBuffer;
+      }
     });
   });
 
