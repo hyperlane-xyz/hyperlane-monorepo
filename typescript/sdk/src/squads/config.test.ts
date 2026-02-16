@@ -379,9 +379,26 @@ describe('squads config', () => {
     expect(() =>
       getUnsupportedSquadsChainsErrorMessage(['ethereum'], []),
     ).to.throw('Expected at least one configured squads chain');
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(['ethereum'], 'solanamainnet'),
+    ).to.throw('Expected configured squads chains to be an array, got string');
 
     expect(() => getUnsupportedSquadsChainsErrorMessage([])).to.throw(
       'Expected at least one unsupported squads chain to format error message',
+    );
+  });
+
+  it('rejects unreadable configured-chain formatter inputs deterministically', () => {
+    const { proxy: revokedConfiguredChains, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum'],
+        revokedConfiguredChains,
+      ),
+    ).to.throw(
+      'Expected configured squads chains to be an array, got [unreadable value type]',
     );
   });
 
@@ -709,6 +726,15 @@ describe('squads config', () => {
     );
     expect(() => resolveSquadsChains(['solanamainnet', 1])).to.throw(
       'Expected squads chains[1] to be a string, got number',
+    );
+  });
+
+  it('rejects unreadable resolve-chain inputs deterministically', () => {
+    const { proxy: revokedResolveChains, revoke } = Proxy.revocable({}, {});
+    revoke();
+
+    expect(() => resolveSquadsChains(revokedResolveChains)).to.throw(
+      'Expected squads chains to be an array, got [unreadable value type]',
     );
   });
 
