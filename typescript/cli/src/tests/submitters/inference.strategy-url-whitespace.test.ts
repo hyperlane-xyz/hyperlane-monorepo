@@ -91,6 +91,19 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('treats null-byte strategyUrl string as missing and falls back to jsonRpc default', async () => {
+    const nullByteStrategyUrl = './bad\0strategy.yaml';
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: nullByteStrategyUrl as any,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('does not attempt inference probes when strategyUrl is overlong and context is missing', async () => {
     const ownableStub = sinon
       .stub(Ownable__factory, 'connect')
@@ -152,6 +165,47 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
           },
         } as any,
         strategyUrl: overlongStrategyUrl,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(ownableStub.callCount).to.equal(1);
+      expect(safeStub.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
+
+  it('falls back to inference when strategyUrl contains null byte and inference context is available', async () => {
+    const safeOwner = '0x2222222222222222222222222222222222222222';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => safeOwner,
+    } as any);
+    const safeStub = sinon.stub(ISafe__factory, 'connect').returns({
+      getThreshold: async () => 1,
+      nonce: async () => 0,
+    } as any);
+
+    try {
+      const nullByteStrategyUrl = './bad\0strategy.yaml';
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => 'ethereum' as any,
+            getSignerAddress: async () =>
+              '0x4444444444444444444444444444444444444444',
+            getProvider: () => ({}),
+          },
+          registry: {
+            getAddresses: async () => ({}),
+          },
+        } as any,
+        strategyUrl: nullByteStrategyUrl as any,
       });
 
       expect(batches).to.have.length(1);
@@ -512,6 +566,19 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
       transactions: [TX as any],
       context: {} as any,
       strategyUrl: overlongStringStrategyUrl,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('treats null-byte String strategyUrl as missing and falls back to jsonRpc default', async () => {
+    const nullByteStringStrategyUrl = new String('./bad\0strategy.yaml') as any;
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: nullByteStringStrategyUrl,
     });
 
     expect(batches).to.have.length(1);

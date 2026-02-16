@@ -1643,6 +1643,9 @@ function normalizeOptionalPath(value: unknown): string | undefined {
       ) {
         return undefined;
       }
+      if (trimmed.includes('\0')) {
+        return undefined;
+      }
       return trimmed;
     } catch {
       return undefined;
