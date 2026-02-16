@@ -196,6 +196,14 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /Object\.getOwnPropertySymbols\s*\(/,
   }),
   Object.freeze({
+    label: 'Object.hasOwn call',
+    pattern: /Object\.hasOwn\s*\(/,
+  }),
+  Object.freeze({
+    label: 'Reflect.ownKeys call',
+    pattern: /Reflect\.ownKeys\s*\(/,
+  }),
+  Object.freeze({
     label: 'Array.from call',
     pattern: /Array\.from\s*\(/,
   }),
@@ -324,6 +332,18 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\.toSorted\s*\(/,
   }),
   Object.freeze({
+    label: '.toReversed method call',
+    pattern: /\.toReversed\s*\(/,
+  }),
+  Object.freeze({
+    label: '.toSpliced method call',
+    pattern: /\.toSpliced\s*\(/,
+  }),
+  Object.freeze({
+    label: '.with method call',
+    pattern: /\.with\s*\(/,
+  }),
+  Object.freeze({
     label: '.match method call',
     pattern: /\.match\s*\(/,
   }),
@@ -360,8 +380,20 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\.toLowerCase\s*\(/,
   }),
   Object.freeze({
+    label: '.toLocaleLowerCase method call',
+    pattern: /\.toLocaleLowerCase\s*\(/,
+  }),
+  Object.freeze({
     label: '.toUpperCase method call',
     pattern: /\.toUpperCase\s*\(/,
+  }),
+  Object.freeze({
+    label: '.toLocaleUpperCase method call',
+    pattern: /\.toLocaleUpperCase\s*\(/,
+  }),
+  Object.freeze({
+    label: '.normalize method call',
+    pattern: /\.normalize\s*\(/,
   }),
   Object.freeze({
     label: '.padStart method call',
@@ -437,6 +469,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   'Object.assign call',
   'Object.getOwnPropertyNames call',
   'Object.getOwnPropertySymbols call',
+  'Object.hasOwn call',
+  'Reflect.ownKeys call',
   'Array.from call',
   'Array.isArray call',
   'Buffer.isBuffer call',
@@ -455,7 +489,10 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.trimStart method call',
   '.trimEnd method call',
   '.toLowerCase method call',
+  '.toLocaleLowerCase method call',
   '.toUpperCase method call',
+  '.toLocaleUpperCase method call',
+  '.normalize method call',
   '.padStart method call',
   '.padEnd method call',
   '.repeat method call',
@@ -471,9 +508,12 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.sort method call',
   '.fill method call',
   '.copyWithin method call',
+  '.toReversed method call',
+  '.toSpliced method call',
+  '.with method call',
 ]);
-const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 66;
-const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 42;
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 74;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 50;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
