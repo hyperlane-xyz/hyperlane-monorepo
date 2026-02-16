@@ -248,6 +248,10 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\.find\s*\(/,
   }),
   Object.freeze({
+    label: '.findIndex method call',
+    pattern: /\.findIndex\s*\(/,
+  }),
+  Object.freeze({
     label: '.concat method call',
     pattern: /\.concat\s*\(/,
   }),
@@ -266,6 +270,50 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
   Object.freeze({
     label: '.at method call',
     pattern: /\.at\s*\(/,
+  }),
+  Object.freeze({
+    label: '.pop method call',
+    pattern: /\.pop\s*\(/,
+  }),
+  Object.freeze({
+    label: '.shift method call',
+    pattern: /\.shift\s*\(/,
+  }),
+  Object.freeze({
+    label: '.unshift method call',
+    pattern: /\.unshift\s*\(/,
+  }),
+  Object.freeze({
+    label: '.splice method call',
+    pattern: /\.splice\s*\(/,
+  }),
+  Object.freeze({
+    label: '.reverse method call',
+    pattern: /\.reverse\s*\(/,
+  }),
+  Object.freeze({
+    label: '.toSorted method call',
+    pattern: /\.toSorted\s*\(/,
+  }),
+  Object.freeze({
+    label: '.match method call',
+    pattern: /\.match\s*\(/,
+  }),
+  Object.freeze({
+    label: '.search method call',
+    pattern: /\.search\s*\(/,
+  }),
+  Object.freeze({
+    label: '.substring method call',
+    pattern: /\.substring\s*\(/,
+  }),
+  Object.freeze({
+    label: '.charAt method call',
+    pattern: /\.charAt\s*\(/,
+  }),
+  Object.freeze({
+    label: '.charCodeAt method call',
+    pattern: /\.charCodeAt\s*\(/,
   }),
   Object.freeze({
     label: '.trim method call',
