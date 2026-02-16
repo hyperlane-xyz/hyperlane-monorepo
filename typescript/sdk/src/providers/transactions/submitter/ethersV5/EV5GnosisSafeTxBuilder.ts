@@ -1,3 +1,5 @@
+import SafeApiKit from '@safe-global/api-kit';
+import Safe from '@safe-global/protocol-kit';
 import { SafeTransactionData } from '@safe-global/safe-core-sdk-types';
 
 import { MultiProvider } from '../../../MultiProvider.js';
@@ -23,7 +25,14 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.GNOSIS_TX_BUILDER;
 
-  declare public readonly props: EV5GnosisSafeTxBuilderProps;
+  constructor(
+    public readonly multiProvider: MultiProvider,
+    public readonly props: EV5GnosisSafeTxBuilderProps,
+    safe: Safe.default,
+    safeService: SafeApiKit.default,
+  ) {
+    super(multiProvider, props, safe, safeService);
+  }
 
   static async create(
     multiProvider: MultiProvider,
