@@ -1,3 +1,7 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 import { expect } from 'chai';
 import { constants as ethersConstants } from 'ethers';
 import sinon from 'sinon';
@@ -12,6 +16,7 @@ import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
+import { getCleanRuntimeProbeLabels } from './inference.runtime-globals.js';
 
 describe('resolveSubmitterBatchesForTransactions global function probes', () => {
   const CHAIN = 'anvil2';
@@ -22,54 +27,54 @@ describe('resolveSubmitterBatchesForTransactions global function probes', () => 
     chainId: 31338,
   };
 
-  const PROBE_LABELS = [
-    'assert-constructor-object',
-    'atob-constructor-object',
-    'btoa-constructor-object',
-    'buffer-constructor-object',
-    'clearimmediate-constructor-object',
-    'clearinterval-constructor-object',
-    'cleartimeout-constructor-object',
-    'decodeuri-constructor-object',
-    'decodeuricomponent-constructor-object',
-    'encodeuri-constructor-object',
-    'encodeuricomponent-constructor-object',
-    'escape-constructor-object',
-    'eval-constructor-object',
-    'events-constructor-object',
-    'fetch-constructor-object',
-    'isfinite-constructor-object',
-    'isnan-constructor-object',
-    'iterator-constructor-object',
-    'parsefloat-constructor-object',
-    'parseint-constructor-object',
-    'performance-constructor-object',
-    'queuemicrotask-constructor-object',
-    'require-constructor-object',
-    'setimmediate-constructor-object',
-    'setinterval-constructor-object',
-    'settimeout-constructor-object',
-    'stream-constructor-object',
-    'structuredclone-constructor-object',
-    'unescape-constructor-object',
-  ] as const;
+  const thisFilePath = fileURLToPath(import.meta.url);
+  const thisFileName = path.basename(thisFilePath);
+  const submitterTestDir = path.dirname(thisFilePath);
+  const knownLabelsFromOtherFiles = new Set<string>();
+
+  for (const fileName of fs.readdirSync(submitterTestDir)) {
+    if (
+      !fileName.startsWith('inference.') ||
+      !fileName.endsWith('.test.ts') ||
+      fileName === thisFileName
+    ) {
+      continue;
+    }
+
+    const fileContent = fs.readFileSync(
+      path.join(submitterTestDir, fileName),
+      'utf8',
+    );
+    for (const match of fileContent.matchAll(
+      /[a-z0-9_-]+-(?:constructor-)?object/g,
+    )) {
+      knownLabelsFromOtherFiles.add(match[0]);
+    }
+  }
+
+  const baselineFunctionLabels = getCleanRuntimeProbeLabels().functionLabels;
 
   const runtimeFunctionValueByLabel = new Map<string, Function>();
   for (const name of Object.getOwnPropertyNames(globalThis)) {
     const value = (globalThis as any)[name];
     if (typeof value === 'function') {
-      runtimeFunctionValueByLabel.set(`${name.toLowerCase()}-constructor-object`, value);
+      runtimeFunctionValueByLabel.set(
+        `${name.toLowerCase()}-constructor-object`,
+        value,
+      );
     }
   }
 
-  const PROBE_CASES = PROBE_LABELS.map((label) => ({
-    label,
-    probeValue:
-      runtimeFunctionValueByLabel.get(label) ??
-      (function fallbackGlobalProbeValue() {
-        return undefined;
-      } as Function),
-  }));
+  const PROBE_CASES = baselineFunctionLabels
+    .filter((label) => !knownLabelsFromOtherFiles.has(label))
+    .map((label) => ({
+      label,
+      probeValue:
+        runtimeFunctionValueByLabel.get(label) ??
+        (function fallbackGlobalProbeValue() {
+          return undefined;
+        } as Function),
+    }));
 
   const expectTimelockJsonRpcBatches = (batches: any[]) => {
     expect(batches).to.have.length(2);
@@ -89,7 +94,10 @@ describe('resolveSubmitterBatchesForTransactions global function probes', () => 
     ).to.equal(TxSubmitterType.JSON_RPC);
   };
 
-  const createDirectSetup = (probeValue: Function, asyncTryGetSigner: boolean) => {
+  const createDirectSetup = (
+    probeValue: Function,
+    asyncTryGetSigner: boolean,
+  ) => {
     const timelockOwnerA = '0xe6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e7';
     const timelockOwnerB = '0xe7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e8';
     const proposerIca = '0xe8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e9';
