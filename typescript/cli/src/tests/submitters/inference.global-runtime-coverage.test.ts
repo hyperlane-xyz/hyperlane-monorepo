@@ -14,7 +14,7 @@ describe('resolveSubmitterBatchesForTransactions global runtime probe coverage',
       for (const test of suite?.tests ?? []) {
         const title = String(test.title ?? '');
         const match = title.match(
-          /(?:caches(?: event-derived)?(?: async)? )([a-z0-9_-]+-(?:constructor-)?object) origin signer probes across timelock ICA inferences/,
+          /(?:caches(?: event-derived)?(?: async)? )([a-z0-9_-]+-(?:constructor-)?object|[a-z0-9_-]+-primitive) origin signer probes across timelock ICA inferences/,
         );
         if (match?.[1]) coveredLabels.add(match[1]);
       }
@@ -43,12 +43,25 @@ describe('resolveSubmitterBatchesForTransactions global runtime probe coverage',
               })
               .map((name) => \`\${name.toLowerCase()}-object\`)
               .sort();
-            process.stdout.write(JSON.stringify({ functionLabels, objectLabels }));
+            const primitiveLabels = Object.getOwnPropertyNames(globalThis)
+              .filter((name) => {
+                const value = globalThis[name];
+                return ['string', 'number', 'boolean', 'bigint', 'undefined'].includes(
+                  typeof value,
+                );
+              })
+              .map((name) => \`\${name.toLowerCase()}-\${typeof globalThis[name]}-primitive\`)
+              .sort();
+            process.stdout.write(JSON.stringify({ functionLabels, objectLabels, primitiveLabels }));
           `,
         ],
         { encoding: 'utf8' },
       ),
-    ) as { functionLabels: string[]; objectLabels: string[] };
+    ) as {
+      functionLabels: string[];
+      objectLabels: string[];
+      primitiveLabels: string[];
+    };
 
   it('covers every runtime function-valued global with constructor probe labels', function () {
     const coveredLabels = getCoveredLabelsFromGeneratedTests(this.test);
@@ -60,6 +73,13 @@ describe('resolveSubmitterBatchesForTransactions global runtime probe coverage',
   it('covers every runtime object-valued global with object probe labels', function () {
     const coveredLabels = getCoveredLabelsFromGeneratedTests(this.test);
     const runtimeLabels = getCleanRuntimeLabels().objectLabels;
+    const missing = runtimeLabels.filter((label) => !coveredLabels.has(label));
+    expect(missing).to.deep.equal([]);
+  });
+
+  it('covers every runtime primitive-valued global with primitive probe labels', function () {
+    const coveredLabels = getCoveredLabelsFromGeneratedTests(this.test);
+    const runtimeLabels = getCleanRuntimeLabels().primitiveLabels;
     const missing = runtimeLabels.filter((label) => !coveredLabels.has(label));
     expect(missing).to.deep.equal([]);
   });
