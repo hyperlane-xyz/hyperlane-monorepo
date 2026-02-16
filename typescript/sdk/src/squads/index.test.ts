@@ -199,6 +199,8 @@ const EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNTS =
 const EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_IDENTIFIER_REFERENCE_COUNT = 5;
 const EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_INVOCATION_COUNT = 17;
 const EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNT = 5;
+const EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT = 5;
+const EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_COUNT = 2;
 const EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE =
   Object.freeze([
     Object.freeze({
@@ -1818,6 +1820,18 @@ describe('squads barrel exports', () => {
     ).to.equal(5);
   });
 
+  it('keeps expected canonical sdk squads total REFLECT_APPLY captured runtime source count', () => {
+    expect(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
+    ).to.equal(5);
+  });
+
+  it('keeps expected canonical sdk squads total REFLECT_APPLY non-captured runtime source count', () => {
+    expect(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_COUNT,
+    ).to.equal(2);
+  });
+
   it('keeps expected canonical sdk squads Reflect.apply mutation runtime coverage map', () => {
     expect(
       EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_RUNTIME_COVERAGE,
@@ -2260,6 +2274,27 @@ describe('squads barrel exports', () => {
     );
   });
 
+  it('keeps sdk Reflect.apply runtime source partition totals aligned with discovered runtime inventory', () => {
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS.length,
+    ).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
+    );
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS.length,
+    ).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_COUNT,
+    );
+    expect(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT +
+        EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_COUNT,
+    ).to.equal(
+      listSdkSquadsNonTestSourceFilePaths().filter(
+        (sourcePath) => sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH,
+      ).length,
+    );
+  });
+
   it('keeps sdk Reflect.apply non-capture runtime inventory aligned across discovery and coverage', () => {
     const discoveredCapturedRuntimeSourcePathSet = new Set(
       listSdkSquadsNonTestSourceFilePathsContainingPattern(
@@ -2603,6 +2638,16 @@ describe('squads barrel exports', () => {
     );
     expect(captureDeclarationCountTotalFromTable).to.equal(
       EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURE_DECLARATION_COUNT,
+    );
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS.length,
+    ).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_COUNT,
+    );
+    expect(
+      EXPECTED_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_PATHS.length,
+    ).to.equal(
+      EXPECTED_TOTAL_SDK_SQUADS_REFLECT_APPLY_NON_CAPTURED_RUNTIME_SOURCE_COUNT,
     );
 
     let discoveredIdentifierReferenceCountTotal = 0;
