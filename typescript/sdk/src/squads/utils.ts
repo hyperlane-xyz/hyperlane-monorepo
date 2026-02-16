@@ -180,6 +180,7 @@ const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
 const MAP_GET = Map.prototype.get;
 const MAP_SET = Map.prototype.set;
+const ARRAY_FROM = Array.from;
 const SAFE_INTEGER_DECIMAL_PATTERN = /^-?\d+$/;
 const LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS = [
   'account does not exist',
@@ -220,6 +221,10 @@ function mapSetValue<Key, Value>(
   value: Value,
 ): void {
   MAP_SET.call(map, key, value);
+}
+
+function arrayFromValue<T>(value: ArrayLike<T>): T[] {
+  return ARRAY_FROM(value);
 }
 
 function getUnknownValueTypeName(value: unknown): string {
@@ -2755,7 +2760,7 @@ export async function getTransactionType(
       SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
     );
     throw new Error(
-      `Unknown transaction type with discriminator: [${Array.from(discriminator).join(', ')}]. Expected VaultTransaction or ConfigTransaction.`,
+      `Unknown transaction type with discriminator: [${arrayFromValue(discriminator).join(', ')}]. Expected VaultTransaction or ConfigTransaction.`,
     );
   }
 }

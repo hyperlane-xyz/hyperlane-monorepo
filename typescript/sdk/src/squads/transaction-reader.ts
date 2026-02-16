@@ -106,6 +106,7 @@ const SET_ADD = Set.prototype.add;
 const MAP_HAS = Map.prototype.has;
 const MAP_GET = Map.prototype.get;
 const MAP_SET = Map.prototype.set;
+const ARRAY_FROM = Array.from;
 const VALID_PROTOCOL_TYPES = new Set<ProtocolType>([
   ProtocolType.Ethereum,
   ProtocolType.Sealevel,
@@ -171,6 +172,17 @@ function mapSetValue<Key, Value>(
   value: Value,
 ): void {
   MAP_SET.call(map, key, value);
+}
+
+function arrayFromValues<Value>(values: readonly Value[]): Value[] {
+  return ARRAY_FROM(values);
+}
+
+function arrayFromValuesWithMap<Value, Result>(
+  values: readonly Value[],
+  mapFn: (value: Value, index: number) => Result,
+): Result[] {
+  return ARRAY_FROM(values, mapFn);
 }
 
 function readPropertyOrThrow(value: unknown, property: PropertyKey): unknown {
@@ -2048,7 +2060,7 @@ export class SquadsTransactionReader {
     values: readonly unknown[],
   ): unknown[] {
     try {
-      return Array.from(values);
+      return arrayFromValues(values);
     } catch (error) {
       rootLogger.warn(
         `Failed to normalize ${label} on ${chain}: ${stringifyUnknownSquadsError(error)}`,
@@ -3405,8 +3417,10 @@ export class SquadsTransactionReader {
       return [];
     }
     try {
-      return Array.from(values as readonly unknown[], (value, index) =>
-        this.formatAddressLikeForDisplay(chain, `${label}[${index}]`, value),
+      return arrayFromValuesWithMap(
+        values as readonly unknown[],
+        (value, index) =>
+          this.formatAddressLikeForDisplay(chain, `${label}[${index}]`, value),
       );
     } catch (error) {
       rootLogger.warn(

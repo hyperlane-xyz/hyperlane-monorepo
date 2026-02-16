@@ -8013,6 +8013,48 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('keeps address-list formatting stable when Array.from is mutated', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatAddressLikeListForDisplay: (
+        chain: string,
+        label: string,
+        values: unknown,
+      ) => string[];
+    };
+    const originalArrayFrom = Array.from;
+    const throwingArrayFrom: typeof Array.from = () => {
+      throw new Error('array from unavailable');
+    };
+
+    let formatted: string[] | undefined;
+    try {
+      Object.defineProperty(Array, 'from', {
+        configurable: true,
+        writable: true,
+        value: throwingArrayFrom,
+      });
+      formatted = readerAny.formatAddressLikeListForDisplay(
+        'solanamainnet',
+        'validator display list',
+        [SYSTEM_PROGRAM_ID],
+      );
+    } finally {
+      Object.defineProperty(Array, 'from', {
+        configurable: true,
+        writable: true,
+        value: originalArrayFrom,
+      });
+    }
+
+    expect(formatted).to.deep.equal([SYSTEM_PROGRAM_ID.toBase58()]);
+  });
+
   it('falls back to stable display labels when instruction metadata is malformed', () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
@@ -11554,6 +11596,83 @@ describe('squads transaction reader', () => {
         configurable: true,
         writable: true,
         value: originalEntries,
+      });
+    }
+
+    expect(parsed).to.deep.equal({
+      instructions: [
+        {
+          programId: SYSTEM_PROGRAM_ID,
+          programName: 'System Program',
+          instructionType: 'System Call',
+          data: {},
+          accounts: [],
+          warnings: [],
+        },
+      ],
+      warnings: [],
+    });
+  });
+
+  it('keeps parsing when Array.from is mutated during vault parsing', async () => {
+    const nonSystemProgramId = new PublicKey(
+      new Uint8Array(32).fill(7),
+    ).toBase58();
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: nonSystemProgramId,
+        multisig_ism_message_id: nonSystemProgramId,
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+    const originalArrayFrom = Array.from;
+    const throwingArrayFrom: typeof Array.from = () => {
+      throw new Error('array from unavailable');
+    };
+
+    let parsed:
+      | {
+          instructions: Array<Record<string, unknown>>;
+          warnings: string[];
+        }
+      | undefined;
+    try {
+      Object.defineProperty(Array, 'from', {
+        configurable: true,
+        writable: true,
+        value: throwingArrayFrom,
+      });
+      parsed = await readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: {
+            accountKeys: [SYSTEM_PROGRAM_ID],
+            addressTableLookups: [],
+            instructions: [
+              {
+                programIdIndex: 0,
+                accountIndexes: [],
+                data: Buffer.from([1, 2, 3]),
+              },
+            ],
+          },
+        },
+        { getAccountInfo: async () => null },
+      );
+    } finally {
+      Object.defineProperty(Array, 'from', {
+        configurable: true,
+        writable: true,
+        value: originalArrayFrom,
       });
     }
 

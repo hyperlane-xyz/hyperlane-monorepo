@@ -8495,6 +8495,45 @@ describe('squads utils', () => {
       );
       expect(providerLookupChain).to.equal('solanamainnet');
     });
+
+    it('keeps unknown discriminator formatting stable when Array.from is mutated', async () => {
+      const unknownDiscriminator = new Uint8Array(
+        SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+      ).fill(9);
+      const mpp = {
+        getSolanaWeb3Provider: () => ({
+          getAccountInfo: async () => ({
+            data: unknownDiscriminator,
+          }),
+        }),
+      } as unknown as MultiProtocolProvider;
+      const originalArrayFrom = Array.from;
+      const throwingArrayFrom: typeof Array.from = () => {
+        throw new Error('array from unavailable');
+      };
+
+      let thrownError: Error | undefined;
+      try {
+        Object.defineProperty(Array, 'from', {
+          configurable: true,
+          writable: true,
+          value: throwingArrayFrom,
+        });
+        thrownError = await captureAsyncError(() =>
+          getTransactionType('solanamainnet', mpp, 0),
+        );
+      } finally {
+        Object.defineProperty(Array, 'from', {
+          configurable: true,
+          writable: true,
+          value: originalArrayFrom,
+        });
+      }
+
+      expect(thrownError?.message).to.equal(
+        'Unknown transaction type with discriminator: [9, 9, 9, 9, 9, 9, 9, 9]. Expected VaultTransaction or ConfigTransaction.',
+      );
+    });
   });
 
   describe(executeProposal.name, () => {
