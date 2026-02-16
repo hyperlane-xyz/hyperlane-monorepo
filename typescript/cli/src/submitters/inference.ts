@@ -1593,8 +1593,12 @@ function resolveExplicitSubmitterForTransaction({
 function hasNonEmptyStringTarget(
   transaction: TypedAnnotatedTransaction,
 ): boolean {
-  const to = (transaction as any).to;
-  return typeof to === 'string' && to.trim().length > 0;
+  try {
+    const to = (transaction as any).to;
+    return typeof to === 'string' && to.trim().length > 0;
+  } catch {
+    return false;
+  }
 }
 
 function hasUsableOverrideKeys(
