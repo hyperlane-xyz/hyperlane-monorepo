@@ -280,6 +280,31 @@ describe('squads error-format', () => {
       );
     });
 
+    it('keeps Error stringification stable when Reflect.apply is mutated', () => {
+      const originalReflectApply = Reflect.apply;
+      let stringifiedError: string | undefined;
+
+      Object.defineProperty(Reflect, 'apply', {
+        value: () => {
+          throw new Error('reflect apply unavailable');
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      try {
+        stringifiedError = stringifyUnknownSquadsError(new Error('boom'));
+      } finally {
+        Object.defineProperty(Reflect, 'apply', {
+          value: originalReflectApply,
+          writable: true,
+          configurable: true,
+        });
+      }
+
+      expect(stringifiedError).to.equal('Error: boom');
+    });
+
     it('returns placeholder when Error instance inspection is unreadable', () => {
       const { proxy: revokedError, revoke } = Proxy.revocable({}, {});
       revoke();

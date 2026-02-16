@@ -367,6 +367,33 @@ describe('squads transaction reader warning formatters', () => {
     );
   });
 
+  it('keeps unknown-instruction warning formatting stable when Reflect.apply is mutated', () => {
+    const originalReflectApply = Reflect.apply;
+    let warningValue: string | undefined;
+
+    Object.defineProperty(Reflect, 'apply', {
+      value: () => {
+        throw new Error('reflect apply unavailable');
+      },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      warningValue = formatUnknownInstructionWarning(' Mailbox ', 1);
+    } finally {
+      Object.defineProperty(Reflect, 'apply', {
+        value: originalReflectApply,
+        writable: true,
+        configurable: true,
+      });
+    }
+
+    expect(warningValue).to.equal(
+      'Unknown Mailbox instruction (discriminator: 1)',
+    );
+  });
+
   it('accepts byte-range discriminator boundaries for unknown instruction warnings', () => {
     expect(formatUnknownInstructionWarning('Mailbox', 0)).to.equal(
       'Unknown Mailbox instruction (discriminator: 0)',
