@@ -1798,6 +1798,9 @@ function normalizeOptionalPath(value: unknown): string | undefined {
   if (typeof value === 'string' || isBoxedStringObject(value)) {
     try {
       const rawPath = value.toString();
+      if (typeof rawPath !== 'string') {
+        return undefined;
+      }
       if (rawPath.length > MAX_STRATEGY_PATH_LENGTH) {
         return undefined;
       }
