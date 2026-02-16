@@ -108,12 +108,12 @@ function getErrorMessageFromErrorInstance(error: unknown): string | undefined {
     return undefined;
   }
 
-  try {
-    const message = (error as Error).message;
-    return normalizeStringifiedSquadsError(message);
-  } catch {
+  const { propertyValue: message, readError: messageReadError } =
+    inspectPropertyValue(error, 'message');
+  if (messageReadError) {
     return undefined;
   }
+  return normalizeStringifiedSquadsError(message);
 }
 
 function getUnknownValueTypeName(value: unknown): string {
@@ -545,28 +545,24 @@ export class SquadsTransactionReader {
       return;
     }
 
-    let symbolValue: unknown;
-    try {
-      symbolValue = token.symbol;
-    } catch (error) {
+    const { propertyValue: symbolValue, readError: symbolReadError } =
+      inspectPropertyValue(token, 'symbol');
+    if (symbolReadError) {
       rootLogger.warn(
-        `Failed to read warp route token symbol for ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read warp route token symbol for ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(symbolReadError)}`,
       );
-      symbolValue = undefined;
     }
     const symbol =
       typeof symbolValue === 'string' && symbolValue.trim().length > 0
         ? symbolValue.trim()
         : 'Unknown';
 
-    let nameValue: unknown;
-    try {
-      nameValue = token.name;
-    } catch (error) {
+    const { propertyValue: nameValue, readError: nameReadError } =
+      inspectPropertyValue(token, 'name');
+    if (nameReadError) {
       rootLogger.warn(
-        `Failed to read warp route token name for ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(error)}`,
+        `Failed to read warp route token name for ${routeName} on ${normalizedChainName}: ${stringifyUnknownSquadsError(nameReadError)}`,
       );
-      nameValue = undefined;
     }
     const name =
       typeof nameValue === 'string' && nameValue.trim().length > 0

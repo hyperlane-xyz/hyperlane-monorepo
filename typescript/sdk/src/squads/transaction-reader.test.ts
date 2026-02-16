@@ -3706,6 +3706,98 @@ describe('squads transaction reader', () => {
     });
   });
 
+  it('uses fallback symbol when warp-route token symbol accessor throws', async () => {
+    let protocolLookupCount = 0;
+    const mpp = {
+      tryGetProtocol: () => {
+        protocolLookupCount += 1;
+        return ProtocolType.Sealevel;
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const malformedToken = new Proxy(
+      {
+        chainName: 'solanamainnet',
+        addressOrDenom: 'GOOD004-SYMBOL',
+        name: 'Good Token',
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'symbol') {
+            throw new Error('symbol unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    await reader.init({
+      routeA: {
+        tokens: [malformedToken],
+      },
+    });
+
+    expect(protocolLookupCount).to.equal(1);
+    expect(
+      reader.warpRouteIndex.get('solanamainnet')?.get('good004-symbol'),
+    ).to.deep.equal({
+      symbol: 'Unknown',
+      name: 'Good Token',
+      routeName: 'routeA',
+    });
+  });
+
+  it('uses fallback name when warp-route token name accessor throws', async () => {
+    let protocolLookupCount = 0;
+    const mpp = {
+      tryGetProtocol: () => {
+        protocolLookupCount += 1;
+        return ProtocolType.Sealevel;
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const malformedToken = new Proxy(
+      {
+        chainName: 'solanamainnet',
+        addressOrDenom: 'GOOD004-NAME',
+        symbol: 'GOOD',
+      },
+      {
+        get(target, property, receiver) {
+          if (property === 'name') {
+            throw new Error('name unavailable');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    await reader.init({
+      routeA: {
+        tokens: [malformedToken],
+      },
+    });
+
+    expect(protocolLookupCount).to.equal(1);
+    expect(
+      reader.warpRouteIndex.get('solanamainnet')?.get('good004-name'),
+    ).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Unknown',
+      routeName: 'routeA',
+    });
+  });
+
   it('skips malformed warp-route tokens when indexed token access throws', async () => {
     let protocolLookupCount = 0;
     const mpp = {
