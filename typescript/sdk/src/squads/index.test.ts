@@ -1196,12 +1196,21 @@ function listSdkSquadsNonTestSourceFilePathsContainingPattern(
 
 const REGEXP_CONSTRUCTOR = RegExp;
 const REGEXP_PROTOTYPE_EXEC = RegExp.prototype.exec;
+const REFLECT_APPLY = Reflect.apply as <
+  ThisArg,
+  Args extends unknown[],
+  ReturnValue,
+>(
+  target: (this: ThisArg, ...args: Args) => ReturnValue,
+  thisArg: ThisArg,
+  args: Args,
+) => ReturnValue;
 
 function doesPatternMatchSource(source: string, pattern: RegExp): boolean {
   const sourcePattern = pattern.source;
   const flagsPattern = stripStatefulRegexFlags(pattern.flags);
   const isolatedPattern = new REGEXP_CONSTRUCTOR(sourcePattern, flagsPattern);
-  return REGEXP_PROTOTYPE_EXEC.call(isolatedPattern, source) !== null;
+  return regexpPrototypeExec(isolatedPattern, source) !== null;
 }
 
 function stripStatefulRegexFlags(flags: string): string {
@@ -1212,6 +1221,13 @@ function stripStatefulRegexFlags(flags: string): string {
     }
   }
   return nonStatefulFlags;
+}
+
+function regexpPrototypeExec(
+  pattern: RegExp,
+  source: string,
+): RegExpExecArray | null {
+  return REFLECT_APPLY(REGEXP_PROTOTYPE_EXEC, pattern, [source]);
 }
 
 function listSdkSquadsNonTestSourceFilePaths(): readonly string[] {
@@ -2479,6 +2495,91 @@ describe('squads barrel exports', () => {
         writable: true,
         value: originalRegExpPrototypeExec,
       });
+    }
+  });
+
+  it('keeps sdk squads pattern-path discovery stable when Reflect.apply global slot is patched', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const originalReflectApply = Reflect.apply;
+
+    Object.defineProperty(Reflect, 'apply', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected squads pattern discovery to use captured Reflect.apply',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listSdkSquadsTestFilePathsContainingPattern(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(baselineMutationDiscovery);
+      expect(
+        listSdkSquadsNonTestSourceFilePathsContainingPattern(
+          /const REFLECT_APPLY = Reflect\.apply/,
+        ),
+      ).to.deep.equal(baselineCaptureDiscovery);
+    } finally {
+      Object.defineProperty(Reflect, 'apply', {
+        configurable: true,
+        writable: true,
+        value: originalReflectApply,
+      });
+    }
+  });
+
+  it('keeps sdk squads pattern-path discovery stable when regexp exec call slot is overridden', () => {
+    const baselineMutationDiscovery =
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
+    const baselineCaptureDiscovery =
+      listSdkSquadsNonTestSourceFilePathsContainingPattern(
+        /const REFLECT_APPLY = Reflect\.apply/,
+      );
+    const originalExecCallDescriptor = Object.getOwnPropertyDescriptor(
+      REGEXP_PROTOTYPE_EXEC,
+      'call',
+    );
+
+    Object.defineProperty(REGEXP_PROTOTYPE_EXEC, 'call', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected squads pattern discovery to avoid exec.call dispatch',
+        );
+      },
+    });
+
+    try {
+      expect(
+        listSdkSquadsTestFilePathsContainingPattern(
+          /Reflect\.apply is mutated/,
+        ),
+      ).to.deep.equal(baselineMutationDiscovery);
+      expect(
+        listSdkSquadsNonTestSourceFilePathsContainingPattern(
+          /const REFLECT_APPLY = Reflect\.apply/,
+        ),
+      ).to.deep.equal(baselineCaptureDiscovery);
+    } finally {
+      if (originalExecCallDescriptor) {
+        Object.defineProperty(
+          REGEXP_PROTOTYPE_EXEC,
+          'call',
+          originalExecCallDescriptor,
+        );
+      } else {
+        delete (REGEXP_PROTOTYPE_EXEC as unknown as { call?: unknown }).call;
+      }
     }
   });
 
