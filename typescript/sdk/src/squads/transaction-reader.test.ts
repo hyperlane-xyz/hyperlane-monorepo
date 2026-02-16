@@ -974,6 +974,44 @@ describe('squads transaction reader multisig verification', () => {
     expect(resolveConfigCallCount).to.equal(0);
   });
 
+  it('returns chain-resolution failure with placeholders when resolver throws blank Error messages', () => {
+    let resolveConfigCallCount = 0;
+    const reader = createReaderForVerification(
+      () => {
+        resolveConfigCallCount += 1;
+        return {
+          solanatestnet: {
+            threshold: 2,
+            validators: ['validator-a'],
+          },
+        };
+      },
+      () => {
+        throw new Error('   ');
+      },
+    );
+    const readerAny = reader as unknown as {
+      verifyConfiguration: (
+        originChain: string,
+        remoteDomain: number,
+        threshold: number,
+        validators: readonly string[],
+      ) => { matches: boolean; issues: string[] };
+    };
+
+    const result = readerAny.verifyConfiguration('solanamainnet', 1000, 2, [
+      'validator-a',
+    ]);
+
+    expect(result).to.deep.equal({
+      matches: false,
+      issues: [
+        'Failed to resolve chain for domain 1000: [unstringifiable error]',
+      ],
+    });
+    expect(resolveConfigCallCount).to.equal(0);
+  });
+
   it('returns chain-resolution failure when chain-resolver accessor throws', () => {
     let resolveConfigCallCount = 0;
     const mpp = new Proxy(
@@ -2210,6 +2248,54 @@ describe('squads transaction reader', () => {
     expect(reader.warpRouteIndex.has('badchain')).to.equal(false);
     expect(
       reader.warpRouteIndex.get('solanamainnet')?.get('good001-unreadable'),
+    ).to.deep.equal({
+      symbol: 'GOOD',
+      name: 'Good Token',
+      routeName: 'routeA',
+    });
+  });
+
+  it('skips warp-route tokens when protocol lookup throws blank Error messages during initialization', async () => {
+    let protocolLookupCount = 0;
+    const mpp = {
+      tryGetProtocol: (chain: string) => {
+        protocolLookupCount += 1;
+        if (chain === 'badchain') {
+          throw new Error('   ');
+        }
+        return ProtocolType.Sealevel;
+      },
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+
+    await reader.init({
+      routeA: {
+        tokens: [
+          {
+            chainName: 'badchain',
+            addressOrDenom: 'BAD001-BLANK',
+            symbol: 'BAD',
+            name: 'Bad Token',
+          },
+          {
+            chainName: 'solanamainnet',
+            addressOrDenom: 'GOOD001-BLANK',
+            symbol: 'GOOD',
+            name: 'Good Token',
+          },
+        ],
+      },
+    });
+
+    expect(protocolLookupCount).to.equal(2);
+    expect(reader.warpRouteIndex.has('badchain')).to.equal(false);
+    expect(
+      reader.warpRouteIndex.get('solanamainnet')?.get('good001-blank'),
     ).to.deep.equal({
       symbol: 'GOOD',
       name: 'Good Token',
