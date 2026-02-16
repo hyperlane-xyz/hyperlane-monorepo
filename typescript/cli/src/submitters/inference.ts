@@ -1880,6 +1880,9 @@ function coerceKnownProtocolType(
   if (typeof protocol === 'string' || isBoxedStringObject(protocol)) {
     try {
       const rawProtocol = protocol.toString();
+      if (typeof rawProtocol !== 'string') {
+        return undefined;
+      }
       if (rawProtocol.length > MAX_PROTOCOL_STRING_LENGTH) {
         return undefined;
       }

@@ -441,6 +441,29 @@ describe('resolveSubmitterBatchesForTransactions unknown protocol fallback', () 
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('falls back to jsonRpc when boxed protocol value toString returns object-shaped non-string without explicit strategy', async () => {
+    const badProtocolValue = new String('ethereum') as any;
+    badProtocolValue.toString = () =>
+      ({
+        length: 8,
+        includes: () => false,
+        trim: () => 'ethereum',
+      }) as any;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => badProtocolValue,
+        },
+      } as any,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('falls back to explicit default when boxed protocol value toString returns non-string with explicit overrides', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-protocol-boxed-non-string-explicit-${Date.now()}.yaml`;
     const overrideTarget = '0x9999999999999999999999999999999999999999';
@@ -463,6 +486,51 @@ describe('resolveSubmitterBatchesForTransactions unknown protocol fallback', () 
 
     const badProtocolValue = new String('ethereum') as any;
     badProtocolValue.toString = () => 123 as any;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [{ ...TX, to: overrideTarget } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => badProtocolValue,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
+  it('falls back to explicit default when boxed protocol value toString returns object-shaped non-string with explicit overrides', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-protocol-boxed-object-shaped-non-string-explicit-${Date.now()}.yaml`;
+    const overrideTarget = '0x9999999999999999999999999999999999999999';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x2222222222222222222222222222222222222222',
+          version: '1.0',
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    const badProtocolValue = new String('ethereum') as any;
+    badProtocolValue.toString = () =>
+      ({
+        length: 8,
+        includes: () => false,
+        trim: () => 'ethereum',
+      }) as any;
 
     const batches = await resolveSubmitterBatchesForTransactions({
       chain: CHAIN,
