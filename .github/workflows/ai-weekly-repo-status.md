@@ -159,9 +159,7 @@ Create a single GitHub issue with:
 
 ## Step 4: Post to Slack
 
-After creating the GitHub issue, post a summary to Slack via the `REPO_SUMMARY_WEBHOOK_URL` secret.
-
-Use bash to send a POST request to the webhook:
+After preparing the issue in Step 3, post a summary to Slack via the `REPO_SUMMARY_WEBHOOK_URL` secret using bash:
 
 ```bash
 curl -X POST "$REPO_SUMMARY_WEBHOOK_URL" \
@@ -169,14 +167,15 @@ curl -X POST "$REPO_SUMMARY_WEBHOOK_URL" \
   -d '<payload>'
 ```
 
-The Slack payload should use Block Kit format with header, org summary, needs attention, and a link to the full report.
+The Slack payload should use Block Kit format with header, org summary, needs attention, and a "View full report" link.
+
+**Important**: The GitHub issue is created via safe-outputs and may not exist yet when posting to Slack. Always use this stable link for "View full report":
+`<https://github.com/hyperlane-xyz/hyperlane-monorepo/issues?q=label%3Areport+sort%3Acreated-desc|View full report>`
 
 **Formatting rules for Slack mrkdwn:**
 
 - PR and issue references must be hyperlinked: `<https://github.com/hyperlane-xyz/REPO/pull/123|#123>` not plain `#123`
 - Use the correct repo in the URL for cross-repo references
-- Link the full report to the GitHub issue URL: `<issue_url|View full report>`
-- If the issue URL is not available (e.g. safe-output hasn't executed yet), link to the issues list instead: `<https://github.com/hyperlane-xyz/hyperlane-monorepo/issues?q=label%3Areport+sort%3Acreated-desc|View full report>`
 
 Keep the Slack message concise — just the org-wide stats and items needing attention. Link to the full GitHub issue for details.
 
