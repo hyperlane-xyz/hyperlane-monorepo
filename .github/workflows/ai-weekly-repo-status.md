@@ -3,6 +3,9 @@ engine: claude
 
 on:
   schedule: weekly on monday
+  push:
+    branches:
+      - feat/agentic-workflows
 
 permissions:
   contents: read
