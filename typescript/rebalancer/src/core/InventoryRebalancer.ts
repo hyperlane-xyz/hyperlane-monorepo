@@ -11,12 +11,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
-import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
 import type {
   IInventoryRebalancer,
   InventoryExecutionResult,
-  InventoryRoute,
-} from '../interfaces/IInventoryRebalancer.js';
+  RebalancerType,
+} from '../interfaces/IRebalancer.js';
+import type { InventoryRoute } from '../interfaces/IStrategy.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import type {
   PartialInventoryIntent,
@@ -26,10 +26,7 @@ import {
   MIN_VIABLE_COST_MULTIPLIER,
   calculateTransferCosts,
 } from '../utils/gasEstimation.js';
-import {
-  NATIVE_TOKEN_ADDRESS,
-  isNativeTokenStandard,
-} from '../utils/tokenUtils.js';
+import { isNativeTokenStandard } from '../utils/tokenUtils.js';
 
 /**
  * Buffer percentage to add when bridging inventory.
@@ -81,14 +78,20 @@ export interface InventoryRebalancerConfig {
  * - `inventory_deposit`: transferRemote to deposit collateral on deficit chain
  */
 export class InventoryRebalancer implements IInventoryRebalancer {
+  public readonly rebalancerType: RebalancerType = 'inventory';
   private readonly logger: Logger;
   private readonly config: InventoryRebalancerConfig;
-  private readonly inventoryMonitor: IInventoryMonitor;
   private readonly actionTracker: IActionTracker;
   // Bridge will be used for inventory_movement actions in future implementation
   private readonly _bridge: IExternalBridge;
   private readonly warpCore: WarpCore;
   private readonly multiProvider: MultiProvider;
+
+  /**
+   * Internal balance storage for inventory tracking.
+   * Updated via setInventoryBalances() before each rebalance cycle.
+   */
+  private inventoryBalances: Map<ChainName, bigint> = new Map();
 
   /**
    * Tracks inventory consumed during the current execution cycle.
@@ -99,7 +102,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
   constructor(
     config: InventoryRebalancerConfig,
-    inventoryMonitor: IInventoryMonitor,
     actionTracker: IActionTracker,
     bridge: IExternalBridge,
     warpCore: WarpCore,
@@ -107,7 +109,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     logger: Logger,
   ) {
     this.config = config;
-    this.inventoryMonitor = inventoryMonitor;
     this.actionTracker = actionTracker;
     this._bridge = bridge;
     this.warpCore = warpCore;
@@ -124,6 +125,16 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       { inventorySigner: config.inventorySigner },
       'InventoryRebalancer initialized',
     );
+  }
+
+  private getNativeTokenAddress(): string {
+    const addr = this._bridge.getNativeTokenAddress?.();
+    if (!addr) {
+      throw new Error(
+        `Bridge '${this._bridge.bridgeId}' does not support getNativeTokenAddress()`,
+      );
+    }
+    return addr;
   }
 
   /**
@@ -166,6 +177,54 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   }
 
   /**
+   * Set inventory balances from external source.
+   * Called before each rebalance cycle to update internal state.
+   */
+  setInventoryBalances(balances: Record<ChainName, bigint>): void {
+    this.inventoryBalances = new Map(Object.entries(balances));
+    this.logger.debug(
+      {
+        chains: Array.from(this.inventoryBalances.keys()),
+        balances: Object.fromEntries(
+          Array.from(this.inventoryBalances.entries()).map(
+            ([chain, balance]) => [chain, balance.toString()],
+          ),
+        ),
+      },
+      'Updated inventory balances',
+    );
+  }
+
+  /**
+   * Get available inventory for a chain.
+   * Returns 0n for unknown chains.
+   */
+  private getAvailableInventory(chain: ChainName): bigint {
+    return this.inventoryBalances.get(chain) ?? 0n;
+  }
+
+  /**
+   * Get all inventory balances.
+   */
+  private getBalances(): Map<ChainName, bigint> {
+    return this.inventoryBalances;
+  }
+
+  /**
+   * Calculate total inventory across all chains, excluding specified chains.
+   */
+  private getTotalInventory(excludeChains: ChainName[]): bigint {
+    const excludeSet = new Set(excludeChains);
+    let total = 0n;
+    for (const [chain, balance] of this.inventoryBalances) {
+      if (!excludeSet.has(chain)) {
+        total += balance;
+      }
+    }
+    return total;
+  }
+
+  /**
    * Get the effective available inventory for a chain, accounting for
    * inventory already consumed during this execution cycle.
    *
@@ -174,10 +233,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * @param chain - The chain to check inventory for
    * @returns Effective available inventory (cached - consumed)
    */
-  private async getEffectiveAvailableInventory(
-    chain: ChainName,
-  ): Promise<bigint> {
-    const cached = await this.inventoryMonitor.getAvailableInventory(chain);
+  private getEffectiveAvailableInventory(chain: ChainName): bigint {
+    const cached = this.getAvailableInventory(chain);
     const consumed = this.consumedInventory.get(chain) ?? 0n;
     const effective = cached > consumed ? cached - consumed : 0n;
 
@@ -204,8 +261,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * 2. If exists, continue existing intent (ignores new routes)
    * 3. If not, take only the FIRST route and create a single intent
    */
-  async execute(routes: InventoryRoute[]): Promise<InventoryExecutionResult[]> {
-    // Clear consumed inventory tracking at the start of each execution cycle
+  async rebalance(
+    routes: InventoryRoute[],
+  ): Promise<InventoryExecutionResult[]> {
     this.consumedInventory.clear();
 
     // 1. Check for existing in_progress intent
@@ -244,7 +302,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination: this.multiProvider.getDomainId(route.destination),
       amount: route.amount,
       executionMethod: 'inventory',
-      originalDeficit: route.amount,
+      externalBridge: route.externalBridge,
     });
 
     this.logger.debug(
@@ -283,7 +341,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       return [
         {
           route,
-          intent,
           success: false,
           error: (error as Error).message,
         },
@@ -314,6 +371,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       origin: this.multiProvider.getChainName(intent.origin),
       destination: this.multiProvider.getChainName(intent.destination),
       amount: remaining,
+      executionType: 'inventory',
+      externalBridge: intent.externalBridge!,
     };
 
     this.logger.info(
@@ -367,7 +426,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       return [
         {
           route,
-          intent,
           success: false,
           error: (error as Error).message,
         },
@@ -409,8 +467,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Check available inventory on the DESTINATION (deficit) chain
     // We need inventory here because transferRemote is called FROM this chain
-    const availableInventory =
-      await this.getEffectiveAvailableInventory(destination);
+    const availableInventory = this.getEffectiveAvailableInventory(destination);
 
     this.logger.info(
       {
@@ -441,7 +498,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Calculate total inventory across all chains
     // Note: consumedInventory tracking is handled separately within this cycle
-    const totalInventory = await this.inventoryMonitor.getTotalInventory([]);
+    const totalInventory = this.getTotalInventory([]);
 
     this.logger.info(
       {
@@ -474,7 +531,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
       return {
         route,
-        intent,
         success: true,
         reason: 'completed_with_acceptable_loss',
       };
@@ -483,9 +539,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     // Swap the route for executeTransferRemote: destination → origin
     // This ensures transferRemote is called FROM destination, ADDING collateral there
     const swappedRoute: InventoryRoute = {
+      ...route,
       origin: destination, // transferRemote called FROM here
       destination: origin, // Hyperlane message goes TO here
-      amount,
     };
 
     if (maxTransferable >= amount) {
@@ -499,7 +555,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       return { ...result, route };
     } else if (maxTransferable > 0n && maxTransferable >= minViableTransfer) {
       // Partial transfer: Transfer available inventory when economically viable
-      const partialSwappedRoute = { ...swappedRoute, amount: maxTransferable };
+      const partialSwappedRoute: InventoryRoute = {
+        ...swappedRoute,
+        amount: maxTransferable,
+      };
       const result = await this.executeTransferRemote(
         partialSwappedRoute,
         intent,
@@ -532,7 +591,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       );
 
       // Get all available source chains with raw inventory
-      const allSources = await this.selectAllSourceChains(destination);
+      const allSources = this.selectAllSourceChains(destination);
 
       if (allSources.length === 0) {
         this.logger.warn(
@@ -547,7 +606,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
         return {
           route,
-          intent,
           success: false,
           error: 'No inventory available on any monitored chain',
         };
@@ -584,7 +642,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
         return {
           route,
-          intent,
           success: false,
           error: 'No viable bridge sources available',
         };
@@ -675,12 +732,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       }
 
       if (successCount === 0) {
-        // Include specific error messages to help diagnose failures (e.g., insufficient funds)
         const errorDetails =
           failedErrors.length > 0 ? ` (${failedErrors.join('; ')})` : '';
         return {
           route,
-          intent,
           success: false,
           error: `All inventory movements failed${errorDetails}`,
         };
@@ -697,7 +752,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Parallel inventory movements completed, transferRemote will execute after bridges complete',
       );
 
-      return { route, intent, success: true };
+      return { route, success: true };
     }
   }
 
@@ -821,47 +876,26 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     return {
       route,
-      intent,
       success: true,
       amountSent: amount,
     };
   }
 
   /**
-   * Check if a route can be executed with current inventory.
-   * Returns the amount that can be fulfilled immediately.
-   *
-   * Note: Checks inventory on DESTINATION chain since that's where
-   * transferRemote is called FROM (swapped direction).
-   */
-  async getAvailableAmount(route: InventoryRoute): Promise<bigint> {
-    // Check inventory on destination (deficit chain) since that's where
-    // we call transferRemote FROM
-    const availableInventory =
-      await this.inventoryMonitor.getAvailableInventory(route.destination);
-
-    // Return the minimum of available inventory and requested amount
-    return availableInventory < route.amount
-      ? availableInventory
-      : route.amount;
-  }
-
-  /**
    * Select all source chains with available inventory for bridging.
    * Returns sources sorted by available amount (highest first).
    */
-  private async selectAllSourceChains(
+  private selectAllSourceChains(
     targetChain: ChainName,
-  ): Promise<Array<{ chain: ChainName; availableAmount: bigint }>> {
-    const balances = await this.inventoryMonitor.getBalances();
+  ): Array<{ chain: ChainName; availableAmount: bigint }> {
+    const balances = this.getBalances();
     const sources: Array<{ chain: ChainName; availableAmount: bigint }> = [];
 
     for (const [chainName, balance] of balances) {
       if (chainName === targetChain) continue;
 
       const consumed = this.consumedInventory.get(chainName) ?? 0n;
-      const effectiveAvailable =
-        balance.available > consumed ? balance.available - consumed : 0n;
+      const effectiveAvailable = balance > consumed ? balance - consumed : 0n;
 
       if (effectiveAvailable > 0n) {
         sources.push({ chain: chainName, availableAmount: effectiveAvailable });
@@ -906,9 +940,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     }
 
     // Convert HypNative token addresses to LiFi's native ETH representation
-    const fromTokenAddress = NATIVE_TOKEN_ADDRESS;
+    const fromTokenAddress = this.getNativeTokenAddress();
     const toTokenAddress = isNativeTokenStandard(targetToken.standard)
-      ? NATIVE_TOKEN_ADDRESS
+      ? this.getNativeTokenAddress()
       : targetToken.addressOrDenom;
 
     const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
@@ -1023,11 +1057,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     // Convert HypNative token addresses to LiFi's native ETH representation
     // For HypNative tokens, addressOrDenom is the warp route contract, not the native token
     const fromTokenAddress = isNativeTokenStandard(sourceToken.standard)
-      ? NATIVE_TOKEN_ADDRESS
+      ? this.getNativeTokenAddress()
       : sourceToken.addressOrDenom;
 
     const toTokenAddress = isNativeTokenStandard(targetToken.standard)
-      ? NATIVE_TOKEN_ADDRESS
+      ? this.getNativeTokenAddress()
       : targetToken.addressOrDenom;
 
     this.logger.debug(

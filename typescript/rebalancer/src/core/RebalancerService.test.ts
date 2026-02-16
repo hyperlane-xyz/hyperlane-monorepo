@@ -85,6 +85,7 @@ function createMockWarpCore(): WarpCore {
 
 function createMockRebalancer(): IRebalancer & { rebalance: Sinon.SinonStub } {
   return {
+    rebalancerType: 'movableCollateral' as const,
     rebalance: Sinon.stub().resolves([]),
   };
 }
@@ -176,7 +177,7 @@ function createMockContextFactory(
     getWarpCore: () => warpCore,
     getTokenForChain: (chain: string) =>
       warpCore.tokens.find((t) => t.chainName === chain),
-    createRebalancer: () => rebalancer,
+    createRebalancer: (_actionTracker: IActionTracker) => rebalancer,
     createStrategy: async () => strategy,
     createMonitor: () => monitor,
     createMetrics: async () => overrides.metrics ?? ({} as Metrics),
@@ -197,13 +198,11 @@ interface DaemonTestSetup {
 async function setupDaemonTest(
   sandbox: Sinon.SinonSandbox,
   options: {
-    intentIds?: string[];
     rebalanceResults: Array<{
       route: {
         origin: string;
         destination: string;
         amount: bigint;
-        intentId: string;
         bridge: string;
       };
       success: boolean;
@@ -220,14 +219,6 @@ async function setupDaemonTest(
   },
 ): Promise<DaemonTestSetup> {
   const actionTracker = createMockActionTracker();
-  let intentIndex = 0;
-  (actionTracker.createRebalanceIntent as Sinon.SinonStub).callsFake(
-    async () => ({
-      id: options.intentIds?.[intentIndex] ?? `intent-${intentIndex + 1}`,
-      status: 'not_started' as const,
-      ...(intentIndex++, {}),
-    }),
-  );
 
   const rebalancer = createMockRebalancer();
   rebalancer.rebalance.resolves(options.rebalanceResults);
@@ -913,25 +904,24 @@ describe('RebalancerService', () => {
       });
 
       expect(recordRebalancerFailure.calledOnce).to.be.true;
-      expect(recordRebalancerSuccess.called).to.be.false;
+      expect(recordRebalancerSuccess.calledOnce).to.be.true;
     });
   });
 
-  describe('daemon mode intent tracking', () => {
-    it('should call failRebalanceIntent with correct intentId when route fails', async () => {
-      const { actionTracker, triggerCycle } = await setupDaemonTest(sandbox, {
-        intentIds: ['intent-123'],
+  describe('daemon mode rebalancer calls', () => {
+    it('should call rebalancer with routes from strategy', async () => {
+      const { rebalancer, triggerCycle } = await setupDaemonTest(sandbox, {
         rebalanceResults: [
           {
             route: {
               origin: 'ethereum',
               destination: 'arbitrum',
               amount: 1000n,
-              intentId: 'intent-123',
               bridge: TEST_ADDRESSES.bridge,
             },
-            success: false,
-            error: 'Gas estimation failed',
+            success: true,
+            messageId:
+              '0x1111111111111111111111111111111111111111111111111111111111111111',
           },
         ],
         strategyRoutes: [
@@ -946,82 +936,33 @@ describe('RebalancerService', () => {
 
       await triggerCycle();
 
-      expect((actionTracker.failRebalanceIntent as Sinon.SinonStub).calledOnce)
-        .to.be.true;
-      expect(
-        (actionTracker.failRebalanceIntent as Sinon.SinonStub).calledWith(
-          'intent-123',
-        ),
-      ).to.be.true;
+      expect(rebalancer.rebalance.calledOnce).to.be.true;
+      const routesPassedToRebalancer = rebalancer.rebalance.firstCall.args[0];
+      expect(routesPassedToRebalancer).to.have.lengthOf(1);
+      expect(routesPassedToRebalancer[0].origin).to.equal('ethereum');
+      expect(routesPassedToRebalancer[0].destination).to.equal('arbitrum');
     });
 
-    it('should call createRebalanceAction with correct intentId when route succeeds', async () => {
-      const { actionTracker, triggerCycle } = await setupDaemonTest(sandbox, {
-        intentIds: ['intent-456'],
+    it('should call rebalancer with multiple routes', async () => {
+      const { rebalancer, triggerCycle } = await setupDaemonTest(sandbox, {
         rebalanceResults: [
           {
             route: {
               origin: 'ethereum',
               destination: 'arbitrum',
               amount: 1000n,
-              intentId: 'intent-456',
               bridge: TEST_ADDRESSES.bridge,
             },
             success: true,
-            messageId:
-              '0x1111111111111111111111111111111111111111111111111111111111111111',
-            txHash:
-              '0x2222222222222222222222222222222222222222222222222222222222222222',
-          },
-        ],
-        strategyRoutes: [
-          {
-            origin: 'ethereum',
-            destination: 'arbitrum',
-            amount: 1000n,
-            bridge: TEST_ADDRESSES.bridge,
-          },
-        ],
-      });
-
-      await triggerCycle();
-
-      expect(
-        (actionTracker.createRebalanceAction as Sinon.SinonStub).calledOnce,
-      ).to.be.true;
-      const callArgs = (actionTracker.createRebalanceAction as Sinon.SinonStub)
-        .firstCall.args[0];
-      expect(callArgs.intentId).to.equal('intent-456');
-    });
-
-    it('should handle mixed success/failure results with correct intent mapping', async () => {
-      const { actionTracker, triggerCycle } = await setupDaemonTest(sandbox, {
-        intentIds: ['intent-1', 'intent-2'],
-        rebalanceResults: [
-          {
-            route: {
-              origin: 'ethereum',
-              destination: 'arbitrum',
-              amount: 1000n,
-              intentId: 'intent-1',
-              bridge: TEST_ADDRESSES.bridge,
-            },
-            success: true,
-            messageId:
-              '0x1111111111111111111111111111111111111111111111111111111111111111',
-            txHash:
-              '0x2222222222222222222222222222222222222222222222222222222222222222',
           },
           {
             route: {
               origin: 'arbitrum',
               destination: 'ethereum',
               amount: 500n,
-              intentId: 'intent-2',
               bridge: TEST_ADDRESSES.bridge,
             },
-            success: false,
-            error: 'Insufficient funds',
+            success: true,
           },
         ],
         strategyRoutes: [
@@ -1042,61 +983,20 @@ describe('RebalancerService', () => {
 
       await triggerCycle();
 
-      // Verify createRebalanceAction called for intent-1 (success)
-      expect(
-        (actionTracker.createRebalanceAction as Sinon.SinonStub).calledOnce,
-      ).to.be.true;
-      expect(
-        (actionTracker.createRebalanceAction as Sinon.SinonStub).firstCall
-          .args[0].intentId,
-      ).to.equal('intent-1');
-
-      // Verify failRebalanceIntent called for intent-2 (failure)
-      expect((actionTracker.failRebalanceIntent as Sinon.SinonStub).calledOnce)
-        .to.be.true;
-      expect(
-        (actionTracker.failRebalanceIntent as Sinon.SinonStub).calledWith(
-          'intent-2',
-        ),
-      ).to.be.true;
+      expect(rebalancer.rebalance.calledOnce).to.be.true;
+      const routesPassedToRebalancer = rebalancer.rebalance.firstCall.args[0];
+      expect(routesPassedToRebalancer).to.have.lengthOf(2);
     });
 
-    it('should assign intentId from createRebalanceIntent to route before calling rebalancer', async () => {
+    it('should not call rebalancer when no routes proposed', async () => {
       const { rebalancer, triggerCycle } = await setupDaemonTest(sandbox, {
-        intentIds: ['generated-intent-id'],
-        rebalanceResults: [
-          {
-            route: {
-              origin: 'ethereum',
-              destination: 'arbitrum',
-              amount: 1000n,
-              intentId: 'generated-intent-id',
-              bridge: TEST_ADDRESSES.bridge,
-            },
-            success: true,
-            messageId:
-              '0x1111111111111111111111111111111111111111111111111111111111111111',
-          },
-        ],
-        strategyRoutes: [
-          {
-            origin: 'ethereum',
-            destination: 'arbitrum',
-            amount: 1000n,
-            bridge: TEST_ADDRESSES.bridge,
-          },
-        ],
+        rebalanceResults: [],
+        strategyRoutes: [],
       });
 
       await triggerCycle();
 
-      // Verify rebalancer.rebalance was called with routes that have intentId
-      expect(rebalancer.rebalance.calledOnce).to.be.true;
-      const routesPassedToRebalancer = rebalancer.rebalance.firstCall.args[0];
-      expect(routesPassedToRebalancer).to.have.lengthOf(1);
-      expect(routesPassedToRebalancer[0].intentId).to.equal(
-        'generated-intent-id',
-      );
+      expect(rebalancer.rebalance.called).to.be.false;
     });
   });
 

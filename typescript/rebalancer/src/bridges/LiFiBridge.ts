@@ -108,6 +108,9 @@ function getViemChain(chainId: number): Chain {
  * @see https://docs.li.fi/integrate-li.fi-sdk
  */
 export class LiFiBridge implements IExternalBridge {
+  private static readonly NATIVE_TOKEN_ADDRESS =
+    '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+
   readonly bridgeId = 'lifi';
   readonly logger: Logger;
   private initialized = false;
@@ -118,10 +121,10 @@ export class LiFiBridge implements IExternalBridge {
     this.logger = logger;
   }
 
-  /**
-   * Initialize the LiFi SDK. Must be called before other methods.
-   * Idempotent - safe to call multiple times.
-   */
+  getNativeTokenAddress(): string {
+    return LiFiBridge.NATIVE_TOKEN_ADDRESS;
+  }
+
   private initialize(): void {
     if (this.initialized) return;
 

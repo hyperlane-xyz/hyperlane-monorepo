@@ -8,6 +8,7 @@ import type {
   InflightContext,
   RawBalances,
   Route,
+  RouteWithContext,
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
@@ -198,6 +199,7 @@ export abstract class BaseStrategy implements IStrategy {
           origin: surplus.chain,
           destination: deficit.chain,
           amount: transferAmount,
+          executionType: 'movableCollateral',
           bridge: bridgeConfig.bridge,
         });
       }
@@ -360,7 +362,7 @@ export abstract class BaseStrategy implements IStrategy {
    */
   protected simulatePendingRebalances(
     rawBalances: RawBalances,
-    pendingRebalances: Route[],
+    pendingRebalances: RouteWithContext[],
   ): RawBalances {
     if (pendingRebalances.length === 0) {
       return rawBalances;

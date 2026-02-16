@@ -1,12 +1,5 @@
 import { type Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
-/**
- * Standard address representation for native ETH in DeFi protocols (including LiFi).
- * This is the common convention used by bridges and DEXes to represent native gas tokens.
- */
-export const NATIVE_TOKEN_ADDRESS =
-  '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
-
 const REBALANCEABLE_TOKEN_COLLATERALIZED_STANDARDS = new Set<TokenStandard>([
   TokenStandard.EvmHypCollateral,
   TokenStandard.EvmHypNative,

@@ -24,14 +24,11 @@ import {
 import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
-import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
-import type { IInventoryRebalancer } from '../interfaces/IInventoryRebalancer.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
-import { InventoryMonitor } from '../monitor/InventoryMonitor.js';
-import { Monitor } from '../monitor/Monitor.js';
+import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
 import {
   ActionTracker,
@@ -177,7 +174,10 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createMonitor(checkFrequency: number): Monitor {
+  public createMonitor(
+    checkFrequency: number,
+    inventoryConfig?: InventoryMonitorConfig,
+  ): Monitor {
     this.logger.debug(
       {
         warpRouteId: this.config.warpRouteId,
@@ -185,7 +185,12 @@ export class RebalancerContextFactory {
       },
       'Creating Monitor',
     );
-    return new Monitor(checkFrequency, this.warpCore, this.logger);
+    return new Monitor(
+      checkFrequency,
+      this.warpCore,
+      this.logger,
+      inventoryConfig,
+    );
   }
 
   public async createStrategy(metrics?: Metrics): Promise<IStrategy> {
@@ -238,7 +243,10 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createRebalancer(metrics?: Metrics): IRebalancer {
+  public createRebalancer(
+    actionTracker: IActionTracker,
+    metrics?: Metrics,
+  ): IRebalancer {
     this.logger.debug(
       { warpRouteId: this.config.warpRouteId },
       'Creating Rebalancer',
@@ -249,6 +257,7 @@ export class RebalancerContextFactory {
       this.multiProvider.metadata,
       this.tokensByChainName,
       this.multiProvider,
+      actionTracker,
       this.logger,
       metrics,
     );
@@ -363,14 +372,14 @@ export class RebalancerContextFactory {
   public async createInventoryComponents(
     actionTracker: IActionTracker,
   ): Promise<{
-    inventoryMonitor: IInventoryMonitor;
-    inventoryRebalancer: IInventoryRebalancer;
-    bridge: IExternalBridge;
+    inventoryRebalancer: IRebalancer;
+    externalBridge: IExternalBridge;
+    inventoryConfig: InventoryMonitorConfig;
   } | null> {
-    const { inventorySigner, lifiIntegrator } = this.config;
+    const { inventorySigner, externalBridges } = this.config;
+    const lifiConfig = externalBridges?.lifi;
 
-    // Check if inventory config is available
-    if (!inventorySigner || !lifiIntegrator) {
+    if (!inventorySigner || !lifiConfig?.integrator) {
       this.logger.debug(
         'Inventory config not available, skipping inventory components creation',
       );
@@ -382,7 +391,6 @@ export class RebalancerContextFactory {
       'Creating inventory components',
     );
 
-    // 1. Identify inventory chains from strategy config
     const inventoryChains = getStrategyChainNames(
       this.config.strategyConfig,
     ).filter((chainName) => {
@@ -398,23 +406,19 @@ export class RebalancerContextFactory {
       return null;
     }
 
-    // 2. Create LiFiBridge
-    const bridge = new LiFiBridge(
+    const externalBridge = new LiFiBridge(
       {
-        integrator: lifiIntegrator,
+        integrator: lifiConfig.integrator,
+        defaultSlippage: lifiConfig.defaultSlippage,
       },
       this.logger,
     );
 
-    // 3. Create InventoryMonitor
-    const inventoryMonitor = new InventoryMonitor(
-      {
-        inventorySigner,
-        inventoryChains,
-      },
-      this.warpCore,
-      this.logger,
-    );
+    // 3. Build inventory config
+    const inventoryConfig: InventoryMonitorConfig = {
+      inventoryAddress: inventorySigner,
+      chains: inventoryChains,
+    };
 
     // 4. Create InventoryRebalancer
     // Use inventoryMultiProvider for inventory operations if available, otherwise fall back to multiProvider
@@ -424,9 +428,8 @@ export class RebalancerContextFactory {
         inventoryMultiProvider: this.inventoryMultiProvider,
         inventoryChains,
       },
-      inventoryMonitor,
       actionTracker,
-      bridge,
+      externalBridge,
       this.warpCore,
       this.multiProvider,
       this.logger,
@@ -440,7 +443,7 @@ export class RebalancerContextFactory {
       'Inventory components created successfully',
     );
 
-    return { inventoryMonitor, inventoryRebalancer, bridge };
+    return { inventoryRebalancer, externalBridge, inventoryConfig };
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {

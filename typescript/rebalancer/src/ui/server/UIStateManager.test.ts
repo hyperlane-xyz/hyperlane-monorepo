@@ -7,7 +7,6 @@ import {
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from '../../config/types.js';
-import type { InventoryBalances } from '../../interfaces/IInventoryMonitor.js';
 import type {
   RebalanceAction,
   RebalanceIntent,
@@ -37,11 +36,11 @@ describe('UIStateManager', () => {
         optimism: 200n,
       };
 
-      const inventoryBalances: InventoryBalances = new Map([
-        ['ethereum', { chainName: 'ethereum', balance: 0n, available: 0n }],
-        ['arbitrum', { chainName: 'arbitrum', balance: 0n, available: 0n }],
-        ['optimism', { chainName: 'optimism', balance: 0n, available: 0n }],
-      ]);
+      const inventoryBalances: ChainMap<bigint> = {
+        ethereum: 0n,
+        arbitrum: 0n,
+        optimism: 0n,
+      };
 
       const strategyConfig: StrategyConfig[] = [
         {
@@ -96,10 +95,10 @@ describe('UIStateManager', () => {
         arbitrum: 300n,
       };
 
-      const inventoryBalances: InventoryBalances = new Map([
-        ['ethereum', { chainName: 'ethereum', balance: 100n, available: 100n }],
-        ['arbitrum', { chainName: 'arbitrum', balance: 100n, available: 100n }],
-      ]);
+      const inventoryBalances: ChainMap<bigint> = {
+        ethereum: 100n,
+        arbitrum: 100n,
+      };
 
       const strategyConfig: StrategyConfig[] = [
         {
@@ -140,10 +139,10 @@ describe('UIStateManager', () => {
         arbitrum: 400n,
       };
 
-      const inventoryBalances: InventoryBalances = new Map([
-        ['ethereum', { chainName: 'ethereum', balance: 0n, available: 0n }],
-        ['arbitrum', { chainName: 'arbitrum', balance: 0n, available: 0n }],
-      ]);
+      const inventoryBalances: ChainMap<bigint> = {
+        ethereum: 0n,
+        arbitrum: 0n,
+      };
 
       const strategyConfig: StrategyConfig[] = [
         {
@@ -192,10 +191,10 @@ describe('UIStateManager', () => {
         arbitrum: 0n,
       };
 
-      const inventoryBalances: InventoryBalances = new Map([
-        ['ethereum', { chainName: 'ethereum', balance: 0n, available: 0n }],
-        ['arbitrum', { chainName: 'arbitrum', balance: 0n, available: 0n }],
-      ]);
+      const inventoryBalances: ChainMap<bigint> = {
+        ethereum: 0n,
+        arbitrum: 0n,
+      };
 
       const strategyConfig: StrategyConfig[] = [
         {
@@ -244,7 +243,7 @@ describe('UIStateManager', () => {
 
       manager.updateFullState({
         rawBalances: {},
-        inventoryBalances: new Map(),
+        inventoryBalances: {},
         strategyConfig: [],
         transfers: [transfer],
         intents: [],
@@ -274,7 +273,7 @@ describe('UIStateManager', () => {
 
       manager.updateFullState({
         rawBalances: {},
-        inventoryBalances: new Map(),
+        inventoryBalances: {},
         strategyConfig: [],
         transfers: [transfer],
         intents: [],
@@ -297,7 +296,7 @@ describe('UIStateManager', () => {
 
       manager.updateFullState({
         rawBalances: {},
-        inventoryBalances: new Map(),
+        inventoryBalances: {},
         strategyConfig: [],
         transfers: [],
         intents: [],
@@ -320,7 +319,7 @@ describe('UIStateManager', () => {
 
       manager.updateFullState({
         rawBalances: {},
-        inventoryBalances: new Map(),
+        inventoryBalances: {},
         strategyConfig: [],
         transfers: [],
         intents: [intent],
@@ -351,7 +350,7 @@ describe('UIStateManager', () => {
 
       manager.updateFullState({
         rawBalances: {},
-        inventoryBalances: new Map(),
+        inventoryBalances: {},
         strategyConfig: [],
         transfers: [],
         intents: [],

@@ -183,6 +183,7 @@ describe('CollateralDeficitStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: 5_000_000n, // 5 USDC pending to chain1
+          executionType: 'movableCollateral',
           bridge: BRIDGE2, // Matches chain2's bridge for chain2->chain1 route
         },
       ];
@@ -229,6 +230,7 @@ describe('CollateralDeficitStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: 5_000_000n,
+          executionType: 'movableCollateral',
           bridge: OTHER_BRIDGE, // Does NOT match chain2's configured bridge for chain2->chain1
         },
       ];
@@ -271,6 +273,7 @@ describe('CollateralDeficitStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: 10_000_000n, // 10 USDC pending - more than enough
+          executionType: 'movableCollateral',
           bridge: BRIDGE2, // Matches chain2's configured bridge for chain2->chain1
         },
       ];
@@ -383,7 +386,9 @@ describe('CollateralDeficitStrategy', () => {
       expect(routes).to.have.lengthOf(1);
       expect(routes[0].origin).to.equal(chain2);
       expect(routes[0].destination).to.equal(chain1);
-      expect(routes[0].bridge).to.equal(BRIDGE2); // Uses chain2's (origin) bridge
+      if (routes[0].executionType === 'movableCollateral') {
+        expect(routes[0].bridge).to.equal(BRIDGE2); // Uses chain2's (origin) bridge
+      }
     });
 
     it('should generate routes from surplus to deficit chains', () => {
@@ -473,8 +478,11 @@ describe('CollateralDeficitStrategy', () => {
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
 
       expect(filtered).to.have.lengthOf(2);
-      expect((filtered[0] as StrategyRoute).bridge).to.equal(BRIDGE2);
-      expect((filtered[1] as StrategyRoute).bridge).to.be.undefined;
+      expect((filtered[0] as Route & { bridge?: Address }).bridge).to.equal(
+        BRIDGE2,
+      );
+      expect((filtered[1] as Route & { bridge?: Address }).bridge).to.be
+        .undefined;
     });
 
     it('should include rebalance when bridge matches configured bridge for the route', () => {
@@ -502,7 +510,9 @@ describe('CollateralDeficitStrategy', () => {
 
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
       expect(filtered).to.have.lengthOf(1);
-      expect((filtered[0] as StrategyRoute).bridge).to.equal(BRIDGE2);
+      expect((filtered[0] as Route & { bridge?: Address }).bridge).to.equal(
+        BRIDGE2,
+      );
     });
 
     it('should exclude rebalance when bridge does not match configured bridge for the route', () => {
@@ -525,6 +535,7 @@ describe('CollateralDeficitStrategy', () => {
           origin: chain2,
           destination: chain1,
           amount: 5_000_000n,
+          executionType: 'movableCollateral',
           bridge: BRIDGE1, // Does NOT match configured bridge for chain2->chain1 (should be BRIDGE2)
         },
       ];

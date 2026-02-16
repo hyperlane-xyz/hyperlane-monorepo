@@ -74,9 +74,8 @@ export interface IExternalBridge {
   readonly bridgeId: string;
   readonly logger: Logger;
 
-  /**
-   * Get a quote for bridging tokens between chains.
-   */
+  getNativeTokenAddress?(): string;
+
   quote(params: BridgeQuoteParams): Promise<BridgeQuote>;
 
   /**

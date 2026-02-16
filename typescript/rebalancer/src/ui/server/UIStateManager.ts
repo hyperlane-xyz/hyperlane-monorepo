@@ -4,7 +4,6 @@ import type { ChainMap } from '@hyperlane-xyz/sdk';
 
 import type { StrategyConfig } from '../../config/types.js';
 import { RebalancerStrategyOptions } from '../../config/types.js';
-import type { InventoryBalances } from '../../interfaces/IInventoryMonitor.js';
 import type {
   RebalanceAction,
   RebalanceIntent,
@@ -32,7 +31,7 @@ export class UIStateManager extends EventEmitter {
 
   updateFullState(params: {
     rawBalances: ChainMap<bigint>;
-    inventoryBalances: InventoryBalances;
+    inventoryBalances: ChainMap<bigint>;
     strategyConfig: StrategyConfig[];
     transfers: Transfer[];
     intents: RebalanceIntent[];
@@ -57,7 +56,7 @@ export class UIStateManager extends EventEmitter {
 
   private computeBalances(
     rawBalances: ChainMap<bigint>,
-    inventoryBalances: InventoryBalances,
+    inventoryBalances: ChainMap<bigint>,
     strategyConfig: StrategyConfig[],
   ): UIBalanceData[] {
     const chains = Object.keys(rawBalances);
@@ -68,7 +67,7 @@ export class UIStateManager extends EventEmitter {
 
     for (const chain of chains) {
       const routerCollateral = rawBalances[chain] || 0n;
-      const inventory = inventoryBalances.get(chain)?.balance || 0n;
+      const inventory = inventoryBalances[chain] || 0n;
       const chainBalance = routerCollateral + inventory;
       chainBalances.set(chain, chainBalance);
       totalBalance += chainBalance;
@@ -94,7 +93,7 @@ export class UIStateManager extends EventEmitter {
 
     for (const chain of chains) {
       const routerCollateral = rawBalances[chain] || 0n;
-      const inventory = inventoryBalances.get(chain)?.balance || 0n;
+      const inventory = inventoryBalances[chain] || 0n;
       const chainBalance = chainBalances.get(chain)!;
 
       let currentWeight = 0;

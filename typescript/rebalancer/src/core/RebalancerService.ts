@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
@@ -17,18 +16,19 @@ import {
 } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
-import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
-import type { IInventoryRebalancer } from '../interfaces/IInventoryRebalancer.js';
 import {
   MonitorEvent,
   MonitorEventType,
   MonitorPollingError,
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
-import type { IRebalancer, RebalanceRoute } from '../interfaces/IRebalancer.js';
-import type { IStrategy } from '../interfaces/IStrategy.js';
+import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  IStrategy,
+  MovableCollateralRoute,
+} from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
-import { Monitor } from '../monitor/Monitor.js';
+import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
 import {
   type IActionTracker,
   InflightContextAdapter,
@@ -124,9 +124,9 @@ export class RebalancerService {
   private mode: 'manual' | 'daemon';
   private actionTracker?: IActionTracker;
   private inflightContextAdapter?: InflightContextAdapter;
-  private inventoryRebalancer?: IInventoryRebalancer;
-  private inventoryMonitor?: IInventoryMonitor;
-  private bridge?: IExternalBridge;
+  private inventoryRebalancer?: IRebalancer;
+  private inventoryConfig?: InventoryMonitorConfig;
+  private externalBridge?: IExternalBridge;
   private orchestrator?: RebalancerOrchestrator;
 
   constructor(
@@ -162,12 +162,6 @@ export class RebalancerService {
       this.logger,
     );
 
-    // Create monitor (always needed for daemon mode)
-    if (this.mode === 'daemon') {
-      const checkFrequency = this.config.checkFrequency ?? 60_000;
-      this.monitor = this.contextFactory.createMonitor(checkFrequency);
-    }
-
     // Create metrics if enabled
     if (this.config.withMetrics) {
       this.metrics = await this.contextFactory.createMetrics(
@@ -179,44 +173,26 @@ export class RebalancerService {
     // Create strategy
     this.strategy = await this.contextFactory.createStrategy(this.metrics);
 
+    // Create ActionTracker for tracking inflight actions
+    // Must be created BEFORE rebalancer since rebalancer needs it
+    const { tracker, adapter } =
+      await this.contextFactory.createActionTracker();
+    this.actionTracker = tracker;
+    this.inflightContextAdapter = adapter;
+    await this.actionTracker.initialize();
+    this.logger.info('ActionTracker initialized');
+
     // Create rebalancer (unless in monitor-only mode)
     if (!this.config.monitorOnly) {
-      this.rebalancer = this.contextFactory.createRebalancer(this.metrics);
+      this.rebalancer = this.contextFactory.createRebalancer(
+        this.actionTracker,
+        this.metrics,
+      );
     } else {
       this.logger.warn(
         'Running in monitorOnly mode: no transactions will be executed.',
       );
     }
-
-    // Create or use provided ActionTracker for tracking inflight actions
-    if (this.config.actionTracker) {
-      // Use externally provided ActionTracker (e.g., for simulation/testing)
-      this.actionTracker = this.config.actionTracker;
-      this.inflightContextAdapter = new InflightContextAdapter(
-        this.actionTracker,
-        this.multiProvider,
-      );
-      await this.actionTracker.initialize();
-      this.logger.info('Using externally provided ActionTracker');
-    } else {
-      const { tracker, adapter } =
-        await this.contextFactory.createActionTracker();
-      this.actionTracker = tracker;
-      this.inflightContextAdapter = adapter;
-      await this.actionTracker.initialize();
-      this.logger.info('ActionTracker initialized');
-    }
-
-    this.orchestrator = new RebalancerOrchestrator({
-      strategy: this.strategy!,
-      rebalancer: this.rebalancer,
-      actionTracker: this.actionTracker,
-      inflightContextAdapter: this.inflightContextAdapter,
-      multiProvider: this.multiProvider,
-      rebalancerConfig: this.rebalancerConfig,
-      logger: this.logger,
-      metrics: this.metrics,
-    });
 
     // Create inventory components if any chains use inventory execution type
     if (
@@ -226,27 +202,37 @@ export class RebalancerService {
       const inventoryComponents =
         await this.contextFactory.createInventoryComponents(this.actionTracker);
       if (inventoryComponents) {
-        this.inventoryMonitor = inventoryComponents.inventoryMonitor;
+        this.inventoryConfig = inventoryComponents.inventoryConfig;
         this.inventoryRebalancer = inventoryComponents.inventoryRebalancer;
-        // TODO: we want to eventually support multiple bridges
-        // TODO: rename this to inventoryBridge
-        this.bridge = inventoryComponents.bridge;
+        this.externalBridge = inventoryComponents.externalBridge;
         this.logger.info('Inventory rebalancing enabled');
       }
     }
 
-    // Create orchestrator for cycle execution
+    if (this.mode === 'daemon') {
+      const checkFrequency = this.config.checkFrequency ?? 60_000;
+      this.monitor = this.contextFactory.createMonitor(
+        checkFrequency,
+        this.inventoryConfig,
+      );
+    }
+
+    const rebalancers: IRebalancer[] = [];
+    if (this.rebalancer) {
+      rebalancers.push(this.rebalancer);
+    }
+    if (this.inventoryRebalancer) {
+      rebalancers.push(this.inventoryRebalancer);
+    }
+
     this.orchestrator = new RebalancerOrchestrator({
       strategy: this.strategy,
       actionTracker: this.actionTracker,
       inflightContextAdapter: this.inflightContextAdapter,
-      multiProvider: this.multiProvider,
       rebalancerConfig: this.rebalancerConfig,
       logger: this.logger,
-      rebalancer: this.rebalancer,
-      inventoryRebalancer: this.inventoryRebalancer,
-      inventoryMonitor: this.inventoryMonitor,
-      bridge: this.bridge,
+      rebalancers,
+      externalBridge: this.externalBridge,
       metrics: this.metrics,
     });
 
@@ -309,14 +295,15 @@ export class RebalancerService {
       originConfig.override?.[destination]?.bridge ?? originConfig.bridge;
 
     try {
-      const route: RebalanceRoute = {
-        intentId: randomUUID(),
+      const manualRoute: MovableCollateralRoute & { intentId: string } = {
         origin,
         destination,
         amount: BigInt(toWei(amount, originToken.decimals)),
+        executionType: 'movableCollateral',
         bridge,
+        intentId: `manual-${Date.now()}`,
       };
-      await this.rebalancer.rebalance([route]);
+      await this.rebalancer.rebalance([manualRoute]);
       this.logger.info(
         `✅ Manual rebalance from ${origin} to ${destination} for amount ${amount} submitted successfully.`,
       );

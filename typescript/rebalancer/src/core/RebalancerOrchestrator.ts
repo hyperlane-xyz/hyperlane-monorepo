@@ -1,7 +1,5 @@
 import { Logger } from 'pino';
 
-import { type MultiProvider } from '@hyperlane-xyz/sdk';
-
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -9,19 +7,14 @@ import {
   getStrategyChainNames,
 } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
-import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
-import type {
-  IInventoryRebalancer,
-  InventoryRoute,
-} from '../interfaces/IInventoryRebalancer.js';
 import {
   type ConfirmedBlockTags,
   type MonitorEvent,
 } from '../interfaces/IMonitor.js';
 import type {
+  ExecutionResult,
   IRebalancer,
-  RebalanceExecutionResult,
-  RebalanceRoute,
+  RebalancerType,
 } from '../interfaces/IRebalancer.js';
 import type { IStrategy, StrategyRoute } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
@@ -30,6 +23,8 @@ import {
   InflightContextAdapter,
 } from '../tracking/index.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
+
+import { InventoryRebalancer } from './InventoryRebalancer.js';
 
 /**
  * Result of a rebalancing cycle.
@@ -42,59 +37,39 @@ export interface CycleResult {
   failedCount: number;
 }
 
-/**
- * Dependency injection interface - ALL deps required for BOTH execution types
- */
 export interface RebalancerOrchestratorDeps {
-  // Core deps (required)
   strategy: IStrategy;
   actionTracker: IActionTracker;
   inflightContextAdapter: InflightContextAdapter;
-  multiProvider: MultiProvider;
   rebalancerConfig: RebalancerConfig;
   logger: Logger;
 
-  // Movable collateral deps (optional - undefined in monitorOnly mode)
-  rebalancer?: IRebalancer;
+  rebalancers: IRebalancer[];
 
-  // Inventory deps (optional - undefined if no inventory chains configured)
-  inventoryRebalancer?: IInventoryRebalancer;
-  inventoryMonitor?: IInventoryMonitor;
-  bridge?: IExternalBridge;
-
-  // Metrics (optional)
+  externalBridge?: IExternalBridge;
   metrics?: Metrics;
 }
 
-/**
- * RebalancerOrchestrator handles the execution of rebalancing cycles.
- * It coordinates strategy evaluation and execution for both movable_collateral
- * and inventory execution types.
- */
 export class RebalancerOrchestrator {
   private readonly strategy: IStrategy;
   private readonly actionTracker: IActionTracker;
   private readonly inflightContextAdapter: InflightContextAdapter;
-  private readonly multiProvider: MultiProvider;
   private readonly rebalancerConfig: RebalancerConfig;
   private readonly logger: Logger;
-  private readonly rebalancer?: IRebalancer;
-  private readonly inventoryRebalancer?: IInventoryRebalancer;
-  private readonly inventoryMonitor?: IInventoryMonitor;
-  private readonly bridge?: IExternalBridge;
+  private readonly rebalancersByType: Map<RebalancerType, IRebalancer>;
+  private readonly externalBridge?: IExternalBridge;
   private readonly metrics?: Metrics;
 
   constructor(deps: RebalancerOrchestratorDeps) {
     this.strategy = deps.strategy;
     this.actionTracker = deps.actionTracker;
     this.inflightContextAdapter = deps.inflightContextAdapter;
-    this.multiProvider = deps.multiProvider;
     this.rebalancerConfig = deps.rebalancerConfig;
     this.logger = deps.logger;
-    this.rebalancer = deps.rebalancer;
-    this.inventoryRebalancer = deps.inventoryRebalancer;
-    this.inventoryMonitor = deps.inventoryMonitor;
-    this.bridge = deps.bridge;
+    this.rebalancersByType = new Map(
+      deps.rebalancers.map((r) => [r.rebalancerType, r]),
+    );
+    this.externalBridge = deps.externalBridge;
     this.metrics = deps.metrics;
   }
 
@@ -114,11 +89,6 @@ export class RebalancerOrchestrator {
     }
 
     await this.syncActionTracker(event.confirmedBlockTags);
-
-    // Refresh and log inventory balances for visibility
-    if (this.inventoryMonitor) {
-      await this.inventoryMonitor.refresh();
-    }
 
     const rawBalances = getRawBalances(
       getStrategyChainNames(this.rebalancerConfig.strategyConfig),
@@ -159,18 +129,16 @@ export class RebalancerOrchestrator {
         'Routes proposed',
       );
 
-      const results = await this.executeWithTracking(strategyRoutes);
+      const results = await this.executeWithTracking(strategyRoutes, event);
       executedCount = results.executedCount;
       failedCount = results.failedCount;
     } else {
       this.logger.info('No rebalancing needed');
     }
 
-    // CRITICAL: Always check for existing inventory intents to continue,
-    // even when no new routes proposed. This handles the case where the
-    // bridge completed but the transferRemote hasn't been sent yet.
-    if (this.inventoryRebalancer && strategyRoutes.length === 0) {
-      await this.executeInventoryRoutes([]);
+    const inventoryRebalancer = this.rebalancersByType.get('inventory');
+    if (inventoryRebalancer && strategyRoutes.length === 0) {
+      await this.executeRoutes([], inventoryRebalancer, event);
     }
 
     this.logger.info('Polling cycle completed');
@@ -197,8 +165,10 @@ export class RebalancerOrchestrator {
       ]);
 
       // Sync inventory movement actions via external bridge API
-      if (this.bridge) {
-        await this.actionTracker.syncInventoryMovementActions(this.bridge);
+      if (this.externalBridge) {
+        await this.actionTracker.syncInventoryMovementActions(
+          this.externalBridge,
+        );
       }
 
       await this.actionTracker.logStoreContents();
@@ -217,36 +187,30 @@ export class RebalancerOrchestrator {
     return this.inflightContextAdapter.getInflightContext();
   }
 
-  /**
-   * Execute rebalancing with intent tracking.
-   * Creates intents before execution, processes results after.
-   *
-   * Routes are classified by execution type:
-   * - movableCollateral: Uses existing Rebalancer (on-chain rebalance)
-   * - inventory: Uses InventoryRebalancer (external bridge + transferRemote)
-   *
-   * Returns counts for movable_collateral routes only.
-   */
   private async executeWithTracking(
     routes: StrategyRoute[],
+    event: MonitorEvent,
   ): Promise<{ executedCount: number; failedCount: number }> {
-    // Classify routes by execution method
     const { movableCollateral, inventory } = this.classifyRoutes(routes);
 
     let executedCount = 0;
     let failedCount = 0;
 
-    // Execute movable collateral routes (existing flow)
-    if (movableCollateral.length > 0 && this.rebalancer) {
-      const results =
-        await this.executeMovableCollateralRoutes(movableCollateral);
+    const movableCollateralRebalancer =
+      this.rebalancersByType.get('movableCollateral');
+    if (movableCollateral.length > 0 && movableCollateralRebalancer) {
+      const results = await this.executeRoutes(
+        movableCollateral,
+        movableCollateralRebalancer,
+        event,
+      );
       executedCount = results.filter((r) => r.success).length;
       failedCount = results.filter((r) => !r.success).length;
     }
 
-    // Execute inventory routes (new inventory flow)
-    if (inventory.length > 0 && this.inventoryRebalancer) {
-      await this.executeInventoryRoutes(inventory);
+    const inventoryRebalancer = this.rebalancersByType.get('inventory');
+    if (inventory.length > 0 && inventoryRebalancer) {
+      await this.executeRoutes(inventory, inventoryRebalancer, event);
     }
 
     return { executedCount, failedCount };
@@ -296,175 +260,60 @@ export class RebalancerOrchestrator {
     return { movableCollateral, inventory };
   }
 
-  /**
-   * Execute movable collateral routes using the existing Rebalancer.
-   * Returns the execution results.
-   */
-  private async executeMovableCollateralRoutes(
+  private async executeRoutes(
     routes: StrategyRoute[],
-  ): Promise<RebalanceExecutionResult[]> {
-    if (!this.rebalancer) return [];
-
-    // 1. Create intents for each route BEFORE execution
-    const intents = await Promise.all(
-      routes.map((route) =>
-        this.actionTracker.createRebalanceIntent({
-          origin: this.multiProvider.getDomainId(route.origin),
-          destination: this.multiProvider.getDomainId(route.destination),
-          amount: route.amount,
-          bridge: route.bridge,
-          executionMethod: 'movable_collateral',
-        }),
-      ),
-    );
-
-    this.logger.debug(
-      { intentCount: intents.length },
-      'Created movable collateral rebalance intents',
-    );
-
-    // 2. Build RebalanceRoutes with intentIds
-    const rebalanceRoutes: RebalanceRoute[] = routes.map((route, idx) => ({
-      ...route,
-      intentId: intents[idx].id,
-    }));
-
-    // 3. Execute rebalance
-    let results: RebalanceExecutionResult[];
-    try {
-      results = await this.rebalancer.rebalance(rebalanceRoutes);
-      const failedResults = results.filter((r) => !r.success);
-      if (failedResults.length > 0) {
-        this.metrics?.recordRebalancerFailure();
-        this.logger.warn(
-          { failureCount: failedResults.length, total: results.length },
-          'Movable collateral rebalancer completed with failures',
-        );
-      } else {
-        this.metrics?.recordRebalancerSuccess();
-        this.logger.info(
-          'Movable collateral rebalancer completed successfully',
-        );
-      }
-    } catch (error: any) {
-      this.metrics?.recordRebalancerFailure();
-      this.logger.error(
-        { error },
-        'Error while rebalancing (movable collateral)',
+    rebalancer: IRebalancer,
+    event: MonitorEvent,
+  ): Promise<ExecutionResult[]> {
+    if (rebalancer.rebalancerType === 'inventory' && event.inventoryBalances) {
+      (rebalancer as InventoryRebalancer).setInventoryBalances(
+        event.inventoryBalances,
       );
-
-      // Mark all intents as failed
-      await Promise.all(
-        intents.map((intent) =>
-          this.actionTracker.failRebalanceIntent(intent.id),
-        ),
-      );
-      return [];
     }
 
-    // 4. Process results - results have IDs that match intents directly
-    await this.processExecutionResults(results);
-    return results;
-  }
-
-  /**
-   * Execute inventory routes using the InventoryRebalancer.
-   *
-   * InventoryRebalancer handles single-intent logic internally:
-   * - If an in_progress intent exists, continues it (ignores new routes)
-   * - Otherwise, takes only the first route and creates a new intent
-   */
-  private async executeInventoryRoutes(routes: StrategyRoute[]): Promise<void> {
-    if (!this.inventoryRebalancer) return;
-
-    // Refresh inventory balances before execution
-    if (this.inventoryMonitor) {
-      await this.inventoryMonitor.refresh();
-    }
-
-    // Convert routes and let InventoryRebalancer decide what to execute
-    const inventoryRoutes: InventoryRoute[] = routes.map((r) => ({
-      origin: r.origin,
-      destination: r.destination,
-      amount: r.amount,
-    }));
-
     try {
-      const results = await this.inventoryRebalancer.execute(inventoryRoutes);
+      const results = await rebalancer.rebalance(routes);
 
-      // Log results
       const successful = results.filter((r) => r.success);
       const failed = results.filter((r) => !r.success);
 
       if (successful.length > 0) {
+        if (rebalancer.rebalancerType === 'movableCollateral') {
+          this.metrics?.recordRebalancerSuccess();
+        }
         this.logger.info(
-          { count: successful.length },
-          'Inventory rebalancer completed successfully',
+          { count: successful.length, type: rebalancer.rebalancerType },
+          'Rebalancer completed successfully',
         );
       }
 
       if (failed.length > 0) {
+        if (rebalancer.rebalancerType === 'movableCollateral') {
+          this.metrics?.recordRebalancerFailure();
+        }
         this.logger.warn(
           {
             count: failed.length,
+            type: rebalancer.rebalancerType,
             errors: failed.map((r) => ({
               route: `${r.route.origin} -> ${r.route.destination}`,
               error: r.error,
             })),
           },
-          'Some inventory routes failed',
+          'Some routes failed',
         );
       }
+
+      return results;
     } catch (error: any) {
-      this.logger.error({ error }, 'Error while executing inventory routes');
-    }
-  }
-
-  /**
-   * Process execution results and update tracking state.
-   * Results are matched to intents by the route ID (which equals the intent ID).
-   */
-  private async processExecutionResults(
-    results: RebalanceExecutionResult[],
-  ): Promise<void> {
-    for (const result of results) {
-      const intentId = result.route.intentId;
-
-      if (result.success && result.messageId) {
-        await this.actionTracker.createRebalanceAction({
-          intentId,
-          origin: this.multiProvider.getDomainId(result.route.origin),
-          destination: this.multiProvider.getDomainId(result.route.destination),
-          amount: result.route.amount,
-          type: 'rebalance_message',
-          messageId: result.messageId,
-          txHash: result.txHash,
-        });
-
-        this.logger.info(
-          {
-            intentId,
-            messageId: result.messageId,
-            txHash: result.txHash,
-            origin: result.route.origin,
-            destination: result.route.destination,
-          },
-          'Rebalance action created successfully',
-        );
-      } else {
-        await this.actionTracker.failRebalanceIntent(intentId);
-
-        this.logger.warn(
-          {
-            intentId,
-            success: result.success,
-            error: result.error,
-            origin: result.route.origin,
-            destination: result.route.destination,
-          },
-          'Rebalance intent marked as failed',
-        );
+      if (rebalancer.rebalancerType === 'movableCollateral') {
+        this.metrics?.recordRebalancerFailure();
       }
+      this.logger.error(
+        { error, type: rebalancer.rebalancerType },
+        'Error while executing routes',
+      );
+      return [];
     }
   }
 }

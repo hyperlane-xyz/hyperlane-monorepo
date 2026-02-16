@@ -1,20 +1,24 @@
+import type { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
 
 import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import {
+  type ExternalBridgesConfigSchema,
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
   type StrategyConfig,
   getStrategyChainNames,
 } from './types.js';
 
+type ExternalBridgesConfig = z.infer<typeof ExternalBridgesConfigSchema>;
+
 export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
     public readonly strategyConfig: StrategyConfig[],
     public readonly inventorySigner?: string,
-    public readonly lifiIntegrator?: string,
+    public readonly externalBridges?: ExternalBridgesConfig,
   ) {}
 
   /**
@@ -30,10 +34,9 @@ export class RebalancerConfig {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { warpRouteId, strategy, inventorySigner, lifiIntegrator } =
+    const { warpRouteId, strategy, inventorySigner, externalBridges } =
       validationResult.data;
 
-    // Check that at least one chain is configured across all strategies
     const chainNames = getStrategyChainNames(strategy);
     if (chainNames.length === 0) {
       throw new Error('No chains configured');
@@ -43,7 +46,7 @@ export class RebalancerConfig {
       warpRouteId,
       strategy,
       inventorySigner,
-      lifiIntegrator,
+      externalBridges,
     );
   }
 }
