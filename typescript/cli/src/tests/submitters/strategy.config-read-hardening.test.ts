@@ -99,4 +99,48 @@ describe('readChainSubmissionStrategyConfig hardening', () => {
       }
     }
   });
+
+  it('does not throw when Object prototype submitterOverrides is non-writable', async () => {
+    const strategyPath = createStrategyPath({
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+      },
+    });
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitterOverrides',
+    );
+    Object.defineProperty(Object.prototype, 'submitterOverrides', {
+      configurable: true,
+      enumerable: false,
+      value: {},
+    });
+
+    try {
+      const parsed = await readChainSubmissionStrategyConfig(strategyPath);
+      const chainStrategy = (parsed as Record<string, unknown>)[CHAIN] as Record<
+        string,
+        unknown
+      >;
+
+      expect((chainStrategy.submitter as Record<string, unknown>).type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
+      expect(
+        Object.prototype.hasOwnProperty.call(chainStrategy, 'submitterOverrides'),
+      ).to.equal(false);
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitterOverrides',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as Record<string, unknown>).submitterOverrides;
+      }
+    }
+  });
 });

@@ -779,6 +779,14 @@ function getDefaultSubmitter(chain: ChainName): ExtendedSubmissionStrategy {
   };
 }
 
+function parseExtendedSubmissionStrategyWithSubmitter(
+  submitter: unknown,
+): ExtendedSubmissionStrategy {
+  const normalizedStrategy = Object.create(null) as Record<string, unknown>;
+  normalizedStrategy.submitter = submitter;
+  return ExtendedSubmissionStrategySchema.parse(normalizedStrategy);
+}
+
 function readChainSubmissionStrategy(
   submissionStrategyFilepath: string,
 ): ExtendedChainSubmissionStrategy {
@@ -1727,9 +1735,7 @@ async function inferSubmitterFromTransaction({
     depth: 0,
   });
 
-  return ExtendedSubmissionStrategySchema.parse({
-    submitter: inferredSubmitter,
-  });
+  return parseExtendedSubmissionStrategyWithSubmitter(inferredSubmitter);
 }
 
 function getConfigFingerprint(config: ExtendedSubmissionStrategy): string {
@@ -1907,18 +1913,18 @@ function resolveExplicitSubmitterForTransaction({
   ) as ExtendedSubmissionStrategy['submitterOverrides'] | undefined;
 
   if (!overrides || !to) {
-    return ExtendedSubmissionStrategySchema.parse({
-      submitter: explicitSubmissionStrategy.submitter,
-    });
+    return parseExtendedSubmissionStrategyWithSubmitter(
+      explicitSubmissionStrategy.submitter,
+    );
   }
 
   let selectedSubmitter = explicitSubmissionStrategy.submitter;
   if (protocol === ProtocolType.Ethereum) {
     const normalizedTarget = normalizeEvmAddressCandidate(to);
     if (!normalizedTarget) {
-      return ExtendedSubmissionStrategySchema.parse({
-        submitter: explicitSubmissionStrategy.submitter,
-      });
+      return parseExtendedSubmissionStrategyWithSubmitter(
+        explicitSubmissionStrategy.submitter,
+      );
     }
     const selector = getTxSelector(transaction);
 
@@ -1940,9 +1946,9 @@ function resolveExplicitSubmitterForTransaction({
     }
   } else {
     if (!isUsableOverrideKey(to)) {
-      return ExtendedSubmissionStrategySchema.parse({
-        submitter: explicitSubmissionStrategy.submitter,
-      });
+      return parseExtendedSubmissionStrategyWithSubmitter(
+        explicitSubmissionStrategy.submitter,
+      );
     }
     const normalizedTarget = to.trim();
     const targetMatch =
@@ -1952,9 +1958,7 @@ function resolveExplicitSubmitterForTransaction({
     }
   }
 
-  return ExtendedSubmissionStrategySchema.parse({
-    submitter: selectedSubmitter,
-  });
+  return parseExtendedSubmissionStrategyWithSubmitter(selectedSubmitter);
 }
 
 function hasNonEmptyStringTarget(
@@ -2190,9 +2194,9 @@ export async function resolveSubmitterBatchesForTransactions({
   ) {
     return [
       {
-        config: ExtendedSubmissionStrategySchema.parse({
-          submitter: explicitSubmissionStrategy.submitter,
-        }),
+        config: parseExtendedSubmissionStrategyWithSubmitter(
+          explicitSubmissionStrategy.submitter,
+        ),
         transactions,
       },
     ];
@@ -2218,9 +2222,9 @@ export async function resolveSubmitterBatchesForTransactions({
     if (!protocol) {
       return [
         {
-          config: ExtendedSubmissionStrategySchema.parse({
-            submitter: explicitSubmissionStrategy.submitter,
-          }),
+          config: parseExtendedSubmissionStrategyWithSubmitter(
+            explicitSubmissionStrategy.submitter,
+          ),
           transactions,
         },
       ];

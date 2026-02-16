@@ -318,6 +318,57 @@ describe('resolveSubmitterBatchesForTransactions explicit default skips inferenc
     }
   });
 
+  it('does not look up protocol when Object prototype submitterOverrides is non-writable', async () => {
+    let protocolCalls = 0;
+    const strategyPath = createExplicitStrategyPath();
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      'submitterOverrides',
+    );
+    Object.defineProperty(Object.prototype, 'submitterOverrides', {
+      configurable: true,
+      enumerable: false,
+      value: {
+        '0x1111111111111111111111111111111111111111': {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+      },
+    });
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => {
+              protocolCalls += 1;
+              return ProtocolType.Ethereum;
+            },
+          },
+        } as any,
+        strategyUrl: strategyPath,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(protocolCalls).to.equal(0);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          Object.prototype,
+          'submitterOverrides',
+          originalDescriptor,
+        );
+      } else {
+        delete (Object.prototype as any).submitterOverrides;
+      }
+    }
+  });
+
   it('ignores inherited prototype keys when resolving explicit strategy for chain', async () => {
     const batches = await resolveSubmitterBatchesForTransactions({
       chain: 'toString' as any,
