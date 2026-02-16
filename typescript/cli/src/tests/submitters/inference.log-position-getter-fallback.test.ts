@@ -196,3 +196,118 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
     await resolveFromLogs([malformedGetterLog, validLog], validLog);
   });
 });
+
+describe('resolveSubmitterBatchesForTransactions timelock log position getter fallback', () => {
+  const CHAIN = 'anvil2';
+  const SIGNER = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+  const TX = {
+    to: '0x1111111111111111111111111111111111111111',
+    data: '0x',
+    chainId: 31338,
+  };
+
+  it('ignores blockNumber toString getter throws during timelock role ordering', async () => {
+    const timelockOwner = '0x6767676767676767676767676767676767676767';
+    const safeProposer = '0x7878787878787878787878787878787878787878';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() !== safeProposer.toLowerCase()) {
+          throw new Error('not safe');
+        }
+        return {
+          getThreshold: async () => 1,
+        } as any;
+      });
+
+    const validGrant = {
+      topics: ['0xgrant-valid'],
+      data: '0x',
+      blockNumber: '1600',
+      transactionIndex: '1',
+      logIndex: '1',
+    };
+    const malformedGrant = {
+      topics: ['0xgrant-malformed'],
+      data: '0x',
+      blockNumber: {
+        get toString() {
+          throw new Error('blockNumber toString getter should not crash');
+        },
+      },
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const revoke = {
+      topics: ['0xrevoke'],
+      data: '0x',
+      blockNumber: '1599',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        if (filter.topics?.[0] === 'RoleGranted') {
+          return [validGrant, malformedGrant];
+        }
+        return [revoke];
+      }),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: () => ({ args: { account: safeProposer } }),
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
+      expect(
+        (
+          batches[0].config.submitter as any
+        ).proposerSubmitter.safeAddress.toLowerCase(),
+      ).to.equal(safeProposer.toLowerCase());
+      expect(provider.getLogs.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+});
