@@ -8359,6 +8359,61 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('throws placeholder fallback when core program resolver accessor throws generic-object Error messages', async () => {
+    const reader = new SquadsTransactionReader(
+      createNoopMpp(),
+      new Proxy(
+        {
+          resolveCoreProgramIds: () => ({
+            mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+            multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+          }),
+        },
+        {
+          get(target, property, receiver) {
+            if (property === 'resolveCoreProgramIds') {
+              throw new Error('[object Object]');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      ) as unknown as {
+        resolveCoreProgramIds: (chain: string) => {
+          mailbox: string;
+          multisig_ism_message_id: string;
+        };
+      },
+    );
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to access core program resolver for solanamainnet: [unstringifiable error]',
+    );
+  });
+
   it('throws stable error when core program resolver returns malformed objects', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () =>
