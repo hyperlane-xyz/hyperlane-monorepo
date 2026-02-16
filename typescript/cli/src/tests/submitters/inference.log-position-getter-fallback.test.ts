@@ -332,6 +332,34 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
     expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
   });
 
+  it('ignores null-byte ism fields and uses next valid ICA event', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 635,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const malformedIsmLog = {
+      __parsedArgs: {
+        origin: 31347,
+        router: originRouterBytes32,
+        owner: signerBytes32,
+        ism: `${ethersConstants.AddressZero}\0`,
+      },
+      topics: ['0xmalformed-null-byte-ism'],
+      data: '0x',
+      blockNumber: 636,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+
+    const inferredSubmitter = await resolveFromLogs([malformedIsmLog, validLog]);
+
+    expect(inferredSubmitter.owner.toLowerCase()).to.equal(SIGNER.toLowerCase());
+  });
+
   it('ignores throwing parseLog args getters and uses next valid ICA event', async () => {
     const validLog = {
       __validLog: true,
@@ -568,6 +596,17 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
     await resolveFromRoleLogs({
       __parsedAccount: new String('0x7878787878787878787878787878787878787878'),
       topics: ['0xgrant-boxed-account'],
+      data: '0x',
+      blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('ignores null-byte timelock account fields during role ordering', async () => {
+    await resolveFromRoleLogs({
+      __parsedAccount: '0x7878787878787878787878787878787878787878\0',
+      topics: ['0xgrant-null-byte-account'],
       data: '0x',
       blockNumber: '1601',
       transactionIndex: '0',
