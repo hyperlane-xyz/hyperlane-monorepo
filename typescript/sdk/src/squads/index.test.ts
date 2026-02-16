@@ -2110,6 +2110,30 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps static-call forbidden pattern labels aligned with regexes', () => {
+    const staticCallLabelPattern = /^([A-Za-z0-9_.]+) call$/;
+
+    for (const { label, pattern } of FORBIDDEN_RUNTIME_HARDENING_PATTERNS) {
+      if (label.endsWith('method call')) {
+        continue;
+      }
+      const staticCallLabelMatch = staticCallLabelPattern.exec(label);
+      if (!staticCallLabelMatch) {
+        continue;
+      }
+
+      const [, staticCallee] = staticCallLabelMatch;
+      expect(
+        pattern.test(`${staticCallee}(`),
+        `Expected ${label} pattern to match direct static-call snippet`,
+      ).to.equal(true);
+      expect(
+        pattern.test(`${staticCallee}Suffix(`),
+        `Expected ${label} pattern to avoid suffix-prefixed static names`,
+      ).to.equal(false);
+    }
+  });
+
   it('keeps recursive sdk squads discovery helpers isolated from caller mutation', () => {
     assertPathSnapshotIsolation(
       listSdkSquadsTestFilePaths,
