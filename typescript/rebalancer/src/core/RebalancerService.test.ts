@@ -195,7 +195,7 @@ function createMockContextFactory(
       externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
       metrics?: Metrics;
     }) => ({
-      executeCycle: Sinon.stub().callsFake(async (event: any) => {
+      executeCycle: Sinon.stub().callsFake(async (_event: any) => {
         // Simulate orchestrator behavior: call strategy, then rebalancer, then record metrics
         const strategyWithGetRoutes = options.strategy as any;
         const routes = strategyWithGetRoutes.getRebalancingRoutes?.() ?? [];

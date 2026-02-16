@@ -81,7 +81,7 @@ export class StrategyFactory {
     initialTotalCollateral: bigint,
     logger: Logger,
     metrics?: Metrics,
-    minAmountsByChain?: ChainMap<bigint>,
+    _minAmountsByChain?: ChainMap<bigint>,
   ): IStrategy {
     const bridgeConfigs = this.extractBridgeConfigs(strategyConfig);
 

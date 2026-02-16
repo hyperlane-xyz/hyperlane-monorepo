@@ -359,7 +359,6 @@ export class LiFiBridge implements IExternalBridge {
     );
 
     // Extract private key from ethers Signer (must be a Wallet)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const privateKey = (signer as any).privateKey as string | undefined;
     if (!privateKey) {
       throw new Error(
@@ -372,7 +371,6 @@ export class LiFiBridge implements IExternalBridge {
     const chain = getViemChain(fromChain);
 
     // Get RPC URL from signer's provider
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const provider = signer.provider as any;
     const rpcUrl =
       provider?.connection?.url ?? provider?._getConnection?.()?.url;
