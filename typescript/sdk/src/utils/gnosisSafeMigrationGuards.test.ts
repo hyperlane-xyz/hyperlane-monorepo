@@ -12403,12 +12403,57 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('treats strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-concat-fallback-length predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((void marker || (marker === 1 ? ('len' + 'gth') : undefined)) ?? 'length')]) === false)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('keeps strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-template-mixed-fallback predicates conservative for module specifiers', () => {
     const source = [
       'let reqAlias: any = require;',
       'const marker = Math.random();',
       "const baseline = require('./fixtures/guard-module.js');",
       "if (((delete ([] as any)[((void marker || (marker === 1 ? `sa${'fe'}` : undefined)) ?? 'length')]) === false)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-concat-mixed-fallback predicates conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js');",
+      "if (((delete ([] as any)[((void marker || (marker === 1 ? ('sa' + 'fe') : undefined)) ?? 'length')]) === false)) reqAlias = () => undefined;",
       "reqAlias('./fixtures/other-module.js');",
       'void baseline;',
     ].join('\n');
@@ -28072,12 +28117,47 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-concat-fallback-length predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((void marker || (marker === 1 ? ('len' + 'gth') : undefined)) ?? 'length')]) === false)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('keeps strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-template-mixed-fallback predicates conservative for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
       'const marker = Math.random();',
       "const baseline = require('./fixtures/guard-module.js').default;",
       "if (((delete ([] as any)[((void marker || (marker === 1 ? `sa${'fe'}` : undefined)) ?? 'length')]) === false)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-concat-mixed-fallback predicates conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      "if (((delete ([] as any)[((void marker || (marker === 1 ? ('sa' + 'fe') : undefined)) ?? 'length')]) === false)) reqAlias = () => undefined;",
       "reqAlias('./fixtures/other-module.js').default;",
       'void baseline;',
     ].join('\n');
@@ -36906,11 +36986,40 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/guard-module.js');
   });
 
+  it('treats strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-concat-fallback-length predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((void marker || (marker === 1 ? ('len' + 'gth') : undefined)) ?? 'length')]) === false)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
   it('keeps strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-template-mixed-fallback predicates conservative for module-source aliases in symbol sources', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'const marker = Math.random();',
       "if (((delete ([] as any)[((void marker || (marker === 1 ? `sa${'fe'}` : undefined)) ?? 'length')]) === false)) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-equality direct-delete array-element-nullish-logical-leading-void-conditional-concat-mixed-fallback predicates conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((void marker || (marker === 1 ? ('sa' + 'fe') : undefined)) ?? 'length')]) === false)) moduleAlias = { default: 'not-a-module' };",
       'const postIfDefault = moduleAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
