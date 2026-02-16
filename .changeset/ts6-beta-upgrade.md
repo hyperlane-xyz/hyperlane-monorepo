@@ -36,9 +36,4 @@ TS6-beta compatibility was validated across `pnpm build`, `pnpm lint`, `pnpm tes
 
 Release graph hygiene was also checked with `pnpm changeset status`, confirming a coherent patch-only bump set for this rollout.
 
-Known caveat: some ecosystem tooling still advertises pre-TS6 peer ranges (for example, `@typescript-eslint` packages commonly declare `typescript >=4.8.4 <6.0.0`, some transitive utility variants declare `<5.9.0`, and `ts-jest@29.4.5` declares `typescript >=4.3 <6`). These warnings were treated as non-blocking for this rollout because repository lint/build/test paths remained green under TS6 beta.
-
-Decision notes:
-- TS6 beta was adopted immediately (without waiting for stable 6.0.0) to unblock active development.
-- Existing lint/test tooling was retained; pre-TS6 peer-range warnings were tolerated as non-blocking.
-- This changeset entry was included for release tracking across affected packages.
+Known caveat: some ecosystem tooling advertised pre-TS6 peer ranges (for example, `@typescript-eslint` packages commonly declared `typescript >=4.8.4 <6.0.0`, some transitive utility variants declared `<5.9.0`, and `ts-jest@29.4.5` declared `typescript >=4.3 <6`). These warnings were treated as non-blocking for this rollout because repository lint/build/test paths remained green under TS6 beta.
