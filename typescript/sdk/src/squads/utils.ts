@@ -189,6 +189,8 @@ const ARRAY_SORT = Array.prototype.sort;
 const ARRAY_INCLUDES = Array.prototype.includes;
 const ARRAY_SOME = Array.prototype.some;
 const MATH_MAX = Math.max;
+const NUMBER_FUNCTION = Number;
+const NUMBER_NAN = 0 / 0;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const NUMBER_IS_FINITE = Number.isFinite;
 const OBJECT_PROTOTYPE_TO_STRING = Object.prototype.toString as (
@@ -320,6 +322,14 @@ function arraySomeValue<Value>(
 
 function numberIsSafeInteger(value: unknown): boolean {
   return NUMBER_IS_SAFE_INTEGER(value);
+}
+
+function numberFromValue(value: unknown): number {
+  return NUMBER_FUNCTION(value);
+}
+
+function numberNaNValue(): number {
+  return NUMBER_NAN;
 }
 
 function numberIsFinite(value: unknown): boolean {
@@ -877,11 +887,11 @@ function normalizeSafeIntegerValue(value: unknown): {
   displayValue: string;
 } {
   if (typeof value === 'number' || typeof value === 'bigint') {
-    return { parsedValue: Number(value), displayValue: String(value) };
+    return { parsedValue: numberFromValue(value), displayValue: String(value) };
   }
 
   if (!value || typeof value !== 'object') {
-    return { parsedValue: Number.NaN, displayValue: String(value) };
+    return { parsedValue: numberNaNValue(), displayValue: String(value) };
   }
 
   let displayValue: string;
@@ -892,7 +902,7 @@ function normalizeSafeIntegerValue(value: unknown): {
       inspectPropertyValue(value, 'toString');
     if (toStringReadError) {
       return {
-        parsedValue: Number.NaN,
+        parsedValue: numberNaNValue(),
         displayValue: '[unstringifiable value]',
       };
     }
@@ -905,21 +915,24 @@ function normalizeSafeIntegerValue(value: unknown): {
         objectTagValue = '[unstringifiable value]';
       }
       return {
-        parsedValue: Number.NaN,
+        parsedValue: numberNaNValue(),
         displayValue: objectTagValue,
       };
     }
-    return { parsedValue: Number.NaN, displayValue: '[unstringifiable value]' };
+    return {
+      parsedValue: numberNaNValue(),
+      displayValue: '[unstringifiable value]',
+    };
   }
 
   if (!SAFE_INTEGER_DECIMAL_PATTERN.test(displayValue)) {
     return {
-      parsedValue: Number.NaN,
+      parsedValue: numberNaNValue(),
       displayValue,
     };
   }
 
-  return { parsedValue: Number(displayValue), displayValue };
+  return { parsedValue: numberFromValue(displayValue), displayValue };
 }
 
 export function getSquadAndProvider(
