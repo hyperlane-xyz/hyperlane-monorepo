@@ -275,6 +275,11 @@ export class CollateralDeficitStrategy extends BaseStrategy {
 
     const filteredRoutes = this.filterRoutes(routes, actualBalances);
 
+    // Record metrics for each intent created
+    for (const route of filteredRoutes) {
+      this.metrics?.recordIntentCreated(route, this.name);
+    }
+
     this.logger.debug(
       {
         context: this.constructor.name,

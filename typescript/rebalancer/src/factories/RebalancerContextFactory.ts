@@ -11,15 +11,26 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { objMap, toWei } from '@hyperlane-xyz/utils';
 
+import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
-import { getAllBridges, getStrategyChainNames } from '../config/types.js';
+import {
+  ExecutionType,
+  getAllBridges,
+  getStrategyChainConfig,
+  getStrategyChainNames,
+} from '../config/types.js';
+import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
 import { Rebalancer } from '../core/Rebalancer.js';
+import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
+import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
+import type { IInventoryRebalancer } from '../interfaces/IInventoryRebalancer.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
+import { InventoryMonitor } from '../monitor/InventoryMonitor.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
 import {
@@ -49,7 +60,8 @@ export class RebalancerContextFactory {
    * @param config - The rebalancer config
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
-   * @param multiProvider - MultiProvider instance
+   * @param multiProvider - MultiProvider instance (for movable collateral operations)
+   * @param inventoryMultiProvider - MultiProvider instance for inventory operations (optional)
    * @param multiProtocolProvider - MultiProtocolProvider instance (with mailbox metadata)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
@@ -59,14 +71,24 @@ export class RebalancerContextFactory {
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
+    private readonly inventoryMultiProvider: MultiProvider | undefined,
     private readonly multiProtocolProvider: MultiProtocolProvider,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
   ) {}
 
+  /**
+   * @param config - The rebalancer config
+   * @param multiProvider - MultiProvider instance (for movable collateral operations)
+   * @param inventoryMultiProvider - MultiProvider instance for inventory operations (optional)
+   * @param multiProtocolProvider - MultiProtocolProvider instance (optional, created from multiProvider if not provided)
+   * @param registry - IRegistry instance
+   * @param logger - Logger instance
+   */
   public static async create(
     config: RebalancerConfig,
     multiProvider: MultiProvider,
+    inventoryMultiProvider: MultiProvider | undefined,
     multiProtocolProvider: MultiProtocolProvider | undefined,
     registry: IRegistry,
     logger: Logger,
@@ -117,6 +139,7 @@ export class RebalancerContextFactory {
       warpCore,
       tokensByChainName,
       multiProvider,
+      inventoryMultiProvider,
       extendedMultiProtocolProvider,
       registry,
       logger,
@@ -177,12 +200,41 @@ export class RebalancerContextFactory {
       },
       'Creating Strategy',
     );
+
+    // Build minAmountsByChain from chain configs
+    const chainNames = getStrategyChainNames(this.config.strategyConfig);
+    const minAmountsByChain: ChainMap<bigint> = {};
+
+    for (const chainName of chainNames) {
+      const chainConfig = getStrategyChainConfig(
+        this.config.strategyConfig,
+        chainName,
+      );
+      if (chainConfig?.bridgeMinAcceptedAmount) {
+        const token = this.tokensByChainName[chainName];
+        const decimals = token?.decimals ?? 18;
+        minAmountsByChain[chainName] = BigInt(
+          toWei(chainConfig.bridgeMinAcceptedAmount, decimals),
+        );
+      }
+    }
+
+    this.logger.debug(
+      {
+        minAmountsByChain: Object.fromEntries(
+          Object.entries(minAmountsByChain).map(([k, v]) => [k, v.toString()]),
+        ),
+      },
+      'Built minimum amounts by chain for strategy',
+    );
+
     return StrategyFactory.createStrategy(
       this.config.strategyConfig,
       this.tokensByChainName,
       await this.getInitialTotalCollateral(),
       this.logger,
       metrics,
+      minAmountsByChain,
     );
   }
 
@@ -272,6 +324,7 @@ export class RebalancerContextFactory {
       routersByDomain,
       bridges,
       rebalancerAddress,
+      inventorySignerAddress: this.config.inventorySigner,
     };
 
     // 6. Create ActionTracker
@@ -299,6 +352,95 @@ export class RebalancerContextFactory {
     );
 
     return { tracker, adapter };
+  }
+
+  /**
+   * Creates inventory components for inventory-based rebalancing.
+   * Returns null if inventory config is not available.
+   *
+   * @param actionTracker - ActionTracker instance for tracking inventory actions
+   */
+  public async createInventoryComponents(
+    actionTracker: IActionTracker,
+  ): Promise<{
+    inventoryMonitor: IInventoryMonitor;
+    inventoryRebalancer: IInventoryRebalancer;
+    bridge: IExternalBridge;
+  } | null> {
+    const { inventorySigner, lifiIntegrator } = this.config;
+
+    // Check if inventory config is available
+    if (!inventorySigner || !lifiIntegrator) {
+      this.logger.debug(
+        'Inventory config not available, skipping inventory components creation',
+      );
+      return null;
+    }
+
+    this.logger.debug(
+      { warpRouteId: this.config.warpRouteId, inventorySigner },
+      'Creating inventory components',
+    );
+
+    // 1. Identify inventory chains from strategy config
+    const inventoryChains = getStrategyChainNames(
+      this.config.strategyConfig,
+    ).filter((chainName) => {
+      const chainConfig = getStrategyChainConfig(
+        this.config.strategyConfig,
+        chainName,
+      );
+      return chainConfig?.executionType === ExecutionType.Inventory;
+    });
+
+    if (inventoryChains.length === 0) {
+      this.logger.debug('No inventory chains configured');
+      return null;
+    }
+
+    // 2. Create LiFiBridge
+    const bridge = new LiFiBridge(
+      {
+        integrator: lifiIntegrator,
+      },
+      this.logger,
+    );
+
+    // 3. Create InventoryMonitor
+    const inventoryMonitor = new InventoryMonitor(
+      {
+        inventorySigner,
+        inventoryChains,
+      },
+      this.warpCore,
+      this.logger,
+    );
+
+    // 4. Create InventoryRebalancer
+    // Use inventoryMultiProvider for inventory operations if available, otherwise fall back to multiProvider
+    const inventoryRebalancer = new InventoryRebalancer(
+      {
+        inventorySigner,
+        inventoryMultiProvider: this.inventoryMultiProvider,
+        inventoryChains,
+      },
+      inventoryMonitor,
+      actionTracker,
+      bridge,
+      this.warpCore,
+      this.multiProvider,
+      this.logger,
+    );
+
+    this.logger.info(
+      {
+        inventoryChains,
+        inventorySigner,
+      },
+      'Inventory components created successfully',
+    );
+
+    return { inventoryMonitor, inventoryRebalancer, bridge };
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {

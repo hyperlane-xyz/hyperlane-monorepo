@@ -13,6 +13,8 @@ export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
     public readonly strategyConfig: StrategyConfig[],
+    public readonly inventorySigner?: string,
+    public readonly lifiIntegrator?: string,
   ) {}
 
   /**
@@ -28,7 +30,8 @@ export class RebalancerConfig {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { warpRouteId, strategy } = validationResult.data;
+    const { warpRouteId, strategy, inventorySigner, lifiIntegrator } =
+      validationResult.data;
 
     // Check that at least one chain is configured across all strategies
     const chainNames = getStrategyChainNames(strategy);
@@ -36,6 +39,11 @@ export class RebalancerConfig {
       throw new Error('No chains configured');
     }
 
-    return new RebalancerConfig(warpRouteId, strategy);
+    return new RebalancerConfig(
+      warpRouteId,
+      strategy,
+      inventorySigner,
+      lifiIntegrator,
+    );
   }
 }

@@ -26,6 +26,7 @@ export class StrategyFactory {
    * @param initialTotalCollateral The initial total collateral of the rebalancer
    * @param logger The logger to use for the strategy
    * @param metrics The metrics to use for the strategy
+   * @param minAmountsByChain Optional minimum amounts per chain for filtering routes
    * @returns A concrete strategy implementation
    */
   static createStrategy(
@@ -34,6 +35,7 @@ export class StrategyFactory {
     initialTotalCollateral: bigint,
     logger: Logger,
     metrics?: Metrics,
+    minAmountsByChain?: ChainMap<bigint>,
   ): IStrategy {
     if (strategyConfigs.length === 0) {
       throw new Error('At least one strategy must be configured');
@@ -47,6 +49,7 @@ export class StrategyFactory {
         initialTotalCollateral,
         logger,
         metrics,
+        minAmountsByChain,
       );
     }
 
@@ -58,6 +61,7 @@ export class StrategyFactory {
         initialTotalCollateral,
         logger,
         metrics,
+        minAmountsByChain,
       ),
     );
     return new CompositeStrategy(subStrategies, logger);
@@ -72,6 +76,7 @@ export class StrategyFactory {
     initialTotalCollateral: bigint,
     logger: Logger,
     metrics?: Metrics,
+    minAmountsByChain?: ChainMap<bigint>,
   ): IStrategy {
     const bridgeConfigs = this.extractBridgeConfigs(strategyConfig);
 
