@@ -628,6 +628,47 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
     }
   });
 
+  it('falls back to inference when String strategyUrl contains null byte and inference context is available', async () => {
+    const safeOwner = '0x2222222222222222222222222222222222222222';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => safeOwner,
+    } as any);
+    const safeStub = sinon.stub(ISafe__factory, 'connect').returns({
+      getThreshold: async () => 1,
+      nonce: async () => 0,
+    } as any);
+
+    try {
+      const nullByteStringStrategyUrl = new String('./bad\0strategy.yaml') as any;
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context: {
+          multiProvider: {
+            getProtocol: () => 'ethereum' as any,
+            getSignerAddress: async () =>
+              '0x4444444444444444444444444444444444444444',
+            getProvider: () => ({}),
+          },
+          registry: {
+            getAddresses: async () => ({}),
+          },
+        } as any,
+        strategyUrl: nullByteStringStrategyUrl,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(ownableStub.callCount).to.equal(1);
+      expect(safeStub.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
+
   it('loads explicit strategy from String strategyUrl when String Symbol.hasInstance throws', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-strategy-url-string-object-hasinstance-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {
