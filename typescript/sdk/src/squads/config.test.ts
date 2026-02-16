@@ -329,6 +329,23 @@ describe('squads config', () => {
     );
   });
 
+  it('uses deterministic placeholder when unsupported-chain length getter throws generic-object Error messages', () => {
+    const hostileUnsupportedChains = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('[object Object]');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(hostileUnsupportedChains),
+    ).to.throw(
+      'Failed to read unsupported squads chains length: [unstringifiable error]',
+    );
+  });
+
   it('resolves explicit chains and defaults while validating runtime input', () => {
     expect(resolveSquadsChains()).to.deep.equal(getSquadsChains());
     expect(resolveSquadsChains([])).to.deep.equal(getSquadsChains());
