@@ -1235,7 +1235,8 @@ function doesPatternMatchSource(source: string, pattern: RegExp): boolean {
 
 function stripStatefulRegexFlags(flags: string): string {
   let nonStatefulFlags = '';
-  for (const currentFlag of flags) {
+  for (let index = 0; index < flags.length; index += 1) {
+    const currentFlag = flags[index];
     if (currentFlag !== 'g' && currentFlag !== 'y') {
       nonStatefulFlags += currentFlag;
     }
@@ -2339,6 +2340,42 @@ describe('squads barrel exports', () => {
 
     for (const { input, expected } of flagStripCases) {
       expect(stripStatefulRegexFlags(input)).to.equal(expected);
+    }
+  });
+
+  it('keeps stateful regex-flag stripping stable when String iterator is mutated', () => {
+    const stringIteratorSymbol = Symbol.iterator;
+    const originalStringIteratorDescriptor = Object.getOwnPropertyDescriptor(
+      String.prototype,
+      stringIteratorSymbol,
+    );
+
+    Object.defineProperty(String.prototype, stringIteratorSymbol, {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new Error(
+          'Expected stateful regex-flag stripping to avoid String iterator dependence',
+        );
+      },
+    });
+
+    try {
+      expect(stripStatefulRegexFlags('gimy')).to.equal('im');
+      expect(stripStatefulRegexFlags('yygii')).to.equal('ii');
+      expect(stripStatefulRegexFlags('')).to.equal('');
+    } finally {
+      if (originalStringIteratorDescriptor) {
+        Object.defineProperty(
+          String.prototype,
+          stringIteratorSymbol,
+          originalStringIteratorDescriptor,
+        );
+      } else {
+        delete (
+          String.prototype as unknown as Record<string | symbol, unknown>
+        )[stringIteratorSymbol];
+      }
     }
   });
 
