@@ -8,6 +8,7 @@ describe('ExtendedChainSubmissionStrategySchema', () => {
   const CHAIN = 'ethereum';
   const ADDRESS_1 = '0x1234567890123456789012345678901234567890';
   const ADDRESS_2 = '0x9876543210987654321098765432109876543210';
+  const ADDRESS_3 = '0x1111111111111111111111111111111111111111';
 
   it('preprocesses submitterOverrides with inferred chain fields', () => {
     const input = {
@@ -174,6 +175,68 @@ describe('ExtendedChainSubmissionStrategySchema', () => {
 
     const result = ExtendedChainSubmissionStrategySchema.safeParse(input);
     expect(result.success).to.equal(false);
+  });
+
+  it('ignores submitterOverrides when override key enumeration throws during preprocessing', () => {
+    const throwingOverrides = new Proxy(
+      {
+        [ADDRESS_1]: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+      },
+      {
+        ownKeys: () => {
+          throw new Error('boom');
+        },
+      },
+    );
+    const input = {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+        submitterOverrides: throwingOverrides,
+      },
+    };
+
+    const parsed = ExtendedChainSubmissionStrategySchema.parse(input);
+    expect(parsed[CHAIN].submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(parsed[CHAIN].submitterOverrides).to.equal(undefined);
+  });
+
+  it('keeps valid overrides when another override getter throws during preprocessing', () => {
+    const overrides: Record<string, unknown> = {
+      [ADDRESS_1]: {
+        type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN,
+      },
+    };
+    Object.defineProperty(overrides, ADDRESS_2, {
+      enumerable: true,
+      get: () => {
+        throw new Error('boom');
+      },
+    });
+
+    const input = {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+        submitterOverrides: overrides,
+      },
+    };
+
+    const parsed = ExtendedChainSubmissionStrategySchema.parse(input);
+    expect(parsed[CHAIN].submitterOverrides).to.not.equal(undefined);
+    expect(Object.keys(parsed[CHAIN].submitterOverrides ?? {})).to.deep.equal([
+      ADDRESS_1,
+    ]);
+    expect(parsed[CHAIN].submitterOverrides?.[ADDRESS_1]?.type).to.equal(
+      TxSubmitterType.JSON_RPC,
+    );
+    expect(parsed[CHAIN].submitterOverrides?.[ADDRESS_3]).to.equal(undefined);
   });
 
   it('fails when ICA override owner and safe address mismatch', () => {

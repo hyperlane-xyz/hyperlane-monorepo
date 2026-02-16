@@ -90,10 +90,21 @@ function preprocessExtendedChainSubmissionStrategy(value: unknown) {
   const raw =
     (cloneOwnEnumerableObject(value) as Record<string, any> | null) ??
     (Object.create(null) as Record<string, any>);
-  const preprocessedBase = preprocessChainSubmissionStrategy(raw as any) as Record<
+  let preprocessedBase = Object.create(null) as Record<
     string,
     { submitter: SubmitterMetadata }
   >;
+  try {
+    preprocessedBase = preprocessChainSubmissionStrategy(raw as any) as Record<
+      string,
+      { submitter: SubmitterMetadata }
+    >;
+  } catch {
+    preprocessedBase = Object.create(null) as Record<
+      string,
+      { submitter: SubmitterMetadata }
+    >;
+  }
 
   const result = Object.create(null) as Record<string, any>;
   for (const [chain, strategy] of Object.entries(raw)) {
@@ -114,18 +125,45 @@ function preprocessExtendedChainSubmissionStrategy(value: unknown) {
 
     let preprocessedOverrides: Record<string, SubmitterMetadata> | undefined;
     if (submitterOverrides) {
-      preprocessedOverrides = Object.fromEntries(
-        Object.entries(submitterOverrides).map(([target, submitter]) => [
-          target,
-          (
-            preprocessChainSubmissionStrategy({
-              [chain]: {
-                submitter,
-              },
-            } as any) as Record<string, { submitter: SubmitterMetadata }>
-          )[chain].submitter,
-        ]),
-      );
+      let overrideTargets: string[] = [];
+      try {
+        overrideTargets = Object.keys(submitterOverrides);
+      } catch {
+        overrideTargets = [];
+      }
+
+      const normalizedOverrides = Object.create(null) as Record<
+        string,
+        SubmitterMetadata
+      >;
+
+      for (const target of overrideTargets) {
+        const overrideSubmitter = getOwnObjectField(submitterOverrides, target);
+        if (overrideSubmitter === undefined) {
+          continue;
+        }
+
+        try {
+          const preprocessedOverride = preprocessChainSubmissionStrategy({
+            [chain]: {
+              submitter: overrideSubmitter,
+            },
+          } as any) as Record<string, { submitter: SubmitterMetadata }>;
+          const preprocessedOverrideChain = getOwnObjectField(
+            preprocessedOverride,
+            chain,
+          ) as { submitter: SubmitterMetadata } | undefined;
+          if (preprocessedOverrideChain?.submitter) {
+            normalizedOverrides[target] = preprocessedOverrideChain.submitter;
+          }
+        } catch {
+          continue;
+        }
+      }
+
+      if (Object.keys(normalizedOverrides).length > 0) {
+        preprocessedOverrides = normalizedOverrides;
+      }
     }
 
     const normalizedStrategy = Object.create(null) as Record<string, unknown>;
