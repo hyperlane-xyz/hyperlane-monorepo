@@ -314,8 +314,23 @@ function formatValidatorsWithAliases(
   if (!config) return [...validators];
 
   const aliasMap = new Map<string, string>();
-  for (const validator of config.validators) {
-    aliasMap.set(validator.address.toLowerCase(), validator.alias);
+  const validatorsValue = readPropertyOrThrow(config, 'validators');
+  const { isArray: validatorsAreArray, readFailed: validatorsReadFailed } =
+    inspectArrayValue(validatorsValue);
+  if (validatorsReadFailed || !validatorsAreArray) {
+    return [...validators];
+  }
+
+  for (const validator of validatorsValue as readonly unknown[]) {
+    if (!isRecordObject(validator)) {
+      continue;
+    }
+    const addressValue = readPropertyOrThrow(validator, 'address');
+    const aliasValue = readPropertyOrThrow(validator, 'alias');
+    if (typeof addressValue !== 'string' || typeof aliasValue !== 'string') {
+      continue;
+    }
+    aliasMap.set(addressValue.toLowerCase(), aliasValue);
   }
 
   return validators.map((address) => {
@@ -712,11 +727,12 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelEnrollRemoteRouterInstruction;
-          const domain = instruction.config.domain;
+          const configValue = readPropertyOrThrow(instruction, 'config');
+          const domain = readPropertyOrThrow(configValue, 'domain');
           const domainForDisplay = formatIntegerValidationValue(domain);
           const chainName =
             this.tryResolveRemoteChainNameForDisplay(domain) ?? undefined;
-          const router = instruction.config.routerAddress;
+          const router = readPropertyOrThrow(configValue, 'routerAddress');
           const chainInfo = chainName
             ? `${chainName} (${domainForDisplay})`
             : domainForDisplay;
@@ -742,13 +758,22 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelEnrollRemoteRoutersInstruction;
-          const routers = instruction.configs.map((config) => ({
-            domain: config.domain,
-            chainName:
-              this.tryResolveRemoteChainNameForDisplay(config.domain) ??
-              undefined,
-            router: config.routerAddress,
-          }));
+          const configsValue = readPropertyOrThrow(instruction, 'configs');
+          const { isArray: configsAreArray, readFailed: configsReadFailed } =
+            inspectArrayValue(configsValue);
+          assert(
+            !configsReadFailed && configsAreArray,
+            `Malformed warp route router configs on ${chain}: expected array, got ${getUnknownValueTypeName(configsValue)}`,
+          );
+          const routers = (configsValue as readonly unknown[]).map((config) => {
+            const domain = readPropertyOrThrow(config, 'domain');
+            return {
+              domain,
+              chainName:
+                this.tryResolveRemoteChainNameForDisplay(domain) ?? undefined,
+              router: readPropertyOrThrow(config, 'routerAddress'),
+            };
+          });
 
           return {
             instructionType:
@@ -769,13 +794,22 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelSetDestinationGasConfigsInstruction;
-          const configs = instruction.configs.map((config) => ({
-            domain: config.domain,
-            chainName:
-              this.tryResolveRemoteChainNameForDisplay(config.domain) ??
-              undefined,
-            gas: config.gas,
-          }));
+          const configsValue = readPropertyOrThrow(instruction, 'configs');
+          const { isArray: configsAreArray, readFailed: configsReadFailed } =
+            inspectArrayValue(configsValue);
+          assert(
+            !configsReadFailed && configsAreArray,
+            `Malformed warp route gas configs on ${chain}: expected array, got ${getUnknownValueTypeName(configsValue)}`,
+          );
+          const configs = (configsValue as readonly unknown[]).map((config) => {
+            const domain = readPropertyOrThrow(config, 'domain');
+            return {
+              domain,
+              chainName:
+                this.tryResolveRemoteChainNameForDisplay(domain) ?? undefined,
+              gas: readPropertyOrThrow(config, 'gas'),
+            };
+          });
 
           return {
             instructionType:
@@ -796,11 +830,12 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelSetInterchainSecurityModuleInstruction;
-          const ism = instruction.ismPubkey
+          const ismPubkeyValue = readPropertyOrThrow(instruction, 'ismPubkey');
+          const ism = ismPubkeyValue
             ? this.formatAddressLikeForDisplay(
                 chain,
                 'warp ISM pubkey',
-                instruction.ismPubkey,
+                ismPubkeyValue,
               )
             : null;
 
@@ -823,22 +858,31 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelSetInterchainGasPaymasterInstruction;
-          const igpConfig = instruction.igpConfig;
+          const igpConfig = readPropertyOrThrow(instruction, 'igpConfig');
+          const programIdPubkeyValue = igpConfig
+            ? readPropertyOrThrow(igpConfig, 'programIdPubkey')
+            : undefined;
+          const igpTypeNameValue = igpConfig
+            ? readPropertyOrThrow(igpConfig, 'igpTypeName')
+            : undefined;
+          const igpAccountPubkeyValue = igpConfig
+            ? readPropertyOrThrow(igpConfig, 'igpAccountPubkey')
+            : undefined;
           const igp = igpConfig
             ? {
-                program: igpConfig.programIdPubkey
+                program: programIdPubkeyValue
                   ? this.formatAddressLikeForDisplay(
                       chain,
                       'warp IGP program pubkey',
-                      igpConfig.programIdPubkey,
+                      programIdPubkeyValue,
                     )
                   : '',
-                type: igpConfig.igpTypeName,
-                account: igpConfig.igpAccountPubkey
+                type: igpTypeNameValue,
+                account: igpAccountPubkeyValue
                   ? this.formatAddressLikeForDisplay(
                       chain,
                       'warp IGP account pubkey',
-                      igpConfig.igpAccountPubkey,
+                      igpAccountPubkeyValue,
                     )
                   : '',
               }
@@ -865,11 +909,15 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelHypTokenTransferOwnershipInstruction;
-          const newOwner = instruction.newOwnerPubkey
+          const newOwnerPubkeyValue = readPropertyOrThrow(
+            instruction,
+            'newOwnerPubkey',
+          );
+          const newOwner = newOwnerPubkeyValue
             ? this.formatAddressLikeForDisplay(
                 chain,
                 'warp ownership target',
-                instruction.newOwnerPubkey,
+                newOwnerPubkeyValue,
               )
             : null;
 
@@ -955,10 +1003,14 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelMailboxSetDefaultIsmInstruction;
+          const newIsmPubkeyValue = readPropertyOrThrow(
+            instruction,
+            'newIsmPubkey',
+          );
           const newDefaultIsm = this.formatAddressLikeForDisplay(
             chain,
             'mailbox default ISM',
-            instruction.newIsmPubkey,
+            newIsmPubkeyValue,
           );
 
           return {
@@ -977,12 +1029,16 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelMailboxTransferOwnershipInstruction;
+          const newOwnerPubkeyValue = readPropertyOrThrow(
+            instruction,
+            'newOwnerPubkey',
+          );
 
-          if (instruction.newOwnerPubkey) {
+          if (newOwnerPubkeyValue) {
             const newOwner = this.formatAddressLikeForDisplay(
               chain,
               'mailbox ownership target',
-              instruction.newOwnerPubkey,
+              newOwnerPubkeyValue,
             );
             return {
               instructionType: SealevelMailboxInstructionName[discriminator],
@@ -1079,12 +1135,27 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelMultisigIsmSetValidatorsInstruction;
-          const remoteDomainForDisplay = formatIntegerValidationValue(
-            instruction.domain,
+          const domainValue = readPropertyOrThrow(instruction, 'domain');
+          const thresholdValue = readPropertyOrThrow(instruction, 'threshold');
+          const validatorsValue = readPropertyOrThrow(
+            instruction,
+            'validators',
           );
-          const remoteChain = this.tryResolveRemoteChainNameForDisplay(
-            instruction.domain,
+          const {
+            propertyValue: validatorCountValue,
+            readError: validatorCountReadError,
+          } = inspectPropertyValue(validatorsValue, 'length');
+          if (validatorCountReadError) {
+            throw validatorCountReadError;
+          }
+          const validatorAddressesValue = readPropertyOrThrow(
+            instruction,
+            'validatorAddresses',
           );
+          const remoteDomainForDisplay =
+            formatIntegerValidationValue(domainValue);
+          const remoteChain =
+            this.tryResolveRemoteChainNameForDisplay(domainValue);
           const chainInfo = remoteChain
             ? `${remoteChain} (${remoteDomainForDisplay})`
             : remoteDomainForDisplay;
@@ -1092,12 +1163,16 @@ export class SquadsTransactionReader {
           return {
             instructionType: SealevelMultisigIsmInstructionName[discriminator],
             data: {
-              domain: instruction.domain,
-              threshold: instruction.threshold,
-              validatorCount: instruction.validators.length,
-              validators: instruction.validatorAddresses,
+              domain: domainValue,
+              threshold: thresholdValue,
+              validatorCount: validatorCountValue,
+              validators: validatorAddressesValue,
             },
-            insight: `Set ${instruction.validators.length} validator(s) with threshold ${instruction.threshold} for ${chainInfo}`,
+            insight: `Set ${formatIntegerValidationValue(
+              validatorCountValue,
+            )} validator(s) with threshold ${formatIntegerValidationValue(
+              thresholdValue,
+            )} for ${chainInfo}`,
             warnings: [],
           };
         }
@@ -1110,12 +1185,16 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelMultisigIsmTransferOwnershipInstruction;
+          const newOwnerPubkeyValue = readPropertyOrThrow(
+            instruction,
+            'newOwnerPubkey',
+          );
 
-          if (instruction.newOwnerPubkey) {
+          if (newOwnerPubkeyValue) {
             const newOwner = this.formatAddressLikeForDisplay(
               chain,
               'multisig ISM ownership target',
-              instruction.newOwnerPubkey,
+              newOwnerPubkeyValue,
             );
             return {
               instructionType:
