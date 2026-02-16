@@ -4565,6 +4565,18 @@ function getSdkRequiredSafeExportAllowlist(): string[] {
   );
 }
 
+function getSdkNonRuntimeSafeExportAllowlist(): string[] {
+  const sdkGuardSuitePath = path.resolve(
+    process.cwd(),
+    '../sdk/src/utils/gnosisSafeMigrationGuards.test.ts',
+  );
+  const sdkGuardSuiteSource = fs.readFileSync(sdkGuardSuitePath, 'utf8');
+  return extractStringLiteralArrayConstant(
+    sdkGuardSuiteSource,
+    'NON_RUNTIME_GNOSIS_SAFE_EXPORTS',
+  );
+}
+
 describe('Safe migration guards', () => {
   it('extracts wildcard sdk module re-exports with fallback symbols', () => {
     const source = "export * from './fixtures/guard-module.js';";
@@ -46150,8 +46162,15 @@ describe('Safe migration guards', () => {
   });
 
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
+    const sdkNonRuntimeAllowlist = new Set(
+      getSdkNonRuntimeSafeExportAllowlist(),
+    );
+    expect(sdkNonRuntimeAllowlist.size).to.be.greaterThan(
+      0,
+      'Expected sdk non-runtime safe export allowlist to be non-empty',
+    );
     const runtimeRequiredExports = REQUIRED_SAFE_HELPER_EXPORTS.filter(
-      (symbol) => symbol !== 'ParseableSafeTx',
+      (symbol) => !sdkNonRuntimeAllowlist.has(symbol),
     );
     expect(new Set(runtimeRequiredExports).size).to.equal(
       runtimeRequiredExports.length,
