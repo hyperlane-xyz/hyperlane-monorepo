@@ -244,8 +244,6 @@ const REFLECT_APPLY_MONKEY_PATCH_PATTERN =
   /Object\.defineProperty\(\s*Reflect\s*,\s*['"]apply['"]/;
 const REFLECT_APPLY_CAPTURE_DECLARATION_PATTERN =
   /\bconst\s+REFLECT_APPLY\s*=\s*Reflect\.apply\b/;
-const REFLECT_APPLY_MUTATION_TITLE_SUBSTRING_PATTERN =
-  /Reflect\.apply is mutated/;
 const REFLECT_APPLY_CAPTURE_DECLARATION_SEARCH_PATTERN =
   /const REFLECT_APPLY = Reflect\.apply/;
 const REFLECT_APPLY_IDENTIFIER_REFERENCE_STATEMENT = 'Reflect.apply';
@@ -1199,7 +1197,7 @@ function listSdkSquadsNonTestSourceFilePathsContainingPattern(
 }
 
 function listReflectApplyMutationTestPathsFromPatternDiscovery(
-  pattern: RegExp = REFLECT_APPLY_MUTATION_TITLE_SUBSTRING_PATTERN,
+  pattern: RegExp = REFLECT_APPLY_MUTATION_TEST_TITLE_PATTERN,
 ): readonly string[] {
   return listSdkSquadsTestFilePathsContainingPattern(pattern);
 }
@@ -2256,6 +2254,48 @@ describe('squads barrel exports', () => {
     ]);
   });
 
+  it('keeps Reflect.apply pattern-discovery helper defaults aligned with canonical inventories', () => {
+    expect(
+      listReflectApplyMutationTestPathsFromPatternDiscovery(),
+    ).to.deep.equal([
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_MUTATION_TEST_FILE_PATHS,
+    ]);
+    expect(
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(),
+    ).to.deep.equal([
+      ...EXPECTED_SDK_SQUADS_REFLECT_APPLY_CAPTURED_RUNTIME_SOURCE_PATHS,
+    ]);
+  });
+
+  it('keeps Reflect.apply pattern-discovery helper custom patterns deterministic and lastIndex-safe', () => {
+    const mutationNonGlobalPattern = /Reflect\.apply is mutated/;
+    const mutationGlobalPattern = /Reflect\.apply is mutated/g;
+    const captureGlobalPattern = /const REFLECT_APPLY = Reflect\.apply/g;
+    mutationGlobalPattern.lastIndex = 4;
+    captureGlobalPattern.lastIndex = 7;
+
+    expect(
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        mutationGlobalPattern,
+      ),
+    ).to.deep.equal(
+      listReflectApplyMutationTestPathsFromPatternDiscovery(
+        mutationNonGlobalPattern,
+      ),
+    );
+    expect(
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        captureGlobalPattern,
+      ),
+    ).to.deep.equal(
+      listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery(
+        REFLECT_APPLY_CAPTURE_DECLARATION_SEARCH_PATTERN,
+      ),
+    );
+    expect(mutationGlobalPattern.lastIndex).to.equal(4);
+    expect(captureGlobalPattern.lastIndex).to.equal(7);
+  });
+
   it('keeps sdk squads pattern-path discovery stable for global regex inputs', () => {
     const nonGlobalMutationPathPattern = /Reflect\.apply is mutated/;
     const globalMutationPathPattern = /Reflect\.apply is mutated/g;
@@ -2302,7 +2342,7 @@ describe('squads barrel exports', () => {
 
   it('keeps sdk squads pattern-path discovery preserving non-stateful regex flags', () => {
     const baselineMutationDiscovery =
-      listReflectApplyMutationTestPathsFromPatternDiscovery();
+      listSdkSquadsTestFilePathsContainingPattern(/reflect\.apply is mutated/i);
     const baselineCaptureDiscovery =
       listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
     const caseInsensitiveMutationPattern = /reflect\.apply is mutated/i;
@@ -2559,7 +2599,7 @@ describe('squads barrel exports', () => {
 
   it('keeps sdk squads pattern-path discovery stable when global RegExp is mutated', () => {
     const baselineMutationDiscovery =
-      listReflectApplyMutationTestPathsFromPatternDiscovery();
+      listSdkSquadsTestFilePathsContainingPattern(/Reflect\.apply is mutated/);
     const baselineCaptureDiscovery =
       listReflectApplyCaptureRuntimeSourcePathsFromPatternDiscovery();
     const originalRegExp = RegExp;
