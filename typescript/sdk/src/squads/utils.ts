@@ -192,7 +192,7 @@ const BIGINT_FUNCTION = BigInt as (
   value: string | number | bigint | boolean,
 ) => bigint;
 const BOOLEAN_FUNCTION = Boolean;
-const PROMISE_ALL = Promise.all.bind(Promise) as <Value>(
+const PROMISE_ALL = Promise.all as <Value>(
   values: readonly (Value | PromiseLike<Value>)[],
 ) => Promise<Value[]>;
 const MATH_MAX = Math.max;
@@ -351,7 +351,7 @@ function booleanFromValue(value: unknown): boolean {
 function promiseAllValues<Value>(
   values: readonly (Value | PromiseLike<Value>)[],
 ): Promise<Value[]> {
-  return PROMISE_ALL(values);
+  return PROMISE_ALL.call(Promise, values) as Promise<Value[]>;
 }
 
 function numberFromValue(value: unknown): number {

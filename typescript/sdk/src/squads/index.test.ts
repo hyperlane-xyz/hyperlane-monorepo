@@ -344,6 +344,14 @@ const FORBIDDEN_RUNTIME_HARDENING_PATTERNS = Object.freeze([
     pattern: /\.set\s*\(/,
   }),
   Object.freeze({
+    label: '.bind method call',
+    pattern: /\.bind\s*\(/,
+  }),
+  Object.freeze({
+    label: '.apply method call',
+    pattern: /\.apply\s*\(/,
+  }),
+  Object.freeze({
     label: '.clear method call',
     pattern: /\.clear\s*\(/,
   }),
@@ -618,6 +626,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.add method call',
   '.get method call',
   '.set method call',
+  '.bind method call',
+  '.apply method call',
   '.clear method call',
   '.delete method call',
   '.includes method call',
@@ -652,8 +662,8 @@ const REQUIRED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_LABELS = Object.freeze([
   '.toSpliced method call',
   '.with method call',
 ]);
-const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 102;
-const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 78;
+const EXPECTED_FORBIDDEN_RUNTIME_HARDENING_PATTERN_COUNT = 104;
+const EXPECTED_REQUIRED_FORBIDDEN_RUNTIME_HARDENING_LABEL_COUNT = 80;
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {

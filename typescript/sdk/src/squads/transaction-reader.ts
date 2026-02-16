@@ -265,7 +265,10 @@ function arrayPushValues<Value>(
   values: Value[],
   additionalValues: readonly Value[],
 ): number {
-  return ARRAY_PUSH.apply(values, additionalValues as Value[]);
+  for (const additionalValue of additionalValues) {
+    arrayPushValue(values, additionalValue);
+  }
+  return values.length;
 }
 
 function stringTrim(value: string): string {

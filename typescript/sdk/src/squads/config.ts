@@ -132,7 +132,6 @@ const SQUADS_CHAINS = objectFreezeValue(
   untypedSquadsChainKeys as SquadsChainName[],
 ) as readonly SquadsChainName[];
 const SQUADS_CHAIN_SET = new Set<string>(SQUADS_CHAINS);
-const SQUADS_CHAIN_SET_HAS = SQUADS_CHAIN_SET.has.bind(SQUADS_CHAIN_SET);
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
 const SQUADS_CHAINS_DISPLAY_LIST = ARRAY_JOIN.call(SQUADS_CHAINS, ', ');
@@ -188,7 +187,9 @@ export function getSquadsChains(): SquadsChainName[] {
 export function isSquadsChain(
   chainName: unknown,
 ): chainName is SquadsChainName {
-  return typeof chainName === 'string' && SQUADS_CHAIN_SET_HAS(chainName);
+  return (
+    typeof chainName === 'string' && setHasValue(SQUADS_CHAIN_SET, chainName)
+  );
 }
 
 function getUnknownValueTypeName(value: unknown): string {
