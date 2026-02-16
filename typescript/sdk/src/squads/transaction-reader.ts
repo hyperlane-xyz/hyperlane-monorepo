@@ -634,6 +634,13 @@ export class SquadsTransactionReader {
       );
     }
 
+    const protocolType = getUnknownValueTypeName(protocol);
+    if (protocolType === UNREADABLE_VALUE_TYPE) {
+      throw new Error(
+        `Invalid protocol for warp route ${routeName} on ${chain}: expected ProtocolType value, got ${protocolType}`,
+      );
+    }
+
     const { thenValue, readError: thenReadError } = getThenValue(protocol);
     if (thenReadError) {
       throw new Error(
@@ -2425,6 +2432,13 @@ export class SquadsTransactionReader {
     } catch (error) {
       throw new Error(
         `Failed to resolve ${label} for domain ${remoteDomain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
+
+    const remoteChainType = getUnknownValueTypeName(remoteChain);
+    if (remoteChainType === UNREADABLE_VALUE_TYPE) {
+      throw new Error(
+        `Malformed resolved ${label} for domain ${remoteDomain}: expected string, got ${remoteChainType}`,
       );
     }
 
