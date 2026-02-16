@@ -4930,6 +4930,58 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('records exactly one error when transaction account data getter throws blank Error messages', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: unknown,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () =>
+      new Proxy(
+        {},
+        {
+          get(target, property, receiver) {
+            if (property === 'data') {
+              throw new Error('   ');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to read transaction account data on solanamainnet: [unstringifiable error]',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error:
+          'Error: Failed to read transaction account data on solanamainnet: [unstringifiable error]',
+      },
+    ]);
+  });
+
   it('records exactly one error when transaction account data type is malformed', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
