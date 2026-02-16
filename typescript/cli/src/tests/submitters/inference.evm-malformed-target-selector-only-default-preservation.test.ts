@@ -147,6 +147,24 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target selector-o
     );
   });
 
+  it('preserves explicit default submitter when boxed transaction data toString returns non-string and only selector override exists', async () => {
+    const strategyPath = createStrategyPath('boxed-non-string-data-tostring');
+    writeSelectorOnlyStrategy(strategyPath);
+
+    const boxedData = new String('0xdeadbeef') as any;
+    boxedData.toString = () => 123 as any;
+
+    const batches = await resolveSingleBatch(
+      { ...TX, data: boxedData },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('still applies selector-specific override when transaction target is well-formed', async () => {
     const strategyPath = createStrategyPath('well-formed-target');
     writeSelectorOnlyStrategy(strategyPath);

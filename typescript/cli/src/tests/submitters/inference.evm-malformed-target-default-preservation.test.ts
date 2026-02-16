@@ -203,6 +203,22 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target default pr
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('still applies valid EVM target override when boxed transaction data toString returns non-string', async () => {
+    const strategyPath = createStrategyPath('boxed-non-string-data-tostring');
+    writeTargetOverrideStrategy(strategyPath);
+
+    const boxedData = new String('0xdeadbeef') as any;
+    boxedData.toString = () => 123 as any;
+
+    const batches = await resolveSingleBatch(
+      { ...TX, data: boxedData },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('routes valid targets while preserving default for transactions with throwing target getters', async () => {
     const strategyPath = createStrategyPath('mixed-valid-and-throwing-target');
     writeTargetOverrideStrategy(strategyPath);
