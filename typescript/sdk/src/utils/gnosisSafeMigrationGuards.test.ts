@@ -1899,15 +1899,23 @@ function readStaticDeleteResultForElementTarget(
       if (
         ts.isBinaryExpression(nullishLeft) &&
         nullishLeft.operatorToken.kind === ts.SyntaxKind.BarBarToken &&
-        readStaticNullishCondition(nullishLeft.right) === true &&
         nullishRightPrimitive !== STATIC_PRIMITIVE_UNKNOWN
       ) {
-        const logicalSource = unwrapInitializerExpression(nullishLeft.left);
-        if (
-          ts.isBinaryExpression(logicalSource) &&
-          logicalSource.operatorToken.kind ===
-            ts.SyntaxKind.AmpersandAmpersandToken
-        ) {
+        const readSharedLogicalNullishFallbackKey = (
+          logicalCandidate: ts.Expression,
+          nullishCandidate: ts.Expression,
+        ): StaticPrimitiveValue | typeof STATIC_PRIMITIVE_UNKNOWN => {
+          if (readStaticNullishCondition(nullishCandidate) !== true) {
+            return STATIC_PRIMITIVE_UNKNOWN;
+          }
+          const logicalSource = unwrapInitializerExpression(logicalCandidate);
+          if (
+            !ts.isBinaryExpression(logicalSource) ||
+            logicalSource.operatorToken.kind !==
+              ts.SyntaxKind.AmpersandAmpersandToken
+          ) {
+            return STATIC_PRIMITIVE_UNKNOWN;
+          }
           const logicalRightPrimitive = readStaticPrimitiveValue(
             logicalSource.right,
           );
@@ -1915,11 +1923,27 @@ function readStaticDeleteResultForElementTarget(
             logicalRightPrimitive !== STATIC_PRIMITIVE_UNKNOWN &&
             logicalRightPrimitive === nullishRightPrimitive
           ) {
-            return readStaticDeleteResultForPropertyTarget(
-              unwrappedTarget,
-              String(nullishRightPrimitive),
-            );
+            return logicalRightPrimitive;
           }
+          return STATIC_PRIMITIVE_UNKNOWN;
+        };
+
+        const sharedFallbackKey = readSharedLogicalNullishFallbackKey(
+          nullishLeft.left,
+          nullishLeft.right,
+        );
+        const mirroredSharedFallbackKey =
+          sharedFallbackKey === STATIC_PRIMITIVE_UNKNOWN
+            ? readSharedLogicalNullishFallbackKey(
+                nullishLeft.right,
+                nullishLeft.left,
+              )
+            : sharedFallbackKey;
+        if (mirroredSharedFallbackKey !== STATIC_PRIMITIVE_UNKNOWN) {
+          return readStaticDeleteResultForPropertyTarget(
+            unwrappedTarget,
+            String(mirroredSharedFallbackKey),
+          );
         }
       }
       if (ts.isConditionalExpression(nullishLeft)) {
@@ -9672,6 +9696,51 @@ describe('Gnosis Safe migration guards', () => {
       'const marker = Math.random();',
       "const baseline = require('./fixtures/guard-module.js');",
       "if (((delete ([] as any)[(((marker === 1 && 'length') || null) ?? 'safe')]) === false)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js');",
+      'void baseline;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats strict-equality direct-delete array-element-nullish-logical-left-null-fallback-length predicates as deterministic for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((null || (marker === 1 && 'length')) ?? 'length')]) === false)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps strict-equality direct-delete array-element-nullish-logical-left-null-mixed-fallback predicates conservative for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js');",
+      "if (((delete ([] as any)[((null || (marker === 1 && 'length')) ?? 'safe')]) === false)) reqAlias = () => undefined;",
       "reqAlias('./fixtures/other-module.js');",
       'void baseline;',
     ].join('\n');
@@ -22928,6 +22997,41 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('treats strict-equality direct-delete array-element-nullish-logical-left-null-fallback-length predicates as deterministic for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((null || (marker === 1 && 'length')) ?? 'length')]) === false)) {",
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps strict-equality direct-delete array-element-nullish-logical-left-null-mixed-fallback predicates conservative for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      "const baseline = require('./fixtures/guard-module.js').default;",
+      "if (((delete ([] as any)[((null || (marker === 1 && 'length')) ?? 'safe')]) === false)) reqAlias = () => undefined;",
+      "reqAlias('./fixtures/other-module.js').default;",
+      'void baseline;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('treats strict-equality direct-delete array-element-logical-same-length predicates as deterministic for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -29754,6 +29858,37 @@ describe('Gnosis Safe migration guards', () => {
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
       'const marker = Math.random();',
       "if (((delete ([] as any)[(((marker === 1 && 'length') || null) ?? 'safe')]) === false)) moduleAlias = { default: 'not-a-module' };",
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats strict-equality direct-delete array-element-nullish-logical-left-null-fallback-length predicates as deterministic for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((null || (marker === 1 && 'length')) ?? 'length')]) === false)) {",
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps strict-equality direct-delete array-element-nullish-logical-left-null-mixed-fallback predicates conservative for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      "if (((delete ([] as any)[((null || (marker === 1 && 'length')) ?? 'safe')]) === false)) moduleAlias = { default: 'not-a-module' };",
       'const postIfDefault = moduleAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
