@@ -36,6 +36,7 @@ const logger = rootLogger.child({ module: 'submitter-inference' });
 const MAX_INFERENCE_DEPTH = 3;
 const EVM_ADDRESS_ZERO =
   '0x0000000000000000000000000000000000000000' as Address;
+const MAX_PROTOCOL_STRING_LENGTH = 256;
 const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
   (Object.values(ProtocolType) as ProtocolType[]).filter(
     (protocol) => protocol !== ProtocolType.Unknown,
@@ -1643,7 +1644,17 @@ function coerceKnownProtocolType(
 ): ProtocolType | undefined {
   if (typeof protocol === 'string' || isBoxedStringObject(protocol)) {
     try {
-      const normalizedProtocol = protocol.toString().trim().toLowerCase();
+      const rawProtocol = protocol.toString();
+      if (rawProtocol.length > MAX_PROTOCOL_STRING_LENGTH) {
+        return undefined;
+      }
+      const normalizedProtocol = rawProtocol.trim().toLowerCase();
+      if (
+        normalizedProtocol.length === 0 ||
+        normalizedProtocol.length > MAX_PROTOCOL_STRING_LENGTH
+      ) {
+        return undefined;
+      }
       return KNOWN_PROTOCOL_TYPES.has(normalizedProtocol as ProtocolType)
         ? (normalizedProtocol as ProtocolType)
         : undefined;
