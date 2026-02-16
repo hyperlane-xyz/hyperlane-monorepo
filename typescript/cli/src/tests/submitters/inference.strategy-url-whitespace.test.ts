@@ -78,6 +78,32 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('ignores plain object strategyUrl even when toString returns a valid strategy path', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-strategy-url-plain-object-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x7777777777777777777777777777777777777777',
+          version: '1.0',
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: {
+        toString: () => strategyPath,
+      } as any,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('does not attempt inference probes when strategyUrl is non-string and context is missing', async () => {
     const ownableStub = sinon
       .stub(Ownable__factory, 'connect')
