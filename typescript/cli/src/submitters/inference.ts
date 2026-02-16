@@ -405,21 +405,26 @@ function normalizeRegistryAddressesFromUnknown(raw: unknown): RegistryAddresses 
     return normalizedRegistryAddresses as RegistryAddresses;
   }
 
-  let entries: [string, unknown][];
+  let chainKeys: string[];
   try {
-    entries = Object.entries(raw as Record<string, unknown>);
+    chainKeys = Object.keys(raw as Record<string, unknown>);
   } catch {
     return normalizedRegistryAddresses as RegistryAddresses;
   }
 
   let normalizedEntries = 0;
-  for (const [chainKey, addresses] of entries) {
+  for (const chainKey of chainKeys) {
     if (normalizedEntries >= MAX_REGISTRY_CHAIN_ENTRIES) {
       break;
     }
 
     const normalizedChain = normalizeChainNameFromUnknown(chainKey);
     if (!normalizedChain) {
+      continue;
+    }
+
+    const addresses = getObjectField(raw, chainKey);
+    if (addresses === undefined) {
       continue;
     }
 

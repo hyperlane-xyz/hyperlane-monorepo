@@ -499,6 +499,92 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
     }
   });
 
+  it('skips throwing registry chain entry getters and still infers fallback ICA from valid entries', async () => {
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => ICA_OWNER,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+    const destinationProvider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+    const originProvider = {};
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === DESTINATION_ROUTER.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+            interface: {
+              parseLog: () => {
+                throw new Error('no logs should be parsed');
+              },
+            },
+          } as any;
+        }
+        if (address.toLowerCase() === ORIGIN_ROUTER_ALT.toLowerCase()) {
+          return {
+            'getRemoteInterchainAccount(address,address,address)': async () =>
+              ICA_OWNER,
+          } as any;
+        }
+        throw new Error(`unexpected router ${address}`);
+      });
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: (chain: string) =>
+          chain === CHAIN ? destinationProvider : originProvider,
+        getChainName: () => ORIGIN_CHAIN_ALT,
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: DESTINATION_ROUTER,
+          },
+          get [ORIGIN_CHAIN]() {
+            throw new Error(
+              'chain entry getter should not abort registry normalization',
+            );
+          },
+          [ORIGIN_CHAIN_ALT]: {
+            interchainAccountRouter: ORIGIN_ROUTER_ALT,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      expect((batches[0].config.submitter as any).chain).to.equal(
+        ORIGIN_CHAIN_ALT,
+      );
+      expect(destinationProvider.getLogs.callCount).to.equal(1);
+      expect(icaRouterStub.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('skips throwing origin registry router getters and still infers fallback ICA from later origins', async () => {
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => ICA_OWNER,
