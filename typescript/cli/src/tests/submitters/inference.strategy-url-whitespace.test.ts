@@ -373,4 +373,19 @@ describe('resolveSubmitterBatchesForTransactions whitespace strategyUrl fallback
       timelockStub.restore();
     }
   });
+
+  it('treats String strategyUrl with non-string toString result as missing and falls back to jsonRpc default', async () => {
+    const badStrategyUrl = new String('ignored') as any;
+    badStrategyUrl.toString = () => 123 as any;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {} as any,
+      strategyUrl: badStrategyUrl,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
 });
