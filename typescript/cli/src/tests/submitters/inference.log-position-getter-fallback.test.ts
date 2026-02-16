@@ -463,6 +463,58 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
     }
   });
 
+  it('falls back to jsonRpc when registry destination router only exists on prototype', async () => {
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => ICA_OWNER,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+    const provider = {
+      getLogs: sinon.stub().throws(new Error('getLogs should not run')),
+    };
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .throws(new Error('ICA router connect should not run'));
+    const destinationAddresses = Object.create({
+      interchainAccountRouter: DESTINATION_ROUTER,
+    });
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+        getChainName: () => ORIGIN_CHAIN,
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: destinationAddresses,
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(provider.getLogs.callCount).to.equal(0);
+      expect(icaRouterStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when registry getAddresses returns non-object payload', async () => {
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
       owner: async () => ICA_OWNER,
@@ -800,6 +852,91 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
               );
             },
           },
+          [ORIGIN_CHAIN_ALT]: {
+            interchainAccountRouter: ORIGIN_ROUTER_ALT,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      expect((batches[0].config.submitter as any).chain).to.equal(
+        ORIGIN_CHAIN_ALT,
+      );
+      expect(destinationProvider.getLogs.callCount).to.equal(1);
+      expect(icaRouterStub.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
+  it('skips inherited origin registry routers and still infers fallback ICA from later origins', async () => {
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => ICA_OWNER,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+    const destinationProvider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+    const originProvider = {};
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === DESTINATION_ROUTER.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+            interface: {
+              parseLog: () => {
+                throw new Error('no logs should be parsed');
+              },
+            },
+          } as any;
+        }
+        if (address.toLowerCase() === ORIGIN_ROUTER_ALT.toLowerCase()) {
+          return {
+            'getRemoteInterchainAccount(address,address,address)': async () =>
+              ICA_OWNER,
+          } as any;
+        }
+        throw new Error(`unexpected router ${address}`);
+      });
+    const inheritedOriginAddresses = Object.create({
+      interchainAccountRouter: ORIGIN_ROUTER,
+    });
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: (chain: string) =>
+          chain === CHAIN ? destinationProvider : originProvider,
+        getChainName: () => ORIGIN_CHAIN_ALT,
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: DESTINATION_ROUTER,
+          },
+          [ORIGIN_CHAIN]: inheritedOriginAddresses,
           [ORIGIN_CHAIN_ALT]: {
             interchainAccountRouter: ORIGIN_ROUTER_ALT,
           },
@@ -1180,6 +1317,41 @@ describe('resolveSubmitterBatchesForTransactions log position getter fallback', 
       topics: ['0xmalformed-boxed-string-direct-payload'],
       data: '0x',
       blockNumber: 641,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+
+    const inferredSubmitter = await resolveFromLogs([
+      malformedParsedPayloadLog,
+      validLog,
+    ]);
+
+    expect(
+      inferredSubmitter.originInterchainAccountRouter.toLowerCase(),
+    ).to.equal(ORIGIN_ROUTER.toLowerCase());
+  });
+
+  it('ignores inherited ICA parseLog fields and uses next valid ICA event', async () => {
+    const validLog = {
+      __validLog: true,
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: 642,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const inheritedArgs = Object.create({
+      origin: 31347,
+      router: malformedOriginRouterBytes32,
+      owner: signerBytes32,
+      ism: ethersConstants.AddressZero,
+    });
+    const malformedParsedPayloadLog = {
+      __returnParsedArgsDirect: true,
+      __parsedArgs: inheritedArgs,
+      topics: ['0xmalformed-inherited-direct-payload'],
+      data: '0x',
+      blockNumber: 643,
       transactionIndex: 0,
       logIndex: 0,
     };
@@ -1781,6 +1953,20 @@ describe('resolveSubmitterBatchesForTransactions timelock log position getter fa
       topics: ['0xgrant-direct-boxed-string-account'],
       data: '0x',
       blockNumber: '1601',
+      transactionIndex: '0',
+      logIndex: '0',
+    });
+  });
+
+  it('ignores inherited timelock parseLog fields during role ordering', async () => {
+    await resolveFromRoleLogs({
+      __returnParsedArgsDirect: true,
+      __parsedArgs: Object.create({
+        account: SIGNER,
+      }),
+      topics: ['0xgrant-direct-inherited-account'],
+      data: '0x',
+      blockNumber: '1598',
       transactionIndex: '0',
       logIndex: '0',
     });

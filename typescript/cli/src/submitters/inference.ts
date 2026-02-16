@@ -255,24 +255,24 @@ function compareLogsByPosition(
   b: { blockNumber?: unknown; transactionIndex?: unknown; logIndex?: unknown },
 ): number {
   const blockDiff = compareLogPositionIndex(
-    getObjectField(a, 'blockNumber'),
-    getObjectField(b, 'blockNumber'),
+    getOwnObjectField(a, 'blockNumber'),
+    getOwnObjectField(b, 'blockNumber'),
   );
   if (blockDiff !== 0) {
     return blockDiff;
   }
 
   const txIndexDiff = compareLogPositionIndex(
-    getObjectField(a, 'transactionIndex'),
-    getObjectField(b, 'transactionIndex'),
+    getOwnObjectField(a, 'transactionIndex'),
+    getOwnObjectField(b, 'transactionIndex'),
   );
   if (txIndexDiff !== 0) {
     return txIndexDiff;
   }
 
   return compareLogPositionIndex(
-    getObjectField(a, 'logIndex'),
-    getObjectField(b, 'logIndex'),
+    getOwnObjectField(a, 'logIndex'),
+    getOwnObjectField(b, 'logIndex'),
   );
 }
 
@@ -309,24 +309,16 @@ function getParsedLogArg(
     return undefined;
   }
 
-  try {
-    const fieldValue = (args as Record<string, unknown>)[field];
-    if (fieldValue !== undefined) {
-      return fieldValue;
-    }
-  } catch {
-    // Ignore named-field getter failures and continue to positional fallback.
+  const fieldValue = getOwnObjectField(args, field);
+  if (fieldValue !== undefined) {
+    return fieldValue;
   }
 
   if (fallbackIndex === undefined) {
     return undefined;
   }
 
-  try {
-    return (args as Record<number, unknown>)[fallbackIndex];
-  } catch {
-    return undefined;
-  }
+  return getOwnObjectField(args, `${fallbackIndex}`);
 }
 
 function getObjectField(value: unknown, field: string): unknown {
@@ -465,7 +457,7 @@ function normalizeRegistryAddressesFromUnknown(raw: unknown): RegistryAddresses 
       continue;
     }
 
-    const addresses = getObjectField(raw, chainKey);
+    const addresses = getOwnObjectField(raw, chainKey);
     if (addresses === undefined) {
       continue;
     }
@@ -885,7 +877,7 @@ async function inferIcaSubmitterFromAccount({
 
   const registryAddresses = await getRegistryAddresses(context, cache);
   const destinationAddresses = registryAddresses[destinationChain];
-  const destinationRouterAddress = getObjectField(
+  const destinationRouterAddress = getOwnObjectField(
     destinationAddresses,
     'interchainAccountRouter',
   );
@@ -1043,7 +1035,7 @@ async function inferIcaSubmitterFromAccount({
           continue;
         }
 
-        const originRouterAddress = getObjectField(
+        const originRouterAddress = getOwnObjectField(
           originAddresses,
           'interchainAccountRouter',
         );
@@ -1268,7 +1260,8 @@ async function inferTimelockProposerSubmitter({
   );
   const registryAddresses = await getRegistryAddresses(context, cache);
   const destinationRouterAddressCandidate = normalizeEvmAddressFromUnknown(
-    getObjectField(registryAddresses[chain], 'interchainAccountRouter') ?? '',
+    getOwnObjectField(registryAddresses[chain], 'interchainAccountRouter') ??
+      '',
   );
   const destinationRouterAddress =
     destinationRouterAddressCandidate &&
@@ -1338,7 +1331,7 @@ async function inferTimelockProposerSubmitter({
           continue;
         }
 
-        const originRouterAddress = getObjectField(
+        const originRouterAddress = getOwnObjectField(
           originAddresses,
           'interchainAccountRouter',
         );
@@ -1432,7 +1425,7 @@ async function inferTimelockProposerSubmitter({
         continue;
       }
 
-      const originRouterAddress = getObjectField(
+      const originRouterAddress = getOwnObjectField(
         originAddresses,
         'interchainAccountRouter',
       );
