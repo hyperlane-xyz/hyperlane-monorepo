@@ -110,4 +110,28 @@ describe('resolveSubmitterBatchesForTransactions extended-chain inference bypass
       ownableStub.restore();
     }
   });
+
+  it('bypasses protocol lookup on extended chains and still returns jsonRpc default batches', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any, { ...TX, data: '0xdeadbeef' } as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => {
+            throw new Error(
+              'protocol lookup should not run on extended chains',
+            );
+          },
+        },
+      } as any,
+      isExtendedChain: true,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(batches[0].transactions).to.deep.equal([
+      TX as any,
+      { ...TX, data: '0xdeadbeef' } as any,
+    ]);
+  });
 });
