@@ -91,6 +91,7 @@ export enum WarningMessage {
 }
 
 const UNREADABLE_VALUE_TYPE = '[unreadable value type]';
+const VALID_PROTOCOL_TYPES = new Set(Object.values(ProtocolType));
 
 function inspectArrayValue(value: unknown): {
   isArray: boolean;
@@ -608,7 +609,7 @@ export class SquadsTransactionReader {
   private resolveProtocolTypeForWarpRoute(
     routeName: string,
     chain: string,
-  ): unknown {
+  ): ProtocolType | null {
     let tryGetProtocolValue: unknown;
     try {
       tryGetProtocolValue = (
@@ -652,7 +653,18 @@ export class SquadsTransactionReader {
       `Invalid protocol for warp route ${routeName} on ${chain}: expected synchronous ProtocolType value, got promise-like value`,
     );
 
-    return protocol;
+    const protocolDisplayValue =
+      typeof protocol === 'string'
+        ? protocol
+        : getUnknownValueTypeName(protocol);
+    assert(
+      protocol === null ||
+        (typeof protocol === 'string' &&
+          VALID_PROTOCOL_TYPES.has(protocol as ProtocolType)),
+      `Invalid protocol for warp route ${routeName} on ${chain}: expected ProtocolType or null, got ${protocolDisplayValue}`,
+    );
+
+    return protocol as ProtocolType | null;
   }
 
   private isWarpRouteProgram(

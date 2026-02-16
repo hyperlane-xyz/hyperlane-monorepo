@@ -2108,6 +2108,54 @@ describe('squads transaction reader', () => {
     expect(reader.warpRouteIndex.has('solanamainnet')).to.equal(false);
   });
 
+  it('throws contextual errors for malformed protocol lookup value types', () => {
+    const mpp = {
+      tryGetProtocol: () => 1,
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      resolveProtocolTypeForWarpRoute: (
+        routeName: string,
+        chain: string,
+      ) => ProtocolType | null;
+    };
+
+    expect(() =>
+      readerAny.resolveProtocolTypeForWarpRoute('routeA', 'solanamainnet'),
+    ).to.throw(
+      'Invalid protocol for warp route routeA on solanamainnet: expected ProtocolType or null, got number',
+    );
+  });
+
+  it('throws contextual errors for malformed protocol lookup string values', () => {
+    const mpp = {
+      tryGetProtocol: () => 'not-a-protocol',
+    } as unknown as MultiProtocolProvider;
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      resolveProtocolTypeForWarpRoute: (
+        routeName: string,
+        chain: string,
+      ) => ProtocolType | null;
+    };
+
+    expect(() =>
+      readerAny.resolveProtocolTypeForWarpRoute('routeA', 'solanamainnet'),
+    ).to.throw(
+      'Invalid protocol for warp route routeA on solanamainnet: expected ProtocolType or null, got not-a-protocol',
+    );
+  });
+
   it('skips warp-route tokens when protocol type inspection is unreadable', async () => {
     const mpp = {
       tryGetProtocol: () => {
