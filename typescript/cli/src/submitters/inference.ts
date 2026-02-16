@@ -39,6 +39,7 @@ const EVM_ADDRESS_ZERO =
 const MAX_PROTOCOL_STRING_LENGTH = 256;
 const MAX_STRATEGY_PATH_LENGTH = 4096;
 const MAX_OVERRIDE_KEY_LENGTH = 4096;
+const MAX_SELECTOR_SCAN_LENGTH = 1024;
 const MAX_BOXED_STRING_PROTOTYPE_DEPTH = 128;
 const TX_SELECTOR_PREFIX_REGEX = /^\s*(0[xX][0-9a-fA-F]{8})/;
 const KNOWN_PROTOCOL_TYPES = new Set<ProtocolType>(
@@ -1479,7 +1480,11 @@ function getTxSelector(tx: TypedAnnotatedTransaction): string | undefined {
     return undefined;
   }
 
-  const match = TX_SELECTOR_PREFIX_REGEX.exec(data);
+  const selectorPrefixSource =
+    data.length > MAX_SELECTOR_SCAN_LENGTH
+      ? data.slice(0, MAX_SELECTOR_SCAN_LENGTH)
+      : data;
+  const match = TX_SELECTOR_PREFIX_REGEX.exec(selectorPrefixSource);
   if (!match) {
     return undefined;
   }

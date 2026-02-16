@@ -219,6 +219,19 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target default pr
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('still applies valid EVM target override when transaction data has overlong leading whitespace before selector', async () => {
+    const strategyPath = createStrategyPath('overlong-leading-whitespace-data');
+    writeTargetOverrideStrategy(strategyPath);
+
+    const batches = await resolveSingleBatch(
+      { ...TX, data: `${' '.repeat(2000)}0xdeadbeef0000` },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('routes valid targets while preserving default for transactions with throwing target getters', async () => {
     const strategyPath = createStrategyPath('mixed-valid-and-throwing-target');
     writeTargetOverrideStrategy(strategyPath);

@@ -180,6 +180,23 @@ describe('resolveSubmitterBatchesForTransactions EVM malformed target selector-o
     );
   });
 
+  it('preserves explicit default submitter when selector data has overlong leading whitespace and only selector override exists', async () => {
+    const strategyPath = createStrategyPath(
+      'selector-overlong-leading-whitespace',
+    );
+    writeSelectorOnlyStrategy(strategyPath);
+
+    const batches = await resolveSingleBatch(
+      { ...TX, data: `${' '.repeat(2000)}0xdeadbeef0000` },
+      strategyPath,
+    );
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('still applies selector-specific override when transaction target is well-formed', async () => {
     const strategyPath = createStrategyPath('well-formed-target');
     writeSelectorOnlyStrategy(strategyPath);
