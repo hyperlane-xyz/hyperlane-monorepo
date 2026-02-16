@@ -1823,6 +1823,12 @@ export class SquadsTransactionReader {
       );
     }
 
+    const coreProgramIdsType = getUnknownValueTypeName(coreProgramIds);
+    assert(
+      isRecordObject(coreProgramIds),
+      `Invalid core program ids for ${chain}: expected object, got ${coreProgramIdsType}`,
+    );
+
     const { thenValue, readError: thenReadError } =
       getThenValue(coreProgramIds);
     assert(
@@ -1834,12 +1840,6 @@ export class SquadsTransactionReader {
     assert(
       typeof thenValue !== 'function',
       `Invalid core program ids for ${chain}: expected synchronous object result, got promise-like value`,
-    );
-
-    const coreProgramIdsType = getUnknownValueTypeName(coreProgramIds);
-    assert(
-      isRecordObject(coreProgramIds),
-      `Invalid core program ids for ${chain}: expected object, got ${coreProgramIdsType}`,
     );
 
     let mailboxProgramIdValue: unknown;

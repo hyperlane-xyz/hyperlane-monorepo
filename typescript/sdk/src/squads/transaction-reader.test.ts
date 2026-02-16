@@ -7172,6 +7172,50 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('labels unreadable core program id objects deterministically', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => {
+        const { proxy: revokedCoreProgramIds, revoke } = Proxy.revocable(
+          {},
+          {},
+        );
+        revoke();
+        return revokedCoreProgramIds as unknown as {
+          mailbox: string;
+          multisig_ism_message_id: string;
+        };
+      },
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: {
+            accountKeys: [],
+            addressTableLookups: [],
+            instructions: [],
+          },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Invalid core program ids for solanamainnet: expected object, got [unreadable value type]',
+    );
+  });
+
   it('throws stable error when mailbox program id getter throws', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () =>
