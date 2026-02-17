@@ -32,7 +32,7 @@ env:
 jobs:
   check-release-status:
     name: Check Release Status
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     outputs:
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
       should_release: ${{ steps.check_version.outputs.should_release }}
@@ -97,7 +97,7 @@ jobs:
 
   release-pr:
     name: Update Release PR
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: check-release-status
     if: |
       github.event_name == 'push' &&
@@ -260,7 +260,7 @@ jobs:
 
   publish:
     name: Publish Release
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: check-release-status
     if: |
       github.event_name == 'workflow_dispatch' ||
