@@ -26,11 +26,7 @@ import { Wallet } from 'ethers';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import {
-  ChainMetadata,
-  MultiProtocolProvider,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
+import { ChainMetadata, MultiProvider } from '@hyperlane-xyz/sdk';
 import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
@@ -124,7 +120,9 @@ async function main(): Promise<void> {
     // Create inventory MultiProvider if inventory key is provided
     let inventoryMultiProvider: MultiProvider | undefined;
     if (inventoryPrivateKey) {
-      inventoryMultiProvider = new MultiProvider(chainMetadata);
+      inventoryMultiProvider = new MultiProvider(chainMetadata, {
+        providers: multiProvider.providers,
+      });
       const inventorySigner = new Wallet(inventoryPrivateKey);
       inventoryMultiProvider.setSharedSigner(inventorySigner);
 
@@ -145,9 +143,8 @@ async function main(): Promise<void> {
       );
     }
 
-    // Create MultiProtocolProvider
-    const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
-    logger.info('✅ Initialized MultiProtocolProvider');
+    // MultiProtocolProvider will be derived from multiProvider in factory
+    const multiProtocolProvider = undefined;
 
     // Create the rebalancer service
     const service = new RebalancerService(

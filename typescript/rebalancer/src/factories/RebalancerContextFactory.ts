@@ -99,18 +99,28 @@ export class RebalancerContextFactory {
     // get mailboxes for all chains and merge them with the chain metadata.
     const mailboxes = objMap(addresses, (_, { mailbox }) => ({ mailbox }));
 
-    // Create MultiProtocolProvider (convert from MultiProvider if not provided)
-    const mpp =
-      multiProtocolProvider ??
-      MultiProtocolProvider.fromMultiProvider(multiProvider);
-    const provider = mpp.extendChainMetadata(mailboxes);
-
+    // Fetch warp route config FIRST to get chain list
     const warpCoreConfig = await registry.getWarpRoute(config.warpRouteId);
     if (!warpCoreConfig) {
       throw new Error(
         `Warp route config for ${config.warpRouteId} not found in registry`,
       );
     }
+
+    // Force-initialize providers for all warp route chains
+    // This ensures fromMultiProvider() snapshots actual provider instances
+    const warpChains = [
+      ...new Set(warpCoreConfig.tokens.map((t: any) => t.chainName)),
+    ];
+    for (const chain of warpChains) {
+      multiProvider.getProvider(chain);
+    }
+
+    // Create MultiProtocolProvider (convert from MultiProvider if not provided)
+    const mpp =
+      multiProtocolProvider ??
+      MultiProtocolProvider.fromMultiProvider(multiProvider);
+    const provider = mpp.extendChainMetadata(mailboxes);
     const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
     const tokensByChainName = Object.fromEntries(
       warpCore.tokens.map((t) => [t.chainName, t]),
