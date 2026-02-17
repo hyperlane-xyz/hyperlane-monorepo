@@ -512,7 +512,8 @@ export class GovernTransactionReader {
         });
 
         if (
-          decoded.functionFragment.name === 'claim' &&
+          decoded.functionFragment.name ===
+            baseFeeInterface.functions['claim(address)'].name &&
           decoded.args.length === 1
         ) {
           const [beneficiary] = decoded.args;
