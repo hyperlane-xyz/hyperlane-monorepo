@@ -16,7 +16,6 @@ import { type AleoSigner } from '../clients/signer.js';
 import { getMailboxConfig } from '../mailbox/mailbox-query.js';
 import {
   SUFFIX_LENGTH_SHORT,
-  fromAleoAddress,
   generateSuffix,
   toAleoAddress,
 } from '../utils/helper.js';
@@ -113,19 +112,14 @@ export class AleoValidatorAnnounceWriter
     );
 
     // 3. Initialize validator announce with mailbox address and local domain
-    const { address: mailboxPlainAddress } = fromAleoAddress(
-      config.mailboxAddress,
-    );
     const createTx = getCreateValidatorAnnounceTx(
       validatorAnnounceProgramId,
-      mailboxPlainAddress,
+      config.mailboxAddress,
       mailboxConfig.localDomain,
     );
 
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
     allReceipts.push(createReceipt);
-
-    const validatorAnnounceAddress = toAleoAddress(validatorAnnounceProgramId);
 
     const deployedArtifact: ArtifactDeployed<
       RawValidatorAnnounceConfig,
@@ -134,7 +128,7 @@ export class AleoValidatorAnnounceWriter
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
       deployed: {
-        address: validatorAnnounceAddress,
+        address: toAleoAddress(validatorAnnounceProgramId),
       },
     };
 
