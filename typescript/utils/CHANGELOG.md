@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 25.1.0
+
+### Patch Changes
+
+- b930534: Added oxlint as a fast first-pass linter and converted imports to type-only where appropriate to resolve import cycle warnings.
+
 ## 25.0.0
 
 ### Minor Changes

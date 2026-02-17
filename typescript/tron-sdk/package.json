@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/tron-sdk",
-  "version": "21.0.0",
+  "version": "21.0.1",
   "description": "Hyperlane TypeScript SDK for the TRON Hyperlane SDK module",
   "keywords": [
     "blockchain",
@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",

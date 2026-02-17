@@ -11,4 +11,10 @@ export default [
   {
     ignores: ['src/tests/**/*.ts', 'scripts/*'],
   },
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'import/no-unresolved': ['error', { ignore: ['\\.*/abi/.*\\.json$'] }],
+    },
+  },
 ];

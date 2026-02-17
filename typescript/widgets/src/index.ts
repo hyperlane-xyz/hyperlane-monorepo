@@ -153,6 +153,17 @@ export {
   useStarknetSwitchNetwork,
   useStarknetWatchAsset,
 } from './walletIntegrations/starknet.js';
+export {
+  useAleoAccount,
+  useAleoActiveChain,
+  useAleoConnectFn,
+  useAleoDisconnectFn,
+  useAleoTransactionFns,
+  useAleoWalletDetails,
+  useAleoSwitchNetwork,
+  useAleoWatchAsset,
+} from './walletIntegrations/aleo.js';
+export { AleoPopupProvider } from './walletIntegrations/aleo/AleoProviders.js';
 export type {
   AccountInfo,
   ActiveChainInfo,

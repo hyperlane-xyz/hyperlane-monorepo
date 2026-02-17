@@ -1,5 +1,20 @@
 # @hyperlane-xyz/widgets
 
+## 25.1.0
+
+### Patch Changes
+
+- 9fb1e89: Added Aleo wallet popup that links to the Chrome extension store when Shield wallet is not installed.
+- Updated dependencies [b930534]
+- Updated dependencies [cbd400c]
+- Updated dependencies [a18d0e6]
+  - @hyperlane-xyz/sdk@25.1.0
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/radix-sdk@25.1.0
+  - @hyperlane-xyz/aleo-sdk@25.1.0
+  - @hyperlane-xyz/cosmos-sdk@25.1.0
+  - @hyperlane-xyz/provider-sdk@1.3.2
+
 ## 25.0.0
 
 ### Patch Changes
