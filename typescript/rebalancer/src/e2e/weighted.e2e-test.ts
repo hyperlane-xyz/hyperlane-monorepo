@@ -177,7 +177,7 @@ describe('WeightedStrategy E2E', function () {
     // Initial: 7000 USDC - Rebalance: 1000 USDC = 6000 USDC
     expect(
       balancesAfterRebalance.anvil1.toString(),
-      'INCENTIV anvil1 collateral should be 6000 USDC after rebalance',
+      'anvil1 collateral should be 6000 USDC after rebalance',
     ).to.equal('6000000000');
 
     // Capture action details for relay

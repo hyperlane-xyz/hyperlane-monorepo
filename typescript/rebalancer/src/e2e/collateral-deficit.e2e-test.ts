@@ -323,7 +323,7 @@ describe('Collateral Deficit E2E', function () {
     // Assert exact balance: initial 10000 + user deposit 500 - rebalance 400 = 10100 USDC
     expect(
       balancesAfterRebalance.anvil1.toString(),
-      'INCENTIV anvil1 collateral should be 10100 USDC after rebalance',
+      'anvil1 collateral should be 10100 USDC after rebalance',
     ).to.equal('10100000000');
 
     // Verify entities can be retrieved by ID and have correct status

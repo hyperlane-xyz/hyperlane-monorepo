@@ -36,11 +36,11 @@ export type ExplorerMessage = {
 export interface IExplorerClient {
   getInflightUserTransfers(
     params: UserTransferQueryParams,
-    logger?: Logger,
+    logger: Logger,
   ): Promise<ExplorerMessage[]>;
   getInflightRebalanceActions(
     params: RebalanceActionQueryParams,
-    logger?: Logger,
+    logger: Logger,
   ): Promise<ExplorerMessage[]>;
 }
 
