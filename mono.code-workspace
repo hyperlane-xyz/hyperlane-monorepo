@@ -2,7 +2,7 @@
   "settings": {
     "editor.tabSize": 2,
     "editor.formatOnSave": true,
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.defaultFormatter": "oxc.oxc-vscode",
     "prettier.configPath": "../.prettierrc",
     "workbench.editor.labelFormat": "medium",
     "npm.autoDetect": "on",
@@ -73,6 +73,8 @@
       "redhat.vscode-yaml",
       // Rust language support
       "rust-lang.rust-analyzer",
+      // OXC extension (code formatting)
+      "oxc.oxc-vscode",
     ],
     // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
     "unwantedRecommendations": [],
