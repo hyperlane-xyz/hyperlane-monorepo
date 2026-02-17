@@ -520,7 +520,7 @@ export class GovernTransactionReader {
     }
 
     if (feeTypeName === TokenFeeType.RoutingFee) {
-      return this.parseRoutingFeeTransaction(chain, tx);
+      return this.parseRoutingFeeTransaction(chain, decoded);
     }
 
     return { decoded };
@@ -528,18 +528,13 @@ export class GovernTransactionReader {
 
   private async parseRoutingFeeTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    decoded: ethers.utils.TransactionDescription,
   ): Promise<{
     decoded: ethers.utils.TransactionDescription;
     insight?: string;
     feeDetails?: Record<string, any>;
   }> {
     const routingFeeInterface = RoutingFee__factory.createInterface();
-    const decoded = routingFeeInterface.parseTransaction({
-      data: tx.data!,
-      value: tx.value,
-    });
-
     if (
       decoded.functionFragment.name !==
       routingFeeInterface.functions['setFeeContract(uint32,address)'].name
