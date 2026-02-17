@@ -55,6 +55,7 @@ jobs:
           # check out full history
           fetch-depth: 0
           submodules: recursive
+          persist-credentials: false
           token: ${{ steps.generate-token.outputs.token }}
 
       - name: Setup Node.js
@@ -158,6 +159,7 @@ jobs:
           # check out full history
           fetch-depth: 0
           submodules: recursive
+          persist-credentials: false
           token: ${{ steps.generate-token.outputs.token }}
 
       - name: Setup Node
