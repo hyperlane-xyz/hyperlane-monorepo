@@ -106,7 +106,7 @@ describe('MultiProvider', () => {
           blocks: {
             ...test1.blocks,
             confirmations: 1,
-            estimateBlockTime: 1,
+            estimateBlockTime: 0.02,
           },
         },
         [TestChainName.test2]: test2,
@@ -116,14 +116,21 @@ describe('MultiProvider', () => {
         hash: '0xabc123def456',
         wait: sinon.stub().returns(new Promise(() => {})),
       } as unknown as ProtocolTransaction<any>;
-      // Dynamic timeout: max(1 × 1s × 1000 × 2, 30000) = 30000ms
-      // Use explicit timeoutMs to verify the override still works
+      // Raw timeout: 1 × 0.02s × 1000 × 2 = 40ms
+      // With floor: max(40, 30000) = 30000ms
+      // Race against 200ms — if the floor works, 200ms timer wins (not a Timeout error)
       try {
-        await mp.handleTx(TestChainName.test1, mockTx, { timeoutMs: 40 });
-        throw new Error('Expected timeout error');
+        await Promise.race([
+          mp.handleTx(TestChainName.test1, mockTx),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Race timer')), 200),
+          ),
+        ]);
+        throw new Error('Expected race timer');
       } catch (error: any) {
-        expect(error.message).to.include('Timeout');
-        expect(error.message).to.include('0xabc123def456');
+        // Without the floor, handleTx would timeout at 40ms with "Timeout" error.
+        // With the floor, the 200ms race timer fires first.
+        expect(error.message).to.equal('Race timer');
       }
     });
 
