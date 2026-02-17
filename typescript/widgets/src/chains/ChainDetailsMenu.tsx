@@ -93,7 +93,10 @@ function ChainHeader({
           logoUri={chainMetadata.logoURI}
           size={30}
         />
-        <SafeTextMorph as="h2" className="htw-text-lg htw-font-medium">{`${chainMetadata.displayName} Metadata`}</SafeTextMorph>
+        <SafeTextMorph
+          as="h2"
+          className="htw-text-lg htw-font-medium"
+        >{`${chainMetadata.displayName} Metadata`}</SafeTextMorph>
       </div>
     </div>
   );

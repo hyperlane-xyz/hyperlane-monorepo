@@ -84,7 +84,9 @@ export function ConnectWalletButton({
                 <div className="htw-text-xs htw-text-gray-500">
                   {firstWallet.name || 'Wallet'}
                 </div>
-                <SafeTextMorph as="div" className="htw-text-xs">{shownAddress}</SafeTextMorph>
+                <SafeTextMorph as="div" className="htw-text-xs">
+                  {shownAddress}
+                </SafeTextMorph>
               </div>
               <ChevronIcon direction="s" width={10} height={6} />
             </div>
@@ -109,7 +111,10 @@ export function ConnectWalletButton({
               </div>
               <div className="htw-mx-3 htw-flex htw-flex-col htw-items-start">
                 <div className="htw-text-xs htw-text-gray-500">Wallets</div>
-                <SafeTextMorph as="div" className="htw-text-xs">{`${numReady} Connected`}</SafeTextMorph>
+                <SafeTextMorph
+                  as="div"
+                  className="htw-text-xs"
+                >{`${numReady} Connected`}</SafeTextMorph>
               </div>
               <ChevronIcon direction="s" width={10} height={6} />
             </div>
