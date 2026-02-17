@@ -72,6 +72,16 @@ const SOLANA_ENV_NAME: &str = "local-e2e";
 
 const SBF_OUT_PATH: &str = "target/dist";
 
+const OLD_CORE_PROGRAMS_RELEASE_URL: &str =
+    "https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/download/sealevel-v1.0.0";
+
+const OLD_CORE_PROGRAM_FILES: &[&str] = &[
+    "hyperlane_sealevel_mailbox.so",
+    "hyperlane_sealevel_validator_announce.so",
+    "hyperlane_sealevel_multisig_ism_message_id.so",
+    "hyperlane_sealevel_igp.so",
+];
+
 // Domain IDs for sealevel test chains
 const SEALEVELTEST1_DOMAIN_ID: &str = "13375";
 const SEALEVELTEST2_DOMAIN_ID: &str = "13376";
@@ -209,6 +219,29 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     out_path
 }
 
+/// Download old core program .so files from the sealevel-v1.0.0 release.
+/// Returns (path_to_dir, TempDir) — caller must hold TempDir to prevent cleanup.
+#[apply(as_task)]
+pub fn download_old_core_programs() -> (PathBuf, tempfile::TempDir) {
+    let dir = tempdir().expect("Failed to create temp dir for old core programs");
+    let dir_path = dir.path().to_path_buf();
+    log!("Downloading old core programs from sealevel-v1.0.0 release");
+    for file in OLD_CORE_PROGRAM_FILES {
+        let url = format!("{OLD_CORE_PROGRAMS_RELEASE_URL}/{file}");
+        Program::new("curl")
+            .arg("output", *file)
+            .flag("location")
+            .flag("silent")
+            .flag("fail")
+            .cmd(&url)
+            .working_dir(&dir_path)
+            .run()
+            .join();
+    }
+    log!("Old core programs downloaded successfully");
+    (dir_path, dir)
+}
+
 /// Result from starting the solana test validator
 pub struct SolanaTestValidatorResult {
     pub config_path: PathBuf,
@@ -222,6 +255,7 @@ pub fn start_solana_test_validator(
     solana_cli_tools_path: PathBuf,
     solana_programs_path: PathBuf,
     ledger_dir: PathBuf,
+    old_core_programs_path: PathBuf,
 ) -> SolanaTestValidatorResult {
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
@@ -280,33 +314,37 @@ pub fn start_solana_test_validator(
     log!("Deploying the hyperlane programs to solana");
 
     let sealevel_client = sealevel_client(&solana_cli_tools_path, &solana_config_path);
-    let sealevel_client_deploy_core = sealevel_client
+    let sealevel_client_deploy_core_base = sealevel_client
         .clone()
         .arg("compute-budget", "200000")
         .cmd("core")
         .cmd("deploy")
         .arg("environment", SOLANA_ENV_NAME)
-        .arg("environments-dir", solana_env_dir_str.clone())
-        .arg("built-so-dir", build_so_dir_str.clone());
+        .arg("environments-dir", solana_env_dir_str.clone());
 
-    // Deploy sealeveltest1 core
-    sealevel_client_deploy_core
+    let old_core_dir_str = old_core_programs_path.to_string_lossy();
+
+    // Deploy sealeveltest1 core with OLD programs (backward compat test)
+    sealevel_client_deploy_core_base
         .clone()
+        .arg("built-so-dir", old_core_dir_str.clone())
         .arg("local-domain", SEALEVELTEST1_DOMAIN_ID)
         .arg("chain", "sealeveltest1")
         .run()
         .join();
 
-    // Deploy sealeveltest2 core
-    sealevel_client_deploy_core
+    // Deploy sealeveltest2 core with OLD programs (backward compat test)
+    sealevel_client_deploy_core_base
         .clone()
+        .arg("built-so-dir", old_core_dir_str.clone())
         .arg("local-domain", SEALEVELTEST2_DOMAIN_ID)
         .arg("chain", "sealeveltest2")
         .run()
         .join();
 
-    // Deploy sealeveltest3 core (NO ALT - will use legacy transactions)
-    sealevel_client_deploy_core
+    // Deploy sealeveltest3 core with NEW programs (NO ALT - will use legacy transactions)
+    sealevel_client_deploy_core_base
+        .arg("built-so-dir", build_so_dir_str.clone())
         .arg("local-domain", SEALEVELTEST3_DOMAIN_ID)
         .arg("chain", "sealeveltest3")
         .run()
