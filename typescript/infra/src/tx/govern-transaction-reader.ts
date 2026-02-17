@@ -453,10 +453,8 @@ export class GovernTransactionReader {
     const provider = this.multiProvider.getProvider(chain);
     const baseFee = BaseFee__factory.connect(tx.to, provider);
 
-    let feeTypeName = 'Fee';
-
     const onChainFeeType = await baseFee.feeType();
-    feeTypeName =
+    const feeTypeName =
       onChainTypeToTokenFeeTypeMap[
         onChainFeeType as keyof typeof onChainTypeToTokenFeeTypeMap
       ];
