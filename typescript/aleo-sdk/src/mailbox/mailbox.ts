@@ -13,7 +13,11 @@ import { assert, eqAddressAleo, eqOptionalAddress } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
-import { ALEO_NULL_ADDRESS, toAleoAddress } from '../utils/helper.js';
+import {
+  ALEO_NULL_ADDRESS,
+  SUFFIX_LENGTH_LONG,
+  toAleoAddress,
+} from '../utils/helper.js';
 import {
   type AleoArtifactNetworkConfig,
   type AleoNetworkId,
@@ -109,7 +113,7 @@ export class AleoMailboxWriter
     // Deploy mailbox programs (mailbox, dispatch_proxy, ism_manager, hook_manager)
     const programs = await this.signer.deployProgram(
       'dispatch_proxy',
-      this.signer.generateSuffix(6), // SUFFIX_LENGTH_LONG
+      this.signer.generateSuffix(SUFFIX_LENGTH_LONG),
     );
 
     const mailboxProgramId = programs['mailbox'];
