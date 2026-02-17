@@ -19,6 +19,7 @@ import {
   IXERC20__factory,
   MovableCollateralRouter__factory,
   Ownable__factory,
+  RoutingFee__factory,
   ProxyAdmin__factory,
   TimelockController__factory,
   TokenRouter__factory,
@@ -41,6 +42,7 @@ import {
   interchainAccountFactories,
   isProxyAdminFromBytecode,
   normalizeConfig,
+  onChainTypeToTokenFeeTypeMap,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -388,6 +390,11 @@ export class GovernTransactionReader {
       return this.readXERC20Transaction(chain, tx, xerc20Type);
     }
 
+    // If it's a fee contract transaction
+    if (this.isFeeTransaction(tx)) {
+      return this.readFeeTransaction(chain, tx);
+    }
+
     // If it's to a Proxy Admin
     if (await this.isProxyAdminTransaction(chain, tx)) {
       return this.readProxyAdminTransaction(chain, tx);
@@ -421,6 +428,115 @@ export class GovernTransactionReader {
     '0x39509351', // increaseAllowance(address,uint256)
     '0xa457c2d7', // decreaseAllowance(address,uint256)
   ]);
+
+  // Fee contract function selectors
+  private static readonly FEE_SELECTORS = new Set(
+    [
+      'setFeeContract(uint32,address)', // RoutingFee
+      'claim(address)', // BaseFee
+    ].map((func) => ethers.utils.id(func).substring(0, 10)),
+  );
+
+  private isFeeTransaction(tx: AnnotatedEV5Transaction): boolean {
+    if (!tx.to || !tx.data) return false;
+    const selector = tx.data.slice(0, 10).toLowerCase();
+    return GovernTransactionReader.FEE_SELECTORS.has(selector);
+  }
+
+  private async readFeeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    assert(tx.data, 'No data in fee transaction');
+    assert(tx.to, 'No to address in fee transaction');
+
+    const provider = this.multiProvider.getProvider(chain);
+    const baseFee = BaseFee__factory.connect(tx.to, provider);
+
+    let feeTypeName = 'Fee';
+
+    const onChainFeeType = await baseFee.feeType();
+    feeTypeName =
+      onChainTypeToTokenFeeTypeMap[
+        onChainFeeType as keyof typeof onChainTypeToTokenFeeTypeMap
+      ];
+    assert(feeTypeName, `Unknown Fee Type ${onChainFeeType}`);
+
+    let insight: string | undefined;
+    let feeDetails: Record<string, any> | undefined;
+    let decoded: ethers.utils.TransactionDescription;
+
+    switch (feeTypeName) {
+      case TokenFeeType.RoutingFee: {
+        const routingFeeInterface = RoutingFee__factory.createInterface();
+        decoded = routingFeeInterface.parseTransaction({
+          data: tx.data,
+          value: tx.value,
+        });
+
+        if (
+          decoded.functionFragment.name ===
+          routingFeeInterface.functions['setFeeContract(uint32,address)'].name
+        ) {
+          const [destination, feeContract] = decoded.args;
+          const chainName =
+            this.multiProvider.tryGetChainName(destination) ??
+            `unknown (${destination})`;
+
+          if (isZeroishAddress(feeContract)) {
+            insight = `Remove fee contract for domain ${destination} (${chainName})`;
+          } else {
+            try {
+              const feeReader = new EvmTokenFeeReader(
+                this.multiProvider,
+                chain,
+              );
+              const feeConfig = await feeReader.deriveTokenFeeConfig({
+                address: feeContract,
+              });
+              const formatted = await this.formatFeeConfig(chain, feeConfig);
+              insight = `Set fee contract for domain ${destination} (${chainName}) to ${formatted.insight.replace('Set fee recipient to ', '')}`;
+              feeDetails = formatted.feeDetails;
+            } catch {
+              insight = `Set fee contract for domain ${destination} (${chainName}) to ${feeContract} (⚠️ could not read fee config)`;
+            }
+          }
+        }
+        break;
+      }
+      default: {
+        // Common BaseFee functions (claim, etc.)
+        const baseFeeInterface = BaseFee__factory.createInterface();
+        decoded = baseFeeInterface.parseTransaction({
+          data: tx.data,
+          value: tx.value,
+        });
+
+        if (
+          decoded.functionFragment.name === 'claim' &&
+          decoded.args.length === 1
+        ) {
+          const [beneficiary] = decoded.args;
+          insight = `Claim fees to ${beneficiary}`;
+        }
+        break;
+      }
+    }
+
+    let ownableTx = {};
+    if (!insight) {
+      ownableTx = await this.readOwnableTransaction(chain, tx);
+    }
+
+    return {
+      ...ownableTx,
+      chain,
+      to: `${feeTypeName} Contract (${chain} ${tx.to})`,
+      ...(insight ? { insight } : {}),
+      ...(feeDetails ? { feeDetails } : {}),
+      signature: decoded.signature,
+    };
+  }
 
   private isErc20Transaction(
     chain: ChainName,
@@ -1087,7 +1203,7 @@ export class GovernTransactionReader {
         routingDestinations: domains,
       });
 
-      return this.formatFeeConfig(feeConfig);
+      return this.formatFeeConfig(chain, feeConfig);
     } catch (error) {
       // Not a fee contract or failed to read - return basic insight
       this.logger.debug(
@@ -1100,11 +1216,14 @@ export class GovernTransactionReader {
   /**
    * Formats a DerivedTokenFeeConfig into a human-readable insight and feeDetails object.
    */
-  private formatFeeConfig(feeConfig: DerivedTokenFeeConfig): {
+  private async formatFeeConfig(
+    chain: ChainName,
+    feeConfig: DerivedTokenFeeConfig,
+  ): Promise<{
     insight: string;
     feeDetails: Record<string, any>;
-  } {
-    const shortOwner = `${feeConfig.owner.slice(0, 6)}...${feeConfig.owner.slice(-4)}`;
+  }> {
+    const ownerInsight = await getOwnerInsight(chain, feeConfig.owner);
 
     if (feeConfig.type === TokenFeeType.LinearFee) {
       // bps is in basis points (1 bps = 0.01%), convert to percentage
@@ -1112,7 +1231,7 @@ export class GovernTransactionReader {
       const percentFormatted = (bps / 100).toFixed(2);
 
       return {
-        insight: `Set fee recipient to LinearFee contract (${percentFormatted}% fee, owner: ${shortOwner})`,
+        insight: `Set fee recipient to LinearFee contract (${percentFormatted}% fee, owner: ${ownerInsight})`,
         feeDetails: {
           type: 'LinearFee',
           address: feeConfig.address,
@@ -1155,7 +1274,7 @@ export class GovernTransactionReader {
           : `${routeCount} routes configured`;
 
       return {
-        insight: `Set fee recipient to RoutingFee contract (${routeSummary}, owner: ${shortOwner})`,
+        insight: `Set fee recipient to RoutingFee contract (${routeSummary}, owner: ${ownerInsight})`,
         feeDetails: {
           type: 'RoutingFee',
           address: feeConfig.address,
@@ -1168,7 +1287,7 @@ export class GovernTransactionReader {
 
     // Fallback for other fee types (Progressive, Regressive)
     return {
-      insight: `Set fee recipient to ${feeConfig.type} contract (owner: ${shortOwner})`,
+      insight: `Set fee recipient to ${feeConfig.type} contract (owner: ${ownerInsight})`,
       feeDetails: {
         type: feeConfig.type,
         address: feeConfig.address,
