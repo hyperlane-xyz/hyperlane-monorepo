@@ -498,13 +498,19 @@ export class GovernTransactionReader {
   }> {
     assert(tx.data, 'No data in fee transaction');
 
-    // claim(address) is on BaseFee, shared by all fee types
-    const baseFeeInterface = BaseFee__factory.createInterface();
-    const decoded = baseFeeInterface.parseTransaction({
+    // RoutingFee extends BaseFee, so its interface includes both
+    // claim(address) and setFeeContract(uint32,address)
+    const iface =
+      feeTypeName === TokenFeeType.RoutingFee
+        ? RoutingFee__factory.createInterface()
+        : BaseFee__factory.createInterface();
+
+    const decoded = iface.parseTransaction({
       data: tx.data,
       value: tx.value,
     });
 
+    const baseFeeInterface = BaseFee__factory.createInterface();
     if (
       decoded.functionFragment.name ===
       baseFeeInterface.functions['claim(address)'].name
