@@ -21,6 +21,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  applyRpcUrlOverridesFromEnv,
   objMap,
   objMerge,
   sleep,
@@ -34,7 +35,6 @@ import {
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './metrics.js';
-import { applyRpcOverrides } from './rpcOverrides.js';
 import type { WarpMonitorConfig } from './types.js';
 import { getLogger, setLoggerBindings } from './utils.js';
 
@@ -64,7 +64,7 @@ export class WarpMonitor {
     // Get chain metadata and addresses from registry
     const chainMetadata = await this.registry.getMetadata();
     const chainAddresses = await this.registry.getAddresses();
-    const overriddenChains = applyRpcOverrides(chainMetadata);
+    const overriddenChains = applyRpcUrlOverridesFromEnv(chainMetadata);
     if (overriddenChains.length > 0) {
       logger.info(
         { chains: overriddenChains, count: overriddenChains.length },
