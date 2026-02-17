@@ -19,8 +19,8 @@ import {
   IXERC20__factory,
   MovableCollateralRouter__factory,
   Ownable__factory,
-  RoutingFee__factory,
   ProxyAdmin__factory,
+  RoutingFee__factory,
   TimelockController__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -494,7 +494,7 @@ export class GovernTransactionReader {
               insight = `Set fee contract for domain ${destination} (${chainName}) to ${formatted.insight.replace('Set fee recipient to ', '')}`;
               feeDetails = formatted.feeDetails;
             } catch {
-              insight = `Set fee contract for domain ${destination} (${chainName}) to ${feeContract} (⚠️ could not read fee config)`;
+              insight = `Set fee contract for domain ${destination} (${chainName}) to ${feeContract} (could not read fee config)`;
             }
           }
         }
