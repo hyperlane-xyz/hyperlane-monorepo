@@ -372,3 +372,19 @@ export function formatHookAddress(
 
   return `${hookManagerProgramId}/${hookAddress}`;
 }
+
+// TODO: remove when rebasing after https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/7918 is merged
+/**
+ * Generate a random suffix of length n using alphanumeric characters
+ */
+export function generateSuffix(n: number): string {
+  const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let result = '';
+
+  for (let i = 0; i < n; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    result += characters[randomIndex];
+  }
+
+  return result;
+}
