@@ -5,6 +5,7 @@ import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType, shortenAddress } from '@hyperlane-xyz/utils';
 
 import { Button } from '../components/Button.js';
+import { SafeTextMorph } from '../components/SafeTextMorph.js';
 import { ChevronIcon } from '../icons/Chevron.js';
 import { WalletIcon } from '../icons/Wallet.js';
 import { useIsSsr } from '../utils/ssr.js';
@@ -83,7 +84,7 @@ export function ConnectWalletButton({
                 <div className="htw-text-xs htw-text-gray-500">
                   {firstWallet.name || 'Wallet'}
                 </div>
-                <div className="htw-text-xs">{shownAddress}</div>
+                <SafeTextMorph as="div" className="htw-text-xs">{shownAddress}</SafeTextMorph>
               </div>
               <ChevronIcon direction="s" width={10} height={6} />
             </div>
@@ -108,7 +109,7 @@ export function ConnectWalletButton({
               </div>
               <div className="htw-mx-3 htw-flex htw-flex-col htw-items-start">
                 <div className="htw-text-xs htw-text-gray-500">Wallets</div>
-                <div className="htw-text-xs">{`${numReady} Connected`}</div>
+                <SafeTextMorph as="div" className="htw-text-xs">{`${numReady} Connected`}</SafeTextMorph>
               </div>
               <ChevronIcon direction="s" width={10} height={6} />
             </div>

@@ -7,6 +7,8 @@ import { LockIcon } from '../icons/Lock.js';
 import { ShieldIcon } from '../icons/Shield.js';
 import { WideChevronIcon } from '../icons/WideChevron.js';
 
+import { SafeTextMorph } from '../components/SafeTextMorph.js';
+
 import { MessageStatus, MessageStage as Stage, StageTimings } from './types.js';
 
 interface Props {
@@ -49,15 +51,15 @@ export function MessageTimeline({
           </div>
           <ChevronBlue />
         </div>
-        <h4 className={styles.stageHeader}>
+        <SafeTextMorph as="h4" className={styles.stageHeader}>
           {getStageHeader(Stage.Sent, stage, timings, status)}
-        </h4>
+        </SafeTextMorph>
         {!hideDescriptions && (
-          <p className={styles.stageDesc}>
+          <SafeTextMorph as="p" className={styles.stageDesc}>
             {timeSentStr
               ? `Origin transaction sent at ${timeSentStr}`
               : 'Waiting for origin transaction'}
-          </p>
+          </SafeTextMorph>
         )}
       </div>
       <div className={styles.stageSpacer}></div>
@@ -77,9 +79,9 @@ export function MessageTimeline({
           <ChevronWhite />
           <ChevronBlue />
         </div>
-        <h4 className={styles.stageHeader}>
+        <SafeTextMorph as="h4" className={styles.stageHeader}>
           {getStageHeader(Stage.Finalized, stage, timings, status)}
-        </h4>
+        </SafeTextMorph>
         {!hideDescriptions && (
           <p className={styles.stageDesc}>
             Origin transaction has sufficient confirmations
@@ -103,9 +105,9 @@ export function MessageTimeline({
           <ChevronWhite />
           <ChevronBlue />
         </div>
-        <h4 className={styles.stageHeader}>
+        <SafeTextMorph as="h4" className={styles.stageHeader}>
           {getStageHeader(Stage.Validated, stage, timings, status)}
-        </h4>
+        </SafeTextMorph>
         {!hideDescriptions && (
           <p className={styles.stageDesc}>
             Validators have signed the message bundle
@@ -128,9 +130,9 @@ export function MessageTimeline({
           </div>
           <ChevronWhite />
         </div>
-        <h4 className={styles.stageHeader}>
+        <SafeTextMorph as="h4" className={styles.stageHeader}>
           {getStageHeader(Stage.Relayed, stage, timings, status)}
-        </h4>
+        </SafeTextMorph>
         {!hideDescriptions && (
           <p className={styles.stageDesc}>
             Destination transaction has been confirmed
