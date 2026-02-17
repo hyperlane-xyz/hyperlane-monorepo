@@ -498,10 +498,7 @@ export class GovernTransactionReader {
   }> {
     assert(tx.data, 'No data in fee transaction');
 
-    if (feeTypeName === TokenFeeType.RoutingFee) {
-      return this.parseRoutingFeeTransaction(chain, tx);
-    }
-
+    // claim(address) is on BaseFee, shared by all fee types
     const baseFeeInterface = BaseFee__factory.createInterface();
     const decoded = baseFeeInterface.parseTransaction({
       data: tx.data,
@@ -514,6 +511,10 @@ export class GovernTransactionReader {
     ) {
       const [beneficiary] = decoded.args;
       return { decoded, insight: `Claim fees to ${beneficiary}` };
+    }
+
+    if (feeTypeName === TokenFeeType.RoutingFee) {
+      return this.parseRoutingFeeTransaction(chain, tx);
     }
 
     return { decoded };
@@ -532,14 +533,6 @@ export class GovernTransactionReader {
       data: tx.data!,
       value: tx.value,
     });
-
-    if (
-      decoded.functionFragment.name ===
-      routingFeeInterface.functions['claim(address)'].name
-    ) {
-      const [beneficiary] = decoded.args;
-      return { decoded, insight: `Claim fees to ${beneficiary}` };
-    }
 
     if (
       decoded.functionFragment.name !==
