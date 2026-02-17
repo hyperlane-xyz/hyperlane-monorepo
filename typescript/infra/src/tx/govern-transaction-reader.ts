@@ -493,7 +493,10 @@ export class GovernTransactionReader {
               const formatted = await this.formatFeeConfig(chain, feeConfig);
               insight = `Set fee contract for domain ${destination} (${chainName}) to ${formatted.insight.replace('Set fee recipient to ', '')}`;
               feeDetails = formatted.feeDetails;
-            } catch {
+            } catch (error) {
+              this.logger.debug(
+                `Could not read fee config for ${feeContract}: ${error}`,
+              );
               insight = `Set fee contract for domain ${destination} (${chainName}) to ${feeContract} (could not read fee config)`;
             }
           }
