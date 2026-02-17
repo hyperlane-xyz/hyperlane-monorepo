@@ -20,9 +20,9 @@ import {
   toAleoAddress,
 } from '../utils/helper.js';
 import {
+  type AleoNetworkId,
   type AleoReceipt,
   type AnnotatedAleoTransaction,
-  type OnChainArtifactManagers,
 } from '../utils/types.js';
 
 import { getValidatorAnnounceConfig } from './validator-announce-query.js';
@@ -73,9 +73,9 @@ export class AleoValidatorAnnounceWriter
     ArtifactWriter<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
 {
   constructor(
+    private readonly aleoNetworkId: AleoNetworkId,
     aleoClient: AnyAleoNetworkClient,
     private readonly signer: AleoSigner,
-    private readonly onChainArtifactManagers: OnChainArtifactManagers,
   ) {
     super(aleoClient);
   }
@@ -112,7 +112,7 @@ export class AleoValidatorAnnounceWriter
     const mailboxConfig = await getMailboxConfig(
       this.aleoClient,
       config.mailboxAddress,
-      this.onChainArtifactManagers,
+      this.aleoNetworkId,
     );
 
     // 3. Initialize validator announce with mailbox address and local domain

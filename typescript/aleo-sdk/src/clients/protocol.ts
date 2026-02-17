@@ -112,15 +112,12 @@ export class AleoProtocolProvider implements ProtocolProvider {
         ? new AleoMainnetNetworkClient(rpcUrl)
         : new AleoTestnetNetworkClient(rpcUrl);
 
-    assert(
-      chainMetadata.domainId,
-      'domain ID required for mailbox artifact manager',
-    );
-
     return new AleoMailboxArtifactManager(
+      {
+        domainId: chainMetadata.domainId,
+        aleoNetworkId: chainId,
+      },
       aleoClient,
-      chainMetadata.domainId,
-      chainId,
     );
   }
 

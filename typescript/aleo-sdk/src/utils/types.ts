@@ -78,3 +78,8 @@ export interface OnChainArtifactManagers {
   ismManagerAddress: string;
   hookManagerAddress: string;
 }
+
+export type AleoArtifactNetworkConfig = Readonly<{
+  domainId: number;
+  aleoNetworkId: AleoNetworkId;
+}>;
