@@ -13,8 +13,8 @@ interface ApplyRpcUrlOverridesOptions {
  * Applies RPC URL overrides from environment variables.
  * Looks for variables with the form RPC_URL_<CHAIN_NAME>.
  */
-export function applyRpcUrlOverridesFromEnv<T extends ChainMetadataWithRpcUrls>(
-  chainMetadata: Record<string, T | undefined>,
+export function applyRpcUrlOverridesFromEnv(
+  chainMetadata: Record<string, ChainMetadataWithRpcUrls | undefined>,
   options: ApplyRpcUrlOverridesOptions = {},
 ): string[] {
   const overriddenChains: string[] = [];
@@ -33,7 +33,7 @@ export function applyRpcUrlOverridesFromEnv<T extends ChainMetadataWithRpcUrls>(
       { chain, envVarName },
       'Using RPC from environment variable',
     );
-    metadata.rpcUrls = [{ http: rpcUrl }] as T['rpcUrls'];
+    metadata.rpcUrls = [{ http: rpcUrl }];
     overriddenChains.push(chain);
   }
 
