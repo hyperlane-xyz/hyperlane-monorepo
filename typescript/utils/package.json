@@ -21,6 +21,9 @@
       "fs": [
         "./dist/fs/index.d.ts"
       ],
+      "anvil": [
+        "./dist/anvil/index.d.ts"
+      ],
       "eslint-rules": [
         "./dist/eslint-rules/index.d.ts"
       ]

@@ -173,6 +173,10 @@ export {
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {
+  applyRpcUrlOverridesFromEnv,
+  type ChainMetadataWithRpcUrls,
+} from './rpc.js';
+export {
   difference,
   intersection,
   setEquality,

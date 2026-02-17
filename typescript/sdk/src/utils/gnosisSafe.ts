@@ -5,10 +5,13 @@ import {
   getMultiSendDeployment,
 } from '@safe-global/safe-deployments';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, retryAsync } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
+
+export const SAFE_API_RETRIES = 10;
+export const SAFE_API_BASE_RETRY_MS = 1000;
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
   return /safe\.global|5afe\.dev/.test(txServiceUrl);
@@ -109,8 +112,11 @@ export async function getSafe(
   // Get the safe version
   const safeService = getSafeService(chain, multiProvider);
 
-  const { version: rawSafeVersion } =
-    await safeService.getSafeInfo(safeAddress);
+  const { version: rawSafeVersion } = await retryAsync(
+    () => safeService.getSafeInfo(safeAddress),
+    SAFE_API_RETRIES,
+    SAFE_API_BASE_RETRY_MS,
+  );
   // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
   const safeVersion = rawSafeVersion.split(' ')[0].split('+')[0].split('-')[0];
 
@@ -159,7 +165,11 @@ export async function getSafeDelegates(
   service: SafeApiKit.default,
   safeAddress: Address,
 ): Promise<string[]> {
-  const delegateResponse = await service.getSafeDelegates({ safeAddress });
+  const delegateResponse = await retryAsync(
+    () => service.getSafeDelegates({ safeAddress }),
+    SAFE_API_RETRIES,
+    SAFE_API_BASE_RETRY_MS,
+  );
   return delegateResponse.results.map((r) => r.delegate);
 }
 
