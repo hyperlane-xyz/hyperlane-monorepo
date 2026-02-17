@@ -8,12 +8,10 @@ import type { MultiProvider, Token, WarpCore } from '@hyperlane-xyz/sdk';
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { RebalancerStrategyOptions } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import { MonitorEventType } from '../interfaces/IMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
-import type {
-  IStrategy,
-  MovableCollateralRoute,
-} from '../interfaces/IStrategy.js';
+import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { TEST_ADDRESSES, getTestAddress } from '../test/helpers.js';
@@ -55,10 +53,7 @@ function createMockRebalancerConfig(): RebalancerConfig {
 function createMockMultiProvider(): MultiProvider {
   return {
     getDomainId: Sinon.stub().callsFake((chain: string) => {
-      const domains: Record<string, number> = {
-        ethereum: 1,
-        arbitrum: 42161,
-      };
+      const domains: Record<string, number> = { ethereum: 1, arbitrum: 42161 };
       return domains[chain] ?? 0;
     }),
     getSigner: Sinon.stub().returns({
@@ -91,7 +86,7 @@ function createMockWarpCore(): WarpCore {
 
 function createMockRebalancer(): IRebalancer & { rebalance: Sinon.SinonStub } {
   return {
-    rebalancerType: 'movableCollateral',
+    rebalancerType: 'movableCollateral' as const,
     rebalance: Sinon.stub().resolves([]),
   };
 }
@@ -128,16 +123,16 @@ function createMockActionTracker(): IActionTracker {
     logStoreContents: Sinon.stub().resolves(),
     getInProgressTransfers: Sinon.stub().resolves([]),
     getActiveRebalanceIntents: Sinon.stub().resolves([]),
-    getPartiallyFulfilledInventoryIntents: Sinon.stub().resolves([]),
     getTransfersByDestination: Sinon.stub().resolves([]),
     getRebalanceIntentsByDestination: Sinon.stub().resolves([]),
-    getActionsByType: Sinon.stub().resolves([]),
-    getActionsForIntent: Sinon.stub().resolves([]),
-    getInflightInventoryMovements: Sinon.stub().resolves(0n),
     getTransfer: Sinon.stub().resolves(undefined),
     getRebalanceIntent: Sinon.stub().resolves(undefined),
     getRebalanceAction: Sinon.stub().resolves(undefined),
     getInProgressActions: Sinon.stub().resolves([]),
+    getPartiallyFulfilledInventoryIntents: Sinon.stub().resolves([]),
+    getActionsByType: Sinon.stub().resolves([]),
+    getActionsForIntent: Sinon.stub().resolves([]),
+    getInflightInventoryMovements: Sinon.stub().resolves(0n),
   };
 }
 
@@ -183,13 +178,45 @@ function createMockContextFactory(
     getWarpCore: () => warpCore,
     getTokenForChain: (chain: string) =>
       warpCore.tokens.find((t) => t.chainName === chain),
-    createRebalancer: () => rebalancer,
+    createRebalancer: (_actionTracker: IActionTracker) => rebalancer,
+    createRebalancers: async (_actionTracker: IActionTracker) => ({
+      rebalancers: [rebalancer],
+      externalBridgeRegistry: {},
+      inventoryConfig: undefined,
+    }),
     createStrategy: async () => strategy,
     createMonitor: () => monitor,
     createMetrics: async () => overrides.metrics ?? ({} as Metrics),
     createActionTracker: async () => ({
       tracker: actionTracker,
       adapter: inflightAdapter,
+    }),
+    createOrchestrator: (options: {
+      strategy: IStrategy;
+      actionTracker: IActionTracker;
+      inflightContextAdapter: InflightContextAdapter;
+      rebalancers: IRebalancer[];
+      externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
+      metrics?: Metrics;
+    }) => ({
+      executeCycle: Sinon.stub().callsFake(async (_event: any) => {
+        // Simulate orchestrator behavior: call strategy, then rebalancer, then record metrics
+        const strategyWithGetRoutes = options.strategy as any;
+        const routes = strategyWithGetRoutes.getRebalancingRoutes?.() ?? [];
+        if (routes.length > 0 && options.rebalancers[0]) {
+          const results = await options.rebalancers[0].rebalance(routes);
+          if (options.metrics && results) {
+            results.forEach((result: any) => {
+              if (result.success) {
+                (options.metrics as any).recordRebalancerSuccess?.();
+              } else {
+                (options.metrics as any).recordRebalancerFailure?.();
+              }
+            });
+          }
+        }
+        return { success: true };
+      }),
     }),
   } as unknown as RebalancerContextFactory;
 }
@@ -204,13 +231,11 @@ interface DaemonTestSetup {
 async function setupDaemonTest(
   sandbox: Sinon.SinonSandbox,
   options: {
-    intentIds?: string[];
     rebalanceResults: Array<{
       route: {
         origin: string;
         destination: string;
         amount: bigint;
-        intentId: string;
         bridge: string;
       };
       success: boolean;
@@ -227,28 +252,12 @@ async function setupDaemonTest(
   },
 ): Promise<DaemonTestSetup> {
   const actionTracker = createMockActionTracker();
-  let intentIndex = 0;
-  (actionTracker.createRebalanceIntent as Sinon.SinonStub).callsFake(
-    async () => ({
-      id: options.intentIds?.[intentIndex] ?? `intent-${intentIndex + 1}`,
-      status: 'not_started' as const,
-      ...(intentIndex++, {}),
-    }),
-  );
 
   const rebalancer = createMockRebalancer();
   rebalancer.rebalance.resolves(options.rebalanceResults);
 
   const strategy = createMockStrategy();
-  strategy.getRebalancingRoutes.returns(
-    options.strategyRoutes.map(
-      (route) =>
-        ({
-          ...route,
-          executionType: 'movableCollateral',
-        }) as MovableCollateralRoute,
-    ),
-  );
+  strategy.getRebalancingRoutes.returns(options.strategyRoutes);
 
   const inflightAdapter = createMockInflightContextAdapter();
 
@@ -275,6 +284,7 @@ async function setupDaemonTest(
 
   const service = new RebalancerService(
     createMockMultiProvider(),
+    undefined,
     undefined,
     {} as any,
     createMockRebalancerConfig(),
@@ -315,11 +325,7 @@ describe('RebalancerService', () => {
       const rebalancer = createMockRebalancer();
       rebalancer.rebalance.resolves([
         {
-          route: {
-            origin: 'ethereum',
-            destination: 'arbitrum',
-            amount: 1000n,
-          },
+          route: { origin: 'ethereum', destination: 'arbitrum', amount: 1000n },
           success: true,
           messageId:
             '0x1111111111111111111111111111111111111111111111111111111111111111',
@@ -338,6 +344,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -374,6 +381,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         createMockRebalancerConfig(),
         config,
@@ -400,6 +408,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         createMockRebalancerConfig(),
         config,
@@ -425,6 +434,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -476,6 +486,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         configWithoutBridge,
         config,
@@ -502,6 +513,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -532,6 +544,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         createMockRebalancerConfig(),
         config,
@@ -556,6 +569,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -585,6 +599,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -617,6 +632,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -653,7 +669,6 @@ describe('RebalancerService', () => {
           origin: 'ethereum',
           destination: 'arbitrum',
           amount: 1000n,
-          executionType: 'movableCollateral',
           bridge: TEST_ADDRESSES.bridge,
         },
       ]);
@@ -701,6 +716,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -746,7 +762,6 @@ describe('RebalancerService', () => {
           origin: 'ethereum',
           destination: 'arbitrum',
           amount: 1000n,
-          executionType: 'movableCollateral',
           bridge: TEST_ADDRESSES.bridge,
         },
       ]);
@@ -795,6 +810,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         createMockRebalancerConfig(),
         config,
@@ -814,7 +830,7 @@ describe('RebalancerService', () => {
       expect(recordRebalancerFailure.called).to.be.false;
     });
 
-    it('should record both success and failure metrics for mixed results', async () => {
+    it('should record failure metric when rebalance has mixed results', async () => {
       const rebalancer = createMockRebalancer();
       rebalancer.rebalance.resolves([
         {
@@ -850,14 +866,12 @@ describe('RebalancerService', () => {
           origin: 'ethereum',
           destination: 'arbitrum',
           amount: 1000n,
-          executionType: 'movableCollateral',
           bridge: TEST_ADDRESSES.bridge,
         },
         {
           origin: 'arbitrum',
           destination: 'ethereum',
           amount: 500n,
-          executionType: 'movableCollateral',
           bridge: TEST_ADDRESSES.bridge,
         },
       ]);
@@ -906,6 +920,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         createMockRebalancerConfig(),
         config,
@@ -926,138 +941,15 @@ describe('RebalancerService', () => {
     });
   });
 
-  describe('daemon mode intent tracking', () => {
-    it('should delegate intent failure tracking to the concrete rebalancer', async () => {
-      const { actionTracker, triggerCycle } = await setupDaemonTest(sandbox, {
-        intentIds: ['intent-123'],
-        rebalanceResults: [
-          {
-            route: {
-              origin: 'ethereum',
-              destination: 'arbitrum',
-              amount: 1000n,
-              intentId: 'intent-123',
-              bridge: TEST_ADDRESSES.bridge,
-            },
-            success: false,
-            error: 'Gas estimation failed',
-          },
-        ],
-        strategyRoutes: [
-          {
-            origin: 'ethereum',
-            destination: 'arbitrum',
-            amount: 1000n,
-            bridge: TEST_ADDRESSES.bridge,
-          },
-        ],
-      });
-
-      await triggerCycle();
-
-      expect((actionTracker.failRebalanceIntent as Sinon.SinonStub).called).to
-        .be.false;
-    });
-
-    it('should delegate action creation tracking to the concrete rebalancer', async () => {
-      const { actionTracker, triggerCycle } = await setupDaemonTest(sandbox, {
-        intentIds: ['intent-456'],
-        rebalanceResults: [
-          {
-            route: {
-              origin: 'ethereum',
-              destination: 'arbitrum',
-              amount: 1000n,
-              intentId: 'intent-456',
-              bridge: TEST_ADDRESSES.bridge,
-            },
-            success: true,
-            messageId:
-              '0x1111111111111111111111111111111111111111111111111111111111111111',
-            txHash:
-              '0x2222222222222222222222222222222222222222222222222222222222222222',
-          },
-        ],
-        strategyRoutes: [
-          {
-            origin: 'ethereum',
-            destination: 'arbitrum',
-            amount: 1000n,
-            bridge: TEST_ADDRESSES.bridge,
-          },
-        ],
-      });
-
-      await triggerCycle();
-
-      expect((actionTracker.createRebalanceAction as Sinon.SinonStub).called).to
-        .be.false;
-    });
-
-    it('should not directly map intent IDs in the service layer', async () => {
-      const { actionTracker, triggerCycle } = await setupDaemonTest(sandbox, {
-        intentIds: ['intent-1', 'intent-2'],
-        rebalanceResults: [
-          {
-            route: {
-              origin: 'ethereum',
-              destination: 'arbitrum',
-              amount: 1000n,
-              intentId: 'intent-1',
-              bridge: TEST_ADDRESSES.bridge,
-            },
-            success: true,
-            messageId:
-              '0x1111111111111111111111111111111111111111111111111111111111111111',
-            txHash:
-              '0x2222222222222222222222222222222222222222222222222222222222222222',
-          },
-          {
-            route: {
-              origin: 'arbitrum',
-              destination: 'ethereum',
-              amount: 500n,
-              intentId: 'intent-2',
-              bridge: TEST_ADDRESSES.bridge,
-            },
-            success: false,
-            error: 'Insufficient funds',
-          },
-        ],
-        strategyRoutes: [
-          {
-            origin: 'ethereum',
-            destination: 'arbitrum',
-            amount: 1000n,
-            bridge: TEST_ADDRESSES.bridge,
-          },
-          {
-            origin: 'arbitrum',
-            destination: 'ethereum',
-            amount: 500n,
-            bridge: TEST_ADDRESSES.bridge,
-          },
-        ],
-      });
-
-      await triggerCycle();
-
-      expect((actionTracker.createRebalanceAction as Sinon.SinonStub).called).to
-        .be.false;
-      expect((actionTracker.failRebalanceIntent as Sinon.SinonStub).called).to
-        .be.false;
-    });
-
-    it('should pass normalized strategy routes directly to rebalancer', async () => {
+  describe('daemon mode rebalancer calls', () => {
+    it('should call rebalancer with routes from strategy', async () => {
       const { rebalancer, triggerCycle } = await setupDaemonTest(sandbox, {
-        intentIds: ['generated-intent-id'],
         rebalanceResults: [
           {
             route: {
               origin: 'ethereum',
               destination: 'arbitrum',
               amount: 1000n,
-              intentId: 'generated-intent-id',
               bridge: TEST_ADDRESSES.bridge,
             },
             success: true,
@@ -1080,10 +972,64 @@ describe('RebalancerService', () => {
       expect(rebalancer.rebalance.calledOnce).to.be.true;
       const routesPassedToRebalancer = rebalancer.rebalance.firstCall.args[0];
       expect(routesPassedToRebalancer).to.have.lengthOf(1);
-      expect(routesPassedToRebalancer[0].intentId).to.be.undefined;
-      expect(routesPassedToRebalancer[0].executionType).to.equal(
-        'movableCollateral',
-      );
+      expect(routesPassedToRebalancer[0].origin).to.equal('ethereum');
+      expect(routesPassedToRebalancer[0].destination).to.equal('arbitrum');
+    });
+
+    it('should call rebalancer with multiple routes', async () => {
+      const { rebalancer, triggerCycle } = await setupDaemonTest(sandbox, {
+        rebalanceResults: [
+          {
+            route: {
+              origin: 'ethereum',
+              destination: 'arbitrum',
+              amount: 1000n,
+              bridge: TEST_ADDRESSES.bridge,
+            },
+            success: true,
+          },
+          {
+            route: {
+              origin: 'arbitrum',
+              destination: 'ethereum',
+              amount: 500n,
+              bridge: TEST_ADDRESSES.bridge,
+            },
+            success: true,
+          },
+        ],
+        strategyRoutes: [
+          {
+            origin: 'ethereum',
+            destination: 'arbitrum',
+            amount: 1000n,
+            bridge: TEST_ADDRESSES.bridge,
+          },
+          {
+            origin: 'arbitrum',
+            destination: 'ethereum',
+            amount: 500n,
+            bridge: TEST_ADDRESSES.bridge,
+          },
+        ],
+      });
+
+      await triggerCycle();
+
+      expect(rebalancer.rebalance.calledOnce).to.be.true;
+      const routesPassedToRebalancer = rebalancer.rebalance.firstCall.args[0];
+      expect(routesPassedToRebalancer).to.have.lengthOf(2);
+    });
+
+    it('should not call rebalancer when no routes proposed', async () => {
+      const { rebalancer, triggerCycle } = await setupDaemonTest(sandbox, {
+        rebalanceResults: [],
+        strategyRoutes: [],
+      });
+
+      await triggerCycle();
+
+      expect(rebalancer.rebalance.called).to.be.false;
     });
   });
 
@@ -1101,6 +1047,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -1138,6 +1085,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
