@@ -392,8 +392,7 @@ export class GovernTransactionReader {
 
     // If it's a fee contract transaction
     if (await this.isFeeTransaction(chain, tx)) {
-      const feeTx = await this.readFeeTransaction(chain, tx);
-      if (feeTx) return feeTx;
+      return this.readFeeTransaction(chain, tx);
     }
 
     // If it's to a Proxy Admin
