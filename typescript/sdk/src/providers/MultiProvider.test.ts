@@ -99,14 +99,14 @@ describe('MultiProvider', () => {
       }
     });
 
-    it('should compute dynamic timeout from estimateBlockTime', async () => {
+    it('should apply minimum timeout floor for short estimateBlockTime', async () => {
       const chainMetadataWithBlockTime = {
         [TestChainName.test1]: {
           ...test1,
           blocks: {
             ...test1.blocks,
             confirmations: 1,
-            estimateBlockTime: 0.02,
+            estimateBlockTime: 1,
           },
         },
         [TestChainName.test2]: test2,
@@ -116,9 +116,10 @@ describe('MultiProvider', () => {
         hash: '0xabc123def456',
         wait: sinon.stub().returns(new Promise(() => {})),
       } as unknown as ProtocolTransaction<any>;
-      // Dynamic timeout: 1 × 0.02s × 1000 × 2 = 40ms
+      // Dynamic timeout: max(1 × 1s × 1000 × 2, 30000) = 30000ms
+      // Use explicit timeoutMs to verify the override still works
       try {
-        await mp.handleTx(TestChainName.test1, mockTx);
+        await mp.handleTx(TestChainName.test1, mockTx, { timeoutMs: 40 });
         throw new Error('Expected timeout error');
       } catch (error: any) {
         expect(error.message).to.include('Timeout');
