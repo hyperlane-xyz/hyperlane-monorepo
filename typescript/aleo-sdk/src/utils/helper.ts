@@ -9,7 +9,7 @@ import {
 
 import { type AleoProgram, programRegistry } from '../artifacts.js';
 
-import { AleoTokenType } from './types.js';
+import { AleoNetworkId, AleoTokenType } from './types.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
@@ -249,6 +249,16 @@ export function getProgramSuffix(address: string): string {
   return suffix;
 }
 
+export function getProgramPrefix(programId: string): string {
+  for (const programIdPrefix of [TESTNET_PREFIX, MAINNET_PREFIX]) {
+    if (programId.startsWith(programIdPrefix)) {
+      return programIdPrefix;
+    }
+  }
+
+  throw new Error(`Provided program address did not include a valid prefix`);
+}
+
 export function getProgramIdFromSuffix(
   prefix: string,
   program: AleoProgram,
@@ -351,4 +361,58 @@ export function generateSuffix(n: number): string {
   }
 
   return result;
+}
+
+export function getAleoIsmManagerProgramId(
+  aleoNetworkId: AleoNetworkId,
+): string {
+  // Determine prefix from chain ID
+  const prefix =
+    aleoNetworkId === AleoNetworkId.TESTNET ? TESTNET_PREFIX : MAINNET_PREFIX;
+
+  // Construct ISM manager address (same logic as AleoBase)
+  const ismManagerSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
+  const ismManagerProgramId = ismManagerSuffix
+    ? `${prefix}_ism_manager_${ismManagerSuffix}.aleo`
+    : `${prefix}_ism_manager.aleo`;
+
+  return ismManagerProgramId;
+}
+
+/**
+ * Format ISM address by combining manager program ID with plain address.
+ * Returns null address for zeroish addresses.
+ */
+export function formatIsmAddress(
+  ismAddress: string,
+  ismManagerProgramId: string,
+): string {
+  if (isZeroishAddress(ismAddress)) {
+    return ALEO_NULL_ADDRESS;
+  }
+
+  return `${ismManagerProgramId}/${ismAddress}`;
+}
+
+/**
+ * Format Hook address by combining manager program ID with plain address.
+ * Returns null address for zeroish addresses.
+ */
+export function formatHookAddress(
+  hookAddress: string,
+  mailboxProgramId: string,
+): string {
+  if (isZeroishAddress(hookAddress)) {
+    return ALEO_NULL_ADDRESS;
+  }
+
+  const mailboxPrefix = getProgramPrefix(mailboxProgramId);
+  const mailboxSuffix = getProgramSuffix(mailboxProgramId);
+  const hookManagerProgramId = getProgramIdFromSuffix(
+    mailboxPrefix,
+    'hook_manager',
+    mailboxSuffix,
+  );
+
+  return `${hookManagerProgramId}/${hookAddress}`;
 }

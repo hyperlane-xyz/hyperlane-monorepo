@@ -48,12 +48,13 @@ describe('8. aleo sdk ValidatorAnnounce artifacts e2e tests', async function () 
 
     validatorAnnounceArtifactManager = new AleoValidatorAnnounceArtifactManager(
       aleoClient,
-      AleoNetworkId.TESTNET,
     );
     mailboxArtifactManager = new AleoMailboxArtifactManager(
+      {
+        domainId,
+        aleoNetworkId: AleoNetworkId.TESTNET,
+      },
       aleoClient,
-      domainId,
-      AleoNetworkId.TESTNET,
     );
     ismArtifactManager = new AleoIsmArtifactManager(aleoClient);
 

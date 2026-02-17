@@ -11,8 +11,6 @@ import {
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
-import { MAINNET_PREFIX, TESTNET_PREFIX } from '../utils/helper.js';
-import { AleoNetworkId, type OnChainArtifactManagers } from '../utils/types.js';
 
 import {
   AleoValidatorAnnounceReader,
@@ -26,30 +24,8 @@ import {
  * - Provides factory methods for creating validator announce readers and writers
  * - Handles validator announce deployment
  */
-export class AleoValidatorAnnounceArtifactManager
-  implements IRawValidatorAnnounceArtifactManager
-{
-  private readonly onChainArtifactManagers: OnChainArtifactManagers;
-
-  constructor(
-    private readonly aleoClient: AnyAleoNetworkClient,
-    chainId: number,
-  ) {
-    // Determine prefix from chain ID
-    const prefix =
-      chainId === AleoNetworkId.TESTNET ? TESTNET_PREFIX : MAINNET_PREFIX;
-
-    // Construct ISM manager address (same logic as AleoBase)
-    const ismManagerSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
-    const ismManagerAddress = ismManagerSuffix
-      ? `${prefix}_ism_manager_${ismManagerSuffix}.aleo`
-      : `${prefix}_ism_manager.aleo`;
-
-    this.onChainArtifactManagers = {
-      ismManagerAddress,
-      hookManagerAddress: '', // Ignored - derived from mailbox address in getMailboxConfig
-    };
-  }
+export class AleoValidatorAnnounceArtifactManager implements IRawValidatorAnnounceArtifactManager {
+  constructor(private readonly aleoClient: AnyAleoNetworkClient) {}
 
   async readValidatorAnnounce(address: string) {
     const reader = this.createReader('validatorAnnounce');
@@ -72,10 +48,6 @@ export class AleoValidatorAnnounceArtifactManager
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    return new AleoValidatorAnnounceWriter(
-      this.aleoClient,
-      signer,
-      this.onChainArtifactManagers,
-    );
+    return new AleoValidatorAnnounceWriter(this.aleoClient, signer);
   }
 }

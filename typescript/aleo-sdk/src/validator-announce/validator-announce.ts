@@ -17,12 +17,12 @@ import { getMailboxConfig } from '../mailbox/mailbox-query.js';
 import {
   SUFFIX_LENGTH_SHORT,
   fromAleoAddress,
+  generateSuffix,
   toAleoAddress,
 } from '../utils/helper.js';
 import {
   type AleoReceipt,
   type AnnotatedAleoTransaction,
-  type OnChainArtifactManagers,
 } from '../utils/types.js';
 
 import { getValidatorAnnounceConfig } from './validator-announce-query.js';
@@ -32,10 +32,10 @@ import { getCreateValidatorAnnounceTx } from './validator-announce-tx.js';
  * Reader for Aleo ValidatorAnnounce.
  * Reads deployed validator announce configuration from the chain.
  */
-export class AleoValidatorAnnounceReader
-  implements
-    ArtifactReader<RawValidatorAnnounceConfig, DeployedValidatorAnnounceAddress>
-{
+export class AleoValidatorAnnounceReader implements ArtifactReader<
+  RawValidatorAnnounceConfig,
+  DeployedValidatorAnnounceAddress
+> {
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
@@ -75,7 +75,6 @@ export class AleoValidatorAnnounceWriter
   constructor(
     aleoClient: AnyAleoNetworkClient,
     private readonly signer: AleoSigner,
-    private readonly onChainArtifactManagers: OnChainArtifactManagers,
   ) {
     super(aleoClient);
   }
@@ -95,8 +94,7 @@ export class AleoValidatorAnnounceWriter
     const allReceipts: AleoReceipt[] = [];
 
     // 1. Deploy validator_announce program
-    const validatorAnnounceSuffix =
-      this.signer.generateSuffix(SUFFIX_LENGTH_SHORT);
+    const validatorAnnounceSuffix = generateSuffix(SUFFIX_LENGTH_SHORT);
     const programs = await this.signer.deployProgram(
       'validator_announce',
       validatorAnnounceSuffix,
@@ -112,7 +110,6 @@ export class AleoValidatorAnnounceWriter
     const mailboxConfig = await getMailboxConfig(
       this.aleoClient,
       config.mailboxAddress,
-      this.onChainArtifactManagers,
     );
 
     // 3. Initialize validator announce with mailbox address and local domain

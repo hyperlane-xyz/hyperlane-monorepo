@@ -19,6 +19,7 @@ import {
   toAleoAddress,
 } from '../utils/helper.js';
 import {
+  type AleoArtifactNetworkConfig,
   type AleoReceipt,
   type AnnotatedAleoTransaction,
 } from '../utils/types.js';
@@ -87,9 +88,9 @@ export class AleoMailboxWriter
   implements ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
 {
   constructor(
+    private readonly config: AleoArtifactNetworkConfig,
     aleoClient: AnyAleoNetworkClient,
     private readonly signer: AleoSigner,
-    private readonly domainId: number,
   ) {
     super(aleoClient);
   }
@@ -114,7 +115,7 @@ export class AleoMailboxWriter
     assert(dispatchProxyProgramId, 'dispatch_proxy program not deployed');
 
     // 1. Create mailbox
-    const createTx = getCreateMailboxTx(mailboxProgramId, this.domainId);
+    const createTx = getCreateMailboxTx(mailboxProgramId, this.config.domainId);
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
     allReceipts.push(createReceipt);
 
@@ -187,7 +188,7 @@ export class AleoMailboxWriter
       config: artifact.config,
       deployed: {
         address: mailboxAddress,
-        domainId: this.domainId,
+        domainId: this.config.domainId,
       },
     };
 
@@ -205,9 +206,10 @@ export class AleoMailboxWriter
     const currentConfig = currentState.config;
 
     // Extract addresses from artifacts
-    const defaultIsmAddress = config.defaultIsm.deployed.address;
-    const defaultHookAddress = config.defaultHook.deployed.address;
-    const requiredHookAddress = config.requiredHook.deployed.address;
+    const expectedDefaultIsmAddress = config.defaultIsm.deployed.address;
+    const expectedDefaultHookAddress = config.defaultHook.deployed.address;
+    const expectedRequiredHookAddress = config.requiredHook.deployed.address;
+
     const currentDefaultIsmAddress = currentConfig.defaultIsm.deployed.address;
     const currentDefaultHookAddress =
       currentConfig.defaultHook.deployed.address;
@@ -218,13 +220,16 @@ export class AleoMailboxWriter
     if (
       !eqOptionalAddress(
         currentDefaultIsmAddress,
-        defaultIsmAddress,
+        expectedDefaultIsmAddress,
         eqAddressAleo,
       )
     ) {
       updateTxs.push({
-        annotation: `Update mailbox default ISM to ${defaultIsmAddress}`,
-        ...getSetMailboxDefaultIsmTx(deployed.address, defaultIsmAddress),
+        annotation: `Update mailbox default ISM to ${expectedDefaultIsmAddress}`,
+        ...getSetMailboxDefaultIsmTx(
+          deployed.address,
+          expectedDefaultIsmAddress,
+        ),
       });
     }
 
@@ -232,13 +237,16 @@ export class AleoMailboxWriter
     if (
       !eqOptionalAddress(
         currentDefaultHookAddress,
-        defaultHookAddress,
+        expectedDefaultHookAddress,
         eqAddressAleo,
       )
     ) {
       updateTxs.push({
-        annotation: `Update mailbox default hook to ${defaultHookAddress}`,
-        ...getSetMailboxDefaultHookTx(deployed.address, defaultHookAddress),
+        annotation: `Update mailbox default hook to ${expectedDefaultHookAddress}`,
+        ...getSetMailboxDefaultHookTx(
+          deployed.address,
+          expectedDefaultHookAddress,
+        ),
       });
     }
 
@@ -246,13 +254,16 @@ export class AleoMailboxWriter
     if (
       !eqOptionalAddress(
         currentRequiredHookAddress,
-        requiredHookAddress,
+        expectedRequiredHookAddress,
         eqAddressAleo,
       )
     ) {
       updateTxs.push({
-        annotation: `Update mailbox required hook to ${requiredHookAddress}`,
-        ...getSetMailboxRequiredHookTx(deployed.address, requiredHookAddress),
+        annotation: `Update mailbox required hook to ${expectedRequiredHookAddress}`,
+        ...getSetMailboxRequiredHookTx(
+          deployed.address,
+          expectedRequiredHookAddress,
+        ),
       });
     }
 

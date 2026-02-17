@@ -58,9 +58,11 @@ describe('7. aleo sdk Mailbox artifacts e2e tests', async function () {
     aleoClient = (aleoSigner as any).aleoClient;
 
     mailboxArtifactManager = new AleoMailboxArtifactManager(
+      {
+        domainId,
+        aleoNetworkId: AleoNetworkId.TESTNET,
+      },
       aleoClient,
-      domainId,
-      AleoNetworkId.TESTNET,
     );
     ismArtifactManager = new AleoIsmArtifactManager(aleoClient);
   });

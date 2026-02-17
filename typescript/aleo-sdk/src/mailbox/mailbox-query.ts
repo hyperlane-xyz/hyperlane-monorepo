@@ -1,34 +1,16 @@
-import { assert, isZeroishAddress } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { queryMappingValue } from '../utils/base-query.js';
-import { ALEO_NULL_ADDRESS, fromAleoAddress } from '../utils/helper.js';
+import {
+  formatHookAddress,
+  formatIsmAddress,
+  fromAleoAddress,
+} from '../utils/helper.js';
 import {
   type AleoMailboxConfig,
   type AleoMailboxData,
 } from '../utils/types.js';
-
-/**
- * Format ISM address by combining manager program ID with plain address.
- * Returns null address for zeroish addresses.
- */
-function formatIsmAddress(ismAddress: string, ismManager: string): string {
-  if (isZeroishAddress(ismAddress)) {
-    return ALEO_NULL_ADDRESS;
-  }
-  return `${ismManager}/${ismAddress}`;
-}
-
-/**
- * Format Hook address by combining manager program ID with plain address.
- * Returns null address for zeroish addresses.
- */
-function formatHookAddress(hookAddress: string, hookManager: string): string {
-  if (isZeroishAddress(hookAddress)) {
-    return ALEO_NULL_ADDRESS;
-  }
-  return `${hookManager}/${hookAddress}`;
-}
 
 /**
  * Query mailbox configuration from the chain.
@@ -42,11 +24,11 @@ export async function getMailboxConfig(
   aleoClient: AnyAleoNetworkClient,
   mailboxAddress: string,
 ): Promise<AleoMailboxConfig> {
-  const { programId } = fromAleoAddress(mailboxAddress);
+  const { programId: mailboxProgramId } = fromAleoAddress(mailboxAddress);
 
   const mailboxData = await queryMappingValue(
     aleoClient,
-    programId,
+    mailboxProgramId,
     'mailbox',
     'true',
     (raw): AleoMailboxData => {
@@ -59,26 +41,23 @@ export async function getMailboxConfig(
     },
   );
 
-  const imports = await aleoClient.getProgramImportNames(programId);
+  const imports = await aleoClient.getProgramImportNames(mailboxProgramId);
   const ismManagerProgramId = imports.find((i) => i.includes('ism_manager'));
-  const hookManagerProgramId = imports.find((i) => i.includes('hook_manager'));
+  assert(
+    ismManagerProgramId,
+    `Expected to find ISM manager program id in mailbox program at ${mailboxAddress}`,
+  );
 
   return {
     address: mailboxAddress,
     owner: mailboxData.mailbox_owner,
     localDomain: mailboxData.local_domain,
     nonce: mailboxData.nonce,
-    defaultIsm: formatIsmAddress(
-      mailboxData.default_ism,
-      ismManagerProgramId ?? 'not_found',
-    ),
-    defaultHook: formatHookAddress(
-      mailboxData.default_hook,
-      hookManagerProgramId ?? 'not_found',
-    ),
+    defaultIsm: formatIsmAddress(mailboxData.default_ism, ismManagerProgramId),
+    defaultHook: formatHookAddress(mailboxData.default_hook, mailboxProgramId),
     requiredHook: formatHookAddress(
       mailboxData.required_hook,
-      hookManagerProgramId ?? 'not_found',
+      mailboxProgramId,
     ),
   };
 }
