@@ -430,12 +430,10 @@ export class GovernTransactionReader {
   ]);
 
   // Fee contract function selectors
-  private static readonly FEE_SELECTORS = new Set(
-    [
-      'setFeeContract(uint32,address)', // RoutingFee
-      'claim(address)', // BaseFee
-    ].map((func) => ethers.utils.id(func).substring(0, 10)),
-  );
+  private static readonly FEE_SELECTORS = new Set([
+    '0x16068373', // setFeeContract(uint32,address) - RoutingFee
+    '0x1e83409a', // claim(address) - BaseFee
+  ]);
 
   private isFeeTransaction(tx: AnnotatedEV5Transaction): boolean {
     if (!tx.to || !tx.data) return false;
