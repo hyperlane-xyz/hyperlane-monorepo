@@ -12,7 +12,7 @@ import {
   impersonateAccounts,
   setBalance,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { addressToBytes32, retryAsync } from '@hyperlane-xyz/utils';
 
 export interface WarpTransferParams {
   originChain: string;
@@ -113,18 +113,24 @@ export async function relayMessage(
   core: HyperlaneCore,
   transferResult: WarpTransferResult,
 ): Promise<ContractReceipt> {
-  const relayer = new HyperlaneRelayer({ core });
-  const receipts = await relayer.relayAll(transferResult.dispatchTx);
-  // relayAll keys receipts by domain ID, so look up by domain ID or chain name
-  const destinationDomain = core.multiProvider.getDomainId(
-    transferResult.destination,
+  return retryAsync(
+    async () => {
+      const relayer = new HyperlaneRelayer({ core });
+      const receipts = await relayer.relayAll(transferResult.dispatchTx);
+      // relayAll keys receipts by domain ID, so look up by domain ID or chain name
+      const destinationDomain = core.multiProvider.getDomainId(
+        transferResult.destination,
+      );
+      const destinationReceipts =
+        receipts[transferResult.destination] ?? receipts[destinationDomain];
+      if (!destinationReceipts || destinationReceipts.length === 0) {
+        throw new Error('Message relay failed');
+      }
+      return destinationReceipts[0];
+    },
+    3,
+    1000,
   );
-  const destinationReceipts =
-    receipts[transferResult.destination] ?? receipts[destinationDomain];
-  if (!destinationReceipts || destinationReceipts.length === 0) {
-    throw new Error('Message relay failed');
-  }
-  return destinationReceipts[0];
 }
 
 export async function executeWarpTransferAndRelay(
