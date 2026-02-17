@@ -33,9 +33,10 @@ import {
  * Reader for Cosmos Mailbox.
  * Reads deployed mailbox configuration from the chain.
  */
-export class CosmosMailboxReader
-  implements ArtifactReader<MailboxOnChain, DeployedMailboxAddress>
-{
+export class CosmosMailboxReader implements ArtifactReader<
+  MailboxOnChain,
+  DeployedMailboxAddress
+> {
   constructor(protected readonly query: CosmosMailboxQueryClient) {}
 
   async read(
@@ -140,9 +141,10 @@ export class CosmosMailboxWriter
       allReceipts.push(hookReceipt);
     }
 
-    // Note: Ownership is NOT transferred during creation to allow for
-    // subsequent updates by the deployer. Use update() to transfer ownership
-    // when all configuration is complete.
+    // Note: Ownership is NOT transferred during creation. The deployer retains
+    // ownership to allow setting ISM and hooks after initial deployment, which
+    // require owner permissions. Use update() to transfer ownership to the
+    // intended owner once all configuration is complete.
 
     const deployedArtifact: ArtifactDeployed<
       MailboxOnChain,
