@@ -2,7 +2,7 @@
   "settings": {
     "editor.tabSize": 2,
     "editor.formatOnSave": true,
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.defaultFormatter": "oxc.oxc-vscode",
     "prettier.configPath": "../.prettierrc",
     "workbench.editor.labelFormat": "medium",
     "npm.autoDetect": "on",
