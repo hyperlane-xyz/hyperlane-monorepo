@@ -160,3 +160,8 @@ export interface AleoMailboxConfig {
   defaultHook: string;
   requiredHook: string;
 }
+
+export type AleoArtifactNetworkConfig = Readonly<{
+  domainId: number;
+  aleoNetworkId: AleoNetworkId;
+}>;

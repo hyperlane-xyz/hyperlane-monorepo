@@ -12,8 +12,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
-import { MAINNET_PREFIX, TESTNET_PREFIX } from '../utils/helper.js';
-import { type OnChainArtifactManagers } from '../utils/types.js';
+import { type AleoArtifactNetworkConfig } from '../utils/types.js';
 
 import { AleoMailboxReader, AleoMailboxWriter } from './mailbox.js';
 
@@ -25,27 +24,10 @@ import { AleoMailboxReader, AleoMailboxWriter } from './mailbox.js';
  * - Handles mailbox deployment and configuration
  */
 export class AleoMailboxArtifactManager implements IRawMailboxArtifactManager {
-  private readonly onChainArtifactManagers: OnChainArtifactManagers;
-
   constructor(
+    private readonly config: AleoArtifactNetworkConfig,
     private readonly aleoClient: AnyAleoNetworkClient,
-    private readonly domainId: number,
-    chainId: number,
-  ) {
-    // Determine prefix from chain ID
-    const prefix = chainId === 1 ? TESTNET_PREFIX : MAINNET_PREFIX;
-
-    // Construct ISM manager address (same logic as AleoBase)
-    const ismManagerSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
-    const ismManagerAddress = ismManagerSuffix
-      ? `${prefix}_ism_manager_${ismManagerSuffix}.aleo`
-      : `${prefix}_ism_manager.aleo`;
-
-    this.onChainArtifactManagers = {
-      ismManagerAddress,
-      hookManagerAddress: '', // Ignored - derived from mailbox address in getMailboxConfig
-    };
-  }
+  ) {}
 
   async readMailbox(address: string) {
     const reader = this.createReader('mailbox');
@@ -62,7 +44,7 @@ export class AleoMailboxArtifactManager implements IRawMailboxArtifactManager {
       >;
     } = {
       mailbox: () =>
-        new AleoMailboxReader(this.aleoClient, this.onChainArtifactManagers),
+        new AleoMailboxReader(this.config.aleoNetworkId, this.aleoClient),
     };
 
     const maybeReader = readers[type]();
@@ -82,12 +64,7 @@ export class AleoMailboxArtifactManager implements IRawMailboxArtifactManager {
       >;
     } = {
       mailbox: () =>
-        new AleoMailboxWriter(
-          this.aleoClient,
-          signer,
-          this.domainId,
-          this.onChainArtifactManagers,
-        ),
+        new AleoMailboxWriter(this.config, this.aleoClient, signer),
     };
 
     const maybeWriter = writers[type]();
