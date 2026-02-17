@@ -81,6 +81,10 @@ export class MockActionTracker implements IActionTracker {
     logger.debug({ id }, 'Transfer removed');
   }
 
+  async getTransfer(id: string): Promise<Transfer | undefined> {
+    return this.transfers.get(id);
+  }
+
   async getInProgressTransfers(): Promise<Transfer[]> {
     return Array.from(this.transfers.values()).filter(
       (t) => t.status === 'in_progress',
@@ -124,6 +128,10 @@ export class MockActionTracker implements IActionTracker {
       'Created rebalance intent',
     );
     return intent;
+  }
+
+  async getRebalanceIntent(id: string): Promise<RebalanceIntent | undefined> {
+    return this.intents.get(id);
   }
 
   async getActiveRebalanceIntents(): Promise<RebalanceIntent[]> {
@@ -209,6 +217,16 @@ export class MockActionTracker implements IActionTracker {
       'Created rebalance action',
     );
     return action;
+  }
+
+  async getRebalanceAction(id: string): Promise<RebalanceAction | undefined> {
+    return this.actions.get(id);
+  }
+
+  async getInProgressActions(): Promise<RebalanceAction[]> {
+    return Array.from(this.actions.values()).filter(
+      (a) => a.status === 'in_progress',
+    );
   }
 
   async completeRebalanceAction(id: string): Promise<void> {
@@ -392,7 +410,12 @@ export class MockActionTracker implements IActionTracker {
     }
 
     logger.debug(
-      { actionId: action.id, intentId: action.intentId, origin, destination },
+      {
+        actionId: action.id,
+        intentId: action.intentId,
+        origin,
+        destination,
+      },
       'Completed rebalance action by route',
     );
     return true;
@@ -435,7 +458,12 @@ export class MockActionTracker implements IActionTracker {
     }
 
     logger.debug(
-      { actionId: action.id, intentId: action.intentId, origin, destination },
+      {
+        actionId: action.id,
+        intentId: action.intentId,
+        origin,
+        destination,
+      },
       'Failed rebalance action by route',
     );
     return true;

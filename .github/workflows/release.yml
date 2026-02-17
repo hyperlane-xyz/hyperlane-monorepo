@@ -38,7 +38,7 @@ jobs:
       id-token: write
       contents: write
       pull-requests: write
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     steps:
       # Generate token first so checkout configures git credentials with it
       # This allows subsequent pushes to trigger workflows

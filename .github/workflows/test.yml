@@ -28,7 +28,7 @@ env:
 
 jobs:
   pnpm-install:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
@@ -207,7 +207,7 @@ jobs:
           echo "skip_cli_e2e=${{ steps.check-skip-cli.outputs.skip_cli }}" >> $GITHUB_OUTPUT
 
   pnpm-test-run:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     timeout-minutes: 10
     if: needs.change-detection.outputs.only_rust == 'false'
@@ -239,7 +239,7 @@ jobs:
           result: ${{ needs.pnpm-test-run.result }}
 
   infra-test:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [set-base-sha]
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
@@ -319,7 +319,7 @@ jobs:
           result: ${{ needs.cli-install-test-run.result }}
 
   cli-evm-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
@@ -391,7 +391,7 @@ jobs:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-cosmos-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
@@ -431,7 +431,7 @@ jobs:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-radix-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
@@ -470,7 +470,7 @@ jobs:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-cross-chain-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
@@ -502,7 +502,7 @@ jobs:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-aleo-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
@@ -585,7 +585,7 @@ jobs:
           result: ${{ needs.cli-aleo-e2e-matrix.result }}
 
   cosmos-sdk-e2e-run:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
@@ -614,7 +614,7 @@ jobs:
           result: ${{ needs.cosmos-sdk-e2e-run.result }}
 
   aleo-sdk-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
@@ -655,7 +655,7 @@ jobs:
           result: ${{ needs.aleo-sdk-e2e-matrix.result }}
 
   radix-sdk-e2e-run:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
@@ -684,7 +684,7 @@ jobs:
           result: ${{ needs.radix-sdk-e2e-run.result }}
 
   agent-configs:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -906,7 +906,7 @@ jobs:
           result: ${{ needs.e2e-matrix.result }}
 
   env-test-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
     env:
