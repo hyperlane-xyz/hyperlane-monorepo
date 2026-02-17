@@ -7,53 +7,14 @@ use std::{
 };
 
 use solana_client::rpc_client::RpcClient;
-use solana_loader_v3_interface::state::UpgradeableLoaderState;
+use solana_loader_v3_interface::{
+    instruction::set_upgrade_authority, state::UpgradeableLoaderState,
+};
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 
-/// BPF Loader Upgradeable program ID (well-known constant)
+/// Well-known BPF Loader Upgradeable program ID.
 const BPF_LOADER_UPGRADEABLE_ID: Pubkey =
     solana_sdk::pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
-
-/// Instruction enum for BPF Loader Upgradeable
-#[derive(serde::Serialize)]
-#[allow(dead_code)]
-enum UpgradeableLoaderInstruction {
-    InitializeBuffer,
-    Write { offset: u32, bytes: Vec<u8> },
-    DeployWithMaxDataLen { max_data_len: usize },
-    Upgrade,
-    SetAuthority,
-    Close,
-    ExtendProgram { additional_bytes: u32 },
-    SetAuthorityChecked,
-    Migrate,
-}
-
-/// Create a set_upgrade_authority instruction for BPF Loader Upgradeable
-fn set_upgrade_authority_instruction(
-    program_address: &Pubkey,
-    current_authority_address: &Pubkey,
-    new_authority_address: Option<&Pubkey>,
-) -> Instruction {
-    use solana_sdk::instruction::AccountMeta;
-
-    let programdata_address =
-        Pubkey::find_program_address(&[program_address.as_ref()], &BPF_LOADER_UPGRADEABLE_ID).0;
-
-    let mut account_metas = vec![
-        AccountMeta::new(programdata_address, false),
-        AccountMeta::new_readonly(*current_authority_address, true),
-    ];
-    if let Some(address) = new_authority_address {
-        account_metas.push(AccountMeta::new_readonly(*address, false));
-    }
-
-    Instruction::new_with_bincode(
-        BPF_LOADER_UPGRADEABLE_ID,
-        &UpgradeableLoaderInstruction::SetAuthority,
-        account_metas,
-    )
-}
 
 use account_utils::DiscriminatorData;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -619,7 +580,7 @@ fn configure_upgrade_authority(
             let tx_result = ctx
                 .new_txn()
                 .add_with_description(
-                    set_upgrade_authority_instruction(
+                    set_upgrade_authority(
                         program_id,
                         &actual_upgrade_authority,
                         expected_upgrade_authority.as_ref(),
