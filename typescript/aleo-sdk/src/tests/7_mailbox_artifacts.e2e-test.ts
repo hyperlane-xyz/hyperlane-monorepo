@@ -22,6 +22,10 @@ import { AleoSigner } from '../clients/signer.js';
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { AleoMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
+import {
+  TEST_ALEO_CHAIN_METADATA,
+  TEST_ALEO_PRIVATE_KEY,
+} from '../testing/constants.js';
 import { ALEO_NULL_ADDRESS } from '../utils/helper.js';
 import { AleoNetworkId } from '../utils/types.js';
 
@@ -43,16 +47,16 @@ describe('7. aleo sdk Mailbox artifacts e2e tests', async function () {
     'aleo1d5hg2z3ma00382pngntdp68e74zv54jdxy249qhaujhks9c72yrs33ddah';
 
   before(async () => {
-    const localnetRpc = 'http://localhost:3030';
-    const privateKey =
-      'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
-
-    signer = await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
-      metadata: {
-        chainId: 1,
-        domainId,
+    signer = await AleoSigner.connectWithSigner(
+      [TEST_ALEO_CHAIN_METADATA.rpcUrl],
+      TEST_ALEO_PRIVATE_KEY,
+      {
+        metadata: {
+          chainId: 1,
+          domainId,
+        },
       },
-    });
+    );
 
     aleoSigner = signer as AleoSigner;
     aleoClient = (aleoSigner as any).aleoClient;
