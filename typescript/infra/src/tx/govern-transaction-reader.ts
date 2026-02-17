@@ -510,11 +510,7 @@ export class GovernTransactionReader {
       value: tx.value,
     });
 
-    const baseFeeInterface = BaseFee__factory.createInterface();
-    if (
-      decoded.functionFragment.name ===
-      baseFeeInterface.functions['claim(address)'].name
-    ) {
+    if (decoded.functionFragment.name === 'claim') {
       const [beneficiary] = decoded.args;
       return { decoded, insight: `Claim fees to ${beneficiary}` };
     }
@@ -534,11 +530,7 @@ export class GovernTransactionReader {
     insight?: string;
     feeDetails?: Record<string, any>;
   }> {
-    const routingFeeInterface = RoutingFee__factory.createInterface();
-    if (
-      decoded.functionFragment.name !==
-      routingFeeInterface.functions['setFeeContract(uint32,address)'].name
-    ) {
+    if (decoded.functionFragment.name !== 'setFeeContract') {
       return { decoded };
     }
 
@@ -562,7 +554,7 @@ export class GovernTransactionReader {
       const formatted = await this.formatFeeConfig(chain, feeConfig);
       return {
         decoded,
-        insight: `Set fee contract for domain ${destination} (${chainName}) to ${formatted.insight.replace('Set fee recipient to ', '')}`,
+        insight: `Set fee contract for domain ${destination} (${chainName}) to ${formatted.description}`,
         feeDetails: formatted.feeDetails,
       };
     } catch (error) {
@@ -1259,6 +1251,7 @@ export class GovernTransactionReader {
     feeConfig: DerivedTokenFeeConfig,
   ): Promise<{
     insight: string;
+    description: string;
     feeDetails: Record<string, any>;
   }> {
     const ownerInsight = await getOwnerInsight(chain, feeConfig.owner);
@@ -1268,8 +1261,10 @@ export class GovernTransactionReader {
       const bps = feeConfig.bps ? Number(feeConfig.bps) : 0;
       const percentFormatted = (bps / 100).toFixed(2);
 
+      const description = `LinearFee contract (${percentFormatted}% fee, owner: ${ownerInsight})`;
       return {
-        insight: `Set fee recipient to LinearFee contract (${percentFormatted}% fee, owner: ${ownerInsight})`,
+        insight: `Set fee recipient to ${description}`,
+        description,
         feeDetails: {
           type: 'LinearFee',
           address: feeConfig.address,
@@ -1311,8 +1306,10 @@ export class GovernTransactionReader {
           ? routeInsights.join(', ')
           : `${routeCount} routes configured`;
 
+      const description = `RoutingFee contract (${routeSummary}, owner: ${ownerInsight})`;
       return {
-        insight: `Set fee recipient to RoutingFee contract (${routeSummary}, owner: ${ownerInsight})`,
+        insight: `Set fee recipient to ${description}`,
+        description,
         feeDetails: {
           type: 'RoutingFee',
           address: feeConfig.address,
@@ -1324,8 +1321,10 @@ export class GovernTransactionReader {
     }
 
     // Fallback for other fee types (Progressive, Regressive)
+    const description = `${feeConfig.type} contract (owner: ${ownerInsight})`;
     return {
-      insight: `Set fee recipient to ${feeConfig.type} contract (owner: ${ownerInsight})`,
+      insight: `Set fee recipient to ${description}`,
+      description,
       feeDetails: {
         type: feeConfig.type,
         address: feeConfig.address,
