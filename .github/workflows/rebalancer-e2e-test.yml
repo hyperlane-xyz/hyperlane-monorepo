@@ -4,11 +4,21 @@ on:
   push:
     branches: [main]
     paths:
-      - 'typescript/rebalancer/src/e2e/**'
+      - 'typescript/rebalancer/**'
+      - 'typescript/sdk/**'
+      - 'typescript/utils/**'
+      - 'typescript/provider-sdk/**'
+      - 'typescript/metrics/**'
+      - 'typescript/relayer/**'
       - '.github/workflows/rebalancer-e2e-test.yml'
   pull_request:
     paths:
-      - 'typescript/rebalancer/src/e2e/**'
+      - 'typescript/rebalancer/**'
+      - 'typescript/sdk/**'
+      - 'typescript/utils/**'
+      - 'typescript/provider-sdk/**'
+      - 'typescript/metrics/**'
+      - 'typescript/relayer/**'
       - '.github/workflows/rebalancer-e2e-test.yml'
   workflow_dispatch:
 
