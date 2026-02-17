@@ -45,7 +45,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { createHookWriter } from '../hook/hook-writer.js';
-import { createIsmWriter } from '../ism/generic-ism-writer.js';
+import { IsmWriter, createIsmWriter } from '../ism/generic-ism-writer.js';
 
 import { CoreArtifactReader } from './core-artifact-reader.js';
 
@@ -105,6 +105,8 @@ export class CoreWriter extends CoreArtifactReader {
     module: CoreWriter.name,
   });
 
+  private readonly ismWriter: IsmWriter;
+
   constructor(
     mailboxArtifactManager: IRawMailboxArtifactManager,
     protected readonly validatorAnnounceArtifactManager: IRawValidatorAnnounceArtifactManager | null,
@@ -113,6 +115,12 @@ export class CoreWriter extends CoreArtifactReader {
     protected readonly signer: ISigner<AnnotatedTx, TxReceipt>,
   ) {
     super(mailboxArtifactManager, chainMetadata, chainLookup);
+
+    this.ismWriter = createIsmWriter(
+      this.chainMetadata,
+      this.chainLookup,
+      this.signer,
+    );
   }
 
   /**
@@ -139,12 +147,9 @@ export class CoreWriter extends CoreArtifactReader {
     >;
     if (isArtifactNew(config.defaultIsm)) {
       this.logger.info(`Deploying default ISM on ${chainName}`);
-      const ismWriter = createIsmWriter(
-        this.chainMetadata,
-        this.chainLookup,
-        this.signer,
+      const [deployed, ismReceipts] = await this.ismWriter.create(
+        config.defaultIsm,
       );
-      const [deployed, ismReceipts] = await ismWriter.create(config.defaultIsm);
       allReceipts.push(...ismReceipts);
       onChainIsmArtifact = deployed;
       this.logger.info(
@@ -189,6 +194,13 @@ export class CoreWriter extends CoreArtifactReader {
     const mailboxAddress = deployedMailbox.deployed.address;
     this.logger.info(`Mailbox created at ${mailboxAddress} on ${chainName}`);
 
+    const hookWriter = createHookWriter(
+      this.chainMetadata,
+      this.chainLookup,
+      this.signer,
+      { mailbox: mailboxAddress },
+    );
+
     // Step 3: Deploy hooks if NEW (hooks need mailbox address)
     let onChainDefaultHookArtifact: ArtifactOnChain<
       HookArtifactConfig,
@@ -196,12 +208,7 @@ export class CoreWriter extends CoreArtifactReader {
     >;
     if (isArtifactNew(config.defaultHook)) {
       this.logger.info(`Deploying default hook on ${chainName}`);
-      const hookWriter = createHookWriter(
-        this.chainMetadata,
-        this.chainLookup,
-        this.signer,
-        { mailbox: mailboxAddress },
-      );
+
       const [deployed, hookReceipts] = await hookWriter.create(
         config.defaultHook,
       );
@@ -223,12 +230,7 @@ export class CoreWriter extends CoreArtifactReader {
     >;
     if (isArtifactNew(config.requiredHook)) {
       this.logger.info(`Deploying required hook on ${chainName}`);
-      const hookWriter = createHookWriter(
-        this.chainMetadata,
-        this.chainLookup,
-        this.signer,
-        { mailbox: mailboxAddress },
-      );
+
       const [deployed, hookReceipts] = await hookWriter.create(
         config.requiredHook,
       );
@@ -262,7 +264,7 @@ export class CoreWriter extends CoreArtifactReader {
       this.logger.debug(
         `Executing update transaction on ${chainName}: ${tx.annotation}`,
       );
-      const receipt = await this.signer.sendAndConfirmTransaction(tx as any);
+      const receipt = await this.signer.sendAndConfirmTransaction(tx);
       allReceipts.push(receipt);
     }
 
@@ -360,47 +362,36 @@ export class CoreWriter extends CoreArtifactReader {
       );
     updateTxs.push(...requiredHookTxs);
 
-    // Update mailbox if ISM/hooks/owner changed
-    if (
-      newIsmAddress !== currentConfig.defaultIsm.deployed.address ||
-      newDefaultHookAddress !== currentConfig.defaultHook.deployed.address ||
-      newRequiredHookAddress !== currentConfig.requiredHook.deployed.address ||
-      expectedConfig.owner !== currentConfig.owner
-    ) {
-      this.logger.info(`Updating mailbox configuration on ${chainName}`);
+    this.logger.info(`Updating mailbox configuration on ${chainName}`);
 
-      const mailboxWriter = this.mailboxArtifactManager.createWriter(
-        'mailbox',
-        this.signer,
-      );
+    const mailboxWriter = this.mailboxArtifactManager.createWriter(
+      'mailbox',
+      this.signer,
+    );
 
-      const updatedMailboxArtifact: DeployedMailboxArtifact = {
-        artifactState: ArtifactState.DEPLOYED,
-        config: {
-          owner: expectedConfig.owner,
-          defaultIsm: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: newIsmAddress },
-          },
-          defaultHook: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: newDefaultHookAddress },
-          },
-          requiredHook: {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: { address: newRequiredHookAddress },
-          },
+    const updatedMailboxArtifact: DeployedMailboxArtifact = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        owner: expectedConfig.owner,
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: newIsmAddress },
         },
-        deployed: currentArtifact.deployed,
-      };
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: newDefaultHookAddress },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: newRequiredHookAddress },
+        },
+      },
+      deployed: currentArtifact.deployed,
+    };
 
-      const mailboxUpdateTxs = await mailboxWriter.update(
-        updatedMailboxArtifact,
-      );
-      updateTxs.push(...mailboxUpdateTxs);
-    }
+    const mailboxUpdateTxs = await mailboxWriter.update(updatedMailboxArtifact);
+    updateTxs.push(...mailboxUpdateTxs);
 
-    this.logger.info(`Core update complete on ${chainName}`);
     return updateTxs;
   }
 
@@ -436,18 +427,18 @@ export class CoreWriter extends CoreArtifactReader {
         `New ISM deployed at ${deployed.deployed.address} on ${chainName}`,
       );
       return { address: deployed.deployed.address, transactions: [] };
-    } else {
-      // Update in-place (only routing ISMs support updates)
-      this.logger.info(`Updating existing ISM on ${chainName}`);
-      const updateTxs = await ismWriter.update(mergedArtifact);
-      this.logger.info(
-        `ISM update generated ${updateTxs.length} transactions on ${chainName}`,
-      );
-      return {
-        address: mergedArtifact.deployed.address,
-        transactions: updateTxs,
-      };
     }
+
+    // Update in-place
+    this.logger.info(`Updating existing ISM on ${chainName}`);
+    const updateTxs = await ismWriter.update(mergedArtifact);
+    this.logger.info(
+      `ISM update generated ${updateTxs.length} transactions on ${chainName}`,
+    );
+    return {
+      address: mergedArtifact.deployed.address,
+      transactions: updateTxs,
+    };
   }
 
   /**
@@ -487,17 +478,17 @@ export class CoreWriter extends CoreArtifactReader {
         `New hook deployed at ${deployed.deployed.address} on ${chainName}`,
       );
       return { address: deployed.deployed.address, transactions: [] };
-    } else {
-      // Update in-place (only IGP hooks support updates)
-      this.logger.info(`Updating existing hook on ${chainName}`);
-      const updateTxs = await hookWriter.update(mergedArtifact);
-      this.logger.info(
-        `Hook update generated ${updateTxs.length} transactions on ${chainName}`,
-      );
-      return {
-        address: mergedArtifact.deployed.address,
-        transactions: updateTxs,
-      };
     }
+
+    // Update in-place
+    this.logger.info(`Updating existing hook on ${chainName}`);
+    const updateTxs = await hookWriter.update(mergedArtifact);
+    this.logger.info(
+      `Hook update generated ${updateTxs.length} transactions on ${chainName}`,
+    );
+    return {
+      address: mergedArtifact.deployed.address,
+      transactions: updateTxs,
+    };
   }
 }
