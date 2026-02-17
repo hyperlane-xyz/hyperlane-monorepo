@@ -1,3 +1,4 @@
+import { fromAleoAddress } from '../utils/helper.js';
 import { type AleoTransaction } from '../utils/types.js';
 
 /**
@@ -13,11 +14,13 @@ export function getCreateValidatorAnnounceTx(
   mailboxAddress: string,
   localDomain: number,
 ): AleoTransaction {
+  const { address: mailboxPlainAddress } = fromAleoAddress(mailboxAddress);
+
   return {
     programName: validatorAnnounceProgramId,
     functionName: 'init',
     priorityFee: 0,
     privateFee: false,
-    inputs: [mailboxAddress, `${localDomain}u32`],
+    inputs: [mailboxPlainAddress, `${localDomain}u32`],
   };
 }
