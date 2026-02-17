@@ -62,7 +62,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
   createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
   ): IRawIsmArtifactManager {
-    const { gateway, base } = this.getCommonSetup(chainMetadata);
+    const { gateway, base } = this.configureNetworkConnection(chainMetadata);
     return new RadixIsmArtifactManager(gateway, base);
   }
 
@@ -70,7 +70,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
   ): IRawHookArtifactManager {
-    const { gateway, base } = this.getCommonSetup(chainMetadata);
+    const { gateway, base } = this.configureNetworkConnection(chainMetadata);
 
     // Get native token denom from chain metadata
     const nativeTokenDenom = chainMetadata.nativeToken?.denom || '';
@@ -95,12 +95,13 @@ export class RadixProtocolProvider implements ProtocolProvider {
   }
 
   createMailboxArtifactManager(chainMetadata: ChainMetadataForAltVM) {
-    const { gateway, base, domainId } = this.getCommonSetup(chainMetadata);
+    const { gateway, base, domainId } =
+      this.configureNetworkConnection(chainMetadata);
     return new RadixMailboxArtifactManager(gateway, base, domainId);
   }
 
   createValidatorAnnounceArtifactManager(chainMetadata: ChainMetadataForAltVM) {
-    const { gateway, base } = this.getCommonSetup(chainMetadata);
+    const { gateway, base } = this.configureNetworkConnection(chainMetadata);
     return new RadixValidatorAnnounceArtifactManager(gateway, base);
   }
 
@@ -116,9 +117,9 @@ export class RadixProtocolProvider implements ProtocolProvider {
 
   /**
    * Common setup logic for artifact managers.
-   * Extracts gateway, base, and domainId from chain metadata.
+   * Creates gateway, base, and domainId.
    */
-  private getCommonSetup(chainMetadata: ChainMetadataForAltVM): {
+  private configureNetworkConnection(chainMetadata: ChainMetadataForAltVM): {
     gateway: GatewayApiClient;
     base: RadixBase;
     domainId: number;
