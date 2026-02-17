@@ -14,7 +14,11 @@ import { assert } from '@hyperlane-xyz/utils';
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
 import { getMailboxConfig } from '../mailbox/mailbox-query.js';
-import { SUFFIX_LENGTH_SHORT, toAleoAddress } from '../utils/helper.js';
+import {
+  SUFFIX_LENGTH_SHORT,
+  generateSuffix,
+  toAleoAddress,
+} from '../utils/helper.js';
 import {
   type AleoNetworkId,
   type AleoReceipt,
@@ -91,8 +95,7 @@ export class AleoValidatorAnnounceWriter
     const allReceipts: AleoReceipt[] = [];
 
     // 1. Deploy validator_announce program
-    const validatorAnnounceSuffix =
-      this.signer.generateSuffix(SUFFIX_LENGTH_SHORT);
+    const validatorAnnounceSuffix = generateSuffix(SUFFIX_LENGTH_SHORT);
     const programs = await this.signer.deployProgram(
       'validator_announce',
       validatorAnnounceSuffix,
