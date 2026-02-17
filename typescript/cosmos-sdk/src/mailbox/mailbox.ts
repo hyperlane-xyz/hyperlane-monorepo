@@ -117,22 +117,24 @@ export class CosmosMailboxWriter
     allReceipts.push(createReceipt);
 
     // 2. Set default hook if provided
-    if (defaultHookAddress) {
+    if (!eqOptionalAddress(defaultHookAddress, undefined, eqAddressCosmos)) {
       const setDefaultHookTx = getSetMailboxDefaultHookTx(signerAddress, {
         mailboxAddress,
         hookAddress: defaultHookAddress,
       });
+
       const hookReceipt =
         await this.signer.sendAndConfirmTransaction(setDefaultHookTx);
       allReceipts.push(hookReceipt);
     }
 
     // 3. Set required hook if provided
-    if (requiredHookAddress) {
+    if (!eqOptionalAddress(requiredHookAddress, undefined, eqAddressCosmos)) {
       const setRequiredHookTx = getSetMailboxRequiredHookTx(signerAddress, {
         mailboxAddress,
         hookAddress: requiredHookAddress,
       });
+
       const hookReceipt =
         await this.signer.sendAndConfirmTransaction(setRequiredHookTx);
       allReceipts.push(hookReceipt);
@@ -166,13 +168,12 @@ export class CosmosMailboxWriter
     // Read current state
     const currentState = await this.read(deployed.address);
     const currentConfig = currentState.config;
+    const currentOwner = currentConfig.owner;
 
-    const signerAddress = this.signer.getSignerAddress();
+    const expectedDefaultIsmAddress = config.defaultIsm.deployed.address;
+    const expectedDefaultHookAddress = config.defaultHook.deployed.address;
+    const expectedRequiredHookAddress = config.requiredHook.deployed.address;
 
-    // Extract addresses from artifacts (can be UNDERIVED or DEPLOYED)
-    const defaultIsmAddress = config.defaultIsm.deployed.address;
-    const defaultHookAddress = config.defaultHook.deployed.address;
-    const requiredHookAddress = config.requiredHook.deployed.address;
     const currentDefaultIsmAddress = currentConfig.defaultIsm.deployed.address;
     const currentDefaultHookAddress =
       currentConfig.defaultHook.deployed.address;
@@ -184,13 +185,13 @@ export class CosmosMailboxWriter
     if (
       !eqOptionalAddress(
         currentDefaultIsmAddress,
-        defaultIsmAddress,
+        expectedDefaultIsmAddress,
         eqAddressCosmos,
       )
     ) {
-      const setIsmTx = getSetMailboxDefaultIsmTx(signerAddress, {
+      const setIsmTx = getSetMailboxDefaultIsmTx(currentOwner, {
         mailboxAddress: deployed.address,
-        ismAddress: defaultIsmAddress,
+        ismAddress: expectedDefaultIsmAddress,
       });
       updateTxs.push(setIsmTx);
     }
@@ -199,13 +200,13 @@ export class CosmosMailboxWriter
     if (
       !eqOptionalAddress(
         currentDefaultHookAddress,
-        defaultHookAddress,
+        expectedDefaultHookAddress,
         eqAddressCosmos,
       )
     ) {
-      const setDefaultHookTx = getSetMailboxDefaultHookTx(signerAddress, {
+      const setDefaultHookTx = getSetMailboxDefaultHookTx(currentOwner, {
         mailboxAddress: deployed.address,
-        hookAddress: defaultHookAddress,
+        hookAddress: expectedDefaultHookAddress,
       });
       updateTxs.push(setDefaultHookTx);
     }
@@ -214,22 +215,20 @@ export class CosmosMailboxWriter
     if (
       !eqOptionalAddress(
         currentRequiredHookAddress,
-        requiredHookAddress,
+        expectedRequiredHookAddress,
         eqAddressCosmos,
       )
     ) {
-      const setRequiredHookTx = getSetMailboxRequiredHookTx(signerAddress, {
+      const setRequiredHookTx = getSetMailboxRequiredHookTx(currentOwner, {
         mailboxAddress: deployed.address,
-        hookAddress: requiredHookAddress,
+        hookAddress: expectedRequiredHookAddress,
       });
       updateTxs.push(setRequiredHookTx);
     }
 
     // 4. Update owner (LAST to avoid permission issues)
-    if (
-      !eqOptionalAddress(currentConfig.owner, config.owner, eqAddressCosmos)
-    ) {
-      const setOwnerTx = getSetMailboxOwnerTx(signerAddress, {
+    if (!eqOptionalAddress(currentOwner, config.owner, eqAddressCosmos)) {
+      const setOwnerTx = getSetMailboxOwnerTx(currentOwner, {
         mailboxAddress: deployed.address,
         newOwner: config.owner,
       });
