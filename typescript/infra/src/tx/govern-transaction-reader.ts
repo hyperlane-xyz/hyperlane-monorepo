@@ -467,67 +467,15 @@ export class GovernTransactionReader {
       ];
     assert(feeTypeName, `Unknown Fee Type ${onChainFeeType}`);
 
-    let insight: string | undefined;
-    let feeDetails: Record<string, any> | undefined;
-    let decoded: ethers.utils.TransactionDescription;
+    const { insight, feeDetails, decoded } = await this.parseFeeTransactionData(
+      chain,
+      feeTypeName,
+      tx,
+    );
 
-    if (feeTypeName === TokenFeeType.RoutingFee) {
-      const routingFeeInterface = RoutingFee__factory.createInterface();
-      decoded = routingFeeInterface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
-
-      if (
-        decoded.functionFragment.name ===
-        routingFeeInterface.functions['setFeeContract(uint32,address)'].name
-      ) {
-        const [destination, feeContract] = decoded.args;
-        const chainName =
-          this.multiProvider.tryGetChainName(destination) ??
-          `unknown (${destination})`;
-
-        if (isZeroishAddress(feeContract)) {
-          insight = `Remove fee contract for domain ${destination} (${chainName})`;
-        } else {
-          try {
-            const feeReader = new EvmTokenFeeReader(this.multiProvider, chain);
-            const feeConfig = await feeReader.deriveTokenFeeConfig({
-              address: feeContract,
-            });
-            const formatted = await this.formatFeeConfig(chain, feeConfig);
-            insight = `Set fee contract for domain ${destination} (${chainName}) to ${formatted.insight.replace('Set fee recipient to ', '')}`;
-            feeDetails = formatted.feeDetails;
-          } catch (error) {
-            this.logger.debug(
-              `Could not read fee config for ${feeContract}: ${error}`,
-            );
-            insight = `Set fee contract for domain ${destination} (${chainName}) to ${feeContract} (could not read fee config)`;
-          }
-        }
-      }
-    } else {
-      // Common BaseFee functions (claim, etc.)
-      const baseFeeInterface = BaseFee__factory.createInterface();
-      decoded = baseFeeInterface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
-
-      if (
-        decoded.functionFragment.name ===
-          baseFeeInterface.functions['claim(address)'].name &&
-        decoded.args.length === 1
-      ) {
-        const [beneficiary] = decoded.args;
-        insight = `Claim fees to ${beneficiary}`;
-      }
-    }
-
-    let ownableTx = {};
-    if (!insight) {
-      ownableTx = await this.readOwnableTransaction(chain, tx);
-    }
+    const ownableTx = insight
+      ? {}
+      : await this.readOwnableTransaction(chain, tx);
 
     return {
       ...ownableTx,
@@ -537,6 +485,101 @@ export class GovernTransactionReader {
       ...(feeDetails ? { feeDetails } : {}),
       signature: decoded.signature,
     };
+  }
+
+  private async parseFeeTransactionData(
+    chain: ChainName,
+    feeTypeName: TokenFeeType,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<{
+    decoded: ethers.utils.TransactionDescription;
+    insight?: string;
+    feeDetails?: Record<string, any>;
+  }> {
+    assert(tx.data, 'No data in fee transaction');
+
+    if (feeTypeName === TokenFeeType.RoutingFee) {
+      return this.parseRoutingFeeTransaction(chain, tx);
+    }
+
+    const baseFeeInterface = BaseFee__factory.createInterface();
+    const decoded = baseFeeInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    if (
+      decoded.functionFragment.name ===
+      baseFeeInterface.functions['claim(address)'].name
+    ) {
+      const [beneficiary] = decoded.args;
+      return { decoded, insight: `Claim fees to ${beneficiary}` };
+    }
+
+    return { decoded };
+  }
+
+  private async parseRoutingFeeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<{
+    decoded: ethers.utils.TransactionDescription;
+    insight?: string;
+    feeDetails?: Record<string, any>;
+  }> {
+    const routingFeeInterface = RoutingFee__factory.createInterface();
+    const decoded = routingFeeInterface.parseTransaction({
+      data: tx.data!,
+      value: tx.value,
+    });
+
+    if (
+      decoded.functionFragment.name ===
+      routingFeeInterface.functions['claim(address)'].name
+    ) {
+      const [beneficiary] = decoded.args;
+      return { decoded, insight: `Claim fees to ${beneficiary}` };
+    }
+
+    if (
+      decoded.functionFragment.name !==
+      routingFeeInterface.functions['setFeeContract(uint32,address)'].name
+    ) {
+      return { decoded };
+    }
+
+    const [destination, feeContract] = decoded.args;
+    const chainName =
+      this.multiProvider.tryGetChainName(destination) ??
+      `unknown (${destination})`;
+
+    if (isZeroishAddress(feeContract)) {
+      return {
+        decoded,
+        insight: `Remove fee contract for domain ${destination} (${chainName})`,
+      };
+    }
+
+    try {
+      const feeReader = new EvmTokenFeeReader(this.multiProvider, chain);
+      const feeConfig = await feeReader.deriveTokenFeeConfig({
+        address: feeContract,
+      });
+      const formatted = await this.formatFeeConfig(chain, feeConfig);
+      return {
+        decoded,
+        insight: `Set fee contract for domain ${destination} (${chainName}) to ${formatted.insight.replace('Set fee recipient to ', '')}`,
+        feeDetails: formatted.feeDetails,
+      };
+    } catch (error) {
+      this.logger.debug(
+        `Could not read fee config for ${feeContract}: ${error}`,
+      );
+      return {
+        decoded,
+        insight: `Set fee contract for domain ${destination} (${chainName}) to ${feeContract} (Warning: could not read fee config)`,
+      };
+    }
   }
 
   private isErc20Transaction(
