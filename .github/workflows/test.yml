@@ -34,7 +34,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
@@ -216,7 +216,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -250,6 +250,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Install gitleaks
@@ -375,7 +376,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -415,7 +416,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -454,7 +455,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -486,7 +487,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -530,7 +531,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -594,7 +595,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -633,7 +634,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -664,7 +665,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -722,6 +723,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+          persist-credentials: false
           fetch-depth: 0
 
       - uses: actions/setup-node@v6

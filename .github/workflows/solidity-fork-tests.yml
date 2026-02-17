@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-
+          persist-credentials: false
       - name: Set Foundry RPC URLs for fork tests
         env:
           MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
