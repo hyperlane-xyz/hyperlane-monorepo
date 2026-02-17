@@ -52,7 +52,7 @@ jobs:
 
       - name: Run rebalancer E2E test (${{ matrix.test }})
         working-directory: typescript/rebalancer
-        run: pnpm mocha --config .mocharc.e2e.json "src/e2e/*${{ matrix.test }}*.e2e-test.ts" --exit
+        run: pnpm mocha --no-config --extension ts --node-option import=tsx/esm --timeout 300000 "src/e2e/*${{ matrix.test }}*.e2e-test.ts" --exit
 
   rebalancer-e2e-test:
     runs-on: ubuntu-latest

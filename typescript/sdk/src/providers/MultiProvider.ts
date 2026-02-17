@@ -436,10 +436,22 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.logger.info(
       `Pending ${txUrl || response.hash} (waiting ${confirmations} blocks for confirmation)`,
     );
-    return timeout(
+    const receipt = await timeout(
       response.wait(confirmations),
       timeoutMs,
       `Timeout (${timeoutMs}ms) waiting for ${confirmations} block confirmations for tx ${response.hash}`,
+    );
+
+    // ethers v5 can return null for wait(0) if tx is still pending.
+    if (receipt) return receipt;
+
+    this.logger.info(
+      `Pending ${txUrl || response.hash} (wait(0) returned pending, waiting for initial inclusion)`,
+    );
+    return timeout(
+      response.wait(1),
+      timeoutMs,
+      `Timeout (${timeoutMs}ms) waiting for initial inclusion for tx ${response.hash}`,
     );
   }
 
