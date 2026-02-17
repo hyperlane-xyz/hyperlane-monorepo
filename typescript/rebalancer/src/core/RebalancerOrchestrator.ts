@@ -49,11 +49,10 @@ export class RebalancerOrchestrator {
   async executeCycle(event: MonitorEvent): Promise<void> {
     this.logger.info('Polling cycle started');
 
-    if (this.metrics) {
+    const { metrics } = this;
+    if (metrics) {
       await Promise.all(
-        event.tokensInfo.map((tokenInfo) =>
-          this.metrics!.processToken(tokenInfo),
-        ),
+        event.tokensInfo.map((tokenInfo) => metrics.processToken(tokenInfo)),
       );
     }
 
@@ -125,10 +124,12 @@ export class RebalancerOrchestrator {
     return this.inflightContextAdapter.getInflightContext();
   }
 
-  private async executeWithTracking(strategyRoutes: StrategyRoute[]) {
+  private async executeWithTracking(
+    strategyRoutes: StrategyRoute[],
+  ): Promise<void> {
     if (!this.rebalancer) {
       this.logger.warn('Rebalancer not available, skipping execution');
-      return [];
+      return;
     }
 
     const rebalanceRoutes: RebalanceRoute[] = [];
@@ -173,11 +174,10 @@ export class RebalancerOrchestrator {
       await Promise.all(
         intentIds.map((id) => this.actionTracker.failRebalanceIntent(id)),
       );
-      return [];
+      return;
     }
 
     await this.processExecutionResults(results);
-    return results;
   }
 
   private async processExecutionResults(
