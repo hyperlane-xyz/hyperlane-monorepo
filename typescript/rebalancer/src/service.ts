@@ -8,7 +8,8 @@
  *
  * Environment Variables:
  * - REBALANCER_CONFIG_FILE: Path to the rebalancer configuration YAML file (required)
- * - HYP_KEY: Private key for signing transactions (required)
+ * - HYP_REBALANCER_KEY: Private key for movable collateral rebalancing operations (required)
+ * - HYP_INVENTORY_KEY: Private key for inventory operations - LiFi bridges and transferRemote (optional)
  * - COINGECKO_API_KEY: API key for CoinGecko price fetching (optional, for metrics)
  * - CHECK_FREQUENCY: Balance check frequency in ms (default: 60000)
  * - WITH_METRICS: Enable Prometheus metrics (default: "true")
@@ -19,17 +20,13 @@
  *
  * Usage:
  *   node dist/service.js
- *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_KEY=0x... node dist/service.js
+ *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_REBALANCER_KEY=0x... HYP_INVENTORY_KEY=0x... node dist/service.js
  */
 import { Wallet } from 'ethers';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import {
-  ChainMetadata,
-  MultiProtocolProvider,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
+import { ChainMetadata, MultiProvider } from '@hyperlane-xyz/sdk';
 import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
@@ -44,11 +41,14 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const privateKey = process.env.HYP_KEY;
-  if (!privateKey) {
-    rootLogger.error('HYP_KEY environment variable is required');
+  const rebalancerPrivateKey = process.env.HYP_REBALANCER_KEY;
+  if (!rebalancerPrivateKey) {
+    rootLogger.error('HYP_REBALANCER_KEY environment variable is required');
     process.exit(1);
   }
+
+  // Optional: inventory key for inventory-based operations (LiFi bridges, transferRemote)
+  const inventoryPrivateKey = process.env.HYP_INVENTORY_KEY;
 
   // Parse optional environment variables
   let checkFrequency = 60_000;
@@ -110,17 +110,46 @@ async function main(): Promise<void> {
 
     // Create MultiProvider with signer
     const multiProvider = new MultiProvider(chainMetadata);
-    const signer = new Wallet(privateKey);
-    multiProvider.setSharedSigner(signer);
-    logger.info('✅ Initialized MultiProvider with signer');
+    const rebalancerSigner = new Wallet(rebalancerPrivateKey);
+    multiProvider.setSharedSigner(rebalancerSigner);
+    logger.info(
+      { rebalancerAddress: rebalancerSigner.address },
+      '✅ Initialized MultiProvider with rebalancer signer',
+    );
 
-    // Create MultiProtocolProvider
-    const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
-    logger.info('✅ Initialized MultiProtocolProvider');
+    // Create inventory MultiProvider if inventory key is provided
+    let inventoryMultiProvider: MultiProvider | undefined;
+    if (inventoryPrivateKey) {
+      inventoryMultiProvider = new MultiProvider(chainMetadata, {
+        providers: multiProvider.providers,
+      });
+      const inventorySigner = new Wallet(inventoryPrivateKey);
+      inventoryMultiProvider.setSharedSigner(inventorySigner);
+
+      // Validate against config.inventorySigner if present
+      const inventoryAddress = inventorySigner.address;
+      if (
+        rebalancerConfig.inventorySigner &&
+        rebalancerConfig.inventorySigner.toLowerCase() !==
+          inventoryAddress.toLowerCase()
+      ) {
+        throw new Error(
+          `inventorySigner mismatch: config has ${rebalancerConfig.inventorySigner} but HYP_INVENTORY_KEY derives to ${inventoryAddress}`,
+        );
+      }
+      logger.info(
+        { inventoryAddress },
+        '✅ Initialized inventory MultiProvider',
+      );
+    }
+
+    // MultiProtocolProvider will be derived from multiProvider in factory
+    const multiProtocolProvider = undefined;
 
     // Create the rebalancer service
     const service = new RebalancerService(
       multiProvider,
+      inventoryMultiProvider,
       multiProtocolProvider,
       registry,
       rebalancerConfig,
