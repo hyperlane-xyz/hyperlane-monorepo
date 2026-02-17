@@ -392,7 +392,8 @@ export class GovernTransactionReader {
 
     // If it's a fee contract transaction
     if (this.isFeeTransaction(tx)) {
-      return this.readFeeTransaction(chain, tx);
+      const feeTx = await this.readFeeTransaction(chain, tx);
+      if (feeTx) return feeTx;
     }
 
     // If it's to a Proxy Admin
@@ -1195,7 +1196,7 @@ export class GovernTransactionReader {
         routingDestinations: domains,
       });
 
-      return this.formatFeeConfig(chain, feeConfig);
+      return await this.formatFeeConfig(chain, feeConfig);
     } catch (error) {
       // Not a fee contract or failed to read - return basic insight
       this.logger.debug(
