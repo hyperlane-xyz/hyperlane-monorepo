@@ -40,8 +40,8 @@ jobs:
       pull-requests: write
     runs-on: depot-ubuntu-24.04
     steps:
-      # Generate token first so checkout configures git credentials with it
-      # This allows subsequent pushes to trigger workflows
+      # Generate GitHub App token first.
+      # Used by checkout fetch + changesets/action (via GITHUB_TOKEN) for release PR auth.
       - name: Generate GitHub App Token
         id: generate-token
         uses: actions/create-github-app-token@v2
@@ -144,8 +144,8 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
-      # Generate token first so checkout configures git credentials with it
-      # This allows subsequent pushes to trigger workflows
+      # Generate GitHub App token first.
+      # Used by checkout fetch + changesets/action (via GITHUB_TOKEN) for publish auth.
       - name: Generate GitHub App Token
         id: generate-token
         uses: actions/create-github-app-token@v2
