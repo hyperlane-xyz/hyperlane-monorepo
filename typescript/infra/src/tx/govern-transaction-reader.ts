@@ -391,7 +391,7 @@ export class GovernTransactionReader {
     }
 
     // If it's a fee contract transaction
-    if (this.isFeeTransaction(tx)) {
+    if (await this.isFeeTransaction(chain, tx)) {
       const feeTx = await this.readFeeTransaction(chain, tx);
       if (feeTx) return feeTx;
     }
@@ -436,10 +436,19 @@ export class GovernTransactionReader {
     '0x1e83409a', // claim(address) - BaseFee
   ]);
 
-  private isFeeTransaction(tx: AnnotatedEV5Transaction): boolean {
+  private async isFeeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<boolean> {
     if (!tx.to || !tx.data) return false;
     const selector = tx.data.slice(0, 10).toLowerCase();
-    return GovernTransactionReader.FEE_SELECTORS.has(selector);
+    if (!GovernTransactionReader.FEE_SELECTORS.has(selector)) return false;
+
+    // Verify the target is actually a fee contract by checking for feeType() in bytecode
+    const provider = this.multiProvider.getProvider(chain);
+    const code = await provider.getCode(tx.to);
+    if (code === '0x') return false;
+    return code.includes('fb8dc179'); // feeType() selector
   }
 
   private async readFeeTransaction(
