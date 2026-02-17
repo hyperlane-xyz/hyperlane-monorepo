@@ -138,6 +138,7 @@ export function defaultCosmJsNativeProviderBuilder(
 export function defaultStarknetJsProviderBuilder(
   rpcUrls: RpcUrl[],
 ): StarknetJsProvider {
+  assert(rpcUrls.length, 'No RPC URLs provided');
   const { url, headers } = parseCustomRpcHeaders(rpcUrls[0].http);
   const provider = new StarknetRpcProvider({
     nodeUrl: url,
