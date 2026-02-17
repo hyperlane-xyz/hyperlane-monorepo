@@ -56,6 +56,36 @@ describe('MultiProvider', () => {
       expect(mockTx.wait.calledOnce).to.be.true;
     });
 
+    it('should wait for inclusion when wait(0) returns null', async () => {
+      const mockReceipt = {
+        transactionHash: '0xabc123def456',
+        blockNumber: 100,
+        status: 1,
+      } as unknown as ProtocolReceipt<any>;
+
+      const waitStub = sinon
+        .stub()
+        .callsFake(async (confirmations?: number) => {
+          if (confirmations === 0) return null;
+          return mockReceipt;
+        });
+
+      const mockTx = {
+        hash: '0xabc123def456',
+        wait: waitStub,
+      } as unknown as ProtocolTransaction<any>;
+
+      const result = await multiProvider.handleTx(TestChainName.test1, mockTx, {
+        waitConfirmations: 0,
+        timeoutMs: 5000,
+      });
+
+      expect(result).to.deep.equal(mockReceipt);
+      expect(waitStub.calledTwice).to.be.true;
+      expect(waitStub.firstCall.args[0]).to.equal(0);
+      expect(waitStub.secondCall.args[0]).to.equal(1);
+    });
+
     it('should not timeout when timeoutMs is 0', async () => {
       const mockReceipt = {
         transactionHash: '0xabc123def456',
