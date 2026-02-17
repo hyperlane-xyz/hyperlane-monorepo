@@ -15,7 +15,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { assert } from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -70,11 +70,11 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         defaultIsm: tempIsm,
         defaultHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: '' },
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
         },
         requiredHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: '' },
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
         },
       },
     });
@@ -176,11 +176,11 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         },
         defaultHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: '' },
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
         },
         requiredHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: '' },
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
         },
       };
 
@@ -219,11 +219,11 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         },
         defaultHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: '' },
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
         },
         requiredHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: '' },
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
         },
       };
 
@@ -262,11 +262,11 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         },
         defaultHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: '' },
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
         },
         requiredHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: '' },
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
         },
       };
 
@@ -307,11 +307,11 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         },
         defaultHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: '' },
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
         },
         requiredHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: '' },
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
         },
       };
 
@@ -369,7 +369,7 @@ describe('Cosmos Mailbox Artifact API (e2e)', function () {
         },
         requiredHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: '' },
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
         },
       };
 
