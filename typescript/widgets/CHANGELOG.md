@@ -1,5 +1,55 @@
 # @hyperlane-xyz/widgets
 
+## 25.1.0
+
+### Patch Changes
+
+- 9fb1e89: Added Aleo wallet popup that links to the Chrome extension store when Shield wallet is not installed.
+- Updated dependencies [b930534]
+- Updated dependencies [cbd400c]
+- Updated dependencies [a18d0e6]
+  - @hyperlane-xyz/sdk@25.1.0
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/radix-sdk@25.1.0
+  - @hyperlane-xyz/aleo-sdk@25.1.0
+  - @hyperlane-xyz/cosmos-sdk@25.1.0
+  - @hyperlane-xyz/provider-sdk@1.3.2
+
+## 25.0.0
+
+### Patch Changes
+
+- Updated dependencies [52ce778]
+- Updated dependencies [aaabbad]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/sdk@25.0.0
+  - @hyperlane-xyz/cosmos-sdk@25.0.0
+  - @hyperlane-xyz/aleo-sdk@25.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.1
+  - @hyperlane-xyz/radix-sdk@25.0.0
+
+## 24.0.0
+
+### Patch Changes
+
+- 9dc71fe: Added forward-compatible enum validation to prevent SDK failures when the registry contains new enum values. Added `Unknown` variants to `ProtocolType`, `TokenType`, `IsmType`, `HookType`, `ExplorerFamily`, and `ChainTechnicalStack` enums. Exported `KnownProtocolType` and `DeployableTokenType` for type-safe mappings.
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [b1b941e]
+- Updated dependencies [50868ce]
+- Updated dependencies [b05e9f8]
+- Updated dependencies [f44c2b4]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+- Updated dependencies [d0b8c24]
+- Updated dependencies [4de5071]
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/sdk@24.0.0
+  - @hyperlane-xyz/aleo-sdk@24.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.0
+  - @hyperlane-xyz/cosmos-sdk@24.0.0
+  - @hyperlane-xyz/radix-sdk@24.0.0
+
 ## 23.0.0
 
 ### Major Changes
@@ -87,7 +137,6 @@
 ### Minor Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility
@@ -1065,7 +1114,6 @@
 ### Minor Changes
 
 - f438d442a: Update widgets with components from explorer and warp ui
-
   - Add icons: Discord, Docs, Github, History, LinkedIn, Medium, Twitter, Wallet and Web
   - Add animation component: Fade component
   - Add components: DatetimeField and SelectField

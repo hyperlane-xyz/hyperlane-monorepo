@@ -155,6 +155,7 @@ sha2 = { version = "0.10.6", default-features = false }
 sha256 = "1.1.4"
 sha3 = "0.10"
 solana-account-decoder = "3.0"
+solana-address-lookup-table-interface = "3.0"
 solana-client = "3.0"
 solana-rpc-client = "3.0"
 solana-commitment-config = "3.0"

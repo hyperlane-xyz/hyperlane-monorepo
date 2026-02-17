@@ -1,0 +1,94 @@
+{
+  "name": "large-unidirectional-to-chain1",
+  "description": "Tests rebalancer response to large individual transfers creating immediate imbalance.",
+  "expectedBehavior": "5 transfers of 20 tokens each, all chain2 → chain1.\nEach transfer is 20% of initial balance - immediate liquidity crisis.\nFirst 1-2 transfers succeed, then chain1 drops to ~60 tokens (below 85 threshold).\nRebalancer must respond quickly to refill chain1 for remaining transfers.\nHigh completion rate expected if rebalancer is fast enough.",
+  "duration": 5000,
+  "chains": ["chain2", "chain1"],
+  "transfers": [
+    {
+      "id": "uni-000000",
+      "timestamp": 0,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "20000000000000000000",
+      "user": "0x5c30b066bbe5dd2b7f69792cd47950420805f81c"
+    },
+    {
+      "id": "uni-000001",
+      "timestamp": 1000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "20000000000000000000",
+      "user": "0x5c30b066bbe5dd2b7f69792cd47950420805f81c"
+    },
+    {
+      "id": "uni-000002",
+      "timestamp": 2000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "20000000000000000000",
+      "user": "0x5c30b066bbe5dd2b7f69792cd47950420805f81c"
+    },
+    {
+      "id": "uni-000003",
+      "timestamp": 3000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "20000000000000000000",
+      "user": "0x5c30b066bbe5dd2b7f69792cd47950420805f81c"
+    },
+    {
+      "id": "uni-000004",
+      "timestamp": 4000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "20000000000000000000",
+      "user": "0x5c30b066bbe5dd2b7f69792cd47950420805f81c"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "chains": {
+      "chain2": {
+        "weighted": {
+          "weight": "0.500",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      },
+      "chain1": {
+        "weighted": {
+          "weight": "0.500",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "minCompletionRate": 0.9,
+    "shouldTriggerRebalancing": true
+  }
+}

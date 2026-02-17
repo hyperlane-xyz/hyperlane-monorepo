@@ -3,11 +3,12 @@ import { type ContractFactory } from 'ethers';
 import { buildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   type ChainMap,
+  type DeployableTokenType,
   EvmWarpRouteReader,
   ExplorerLicenseType,
   type MultiProvider,
   PostDeploymentContractVerifier,
-  type TokenType,
+  TokenType,
   type VerificationInput,
   type WarpCoreConfig,
   hypERC20contracts,
@@ -113,24 +114,27 @@ export async function runVerifyWarpRoute({
   return logGreen('Finished contract verification');
 }
 
+type VerifiableTokenType = Exclude<
+  DeployableTokenType,
+  typeof TokenType.syntheticUri | typeof TokenType.collateralUri
+>;
+
 async function getWarpRouteFactory(
   multiProvider: MultiProvider,
   chainName: string,
   warpRouteAddress: Address,
 ): Promise<{
   factory: ContractFactory;
-  tokenType: Exclude<
-    TokenType,
-    typeof TokenType.syntheticUri | typeof TokenType.collateralUri
-  >;
+  tokenType: VerifiableTokenType;
 }> {
   const warpRouteReader = new EvmWarpRouteReader(multiProvider, chainName);
-  const tokenType = (await warpRouteReader.deriveTokenType(
-    warpRouteAddress,
-  )) as Exclude<
-    TokenType,
-    typeof TokenType.syntheticUri | typeof TokenType.collateralUri
-  >;
+  const tokenType = await warpRouteReader.deriveTokenType(warpRouteAddress);
+  assert(
+    tokenType !== TokenType.unknown &&
+      tokenType !== TokenType.syntheticUri &&
+      tokenType !== TokenType.collateralUri,
+    `Cannot verify warp route with token type: ${tokenType}`,
+  );
 
   const factory = objFilter(
     hypERC20factories,

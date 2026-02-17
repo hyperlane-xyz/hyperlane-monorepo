@@ -1,4 +1,5 @@
 export {
+  hexToBech32mPrefix,
   hexToRadixCustomPrefix,
   addressToByteHexString,
   addressToBytes,
@@ -80,6 +81,7 @@ export {
   AllSettledResult,
   concurrentMap,
   fetchWithTimeout,
+  LazyAsync,
   mapAllSettled,
   pollAsync,
   raceWithContext,
@@ -171,6 +173,10 @@ export {
 } from './objects.js';
 export { Result, failure, success } from './result.js';
 export {
+  applyRpcUrlOverridesFromEnv,
+  type ChainMetadataWithRpcUrls,
+} from './rpc.js';
+export {
   difference,
   intersection,
   setEquality,
@@ -200,6 +206,7 @@ export {
   Domain,
   EvmChainId,
   HexString,
+  KnownProtocolType,
   MerkleProof,
   MessageStatus,
   Numberish,

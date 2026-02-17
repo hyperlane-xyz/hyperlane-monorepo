@@ -1,5 +1,45 @@
 # @hyperlane-xyz/ccip-server
 
+## 25.1.0
+
+### Patch Changes
+
+- Updated dependencies [b930534]
+- Updated dependencies [a18d0e6]
+  - @hyperlane-xyz/sdk@25.1.0
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/metrics@0.1.4
+  - @hyperlane-xyz/core@10.1.5
+
+## 25.0.0
+
+### Patch Changes
+
+- Updated dependencies [52ce778]
+- Updated dependencies [aaabbad]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/sdk@25.0.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/metrics@0.1.3
+
+## 24.0.0
+
+### Patch Changes
+
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [50868ce]
+- Updated dependencies [b05e9f8]
+- Updated dependencies [f44c2b4]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+- Updated dependencies [d0b8c24]
+- Updated dependencies [4de5071]
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/sdk@24.0.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/metrics@0.1.2
+
 ## 23.0.0
 
 ### Patch Changes

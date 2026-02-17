@@ -1,10 +1,6 @@
 import { type Logger } from 'pino';
 
-import {
-  EthJsonRpcBlockParameterTag,
-  type Token,
-  type WarpCore,
-} from '@hyperlane-xyz/sdk';
+import { type Token, type WarpCore } from '@hyperlane-xyz/sdk';
 import { sleep } from '@hyperlane-xyz/utils';
 
 import {
@@ -16,6 +12,7 @@ import {
   MonitorPollingError,
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
+import { getConfirmedBlockTag } from '../utils/blockTag.js';
 
 /**
  * Simple monitor implementation that polls warp route collateral balances and emits them as MonitorEvent.
@@ -38,36 +35,16 @@ export class Monitor implements IMonitor {
     private readonly logger: Logger,
   ) {}
 
-  private async getConfirmedBlockTag(
-    chainName: string,
-  ): Promise<ConfirmedBlockTag> {
-    try {
-      const metadata = this.warpCore.multiProvider.getChainMetadata(chainName);
-      const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
-
-      if (typeof reorgPeriod === 'string') {
-        return reorgPeriod as EthJsonRpcBlockParameterTag;
-      }
-
-      const provider =
-        this.warpCore.multiProvider.getEthersV5Provider(chainName);
-      const latestBlock = await provider.getBlockNumber();
-      return Math.max(0, latestBlock - reorgPeriod);
-    } catch (error) {
-      this.logger.warn(
-        { chain: chainName, error: (error as Error).message },
-        'Failed to get confirmed block, using latest',
-      );
-      return undefined;
-    }
-  }
-
   private async computeConfirmedBlockTags(): Promise<ConfirmedBlockTags> {
     const blockTags: ConfirmedBlockTags = {};
     const chains = new Set(this.warpCore.tokens.map((t) => t.chainName));
 
     for (const chain of chains) {
-      blockTags[chain] = await this.getConfirmedBlockTag(chain);
+      blockTags[chain] = await getConfirmedBlockTag(
+        this.warpCore.multiProvider,
+        chain,
+        this.logger,
+      );
     }
 
     return blockTags;

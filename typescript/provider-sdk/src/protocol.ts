@@ -1,7 +1,7 @@
 import { assert } from '@hyperlane-xyz/utils';
 
 import { IProvider, ISigner } from './altvm.js';
-import { ChainMetadataForAltVM } from './chain.js';
+import type { ChainMetadataForAltVM } from './chain.js';
 import { IRawHookArtifactManager } from './hook.js';
 import { IRawIsmArtifactManager } from './ism.js';
 import { MinimumRequiredGasByAction } from './mingas.js';
@@ -20,6 +20,7 @@ export enum ProtocolType {
   Starknet = 'starknet',
   Radix = 'radix',
   Aleo = 'aleo',
+  Unknown = 'unknown',
 }
 
 // A type that also allows for literal values of the enum
@@ -33,6 +34,7 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.Starknet]: 'fri',
   [ProtocolType.Radix]: 'attos',
   [ProtocolType.Aleo]: 'microcredits',
+  [ProtocolType.Unknown]: 'unknown',
 };
 
 export type SignerConfig = Pick<

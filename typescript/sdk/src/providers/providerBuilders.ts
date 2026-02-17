@@ -19,6 +19,7 @@ import {
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
+  KnownProtocolType,
   ProviderType,
   RadixProvider,
   SolanaWeb3Provider,
@@ -29,6 +30,7 @@ import {
 } from './ProviderType.js';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
 import { ProviderRetryOptions } from './SmartProvider/types.js';
+import { parseCustomRpcHeaders } from '../utils/provider.js';
 
 export type ProviderBuilderFn<P> = (
   rpcUrls: ChainMetadata['rpcUrls'],
@@ -136,8 +138,11 @@ export function defaultCosmJsNativeProviderBuilder(
 export function defaultStarknetJsProviderBuilder(
   rpcUrls: RpcUrl[],
 ): StarknetJsProvider {
+  assert(rpcUrls.length, 'No RPC URLs provided');
+  const { url, headers } = parseCustomRpcHeaders(rpcUrls[0].http);
   const provider = new StarknetRpcProvider({
-    nodeUrl: rpcUrls[0].http,
+    nodeUrl: url,
+    headers,
   });
   return { provider, type: ProviderType.Starknet };
 }
@@ -210,7 +215,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
 };
 
 export const protocolToDefaultProviderBuilder: Record<
-  ProtocolType,
+  KnownProtocolType,
   ProviderBuilderFn<TypedProvider>
 > = {
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,

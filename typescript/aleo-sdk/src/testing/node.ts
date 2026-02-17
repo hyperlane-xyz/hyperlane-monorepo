@@ -13,6 +13,9 @@ import {
   TEST_ALEO_ENV,
 } from './constants.js';
 
+// Timeout for container startup (includes image pull + container start + wait strategy)
+const CONTAINER_STARTUP_TIMEOUT_MS = 120_000;
+
 /**
  * Starts a local Aleo devnode using testcontainers
  *
@@ -39,6 +42,7 @@ export async function runAleoNode(
           '0.0.0.0:3030',
         ])
         .withWaitStrategy(Wait.forLogMessage(/connection is ready/))
+        .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS)
         .start(),
     3,
     5000,

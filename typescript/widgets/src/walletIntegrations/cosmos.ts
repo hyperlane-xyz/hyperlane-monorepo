@@ -45,7 +45,7 @@ export function useCosmosAccount(
   return useMemo<AccountInfo>(() => {
     const addresses: Array<ChainAddress> = [];
     let publicKey: Promise<HexString> | undefined = undefined;
-    let connectorName: string | undefined = undefined;
+    let _connectorName: string | undefined = undefined;
     let isReady = false;
     for (const [chainName, context] of Object.entries(chainToContext)) {
       if (!context.address) continue;
@@ -54,7 +54,7 @@ export function useCosmosAccount(
         .getAccount()
         .then((acc) => Buffer.from(acc.pubkey).toString('hex'));
       isReady = true;
-      connectorName ||= context.wallet?.prettyName;
+      _connectorName ||= context.wallet?.prettyName;
     }
     return {
       protocol: ProtocolType.Cosmos,

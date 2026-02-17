@@ -640,15 +640,19 @@ export function isPrivateKeyEvm(privateKey: string): boolean {
   }
 }
 
+export function hexToBech32mPrefix(hex: string, prefix: string, length = 32) {
+  let bytes = addressToBytes(hex);
+  bytes = bytes.slice(bytes.length - length);
+  return bech32m.encode(prefix, bech32m.toWords(bytes));
+}
+
 export function hexToRadixCustomPrefix(
   hex: string,
   module: string,
   prefix?: string,
   length = 32,
 ) {
-  let bytes = addressToBytes(hex);
-  bytes = bytes.slice(bytes.length - length);
   prefix = prefix || 'account_rdx';
   prefix = prefix.replace('account', module);
-  return bech32m.encode(prefix, bech32m.toWords(bytes));
+  return hexToBech32mPrefix(hex, prefix, length);
 }

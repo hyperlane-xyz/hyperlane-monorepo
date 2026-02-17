@@ -3435,6 +3435,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "solana-address-lookup-table-interface 3.0.1",
  "solana-clap-utils",
  "solana-cli-config",
  "solana-client",

@@ -1,5 +1,42 @@
 # @hyperlane-xyz/helloworld
 
+## 25.1.0
+
+### Patch Changes
+
+- Updated dependencies [b930534]
+- Updated dependencies [a18d0e6]
+  - @hyperlane-xyz/sdk@25.1.0
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/core@10.1.5
+
+## 25.0.0
+
+### Patch Changes
+
+- Updated dependencies [52ce778]
+- Updated dependencies [aaabbad]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/sdk@25.0.0
+  - @hyperlane-xyz/core@10.1.5
+
+## 24.0.0
+
+### Patch Changes
+
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [50868ce]
+- Updated dependencies [b05e9f8]
+- Updated dependencies [f44c2b4]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+- Updated dependencies [d0b8c24]
+- Updated dependencies [4de5071]
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/sdk@24.0.0
+  - @hyperlane-xyz/core@10.1.5
+
 ## 23.0.0
 
 ### Patch Changes
@@ -1266,7 +1303,6 @@
 ### Minor Changes
 
 - 9681df08d: Enabled verification of contracts as part of the deployment flow.
-
   - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
   - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
   - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.

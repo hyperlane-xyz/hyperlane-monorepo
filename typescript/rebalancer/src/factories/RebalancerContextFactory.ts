@@ -3,11 +3,13 @@ import { type Logger } from 'pino';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
-  HyperlaneCore,
+  type CoreAddresses,
+  MultiProtocolCore,
   MultiProtocolProvider,
   MultiProvider,
   type Token,
   WarpCore,
+  type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -33,7 +35,10 @@ import {
   type Transfer,
   type TransferStatus,
 } from '../tracking/index.js';
-import { ExplorerClient } from '../utils/ExplorerClient.js';
+import {
+  ExplorerClient,
+  type IExplorerClient,
+} from '../utils/ExplorerClient.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 
 const DEFAULT_EXPLORER_URL =
@@ -45,6 +50,7 @@ export class RebalancerContextFactory {
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
    * @param multiProvider - MultiProvider instance
+   * @param multiProtocolProvider - MultiProtocolProvider instance (with mailbox metadata)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
    */
@@ -53,23 +59,18 @@ export class RebalancerContextFactory {
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
+    private readonly multiProtocolProvider: MultiProtocolProvider,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
   ) {}
 
-  /**
-   * @param config - The rebalancer config
-   * @param multiProvider - MultiProvider instance
-   * @param multiProtocolProvider - MultiProtocolProvider instance (optional, created from multiProvider if not provided)
-   * @param registry - IRegistry instance
-   * @param logger - Logger instance
-   */
   public static async create(
     config: RebalancerConfig,
     multiProvider: MultiProvider,
     multiProtocolProvider: MultiProtocolProvider | undefined,
     registry: IRegistry,
     logger: Logger,
+    warpCoreConfigOverride?: WarpCoreConfig,
   ): Promise<RebalancerContextFactory> {
     logger.debug(
       {
@@ -87,15 +88,20 @@ export class RebalancerContextFactory {
     const mpp =
       multiProtocolProvider ??
       MultiProtocolProvider.fromMultiProvider(multiProvider);
-    const provider = mpp.extendChainMetadata(mailboxes);
+    const extendedMultiProtocolProvider = mpp.extendChainMetadata(mailboxes);
 
-    const warpCoreConfig = await registry.getWarpRoute(config.warpRouteId);
+    const warpCoreConfig =
+      warpCoreConfigOverride ??
+      (await registry.getWarpRoute(config.warpRouteId));
     if (!warpCoreConfig) {
       throw new Error(
         `Warp route config for ${config.warpRouteId} not found in registry`,
       );
     }
-    const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
+    const warpCore = WarpCore.FromConfig(
+      extendedMultiProtocolProvider,
+      warpCoreConfig,
+    );
     const tokensByChainName = Object.fromEntries(
       warpCore.tokens.map((t) => [t.chainName, t]),
     );
@@ -111,6 +117,7 @@ export class RebalancerContextFactory {
       warpCore,
       tokensByChainName,
       multiProvider,
+      extendedMultiProtocolProvider,
       registry,
       logger,
     );
@@ -197,14 +204,8 @@ export class RebalancerContextFactory {
     return rebalancer;
   }
 
-  /**
-   * Creates an ActionTracker for tracking inflight rebalance actions and user transfers.
-   * Returns both the tracker and adapter for use by RebalancerService.
-   *
-   * @param explorerUrl - Optional explorer URL (defaults to production Hyperlane Explorer)
-   */
   public async createActionTracker(
-    explorerUrl: string = DEFAULT_EXPLORER_URL,
+    explorerUrlOrClient: string | IExplorerClient = DEFAULT_EXPLORER_URL,
   ): Promise<{
     tracker: IActionTracker;
     adapter: InflightContextAdapter;
@@ -214,7 +215,6 @@ export class RebalancerContextFactory {
       'Creating ActionTracker',
     );
 
-    // 1. Create in-memory stores
     const transferStore = new InMemoryStore<Transfer, TransferStatus>();
     const intentStore = new InMemoryStore<
       RebalanceIntent,
@@ -225,14 +225,29 @@ export class RebalancerContextFactory {
       RebalanceActionStatus
     >();
 
-    // 2. Create ExplorerClient
-    const explorerClient = new ExplorerClient(explorerUrl);
+    const explorerClient =
+      typeof explorerUrlOrClient === 'string'
+        ? new ExplorerClient(explorerUrlOrClient)
+        : explorerUrlOrClient;
 
-    // 3. Get HyperlaneCore from registry
-    const addresses = await this.registry.getAddresses();
-    const hyperlaneCore = HyperlaneCore.fromAddressesMap(
-      addresses,
-      this.multiProvider,
+    // 3. Get MultiProtocolCore from registry (supports all VM types)
+    // Only fetch/validate addresses for warp route chains (not all registry chains)
+    const warpRouteChains = new Set(
+      this.warpCore.tokens.map((t) => t.chainName),
+    );
+    const coreAddresses: ChainMap<CoreAddresses> = {};
+    for (const chain of warpRouteChains) {
+      const addrs = await this.registry.getChainAddresses(chain);
+      if (!addrs?.mailbox) {
+        throw new Error(
+          `Missing mailbox address for chain ${chain} in registry`,
+        );
+      }
+      coreAddresses[chain] = addrs as CoreAddresses;
+    }
+    const multiProtocolCore = MultiProtocolCore.fromAddressesMap(
+      coreAddresses,
+      this.multiProtocolProvider,
     );
 
     // 4. Get rebalancer address from signer
@@ -265,7 +280,7 @@ export class RebalancerContextFactory {
       intentStore,
       actionStore,
       explorerClient,
-      hyperlaneCore,
+      multiProtocolCore,
       trackerConfig,
       this.logger,
     );

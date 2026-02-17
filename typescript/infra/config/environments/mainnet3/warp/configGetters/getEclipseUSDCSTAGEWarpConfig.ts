@@ -2,6 +2,7 @@ import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { DEPLOYER } from '../../owners.js';
 import { usdcTokenAddresses } from '../cctp.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
@@ -12,7 +13,6 @@ import {
 } from './utils.js';
 
 const SOLANA_OWNER = '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf';
-const DEPLOYER = '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5';
 
 const deploymentChains = [
   'ethereum',

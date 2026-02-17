@@ -165,6 +165,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       `Technical stack ${technicalStack} is not compatible with ${ismType}`,
     );
 
+    // Explicit check for unknown ISM types from newer registry versions
+    assert(
+      ismType !== IsmType.UNKNOWN,
+      `Cannot deploy unknown ISM type. Registry contains ISM type not supported by this SDK version.`,
+    );
+
     let contract: DeployedIsmType[typeof ismType];
     switch (ismType) {
       case IsmType.MESSAGE_ID_MULTISIG:

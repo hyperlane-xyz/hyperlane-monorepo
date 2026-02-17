@@ -17,6 +17,7 @@ import {
   IsmType,
   MultiProtocolProvider,
   MultisigIsmConfig,
+  SealevelMultisigIsmInstructionType as SdkMultisigIsmInstructionType,
   SealevelDomainData,
   SealevelDomainDataSchema,
   SealevelInstructionWrapper,
@@ -26,7 +27,6 @@ import {
   SealevelRemoteGasData,
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
-import { SealevelMultisigIsmInstructionType as SdkMultisigIsmInstructionType } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
@@ -81,9 +81,9 @@ export const OPTION_NONE_DISCRIMINATOR = 0;
 // ============================================================================
 
 /**
- * Mailbox instruction discriminator size (4 byte Borsh u32 enum discriminator)
+ * Mailbox instruction discriminator size (1 byte Borsh u8 enum discriminator)
  */
-export const MAILBOX_DISCRIMINATOR_SIZE = 4;
+export const MAILBOX_DISCRIMINATOR_SIZE = 1;
 
 /**
  * Hyperlane Sealevel program instruction discriminator size
@@ -177,7 +177,7 @@ export enum InstructionType {
 /**
  * Mailbox instruction discriminator values
  * Matches rust/sealevel/programs/mailbox/src/instruction.rs
- * Borsh enum serialization uses u32 discriminators
+ * Borsh enum serialization uses u8 discriminators
  */
 export enum MailboxInstructionType {
   INIT = 0,
@@ -502,7 +502,7 @@ export function loadCoreProgramIds(
 
   try {
     return readJson(programIdsPath);
-  } catch (error) {
+  } catch {
     throw new Error(`Failed to load program IDs from ${programIdsPath}.`);
   }
 }

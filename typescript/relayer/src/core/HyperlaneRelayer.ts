@@ -25,6 +25,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { BaseMetadataBuilder } from '../metadata/builder.js';
+import { isMetadataBuildable } from '../metadata/types.js';
 
 import { RelayerCache } from './cache.js';
 import { RelayerObserver } from './events.js';
@@ -119,9 +120,14 @@ export class HyperlaneRelayer {
     ism: Address,
     messageContext?: DispatchedMessage,
   ): Promise<DerivedIsmConfig> {
+    // When messageContext is provided, the derived config may be message-specific
+    // (e.g., a routed sub-ISM), so use a different cache key to avoid polluting
+    // the generic ISM cache with message-specific configs
+    const cacheKey = messageContext ? `${ism}:${messageContext.id}` : ism;
+
     let config: DerivedIsmConfig | undefined;
-    if (this.cache?.ism[chain]?.[ism]) {
-      config = this.cache.ism[chain][ism] as DerivedIsmConfig | undefined;
+    if (this.cache?.ism[chain]?.[cacheKey]) {
+      config = this.cache.ism[chain][cacheKey] as DerivedIsmConfig | undefined;
     } else {
       const evmIsmReader = new EvmIsmReader(
         this.multiProvider,
@@ -138,7 +144,7 @@ export class HyperlaneRelayer {
 
     if (this.cache) {
       this.cache.ism[chain] ??= {};
-      this.cache.ism[chain][ism] = config;
+      this.cache.ism[chain][cacheKey] = config;
     }
 
     return config;
@@ -250,16 +256,22 @@ export class HyperlaneRelayer {
       ]);
       this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
 
-      const metadata = await this.metadataBuilder.build({
+      const metadataResult = await this.metadataBuilder.build({
         message,
         ism,
         hook,
         dispatchTx,
       });
 
+      if (!isMetadataBuildable(metadataResult)) {
+        throw new Error(
+          `Unable to build metadata for message ${message.id}: ${JSON.stringify(metadataResult)}`,
+        );
+      }
+
       this.logger.info(`Relaying message ${message.id}`);
 
-      const receipt = await this.core.deliver(message, metadata);
+      const receipt = await this.core.deliver(message, metadataResult.metadata);
       const durationMs = Date.now() - startTime;
       this.observer.onEvent?.({
         type: 'messageRelayed',

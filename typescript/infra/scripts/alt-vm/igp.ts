@@ -33,6 +33,7 @@ async function main() {
     chains,
     key,
     filesubmitter,
+    destination,
   } = await withContext(withChains(getArgs()))
     .option('key', {
       type: 'string',
@@ -42,6 +43,10 @@ async function main() {
     .option('filesubmitter', {
       type: 'string',
       describe: 'In what folder the file submitter stores the transactions',
+    })
+    .option('destination', {
+      type: 'string',
+      describe: 'Only update IGP config for this specific destination chain',
     }).argv;
 
   const envConfig = getEnvironmentConfig(environment);
@@ -82,12 +87,15 @@ async function main() {
   }
 
   logger.info(`Processing AltVM chains: ${altVmChains.join(', ')}`);
+  if (destination) {
+    logger.info(`Filtering to destination chain: ${destination}`);
+  }
 
   const allChainAddresses = getChainAddresses();
 
   for (const chain of altVmChains) {
-    const igpConfig = envConfig.igp[chain];
-    if (!igpConfig) {
+    const desiredIgpConfig = envConfig.igp[chain];
+    if (!desiredIgpConfig) {
       logger.info(`No IGP config found for chain: ${chain}, skipping`);
       continue;
     }
@@ -95,7 +103,7 @@ async function main() {
     // Adjust Radix IGP config
     const metadata = multiProvider.getChainMetadata(chain);
     if (metadata.protocol === ProtocolType.Radix) {
-      adjustRadixIGP(igpConfig);
+      adjustRadixIGP(desiredIgpConfig);
     }
 
     const chainAddresses = allChainAddresses[chain];
@@ -124,25 +132,61 @@ async function main() {
 
       // Read current on-chain config
       logger.info(`Read current IGP config for chain: ${chain}`);
-      const actualConfig = await reader.deriveHookConfig(
+      const actualConfig = (await reader.deriveHookConfig(
         chainAddresses.interchainGasPaymaster,
-      );
+      )) as IgpConfig;
+
+      // Build expected config: start with actual, then selectively update
+      let expectedConfig: IgpConfig;
+      if (destination) {
+        // Only update the specific destination's oracle config and overhead
+        if (
+          !desiredIgpConfig.oracleConfig[destination] &&
+          !desiredIgpConfig.overhead[destination]
+        ) {
+          logger.info(
+            `No IGP config for destination ${destination} on chain ${chain}, skipping`,
+          );
+          continue;
+        }
+        expectedConfig = {
+          ...actualConfig,
+          oracleConfig: {
+            ...actualConfig.oracleConfig,
+            ...(desiredIgpConfig.oracleConfig[destination]
+              ? {
+                  [destination]: desiredIgpConfig.oracleConfig[destination],
+                }
+              : {}),
+          },
+          overhead: {
+            ...actualConfig.overhead,
+            ...(desiredIgpConfig.overhead[destination]
+              ? {
+                  [destination]: desiredIgpConfig.overhead[destination],
+                }
+              : {}),
+          },
+        };
+      } else {
+        // Update all oracle configs and overheads
+        expectedConfig = {
+          ...actualConfig,
+          oracleConfig: desiredIgpConfig.oracleConfig,
+          overhead: desiredIgpConfig.overhead,
+        };
+      }
 
       let differences = printDifference(
         chain,
         multiProvider,
-        actualConfig as IgpConfig,
-        igpConfig,
+        actualConfig,
+        expectedConfig,
       );
       if (differences === 0) {
         logger.info(`No IGP config differences found for chain: ${chain}`);
         continue;
       }
-      const expectedConfig = {
-        ...actualConfig,
-        oracleConfig: igpConfig.oracleConfig,
-        overhead: igpConfig.overhead,
-      };
 
       const writer = createHookWriter(metadata, multiProvider, signer, {
         mailbox: chainAddresses.mailbox,
@@ -236,6 +280,7 @@ function adjustRadixIGP(config: IgpConfig) {
 }
 
 function exampleCost(
+  local: string,
   remote: string,
   provider: MultiProvider,
   config: IgpConfig,
@@ -246,7 +291,7 @@ function exampleCost(
     gasPrice: 0,
     tokenExchangeRate: 1,
   };
-  const protocol = provider.getProtocol(remote);
+  const protocol = provider.getProtocol(local);
   let exampleRemoteGasCost = new BigNumber(oracleData.tokenExchangeRate)
     .times(oracleData.gasPrice)
     .times(exampleRemoteGas)
@@ -267,8 +312,8 @@ function printDifference(
 ): number {
   let differences = 0;
   for (const [remote, _] of Object.entries(updated.overhead)) {
-    const currentCost = exampleCost(remote, provider, original);
-    const updatedCost = exampleCost(remote, provider, updated);
+    const currentCost = exampleCost(chain, remote, provider, original);
+    const updatedCost = exampleCost(chain, remote, provider, updated);
     const metadata = provider.getChainMetadata(chain);
 
     if (
