@@ -59,6 +59,9 @@ export const chainsToSkip: ChainName[] = [
   'zeronetwork',
   'abstract',
   'sophon',
+
+  // testnets
+  'arcadiatestnet2',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
