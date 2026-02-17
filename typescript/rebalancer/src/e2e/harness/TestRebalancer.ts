@@ -212,6 +212,7 @@ export class TestRebalancerBuilder {
     const contextFactory = await RebalancerContextFactory.create(
       rebalancerConfig,
       workingMultiProvider,
+      undefined,
       mpp,
       registry,
       this.logger,
@@ -228,7 +229,7 @@ export class TestRebalancerBuilder {
     // In execute mode, create actual Rebalancers to enable intent creation and execution
     const rebalancers =
       this.executionMode === 'execute'
-        ? [contextFactory.createRebalancer(tracker)]
+        ? (await contextFactory.createRebalancers(tracker)).rebalancers
         : [];
 
     const orchestratorDeps: RebalancerOrchestratorDeps = {
