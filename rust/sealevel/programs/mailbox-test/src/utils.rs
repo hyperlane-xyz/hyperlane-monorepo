@@ -53,7 +53,7 @@ pub async fn dispatch_from_payer(
             AccountMeta::new(mailbox_accounts.outbox, false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(system_program::id(), false),
-            AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
+            AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new(unique_message_account_keypair.pubkey(), true),
             AccountMeta::new(dispatched_message_account_key, false),

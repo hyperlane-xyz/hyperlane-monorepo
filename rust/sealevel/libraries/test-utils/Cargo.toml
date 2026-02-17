@@ -6,6 +6,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+account-utils = { path = "../account-utils" }
 borsh.workspace = true
 solana-program-test.workspace = true
 solana-program.workspace = true

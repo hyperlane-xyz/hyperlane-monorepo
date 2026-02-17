@@ -409,7 +409,7 @@ pub async fn get_process_account_metas(
     ];
     accounts.extend(ism_getter_account_metas);
     accounts.extend([
-        AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
+        AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
         AccountMeta::new_readonly(ism, false),
     ]);
 

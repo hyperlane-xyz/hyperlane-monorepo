@@ -13,6 +13,16 @@ use solana_system_interface::{
 pub mod discriminator;
 pub use discriminator::*;
 
+/// The SPL Noop program ID (`noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV`).
+///
+/// Defined here as a const to avoid the runtime type conversion required by
+/// `spl_noop::id()`, which returns a different `Pubkey` type because `spl-noop`
+/// depends on `solana-program ^2`.
+pub const SPL_NOOP_PROGRAM_ID: Pubkey = Pubkey::new_from_array([
+    11, 188, 15, 192, 187, 71, 202, 47, 116, 196, 17, 46, 148, 171, 19, 207, 163, 198, 52, 229,
+    220, 23, 234, 203, 3, 205, 26, 35, 205, 126, 120, 124,
+]);
+
 /// Data that has a predictable size when serialized.
 pub trait SizedData {
     /// Returns the size of the data when serialized.

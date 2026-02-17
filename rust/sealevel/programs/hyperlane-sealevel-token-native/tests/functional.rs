@@ -83,7 +83,7 @@ async fn setup_client() -> (BanksClient, Keypair) {
     }
     program_test.add_program(
         "spl_noop",
-        Pubkey::new_from_array(spl_noop::id().to_bytes()),
+        account_utils::SPL_NOOP_PROGRAM_ID,
         processor!(noop_processor),
     );
 
@@ -462,7 +462,7 @@ async fn test_transfer_remote() {
             // 15.  `[writeable]` The native token collateral PDA account.
             vec![
                 AccountMeta::new_readonly(system_program::ID, false),
-                AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                 AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
                 AccountMeta::new_readonly(mailbox_accounts.program, false),
                 AccountMeta::new(mailbox_accounts.outbox, false),

@@ -915,10 +915,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 accounts: vec![
                     AccountMeta::new(outbox_account, false),
                     AccountMeta::new_readonly(ctx.payer_pubkey, true),
-                    AccountMeta::new_readonly(
-                        Pubkey::new_from_array(spl_noop::id().to_bytes()),
-                        false,
-                    ),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                 ],
             };
             ctx.new_txn().add(outbox_instruction).send_with_payer();
@@ -1204,7 +1201,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             // 14..N [??..??] Plugin-specific accounts.
             let mut accounts = vec![
                 AccountMeta::new_readonly(system_program::id(), false),
-                AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                 AccountMeta::new_readonly(token_account, false),
                 AccountMeta::new_readonly(token.mailbox, false),
                 AccountMeta::new(mailbox_outbox_account, false),

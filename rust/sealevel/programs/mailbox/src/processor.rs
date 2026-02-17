@@ -253,7 +253,7 @@ fn inbox_process(
         return Err(Error::MessageAlreadyProcessed.into());
     }
 
-    let spl_noop_id = Pubkey::new_from_array(spl_noop::id().to_bytes());
+    let spl_noop_id = account_utils::SPL_NOOP_PROGRAM_ID;
 
     // Accounts 5..N: the accounts required for getting the ISM the recipient wants to use.
     let mut get_ism_infos = vec![];
@@ -407,7 +407,7 @@ fn inbox_process(
     #[cfg(not(feature = "no-spl-noop"))]
     {
         let noop_cpi_log = Instruction {
-            program_id: Pubkey::new_from_array(spl_noop::id().to_bytes()),
+            program_id: account_utils::SPL_NOOP_PROGRAM_ID,
             accounts: vec![],
             data: format!("Hyperlane inbox: {:?}", message_id).into_bytes(),
         };
@@ -604,7 +604,7 @@ fn outbox_dispatch(
 
     // Account 3: SPL Noop program.
     let spl_noop_info = next_account_info(accounts_iter)?;
-    if spl_noop_info.key != &Pubkey::new_from_array(spl_noop::id().to_bytes()) {
+    if spl_noop_info.key != &account_utils::SPL_NOOP_PROGRAM_ID {
         return Err(ProgramError::InvalidArgument);
     }
 

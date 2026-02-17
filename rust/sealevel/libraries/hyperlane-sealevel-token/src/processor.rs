@@ -287,7 +287,7 @@ where
 
         // Account 1: SPL Noop.
         let spl_noop = next_account_info(accounts_iter)?;
-        if spl_noop.key != &Pubkey::new_from_array(spl_noop::id().to_bytes()) {
+        if spl_noop.key != &account_utils::SPL_NOOP_PROGRAM_ID {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -436,7 +436,7 @@ where
             AccountMeta::new(*mailbox_outbox_account.key, false),
             AccountMeta::new_readonly(*dispatch_authority_account.key, true),
             AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
+            AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
             AccountMeta::new(*sender_wallet.key, true),
             AccountMeta::new_readonly(*unique_message_account.key, true),
             AccountMeta::new(*dispatched_message_pda.key, false),

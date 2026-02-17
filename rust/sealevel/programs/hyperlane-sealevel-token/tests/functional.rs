@@ -90,7 +90,7 @@ async fn setup_client() -> (BanksClient, Keypair) {
     }
     program_test.add_program(
         "spl_noop",
-        Pubkey::new_from_array(spl_noop::id().to_bytes()),
+        account_utils::SPL_NOOP_PROGRAM_ID,
         processor!(noop_processor),
     );
 
@@ -768,7 +768,7 @@ async fn test_transfer_remote() {
             // 16. `[writeable]` The token sender's associated token account, from which tokens will be burned.
             vec![
                 AccountMeta::new_readonly(system_program::ID, false),
-                AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                 AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
                 AccountMeta::new_readonly(mailbox_accounts.program, false),
                 AccountMeta::new(mailbox_accounts.outbox, false),

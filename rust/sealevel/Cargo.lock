@@ -3800,6 +3800,7 @@ dependencies = [
 name = "hyperlane-test-utils"
 version = "0.1.0"
 dependencies = [
+ "account-utils",
  "borsh 1.6.0",
  "hyperlane-core",
  "hyperlane-sealevel-igp",
