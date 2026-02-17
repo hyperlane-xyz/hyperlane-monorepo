@@ -462,64 +462,56 @@ export class GovernTransactionReader {
     let feeDetails: Record<string, any> | undefined;
     let decoded: ethers.utils.TransactionDescription;
 
-    switch (feeTypeName) {
-      case TokenFeeType.RoutingFee: {
-        const routingFeeInterface = RoutingFee__factory.createInterface();
-        decoded = routingFeeInterface.parseTransaction({
-          data: tx.data,
-          value: tx.value,
-        });
+    if (feeTypeName === TokenFeeType.RoutingFee) {
+      const routingFeeInterface = RoutingFee__factory.createInterface();
+      decoded = routingFeeInterface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
 
-        if (
-          decoded.functionFragment.name ===
-          routingFeeInterface.functions['setFeeContract(uint32,address)'].name
-        ) {
-          const [destination, feeContract] = decoded.args;
-          const chainName =
-            this.multiProvider.tryGetChainName(destination) ??
-            `unknown (${destination})`;
+      if (
+        decoded.functionFragment.name ===
+        routingFeeInterface.functions['setFeeContract(uint32,address)'].name
+      ) {
+        const [destination, feeContract] = decoded.args;
+        const chainName =
+          this.multiProvider.tryGetChainName(destination) ??
+          `unknown (${destination})`;
 
-          if (isZeroishAddress(feeContract)) {
-            insight = `Remove fee contract for domain ${destination} (${chainName})`;
-          } else {
-            try {
-              const feeReader = new EvmTokenFeeReader(
-                this.multiProvider,
-                chain,
-              );
-              const feeConfig = await feeReader.deriveTokenFeeConfig({
-                address: feeContract,
-              });
-              const formatted = await this.formatFeeConfig(chain, feeConfig);
-              insight = `Set fee contract for domain ${destination} (${chainName}) to ${formatted.insight.replace('Set fee recipient to ', '')}`;
-              feeDetails = formatted.feeDetails;
-            } catch (error) {
-              this.logger.debug(
-                `Could not read fee config for ${feeContract}: ${error}`,
-              );
-              insight = `Set fee contract for domain ${destination} (${chainName}) to ${feeContract} (could not read fee config)`;
-            }
+        if (isZeroishAddress(feeContract)) {
+          insight = `Remove fee contract for domain ${destination} (${chainName})`;
+        } else {
+          try {
+            const feeReader = new EvmTokenFeeReader(this.multiProvider, chain);
+            const feeConfig = await feeReader.deriveTokenFeeConfig({
+              address: feeContract,
+            });
+            const formatted = await this.formatFeeConfig(chain, feeConfig);
+            insight = `Set fee contract for domain ${destination} (${chainName}) to ${formatted.insight.replace('Set fee recipient to ', '')}`;
+            feeDetails = formatted.feeDetails;
+          } catch (error) {
+            this.logger.debug(
+              `Could not read fee config for ${feeContract}: ${error}`,
+            );
+            insight = `Set fee contract for domain ${destination} (${chainName}) to ${feeContract} (could not read fee config)`;
           }
         }
-        break;
       }
-      default: {
-        // Common BaseFee functions (claim, etc.)
-        const baseFeeInterface = BaseFee__factory.createInterface();
-        decoded = baseFeeInterface.parseTransaction({
-          data: tx.data,
-          value: tx.value,
-        });
+    } else {
+      // Common BaseFee functions (claim, etc.)
+      const baseFeeInterface = BaseFee__factory.createInterface();
+      decoded = baseFeeInterface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
 
-        if (
-          decoded.functionFragment.name ===
-            baseFeeInterface.functions['claim(address)'].name &&
-          decoded.args.length === 1
-        ) {
-          const [beneficiary] = decoded.args;
-          insight = `Claim fees to ${beneficiary}`;
-        }
-        break;
+      if (
+        decoded.functionFragment.name ===
+          baseFeeInterface.functions['claim(address)'].name &&
+        decoded.args.length === 1
+      ) {
+        const [beneficiary] = decoded.args;
+        insight = `Claim fees to ${beneficiary}`;
       }
     }
 
