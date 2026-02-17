@@ -105,8 +105,31 @@ impl IncrementalMerkle {
     }
 }
 
-#[cfg(all(test, feature = "ethers"))]
+#[cfg(test)]
 mod test {
+    use super::*;
+
+    #[test]
+    fn borsh_roundtrip() {
+        let mut tree = IncrementalMerkle::default();
+        tree.ingest(H256::from([1u8; 32]));
+        tree.ingest(H256::from([2u8; 32]));
+        let serialized = borsh::to_vec(&tree).unwrap();
+        let deserialized: IncrementalMerkle = borsh::from_slice(&serialized).unwrap();
+        assert_eq!(tree, deserialized);
+    }
+
+    #[test]
+    fn borsh_roundtrip_empty() {
+        let tree = IncrementalMerkle::default();
+        let serialized = borsh::to_vec(&tree).unwrap();
+        let deserialized: IncrementalMerkle = borsh::from_slice(&serialized).unwrap();
+        assert_eq!(tree, deserialized);
+    }
+}
+
+#[cfg(all(test, feature = "ethers"))]
+mod ethers_test {
     use ethers_core::utils::hash_message;
 
     use crate::test_utils;
