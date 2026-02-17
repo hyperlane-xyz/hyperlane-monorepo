@@ -115,7 +115,7 @@ export class AleoMailboxWriter
     // Deploy mailbox programs (mailbox, dispatch_proxy, ism_manager, hook_manager)
     const programs = await this.signer.deployProgram(
       'dispatch_proxy',
-      generateSuffix(SUFFIX_LENGTH_LONG), // SUFFIX_LENGTH_LONG
+      generateSuffix(SUFFIX_LENGTH_LONG),
     );
 
     const mailboxProgramId = programs['mailbox'];
