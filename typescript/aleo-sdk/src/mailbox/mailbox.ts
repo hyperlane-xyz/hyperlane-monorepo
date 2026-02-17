@@ -16,6 +16,7 @@ import { type AleoSigner } from '../clients/signer.js';
 import {
   ALEO_NULL_ADDRESS,
   generateSuffix,
+  SUFFIX_LENGTH_LONG,
   toAleoAddress,
 } from '../utils/helper.js';
 import {
@@ -114,7 +115,7 @@ export class AleoMailboxWriter
     // Deploy mailbox programs (mailbox, dispatch_proxy, ism_manager, hook_manager)
     const programs = await this.signer.deployProgram(
       'dispatch_proxy',
-      generateSuffix(6), // SUFFIX_LENGTH_LONG
+      generateSuffix(SUFFIX_LENGTH_LONG), // SUFFIX_LENGTH_LONG
     );
 
     const mailboxProgramId = programs['mailbox'];
