@@ -413,7 +413,7 @@ importers:
         version: 2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
       '@nomiclabs/hardhat-waffle':
         specifier: 'catalog:'
-        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
+        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
       '@typechain/ethers-v5':
         specifier: 11.1.2
         version: 11.1.2(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typechain@8.3.2(patch_hash=fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950)(typescript@5.8.3))(typescript@5.8.3)
@@ -1586,7 +1586,7 @@ importers:
         version: 2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
       '@nomiclabs/hardhat-waffle':
         specifier: 'catalog:'
-        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
+        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
       '@sqds/multisig':
         specifier: 2.1.4
         version: 2.1.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
@@ -2003,6 +2003,9 @@ importers:
       '@ethersproject/constants':
         specifier: '*'
         version: 5.8.0
+      '@hyperlane-xyz/relayer':
+        specifier: workspace:*
+        version: link:../relayer
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
@@ -2045,6 +2048,9 @@ importers:
       sinon:
         specifier: 'catalog:'
         version: 13.0.2
+      testcontainers:
+        specifier: 'catalog:'
+        version: 11.7.0
       tsx:
         specifier: 'catalog:'
         version: 4.19.1
@@ -2181,7 +2187,7 @@ importers:
         version: 2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
       '@nomiclabs/hardhat-waffle':
         specifier: 'catalog:'
-        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
+        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
       '@types/chai':
         specifier: 'catalog:'
         version: 4.3.20
@@ -2371,7 +2377,7 @@ importers:
         version: 2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
       '@nomiclabs/hardhat-waffle':
         specifier: 'catalog:'
-        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
+        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
       '@types/chai-as-promised':
         specifier: 'catalog:'
         version: 8.0.2
@@ -22122,7 +22128,7 @@ snapshots:
       ethers: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       hardhat: 2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@18.19.130)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)
 
-  '@nomiclabs/hardhat-waffle@2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.8.0)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))':
+  '@nomiclabs/hardhat-waffle@2.0.6(@nomiclabs/hardhat-ethers@2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10)))(@types/sinon-chai@3.2.12)(ethereum-waffle@4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/providers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(typescript@5.8.3))(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))':
     dependencies:
       '@nomiclabs/hardhat-ethers': 2.2.3(ethers@5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
       '@types/sinon-chai': 3.2.12

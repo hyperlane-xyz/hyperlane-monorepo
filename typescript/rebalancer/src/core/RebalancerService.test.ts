@@ -119,6 +119,10 @@ function createMockActionTracker(): IActionTracker {
     getActiveRebalanceIntents: Sinon.stub().resolves([]),
     getTransfersByDestination: Sinon.stub().resolves([]),
     getRebalanceIntentsByDestination: Sinon.stub().resolves([]),
+    getTransfer: Sinon.stub().resolves(undefined),
+    getRebalanceIntent: Sinon.stub().resolves(undefined),
+    getRebalanceAction: Sinon.stub().resolves(undefined),
+    getInProgressActions: Sinon.stub().resolves([]),
   };
 }
 
