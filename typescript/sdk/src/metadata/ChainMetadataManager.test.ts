@@ -11,6 +11,7 @@ describe(ChainMetadataManager.name, () => {
   let manager: ChainMetadataManager;
 
   const ethereumMetadata: ChainMetadata = {
+    batchContractAddress: '0x1111111111111111111111111111111111111111',
     chainId: 1,
     domainId: 1,
     name: 'ethereum',
@@ -27,6 +28,7 @@ describe(ChainMetadataManager.name, () => {
   };
 
   const cosmosMetadata: ChainMetadata = {
+    batchContractAddress: '11111111111111111111111111111111',
     chainId: 'cosmoshub-4',
     domainId: 118,
     name: 'cosmos',
@@ -140,4 +142,46 @@ describe(ChainMetadataManager.name, () => {
       });
     });
   });
+
+  describe(
+    ChainMetadataManager.prototype.tryGetBatchContractAddress.name,
+    () => {
+      it('returns configured batch contract address for EVM chains', () => {
+        expect(manager.tryGetBatchContractAddress('ethereum')).to.equal(
+          ethereumMetadata.batchContractAddress,
+        );
+      });
+
+      it('returns configured batch contract address for non-EVM chains', () => {
+        expect(manager.tryGetBatchContractAddress('cosmos')).to.equal(
+          cosmosMetadata.batchContractAddress,
+        );
+      });
+
+      it('returns null when no batch contract is configured', () => {
+        expect(manager.tryGetBatchContractAddress('polygon')).to.equal(null);
+      });
+    },
+  );
+
+  describe(
+    ChainMetadataManager.prototype.tryGetEvmBatchContractAddress.name,
+    () => {
+      it('returns configured batch contract address for EVM chains', () => {
+        expect(manager.tryGetEvmBatchContractAddress('ethereum')).to.equal(
+          ethereumMetadata.batchContractAddress,
+        );
+      });
+
+      it('returns default multicall3 address for EVM chains without override', () => {
+        expect(manager.tryGetEvmBatchContractAddress('polygon')).to.equal(
+          ChainMetadataManager.DEFAULT_EVM_BATCH_CONTRACT_ADDRESS,
+        );
+      });
+
+      it('returns null for non-EVM chains', () => {
+        expect(manager.tryGetEvmBatchContractAddress('cosmos')).to.equal(null);
+      });
+    },
+  );
 });

@@ -1063,11 +1063,26 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
   async fetchERC20Metadata(tokenAddress: Address): Promise<TokenMetadata> {
     const erc20 = HypERC20__factory.connect(tokenAddress, this.provider);
-    const [name, symbol, decimals] = await Promise.all([
-      erc20.name(),
-      erc20.symbol(),
-      erc20.decimals(),
-    ]);
+    const { name, symbol, decimals } = await this.multiProvider.multicall(
+      this.chain,
+      {
+        name: {
+          contract: erc20,
+          functionName: 'name',
+          transform: (result) => result as string,
+        },
+        symbol: {
+          contract: erc20,
+          functionName: 'symbol',
+          transform: (result) => result as string,
+        },
+        decimals: {
+          contract: erc20,
+          functionName: 'decimals',
+          transform: (result) => result as number,
+        },
+      },
+    );
 
     return { name, symbol, decimals, isNft: false };
   }

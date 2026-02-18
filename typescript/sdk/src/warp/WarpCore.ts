@@ -1,3 +1,4 @@
+import { BigNumber, providers, utils } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -15,6 +16,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { MultiProvider } from '../providers/MultiProvider.js';
+import type { EvmReadCall } from '../providers/multicall3.js';
+import { buildGetEthBalanceCall } from '../providers/multicall3.js';
 import {
   TransactionFeeEstimate,
   estimateTransactionFeeEthersV5ForGasUnits,
@@ -27,6 +31,7 @@ import {
   LOCKBOX_STANDARDS,
   MINT_LIMITED_STANDARDS,
   TOKEN_COLLATERALIZED_STANDARDS,
+  TOKEN_STANDARD_TO_PROTOCOL,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
 } from '../token/TokenStandard.js';
@@ -39,6 +44,10 @@ import {
   IHypXERC20Adapter,
   InterchainGasQuote,
 } from '../token/adapters/ITokenAdapter.js';
+import {
+  TokenBalanceBatchOptions,
+  getTokenBalancesBatch,
+} from '../token/tokenBalanceBatch.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -1122,6 +1131,371 @@ export class WarpCore {
   getTokensForRoute(origin: ChainName, destination: ChainName): Token[] {
     return this.tokens.filter(
       (t) => t.chainName === origin && t.getConnectionForChain(destination),
+    );
+  }
+
+  /**
+   * Batch-fetch balances for multiple tokens at a given address.
+   * EVM tokens on the same chain are batched into a single multicall.
+   * Non-EVM tokens fall back to individual adapter calls.
+   */
+  async getBalances(
+    tokens: Token[],
+    address: Address,
+    options?: TokenBalanceBatchOptions,
+  ): Promise<(TokenAmount | null)[]> {
+    return getTokenBalancesBatch(tokens, this.multiProvider, address, options);
+  }
+
+  /**
+   * Batch-fetch bridged supply for multiple tokens.
+   * EVM tokens on the same chain are batched via multicall.
+   * Non-EVM tokens fall back to individual adapter.getBridgedSupply() calls.
+   */
+  async getBridgedSupplies(
+    tokens: Token[],
+    options?: { blockTag?: providers.BlockTag },
+  ): Promise<(bigint | null)[]> {
+    if (tokens.length === 0) return [];
+
+    const results: (bigint | null)[] = Array.from<bigint | null>({
+      length: tokens.length,
+    }).fill(null);
+
+    // Group tokens by chain, preserving original indices
+    const chainGroups = new Map<
+      string,
+      Array<{ token: Token; originalIndex: number }>
+    >();
+    for (let i = 0; i < tokens.length; i++) {
+      const chain = tokens[i].chainName;
+      let group = chainGroups.get(chain);
+      if (!group) {
+        group = [];
+        chainGroups.set(chain, group);
+      }
+      group.push({ token: tokens[i], originalIndex: i });
+    }
+
+    await Promise.all(
+      Array.from(chainGroups.entries()).map(([chain, group]) =>
+        this.processBridgedSupplyChainGroup(chain, group, results, options),
+      ),
+    );
+
+    return results;
+  }
+
+  private async processBridgedSupplyChainGroup(
+    chain: string,
+    group: Array<{ token: Token; originalIndex: number }>,
+    results: (bigint | null)[],
+    options?: { blockTag?: providers.BlockTag },
+  ): Promise<void> {
+    const evmEntries: Array<{ token: Token; originalIndex: number }> = [];
+    const nonEvmEntries: Array<{ token: Token; originalIndex: number }> = [];
+
+    for (const entry of group) {
+      const protocol = TOKEN_STANDARD_TO_PROTOCOL[entry.token.standard];
+      if (protocol === ProtocolType.Ethereum) {
+        evmEntries.push(entry);
+      } else {
+        nonEvmEntries.push(entry);
+      }
+    }
+
+    if (evmEntries.length > 0) {
+      await this.processEvmBridgedSupplyBatch(
+        chain,
+        evmEntries,
+        results,
+        options,
+      );
+    }
+
+    // Non-EVM: individual adapter fallback
+    await Promise.all(
+      nonEvmEntries.map(async ({ token, originalIndex }) => {
+        try {
+          const adapter = token.getAdapter(this.multiProvider);
+          const supply = await (adapter as any).getBridgedSupply?.(options);
+          results[originalIndex] = supply != null ? BigInt(supply) : null;
+        } catch (error) {
+          this.logger.debug(
+            `Non-EVM getBridgedSupply failed for ${token.addressOrDenom}: ${error}`,
+          );
+          results[originalIndex] = null;
+        }
+      }),
+    );
+  }
+
+  private async processEvmBridgedSupplyBatch(
+    chain: string,
+    entries: Array<{ token: Token; originalIndex: number }>,
+    results: (bigint | null)[],
+    options?: { blockTag?: providers.BlockTag },
+  ): Promise<void> {
+    let multiProvider: MultiProvider;
+    try {
+      multiProvider = this.multiProvider.toMultiProvider();
+    } catch {
+      // If toMultiProvider fails, fall back to individual adapter calls
+      await this.fallbackBridgedSupplyIndividual(entries, results, options);
+      return;
+    }
+
+    const erc20Iface = new utils.Interface([
+      'function totalSupply() view returns (uint256)',
+      'function balanceOf(address) view returns (uint256)',
+    ]);
+    const lockboxIface = new utils.Interface([
+      'function lockbox() view returns (address)',
+      'function wrappedToken() view returns (address)',
+    ]);
+
+    // Classify tokens
+    const syntheticEntries: typeof entries = [];
+    const nativeEntries: typeof entries = [];
+    const collateralEntries: typeof entries = [];
+    const lockboxEntries: typeof entries = [];
+    const fallbackEntries: typeof entries = [];
+
+    for (const entry of entries) {
+      const { standard } = entry.token;
+      if (
+        standard === TokenStandard.EvmHypSynthetic ||
+        standard === TokenStandard.EvmHypXERC20 ||
+        standard === TokenStandard.EvmHypVSXERC20
+      ) {
+        syntheticEntries.push(entry);
+      } else if (standard === TokenStandard.EvmHypNative) {
+        nativeEntries.push(entry);
+      } else if (
+        standard === TokenStandard.EvmHypCollateral ||
+        standard === TokenStandard.EvmHypOwnerCollateral
+      ) {
+        collateralEntries.push(entry);
+      } else if (LOCKBOX_STANDARDS.includes(standard)) {
+        lockboxEntries.push(entry);
+      } else {
+        // EvmHypSyntheticRebase, EvmHypRebaseCollateral, EvmHypCollateralFiat,
+        // EvmM0PortalLite, EvmHypEverclearCollateral, EvmHypEverclearEth, etc.
+        fallbackEntries.push(entry);
+      }
+    }
+
+    const multicallOptions = options?.blockTag
+      ? { blockTag: options.blockTag }
+      : {};
+
+    // Phase 1: batch simple calls (synthetic totalSupply, native getEthBalance)
+    // + resolution calls for collateral (wrappedToken) and lockbox (lockbox + wrappedToken)
+    const phase1Calls: EvmReadCall[] = [];
+    const phase1Index: Array<{
+      type: 'synthetic' | 'native' | 'collateral_resolve' | 'lockbox_resolve';
+      entryIndex: number;
+    }> = [];
+
+    // Synthetic: totalSupply on the token contract
+    for (let i = 0; i < syntheticEntries.length; i++) {
+      const entry = syntheticEntries[i];
+      phase1Calls.push({
+        contract: {
+          address: entry.token.addressOrDenom,
+          interface: erc20Iface,
+        },
+        functionName: 'totalSupply',
+        allowFailure: true,
+      });
+      phase1Index.push({ type: 'synthetic', entryIndex: i });
+    }
+
+    // Native: getEthBalance(token.addressOrDenom)
+    const multicall3Address =
+      multiProvider.tryGetEvmBatchContractAddress(chain);
+    for (let i = 0; i < nativeEntries.length; i++) {
+      const entry = nativeEntries[i];
+      if (multicall3Address) {
+        phase1Calls.push(
+          buildGetEthBalanceCall(multicall3Address, entry.token.addressOrDenom),
+        );
+      } else {
+        phase1Calls.push({
+          contract: {
+            address: entry.token.addressOrDenom,
+            interface: erc20Iface,
+          },
+          functionName: 'totalSupply',
+          allowFailure: true,
+        });
+      }
+      phase1Index.push({ type: 'native', entryIndex: i });
+    }
+
+    // Collateral: resolve wrappedToken()
+    for (let i = 0; i < collateralEntries.length; i++) {
+      const entry = collateralEntries[i];
+      phase1Calls.push({
+        contract: {
+          address: entry.token.addressOrDenom,
+          interface: lockboxIface,
+        },
+        functionName: 'wrappedToken',
+        allowFailure: true,
+      });
+      phase1Index.push({ type: 'collateral_resolve', entryIndex: i });
+    }
+
+    // Lockbox: resolve lockbox() + wrappedToken()
+    for (let i = 0; i < lockboxEntries.length; i++) {
+      const entry = lockboxEntries[i];
+      phase1Calls.push({
+        contract: {
+          address: entry.token.addressOrDenom,
+          interface: lockboxIface,
+        },
+        functionName: 'lockbox',
+        allowFailure: true,
+      });
+      phase1Index.push({ type: 'lockbox_resolve', entryIndex: i });
+      phase1Calls.push({
+        contract: {
+          address: entry.token.addressOrDenom,
+          interface: lockboxIface,
+        },
+        functionName: 'wrappedToken',
+        allowFailure: true,
+      });
+      // wrappedToken entry shares same entryIndex; we'll read both results together
+    }
+
+    // Execute phase 1
+    let phase1Results: unknown[] = [];
+    if (phase1Calls.length > 0) {
+      try {
+        phase1Results = await multiProvider.multicall(
+          chain,
+          phase1Calls,
+          multicallOptions,
+        );
+      } catch (error) {
+        this.logger.debug(
+          `Phase 1 multicall failed for ${chain}: ${error}; falling back`,
+        );
+        await this.fallbackBridgedSupplyIndividual(entries, results, options);
+        return;
+      }
+    }
+
+    // Process phase 1 results for synthetic and native
+    let phase1Offset = 0;
+    for (let i = 0; i < syntheticEntries.length; i++) {
+      const raw = phase1Results[phase1Offset++];
+      const entry = syntheticEntries[i];
+      results[entry.originalIndex] = this.decodeBigIntResult(raw);
+    }
+    for (let i = 0; i < nativeEntries.length; i++) {
+      const raw = phase1Results[phase1Offset++];
+      const entry = nativeEntries[i];
+      results[entry.originalIndex] = this.decodeBigIntResult(raw);
+    }
+
+    // Phase 2: collateral balanceOf and lockbox balanceOf using resolved addresses
+    const phase2Calls: EvmReadCall[] = [];
+    const phase2Entries: typeof entries = [];
+
+    for (let i = 0; i < collateralEntries.length; i++) {
+      const wrappedTokenAddr = phase1Results[phase1Offset++] as string | null;
+      const entry = collateralEntries[i];
+      if (!wrappedTokenAddr) {
+        results[entry.originalIndex] = null;
+        continue;
+      }
+      phase2Calls.push({
+        contract: { address: wrappedTokenAddr, interface: erc20Iface },
+        functionName: 'balanceOf',
+        args: [entry.token.addressOrDenom],
+        allowFailure: true,
+      });
+      phase2Entries.push(entry);
+    }
+
+    for (let i = 0; i < lockboxEntries.length; i++) {
+      const lockboxAddr = phase1Results[phase1Offset++] as string | null;
+      const wrappedTokenAddr = phase1Results[phase1Offset++] as string | null;
+      const entry = lockboxEntries[i];
+      if (!lockboxAddr || !wrappedTokenAddr) {
+        results[entry.originalIndex] = null;
+        continue;
+      }
+      phase2Calls.push({
+        contract: { address: wrappedTokenAddr, interface: erc20Iface },
+        functionName: 'balanceOf',
+        args: [lockboxAddr],
+        allowFailure: true,
+      });
+      phase2Entries.push(entry);
+    }
+
+    if (phase2Calls.length > 0) {
+      try {
+        const phase2Results = await multiProvider.multicall(
+          chain,
+          phase2Calls,
+          multicallOptions,
+        );
+        for (let i = 0; i < phase2Entries.length; i++) {
+          results[phase2Entries[i].originalIndex] = this.decodeBigIntResult(
+            phase2Results[i],
+          );
+        }
+      } catch (error) {
+        this.logger.debug(
+          `Phase 2 multicall failed for ${chain}: ${error}; falling back`,
+        );
+        // Mark phase 2 entries as null on failure
+        for (const entry of phase2Entries) {
+          results[entry.originalIndex] = null;
+        }
+      }
+    }
+
+    // Fallback entries: individual adapter calls
+    await this.fallbackBridgedSupplyIndividual(
+      fallbackEntries,
+      results,
+      options,
+    );
+  }
+
+  private decodeBigIntResult(raw: unknown): bigint | null {
+    if (raw == null) return null;
+    try {
+      return BigNumber.isBigNumber(raw) ? raw.toBigInt() : BigInt(String(raw));
+    } catch {
+      return null;
+    }
+  }
+
+  private async fallbackBridgedSupplyIndividual(
+    entries: Array<{ token: Token; originalIndex: number }>,
+    results: (bigint | null)[],
+    options?: { blockTag?: providers.BlockTag },
+  ): Promise<void> {
+    await Promise.all(
+      entries.map(async ({ token, originalIndex }) => {
+        try {
+          const adapter = token.getAdapter(this.multiProvider);
+          const supply = await (adapter as any).getBridgedSupply?.(options);
+          results[originalIndex] = supply != null ? BigInt(supply) : null;
+        } catch (error) {
+          this.logger.debug(
+            `Fallback getBridgedSupply failed for ${token.addressOrDenom}: ${error}`,
+          );
+          results[originalIndex] = null;
+        }
+      }),
     );
   }
 }

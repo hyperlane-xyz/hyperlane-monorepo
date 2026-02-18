@@ -7,6 +7,7 @@ import {
   ChainMap,
   ChainName,
   EXECUTOR_ROLE,
+  EvmReadCall,
   EvmTimelockReader,
   MultiProvider,
   PROPOSER_ROLE,
@@ -61,11 +62,15 @@ export async function timelockConfigMatches({
       expectedConfig.executors && expectedConfig.executors.length !== 0
         ? expectedConfig.executors
         : [ethers.constants.AddressZero];
-    const executorRoles = await Promise.all(
-      expectedExecutors.map(async (executor) => {
-        return timelock.hasRole(EXECUTOR_ROLE, executor);
-      }),
-    );
+    const executorCalls: EvmReadCall[] = expectedExecutors.map((executor) => ({
+      contract: timelock,
+      functionName: 'hasRole',
+      args: [EXECUTOR_ROLE, executor],
+    }));
+    const executorRoles = (await multiProvider.multicall(
+      chain,
+      executorCalls,
+    )) as boolean[];
     const executorsMissing = expectedExecutors.filter(
       (_, i) => !executorRoles[i],
     );
@@ -76,11 +81,17 @@ export async function timelockConfigMatches({
     }
 
     // Ensure the proposers have the PROPOSER_ROLE
-    const proposerRoles = await Promise.all(
-      expectedConfig.proposers.map(async (proposer) => {
-        return timelock.hasRole(PROPOSER_ROLE, proposer);
+    const proposerCalls: EvmReadCall[] = expectedConfig.proposers.map(
+      (proposer) => ({
+        contract: timelock,
+        functionName: 'hasRole',
+        args: [PROPOSER_ROLE, proposer],
       }),
     );
+    const proposerRoles = (await multiProvider.multicall(
+      chain,
+      proposerCalls,
+    )) as boolean[];
     const proposersMissing = expectedConfig.proposers.filter(
       (_, i) => !proposerRoles[i],
     );
@@ -96,11 +107,17 @@ export async function timelockConfigMatches({
       expectedConfig.cancellers && expectedConfig.cancellers.length !== 0
         ? expectedConfig.cancellers
         : expectedConfig.proposers;
-    const cancellerRoles = await Promise.all(
-      expectedCancellers.map(async (canceller) => {
-        return timelock.hasRole(CANCELLER_ROLE, canceller);
+    const cancellerCalls: EvmReadCall[] = expectedCancellers.map(
+      (canceller) => ({
+        contract: timelock,
+        functionName: 'hasRole',
+        args: [CANCELLER_ROLE, canceller],
       }),
     );
+    const cancellerRoles = (await multiProvider.multicall(
+      chain,
+      cancellerCalls,
+    )) as boolean[];
     const cancellerMissing = expectedCancellers.filter(
       (_, i) => !cancellerRoles[i],
     );
@@ -112,19 +129,23 @@ export async function timelockConfigMatches({
 
     // Ensure the proposers that are not in the cancellers array
     // do not have the CANCELLER_ROLE
-    const proposersWithExtraRole: string[] = [];
-    await Promise.all(
-      expectedConfig.proposers.map(async (proposer) => {
-        const proposerIsNotCanceller = !expectedCancellers.some((canceller) =>
-          eqAddress(canceller, proposer),
-        );
-        if (proposerIsNotCanceller) {
-          const hasRole = await timelock.hasRole(CANCELLER_ROLE, proposer);
-          if (hasRole) {
-            proposersWithExtraRole.push(proposer);
-          }
-        }
+    const proposersNotInCancellers = expectedConfig.proposers.filter(
+      (proposer) =>
+        !expectedCancellers.some((canceller) => eqAddress(canceller, proposer)),
+    );
+    const extraRoleCalls: EvmReadCall[] = proposersNotInCancellers.map(
+      (proposer) => ({
+        contract: timelock,
+        functionName: 'hasRole',
+        args: [CANCELLER_ROLE, proposer],
       }),
+    );
+    const extraRoleResults =
+      extraRoleCalls.length > 0
+        ? ((await multiProvider.multicall(chain, extraRoleCalls)) as boolean[])
+        : [];
+    const proposersWithExtraRole = proposersNotInCancellers.filter(
+      (_, i) => extraRoleResults[i],
     );
 
     if (proposersWithExtraRole.length > 0) {

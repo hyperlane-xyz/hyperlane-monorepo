@@ -1,7 +1,12 @@
 import { BigNumber, ethers } from 'ethers';
 import type { Logger } from 'pino';
 
-import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { IMulticall3__factory } from '@hyperlane-xyz/core';
+import {
+  type EvmReadCall,
+  HyperlaneIgp,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 
 import type {
   ChainConfig,
@@ -183,112 +188,122 @@ export class KeyFunder {
     chain: string,
     keys: ResolvedKeyConfig[],
   ): Promise<void> {
-    for (const key of keys) {
-      await this.fundKey(chain, key);
-    }
-  }
-
-  private async fundKey(chain: string, key: ResolvedKeyConfig): Promise<void> {
-    const logger = this.options.logger.child({
-      chain,
-      address: key.address,
-      role: key.role,
-    });
-
-    const desiredBalance = ethers.utils.parseEther(key.desiredBalance);
-    const fundingAmount = await this.calculateFundingAmount(
-      chain,
-      key.address,
-      desiredBalance,
-    );
-
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(key.address);
-
-    this.options.metrics?.recordWalletBalance(
-      chain,
-      key.address,
-      key.role,
-      parseFloat(ethers.utils.formatEther(currentBalance)),
-    );
-
-    if (fundingAmount.eq(0)) {
-      logger.debug(
-        { currentBalance: ethers.utils.formatEther(currentBalance) },
-        'Key balance sufficient, skipping',
-      );
-      return;
-    }
-
     const funderAddress = await this.multiProvider.getSignerAddress(chain);
-    const funderBalance = await this.multiProvider
-      .getSigner(chain)
-      .getBalance();
 
-    if (funderBalance.lt(fundingAmount)) {
-      logger.error(
-        {
-          funderBalance: ethers.utils.formatEther(funderBalance),
-          requiredAmount: ethers.utils.formatEther(fundingAmount),
-        },
-        'Funder balance insufficient to cover funding amount',
-      );
-      throw new Error(
-        `Insufficient funder balance on ${chain}: has ${ethers.utils.formatEther(funderBalance)}, needs ${ethers.utils.formatEther(fundingAmount)}`,
-      );
-    }
-
-    logger.info(
-      {
-        amount: ethers.utils.formatEther(fundingAmount),
-        currentBalance: ethers.utils.formatEther(currentBalance),
-        desiredBalance: ethers.utils.formatEther(desiredBalance),
-        funderAddress,
-        funderBalance: ethers.utils.formatEther(funderBalance),
+    // Batch all balance reads: key addresses + funder address
+    const multicall3Interface = IMulticall3__factory.createInterface();
+    const multicall3Address =
+      this.multiProvider.tryGetEvmBatchContractAddress(chain);
+    const buildBalanceCall = (address: string): EvmReadCall<BigNumber> => ({
+      contract: {
+        address: multicall3Address ?? ethers.constants.AddressZero,
+        interface: multicall3Interface,
       },
-      'Funding key',
-    );
-
-    const tx = await this.multiProvider.sendTransaction(chain, {
-      to: key.address,
-      value: fundingAmount,
+      functionName: 'getEthBalance',
+      args: [address],
     });
 
-    this.options.metrics?.recordFundingAmount(
+    const calls = [
+      ...keys.map((key) => buildBalanceCall(key.address)),
+      buildBalanceCall(funderAddress),
+    ];
+    const results = (await this.multiProvider.multicall(
       chain,
-      key.address,
-      key.role,
-      parseFloat(ethers.utils.formatEther(fundingAmount)),
-    );
+      calls,
+    )) as BigNumber[];
 
-    logger.info(
-      {
-        txHash: tx.transactionHash,
-        txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
-          hash: tx.transactionHash,
-        }),
-      },
-      'Funding transaction completed',
-    );
-  }
+    const keyBalances = results.slice(0, keys.length);
+    let funderBalance = results[keys.length];
 
-  private async calculateFundingAmount(
-    chain: string,
-    address: string,
-    desiredBalance: BigNumber,
-  ): Promise<BigNumber> {
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(address);
-    if (currentBalance.gte(desiredBalance)) {
-      return BigNumber.from(0);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const currentBalance = keyBalances[i];
+
+      this.options.metrics?.recordWalletBalance(
+        chain,
+        key.address,
+        key.role,
+        parseFloat(ethers.utils.formatEther(currentBalance)),
+      );
+
+      const desiredBalance = ethers.utils.parseEther(key.desiredBalance);
+      const fundingAmount = calculateFundingAmount(
+        currentBalance,
+        desiredBalance,
+      );
+
+      if (fundingAmount.eq(0)) {
+        const logger = this.options.logger.child({
+          chain,
+          address: key.address,
+          role: key.role,
+        });
+        logger.debug(
+          { currentBalance: ethers.utils.formatEther(currentBalance) },
+          'Key balance sufficient, skipping',
+        );
+        continue;
+      }
+
+      if (funderBalance.lt(fundingAmount)) {
+        const logger = this.options.logger.child({
+          chain,
+          address: key.address,
+          role: key.role,
+        });
+        logger.error(
+          {
+            funderBalance: ethers.utils.formatEther(funderBalance),
+            requiredAmount: ethers.utils.formatEther(fundingAmount),
+          },
+          'Funder balance insufficient to cover funding amount',
+        );
+        throw new Error(
+          `Insufficient funder balance on ${chain}: has ${ethers.utils.formatEther(funderBalance)}, needs ${ethers.utils.formatEther(fundingAmount)}`,
+        );
+      }
+
+      const logger = this.options.logger.child({
+        chain,
+        address: key.address,
+        role: key.role,
+      });
+      logger.info(
+        {
+          amount: ethers.utils.formatEther(fundingAmount),
+          currentBalance: ethers.utils.formatEther(currentBalance),
+          desiredBalance: ethers.utils.formatEther(desiredBalance),
+          funderAddress,
+          funderBalance: ethers.utils.formatEther(funderBalance),
+        },
+        'Funding key',
+      );
+
+      const tx = await this.multiProvider.sendTransaction(chain, {
+        to: key.address,
+        value: fundingAmount,
+      });
+
+      // Update funder balance after each send
+      funderBalance = funderBalance.sub(fundingAmount);
+
+      this.options.metrics?.recordFundingAmount(
+        chain,
+        key.address,
+        key.role,
+        parseFloat(ethers.utils.formatEther(fundingAmount)),
+      );
+
+      logger.info(
+        {
+          txHash: tx.transactionHash,
+          txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
+            hash: tx.transactionHash,
+          }),
+        },
+        'Funding transaction completed',
+      );
     }
-    const delta = desiredBalance.sub(currentBalance);
-    const minDelta = desiredBalance
-      .mul(MIN_DELTA_NUMERATOR)
-      .div(MIN_DELTA_DENOMINATOR);
-    return delta.gt(minDelta) ? delta : BigNumber.from(0);
   }
 
   private async sweepExcessFunds(
@@ -365,6 +380,20 @@ export class KeyFunder {
       logger.debug('Funder balance below trigger threshold, no sweep needed');
     }
   }
+}
+
+function calculateFundingAmount(
+  currentBalance: BigNumber,
+  desiredBalance: BigNumber,
+): BigNumber {
+  if (currentBalance.gte(desiredBalance)) {
+    return BigNumber.from(0);
+  }
+  const delta = desiredBalance.sub(currentBalance);
+  const minDelta = desiredBalance
+    .mul(MIN_DELTA_NUMERATOR)
+    .div(MIN_DELTA_DENOMINATOR);
+  return delta.gt(minDelta) ? delta : BigNumber.from(0);
 }
 
 /**

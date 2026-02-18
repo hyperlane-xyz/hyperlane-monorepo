@@ -398,6 +398,13 @@ export {
   SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
+  buildGetEthBalanceCall,
+  clearMulticall3BatchSupportCache,
+  EvmMulticallReadOptions,
+  EvmReadCall,
+  readEvmCallsWithMulticall,
+} from './providers/multicall3.js';
+export {
   defaultEthersV5ProviderBuilder,
   defaultFuelProviderBuilder,
   defaultProviderBuilder,
@@ -730,6 +737,10 @@ export {
 export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
 export { Token, getCollateralTokenAdapter } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
+export {
+  getTokenBalancesBatch,
+  TokenBalanceBatchOptions,
+} from './token/tokenBalanceBatch.js';
 export {
   getTokenConnectionId,
   HyperlaneTokenConnection,

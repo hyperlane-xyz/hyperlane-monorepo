@@ -10,6 +10,7 @@ import type { ChainMap } from '../types.js';
 
 import {
   ZChainName,
+  ZHash,
   ZNzUint,
   ZUint,
   forwardCompatibleEnum,
@@ -215,6 +216,10 @@ export const ChainMetadataSchemaObject = z.object({
     .boolean()
     .optional()
     .describe('Whether to bypass batch simulation for this chain.'),
+
+  batchContractAddress: ZHash.optional().describe(
+    'Address of the chain batch contract, when a chain supports on-chain batching (e.g. Multicall3 on EVM).',
+  ),
 
   chainId: z
     .union([ZUint, z.string()])
