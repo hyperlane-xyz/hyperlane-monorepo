@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   rebalancer-sim-test-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -45,7 +45,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 

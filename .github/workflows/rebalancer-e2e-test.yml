@@ -1,0 +1,46 @@
+name: Rebalancer E2E Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'typescript/rebalancer/**'
+      - 'typescript/sdk/**'
+      - 'typescript/utils/**'
+      - 'typescript/metrics/**'
+      - '.github/workflows/rebalancer-e2e-test.yml'
+  pull_request:
+    paths:
+      - 'typescript/rebalancer/**'
+      - 'typescript/sdk/**'
+      - 'typescript/utils/**'
+      - 'typescript/metrics/**'
+      - '.github/workflows/rebalancer-e2e-test.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: rebalancer-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
+jobs:
+  rebalancer-e2e-test:
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Run rebalancer E2E tests (serial)
+        working-directory: typescript/rebalancer
+        run: pnpm mocha --config .mocharc.e2e.json --exit

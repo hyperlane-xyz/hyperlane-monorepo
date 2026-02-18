@@ -842,8 +842,15 @@ export {
   ANVIL_RPC_METHODS,
   getLocalProvider,
   impersonateAccount,
+  impersonateAccounts,
+  increaseTime,
+  mine,
   resetFork,
+  revertToSnapshot,
+  setBalance,
   setFork,
+  setStorageAt,
+  snapshot,
   stopImpersonatingAccount,
 } from './utils/fork.js';
 export {
@@ -918,6 +925,8 @@ export {
 } from './signers/svm/solana-web3js.js';
 
 export {
+  OnchainTokenFeeType,
+  onChainTypeToTokenFeeTypeMap,
   TokenFeeType,
   TokenFeeConfig,
   TokenFeeConfigSchema,

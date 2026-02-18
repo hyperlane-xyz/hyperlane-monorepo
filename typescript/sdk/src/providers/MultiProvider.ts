@@ -21,6 +21,7 @@ import {
   addBufferToGasLimit,
   pick,
   rootLogger,
+  timeout,
 } from '@hyperlane-xyz/utils';
 
 import { testChainMetadata, testChains } from '../consts/testChains.js';
@@ -42,6 +43,9 @@ import {
 
 type Provider = providers.Provider | ZKSyncProvider;
 
+const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
+const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
+
 export interface MultiProviderOptions {
   logger?: Logger;
   providers?: ChainMap<Provider>;
@@ -56,8 +60,8 @@ export interface SendTransactionOptions {
    */
   waitConfirmations?: number | EthJsonRpcBlockParameterTag;
   /**
-   * Timeout in ms when waiting for a block tag (default: 300000 = 5 min).
-   * Only applies when waitConfirmations is a block tag.
+   * Timeout in ms when waiting for confirmations.
+   * Default: max(2 × confirmations × estimateBlockTime, 30s) when available, otherwise 300000 (5 min).
    */
   timeoutMs?: number;
 }
@@ -404,11 +408,20 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const response = await tx;
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
 
+    const metadata = this.getChainMetadata(chainNameOrId);
     // Use provided waitConfirmations, or fall back to chain metadata confirmations
     const confirmations =
-      options?.waitConfirmations ??
-      this.getChainMetadata(chainNameOrId).blocks?.confirmations ??
-      1;
+      options?.waitConfirmations ?? metadata.blocks?.confirmations ?? 1;
+
+    const estimateBlockTime = metadata.blocks?.estimateBlockTime;
+    const dynamicTimeout =
+      typeof confirmations === 'number' && estimateBlockTime
+        ? Math.max(
+            confirmations * estimateBlockTime * 1000 * 2,
+            MIN_CONFIRMATION_TIMEOUT_MS,
+          )
+        : DEFAULT_CONFIRMATION_TIMEOUT_MS;
+    const timeoutMs = options?.timeoutMs ?? dynamicTimeout;
 
     // Handle string block tags (e.g., "finalized", "safe")
     if (typeof confirmations === 'string') {
@@ -419,7 +432,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         chainNameOrId,
         response,
         confirmations,
-        options?.timeoutMs,
+        timeoutMs,
       );
     }
 
@@ -427,7 +440,23 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.logger.info(
       `Pending ${txUrl || response.hash} (waiting ${confirmations} blocks for confirmation)`,
     );
-    return response.wait(confirmations);
+    const receipt = await timeout(
+      response.wait(confirmations),
+      timeoutMs,
+      `Timeout (${timeoutMs}ms) waiting for ${confirmations} block confirmations for tx ${response.hash}`,
+    );
+
+    // ethers v5 can return null for wait(0) if tx is still pending.
+    if (receipt) return receipt;
+
+    this.logger.info(
+      `Pending ${txUrl || response.hash} (wait(0) returned pending, waiting for initial inclusion)`,
+    );
+    return timeout(
+      response.wait(1),
+      timeoutMs,
+      `Timeout (${timeoutMs}ms) waiting for initial inclusion for tx ${response.hash}`,
+    );
   }
 
   /**
@@ -441,7 +470,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     response: ContractTransaction,
     blockTag: EthJsonRpcBlockParameterTag,
-    timeoutMs = 300000,
+    timeoutMs = DEFAULT_CONFIRMATION_TIMEOUT_MS,
   ): Promise<ContractReceipt> {
     const provider = this.getProvider(chainNameOrId);
     const receipt = await response.wait(1); // Wait for initial inclusion

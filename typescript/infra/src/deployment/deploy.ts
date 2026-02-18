@@ -81,7 +81,10 @@ export async function deployWithArtifacts<Config extends object>({
       : configMap;
 
   // Run post-deploy steps
+  let exitInProgress = false;
   const handleExit = async () => {
+    if (exitInProgress) return;
+    exitInProgress = true;
     console.info(chalk.gray.italic('Running post-deploy steps'));
     await runWithTimeout(5000, () =>
       postDeploy(deployer, cache, targetNetworks),
@@ -131,9 +134,6 @@ export async function deployWithArtifacts<Config extends object>({
 
   // Handle Ctrl+C
   process.on('SIGINT', handleExit);
-  // One final post-deploy before exit to ensure
-  // deployments exceeding the timeout are still written
-  process.on('beforeExit', handleExit);
 
   // Standard deploy modules are the ones that can be deployed with the
   // abstract HyperlaneDeployer's deploy function because they don't require any special logic
@@ -156,8 +156,17 @@ export async function deployWithArtifacts<Config extends object>({
       } else {
         console.error(chalk.red('Contract deployment failed'), error);
       }
+      // Mark all target chains as failed so handleExit writes artifacts
+      // and exits non-zero
+      for (const chain of Object.keys(targetConfigMap)) {
+        deployStatus[chain] = DeployStatus.FAILURE;
+      }
     }
   }
+
+  // Explicitly run post-deploy and exit. Cannot rely on 'beforeExit' because
+  // active provider connections keep the event loop alive indefinitely.
+  await handleExit();
 }
 
 export async function baseDeploy<
