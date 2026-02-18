@@ -27,6 +27,17 @@ let originalRadixTestMetadata:
 // Store the Radix node instance to tear it down in the after hook
 let radixNodeInstance: StartedDockerComposeEnvironment;
 
+function isRadixPackageDeployment(
+  value: unknown,
+): value is { packageAddress: string; xrdAddress: string } {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    'packageAddress' in value &&
+    'xrdAddress' in value
+  );
+}
+
 before(async function () {
   this.timeout(CROSS_CHAIN_E2E_TEST_TIMEOUT);
 
@@ -63,13 +74,19 @@ before(async function () {
   ) as (keyof typeof TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix)[];
 
   for (const chain of chainKeys) {
-    const { packageAddress, xrdAddress } = await deployHyperlaneRadixPackage(
+    const deployedPackage = (await deployHyperlaneRadixPackage(
       TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain],
       {
         code: new Uint8Array(code),
         packageDefinition: new Uint8Array(packageDefinition),
       },
-    );
+    )) as unknown;
+    const packageAddress = isRadixPackageDeployment(deployedPackage)
+      ? deployedPackage.packageAddress
+      : String(deployedPackage);
+    const xrdAddress = isRadixPackageDeployment(deployedPackage)
+      ? deployedPackage.xrdAddress
+      : undefined;
 
     const metadataPath = TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix[chain];
     const updatedMetadata = TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain];
@@ -79,7 +96,7 @@ before(async function () {
     // Update the native token denom with the actual XRD resource address for this network.
     // This is critical because the XRD address is derived from the network ID and must match
     // the token used in the faucet for funding accounts and the IGP for gas payments.
-    if (updatedMetadata.nativeToken) {
+    if (updatedMetadata.nativeToken && xrdAddress) {
       updatedMetadata.nativeToken.denom = xrdAddress;
     }
 
