@@ -652,9 +652,13 @@ export async function extendWarpRoute(
     try {
       const contracts = await deployExtension(chain);
       newDeployedContracts = { ...newDeployedContracts, ...contracts };
-    } catch (error: any) {
-      errorRed(`Failed to deploy extension to ${chain}: ${error.message}`);
-      allRejected.set(chain, error);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      errorRed(`Failed to deploy extension to ${chain}: ${message}`);
+      allRejected.set(
+        chain,
+        error instanceof Error ? error : new Error(message),
+      );
     }
   }
 
