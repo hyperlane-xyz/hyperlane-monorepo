@@ -1,12 +1,7 @@
 import { BigNumber, ethers } from 'ethers';
 import type { Logger } from 'pino';
 
-import { IMulticall3__factory } from '@hyperlane-xyz/core';
-import {
-  type EvmReadCall,
-  HyperlaneIgp,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
 
 import type {
   ChainConfig,
@@ -188,122 +183,92 @@ export class KeyFunder {
     chain: string,
     keys: ResolvedKeyConfig[],
   ): Promise<void> {
-    const funderAddress = await this.multiProvider.getSignerAddress(chain);
+    for (const key of keys) {
+      await this.fundKey(chain, key);
+    }
+  }
 
-    // Batch all balance reads: key addresses + funder address
-    const multicall3Interface = IMulticall3__factory.createInterface();
-    const multicall3Address =
-      this.multiProvider.tryGetEvmBatchContractAddress(chain);
-    const buildBalanceCall = (address: string): EvmReadCall<BigNumber> => ({
-      contract: {
-        address: multicall3Address ?? ethers.constants.AddressZero,
-        interface: multicall3Interface,
-      },
-      functionName: 'getEthBalance',
-      args: [address],
+  private async fundKey(chain: string, key: ResolvedKeyConfig): Promise<void> {
+    const logger = this.options.logger.child({
+      chain,
+      address: key.address,
+      role: key.role,
     });
 
-    const calls = [
-      ...keys.map((key) => buildBalanceCall(key.address)),
-      buildBalanceCall(funderAddress),
-    ];
-    const results = (await this.multiProvider.multicall(
+    const desiredBalance = ethers.utils.parseEther(key.desiredBalance);
+    const currentBalance = await this.multiProvider
+      .getProvider(chain)
+      .getBalance(key.address);
+    const fundingAmount = calculateFundingAmount(
+      currentBalance,
+      desiredBalance,
+    );
+
+    this.options.metrics?.recordWalletBalance(
       chain,
-      calls,
-    )) as BigNumber[];
+      key.address,
+      key.role,
+      parseFloat(ethers.utils.formatEther(currentBalance)),
+    );
 
-    const keyBalances = results.slice(0, keys.length);
-    let funderBalance = results[keys.length];
-
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
-      const currentBalance = keyBalances[i];
-
-      this.options.metrics?.recordWalletBalance(
-        chain,
-        key.address,
-        key.role,
-        parseFloat(ethers.utils.formatEther(currentBalance)),
+    if (fundingAmount.eq(0)) {
+      logger.debug(
+        { currentBalance: ethers.utils.formatEther(currentBalance) },
+        'Key balance sufficient, skipping',
       );
+      return;
+    }
 
-      const desiredBalance = ethers.utils.parseEther(key.desiredBalance);
-      const fundingAmount = calculateFundingAmount(
-        currentBalance,
-        desiredBalance,
-      );
+    const funderAddress = await this.multiProvider.getSignerAddress(chain);
+    const funderBalance = await this.multiProvider
+      .getSigner(chain)
+      .getBalance();
 
-      if (fundingAmount.eq(0)) {
-        const logger = this.options.logger.child({
-          chain,
-          address: key.address,
-          role: key.role,
-        });
-        logger.debug(
-          { currentBalance: ethers.utils.formatEther(currentBalance) },
-          'Key balance sufficient, skipping',
-        );
-        continue;
-      }
-
-      if (funderBalance.lt(fundingAmount)) {
-        const logger = this.options.logger.child({
-          chain,
-          address: key.address,
-          role: key.role,
-        });
-        logger.error(
-          {
-            funderBalance: ethers.utils.formatEther(funderBalance),
-            requiredAmount: ethers.utils.formatEther(fundingAmount),
-          },
-          'Funder balance insufficient to cover funding amount',
-        );
-        throw new Error(
-          `Insufficient funder balance on ${chain}: has ${ethers.utils.formatEther(funderBalance)}, needs ${ethers.utils.formatEther(fundingAmount)}`,
-        );
-      }
-
-      const logger = this.options.logger.child({
-        chain,
-        address: key.address,
-        role: key.role,
-      });
-      logger.info(
+    if (funderBalance.lt(fundingAmount)) {
+      logger.error(
         {
-          amount: ethers.utils.formatEther(fundingAmount),
-          currentBalance: ethers.utils.formatEther(currentBalance),
-          desiredBalance: ethers.utils.formatEther(desiredBalance),
-          funderAddress,
           funderBalance: ethers.utils.formatEther(funderBalance),
+          requiredAmount: ethers.utils.formatEther(fundingAmount),
         },
-        'Funding key',
+        'Funder balance insufficient to cover funding amount',
       );
-
-      const tx = await this.multiProvider.sendTransaction(chain, {
-        to: key.address,
-        value: fundingAmount,
-      });
-
-      // Update funder balance after each send
-      funderBalance = funderBalance.sub(fundingAmount);
-
-      this.options.metrics?.recordFundingAmount(
-        chain,
-        key.address,
-        key.role,
-        parseFloat(ethers.utils.formatEther(fundingAmount)),
-      );
-
-      logger.info(
-        {
-          txHash: tx.transactionHash,
-          txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
-            hash: tx.transactionHash,
-          }),
-        },
-        'Funding transaction completed',
+      throw new Error(
+        `Insufficient funder balance on ${chain}: has ${ethers.utils.formatEther(funderBalance)}, needs ${ethers.utils.formatEther(fundingAmount)}`,
       );
     }
+
+    logger.info(
+      {
+        amount: ethers.utils.formatEther(fundingAmount),
+        currentBalance: ethers.utils.formatEther(currentBalance),
+        desiredBalance: ethers.utils.formatEther(desiredBalance),
+        funderAddress,
+        funderBalance: ethers.utils.formatEther(funderBalance),
+      },
+      'Funding key',
+    );
+
+    const tx = await this.multiProvider.sendTransaction(chain, {
+      to: key.address,
+      value: fundingAmount,
+    });
+
+    this.options.metrics?.recordFundingAmount(
+      chain,
+      key.address,
+      key.role,
+      parseFloat(ethers.utils.formatEther(fundingAmount)),
+    );
+
+    logger.info(
+      {
+        txHash: tx.transactionHash,
+        txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
+          hash: tx.transactionHash,
+        }),
+      },
+      'Funding transaction completed',
+    );
   }
 
   private async sweepExcessFunds(

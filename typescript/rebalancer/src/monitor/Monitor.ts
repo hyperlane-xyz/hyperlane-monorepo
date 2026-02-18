@@ -302,7 +302,6 @@ export class Monitor implements IMonitor {
     switch (standard) {
       // Synthetic tokens: totalSupply() on the HypERC20 contract
       case TokenStandard.EvmHypSynthetic:
-      case TokenStandard.EvmHypSyntheticRebase:
         return {
           contract: {
             address: addressOrDenom,
