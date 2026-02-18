@@ -20,6 +20,7 @@ import {
   MovableCollateralRouter__factory,
   Ownable__factory,
   ProxyAdmin__factory,
+  RoutingFee__factory,
   TimelockController__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -388,6 +389,11 @@ export class GovernTransactionReader {
       return this.readXERC20Transaction(chain, tx, xerc20Type);
     }
 
+    // If it's a fee contract transaction
+    if (await this.isFeeTransaction(chain, tx)) {
+      return this.readFeeTransaction(chain, tx);
+    }
+
     // If it's to a Proxy Admin
     if (await this.isProxyAdminTransaction(chain, tx)) {
       return this.readProxyAdminTransaction(chain, tx);
@@ -421,6 +427,153 @@ export class GovernTransactionReader {
     '0x39509351', // increaseAllowance(address,uint256)
     '0xa457c2d7', // decreaseAllowance(address,uint256)
   ]);
+
+  // Fee contract function selectors
+  private static readonly FEE_SELECTORS = new Set([
+    '0x16068373', // setFeeContract(uint32,address) - RoutingFee
+    '0x1e83409a', // claim(address) - BaseFee
+  ]);
+  private static readonly ONCHAIN_FEE_TYPE_MAP: Record<number, TokenFeeType> = {
+    1: TokenFeeType.LinearFee,
+    2: TokenFeeType.RegressiveFee,
+    3: TokenFeeType.ProgressiveFee,
+    4: TokenFeeType.RoutingFee,
+  };
+
+  private async isFeeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<boolean> {
+    if (!tx.to || !tx.data) return false;
+    const selector = tx.data.slice(0, 10).toLowerCase();
+    if (!GovernTransactionReader.FEE_SELECTORS.has(selector)) return false;
+
+    // Verify the target is actually a fee contract by checking for feeType() in bytecode
+    const provider = this.multiProvider.getProvider(chain);
+    const code = await provider.getCode(tx.to);
+    if (code === '0x') return false;
+    return code.includes('fb8dc179'); // feeType() selector
+  }
+
+  private async readFeeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    assert(tx.data, 'No data in fee transaction');
+    assert(tx.to, 'No to address in fee transaction');
+
+    const provider = this.multiProvider.getProvider(chain);
+    const baseFee = BaseFee__factory.connect(tx.to, provider);
+
+    const onChainFeeType = Number(await baseFee.feeType());
+    const feeTypeName =
+      GovernTransactionReader.ONCHAIN_FEE_TYPE_MAP[onChainFeeType];
+    assert(feeTypeName, `Unknown Fee Type ${onChainFeeType}`);
+
+    const { insight, feeDetails, decoded } = await this.parseFeeTransactionData(
+      chain,
+      feeTypeName,
+      tx,
+    );
+
+    const ownableTx = insight
+      ? {}
+      : await this.readOwnableTransaction(chain, tx);
+
+    return {
+      ...ownableTx,
+      chain,
+      to: `${feeTypeName} Contract (${chain} ${tx.to})`,
+      ...(insight ? { insight } : {}),
+      ...(feeDetails ? { feeDetails } : {}),
+      signature: decoded.signature,
+    };
+  }
+
+  private async parseFeeTransactionData(
+    chain: ChainName,
+    feeTypeName: TokenFeeType,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<{
+    decoded: ethers.utils.TransactionDescription;
+    insight?: string;
+    feeDetails?: Record<string, any>;
+  }> {
+    assert(tx.data, 'No data in fee transaction');
+
+    // RoutingFee extends BaseFee, so its interface includes both
+    // claim(address) and setFeeContract(uint32,address)
+    const iface =
+      feeTypeName === TokenFeeType.RoutingFee
+        ? RoutingFee__factory.createInterface()
+        : BaseFee__factory.createInterface();
+
+    const decoded = iface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    if (decoded.functionFragment.name === 'claim') {
+      const [beneficiary] = decoded.args;
+      return { decoded, insight: `Claim fees to ${beneficiary}` };
+    }
+
+    if (feeTypeName === TokenFeeType.RoutingFee) {
+      return this.parseRoutingFeeTransaction(chain, decoded);
+    }
+
+    return { decoded };
+  }
+
+  private async parseRoutingFeeTransaction(
+    chain: ChainName,
+    decoded: ethers.utils.TransactionDescription,
+  ): Promise<{
+    decoded: ethers.utils.TransactionDescription;
+    insight?: string;
+    feeDetails?: Record<string, any>;
+  }> {
+    if (decoded.functionFragment.name !== 'setFeeContract') {
+      return { decoded };
+    }
+
+    const [destination, feeContract] = decoded.args;
+    const chainName =
+      this.multiProvider.tryGetChainName(destination) ??
+      `unknown (${destination})`;
+
+    if (isZeroishAddress(feeContract)) {
+      return {
+        decoded,
+        insight: `Remove fee contract for domain ${destination} (${chainName})`,
+      };
+    }
+
+    try {
+      const feeReader = new EvmTokenFeeReader(this.multiProvider, chain);
+      const feeConfig = await feeReader.deriveTokenFeeConfig({
+        address: feeContract,
+      });
+      const formatted = this.formatFeeConfig(feeConfig);
+      const contractInsight = formatted.insight.replace(
+        /^Set fee recipient to /,
+        '',
+      );
+      return {
+        decoded,
+        insight: `Set fee contract for domain ${destination} (${chainName}) to ${contractInsight}`,
+        feeDetails: formatted.feeDetails,
+      };
+    } catch (error) {
+      this.logger.debug(
+        `Could not read fee config for ${feeContract}: ${error}`,
+      );
+      return {
+        decoded,
+        insight: `Set fee contract for domain ${destination} (${chainName}) to ${feeContract} (Warning: could not read fee config)`,
+      };
+    }
+  }
 
   private isErc20Transaction(
     chain: ChainName,
