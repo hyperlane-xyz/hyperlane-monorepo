@@ -1957,6 +1957,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  somniatestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xb3b27a27bfa94002d344e9cf5217a0e3502e018b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   soneium: {
     threshold: 4,
     validators: [

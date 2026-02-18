@@ -44,6 +44,7 @@ import {
 type Provider = providers.Provider | ZKSyncProvider;
 
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
+const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
 
 export interface MultiProviderOptions {
   logger?: Logger;
@@ -60,7 +61,7 @@ export interface SendTransactionOptions {
   waitConfirmations?: number | EthJsonRpcBlockParameterTag;
   /**
    * Timeout in ms when waiting for confirmations.
-   * Default: 2 × confirmations × estimateBlockTime when available, otherwise 300000 (5 min).
+   * Default: max(2 × confirmations × estimateBlockTime, 30s) when available, otherwise 300000 (5 min).
    */
   timeoutMs?: number;
 }
@@ -415,7 +416,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const estimateBlockTime = metadata.blocks?.estimateBlockTime;
     const dynamicTimeout =
       typeof confirmations === 'number' && estimateBlockTime
-        ? confirmations * estimateBlockTime * 1000 * 2
+        ? Math.max(
+            confirmations * estimateBlockTime * 1000 * 2,
+            MIN_CONFIRMATION_TIMEOUT_MS,
+          )
         : DEFAULT_CONFIRMATION_TIMEOUT_MS;
     const timeoutMs = options?.timeoutMs ?? dynamicTimeout;
 
@@ -436,10 +440,22 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.logger.info(
       `Pending ${txUrl || response.hash} (waiting ${confirmations} blocks for confirmation)`,
     );
-    return timeout(
+    const receipt = await timeout(
       response.wait(confirmations),
       timeoutMs,
       `Timeout (${timeoutMs}ms) waiting for ${confirmations} block confirmations for tx ${response.hash}`,
+    );
+
+    // ethers v5 can return null for wait(0) if tx is still pending.
+    if (receipt) return receipt;
+
+    this.logger.info(
+      `Pending ${txUrl || response.hash} (wait(0) returned pending, waiting for initial inclusion)`,
+    );
+    return timeout(
+      response.wait(1),
+      timeoutMs,
+      `Timeout (${timeoutMs}ms) waiting for initial inclusion for tx ${response.hash}`,
     );
   }
 

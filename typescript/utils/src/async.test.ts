@@ -33,6 +33,49 @@ describe('Async Utilities', () => {
         expect(error.message).to.equal('Timeout reached');
       }
     });
+
+    it('should clear timer when promise resolves', async () => {
+      const origSetTimeout = global.setTimeout;
+      const origClearTimeout = global.clearTimeout;
+      let timerCleared = false;
+      // Intercept setTimeout/clearTimeout to track cleanup
+      global.setTimeout = ((fn: (...args: any[]) => void, ms: number) => {
+        const id = origSetTimeout(fn, ms);
+        global.clearTimeout = ((clearId: ReturnType<typeof origSetTimeout>) => {
+          if (clearId === id) timerCleared = true;
+          origClearTimeout(clearId);
+        }) as typeof global.clearTimeout;
+        return id;
+      }) as typeof global.setTimeout;
+
+      await timeout(Promise.resolve('ok'), 60_000);
+      global.setTimeout = origSetTimeout;
+      global.clearTimeout = origClearTimeout;
+      expect(timerCleared).to.equal(true);
+    });
+
+    it('should clear timer when promise rejects', async () => {
+      const origSetTimeout = global.setTimeout;
+      const origClearTimeout = global.clearTimeout;
+      let timerCleared = false;
+      global.setTimeout = ((fn: (...args: any[]) => void, ms: number) => {
+        const id = origSetTimeout(fn, ms);
+        global.clearTimeout = ((clearId: ReturnType<typeof origSetTimeout>) => {
+          if (clearId === id) timerCleared = true;
+          origClearTimeout(clearId);
+        }) as typeof global.clearTimeout;
+        return id;
+      }) as typeof global.setTimeout;
+
+      try {
+        await timeout(Promise.reject(new Error('fail')), 60_000);
+      } catch {
+        // expected
+      }
+      global.setTimeout = origSetTimeout;
+      global.clearTimeout = origClearTimeout;
+      expect(timerCleared).to.equal(true);
+    });
   });
 
   describe('runWithTimeout', () => {

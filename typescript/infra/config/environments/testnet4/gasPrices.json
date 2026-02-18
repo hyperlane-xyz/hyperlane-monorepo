@@ -79,6 +79,10 @@
     "amount": "0.01",
     "decimals": 1
   },
+  "somniatestnet": {
+    "amount": "6.0",
+    "decimals": 9
+  },
   "sonicsvmtestnet": {
     "amount": "0.01",
     "decimals": 1
