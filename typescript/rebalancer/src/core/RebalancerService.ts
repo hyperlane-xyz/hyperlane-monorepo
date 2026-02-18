@@ -169,14 +169,25 @@ export class RebalancerService {
     // Create strategy
     this.strategy = await this.contextFactory.createStrategy(this.metrics);
 
-    // Create ActionTracker for tracking inflight actions
+    // Create or use provided ActionTracker for tracking inflight actions
     // Must be created BEFORE rebalancer since rebalancer needs it
-    const { tracker, adapter } =
-      await this.contextFactory.createActionTracker();
-    this.actionTracker = tracker;
-    this.inflightContextAdapter = adapter;
-    await this.actionTracker.initialize();
-    this.logger.info('ActionTracker initialized');
+    if (this.config.actionTracker) {
+      // Use externally provided ActionTracker (e.g., for simulation/testing)
+      this.actionTracker = this.config.actionTracker;
+      this.inflightContextAdapter = new InflightContextAdapter(
+        this.actionTracker,
+        this.multiProvider,
+      );
+      await this.actionTracker.initialize();
+      this.logger.info('Using externally provided ActionTracker');
+    } else {
+      const { tracker, adapter } =
+        await this.contextFactory.createActionTracker();
+      this.actionTracker = tracker;
+      this.inflightContextAdapter = adapter;
+      await this.actionTracker.initialize();
+      this.logger.info('ActionTracker initialized');
+    }
 
     // Create rebalancers (both movableCollateral and inventory if configured)
     let rebalancers: IRebalancer[] = [];
