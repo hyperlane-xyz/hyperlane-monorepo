@@ -16,13 +16,15 @@ pub struct IncrementalMerkle {
     pub count: usize,
 }
 
-/// Custom BorshDeserialize implementation to avoid stack overflow in Solana BPF.
-/// The default derive would put [H256; 32] (1024 bytes) on the stack, which combined
-/// with other data can exceed the 4KB BPF stack limit during CPI calls.
+/// Custom BorshDeserialize to avoid stack overflow in Solana BPF.
+/// The derived impl deserializes `[H256; 32]` in a nested stack frame (1024 bytes),
+/// then copies it back into the caller's frame (another 1024 bytes). These stacked
+/// frames can exceed the 4KB BPF stack limit during CPI calls.
+/// This impl does everything in a single frame, and `#[inline(never)]` prevents it
+/// from being merged with other large-stack callers.
 impl BorshDeserialize for IncrementalMerkle {
     #[inline(never)]
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
-        // Deserialize branch elements one at a time to avoid large stack allocation
         let mut branch = [H256::zero(); TREE_DEPTH];
         for item in branch.iter_mut() {
             *item = H256::deserialize_reader(reader)?;
