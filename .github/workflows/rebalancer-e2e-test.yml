@@ -29,18 +29,9 @@ env:
   TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
 
 jobs:
-  rebalancer-e2e-test-matrix:
+  rebalancer-e2e-test:
     runs-on: depot-ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix:
-        test:
-          - weighted
-          - minAmount
-          - composite
-          - collateral-deficit
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
@@ -50,18 +41,6 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
-      - name: Run rebalancer E2E test (${{ matrix.test }})
+      - name: Run rebalancer E2E tests (serial)
         working-directory: typescript/rebalancer
-        run: pnpm mocha --config .mocharc.e2e.json "src/e2e/*${{ matrix.test }}*.e2e-test.ts" --exit
-
-  rebalancer-e2e-test:
-    runs-on: ubuntu-latest
-    needs: [rebalancer-e2e-test-matrix]
-    if: always()
-    steps:
-      - uses: actions/checkout@v6
-      - name: Check rebalancer E2E test status
-        uses: ./.github/actions/check-job-status
-        with:
-          job_name: 'Rebalancer E2E Test'
-          result: ${{ needs.rebalancer-e2e-test-matrix.result }}
+        run: pnpm mocha --config .mocharc.e2e.json --exit
