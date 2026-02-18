@@ -7,6 +7,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import type { EvmReadCall } from '../providers/multicall3.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
@@ -95,19 +96,26 @@ export class EvmRouterReader extends HyperlaneReader {
     const router = Router__factory.connect(routerAddress, this.provider);
     const domains = await router.domains();
 
-    const remoteRouters = (await this.multiProvider.multicall(
+    const routerCalls = Object.fromEntries(
+      domains.map((domain) => [
+        domain.toString(),
+        {
+          contract: router,
+          functionName: 'routers',
+          args: [domain],
+          transform: (result) => result as Address,
+        } satisfies EvmReadCall<Address>,
+      ]),
+    );
+    const remoteRouters = await this.multiProvider.multicall(
       this.chain,
-      domains.map((domain) => ({
-        contract: router,
-        functionName: 'routers',
-        args: [domain],
-      })),
-    )) as Address[];
+      routerCalls,
+    );
 
     const routers = Object.fromEntries(
-      domains.map((domain, index) => [
+      domains.map((domain) => [
         domain,
-        { address: remoteRouters[index] },
+        { address: remoteRouters[domain.toString()] },
       ]),
     );
     return RemoteRoutersSchema.parse(routers);
