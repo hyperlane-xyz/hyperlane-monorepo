@@ -372,10 +372,6 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             })
             .unwrap();
 
-        // If the commitment level set in the client is less than `finalized`,
-        // the only way to reliably read the tx is to use the deprecated
-        // `CommitmentConfig::single()` commitment...
-        #[allow(deprecated)]
         client
             .get_transaction_with_config(
                 &signature,
