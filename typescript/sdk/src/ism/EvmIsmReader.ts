@@ -156,7 +156,18 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     this.assertModuleType(await ism.moduleType(), ModuleType.CCIP_READ);
 
-    const [urls, owner] = await Promise.all([ism.urls(), ism.owner()]);
+    const { urls, owner } = await this.multiProvider.multicall(this.chain, {
+      urls: {
+        contract: ism,
+        functionName: 'urls',
+        transform: (r) => r as string[],
+      },
+      owner: {
+        contract: ism,
+        functionName: 'owner',
+        transform: (r) => r as Address,
+      },
+    });
 
     return {
       address,
@@ -373,11 +384,26 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     let upperIsm: Address;
     let threshold: BigNumber;
     try {
-      [lowerIsm, upperIsm, threshold] = await Promise.all([
-        ism.lower(),
-        ism.upper(),
-        ism.threshold(),
-      ]);
+      ({ lowerIsm, upperIsm, threshold } = await this.multiProvider.multicall(
+        this.chain,
+        {
+          lowerIsm: {
+            contract: ism,
+            functionName: 'lower',
+            transform: (r) => r as Address,
+          },
+          upperIsm: {
+            contract: ism,
+            functionName: 'upper',
+            transform: (r) => r as Address,
+          },
+          threshold: {
+            contract: ism,
+            functionName: 'threshold',
+            transform: (r) => r as BigNumber,
+          },
+        },
+      ));
     } catch {
       // If we fail to access AmountRoutingIsm properties, this is likely a legacy InterchainAccountIsm
       this.logger.debug(

@@ -7,6 +7,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import type { EvmReadCall } from '../providers/multicall3.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
@@ -52,12 +53,29 @@ export class EvmRouterReader extends HyperlaneReader {
       routerAddress,
       this.provider,
     );
-    const [mailbox, owner, hookAddress, ismAddress] = await Promise.all([
-      mailboxClient.mailbox(),
-      mailboxClient.owner(),
-      mailboxClient.hook(),
-      mailboxClient.interchainSecurityModule(),
-    ]);
+    const { mailbox, owner, hookAddress, ismAddress } =
+      await this.multiProvider.multicall(this.chain, {
+        mailbox: {
+          contract: mailboxClient,
+          functionName: 'mailbox',
+          transform: (result) => result as Address,
+        },
+        owner: {
+          contract: mailboxClient,
+          functionName: 'owner',
+          transform: (result) => result as Address,
+        },
+        hookAddress: {
+          contract: mailboxClient,
+          functionName: 'hook',
+          transform: (result) => result as Address,
+        },
+        ismAddress: {
+          contract: mailboxClient,
+          functionName: 'interchainSecurityModule',
+          transform: (result) => result as Address,
+        },
+      });
 
     const derivedIsm = eqAddress(ismAddress, constants.AddressZero)
       ? constants.AddressZero
@@ -78,12 +96,27 @@ export class EvmRouterReader extends HyperlaneReader {
     const router = Router__factory.connect(routerAddress, this.provider);
     const domains = await router.domains();
 
+    const routerCalls = Object.fromEntries(
+      domains.map((domain) => [
+        domain.toString(),
+        {
+          contract: router,
+          functionName: 'routers',
+          args: [domain],
+          transform: (result) => result as Address,
+        } satisfies EvmReadCall<Address>,
+      ]),
+    );
+    const remoteRouters = await this.multiProvider.multicall(
+      this.chain,
+      routerCalls,
+    );
+
     const routers = Object.fromEntries(
-      await Promise.all(
-        domains.map(async (domain) => {
-          return [domain, { address: await router.routers(domain) }];
-        }),
-      ),
+      domains.map((domain) => [
+        domain,
+        { address: remoteRouters[domain.toString()] },
+      ]),
     );
     return RemoteRoutersSchema.parse(routers);
   }
