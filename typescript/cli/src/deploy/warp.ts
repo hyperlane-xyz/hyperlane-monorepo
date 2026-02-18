@@ -599,37 +599,68 @@ export async function extendWarpRoute(
     filteredExtendedConfigs,
   );
 
-  // Deploy all new chains in parallel
-  const { fulfilled, rejected } = await mapAllSettled(
-    filteredExtendedChains,
-    async (chain) => {
-      logBlue(`Deploying extension to ${chain}...`);
-      const { deployedContracts } = await executeDeploy(
-        {
-          context: params.context,
-          warpDeployConfig: { [chain]: extendedConfigs[chain] },
-        },
-        apiKeys,
-      );
-      logGreen(`Successfully deployed extension to ${chain}`);
-      return deployedContracts;
-    },
-    (chain) => chain,
+  // Helper to deploy a single extension chain
+  const deployExtension = async (chain: string): Promise<ChainMap<Address>> => {
+    logBlue(`Deploying extension to ${chain}...`);
+    const { deployedContracts } = await executeDeploy(
+      {
+        context: params.context,
+        warpDeployConfig: { [chain]: extendedConfigs[chain] },
+      },
+      apiKeys,
+    );
+    logGreen(`Successfully deployed extension to ${chain}`);
+    return deployedContracts;
+  };
+
+  // Group chains by protocol type for appropriate parallelization
+  // EVM chains can run in parallel (each chain has an independent nonce)
+  // Non-EVM chains must run sequentially because when the same private key
+  // is used across multiple chains, parallel tx submission causes sequence
+  // number conflicts
+  const evmExtendChains = filteredExtendedChains.filter(
+    (chain) =>
+      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  );
+  const nonEvmExtendChains = filteredExtendedChains.filter(
+    (chain) =>
+      context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
   );
 
-  // Collect successful deployments
   let newDeployedContracts: ChainMap<Address> = {};
-  for (const [, contracts] of fulfilled) {
-    newDeployedContracts = { ...newDeployedContracts, ...contracts };
+  const allRejected = new Map<string, Error>();
+
+  // Deploy EVM chains in parallel
+  if (evmExtendChains.length > 0) {
+    const { fulfilled, rejected } = await mapAllSettled(
+      evmExtendChains,
+      (chain) => deployExtension(chain),
+      (chain) => chain,
+    );
+
+    for (const [, contracts] of fulfilled) {
+      newDeployedContracts = { ...newDeployedContracts, ...contracts };
+    }
+    for (const [chain, error] of rejected) {
+      errorRed(`Failed to deploy extension to ${chain}: ${error.message}`);
+      allRejected.set(chain, error);
+    }
   }
 
-  for (const [chain, error] of rejected) {
-    errorRed(`Failed to deploy extension to ${chain}: ${error.message}`);
+  // Deploy non-EVM chains sequentially (shared signers)
+  for (const chain of nonEvmExtendChains) {
+    try {
+      const contracts = await deployExtension(chain);
+      newDeployedContracts = { ...newDeployedContracts, ...contracts };
+    } catch (error: any) {
+      errorRed(`Failed to deploy extension to ${chain}: ${error.message}`);
+      allRejected.set(chain, error);
+    }
   }
 
-  if (Object.keys(newDeployedContracts).length === 0 && rejected.size > 0) {
+  if (Object.keys(newDeployedContracts).length === 0 && allRejected.size > 0) {
     throw new Error(
-      `Extension deployment failed for all chains: ${[...rejected.keys()].join(', ')}. Re-run to retry.`,
+      `Extension deployment failed for all chains: ${[...allRejected.keys()].join(', ')}. Re-run to retry.`,
     );
   }
 
