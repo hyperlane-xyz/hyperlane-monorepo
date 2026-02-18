@@ -66,7 +66,9 @@ export class ChainFileLogger {
 
     const endStream = (stream: fs.WriteStream) =>
       new Promise<void>((resolve) => {
-        stream.on('error', () => {});
+        stream.on('error', (err) =>
+          process.stderr.write(`Log stream error: ${err.message}\n`),
+        );
         stream.end(resolve);
       });
 
