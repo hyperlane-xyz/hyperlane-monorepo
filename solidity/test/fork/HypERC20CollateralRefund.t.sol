@@ -1,0 +1,197 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Router} from "../../contracts/client/Router.sol";
+
+/**
+ * @title HypERC20CollateralRefundForkTest
+ * @notice Fork test that replays the exact Safe TX Builder JSON transactions
+ *         on an Ink fork and verifies correctness.
+ */
+contract HypERC20CollateralRefundForkTest is Test {
+    // Ink chain contracts
+    address constant OLD_ROUTER = 0x39d3c2Cf646447ee302178EDBe5a15E13B6F33aC;
+    address constant MAILBOX = 0x7f50C5776722630a0024fAE05fDe8b47571D7B39;
+    address constant USDC = 0xF1815bd50389c46847f0Bda824eC8da914045D14;
+    address constant SAFE = 0x11BEBBf509248735203BAAAe90c1a27EEE70D567;
+    // Depositors and their stuck amounts
+    address constant DEPOSITOR_1 = 0x71E91e35C770b4fB56F419aDa46CF5348530D26d;
+    address constant DEPOSITOR_2 = 0x6af58cED7d0E5162aAe77aA05B7Eb6CB026EF60b;
+    address constant DEPOSITOR_3 = 0x5D0A4B19371f18d98d8ae135655ea8e12D7827E2;
+    address constant DEPOSITOR_4 = 0xD0F6c33de5Ab51301845b75835A1AE0d9F6AD294;
+
+    uint256 constant AMOUNT_1 = 988834;
+    uint256 constant AMOUNT_2 = 3725000000;
+    uint256 constant AMOUNT_3 = 99959241;
+    uint256 constant AMOUNT_4 = 1000;
+
+    // Exact calldata from refund_transactions.json (tx indices 0-6)
+    bytes constant TX0_DATA =
+        hex"25c8c27192fd9613aa07eb565ed84f98fe9c3d6a84c6b48f8e5c322b4d0f33ed60e0604052600660805234801561001557600080fd5b506040516105f93803806105f98339810160408190526100349161012f565b6001600160a01b03811661009a5760405162461bcd60e51b815260206004820152602260248201527f5472757374656452656c6179657249736d3a20696e76616c69642072656c617960448201526132b960f11b60648201526084015b60405180910390fd5b6001600160a01b0382163b6100fc5760405162461bcd60e51b815260206004820152602260248201527f5472757374656452656c6179657249736d3a20696e76616c6964206d61696c626044820152610def60f31b6064820152608401610091565b6001600160a01b0391821660a0521660c052610162565b80516001600160a01b038116811461012a57600080fd5b919050565b6000806040838503121561014257600080fd5b61014b83610113565b915061015960208401610113565b90509250929050565b60805160a05160c05161045c61019d6000396000818160af015261018d01526000818161014401526101c4015260006071015261045c6000f3fe608060405234801561001057600080fd5b50600436106100675760003560e01c806393c448471161005057806393c44847146100f6578063d5438eae1461013f578063f7e83aee1461016657600080fd5b80636465e69f1461006c5780638596c226146100aa575b600080fd5b6100937f000000000000000000000000000000000000000000000000000000000000000081565b60405160ff90911681526020015b60405180910390f35b6100d17f000000000000000000000000000000000000000000000000000000000000000081565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016100a1565b6101326040518060400160405280600681526020017f31302e312e35000000000000000000000000000000000000000000000000000081525081565b6040516100a191906102c7565b6100d17f000000000000000000000000000000000000000000000000000000000000000081565b61017961017436600461037d565b610189565b60405190151581526020016100a1565b60007f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff167f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff16635d1fe5a961023d86868080601f0160208091040260200160405190810160405280939291908181526020018383808284376000920191909152506102bc92505050565b6040518263ffffffff1660e01b815260040161025b91815260200190565b602060405180830381865afa158015610278573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061029c91906103e9565b73ffffffffffffffffffffffffffffffffffffffff161495945050505050565b805160209091012090565b60006020808352835180602085015260005b818110156102f5578581018301518582016040015282016102d9565b5060006040828601015260407fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f8301168501019250505092915050565b60008083601f84011261034657600080fd5b50813567ffffffffffffffff81111561035e57600080fd5b60208301915083602082850101111561037657600080fd5b9250929050565b6000806000806040858703121561039357600080fd5b843567ffffffffffffffff808211156103ab57600080fd5b6103b788838901610334565b909650945060208701359150808211156103d057600080fd5b506103dd87828801610334565b95989497509550505050565b6000602082840312156103fb57600080fd5b815173ffffffffffffffffffffffffffffffffffffffff8116811461041f57600080fd5b939250505056fea26469706673582212200067791e46a8fdd0f1e4d23f6443ee75d075e2b8cec99f16552463eb9234b9c764736f6c634300081600330000000000000000000000007f50c5776722630a0024fae05fde8b47571d7b3900000000000000000000000011bebbf509248735203baaae90c1a27eee70d567";
+    bytes constant TX1_DATA =
+        hex"0e72cc060000000000000000000000002b956eed7d6b6ac8f7a98d31246f72cfbdd546fb";
+    bytes constant TX2_DATA =
+        hex"7c39d130000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008d03ffffffff0000a4b10000000000000000000000002cb0e5abe11346679749063d3fbfc1f390e6e70a0000def100000000000000000000000039d3c2cf646447ee302178edbe5a15e13b6f33ac00000000000000000000000071e91e35c770b4fb56f419ada46cf5348530d26d00000000000000000000000000000000000000000000000000000000000f16a200000000000000000000000000000000000000";
+    bytes constant TX3_DATA =
+        hex"7c39d130000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008d03fffffffe0000a4b10000000000000000000000002cb0e5abe11346679749063d3fbfc1f390e6e70a0000def100000000000000000000000039d3c2cf646447ee302178edbe5a15e13b6f33ac0000000000000000000000006af58ced7d0e5162aae77aa05b7eb6cb026ef60b00000000000000000000000000000000000000000000000000000000de06fd4000000000000000000000000000000000000000";
+    bytes constant TX4_DATA =
+        hex"7c39d130000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008d03fffffffd0000a4b10000000000000000000000002cb0e5abe11346679749063d3fbfc1f390e6e70a0000def100000000000000000000000039d3c2cf646447ee302178edbe5a15e13b6f33ac0000000000000000000000005d0a4b19371f18d98d8ae135655ea8e12d7827e20000000000000000000000000000000000000000000000000000000005f541c900000000000000000000000000000000000000";
+    bytes constant TX5_DATA =
+        hex"7c39d130000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008d03fffffffc0000a4b10000000000000000000000002cb0e5abe11346679749063d3fbfc1f390e6e70a0000def100000000000000000000000039d3c2cf646447ee302178edbe5a15e13b6f33ac000000000000000000000000d0f6c33de5ab51301845b75835a1ae0d9f6ad29400000000000000000000000000000000000000000000000000000000000003e800000000000000000000000000000000000000";
+    bytes constant TX6_DATA =
+        hex"0e72cc060000000000000000000000000000000000000000000000000000000000000000";
+
+    IERC20 usdc;
+
+    function setUp() public {
+        usdc = IERC20(USDC);
+        vm.deal(SAFE, 1 ether);
+    }
+
+    function _executeTx(address to, bytes memory data) internal {
+        vm.prank(SAFE);
+        (bool success, ) = to.call(data);
+        require(success, "tx failed");
+    }
+
+    function test_refundDepositors() public {
+        // --- Snapshot pre-state ---
+        uint256 preBal1 = usdc.balanceOf(DEPOSITOR_1);
+        uint256 preBal2 = usdc.balanceOf(DEPOSITOR_2);
+        uint256 preBal3 = usdc.balanceOf(DEPOSITOR_3);
+        uint256 preBal4 = usdc.balanceOf(DEPOSITOR_4);
+        uint256 preRouterBal = usdc.balanceOf(OLD_ROUTER);
+        address preIsm = address(Router(OLD_ROUTER).interchainSecurityModule());
+
+        // Verify router actually holds the funds
+        uint256 totalRefund = AMOUNT_1 + AMOUNT_2 + AMOUNT_3 + AMOUNT_4;
+        assertGe(preRouterBal, totalRefund, "Router has insufficient USDC");
+
+        // --- Execute all 7 transactions from refund_transactions.json ---
+        _executeTx(CREATE2_FACTORY, TX0_DATA); // Deploy TrustedRelayerIsm
+        _executeTx(OLD_ROUTER, TX1_DATA); // Set ISM
+        _executeTx(MAILBOX, TX2_DATA); // Refund depositor 1
+        _executeTx(MAILBOX, TX3_DATA); // Refund depositor 2
+        _executeTx(MAILBOX, TX4_DATA); // Refund depositor 3
+        _executeTx(MAILBOX, TX5_DATA); // Refund depositor 4
+        _executeTx(OLD_ROUTER, TX6_DATA); // Restore ISM
+
+        // --- Verify depositor balances increased by exact amounts ---
+        assertEq(
+            usdc.balanceOf(DEPOSITOR_1),
+            preBal1 + AMOUNT_1,
+            "Depositor 1 balance wrong"
+        );
+        assertEq(
+            usdc.balanceOf(DEPOSITOR_2),
+            preBal2 + AMOUNT_2,
+            "Depositor 2 balance wrong"
+        );
+        assertEq(
+            usdc.balanceOf(DEPOSITOR_3),
+            preBal3 + AMOUNT_3,
+            "Depositor 3 balance wrong"
+        );
+        assertEq(
+            usdc.balanceOf(DEPOSITOR_4),
+            preBal4 + AMOUNT_4,
+            "Depositor 4 balance wrong"
+        );
+
+        // --- Verify router balance decreased by exactly the total refund ---
+        assertEq(
+            usdc.balanceOf(OLD_ROUTER),
+            preRouterBal - totalRefund,
+            "Router balance mismatch"
+        );
+
+        // --- Verify ISM restored to original ---
+        assertEq(
+            address(Router(OLD_ROUTER).interchainSecurityModule()),
+            preIsm,
+            "ISM not restored"
+        );
+
+        // --- Verify owner unchanged ---
+        assertEq(
+            Router(OLD_ROUTER).owner(),
+            SAFE,
+            "Owner changed unexpectedly"
+        );
+
+        // --- Verify remote routers still enrolled (not unenrolled) ---
+        assertNotEq(
+            Router(OLD_ROUTER).routers(42161),
+            bytes32(0),
+            "Arbitrum router unenrolled"
+        );
+        assertNotEq(
+            Router(OLD_ROUTER).routers(8453),
+            bytes32(0),
+            "Base router unenrolled"
+        );
+    }
+
+    function test_cannotReplayRefund() public {
+        // Execute all 7 txs
+        _executeTx(CREATE2_FACTORY, TX0_DATA);
+        _executeTx(OLD_ROUTER, TX1_DATA);
+        _executeTx(MAILBOX, TX2_DATA);
+        _executeTx(MAILBOX, TX3_DATA);
+        _executeTx(MAILBOX, TX4_DATA);
+        _executeTx(MAILBOX, TX5_DATA);
+        _executeTx(OLD_ROUTER, TX6_DATA);
+
+        // Try replaying tx 0 (CREATE2) - should revert (contract exists)
+        vm.prank(SAFE);
+        (bool ok0, ) = CREATE2_FACTORY.call(TX0_DATA);
+        assertFalse(ok0, "CREATE2 replay should fail");
+
+        // Try replaying a process tx - should revert (message already delivered)
+        _executeTx(OLD_ROUTER, TX1_DATA); // re-set ISM first
+        vm.prank(SAFE);
+        (bool ok2, ) = MAILBOX.call(TX2_DATA);
+        assertFalse(ok2, "Message replay should fail");
+    }
+
+    function test_noValueTransferred() public {
+        // All transactions have value=0, verify no ETH moves
+        uint256 preSafeEth = SAFE.balance;
+
+        _executeTx(CREATE2_FACTORY, TX0_DATA);
+        _executeTx(OLD_ROUTER, TX1_DATA);
+        _executeTx(MAILBOX, TX2_DATA);
+        _executeTx(MAILBOX, TX3_DATA);
+        _executeTx(MAILBOX, TX4_DATA);
+        _executeTx(MAILBOX, TX5_DATA);
+        _executeTx(OLD_ROUTER, TX6_DATA);
+
+        // Safe ETH balance should be unchanged (no ETH sent in any tx)
+        assertEq(SAFE.balance, preSafeEth, "ETH was unexpectedly transferred");
+    }
+
+    function test_onlyUsdcMoved() public {
+        // Snapshot USDC balances of all touched contracts
+        uint256 preMailboxBal = usdc.balanceOf(MAILBOX);
+        uint256 preSafeBal = usdc.balanceOf(SAFE);
+
+        _executeTx(CREATE2_FACTORY, TX0_DATA);
+        _executeTx(OLD_ROUTER, TX1_DATA);
+        _executeTx(MAILBOX, TX2_DATA);
+        _executeTx(MAILBOX, TX3_DATA);
+        _executeTx(MAILBOX, TX4_DATA);
+        _executeTx(MAILBOX, TX5_DATA);
+        _executeTx(OLD_ROUTER, TX6_DATA);
+
+        // Mailbox should never hold USDC
+        assertEq(
+            usdc.balanceOf(MAILBOX),
+            preMailboxBal,
+            "Mailbox USDC changed"
+        );
+        // Safe should not receive any USDC
+        assertEq(usdc.balanceOf(SAFE), preSafeBal, "Safe USDC changed");
+    }
+}
