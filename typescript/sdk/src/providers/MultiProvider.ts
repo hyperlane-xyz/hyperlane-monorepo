@@ -26,6 +26,7 @@ import {
 
 import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import type { ChainAddressesMap } from '../metadata/ChainMetadataManager.js';
 import {
   ChainMetadata,
   ChainTechnicalStack,
@@ -56,7 +57,7 @@ const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
 
 export interface MultiProviderOptions {
-  chainAddresses?: ChainMap<{ batchContractAddress?: Address }>;
+  chainAddresses?: ChainAddressesMap;
   logger?: Logger;
   providers?: ChainMap<Provider>;
   providerBuilder?: ProviderBuilderFn<Provider>;

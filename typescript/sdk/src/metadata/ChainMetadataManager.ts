@@ -27,8 +27,12 @@ import {
   getDomainId,
 } from './chainMetadataTypes.js';
 
+export type ChainAddressesMap = ChainMap<
+  Record<string, Address> & { batchContractAddress?: Address }
+>;
+
 export interface ChainMetadataManagerOptions {
-  chainAddresses?: ChainMap<{ batchContractAddress?: Address }>;
+  chainAddresses?: ChainAddressesMap;
   logger?: Logger;
 }
 
@@ -38,9 +42,7 @@ export interface ChainMetadataManagerOptions {
  * for interacting with the data
  */
 export class ChainMetadataManager<MetaExt = {}> {
-  public readonly chainAddresses: ChainMap<{
-    batchContractAddress?: Address;
-  }>;
+  public readonly chainAddresses: ChainAddressesMap;
   public readonly metadata: ChainMap<ChainMetadata<MetaExt>> = {};
   public readonly logger: Logger;
   static readonly DEFAULT_MAX_BLOCK_RANGE = 1000;

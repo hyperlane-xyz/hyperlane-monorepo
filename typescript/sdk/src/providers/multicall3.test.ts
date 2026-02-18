@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { BigNumber, providers, utils } from 'ethers';
 import sinon from 'sinon';
 
+import type { MultiProvider } from './MultiProvider.js';
 import type { EvmReadCall } from './multicall3.js';
 import {
   buildGetEthBalanceCall,
@@ -19,6 +20,10 @@ const ERC20_IFACE = new utils.Interface([
 const TEST_CHAIN = 'test1';
 const TEST_TOKEN = '0x00000000000000000000000000000000000000AA';
 const TEST_WALLET = '0x00000000000000000000000000000000000000BB';
+type MinimalMultiProvider = Pick<
+  MultiProvider,
+  'getProvider' | 'getChainName' | 'tryGetEvmBatchContractAddress'
+>;
 
 function encodeAggregate3Result(
   results: Array<{ success: boolean; returnData: string }>,
@@ -38,14 +43,14 @@ function createReadCall(overrides: Partial<EvmReadCall> = {}): EvmReadCall {
 function createMockMultiProvider(
   provider: providers.Provider,
   batchContractAddress?: string | null,
-): any {
+): MinimalMultiProvider {
   return {
     getProvider: sinon.stub().returns(provider),
     getChainName: sinon.stub().returns(TEST_CHAIN),
     tryGetEvmBatchContractAddress: sinon
       .stub()
       .returns(batchContractAddress ?? null),
-  };
+  } as unknown as MinimalMultiProvider;
 }
 
 describe('readEvmCallsWithMulticall', () => {

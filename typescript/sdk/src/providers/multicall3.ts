@@ -1,4 +1,5 @@
 import { BigNumber, providers, utils } from 'ethers';
+import type { Provider as ZKSyncProvider } from 'zksync-ethers';
 
 import { IMulticall3__factory } from '@hyperlane-xyz/core';
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -16,6 +17,7 @@ type EvmReadableContract = {
   address: string;
   interface: utils.Interface;
 };
+type EvmProvider = providers.Provider | ZKSyncProvider;
 
 export interface EvmReadCall<T = unknown> {
   contract: EvmReadableContract;
@@ -60,7 +62,16 @@ export interface EvmMulticallReadOptions {
 const logger = rootLogger.child({ module: 'EvmMulticall3' });
 
 const batchContractSupportCache = new Map<string, boolean>();
+const MAX_BATCH_SUPPORT_CACHE_SIZE = 500;
 const multicall3Interface = IMulticall3__factory.createInterface();
+
+function cacheBatchSupport(cacheKey: string): void {
+  if (batchContractSupportCache.size >= MAX_BATCH_SUPPORT_CACHE_SIZE) {
+    const oldest = batchContractSupportCache.keys().next().value;
+    if (oldest) batchContractSupportCache.delete(oldest);
+  }
+  batchContractSupportCache.set(cacheKey, true);
+}
 
 function normalizeDecodedResult(result: utils.Result): unknown {
   return result.length === 1 ? result[0] : [...result];
@@ -71,7 +82,7 @@ export function clearMulticall3BatchSupportCache(): void {
 }
 
 async function runDirectReadCall<T>(
-  provider: providers.Provider,
+  provider: EvmProvider,
   call: EvmReadCall<T>,
   blockTag?: providers.BlockTag,
 ): Promise<T | null> {
@@ -102,7 +113,7 @@ async function runDirectReadCall<T>(
 }
 
 async function isBatchContractAvailable(
-  provider: providers.Provider,
+  provider: EvmProvider,
   chainName: string,
   batchContractAddress: Address,
 ): Promise<boolean> {
@@ -114,7 +125,7 @@ async function isBatchContractAvailable(
     const code = await provider.getCode(batchContractAddress);
     const isAvailable = code !== '0x';
     // Cache only positive detections to avoid stale negative cache entries.
-    if (isAvailable) batchContractSupportCache.set(cacheKey, true);
+    if (isAvailable) cacheBatchSupport(cacheKey);
     return isAvailable;
   } catch (error) {
     logger.debug(
@@ -130,7 +141,7 @@ async function isBatchContractAvailable(
 }
 
 async function runMulticallAggregate3(
-  provider: providers.Provider,
+  provider: EvmProvider,
   batchContractAddress: Address,
   calls: Array<{ target: string; allowFailure: boolean; callData: string }>,
   blockTag?: providers.BlockTag,
@@ -159,7 +170,7 @@ export async function readEvmCallsWithMulticall<MetaExt = {}>(
 ): Promise<unknown[]> {
   if (!calls.length) return [];
 
-  const provider = multiProvider.getProvider(chain) as providers.Provider;
+  const provider = multiProvider.getProvider(chain);
   if (options.forceDirectReads) {
     return Promise.all(
       calls.map((call) => runDirectReadCall(provider, call, options.blockTag)),

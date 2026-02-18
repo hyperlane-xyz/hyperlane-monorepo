@@ -12,6 +12,7 @@ import {
 
 import { multiProtocolTestChainMetadata } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import type { ChainAddressesMap } from '../metadata/ChainMetadataManager.js';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
@@ -42,7 +43,7 @@ import {
 } from './transactionFeeEstimators.js';
 
 export interface MultiProtocolProviderOptions {
-  chainAddresses?: ChainMap<{ batchContractAddress?: Address }>;
+  chainAddresses?: ChainAddressesMap;
   logger?: Logger;
   providers?: ChainMap<ProviderMap<TypedProvider>>;
   providerBuilders?: Partial<ProviderBuilderMap>;
