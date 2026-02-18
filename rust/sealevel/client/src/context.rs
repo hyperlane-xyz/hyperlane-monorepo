@@ -112,9 +112,9 @@ impl Context {
 
     pub(crate) fn payer_signer(&self) -> Option<Box<dyn Signer>> {
         if let Some(PayerKeypair { keypair, .. }) = &self.payer_keypair {
-            let bytes = keypair.to_bytes();
-            let secret_key: [u8; 32] = bytes[..32].try_into().unwrap();
-            Some(Box::new(Keypair::new_from_array(secret_key)))
+            Some(Box::new(
+                Keypair::try_from(&keypair.to_bytes()[..]).unwrap(),
+            ))
         } else {
             None
         }

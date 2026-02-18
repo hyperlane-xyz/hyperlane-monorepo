@@ -194,8 +194,7 @@ pub(crate) fn create_or_get_keypair(key_dir: &Path, key_name: &str) -> (Keypair,
     if let Ok(file) = File::open(path.clone()) {
         println!("Using existing key at path {}", path.display());
         let keypair_bytes: Vec<u8> = serde_json::from_reader(file).unwrap();
-        let secret_key: [u8; 32] = keypair_bytes[..32].try_into().unwrap();
-        let keypair = Keypair::new_from_array(secret_key);
+        let keypair = Keypair::try_from(keypair_bytes.as_slice()).unwrap();
         return (keypair, path);
     }
 
