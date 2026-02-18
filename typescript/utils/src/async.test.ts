@@ -41,7 +41,7 @@ describe('Async Utilities', () => {
       // Intercept setTimeout/clearTimeout to track cleanup
       global.setTimeout = ((fn: (...args: any[]) => void, ms: number) => {
         const id = origSetTimeout(fn, ms);
-        global.clearTimeout = ((clearId: any) => {
+        global.clearTimeout = ((clearId: ReturnType<typeof origSetTimeout>) => {
           if (clearId === id) timerCleared = true;
           origClearTimeout(clearId);
         }) as typeof global.clearTimeout;
@@ -60,7 +60,7 @@ describe('Async Utilities', () => {
       let timerCleared = false;
       global.setTimeout = ((fn: (...args: any[]) => void, ms: number) => {
         const id = origSetTimeout(fn, ms);
-        global.clearTimeout = ((clearId: any) => {
+        global.clearTimeout = ((clearId: ReturnType<typeof origSetTimeout>) => {
           if (clearId === id) timerCleared = true;
           origClearTimeout(clearId);
         }) as typeof global.clearTimeout;
