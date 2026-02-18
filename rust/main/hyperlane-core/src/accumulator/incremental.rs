@@ -126,6 +126,19 @@ mod test {
         let deserialized: IncrementalMerkle = borsh::from_slice(&serialized).unwrap();
         assert_eq!(tree, deserialized);
     }
+
+    #[test]
+    fn borsh_roundtrip_deep() {
+        let mut tree = IncrementalMerkle::default();
+        for i in 0u64..100 {
+            let mut leaf = [0u8; 32];
+            leaf[..8].copy_from_slice(&i.to_le_bytes());
+            tree.ingest(H256::from(leaf));
+        }
+        let serialized = borsh::to_vec(&tree).unwrap();
+        let deserialized: IncrementalMerkle = borsh::from_slice(&serialized).unwrap();
+        assert_eq!(tree, deserialized);
+    }
 }
 
 #[cfg(all(test, feature = "ethers"))]
