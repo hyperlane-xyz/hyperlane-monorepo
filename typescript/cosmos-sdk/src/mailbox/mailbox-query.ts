@@ -1,6 +1,6 @@
 import { type QueryClient } from '@cosmjs/stargate';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 
 import { type CoreExtension } from '../hyperlane/core/query.js';
 import { type CosmosMailboxConfig } from '../utils/types.js';
@@ -28,8 +28,11 @@ export async function getMailboxConfig(
       owner: mailbox.owner,
       localDomain: mailbox.local_domain,
       defaultIsm: mailbox.default_ism,
-      defaultHook: mailbox.default_hook,
-      requiredHook: mailbox.required_hook,
+      // Even if the Mailbox type defines these 2 fields as non-nullable
+      // if the hooks are not set they are returned as an empty string
+      // instead of a proper address
+      defaultHook: mailbox.default_hook || ZERO_ADDRESS_HEX_32,
+      requiredHook: mailbox.required_hook || ZERO_ADDRESS_HEX_32,
     };
   } catch (error) {
     throw new Error(`Failed to query mailbox config at ${mailboxAddress}`, {

@@ -11,7 +11,11 @@ import {
   type DeployedMailboxAddress,
   type MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
-import { eqAddressCosmos, eqOptionalAddress } from '@hyperlane-xyz/utils';
+import {
+  ZERO_ADDRESS_HEX_32,
+  eqAddressCosmos,
+  eqOptionalAddress,
+} from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { getNewContractAddress } from '../utils/base.js';
@@ -117,7 +121,13 @@ export class CosmosMailboxWriter
     allReceipts.push(createReceipt);
 
     // 2. Set default hook if provided
-    if (!eqOptionalAddress(defaultHookAddress, undefined, eqAddressCosmos)) {
+    if (
+      !eqOptionalAddress(
+        defaultHookAddress,
+        ZERO_ADDRESS_HEX_32,
+        eqAddressCosmos,
+      )
+    ) {
       const setDefaultHookTx = getSetMailboxDefaultHookTx(signerAddress, {
         mailboxAddress,
         hookAddress: defaultHookAddress,
@@ -129,7 +139,13 @@ export class CosmosMailboxWriter
     }
 
     // 3. Set required hook if provided
-    if (!eqOptionalAddress(requiredHookAddress, undefined, eqAddressCosmos)) {
+    if (
+      !eqOptionalAddress(
+        requiredHookAddress,
+        ZERO_ADDRESS_HEX_32,
+        eqAddressCosmos,
+      )
+    ) {
       const setRequiredHookTx = getSetMailboxRequiredHookTx(signerAddress, {
         mailboxAddress,
         hookAddress: requiredHookAddress,
@@ -194,7 +210,10 @@ export class CosmosMailboxWriter
         mailboxAddress: deployed.address,
         ismAddress: expectedDefaultIsmAddress,
       });
-      updateTxs.push(setIsmTx);
+      updateTxs.push({
+        annotation: `Update mailbox default ISM to ${expectedDefaultIsmAddress}`,
+        ...setIsmTx,
+      });
     }
 
     // 2. Update default hook
@@ -209,7 +228,10 @@ export class CosmosMailboxWriter
         mailboxAddress: deployed.address,
         hookAddress: expectedDefaultHookAddress,
       });
-      updateTxs.push(setDefaultHookTx);
+      updateTxs.push({
+        annotation: `Update mailbox default hook to ${expectedDefaultHookAddress}`,
+        ...setDefaultHookTx,
+      });
     }
 
     // 3. Update required hook
@@ -224,7 +246,10 @@ export class CosmosMailboxWriter
         mailboxAddress: deployed.address,
         hookAddress: expectedRequiredHookAddress,
       });
-      updateTxs.push(setRequiredHookTx);
+      updateTxs.push({
+        annotation: `Update mailbox required hook to ${expectedRequiredHookAddress}`,
+        ...setRequiredHookTx,
+      });
     }
 
     // 4. Update owner (LAST to avoid permission issues)
@@ -233,7 +258,10 @@ export class CosmosMailboxWriter
         mailboxAddress: deployed.address,
         newOwner: config.owner,
       });
-      updateTxs.push(setOwnerTx);
+      updateTxs.push({
+        annotation: `Transfer mailbox ownership to ${config.owner}`,
+        ...setOwnerTx,
+      });
     }
 
     return updateTxs;
