@@ -44,6 +44,17 @@ export {
   CosmosMerkleTreeHookWriter,
 } from './hook/merkle-tree-hook.js';
 
+// Mailbox Artifact Management
+export { CosmosMailboxArtifactManager } from './mailbox/mailbox-artifact-manager.js';
+export { CosmosMailboxReader, CosmosMailboxWriter } from './mailbox/mailbox.js';
+export {
+  getCreateMailboxTx,
+  getSetMailboxOwnerTx,
+  getSetMailboxDefaultIsmTx,
+  getSetMailboxDefaultHookTx,
+  getSetMailboxRequiredHookTx,
+} from './mailbox/mailbox-tx.js';
+
 export * from './hyperlane/core/messages.js';
 export * from './hyperlane/core/query.js';
 
