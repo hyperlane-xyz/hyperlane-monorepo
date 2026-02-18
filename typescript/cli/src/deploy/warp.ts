@@ -704,9 +704,9 @@ export async function extendWarpRoute(
   );
 
   // Throw after persisting successes so user can re-run for failures
-  if (rejected.size > 0) {
+  if (allRejected.size > 0) {
     throw new Error(
-      `Extension deployment failed for chain(s): ${[...rejected.keys()].join(', ')}. ` +
+      `Extension deployment failed for chain(s): ${[...allRejected.keys()].join(', ')}. ` +
         `Successfully deployed chains have been saved to registry. Re-run to retry failed chains.`,
     );
   }
