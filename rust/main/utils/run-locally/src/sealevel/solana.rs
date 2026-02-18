@@ -324,10 +324,10 @@ pub fn start_solana_test_validator(
 
     let old_core_dir_str = old_core_programs_path.to_string_lossy();
 
-    // Deploy sealeveltest1 core with OLD programs (backward compat test)
+    // Deploy sealeveltest1 core with NEW programs (origin chain)
     sealevel_client_deploy_core_base
         .clone()
-        .arg("built-so-dir", old_core_dir_str.clone())
+        .arg("built-so-dir", build_so_dir_str.clone())
         .arg("local-domain", SEALEVELTEST1_DOMAIN_ID)
         .arg("chain", "sealeveltest1")
         .run()
