@@ -36,6 +36,17 @@ import {
   SignerKeyProtocolMapSchema,
 } from './types.js';
 
+type DefaultProviderProtocol = keyof typeof PROTOCOL_TO_DEFAULT_PROVIDER_TYPE;
+
+function isKnownProtocolType(
+  protocol: ProtocolType,
+): protocol is DefaultProviderProtocol {
+  return Object.prototype.hasOwnProperty.call(
+    PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
+    protocol,
+  );
+}
+
 export async function contextMiddleware(argv: Record<string, any>) {
   const requiresKey = isSignCommand(argv);
 
@@ -101,9 +112,8 @@ export async function signerMiddleware(argv: Record<string, any>) {
         altVmProviders[chain] = provider;
 
         // Also set on multiProtocolProvider so SDK validation can use it
-        const providerType =
-          PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol as ProtocolType];
-        if (providerType) {
+        if (isKnownProtocolType(protocol)) {
+          const providerType = PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol];
           multiProtocolProvider.setProvider(chain, {
             type: providerType,
             provider,
