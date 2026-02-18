@@ -496,10 +496,7 @@ pub fn assert_transaction_error<T>(
 
 // Clone a Keypair by extracting the secret key and recreating it.
 pub fn clone_keypair(keypair: &Keypair) -> Keypair {
-    let serialized = keypair.to_bytes();
-    // to_bytes() returns 64 bytes (32 secret + 32 public), new_from_array takes just the secret
-    let secret_key: [u8; 32] = serialized[..32].try_into().unwrap();
-    Keypair::new_from_array(secret_key)
+    Keypair::try_from(&keypair.to_bytes()[..]).unwrap()
 }
 
 pub async fn process_instruction<T: Signers>(
