@@ -1206,7 +1206,11 @@ export class GovernTransactionReader {
     chain: ChainName,
     tokenRouterAddress: Address,
     feeRecipientAddress: Address,
-  ): Promise<{ insight: string; feeDetails?: Record<string, any> }> {
+  ): Promise<{
+    insight: string;
+    description?: string;
+    feeDetails?: Record<string, any>;
+  }> {
     // Handle address(0) case - fee is being removed
     if (isZeroishAddress(feeRecipientAddress)) {
       return { insight: `Remove fee recipient (setting to address(0))` };
