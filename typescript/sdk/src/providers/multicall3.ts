@@ -1,4 +1,4 @@
-import { providers, utils } from 'ethers';
+import { BigNumber, providers, utils } from 'ethers';
 
 import { IMulticall3__factory } from '@hyperlane-xyz/core';
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -297,5 +297,6 @@ export function buildGetEthBalanceCall(
     },
     functionName: 'getEthBalance',
     args: [targetAddress],
+    transform: (result) => (result as BigNumber).toBigInt(),
   };
 }

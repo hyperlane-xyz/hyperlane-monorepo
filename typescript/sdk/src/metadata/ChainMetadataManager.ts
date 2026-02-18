@@ -543,7 +543,10 @@ export class ChainMetadataManager<MetaExt = {}> {
     for (const [name, meta] of Object.entries(this.metadata)) {
       newMetadata[name] = { ...meta, ...additionalMetadata[name] };
     }
-    return new ChainMetadataManager(newMetadata);
+    return new ChainMetadataManager(newMetadata, {
+      chainAddresses: this.chainAddresses,
+      logger: this.logger,
+    });
   }
 
   /**
@@ -573,7 +576,10 @@ export class ChainMetadataManager<MetaExt = {}> {
     }
 
     const intersectionMetadata = pick(this.metadata, intersection);
-    const result = new ChainMetadataManager(intersectionMetadata);
+    const result = new ChainMetadataManager(intersectionMetadata, {
+      chainAddresses: pick(this.chainAddresses, intersection),
+      logger: this.logger,
+    });
 
     return { intersection, result };
   }
