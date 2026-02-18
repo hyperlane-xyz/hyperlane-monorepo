@@ -29,15 +29,26 @@ export function configureLogger(
   logLevel = logLevel || safelyAccessEnvVar('LOG_LEVEL', true) || LogLevel.Info;
 
   if (logDir) {
-    chainFileLogger = new ChainFileLogger(logDir);
-    logger = configureRootLogger(logFormat, logLevel, [
-      chainFileLogger.createStream(),
-    ]).child({ module: 'cli' });
-  } else {
-    logger = configureRootLogger(logFormat, logLevel).child({
-      module: 'cli',
-    });
+    try {
+      chainFileLogger = new ChainFileLogger(logDir);
+      logger = configureRootLogger(logFormat, logLevel, [
+        chainFileLogger.createStream(),
+      ]).child({ module: 'cli' });
+      return;
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : 'Unknown file logger error';
+      configureRootLogger(logFormat, logLevel)
+        .child({ module: 'cli' })
+        .warn(
+          `Failed to initialize file logger: ${msg}. Falling back to console-only logging.`,
+        );
+    }
   }
+
+  logger = configureRootLogger(logFormat, logLevel).child({
+    module: 'cli',
+  });
 }
 
 export const log = (msg: string, ...args: any) => logger.info(msg, ...args);
