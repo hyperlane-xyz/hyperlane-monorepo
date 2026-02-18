@@ -42,6 +42,7 @@ import {
 } from './transactionFeeEstimators.js';
 
 export interface MultiProtocolProviderOptions {
+  chainAddresses?: ChainMap<{ batchContractAddress?: Address }>;
   logger?: Logger;
   providers?: ChainMap<ProviderMap<TypedProvider>>;
   providerBuilders?: Partial<ProviderBuilderMap>;
@@ -98,7 +99,10 @@ export class MultiProtocolProvider<
   }
 
   toMultiProvider(options?: MultiProviderOptions): MultiProvider<MetaExt> {
-    const newMp = new MultiProvider<MetaExt>(this.metadata, options);
+    const newMp = new MultiProvider<MetaExt>(this.metadata, {
+      chainAddresses: this.options.chainAddresses,
+      ...options,
+    });
 
     const providers = objMap(
       this.providers,
