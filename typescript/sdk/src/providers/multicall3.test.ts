@@ -43,14 +43,15 @@ function createReadCall(overrides: Partial<EvmReadCall> = {}): EvmReadCall {
 function createMockMultiProvider(
   provider: providers.Provider,
   batchContractAddress?: string | null,
-): MinimalMultiProvider {
-  return {
+): MultiProvider {
+  const mock: MinimalMultiProvider = {
     getProvider: sinon.stub().returns(provider),
     getChainName: sinon.stub().returns(TEST_CHAIN),
     tryGetEvmBatchContractAddress: sinon
       .stub()
       .returns(batchContractAddress ?? null),
-  } as unknown as MinimalMultiProvider;
+  };
+  return mock as unknown as MultiProvider;
 }
 
 describe('readEvmCallsWithMulticall', () => {
