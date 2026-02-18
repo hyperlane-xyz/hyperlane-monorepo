@@ -156,6 +156,8 @@ export async function deployWithArtifacts<Config extends object>({
       } else {
         console.error(chalk.red('Contract deployment failed'), error);
       }
+      // Ensure non-standard deploy failures exit non-zero
+      process.exit(1);
     }
   }
 
