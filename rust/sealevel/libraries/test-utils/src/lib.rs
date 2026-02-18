@@ -102,7 +102,7 @@ async fn initialize_test_ism(
     banks_client: &mut BanksClient,
     payer: &Keypair,
 ) -> Result<(), BanksClientError> {
-    let mut test_ism = TestIsmTestClient::new(banks_client.clone(), clone_keypair(payer));
+    let mut test_ism = TestIsmTestClient::new(banks_client.clone(), payer.insecure_clone());
     test_ism.init().await?;
 
     Ok(())
@@ -492,11 +492,6 @@ pub fn assert_transaction_error<T>(
     } else {
         panic!("expected TransactionError");
     }
-}
-
-// Clone a Keypair by extracting the secret key and recreating it.
-pub fn clone_keypair(keypair: &Keypair) -> Keypair {
-    Keypair::try_from(&keypair.to_bytes()[..]).unwrap()
 }
 
 pub async fn process_instruction<T: Signers>(

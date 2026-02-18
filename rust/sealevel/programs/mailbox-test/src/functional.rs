@@ -17,9 +17,8 @@ use hyperlane_sealevel_test_send_receiver::{
     test_client::TestSendReceiverTestClient,
 };
 use hyperlane_test_utils::{
-    assert_transaction_error, clone_keypair, get_process_account_metas, get_recipient_ism,
-    initialize_mailbox, mailbox_id, new_funded_keypair, process, process_instruction,
-    process_with_accounts,
+    assert_transaction_error, get_process_account_metas, get_recipient_ism, initialize_mailbox,
+    mailbox_id, new_funded_keypair, process, process_instruction, process_with_accounts,
 };
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -94,10 +93,10 @@ async fn setup_client() -> (
 
     let (banks_client, payer, _recent_blockhash) = program_test.start().await;
 
-    let test_ism = TestIsmTestClient::new(banks_client.clone(), clone_keypair(&payer));
+    let test_ism = TestIsmTestClient::new(banks_client.clone(), payer.insecure_clone());
 
     let mut test_send_receiver =
-        TestSendReceiverTestClient::new(banks_client.clone(), clone_keypair(&payer));
+        TestSendReceiverTestClient::new(banks_client.clone(), payer.insecure_clone());
     test_send_receiver.init().await.unwrap();
     test_send_receiver
         .set_ism(
