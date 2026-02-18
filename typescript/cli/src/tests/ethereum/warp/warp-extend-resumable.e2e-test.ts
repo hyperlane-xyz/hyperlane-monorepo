@@ -238,14 +238,15 @@ describe('hyperlane warp apply resumable extension tests', async function () {
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
     // Run warp apply — anvil3 should succeed, anvil4 should fail
-    const result = await hyperlaneWarpApplyRaw({
-      warpDeployPath,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2,
-    }).nothrow();
-    expect(result.exitCode).to.not.equal(0);
-
-    // Restore anvil4 metadata
-    writeYamlOrJson(CHAIN_4_METADATA_PATH, originalMetadata);
+    try {
+      const result = await hyperlaneWarpApplyRaw({
+        warpDeployPath,
+        warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      }).nothrow();
+      expect(result.exitCode).to.not.equal(0);
+    } finally {
+      writeYamlOrJson(CHAIN_4_METADATA_PATH, originalMetadata);
+    }
 
     // Verify anvil3 was persisted (partial success)
     const combinedWarpCorePath_2_3 = getCombinedWarpRoutePath('ETH', [
