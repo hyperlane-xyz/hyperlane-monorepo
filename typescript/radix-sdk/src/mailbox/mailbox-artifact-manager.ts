@@ -32,10 +32,7 @@ export class RadixMailboxArtifactManager implements IRawMailboxArtifactManager {
   createReader<T extends MailboxType>(
     _type: T,
   ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    return new RadixMailboxReader(this.gateway) as ArtifactReader<
-      RawMailboxArtifactConfigs[T],
-      DeployedMailboxAddress
-    >;
+    return new RadixMailboxReader(this.gateway);
   }
 
   createWriter<T extends MailboxType>(
@@ -49,6 +46,6 @@ export class RadixMailboxArtifactManager implements IRawMailboxArtifactManager {
       baseSigner,
       this.base,
       this.domainId,
-    ) as ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress>;
+    );
   }
 }
