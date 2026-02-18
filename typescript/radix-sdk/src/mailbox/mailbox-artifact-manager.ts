@@ -14,8 +14,7 @@ import {
 import { RadixSigner } from '../clients/signer.js';
 import { RadixBase } from '../utils/base.js';
 
-import { RadixMailboxReader } from './mailbox-reader.js';
-import { RadixMailboxWriter } from './mailbox-writer.js';
+import { RadixMailboxReader, RadixMailboxWriter } from './mailbox.js';
 
 export class RadixMailboxArtifactManager implements IRawMailboxArtifactManager {
   constructor(
