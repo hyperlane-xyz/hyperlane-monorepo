@@ -3,6 +3,7 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import {
   ArtifactDeployed,
   ArtifactNew,
+  ArtifactReader,
   ArtifactState,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -11,13 +12,17 @@ import {
   MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { ZERO_ADDRESS_HEX_32, eqAddressRadix } from '@hyperlane-xyz/utils';
+import {
+  ZERO_ADDRESS_HEX_32,
+  eqAddressRadix,
+  eqOptionalAddress,
+} from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import { AnnotatedRadixTransaction } from '../utils/types.js';
 
-import { RadixMailboxReader } from './mailbox-reader.js';
+import { getMailboxConfig } from './mailbox-query.js';
 import {
   getCreateMailboxTx,
   getSetMailboxDefaultHookTx,
@@ -25,6 +30,47 @@ import {
   getSetMailboxOwnerTx,
   getSetMailboxRequiredHookTx,
 } from './mailbox-tx.js';
+
+export class RadixMailboxReader
+  implements ArtifactReader<MailboxOnChain, DeployedMailboxAddress>
+{
+  constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
+
+  async read(
+    address: string,
+  ): Promise<ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>> {
+    const mailboxConfig = await getMailboxConfig(this.gateway, address);
+
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        owner: mailboxConfig.owner,
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: {
+            address: mailboxConfig.defaultIsm || ZERO_ADDRESS_HEX_32,
+          },
+        },
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: {
+            address: mailboxConfig.defaultHook || ZERO_ADDRESS_HEX_32,
+          },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: {
+            address: mailboxConfig.requiredHook || ZERO_ADDRESS_HEX_32,
+          },
+        },
+      },
+      deployed: {
+        address: mailboxConfig.address,
+        domainId: mailboxConfig.localDomain,
+      },
+    };
+  }
+}
 
 export class RadixMailboxWriter
   extends RadixMailboxReader
@@ -78,7 +124,13 @@ export class RadixMailboxWriter
     }
 
     // Set default hook (only if not zero address)
-    if (defaultHookAddress !== ZERO_ADDRESS_HEX_32) {
+    if (
+      !eqOptionalAddress(
+        defaultHookAddress,
+        ZERO_ADDRESS_HEX_32,
+        eqAddressRadix,
+      )
+    ) {
       const setDefaultHookTx = await getSetMailboxDefaultHookTx(
         this.base,
         this.signer.getAddress(),
@@ -93,7 +145,13 @@ export class RadixMailboxWriter
     }
 
     // Set required hook (only if not zero address)
-    if (requiredHookAddress !== ZERO_ADDRESS_HEX_32) {
+    if (
+      !eqOptionalAddress(
+        requiredHookAddress,
+        ZERO_ADDRESS_HEX_32,
+        eqAddressRadix,
+      )
+    ) {
       const setRequiredHookTx = await getSetMailboxRequiredHookTx(
         this.base,
         this.signer.getAddress(),
@@ -107,20 +165,10 @@ export class RadixMailboxWriter
       allReceipts.push(requiredHookReceipt);
     }
 
-    // Transfer ownership if the configured owner is different from the signer
-    if (!eqAddressRadix(this.signer.getAddress(), config.owner)) {
-      const setOwnerTx = await getSetMailboxOwnerTx(
-        this.base,
-        this.gateway,
-        this.signer.getAddress(),
-        {
-          mailboxAddress: address,
-          newOwner: config.owner,
-        },
-      );
-      const ownerReceipt = await this.signer.signAndBroadcast(setOwnerTx);
-      allReceipts.push(ownerReceipt);
-    }
+    // Note: Ownership is NOT transferred during creation. The deployer retains
+    // ownership to allow setting ISM and hooks after initial deployment, which
+    // require owner permissions. Use update() to transfer ownership to the
+    // intended owner once all configuration is complete.
 
     const deployedArtifact: ArtifactDeployed<
       MailboxOnChain,
@@ -147,9 +195,9 @@ export class RadixMailboxWriter
     const currentState = await this.read(deployed.address);
 
     // Extract addresses from artifact references
-    const defaultIsmAddress = config.defaultIsm.deployed.address;
-    const defaultHookAddress = config.defaultHook.deployed.address;
-    const requiredHookAddress = config.requiredHook.deployed.address;
+    const expectedDefaultIsmAddress = config.defaultIsm.deployed.address;
+    const expectedDefaultHookAddress = config.defaultHook.deployed.address;
+    const expectedRequiredHookAddress = config.requiredHook.deployed.address;
 
     // Extract addresses from current state
     const currentDefaultIsmAddress =
@@ -160,51 +208,69 @@ export class RadixMailboxWriter
       currentState.config.requiredHook.deployed.address;
 
     // Update default ISM if changed
-    if (!eqAddressRadix(currentDefaultIsmAddress, defaultIsmAddress)) {
+    if (
+      !eqOptionalAddress(
+        currentDefaultIsmAddress,
+        expectedDefaultIsmAddress,
+        eqAddressRadix,
+      )
+    ) {
       const setIsmTx = await getSetMailboxDefaultIsmTx(
         this.base,
         this.signer.getAddress(),
         {
           mailboxAddress: deployed.address,
-          ismAddress: defaultIsmAddress,
+          ismAddress: expectedDefaultIsmAddress,
         },
       );
       updateTxs.push({
-        annotation: `Update mailbox default ISM to ${defaultIsmAddress}`,
+        annotation: `Update mailbox default ISM to ${expectedDefaultIsmAddress}`,
         networkId: this.base.getNetworkId(),
         manifest: setIsmTx,
       });
     }
 
     // Update default hook if changed
-    if (!eqAddressRadix(currentDefaultHookAddress, defaultHookAddress)) {
+    if (
+      !eqOptionalAddress(
+        currentDefaultHookAddress,
+        expectedDefaultHookAddress,
+        eqAddressRadix,
+      )
+    ) {
       const setDefaultHookTx = await getSetMailboxDefaultHookTx(
         this.base,
         this.signer.getAddress(),
         {
           mailboxAddress: deployed.address,
-          hookAddress: defaultHookAddress,
+          hookAddress: expectedDefaultHookAddress,
         },
       );
       updateTxs.push({
-        annotation: `Update mailbox default hook to ${defaultHookAddress}`,
+        annotation: `Update mailbox default hook to ${expectedDefaultHookAddress}`,
         networkId: this.base.getNetworkId(),
         manifest: setDefaultHookTx,
       });
     }
 
     // Update required hook if changed
-    if (!eqAddressRadix(currentRequiredHookAddress, requiredHookAddress)) {
+    if (
+      !eqOptionalAddress(
+        currentRequiredHookAddress,
+        expectedRequiredHookAddress,
+        eqAddressRadix,
+      )
+    ) {
       const setRequiredHookTx = await getSetMailboxRequiredHookTx(
         this.base,
         this.signer.getAddress(),
         {
           mailboxAddress: deployed.address,
-          hookAddress: requiredHookAddress,
+          hookAddress: expectedRequiredHookAddress,
         },
       );
       updateTxs.push({
-        annotation: `Update mailbox required hook to ${requiredHookAddress}`,
+        annotation: `Update mailbox required hook to ${expectedRequiredHookAddress}`,
         networkId: this.base.getNetworkId(),
         manifest: setRequiredHookTx,
       });
