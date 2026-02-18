@@ -161,6 +161,7 @@ export async function runWarpRouteDeploy({
 
   const initialBalances = await getBalances(context, deploymentChains);
 
+  logBlue('🚀 All systems ready, captain! Beginning deployment...');
   const { deployedContracts } = await executeDeploy(deploymentParams, apiKeys);
 
   const registryAddresses = await registry.getAddresses();
@@ -295,8 +296,6 @@ async function executeDeploy(
   deployedContracts: ChainMap<Address>;
   deployments: WarpCoreConfig;
 }> {
-  logBlue('🚀 All systems ready, captain! Beginning deployment...');
-
   const {
     warpDeployConfig,
     context: { multiProvider, altVmSigners, registry },
