@@ -389,6 +389,28 @@ describe('WarpCore batch methods', () => {
       expect(results[0]).to.equal(3333n);
     });
 
+    it('falls back to adapter for xERC20 standards', async () => {
+      const token = makeToken(
+        TokenStandard.EvmHypXERC20,
+        '0x00000000000000000000000000000000000000A1',
+      );
+
+      const adapterStub = {
+        getBridgedSupply: sinon.stub().resolves(BigInt(4444)),
+      };
+      sandbox.stub(token, 'getAdapter').returns(adapterStub as any);
+
+      const callStub = sinon.stub();
+      const provider = createMockProvider(callStub);
+      const mp = createMockMultiProvider(provider);
+      const { warpCore } = createWarpCoreWithMocks(mp, [token]);
+
+      const results = await warpCore.getBridgedSupplies([token]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0]).to.equal(4444n);
+    });
+
     it('returns null for failed reads', async () => {
       const token = makeToken(
         TokenStandard.EvmHypSynthetic,

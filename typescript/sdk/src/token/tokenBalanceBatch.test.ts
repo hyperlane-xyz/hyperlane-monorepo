@@ -204,6 +204,36 @@ describe('getTokenBalancesBatch', () => {
     expect(results[1]!.amount).to.equal(300n);
   });
 
+  it('falls back to direct native token reads when multicall contract is unavailable', async () => {
+    const nativeGetBalance = sinon
+      .stub()
+      .resolves(new TokenAmount(888, {} as IToken));
+    const nativeToken = makeToken({
+      chainName: TEST_CHAIN,
+      standard: TokenStandard.EvmNative,
+      addressOrDenom: '',
+      isNative: () => true,
+      getBalance: nativeGetBalance,
+    });
+
+    const provider = {
+      getCode: sinon.stub().resolves('0x'),
+      call: sinon.stub(),
+    } as unknown as providers.Provider;
+    const mp = createMockMultiProvider(provider);
+    const mpp = createMockMultiProtocolProvider(mp);
+
+    const results = await getTokenBalancesBatch(
+      [nativeToken],
+      mpp,
+      TEST_WALLET,
+    );
+
+    expect(results).to.have.lengthOf(1);
+    expect(results[0]!.amount).to.equal(888n);
+    expect(nativeGetBalance.calledOnce).to.equal(true);
+  });
+
   it('falls back to adapter for non-EVM tokens', async () => {
     const cosmosToken = makeToken({
       chainName: TEST_CHAIN,

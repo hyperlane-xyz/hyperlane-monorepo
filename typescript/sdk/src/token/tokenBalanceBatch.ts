@@ -139,53 +139,106 @@ async function processEvmBatch(
 ): Promise<void> {
   const multiProvider: MultiProvider = multiProtocolProvider.toMultiProvider();
   const multicall3Address = multiProvider.tryGetEvmBatchContractAddress(chain);
+  const provider = multiProvider.getProvider(chain) as providers.Provider;
 
-  const calls: EvmReadCall[] = entries.map(({ token }) => {
-    if (token.isNative() && multicall3Address) {
-      return buildGetEthBalanceCall(multicall3Address, address);
+  let nativeBatchReadsSupported = false;
+  if (multicall3Address) {
+    try {
+      nativeBatchReadsSupported =
+        (await provider.getCode(multicall3Address)) !== '0x';
+    } catch (error) {
+      logger.debug(
+        { chain, multicall3Address, error },
+        'Failed checking multicall3 code for native balance reads',
+      );
     }
-    return {
-      contract: { address: token.addressOrDenom, interface: erc20Interface },
-      functionName: 'balanceOf',
-      args: [address],
-      allowFailure: true,
-    };
-  });
+  }
+
+  const batchedEntries: Array<{
+    entry: { token: IToken; originalIndex: number };
+    call: EvmReadCall;
+  }> = [];
+  const directEntries: Array<{ token: IToken; originalIndex: number }> = [];
+
+  for (const entry of entries) {
+    if (entry.token.isNative()) {
+      if (multicall3Address && nativeBatchReadsSupported) {
+        batchedEntries.push({
+          entry,
+          call: buildGetEthBalanceCall(multicall3Address, address),
+        });
+      } else {
+        directEntries.push(entry);
+      }
+      continue;
+    }
+
+    batchedEntries.push({
+      entry,
+      call: {
+        contract: {
+          address: entry.token.addressOrDenom,
+          interface: erc20Interface,
+        },
+        functionName: 'balanceOf',
+        args: [address],
+        allowFailure: true,
+      },
+    });
+  }
 
   const multicallOptions: EvmMulticallReadOptions = {};
   if (options?.blockTag !== undefined) {
     multicallOptions.blockTag = options.blockTag;
   }
 
-  try {
-    const rawResults = await multiProvider.multicall(
-      chain,
-      calls,
-      multicallOptions,
-    );
+  if (batchedEntries.length > 0) {
+    try {
+      const rawResults = await multiProvider.multicall(
+        chain,
+        batchedEntries.map((e) => e.call),
+        multicallOptions,
+      );
 
-    for (let i = 0; i < entries.length; i++) {
-      const raw = rawResults[i];
-      if (raw == null) {
-        results[entries[i].originalIndex] = null;
-        continue;
+      for (let i = 0; i < batchedEntries.length; i++) {
+        const raw = rawResults[i];
+        const { token, originalIndex } = batchedEntries[i].entry;
+        if (raw == null) {
+          results[originalIndex] = null;
+          continue;
+        }
+        try {
+          const balance = BigNumber.isBigNumber(raw)
+            ? raw.toBigInt()
+            : BigInt(String(raw));
+          results[originalIndex] = new TokenAmount(balance, token);
+        } catch {
+          results[originalIndex] = null;
+        }
       }
-      try {
-        const balance = BigNumber.isBigNumber(raw)
-          ? raw.toBigInt()
-          : BigInt(String(raw));
-        results[entries[i].originalIndex] = new TokenAmount(
-          balance,
-          entries[i].token,
-        );
-      } catch {
-        results[entries[i].originalIndex] = null;
-      }
+    } catch (error) {
+      logger.debug(
+        { chain, error },
+        'EVM multicall batch failed; falling back to individual token reads',
+      );
+      directEntries.push(...batchedEntries.map((e) => e.entry));
     }
-  } catch (error) {
-    logger.debug(
-      { chain, error },
-      'EVM multicall batch failed; all entries null',
-    );
   }
+
+  await Promise.all(
+    directEntries.map(async ({ token, originalIndex }) => {
+      try {
+        results[originalIndex] = await token.getBalance(
+          multiProtocolProvider,
+          address,
+        );
+      } catch (error) {
+        logger.debug(
+          { chain, token: token.addressOrDenom, error },
+          'EVM fallback balance fetch failed',
+        );
+        results[originalIndex] = null;
+      }
+    }),
+  );
 }

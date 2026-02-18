@@ -1263,11 +1263,7 @@ export class WarpCore {
 
     for (const entry of entries) {
       const { standard } = entry.token;
-      if (
-        standard === TokenStandard.EvmHypSynthetic ||
-        standard === TokenStandard.EvmHypXERC20 ||
-        standard === TokenStandard.EvmHypVSXERC20
-      ) {
+      if (standard === TokenStandard.EvmHypSynthetic) {
         syntheticEntries.push(entry);
       } else if (standard === TokenStandard.EvmHypNative) {
         nativeEntries.push(entry);
@@ -1279,8 +1275,9 @@ export class WarpCore {
       } else if (LOCKBOX_STANDARDS.includes(standard)) {
         lockboxEntries.push(entry);
       } else {
-        // EvmHypSyntheticRebase, EvmHypRebaseCollateral, EvmHypCollateralFiat,
-        // EvmM0PortalLite, EvmHypEverclearCollateral, EvmHypEverclearEth, etc.
+        // EvmHypXERC20, EvmHypVSXERC20, EvmHypSyntheticRebase,
+        // EvmHypRebaseCollateral, EvmHypCollateralFiat, EvmM0PortalLite,
+        // EvmHypEverclearCollateral, EvmHypEverclearEth, etc.
         fallbackEntries.push(entry);
       }
     }
@@ -1292,10 +1289,6 @@ export class WarpCore {
     // Phase 1: batch simple calls (synthetic totalSupply, native getEthBalance)
     // + resolution calls for collateral (wrappedToken) and lockbox (lockbox + wrappedToken)
     const phase1Calls: EvmReadCall[] = [];
-    const phase1Index: Array<{
-      type: 'synthetic' | 'native' | 'collateral_resolve' | 'lockbox_resolve';
-      entryIndex: number;
-    }> = [];
 
     // Synthetic: totalSupply on the token contract
     for (let i = 0; i < syntheticEntries.length; i++) {
@@ -1308,7 +1301,6 @@ export class WarpCore {
         functionName: 'totalSupply',
         allowFailure: true,
       });
-      phase1Index.push({ type: 'synthetic', entryIndex: i });
     }
 
     // Native: getEthBalance(token.addressOrDenom)
@@ -1330,7 +1322,6 @@ export class WarpCore {
           allowFailure: true,
         });
       }
-      phase1Index.push({ type: 'native', entryIndex: i });
     }
 
     // Collateral: resolve wrappedToken()
@@ -1344,7 +1335,6 @@ export class WarpCore {
         functionName: 'wrappedToken',
         allowFailure: true,
       });
-      phase1Index.push({ type: 'collateral_resolve', entryIndex: i });
     }
 
     // Lockbox: resolve lockbox() + wrappedToken()
@@ -1358,7 +1348,6 @@ export class WarpCore {
         functionName: 'lockbox',
         allowFailure: true,
       });
-      phase1Index.push({ type: 'lockbox_resolve', entryIndex: i });
       phase1Calls.push({
         contract: {
           address: entry.token.addressOrDenom,
