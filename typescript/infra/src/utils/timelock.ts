@@ -7,6 +7,7 @@ import {
   ChainMap,
   ChainName,
   EXECUTOR_ROLE,
+  EvmReadCall,
   EvmTimelockReader,
   MultiProvider,
   PROPOSER_ROLE,
@@ -26,6 +27,30 @@ import {
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 
 export const DEFAULT_TIMELOCK_DELAY_SECONDS = 60 * 60 * 24 * 1; // 1 day
+
+async function readHasRoleBatch(
+  multiProvider: MultiProvider,
+  chain: ChainName,
+  timelock: ethers.Contract,
+  role: string,
+  accounts: Address[],
+): Promise<boolean[]> {
+  if (accounts.length === 0) return [];
+
+  const calls = Object.fromEntries(
+    accounts.map((account, index) => [
+      index.toString(),
+      {
+        contract: timelock,
+        functionName: 'hasRole',
+        args: [role, account],
+        transform: (result) => result as boolean,
+      } satisfies EvmReadCall<boolean>,
+    ]),
+  );
+  const results = await multiProvider.multicall(chain, calls);
+  return accounts.map((_, index) => results[index.toString()]);
+}
 
 export async function timelockConfigMatches({
   multiProvider,
@@ -61,10 +86,12 @@ export async function timelockConfigMatches({
       expectedConfig.executors && expectedConfig.executors.length !== 0
         ? expectedConfig.executors
         : [ethers.constants.AddressZero];
-    const executorRoles = await Promise.all(
-      expectedExecutors.map(async (executor) => {
-        return timelock.hasRole(EXECUTOR_ROLE, executor);
-      }),
+    const executorRoles = await readHasRoleBatch(
+      multiProvider,
+      chain,
+      timelock,
+      EXECUTOR_ROLE,
+      expectedExecutors,
     );
     const executorsMissing = expectedExecutors.filter(
       (_, i) => !executorRoles[i],
@@ -76,10 +103,12 @@ export async function timelockConfigMatches({
     }
 
     // Ensure the proposers have the PROPOSER_ROLE
-    const proposerRoles = await Promise.all(
-      expectedConfig.proposers.map(async (proposer) => {
-        return timelock.hasRole(PROPOSER_ROLE, proposer);
-      }),
+    const proposerRoles = await readHasRoleBatch(
+      multiProvider,
+      chain,
+      timelock,
+      PROPOSER_ROLE,
+      expectedConfig.proposers,
     );
     const proposersMissing = expectedConfig.proposers.filter(
       (_, i) => !proposerRoles[i],
@@ -96,10 +125,12 @@ export async function timelockConfigMatches({
       expectedConfig.cancellers && expectedConfig.cancellers.length !== 0
         ? expectedConfig.cancellers
         : expectedConfig.proposers;
-    const cancellerRoles = await Promise.all(
-      expectedCancellers.map(async (canceller) => {
-        return timelock.hasRole(CANCELLER_ROLE, canceller);
-      }),
+    const cancellerRoles = await readHasRoleBatch(
+      multiProvider,
+      chain,
+      timelock,
+      CANCELLER_ROLE,
+      expectedCancellers,
     );
     const cancellerMissing = expectedCancellers.filter(
       (_, i) => !cancellerRoles[i],
@@ -112,19 +143,22 @@ export async function timelockConfigMatches({
 
     // Ensure the proposers that are not in the cancellers array
     // do not have the CANCELLER_ROLE
-    const proposersWithExtraRole: string[] = [];
-    await Promise.all(
-      expectedConfig.proposers.map(async (proposer) => {
-        const proposerIsNotCanceller = !expectedCancellers.some((canceller) =>
-          eqAddress(canceller, proposer),
-        );
-        if (proposerIsNotCanceller) {
-          const hasRole = await timelock.hasRole(CANCELLER_ROLE, proposer);
-          if (hasRole) {
-            proposersWithExtraRole.push(proposer);
-          }
-        }
-      }),
+    const proposersNotInCancellers = expectedConfig.proposers.filter(
+      (proposer) =>
+        !expectedCancellers.some((canceller) => eqAddress(canceller, proposer)),
+    );
+    const extraRoleResults =
+      proposersNotInCancellers.length > 0
+        ? await readHasRoleBatch(
+            multiProvider,
+            chain,
+            timelock,
+            CANCELLER_ROLE,
+            proposersNotInCancellers,
+          )
+        : [];
+    const proposersWithExtraRole = proposersNotInCancellers.filter(
+      (_, i) => extraRoleResults[i],
     );
 
     if (proposersWithExtraRole.length > 0) {

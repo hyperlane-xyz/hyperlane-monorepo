@@ -79,6 +79,7 @@ export class WarpMonitor {
     }));
     const multiProtocolProvider = new MultiProtocolProvider(
       objMerge(chainMetadata, mailboxes),
+      { chainAddresses },
     );
 
     // Get warp route config from registry

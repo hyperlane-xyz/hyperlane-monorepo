@@ -101,6 +101,7 @@ async function main(): Promise<void> {
 
     // Get chain metadata from registry
     const chainMetadata = await registry.getMetadata();
+    const chainAddresses = await registry.getAddresses();
     logger.info(
       `✅ Loaded metadata for ${Object.keys(chainMetadata).length} chains`,
     );
@@ -115,13 +116,15 @@ async function main(): Promise<void> {
     }
 
     // Create MultiProvider with signer
-    const multiProvider = new MultiProvider(chainMetadata);
+    const multiProvider = new MultiProvider(chainMetadata, { chainAddresses });
     const signer = new Wallet(privateKey);
     multiProvider.setSharedSigner(signer);
     logger.info('✅ Initialized MultiProvider with signer');
 
     // Create MultiProtocolProvider
-    const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
+    const multiProtocolProvider = new MultiProtocolProvider(chainMetadata, {
+      chainAddresses,
+    });
     logger.info('✅ Initialized MultiProtocolProvider');
 
     // Create the rebalancer service
