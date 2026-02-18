@@ -1510,6 +1510,9 @@ export class WarpCore {
       return { blockTag: EthJsonRpcBlockParameterTag.Safe };
     if (blockTag === EthJsonRpcBlockParameterTag.Finalized)
       return { blockTag: EthJsonRpcBlockParameterTag.Finalized };
+    if (typeof blockTag === 'string' && /^0x[0-9a-f]+$/i.test(blockTag)) {
+      return { blockTag: Number.parseInt(blockTag, 16) };
+    }
     return undefined;
   }
 
