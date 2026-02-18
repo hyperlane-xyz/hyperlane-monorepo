@@ -33,7 +33,7 @@ export const TEST_ALEO_ENV = {
 /**
  * Default test chain metadata for Aleo local network
  */
-export const TEST_ALEO_CHAIN_METADATA: TestChainMetadata = {
+export const TEST_ALEO_CHAIN_METADATA = {
   name: 'aleotest',
   protocol: ProtocolType.Aleo,
   chainId: 1,
@@ -56,4 +56,4 @@ export const TEST_ALEO_CHAIN_METADATA: TestChainMetadata = {
   rpcPort: 3030,
   rpcUrl: 'http://127.0.0.1:3030',
   restPort: 3030,
-};
+} as const satisfies TestChainMetadata;

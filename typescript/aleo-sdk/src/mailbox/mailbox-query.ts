@@ -1,0 +1,67 @@
+import { assert } from '@hyperlane-xyz/utils';
+
+import { type AnyAleoNetworkClient } from '../clients/base.js';
+import { queryMappingValue } from '../utils/base-query.js';
+import {
+  formatHookAddress,
+  formatIsmAddress,
+  fromAleoAddress,
+} from '../utils/helper.js';
+import {
+  type AleoMailboxConfig,
+  type AleoMailboxData,
+  type AleoNetworkId,
+} from '../utils/types.js';
+
+/**
+ * Query mailbox configuration from the chain.
+ *
+ * @param aleoClient - The Aleo network client
+ * @param mailboxAddress - The full mailbox address (e.g., "mailbox.aleo/aleo1...")
+ * @param onChainArtifactManagers - Artifact manager addresses (hookManagerAddress is ignored and derived from mailbox)
+ * @returns The mailbox configuration
+ */
+export async function getMailboxConfig(
+  aleoClient: AnyAleoNetworkClient,
+  mailboxAddress: string,
+  aleoNetworkId: AleoNetworkId,
+): Promise<AleoMailboxConfig> {
+  const { programId } = fromAleoAddress(mailboxAddress);
+  assert(
+    programId,
+    `Program Id is required for reading the on chain mailbox config. Is the input address formatted as "programId/address"?`,
+  );
+
+  const mailboxData = await queryMappingValue(
+    aleoClient,
+    programId,
+    'mailbox',
+    'true',
+    (raw): AleoMailboxData => {
+      const data = raw as AleoMailboxData | undefined;
+      assert(
+        data?.mailbox_owner,
+        `Invalid mailbox data structure for mailbox ${mailboxAddress}, expected object with mailbox_owner field`,
+      );
+      return data;
+    },
+  );
+
+  return {
+    address: mailboxAddress,
+    owner: mailboxData.mailbox_owner,
+    localDomain: mailboxData.local_domain,
+    nonce: mailboxData.nonce,
+    defaultIsm: formatIsmAddress(mailboxData.default_ism, aleoNetworkId),
+    defaultHook: formatHookAddress(
+      mailboxData.default_hook,
+      programId,
+      aleoNetworkId,
+    ),
+    requiredHook: formatHookAddress(
+      mailboxData.required_hook,
+      programId,
+      aleoNetworkId,
+    ),
+  };
+}

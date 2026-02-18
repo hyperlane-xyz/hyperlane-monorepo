@@ -1,8 +1,14 @@
 import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
-import { isValidAddressAleo, strip0x } from '@hyperlane-xyz/utils';
+import {
+  isValidAddressAleo,
+  isZeroishAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { type AleoProgram, programRegistry } from '../artifacts.js';
+
+import { AleoNetworkId } from './types.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
@@ -308,4 +314,80 @@ export function getBalanceKey(address: string, denom: string): string {
       Plaintext.fromString(`{account:${address},token_id:${denom}}`).toBitsLe(),
     )
     .toString();
+}
+
+export function getAleoIsmManagerProgramId(
+  aleoNetworkId: AleoNetworkId,
+): string {
+  // Determine prefix from chain ID
+  const prefix =
+    aleoNetworkId === AleoNetworkId.TESTNET ? TESTNET_PREFIX : MAINNET_PREFIX;
+
+  // Construct ISM manager address (same logic as AleoBase)
+  const ismManagerSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
+  const ismManagerProgramId = ismManagerSuffix
+    ? `${prefix}_ism_manager_${ismManagerSuffix}.aleo`
+    : `${prefix}_ism_manager.aleo`;
+
+  return ismManagerProgramId;
+}
+
+/**
+ * Format ISM address by combining manager program ID with plain address.
+ * Returns null address for zeroish addresses.
+ */
+export function formatIsmAddress(
+  ismAddress: string,
+  aleoNetworkId: AleoNetworkId,
+): string {
+  if (isZeroishAddress(ismAddress)) {
+    return ALEO_NULL_ADDRESS;
+  }
+
+  return `${getAleoIsmManagerProgramId(aleoNetworkId)}/${ismAddress}`;
+}
+
+/**
+ * Format Hook address by combining manager program ID with plain address.
+ * Returns null address for zeroish addresses.
+ *
+ */
+export function formatHookAddress(
+  hookAddress: string,
+  // The mailboxProgramId is required as in the current deployment
+  // flow the hook address is generated based on the mailbox address
+  mailboxProgramId: string,
+  aleoNetworkId: AleoNetworkId,
+): string {
+  if (isZeroishAddress(hookAddress)) {
+    return ALEO_NULL_ADDRESS;
+  }
+
+  const programIdPrefix =
+    aleoNetworkId === AleoNetworkId.MAINNET ? MAINNET_PREFIX : TESTNET_PREFIX;
+
+  const mailboxSuffix = getProgramSuffix(mailboxProgramId);
+  const hookManagerProgramId = getProgramIdFromSuffix(
+    programIdPrefix,
+    'hook_manager',
+    mailboxSuffix,
+  );
+
+  return `${hookManagerProgramId}/${hookAddress}`;
+}
+
+// TODO: remove when rebasing after https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/7918 is merged
+/**
+ * Generate a random suffix of length n using alphanumeric characters
+ */
+export function generateSuffix(n: number): string {
+  const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let result = '';
+
+  for (let i = 0; i < n; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    result += characters[randomIndex];
+  }
+
+  return result;
 }
