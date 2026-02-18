@@ -1,5 +1,15 @@
 # @hyperlane-xyz/tron-sdk
 
+## 21.0.2
+
+### Patch Changes
+
+- Updated dependencies [360db52]
+- Updated dependencies [ccd638d]
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/provider-sdk@1.3.3
+  - @hyperlane-xyz/eslint-config@25.2.0
+
 ## 21.0.1
 
 ### Patch Changes
