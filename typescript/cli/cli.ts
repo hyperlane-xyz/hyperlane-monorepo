@@ -93,5 +93,9 @@ try {
 } catch (error: any) {
   errorRed('Error: ' + error.message);
 } finally {
-  await getChainFileLogger()?.close();
+  try {
+    await getChainFileLogger()?.close();
+  } catch {
+    // Don't mask the original error
+  }
 }

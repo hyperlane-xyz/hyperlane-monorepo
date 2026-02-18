@@ -4,7 +4,7 @@ import { LevelWithSilent, Logger, LoggerOptions, pino } from 'pino';
 import { inKubernetes, safelyAccessEnvVar } from './env.js';
 
 // Minimal interface to avoid importing Node's 'stream' module (restricted in cross-platform code)
-interface WritableStream {
+export interface WritableStream {
   write(chunk: any): boolean;
 }
 

@@ -10,6 +10,7 @@ export class ChainFileLogger {
   private combinedStream: fs.WriteStream;
   private chainStreams: Map<string, fs.WriteStream> = new Map();
   private logDir: string;
+  private closed = false;
 
   constructor(baseDir: string) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -60,8 +61,14 @@ export class ChainFileLogger {
   }
 
   async close(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+
     const endStream = (stream: fs.WriteStream) =>
-      new Promise<void>((resolve) => stream.end(resolve));
+      new Promise<void>((resolve) => {
+        stream.on('error', () => {});
+        stream.end(resolve);
+      });
 
     await Promise.all([
       endStream(this.combinedStream),
