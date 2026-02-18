@@ -28,6 +28,30 @@ import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 
 export const DEFAULT_TIMELOCK_DELAY_SECONDS = 60 * 60 * 24 * 1; // 1 day
 
+async function readHasRoleBatch(
+  multiProvider: MultiProvider,
+  chain: ChainName,
+  timelock: ethers.Contract,
+  role: string,
+  accounts: Address[],
+): Promise<boolean[]> {
+  if (accounts.length === 0) return [];
+
+  const calls = Object.fromEntries(
+    accounts.map((account, index) => [
+      index.toString(),
+      {
+        contract: timelock,
+        functionName: 'hasRole',
+        args: [role, account],
+        transform: (result) => result as boolean,
+      } satisfies EvmReadCall<boolean>,
+    ]),
+  );
+  const results = await multiProvider.multicall(chain, calls);
+  return accounts.map((_, index) => results[index.toString()]);
+}
+
 export async function timelockConfigMatches({
   multiProvider,
   chain,
@@ -62,15 +86,13 @@ export async function timelockConfigMatches({
       expectedConfig.executors && expectedConfig.executors.length !== 0
         ? expectedConfig.executors
         : [ethers.constants.AddressZero];
-    const executorCalls: EvmReadCall[] = expectedExecutors.map((executor) => ({
-      contract: timelock,
-      functionName: 'hasRole',
-      args: [EXECUTOR_ROLE, executor],
-    }));
-    const executorRoles = (await multiProvider.multicall(
+    const executorRoles = await readHasRoleBatch(
+      multiProvider,
       chain,
-      executorCalls,
-    )) as boolean[];
+      timelock,
+      EXECUTOR_ROLE,
+      expectedExecutors,
+    );
     const executorsMissing = expectedExecutors.filter(
       (_, i) => !executorRoles[i],
     );
@@ -81,17 +103,13 @@ export async function timelockConfigMatches({
     }
 
     // Ensure the proposers have the PROPOSER_ROLE
-    const proposerCalls: EvmReadCall[] = expectedConfig.proposers.map(
-      (proposer) => ({
-        contract: timelock,
-        functionName: 'hasRole',
-        args: [PROPOSER_ROLE, proposer],
-      }),
-    );
-    const proposerRoles = (await multiProvider.multicall(
+    const proposerRoles = await readHasRoleBatch(
+      multiProvider,
       chain,
-      proposerCalls,
-    )) as boolean[];
+      timelock,
+      PROPOSER_ROLE,
+      expectedConfig.proposers,
+    );
     const proposersMissing = expectedConfig.proposers.filter(
       (_, i) => !proposerRoles[i],
     );
@@ -107,17 +125,13 @@ export async function timelockConfigMatches({
       expectedConfig.cancellers && expectedConfig.cancellers.length !== 0
         ? expectedConfig.cancellers
         : expectedConfig.proposers;
-    const cancellerCalls: EvmReadCall[] = expectedCancellers.map(
-      (canceller) => ({
-        contract: timelock,
-        functionName: 'hasRole',
-        args: [CANCELLER_ROLE, canceller],
-      }),
-    );
-    const cancellerRoles = (await multiProvider.multicall(
+    const cancellerRoles = await readHasRoleBatch(
+      multiProvider,
       chain,
-      cancellerCalls,
-    )) as boolean[];
+      timelock,
+      CANCELLER_ROLE,
+      expectedCancellers,
+    );
     const cancellerMissing = expectedCancellers.filter(
       (_, i) => !cancellerRoles[i],
     );
@@ -133,16 +147,15 @@ export async function timelockConfigMatches({
       (proposer) =>
         !expectedCancellers.some((canceller) => eqAddress(canceller, proposer)),
     );
-    const extraRoleCalls: EvmReadCall[] = proposersNotInCancellers.map(
-      (proposer) => ({
-        contract: timelock,
-        functionName: 'hasRole',
-        args: [CANCELLER_ROLE, proposer],
-      }),
-    );
     const extraRoleResults =
-      extraRoleCalls.length > 0
-        ? ((await multiProvider.multicall(chain, extraRoleCalls)) as boolean[])
+      proposersNotInCancellers.length > 0
+        ? await readHasRoleBatch(
+            multiProvider,
+            chain,
+            timelock,
+            CANCELLER_ROLE,
+            proposersNotInCancellers,
+          )
         : [];
     const proposersWithExtraRole = proposersNotInCancellers.filter(
       (_, i) => extraRoleResults[i],

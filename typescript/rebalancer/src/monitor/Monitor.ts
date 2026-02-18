@@ -2,6 +2,7 @@ import { type Logger } from 'pino';
 
 import { HypERC20__factory, IMulticall3__factory } from '@hyperlane-xyz/core';
 import {
+  ChainMetadataManager,
   type EvmReadCall,
   type Token,
   TOKEN_STANDARD_TO_PROTOCOL,
@@ -21,7 +22,8 @@ import {
 } from '../interfaces/IMonitor.js';
 import { getConfirmedBlockTag } from '../utils/blockTag.js';
 
-const MULTICALL3_ADDRESS = '0xcA11bde05977b3631167028862bE2a173976CA11';
+const MULTICALL3_ADDRESS =
+  ChainMetadataManager.DEFAULT_EVM_BATCH_CONTRACT_ADDRESS;
 const multicall3Interface = IMulticall3__factory.createInterface();
 const hypErc20Interface = HypERC20__factory.createInterface();
 
