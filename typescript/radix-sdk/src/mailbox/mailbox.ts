@@ -3,6 +3,7 @@ import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 import {
   ArtifactDeployed,
   ArtifactNew,
+  ArtifactReader,
   ArtifactState,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -21,7 +22,7 @@ import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import { AnnotatedRadixTransaction } from '../utils/types.js';
 
-import { RadixMailboxReader } from './mailbox-reader.js';
+import { getMailboxConfig } from './mailbox-query.js';
 import {
   getCreateMailboxTx,
   getSetMailboxDefaultHookTx,
@@ -29,6 +30,47 @@ import {
   getSetMailboxOwnerTx,
   getSetMailboxRequiredHookTx,
 } from './mailbox-tx.js';
+
+export class RadixMailboxReader
+  implements ArtifactReader<MailboxOnChain, DeployedMailboxAddress>
+{
+  constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
+
+  async read(
+    address: string,
+  ): Promise<ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>> {
+    const mailboxConfig = await getMailboxConfig(this.gateway, address);
+
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        owner: mailboxConfig.owner,
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: {
+            address: mailboxConfig.defaultIsm || ZERO_ADDRESS_HEX_32,
+          },
+        },
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: {
+            address: mailboxConfig.defaultHook || ZERO_ADDRESS_HEX_32,
+          },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: {
+            address: mailboxConfig.requiredHook || ZERO_ADDRESS_HEX_32,
+          },
+        },
+      },
+      deployed: {
+        address: mailboxConfig.address,
+        domainId: mailboxConfig.localDomain,
+      },
+    };
+  }
+}
 
 export class RadixMailboxWriter
   extends RadixMailboxReader
