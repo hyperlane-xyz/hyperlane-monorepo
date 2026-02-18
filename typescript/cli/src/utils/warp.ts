@@ -4,7 +4,6 @@ import { filterWarpRoutesIds } from '@hyperlane-xyz/registry';
 import {
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
-  filterWarpCoreConfigMapByChains,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
@@ -33,6 +32,19 @@ import { logRed } from '../logger.js';
  * When `chains` is provided, symbol-only resolution is limited to routes
  * that span all provided chains.
  */
+function filterWarpCoreConfigsByChains<T extends WarpCoreConfig>(
+  configMap: Record<string, T>,
+  chains: string[],
+): Record<string, T> {
+  if (chains.length === 0) {
+    return configMap;
+  }
+
+  return objFilter(configMap, (_id, config): config is T => {
+    const configChains = new Set(config.tokens.map((token) => token.chainName));
+    return chains.every((chain) => configChains.has(chain));
+  });
+}
 export async function getWarpCoreConfigOrExit({
   context,
   warpRouteId,
@@ -112,7 +124,7 @@ export async function resolveWarpRouteId(args: {
 
     if (chains && chains.length > 0) {
       const warpConfigs = await context.registry.getWarpRoutes({ symbol });
-      const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
+      const filtered = filterWarpCoreConfigsByChains(warpConfigs, chains);
       const chainFilteredIds = new Set(Object.keys(filtered));
       matchingIds = matchingIds.filter((id) => chainFilteredIds.has(id));
     }
@@ -164,7 +176,7 @@ export async function resolveWarpRouteId(args: {
 
   if (chains && chains.length > 0) {
     const warpConfigs = await context.registry.getWarpRoutes();
-    const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
+    const filtered = filterWarpCoreConfigsByChains(warpConfigs, chains);
     routeIds = Object.keys(filtered);
   } else {
     const result = filterWarpRoutesIds(source);
