@@ -7,6 +7,7 @@ import {
   type DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
+  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -14,6 +15,8 @@ import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getTransactions } from '../../../config/submit.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
+import { readChainSubmissionStrategy } from '../../../deploy/warp.js';
+import { type ExtendedSubmissionStrategy } from '../../../submitters/types.js';
 import {
   filterOutDisabledChains,
   runSingleChainSelectionStep,
@@ -310,7 +313,7 @@ async function resolveSubmitChains(
   try {
     const { multiProvider } = argv.context;
 
-    const transactionFilePath: string | undefined = argv.transactions;
+    const transactionFilePath = argv.transactions;
     assert(
       transactionFilePath,
       'Expected transactions file path to be provided for submit command',
@@ -319,15 +322,43 @@ async function resolveSubmitChains(
     const transactions = getTransactions(transactionFilePath);
 
     const chainIds = new Set(transactions.map((tx) => tx.chainId));
-    const chains = Array.from(chainIds).map((chainId) =>
-      multiProvider.getChainName(chainId),
+    const chains = new Set(
+      Array.from(chainIds).map((chainId) =>
+        multiProvider.getChainName(chainId),
+      ),
     );
 
-    assert(chains.length > 0, 'No transactions found in file');
-    return chains;
+    if (argv.strategy) {
+      const strategy = readChainSubmissionStrategy(argv.strategy);
+      for (const [destChain, config] of Object.entries(strategy)) {
+        chains.add(destChain);
+        for (const c of getSubmitterChains(config.submitter)) {
+          chains.add(c);
+        }
+      }
+    }
+
+    assert(chains.size > 0, 'No transactions found in file');
+    return Array.from(chains);
   } catch (error) {
     throw new Error(`Failed to resolve submit command chains`, {
       cause: error,
     });
   }
+}
+
+// Recursively extracts all chain names referenced by a submitter (e.g. ICA origin, destination, nested submitters).
+export function getSubmitterChains(
+  submitter: ExtendedSubmissionStrategy['submitter'],
+): ChainName[] {
+  const chains: ChainName[] = submitter.chain ? [submitter.chain] : [];
+  if (submitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
+    if (submitter.destinationChain) chains.push(submitter.destinationChain);
+    if (submitter.internalSubmitter)
+      chains.push(...getSubmitterChains(submitter.internalSubmitter));
+  } else if (submitter.type === TxSubmitterType.TIMELOCK_CONTROLLER) {
+    if (submitter.proposerSubmitter)
+      chains.push(...getSubmitterChains(submitter.proposerSubmitter));
+  }
+  return chains;
 }

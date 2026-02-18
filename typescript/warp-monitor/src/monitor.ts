@@ -21,6 +21,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  applyRpcUrlOverridesFromEnv,
   objMap,
   objMerge,
   sleep,
@@ -63,6 +64,13 @@ export class WarpMonitor {
     // Get chain metadata and addresses from registry
     const chainMetadata = await this.registry.getMetadata();
     const chainAddresses = await this.registry.getAddresses();
+    const overriddenChains = applyRpcUrlOverridesFromEnv(chainMetadata);
+    if (overriddenChains.length > 0) {
+      logger.info(
+        { chains: overriddenChains, count: overriddenChains.length },
+        'Applied RPC overrides from environment variables',
+      );
+    }
 
     // The Sealevel warp adapters require the Mailbox address, so we
     // get mailboxes for all chains and merge them with the chain metadata.

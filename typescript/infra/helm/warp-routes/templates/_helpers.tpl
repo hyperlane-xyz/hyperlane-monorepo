@@ -80,8 +80,6 @@ The warp-routes container
     value: {{ .Values.warpRouteId }}
   - name: CHECK_FREQUENCY
     value: "30000"
-  - name: COINGECKO_API_KEY
-    value: $(COINGECKO_API_KEY)
   envFrom:
   - secretRef:
       name: {{ include "hyperlane.fullname" . }}-secret

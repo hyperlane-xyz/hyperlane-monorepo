@@ -39,7 +39,7 @@ snarkvm-algorithms.workspace = true
 snarkvm-console-account.workspace = true
 aleo-std.workspace = true
 aleo-std-storage.workspace = true
-reqwest = { workspace = true, features = ["json", "blocking"] }
+reqwest = { workspace = true, features = ["json", "blocking", "cookies"] }
 anyhow.workspace = true
 futures.workspace = true
 url.workspace = true
@@ -48,3 +48,5 @@ derive-new = { workspace = true }
 hex.workspace = true
 indexmap = "2.0"
 rand_chacha = { version = "0.3.0" }
+sodiumbox = "0.1.0"
+base64.workspace = true

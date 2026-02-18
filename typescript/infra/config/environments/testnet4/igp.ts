@@ -16,6 +16,11 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote);
+
+  if (remote === 'somniatestnet') {
+    overhead *= 2;
+  }
+
   return overhead;
 }
 

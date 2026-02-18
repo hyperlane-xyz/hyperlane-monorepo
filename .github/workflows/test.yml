@@ -28,13 +28,13 @@ env:
 
 jobs:
   pnpm-install:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
@@ -207,7 +207,7 @@ jobs:
           echo "skip_cli_e2e=${{ steps.check-skip-cli.outputs.skip_cli }}" >> $GITHUB_OUTPUT
 
   pnpm-test-run:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     timeout-minutes: 10
     if: needs.change-detection.outputs.only_rust == 'false'
@@ -216,7 +216,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -239,7 +239,7 @@ jobs:
           result: ${{ needs.pnpm-test-run.result }}
 
   infra-test:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [set-base-sha]
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
@@ -250,6 +250,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Install gitleaks
@@ -319,7 +320,7 @@ jobs:
           result: ${{ needs.cli-install-test-run.result }}
 
   cli-evm-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
@@ -351,6 +352,7 @@ jobs:
           - warp-extend-basic
           - warp-extend-config
           - warp-extend-recovery
+          - warp-extend-resumable
           # deploy
           - warp-bridge-1
           - warp-bridge-2
@@ -375,7 +377,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -391,7 +393,7 @@ jobs:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-cosmos-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
@@ -415,7 +417,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -431,7 +433,7 @@ jobs:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-radix-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
@@ -454,7 +456,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -470,7 +472,7 @@ jobs:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-cross-chain-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
@@ -486,7 +488,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -502,7 +504,7 @@ jobs:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-aleo-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
@@ -530,7 +532,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -585,7 +587,7 @@ jobs:
           result: ${{ needs.cli-aleo-e2e-matrix.result }}
 
   cosmos-sdk-e2e-run:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
@@ -594,7 +596,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -614,7 +616,7 @@ jobs:
           result: ${{ needs.cosmos-sdk-e2e-run.result }}
 
   aleo-sdk-e2e-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
@@ -633,7 +635,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -655,7 +657,7 @@ jobs:
           result: ${{ needs.aleo-sdk-e2e-matrix.result }}
 
   radix-sdk-e2e-run:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
@@ -664,7 +666,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -684,7 +686,7 @@ jobs:
           result: ${{ needs.radix-sdk-e2e-run.result }}
 
   agent-configs:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -722,6 +724,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+          persist-credentials: false
           fetch-depth: 0
 
       - uses: actions/setup-node@v6
@@ -906,7 +909,7 @@ jobs:
           result: ${{ needs.e2e-matrix.result }}
 
   env-test-matrix:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
     env:
