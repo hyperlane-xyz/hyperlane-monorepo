@@ -350,9 +350,12 @@ export function formatIsmAddress(
 /**
  * Format Hook address by combining manager program ID with plain address.
  * Returns null address for zeroish addresses.
+ *
  */
 export function formatHookAddress(
   hookAddress: string,
+  // The mailboxProgramId is required as in the current deployment
+  // flow the hook address is generated based on the mailbox address
   mailboxProgramId: string,
   aleoNetworkId: AleoNetworkId,
 ): string {

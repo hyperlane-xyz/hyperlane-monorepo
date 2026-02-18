@@ -27,6 +27,10 @@ export async function getMailboxConfig(
   aleoNetworkId: AleoNetworkId,
 ): Promise<AleoMailboxConfig> {
   const { programId } = fromAleoAddress(mailboxAddress);
+  assert(
+    programId,
+    `Program Id is required for reading the on chain mailbox config. Is the input address formatted as "programId/address"?`,
+  );
 
   const mailboxData = await queryMappingValue(
     aleoClient,

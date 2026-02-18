@@ -22,6 +22,10 @@ export async function getValidatorAnnounceConfig(
   validatorAnnounceAddress: string,
 ): Promise<{ address: string; mailboxAddress: string }> {
   const { programId } = fromAleoAddress(validatorAnnounceAddress);
+  assert(
+    programId,
+    `Program Id is required for reading the on chain validator announce config. Is the input address formatted as "programId/address"?`,
+  );
 
   const validatorAnnounceData = await queryMappingValue(
     aleoClient,
