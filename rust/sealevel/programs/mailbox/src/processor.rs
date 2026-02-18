@@ -382,7 +382,7 @@ fn inbox_process(
     inbox.processed_count += 1;
     InboxAccount::from(inbox)
         .store_in_slice(&mut inbox_data_refmut)
-        .map_err(|e| ProgramError::BorshIoError(e.to_string()))?;
+        .map_err(|_e| ProgramError::BorshIoError)?;
 
     // Now call into the recipient program with the verified message!
     let handle_intruction = Instruction::new_with_bytes(
@@ -462,7 +462,7 @@ fn inbox_get_recipient_ism(
     set_return_data(
         &SimulationReturnData::new(ism)
             .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+            .map_err(|_err| ProgramError::BorshIoError)?[..],
     );
 
     Ok(())
@@ -499,7 +499,7 @@ fn get_recipient_ism(
             // If they returned an encoded Option::<Pubkey>::None, then use
             // the default ISM.
             Option::<Pubkey>::try_from_slice(&returned_data[..])
-                .map_err(|err| ProgramError::BorshIoError(err.to_string()))?
+                .map_err(|_err| ProgramError::BorshIoError)?
                 .unwrap_or(default_ism)
         }
     } else {
@@ -752,7 +752,7 @@ fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramRes
     // See `SimulationReturnData` for details.
     let bytes = SimulationReturnData::new(count.to_le_bytes())
         .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        .map_err(|_err| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }
@@ -788,7 +788,7 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
     // See `SimulationReturnData` for details.
     let bytes = SimulationReturnData::new(ret_buf.to_vec())
         .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        .map_err(|_err| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }
@@ -816,7 +816,7 @@ fn outbox_get_root(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResu
     // See `SimulationReturnData` for details.
     let bytes = SimulationReturnData::new(root)
         .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        .map_err(|_err| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }
@@ -838,7 +838,7 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     // See `SimulationReturnData` for details.
     let bytes = SimulationReturnData::new(outbox.owner)
         .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        .map_err(|_err| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }

@@ -4969,7 +4969,7 @@ dependencies = [
 [[package]]
 name = "solana-account-decoder"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "Inflector",
  "base64 0.13.1",
@@ -4993,7 +4993,7 @@ dependencies = [
 [[package]]
 name = "solana-address-lookup-table-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5013,7 +5013,7 @@ dependencies = [
 [[package]]
 name = "solana-banks-client"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "borsh",
  "futures",
@@ -5029,7 +5029,7 @@ dependencies = [
 [[package]]
 name = "solana-banks-interface"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "serde",
  "solana-sdk",
@@ -5039,7 +5039,7 @@ dependencies = [
 [[package]]
 name = "solana-banks-server"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "bincode",
  "crossbeam-channel",
@@ -5058,7 +5058,7 @@ dependencies = [
 [[package]]
 name = "solana-bpf-loader-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "bincode",
  "byteorder",
@@ -5076,7 +5076,7 @@ dependencies = [
 [[package]]
 name = "solana-bucket-map"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "log",
  "memmap2",
@@ -5090,7 +5090,7 @@ dependencies = [
 [[package]]
 name = "solana-clap-utils"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "chrono",
  "clap 2.34.0",
@@ -5107,7 +5107,7 @@ dependencies = [
 [[package]]
 name = "solana-cli-config"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "dirs-next",
  "lazy_static",
@@ -5122,7 +5122,7 @@ dependencies = [
 [[package]]
 name = "solana-client"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "async-mutex",
  "async-trait",
@@ -5175,7 +5175,7 @@ dependencies = [
 [[package]]
 name = "solana-compute-budget-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "solana-program-runtime",
  "solana-sdk",
@@ -5184,7 +5184,7 @@ dependencies = [
 [[package]]
 name = "solana-config-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "bincode",
  "chrono",
@@ -5197,7 +5197,7 @@ dependencies = [
 [[package]]
 name = "solana-faucet"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "bincode",
  "byteorder",
@@ -5220,7 +5220,7 @@ dependencies = [
 [[package]]
 name = "solana-frozen-abi"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "ahash",
  "blake3",
@@ -5253,7 +5253,7 @@ dependencies = [
 [[package]]
 name = "solana-frozen-abi-macro"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
@@ -5264,7 +5264,7 @@ dependencies = [
 [[package]]
 name = "solana-logger"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "env_logger 0.9.3",
  "lazy_static",
@@ -5274,7 +5274,7 @@ dependencies = [
 [[package]]
 name = "solana-measure"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "log",
  "solana-sdk",
@@ -5283,7 +5283,7 @@ dependencies = [
 [[package]]
 name = "solana-metrics"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "crossbeam-channel",
  "gethostname",
@@ -5296,7 +5296,7 @@ dependencies = [
 [[package]]
 name = "solana-net-utils"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "bincode",
  "clap 3.2.25",
@@ -5317,7 +5317,7 @@ dependencies = [
 [[package]]
 name = "solana-perf"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "ahash",
  "bincode",
@@ -5343,7 +5343,7 @@ dependencies = [
 [[package]]
 name = "solana-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "base64 0.13.1",
  "bincode",
@@ -5391,7 +5391,7 @@ dependencies = [
 [[package]]
 name = "solana-program-runtime"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "base64 0.13.1",
  "bincode",
@@ -5417,7 +5417,7 @@ dependencies = [
 [[package]]
 name = "solana-program-test"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -5441,7 +5441,7 @@ dependencies = [
 [[package]]
 name = "solana-rayon-threadlimit"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "lazy_static",
  "num_cpus",
@@ -5450,7 +5450,7 @@ dependencies = [
 [[package]]
 name = "solana-remote-wallet"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "console",
  "dialoguer",
@@ -5468,7 +5468,7 @@ dependencies = [
 [[package]]
 name = "solana-runtime"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "arrayref",
  "bincode",
@@ -5528,7 +5528,7 @@ dependencies = [
 [[package]]
 name = "solana-sdk"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "assert_matches",
  "base64 0.13.1",
@@ -5578,7 +5578,7 @@ dependencies = [
 [[package]]
 name = "solana-sdk-macro"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "bs58 0.4.0",
  "proc-macro2 1.0.86",
@@ -5590,7 +5590,7 @@ dependencies = [
 [[package]]
 name = "solana-send-transaction-service"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "crossbeam-channel",
  "log",
@@ -5604,7 +5604,7 @@ dependencies = [
 [[package]]
 name = "solana-stake-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "bincode",
  "log",
@@ -5626,7 +5626,7 @@ dependencies = [
 [[package]]
 name = "solana-streamer"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "crossbeam-channel",
  "futures-util",
@@ -5654,7 +5654,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-status"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "Inflector",
  "base64 0.13.1",
@@ -5682,7 +5682,7 @@ dependencies = [
 [[package]]
 name = "solana-version"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "log",
  "rustc_version",
@@ -5697,7 +5697,7 @@ dependencies = [
 [[package]]
 name = "solana-vote-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "bincode",
  "log",
@@ -5717,7 +5717,7 @@ dependencies = [
 [[package]]
 name = "solana-zk-token-proof-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "bytemuck",
  "getrandom 0.1.16",
@@ -5731,7 +5731,7 @@ dependencies = [
 [[package]]
 name = "solana-zk-token-sdk"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2025-05-21#6cc4764f0e6482c6844e8062c55535a6934ea279"
+source = "git+https://github.com/hyperlane-xyz/solana.git?branch=jeff/encoded-tx-2#88288713965aca854f6caa50136ed705f71f8660"
 dependencies = [
  "aes-gcm-siv",
  "arrayref",

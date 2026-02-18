@@ -409,7 +409,7 @@ fn get_interchain_security_module(_program_id: &Pubkey, accounts: &[AccountInfo]
                 &storage
                     .ism
                     .try_to_vec()
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                    .map_err(|_err| ProgramError::BorshIoError)?[..],
             );
         }
         IsmReturnDataMode::ReturnNothing => {
@@ -459,7 +459,7 @@ fn set_account_meta_return_data(program_id: &Pubkey) -> ProgramResult {
     // See `SimulationReturnData` for details.
     let bytes = SimulationReturnData::new(account_metas)
         .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        .map_err(|_err| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
 
     Ok(())

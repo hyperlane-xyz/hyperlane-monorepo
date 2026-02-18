@@ -855,7 +855,7 @@ async fn test_get_recipient_ism_errors_with_malformatted_recipient_ism_return_da
     assert!(matches!(
         result,
         Err(BanksClientError::TransactionError(
-            TransactionError::InstructionError(_, InstructionError::BorshIoError(_))
+            TransactionError::InstructionError(_, InstructionError::BorshIoError)
         ))
     ));
 }

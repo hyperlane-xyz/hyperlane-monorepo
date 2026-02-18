@@ -21,7 +21,7 @@ pub trait HyperlaneConnectionClient {
         let ism: Option<Pubkey> = self.interchain_security_module().cloned();
         set_return_data(
             &ism.try_to_vec()
-                .map_err(|err| ProgramError::BorshIoError(err.to_string()))
+                .map_err(|_err| ProgramError::BorshIoError)
                 .unwrap()[..],
         );
     }

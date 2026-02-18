@@ -59,7 +59,7 @@ impl InterchainSecurityModuleInstruction {
                 buf.extend_from_slice(
                     &instruction
                         .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                        .map_err(|_err| ProgramError::BorshIoError)?[..],
                 );
             }
             InterchainSecurityModuleInstruction::VerifyAccountMetas(instruction) => {
@@ -67,7 +67,7 @@ impl InterchainSecurityModuleInstruction {
                 buf.extend_from_slice(
                     &instruction
                         .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                        .map_err(|_err| ProgramError::BorshIoError)?[..],
                 );
             }
         }
@@ -84,12 +84,12 @@ impl InterchainSecurityModuleInstruction {
             TYPE_DISCRIMINATOR_SLICE => Ok(Self::Type),
             VERIFY_DISCRIMINATOR_SLICE => {
                 let instruction = VerifyInstruction::try_from_slice(rest)
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                    .map_err(|_err| ProgramError::BorshIoError)?;
                 Ok(Self::Verify(instruction))
             }
             VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE => {
                 let instruction = VerifyInstruction::try_from_slice(rest)
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                    .map_err(|_err| ProgramError::BorshIoError)?;
                 Ok(Self::VerifyAccountMetas(instruction))
             }
             _ => Err(ProgramError::InvalidInstructionData),

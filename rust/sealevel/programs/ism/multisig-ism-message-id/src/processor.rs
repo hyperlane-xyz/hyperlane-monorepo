@@ -87,7 +87,7 @@ pub fn process_instruction(
                 set_return_data(
                     &SimulationReturnData::new(ISM_TYPE as u32)
                         .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                        .map_err(|_err| ProgramError::BorshIoError)?[..],
                 );
                 return Ok(());
             }
@@ -110,7 +110,7 @@ pub fn process_instruction(
                 // See `SimulationReturnData` for details.
                 let bytes = SimulationReturnData::new(account_metas)
                     .try_to_vec()
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                    .map_err(|_err| ProgramError::BorshIoError)?;
                 set_return_data(&bytes[..]);
                 Ok(())
             }
@@ -145,7 +145,7 @@ pub fn process_instruction(
                 // See `SimulationReturnData` for details.
                 let bytes = SimulationReturnData::new(account_metas)
                     .try_to_vec()
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                    .map_err(|_err| ProgramError::BorshIoError)?;
                 set_return_data(&bytes[..]);
                 Ok(())
             }
@@ -299,7 +299,7 @@ fn get_validators_and_threshold(
     // See `SimulationReturnData` for details.
     let bytes = SimulationReturnData::new(validators_and_threshold)
         .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        .map_err(|_err| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }
@@ -470,7 +470,7 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     // See `SimulationReturnData` for details.
     let bytes = SimulationReturnData::new(access_control_data.owner)
         .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        .map_err(|_err| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }

@@ -83,7 +83,7 @@ pub fn process_instruction(
                 set_return_data(
                     &SimulationReturnData::new(ISM_TYPE as u32)
                         .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                        .map_err(|_err| ProgramError::BorshIoError)?[..],
                 );
                 Ok(())
             }
@@ -188,7 +188,7 @@ fn verify_account_metas(program_id: &Pubkey, _accounts: &[AccountInfo]) -> Progr
     // See `SimulationReturnData` for details.
     let bytes = SimulationReturnData::new(account_metas)
         .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        .map_err(|_err| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
 
     Ok(())
