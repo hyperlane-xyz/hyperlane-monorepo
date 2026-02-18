@@ -95,12 +95,24 @@ describe('ChainFileLogger', () => {
     expect(chainFiles).to.have.length(0);
   });
 
-  it('strips ANSI codes', async () => {
+  it('strips raw ANSI codes', async () => {
     await writeLines([JSON.stringify({ msg: '\x1b[31mred error\x1b[0m' })]);
     await logger.close();
 
     const combined = readFile(path.join(logger.getLogDir(), 'combined.log'));
     expect(combined).to.not.include('\x1b[');
+    expect(combined).to.include('red error');
+  });
+
+  it('strips JSON-escaped ANSI codes (\\u001b)', async () => {
+    // pino's JSON.stringify escapes \x1b to the literal string \u001b
+    const line = '{"msg":"\\u001b[31mred error\\u001b[0m"}';
+    await writeLines([line]);
+    await logger.close();
+
+    const combined = readFile(path.join(logger.getLogDir(), 'combined.log'));
+    expect(combined).to.not.include('\\u001b[');
+    expect(combined).to.not.include('\\u001B[');
     expect(combined).to.include('red error');
   });
 

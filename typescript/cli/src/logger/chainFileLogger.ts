@@ -2,8 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { Transform, type Writable } from 'stream';
 
-// eslint-disable-next-line no-control-regex -- intentional: matching ANSI escape sequences
-const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
+// Matches both raw ESC bytes (\x1b) and JSON-escaped form (\u001b) produced by JSON.stringify
+// eslint-disable-next-line no-control-regex
+const ANSI_REGEX = /(?:\x1b|\\u001[bB])\[[0-9;]*m/g;
 
 export class ChainFileLogger {
   private combinedStream: fs.WriteStream;
