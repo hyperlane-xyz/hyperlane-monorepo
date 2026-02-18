@@ -86,13 +86,13 @@ export function timeout<T>(
       reject(new Error(message));
     }, timeoutMs);
     promise.then(
-      (val) => {
+      (value) => {
         clearTimeout(timer);
-        resolve(val);
+        resolve(value);
       },
-      (err) => {
+      (error) => {
         clearTimeout(timer);
-        reject(err);
+        reject(error);
       },
     );
   });

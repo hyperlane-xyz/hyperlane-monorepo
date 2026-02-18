@@ -740,6 +740,10 @@ export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
 export { Token, getCollateralTokenAdapter } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
 export {
+  getTokenBalancesBatch,
+  TokenBalanceBatchOptions,
+} from './token/tokenBalanceBatch.js';
+export {
   getTokenConnectionId,
   HyperlaneTokenConnection,
   IbcToHyperlaneTokenConnection,
