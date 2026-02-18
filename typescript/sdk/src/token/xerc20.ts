@@ -76,6 +76,7 @@ function isEvmBlockExplorerAndNotEtherscan(
     [ExplorerFamily.Other]: false,
     [ExplorerFamily.Routescan]: true,
     [ExplorerFamily.Voyager]: false,
+    [ExplorerFamily.RadixDashbaord]: false,
     [ExplorerFamily.ZkSync]: true,
   };
 

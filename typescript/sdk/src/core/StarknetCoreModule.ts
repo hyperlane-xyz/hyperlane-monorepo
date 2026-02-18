@@ -1,4 +1,4 @@
-import { Account, MultiType, cairo } from 'starknet';
+import { Account } from 'starknet';
 
 import {
   ChainId,
@@ -19,7 +19,6 @@ import {
   AnnotatedStarknetTransaction,
   StarknetJsTransaction,
 } from '../providers/ProviderType.js';
-import { starknetNativeTokenMetadataOverrides } from '../token/nativeTokenMetadata.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import {
   StarknetContractName,
@@ -99,24 +98,25 @@ export class StarknetCoreModule {
       [],
     );
 
-    // 2. Protocol Fee as Default Hook - Handles fee collection for cross-chain messages
-    const protocolFee = await this.deployer.deployContract(
-      StarknetContractName.PROTOCOL_FEE,
-      [
-        cairo.uint256(config.defaultHook.maxProtocolFee),
-        cairo.uint256(config.defaultHook.protocolFee),
-        config.defaultHook.beneficiary,
-        config.owner,
-        starknetNativeTokenMetadataOverrides(this.chainName)!
-          .denom as MultiType,
-      ],
-    );
+    // // 2. Protocol Fee as Default Hook - Handles fee collection for cross-chain messages
+    // const protocolFee = await this.deployer.deployContract(
+    //   StarknetContractName.PROTOCOL_FEE,
+    //   [
+    //     cairo.uint256(config.defaultHook.maxProtocolFee),
+    //     cairo.uint256(config.defaultHook.protocolFee),
+    //     config.defaultHook.beneficiary,
+    //     config.owner,
+    //     starknetNativeTokenMetadataOverrides(this.chainName)!
+    //       .denom as MultiType,
+    //   ],
+    // );
 
     // 3. Required Hook - A basic hook implementation for message processing
     const requiredHook = await this.deployer.deployContract(
       StarknetContractName.HOOK,
       [],
     );
+    const protocolFee = requiredHook;
 
     // 4. Deploy Mailbox with initial configuration
     const mailboxContract = await this.deployMailbox(

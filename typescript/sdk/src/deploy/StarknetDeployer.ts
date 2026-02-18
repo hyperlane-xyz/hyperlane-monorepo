@@ -123,15 +123,56 @@ export class StarknetDeployer {
     const casm = getCompiledContractCasm(contractName, contractType);
     const constructorCalldata = CallData.compile(constructorArgs);
 
-    const params: ContractFactoryParams = {
+    let params: ContractFactoryParams = {
       compiledContract,
       account: this.account,
       casm,
     };
 
+    if (contractName == StarknetContractName.HYP_ERC20_DEX_COLLATERAL) {
+      const chainId = (await this.account.getChainId()) as string;
+      let hash;
+      switch (chainId) {
+        case '0x505249564154455f534e5f50415241434c4541525f4d41494e4e4554': // PRIVATE_SN_PARACLEAR_MAINNET
+          hash =
+            '0x0192c0791d74fe2667a9b7297b6aaaf1210da00374fae56debe13dc5cf1582af';
+          break;
+        case '0x505249564154455f534e5f504f54435f5345504f4c4941': // PRIVATE_SN_POTC_SEPOLIA
+          hash =
+            '0x02cf1747a57cb94a065dbd777b59a36760f3e4eb7f723116bb457ac01d92a1ae';
+          break;
+        default: // Use mainnet class hashes
+          hash =
+            '0x0192c0791d74fe2667a9b7297b6aaaf1210da00374fae56debe13dc5cf1582af';
+          break;
+      }
+      params = {
+        compiledContract,
+        account: this.account,
+        classHash: hash,
+        compiledClassHash: hash,
+      };
+    }
+
     const contractFactory = new ContractFactory(params);
     const contract = await contractFactory.deploy(constructorCalldata);
+
     let address = contract.address;
+    let receipt = await this.account.getTransactionReceipt(
+      contract.deployTransactionHash!,
+    );
+
+    if (receipt.isSuccess()) {
+      for (const event of receipt.value.events) {
+        if (
+          event.keys.length >= 2 &&
+          event.keys[0] ===
+            '0x1dcde06aabdbca2f80aa51392b345d7549d7757aa855f7e37f5d335ac8243b1'
+        ) {
+          address = event.data[2];
+        }
+      }
+    }
 
     // Ensure the address is 66 characters long (including the '0x' prefix)
     if (address.length < 66) {
@@ -141,6 +182,7 @@ export class StarknetDeployer {
     this.logger.info(
       `Contract ${contractName} deployed at address: ${address}`,
     );
+    console.log('deployed contract tx: ', contract.deployTransactionHash);
 
     return address;
   }

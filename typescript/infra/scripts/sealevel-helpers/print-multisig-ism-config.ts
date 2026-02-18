@@ -28,16 +28,16 @@ async function main() {
   // we can find the number of additional signatures to be: floor((1232 - 1121)/65) = floor(1.707) = 1.
   // So the total number of signatures is 3 + 1 = 4.
 
-  const MAX_THRESHOLD = 4;
+  // const MAX_THRESHOLD = 4;
 
-  for (const chain of Object.keys(config)) {
-    if (config[chain].threshold > MAX_THRESHOLD) {
-      console.warn(
-        `Threshold for ${chain} is ${config[chain].threshold}. Capping to ${MAX_THRESHOLD}.`,
-      );
-      config[chain].threshold = MAX_THRESHOLD;
-    }
-  }
+  // for (const chain of Object.keys(config)) {
+  //   if (config[chain].threshold > MAX_THRESHOLD) {
+  //     console.warn(
+  //       `Threshold for ${chain} is ${config[chain].threshold}. Capping to ${MAX_THRESHOLD}.`,
+  //     );
+  //     config[chain].threshold = MAX_THRESHOLD;
+  //   }
+  // }
 
   console.log(JSON.stringify(config, null, 2));
 }

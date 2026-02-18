@@ -124,12 +124,24 @@ export class StarknetERC20WarpModule {
           break;
         }
         case TokenType.collateralDex: {
+          const metadata = this.multiProvider.getChainMetadata(chain);
+          let dex =
+            '0x03ca9388f8d4e04adecbd7b06b9b24a33030a593522248a7bddd87afc0b61a0c'; // Use mainnet dex as default
+          if (metadata.isTestnet) {
+            dex =
+              '0x0286003f7c7bfc3f94e8f0af48b48302e7aee2fb13c23b141479ba00832ef2c6';
+          } else {
+            dex =
+              '0x03ca9388f8d4e04adecbd7b06b9b24a33030a593522248a7bddd87afc0b61a0c';
+          }
+
           const tokenAddress = await deployer.deployContract(
             StarknetContractName.HYP_ERC20_DEX_COLLATERAL,
             {
               mailbox: mailbox!,
+              dex,
               // @ts-ignore
-              erc20: rest.token,
+              wrapped_token: rest.token,
               owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
               hook: getChecksumAddress(0),
               interchain_security_module: ismAddress,
