@@ -389,18 +389,32 @@ describe('WarpCore batch methods', () => {
       expect(results[0]).to.equal(3333n);
     });
 
-    it('falls back to adapter for xERC20 standards', async () => {
-      const token = makeToken(
-        TokenStandard.EvmHypXERC20,
-        '0x00000000000000000000000000000000000000A1',
+    it('handles xERC20 standards via wrappedToken + balanceOf', async () => {
+      const tokenAddr = '0x00000000000000000000000000000000000000A1';
+      const wrappedAddr = '0x00000000000000000000000000000000000000B1';
+      const token = makeToken(TokenStandard.EvmHypXERC20, tokenAddr);
+
+      const encodedWrapped = LOCKBOX_IFACE.encodeFunctionResult(
+        'wrappedToken',
+        [wrappedAddr],
       );
-
-      const adapterStub = {
-        getBridgedSupply: sinon.stub().resolves(BigInt(4444)),
-      };
-      sandbox.stub(token, 'getAdapter').returns(adapterStub as any);
-
-      const callStub = sinon.stub();
+      const encodedBalance = ERC20_IFACE.encodeFunctionResult('balanceOf', [
+        BigNumber.from(4444),
+      ]);
+      const callStub = sinon
+        .stub()
+        .onFirstCall()
+        .resolves(
+          encodeAggregate3Result([
+            { success: true, returnData: encodedWrapped },
+          ]),
+        )
+        .onSecondCall()
+        .resolves(
+          encodeAggregate3Result([
+            { success: true, returnData: encodedBalance },
+          ]),
+        );
       const provider = createMockProvider(callStub);
       const mp = createMockMultiProvider(provider);
       const { warpCore } = createWarpCoreWithMocks(mp, [token]);

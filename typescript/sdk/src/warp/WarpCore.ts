@@ -19,6 +19,7 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import type { MultiProvider } from '../providers/MultiProvider.js';
 import type { EvmReadCall } from '../providers/multicall3.js';
 import { buildGetEthBalanceCall } from '../providers/multicall3.js';
+import { EthJsonRpcBlockParameterTag } from '../metadata/chainMetadataTypes.js';
 import {
   TransactionFeeEstimate,
   estimateTransactionFeeEthersV5ForGasUnits,
@@ -41,6 +42,7 @@ import {
   EvmHypXERC20LockboxAdapter,
 } from '../token/adapters/EvmTokenAdapter.js';
 import {
+  IHypTokenAdapter,
   IHypXERC20Adapter,
   InterchainGasQuote,
 } from '../token/adapters/ITokenAdapter.js';
@@ -1217,9 +1219,10 @@ export class WarpCore {
     await Promise.all(
       nonEvmEntries.map(async ({ token, originalIndex }) => {
         try {
-          const adapter = token.getAdapter(this.multiProvider);
-          const supply = await (adapter as any).getBridgedSupply?.(options);
-          results[originalIndex] = supply != null ? BigInt(supply) : null;
+          results[originalIndex] = await this.readBridgedSupplyFromAdapter(
+            token,
+            options,
+          );
         } catch (error) {
           this.logger.debug(
             `Non-EVM getBridgedSupply failed for ${token.addressOrDenom}: ${error}`,
@@ -1257,7 +1260,7 @@ export class WarpCore {
     // Classify tokens
     const syntheticEntries: typeof entries = [];
     const nativeEntries: typeof entries = [];
-    const collateralEntries: typeof entries = [];
+    const wrappedTokenEntries: typeof entries = [];
     const lockboxEntries: typeof entries = [];
     const fallbackEntries: typeof entries = [];
 
@@ -1269,15 +1272,16 @@ export class WarpCore {
         nativeEntries.push(entry);
       } else if (
         standard === TokenStandard.EvmHypCollateral ||
-        standard === TokenStandard.EvmHypOwnerCollateral
+        standard === TokenStandard.EvmHypOwnerCollateral ||
+        standard === TokenStandard.EvmHypXERC20 ||
+        standard === TokenStandard.EvmHypVSXERC20
       ) {
-        collateralEntries.push(entry);
+        wrappedTokenEntries.push(entry);
       } else if (LOCKBOX_STANDARDS.includes(standard)) {
         lockboxEntries.push(entry);
       } else {
-        // EvmHypXERC20, EvmHypVSXERC20, EvmHypSyntheticRebase,
-        // EvmHypRebaseCollateral, EvmHypCollateralFiat, EvmM0PortalLite,
-        // EvmHypEverclearCollateral, EvmHypEverclearEth, etc.
+        // EvmHypSyntheticRebase, EvmHypRebaseCollateral, EvmHypCollateralFiat,
+        // EvmM0PortalLite, EvmHypEverclearCollateral, EvmHypEverclearEth, etc.
         fallbackEntries.push(entry);
       }
     }
@@ -1324,9 +1328,9 @@ export class WarpCore {
       }
     }
 
-    // Collateral: resolve wrappedToken()
-    for (let i = 0; i < collateralEntries.length; i++) {
-      const entry = collateralEntries[i];
+    // Wrapped-token standards (collateral/xERC20): resolve wrappedToken()
+    for (let i = 0; i < wrappedTokenEntries.length; i++) {
+      const entry = wrappedTokenEntries[i];
       phase1Calls.push({
         contract: {
           address: entry.token.addressOrDenom,
@@ -1394,9 +1398,9 @@ export class WarpCore {
     const phase2Calls: EvmReadCall[] = [];
     const phase2Entries: typeof entries = [];
 
-    for (let i = 0; i < collateralEntries.length; i++) {
+    for (let i = 0; i < wrappedTokenEntries.length; i++) {
       const wrappedTokenAddr = phase1Results[phase1Offset++] as string | null;
-      const entry = collateralEntries[i];
+      const entry = wrappedTokenEntries[i];
       if (!wrappedTokenAddr) {
         results[entry.originalIndex] = null;
         continue;
@@ -1467,6 +1471,48 @@ export class WarpCore {
     }
   }
 
+  private hasBridgedSupplyReader(
+    adapter: unknown,
+  ): adapter is Pick<IHypTokenAdapter<unknown>, 'getBridgedSupply'> {
+    return (
+      !!adapter &&
+      typeof adapter === 'object' &&
+      'getBridgedSupply' in adapter &&
+      typeof adapter.getBridgedSupply === 'function'
+    );
+  }
+
+  private async readBridgedSupplyFromAdapter(
+    token: Token,
+    options?: { blockTag?: providers.BlockTag },
+  ): Promise<bigint | null> {
+    const adapter = token.getAdapter(this.multiProvider);
+    if (!this.hasBridgedSupplyReader(adapter)) return null;
+    const supply = await adapter.getBridgedSupply(
+      this.normalizeHypAdapterBlockTag(options),
+    );
+    return supply != null ? BigInt(supply) : null;
+  }
+
+  private normalizeHypAdapterBlockTag(options?: {
+    blockTag?: providers.BlockTag;
+  }): { blockTag?: number | EthJsonRpcBlockParameterTag } | undefined {
+    const blockTag = options?.blockTag;
+    if (blockTag === undefined) return undefined;
+    if (typeof blockTag === 'number') return { blockTag };
+    if (blockTag === EthJsonRpcBlockParameterTag.Latest)
+      return { blockTag: EthJsonRpcBlockParameterTag.Latest };
+    if (blockTag === EthJsonRpcBlockParameterTag.Earliest)
+      return { blockTag: EthJsonRpcBlockParameterTag.Earliest };
+    if (blockTag === EthJsonRpcBlockParameterTag.Pending)
+      return { blockTag: EthJsonRpcBlockParameterTag.Pending };
+    if (blockTag === EthJsonRpcBlockParameterTag.Safe)
+      return { blockTag: EthJsonRpcBlockParameterTag.Safe };
+    if (blockTag === EthJsonRpcBlockParameterTag.Finalized)
+      return { blockTag: EthJsonRpcBlockParameterTag.Finalized };
+    return undefined;
+  }
+
   private async fallbackBridgedSupplyIndividual(
     entries: Array<{ token: Token; originalIndex: number }>,
     results: (bigint | null)[],
@@ -1475,9 +1521,10 @@ export class WarpCore {
     await Promise.all(
       entries.map(async ({ token, originalIndex }) => {
         try {
-          const adapter = token.getAdapter(this.multiProvider);
-          const supply = await (adapter as any).getBridgedSupply?.(options);
-          results[originalIndex] = supply != null ? BigInt(supply) : null;
+          results[originalIndex] = await this.readBridgedSupplyFromAdapter(
+            token,
+            options,
+          );
         } catch (error) {
           this.logger.debug(
             `Fallback getBridgedSupply failed for ${token.addressOrDenom}: ${error}`,

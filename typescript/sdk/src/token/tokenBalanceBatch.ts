@@ -40,6 +40,13 @@ export async function getTokenBalancesBatch(
 ): Promise<(TokenAmount | null)[]> {
   if (tokens.length === 0) return [];
 
+  let multiProvider: MultiProvider | null = null;
+  try {
+    multiProvider = multiProtocolProvider.toMultiProvider();
+  } catch (error) {
+    logger.debug({ error }, 'Failed creating MultiProvider for batch reads');
+  }
+
   // Group tokens by chain, preserving original indices
   const chainGroups = new Map<
     string,
@@ -68,6 +75,7 @@ export async function getTokenBalancesBatch(
         chain,
         group,
         multiProtocolProvider,
+        multiProvider,
         address,
         results,
         options,
@@ -82,6 +90,7 @@ async function processChainGroup(
   chain: string,
   group: Array<{ token: IToken; originalIndex: number }>,
   multiProtocolProvider: MultiProtocolProvider,
+  multiProvider: MultiProvider | null,
   address: Address,
   results: (TokenAmount | null)[],
   options?: TokenBalanceBatchOptions,
@@ -104,6 +113,7 @@ async function processChainGroup(
       chain,
       evmEntries,
       multiProtocolProvider,
+      multiProvider,
       address,
       results,
       options,
@@ -133,13 +143,58 @@ async function processEvmBatch(
   chain: string,
   entries: Array<{ token: IToken; originalIndex: number }>,
   multiProtocolProvider: MultiProtocolProvider,
+  multiProvider: MultiProvider | null,
   address: Address,
   results: (TokenAmount | null)[],
   options?: TokenBalanceBatchOptions,
 ): Promise<void> {
-  const multiProvider: MultiProvider = multiProtocolProvider.toMultiProvider();
+  if (!multiProvider) {
+    await Promise.all(
+      entries.map(async ({ token, originalIndex }) => {
+        try {
+          results[originalIndex] = await token.getBalance(
+            multiProtocolProvider,
+            address,
+          );
+        } catch (error) {
+          logger.debug(
+            { chain, token: token.addressOrDenom, error },
+            'EVM balance fetch failed without MultiProvider',
+          );
+          results[originalIndex] = null;
+        }
+      }),
+    );
+    return;
+  }
+
   const multicall3Address = multiProvider.tryGetEvmBatchContractAddress(chain);
-  const provider = multiProvider.getProvider(chain) as providers.Provider;
+  let provider: providers.Provider;
+  try {
+    provider = multiProvider.getProvider(chain) as providers.Provider;
+  } catch (error) {
+    logger.debug(
+      { chain, error },
+      'Missing EVM provider for batch reads; falling back to individual reads',
+    );
+    await Promise.all(
+      entries.map(async ({ token, originalIndex }) => {
+        try {
+          results[originalIndex] = await token.getBalance(
+            multiProtocolProvider,
+            address,
+          );
+        } catch (fallbackError) {
+          logger.debug(
+            { chain, token: token.addressOrDenom, error: fallbackError },
+            'EVM fallback balance fetch failed',
+          );
+          results[originalIndex] = null;
+        }
+      }),
+    );
+    return;
+  }
 
   let nativeBatchReadsSupported = false;
   if (multicall3Address) {
