@@ -25,12 +25,12 @@ import { Wallet } from 'ethers';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
+import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
 import {
-  ChainMetadata,
-  MultiProtocolProvider,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
-import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
+  applyRpcUrlOverridesFromEnv,
+  createServiceLogger,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerService } from './core/RebalancerService.js';
@@ -106,7 +106,13 @@ async function main(): Promise<void> {
     );
 
     // Apply RPC URL overrides from environment variables
-    applyRpcOverrides(chainMetadata);
+    const overriddenChains = applyRpcUrlOverridesFromEnv(chainMetadata);
+    if (overriddenChains.length > 0) {
+      logger.info(
+        { chains: overriddenChains, count: overriddenChains.length },
+        'Applied RPC overrides from environment variables',
+      );
+    }
 
     // Create MultiProvider with signer
     const multiProvider = new MultiProvider(chainMetadata);
@@ -144,31 +150,6 @@ async function main(): Promise<void> {
       'Failed to start rebalancer service',
     );
     process.exit(1);
-  }
-}
-
-/**
- * Applies RPC URL overrides from environment variables.
- * Checks ALL chains in metadata for RPC_URL_<CHAIN> env vars
- * (e.g., RPC_URL_ETHEREUM, RPC_URL_PARADEX) and overrides the registry URL.
- * This ensures warp route chains not in the rebalancing strategy still get
- * private RPCs for monitoring.
- */
-function applyRpcOverrides(
-  chainMetadata: Record<string, Partial<ChainMetadata>>,
-): void {
-  for (const chain of Object.keys(chainMetadata)) {
-    const envVarName = `RPC_URL_${chain.toUpperCase().replace(/-/g, '_')}`;
-    const rpcUrl = process.env[envVarName];
-    if (rpcUrl) {
-      rootLogger.debug(
-        { chain, envVarName },
-        'Using RPC from environment variable',
-      );
-      chainMetadata[chain].rpcUrls = [
-        { http: rpcUrl },
-      ] as ChainMetadata['rpcUrls'];
-    }
   }
 }
 

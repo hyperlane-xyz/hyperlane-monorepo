@@ -98,8 +98,8 @@ catalog:
   '@vercel/ncc': ^0.38.3
 
   # Linting
-  oxlint: ^1.42.0
-  eslint-plugin-oxlint: ^1.42.0
+  oxlint: ^1.47.0
+  eslint-plugin-oxlint: ^1.46.0
   eslint: ^9.39.2
   '@eslint/js': ^9.39.2
   '@typescript-eslint/eslint-plugin': ^8.54.0
@@ -111,7 +111,7 @@ catalog:
   typescript-eslint: ^8.54.0
 
   # Formatting
-  oxfmt: ^0.27.0
+  oxfmt: ^0.32.0
   prettier: ^3.8.1
   prettier-plugin-solidity: ^1.4.2
 
