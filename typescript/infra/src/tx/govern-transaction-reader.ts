@@ -39,6 +39,7 @@ import {
   TokenStandard,
   WarpCoreConfig,
   coreFactories,
+  OnchainTokenFeeType,
   interchainAccountFactories,
   isProxyAdminFromBytecode,
   normalizeConfig,
@@ -460,11 +461,8 @@ export class GovernTransactionReader {
     const provider = this.multiProvider.getProvider(chain);
     const baseFee = BaseFee__factory.connect(tx.to, provider);
 
-    const onChainFeeType = await baseFee.feeType();
-    const feeTypeName =
-      onChainTypeToTokenFeeTypeMap[
-        onChainFeeType as keyof typeof onChainTypeToTokenFeeTypeMap
-      ];
+    const onChainFeeType: OnchainTokenFeeType = await baseFee.feeType();
+    const feeTypeName = onChainTypeToTokenFeeTypeMap[onChainFeeType];
     assert(feeTypeName, `Unknown Fee Type ${onChainFeeType}`);
 
     const { insight, feeDetails, decoded } = await this.parseFeeTransactionData(

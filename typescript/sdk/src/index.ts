@@ -925,6 +925,7 @@ export {
 } from './signers/svm/solana-web3js.js';
 
 export {
+  OnchainTokenFeeType,
   onChainTypeToTokenFeeTypeMap,
   TokenFeeType,
   TokenFeeConfig,
