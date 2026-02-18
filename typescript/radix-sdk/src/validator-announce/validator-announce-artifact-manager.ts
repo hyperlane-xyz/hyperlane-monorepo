@@ -34,10 +34,7 @@ export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnou
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    return new RadixValidatorAnnounceReader(this.gateway) as ArtifactReader<
-      RawValidatorAnnounceArtifactConfigs[T],
-      DeployedValidatorAnnounceAddress
-    >;
+    return new RadixValidatorAnnounceReader(this.gateway);
   }
 
   createWriter<T extends ValidatorAnnounceType>(
@@ -53,9 +50,6 @@ export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnou
       this.gateway,
       baseSigner,
       this.base,
-    ) as ArtifactWriter<
-      RawValidatorAnnounceArtifactConfigs[T],
-      DeployedValidatorAnnounceAddress
-    >;
+    );
   }
 }
