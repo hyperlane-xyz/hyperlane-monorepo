@@ -74,10 +74,18 @@ export async function deriveTokenMetadata(
           config.token,
           provider,
         );
-        const [name, symbol] = await Promise.all([
-          erc721.name(),
-          erc721.symbol(),
-        ]);
+        const { name, symbol } = await multiProvider.multicall(chain, {
+          name: {
+            contract: erc721,
+            functionName: 'name',
+            transform: (result) => result as string,
+          },
+          symbol: {
+            contract: erc721,
+            functionName: 'symbol',
+            transform: (result) => result as string,
+          },
+        });
         metadataMap.update(
           chain,
           TokenMetadataSchema.parse({
@@ -108,11 +116,23 @@ export async function deriveTokenMetadata(
       }
 
       const erc20 = ERC20__factory.connect(token, provider);
-      const [name, symbol, decimals] = await Promise.all([
-        erc20.name(),
-        erc20.symbol(),
-        erc20.decimals(),
-      ]);
+      const { name, symbol, decimals } = await multiProvider.multicall(chain, {
+        name: {
+          contract: erc20,
+          functionName: 'name',
+          transform: (result) => result as string,
+        },
+        symbol: {
+          contract: erc20,
+          functionName: 'symbol',
+          transform: (result) => result as string,
+        },
+        decimals: {
+          contract: erc20,
+          functionName: 'decimals',
+          transform: (result) => result as number,
+        },
+      });
 
       metadataMap.update(
         chain,
