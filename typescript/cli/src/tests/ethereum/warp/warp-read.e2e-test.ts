@@ -83,7 +83,7 @@ describe('hyperlane warp read e2e tests', async function () {
   });
 
   describe('hyperlane warp read (no args)', () => {
-    it('should exit early if no symbol or no chain and address', async () => {
+    it('should exit early without requiring a deployed route', async () => {
       const output = await hyperlaneWarp.readRaw({}).nothrow();
 
       expect(output.exitCode).to.equal(1);
