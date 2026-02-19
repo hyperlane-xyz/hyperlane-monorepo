@@ -50,6 +50,7 @@ pub(crate) struct InstructionWithDescription {
 struct TransactionEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     chain_name: Option<String>,
+    owner: String,
     descriptions: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message_base58: Option<String>,
@@ -254,6 +255,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
 
         let new_entry = TransactionEntry {
             chain_name: chain_name.clone(),
+            owner: payer.to_string(),
             descriptions,
             message_base58: if is_solana {
                 None
