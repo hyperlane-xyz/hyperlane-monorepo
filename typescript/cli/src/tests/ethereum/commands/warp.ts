@@ -12,7 +12,12 @@ import {
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  type Address,
+  ProtocolType,
+  randomInt,
+} from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { createAltVMSigners } from '../../../context/altvm.js';
@@ -159,37 +164,33 @@ async function resolveWarpRouteSymbolFromConfig(
   }
 }
 
-type ResolveWarpRouteIdForDeployOptions =
-  | {
-      warpDeployPath: string;
-      warpRouteId?: string;
-    }
-  | {
-      warpRouteId: string;
-      warpDeployPath?: undefined;
-    };
+type ResolveWarpRouteIdForDeployOptions = {
+  warpDeployPath?: string;
+  warpRouteId?: string;
+};
 
 export async function resolveWarpRouteIdForDeploy(
   options: ResolveWarpRouteIdForDeployOptions,
 ): Promise<string> {
-  if (!options.warpDeployPath) {
-    return options.warpRouteId;
-  }
-
-  if (options.warpRouteId) {
-    syncWarpDeployConfigToRegistry(options.warpDeployPath, options.warpRouteId);
-    return options.warpRouteId;
-  }
-
-  const config = readYamlOrJson(
-    options.warpDeployPath,
-  ) as WarpRouteDeployConfig;
-  const symbol = (await resolveWarpRouteSymbolFromConfig(config)) ?? 'ETH';
-  const resolvedWarpRouteId = warpRouteIdFromFileName(
-    options.warpDeployPath,
-    symbol,
+  const { warpDeployPath, warpRouteId } = options;
+  assert(
+    warpDeployPath || warpRouteId,
+    'Either warpDeployPath or warpRouteId must be provided',
   );
-  syncWarpDeployConfigToRegistry(options.warpDeployPath, resolvedWarpRouteId);
+
+  if (!warpDeployPath) {
+    return warpRouteId;
+  }
+
+  if (warpRouteId) {
+    syncWarpDeployConfigToRegistry(warpDeployPath, warpRouteId);
+    return warpRouteId;
+  }
+
+  const config = readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig;
+  const symbol = (await resolveWarpRouteSymbolFromConfig(config)) ?? 'ETH';
+  const resolvedWarpRouteId = warpRouteIdFromFileName(warpDeployPath, symbol);
+  syncWarpDeployConfigToRegistry(warpDeployPath, resolvedWarpRouteId);
   return resolvedWarpRouteId;
 }
 
