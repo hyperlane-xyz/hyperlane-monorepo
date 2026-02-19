@@ -113,13 +113,19 @@ describe('resolveWarpRouteId', () => {
     }
   });
 
-  it('should return value as-is when no routes match the symbol (backward compatibility)', async () => {
+  it('should throw explicit error when no routes match the symbol', async () => {
     const context = createMockContext();
-    const result = await resolveWarpRouteId({
-      context,
-      warpRouteId: 'NONEXISTENT',
-    });
-    expect(result).to.equal('NONEXISTENT');
+    try {
+      await resolveWarpRouteId({
+        context,
+        warpRouteId: 'NONEXISTENT',
+      });
+      expect.fail('Should have thrown an error');
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        'No warp route found for symbol "NONEXISTENT"',
+      );
+    }
   });
 
   it('should use warpDeployConfig when promptByDeploymentConfigs is true', async () => {
@@ -135,15 +141,21 @@ describe('resolveWarpRouteId', () => {
     expect(result).to.equal('ETH/ethereum-arbitrum');
   });
 
-  it('should return value as-is when symbol not found in warpDeployConfig (backward compatibility)', async () => {
+  it('should throw explicit error when symbol is not found in warpDeployConfig', async () => {
     const registry = createMockRegistry();
     const context = createMockContext(false, registry);
-    const result = await resolveWarpRouteId({
-      context,
-      warpRouteId: 'dai',
-      promptByDeploymentConfigs: true,
-    });
-    expect(result).to.equal('dai');
+    try {
+      await resolveWarpRouteId({
+        context,
+        warpRouteId: 'dai',
+        promptByDeploymentConfigs: true,
+      });
+      expect.fail('Should have thrown an error');
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        'No warp route found for symbol "DAI"',
+      );
+    }
   });
 
   describe('chain filtering', () => {

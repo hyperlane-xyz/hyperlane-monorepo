@@ -85,7 +85,10 @@ export async function resolveWarpRouteId({
             `Try without --chains to see all available routes for this symbol.`,
         );
       }
-      return warpRouteId;
+      throw new Error(
+        `No warp route found for symbol "${symbol}". ` +
+          `Provide a full route ID (for example "${symbol}/<chain-or-chain-pair>").`,
+      );
     }
 
     if (matchingIds.length === 1) {

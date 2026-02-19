@@ -400,6 +400,15 @@ export async function readWarpConfig(
       writeYamlOrJson(warpDeployPath, freshConfig);
     }
   }
+
+  for (const [configChain, config] of Object.entries(freshConfig)) {
+    const mailbox = (config as { mailbox?: string }).mailbox;
+    assert(
+      typeof mailbox === 'string' && mailbox.length > 0,
+      `[readWarpConfig] missing mailbox for chain "${configChain}" in ${warpDeployPath}`,
+    );
+  }
+
   return freshConfig as WarpRouteDeployConfigMailboxRequired;
 }
 
