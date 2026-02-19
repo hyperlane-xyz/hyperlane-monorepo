@@ -48,8 +48,20 @@ import {
   getDomainId,
   localTestRunCmdPrefix,
 } from './helpers.js';
+import { syncWarpDeployConfigToRegistry as syncWarpDeployConfigToRegistryShared } from '../../commands/warp-config-sync.js';
 
 $.verbose = true;
+
+export function syncWarpDeployConfigToRegistry(
+  warpDeployPath: string,
+  warpRouteId: string,
+): string {
+  return syncWarpDeployConfigToRegistryShared({
+    warpDeployPath,
+    warpRouteId,
+    registryPath: REGISTRY_PATH,
+  });
+}
 
 export function hyperlaneWarpInitRaw({
   warpCorePath,
@@ -102,16 +114,6 @@ export function hyperlaneWarpDeployRaw({
         --verbosity debug \
         ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
         ${skipConfirmationPrompts ? ['--yes'] : []}`;
-}
-
-export function syncWarpDeployConfigToRegistry(
-  warpDeployPath: string,
-  warpRouteId: string,
-): string {
-  const config = readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig;
-  const registryDeployPath = `${REGISTRY_PATH}/deployments/warp_routes/${warpRouteId}-deploy.yaml`;
-  writeYamlOrJson(registryDeployPath, config);
-  return registryDeployPath;
 }
 
 function hasSymbol(config: unknown): config is { symbol: string } {

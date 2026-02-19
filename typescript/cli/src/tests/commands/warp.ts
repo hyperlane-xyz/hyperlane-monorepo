@@ -7,10 +7,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { isValidWarpRouteDeployConfig } from '../../config/warp.js';
-import { isFile, readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJson } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
+import { syncWarpDeployConfigToRegistry } from './warp-config-sync.js';
 
 $.verbose = true;
 
@@ -196,15 +196,10 @@ export class HyperlaneE2EWarpTestCommands {
     warpDeployPath?: string,
   ) {
     if (!warpRouteId || !warpDeployPath) return;
-    if (!isFile(warpDeployPath)) return;
-    let config: unknown;
-    try {
-      config = readYamlOrJson(warpDeployPath);
-    } catch {
-      return;
-    }
-    if (!isValidWarpRouteDeployConfig(config)) return;
-    const registryDeployPath = `${this.registryPath}/deployments/warp_routes/${warpRouteId}-deploy.yaml`;
-    writeYamlOrJson(registryDeployPath, config);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId,
+      registryPath: this.registryPath,
+    });
   }
 }
