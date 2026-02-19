@@ -2,7 +2,7 @@ import { type TransactionReceipt } from '@ethersproject/providers';
 import { stringify as yamlStringify } from 'yaml';
 
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
-import { type AnnotatedTx, type TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { type AnnotatedTx } from '@hyperlane-xyz/provider-sdk/module';
 import {
   type ChainMap,
   type ChainName,
@@ -266,10 +266,10 @@ async function executeDelivery({
       const txReceipt = await signer.sendAndConfirmTransaction(
         tx.transaction as AnnotatedTx,
       );
-      const typedReceipt: TypedTransactionReceipt = {
+      const typedReceipt = {
         type: tx.type,
-        receipt: txReceipt as TxReceipt,
-      };
+        receipt: txReceipt,
+      } as TypedTransactionReceipt;
       txReceipts.push(typedReceipt);
       if (tx.category === WarpTxCategory.Transfer) {
         transferReceipt = typedReceipt;
