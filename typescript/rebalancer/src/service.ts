@@ -169,7 +169,6 @@ async function main(): Promise<void> {
         coingeckoApiKey,
         logger,
         version: VERSION,
-        inventoryPrivateKey,
       },
     );
 

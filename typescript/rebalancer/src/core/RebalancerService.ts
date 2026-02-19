@@ -57,8 +57,6 @@ export interface RebalancerServiceConfig {
   /** Service version for logging */
   version?: string;
 
-  inventoryPrivateKey?: string;
-
   /**
    * Optional pre-configured ActionTracker.
    * If provided, skips ActionTracker creation and uses this directly.
@@ -126,8 +124,6 @@ export class RebalancerService {
   private actionTracker?: IActionTracker;
   private inflightContextAdapter?: InflightContextAdapter;
   private orchestrator?: RebalancerOrchestrator;
-  private readonly inventoryPrivateKey?: string;
-
   constructor(
     private readonly multiProvider: MultiProvider,
     private readonly inventoryMultiProvider: MultiProvider | undefined,
@@ -138,7 +134,6 @@ export class RebalancerService {
   ) {
     this.logger = config.logger;
     this.mode = config.mode;
-    this.inventoryPrivateKey = config.inventoryPrivateKey;
   }
 
   /**
@@ -160,8 +155,6 @@ export class RebalancerService {
       this.multiProtocolProvider,
       this.registry,
       this.logger,
-      undefined,
-      this.inventoryPrivateKey,
     );
 
     // Create metrics if enabled
