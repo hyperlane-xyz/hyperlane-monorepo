@@ -6,7 +6,6 @@ import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
-  type WarpCoreConfig,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,

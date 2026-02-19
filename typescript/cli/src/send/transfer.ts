@@ -385,7 +385,8 @@ async function executeDelivery({
         message.startsWith('Explorer has no record') ||
         message.startsWith('Explorer query failed') ||
         message.startsWith('Explorer query error') ||
-        message.startsWith('Explorer query returned invalid JSON')
+        message.startsWith('Explorer query returned invalid JSON') ||
+        message.toLowerCase().includes('fetch failed')
       ) {
         log(
           `Explorer delivery check failed (${message}). Falling back to on-chain wait.`,
