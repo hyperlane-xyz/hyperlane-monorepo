@@ -251,9 +251,11 @@ async function resolveWarpSendChains(
   // derive signer chains from the resolved route so middleware signer setup
   // matches the path warp send will execute.
   if (selectedChains.size === 0 || (!argv.origin && !argv.chains?.length)) {
+    const filterChains = Array.from(selectedChains);
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       context: argv.context,
       warpRouteId: argv.warpRouteId,
+      chains: filterChains,
     });
     argv.preResolvedWarpCoreConfig = warpCoreConfig;
     selectedChains.clear();
