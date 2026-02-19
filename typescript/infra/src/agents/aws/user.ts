@@ -11,7 +11,7 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../../config/contexts.js';
 import type { AgentContextConfig } from '../../config/agent/agent.js';
-import type { DeployEnvironment } from '../../config/environment.js';
+import type { DeployEnvironment } from '../../config/deploy-environment.js';
 import { Role } from '../../roles.js';
 import {
   fetchGCPSecret,

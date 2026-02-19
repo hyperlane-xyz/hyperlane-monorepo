@@ -24,13 +24,21 @@ export function decodeIsmMetadata(
 
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
-      return AggregationMetadataBuilder.decode(metadata, { ...context, ism });
+      return AggregationMetadataBuilder.decode(
+        metadata,
+        { ...context, ism },
+        decodeIsmMetadata,
+      );
 
     case IsmType.ROUTING:
-      return DynamicRoutingMetadataBuilder.decode(metadata, {
-        ...context,
-        ism,
-      });
+      return DynamicRoutingMetadataBuilder.decode(
+        metadata,
+        {
+          ...context,
+          ism,
+        },
+        decodeIsmMetadata,
+      );
 
     case IsmType.ARB_L2_TO_L1:
       return ArbL2ToL1MetadataBuilder.decode(metadata, {

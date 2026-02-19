@@ -19,7 +19,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { type Address, assert, objFilter } from '@hyperlane-xyz/utils';
 
-import { requestAndSaveApiKeys } from '../context/context.js';
+import { requestAndSaveApiKeys } from '../context/apiKeys.js';
 import { type CommandContext } from '../context/types.js';
 import { logBlue, logGray, logGreen } from '../logger.js';
 

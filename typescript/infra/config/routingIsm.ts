@@ -8,7 +8,7 @@ import {
   RoutingIsmConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { DeployEnvironment } from '../src/config/environment.js';
+import { DeployEnvironment } from '../src/config/deploy-environment.js';
 
 import { Contexts } from './contexts.js';
 import { environments } from './environments/index.js';

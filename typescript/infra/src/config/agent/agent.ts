@@ -12,7 +12,7 @@ import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../../config/contexts.js';
 import { getChain } from '../../../config/registry.js';
 import { AgentChainNames, AgentRole, Role } from '../../roles.js';
-import type { DeployEnvironment } from '../environment.js';
+import type { DeployEnvironment } from '../deploy-environment.js';
 import type { HelmImageValues } from '../infrastructure.js';
 
 import type {

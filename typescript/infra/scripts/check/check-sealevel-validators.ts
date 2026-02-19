@@ -11,7 +11,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { DeployEnvironment } from '../../src/config/environment.js';
+import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { getArgs } from '../agent-utils.js';
 
 const rootDir = (environment: DeployEnvironment) =>
