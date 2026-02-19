@@ -2,10 +2,7 @@ import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
 import { type ERC20Test } from '@hyperlane-xyz/core';
-import {
-  type ChainAddresses,
-  createWarpRouteConfigId,
-} from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type HookConfig,
   MUTABLE_HOOK_TYPE,
@@ -31,6 +28,7 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   WARP_DEPLOY_OUTPUT_PATH,
   getCombinedWarpRoutePath,
+  getWarpRouteId,
 } from '../consts.js';
 
 describe('hyperlane warp check e2e tests', async function () {
@@ -64,10 +62,7 @@ describe('hyperlane warp check e2e tests', async function () {
   }> {
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
 
-    const currentWarpId = createWarpRouteConfigId(
-      await token.symbol(),
-      CHAIN_NAME_3,
-    );
+    const currentWarpId = getWarpRouteId(tokenSymbol, [CHAIN_NAME_3]);
 
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, currentWarpId);
 

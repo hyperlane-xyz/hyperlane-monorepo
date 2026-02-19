@@ -112,21 +112,19 @@ async function getWarpConfigsFromContextOrRegistry({
     };
   }
 
+  // If cache is partial, refresh both configs together to avoid mixing stale+fresh routes.
+  const requestedWarpRouteId = context.resolvedWarpRouteId ?? warpRouteId;
   const fetchedConfigs = await getWarpConfigs({
     context,
-    warpRouteId,
+    warpRouteId: requestedWarpRouteId,
   });
-  const warpCoreConfig =
-    context.warpCoreConfig ?? fetchedConfigs.warpCoreConfig;
-  const warpDeployConfig =
-    context.warpDeployConfig ?? fetchedConfigs.warpDeployConfig;
+  const resolvedWarpRouteId =
+    fetchedConfigs.resolvedWarpRouteId ?? requestedWarpRouteId;
+  const { warpCoreConfig, warpDeployConfig } = fetchedConfigs;
   context.warpCoreConfig = warpCoreConfig;
   context.warpDeployConfig = warpDeployConfig;
-  const resolvedWarpRouteId =
-    context.resolvedWarpRouteId ??
-    fetchedConfigs.resolvedWarpRouteId ??
-    warpRouteId;
   context.resolvedWarpRouteId = resolvedWarpRouteId;
+
   return {
     warpCoreConfig,
     warpDeployConfig,
