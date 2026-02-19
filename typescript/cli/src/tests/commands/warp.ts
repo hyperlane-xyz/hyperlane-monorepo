@@ -121,15 +121,17 @@ export class HyperlaneE2EWarpTestCommands {
     skipConfirmationPrompts,
     privateKey,
     warpRouteId,
+    warpDeployPath,
     extraArgs,
   }: {
     hypKey?: string;
     skipConfirmationPrompts?: boolean;
     privateKey?: string;
     warpRouteId?: string;
+    warpDeployPath?: string;
     extraArgs?: string[];
   }): ProcessPromise {
-    this.syncWarpDeployConfigToRegistry(warpRouteId);
+    this.syncWarpDeployConfigToRegistry(warpRouteId, warpDeployPath);
     return $`${
       hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
     } ${localTestRunCmdPrefix()} hyperlane warp deploy \
@@ -145,11 +147,16 @@ export class HyperlaneE2EWarpTestCommands {
   /**
    * Deploys the Warp route to the specified chain using the provided config.
    */
-  public deploy(privateKey: string, warpRouteId: string): ProcessPromise {
+  public deploy(
+    privateKey: string,
+    warpRouteId: string,
+    warpDeployPath?: string,
+  ): ProcessPromise {
     return this.deployRaw({
       privateKey,
       skipConfirmationPrompts: true,
       warpRouteId,
+      warpDeployPath,
     });
   }
 
@@ -184,12 +191,15 @@ export class HyperlaneE2EWarpTestCommands {
           `;
   }
 
-  private syncWarpDeployConfigToRegistry(warpRouteId?: string) {
-    if (!warpRouteId || !this.outputPath) return;
-    if (!isFile(this.outputPath)) return;
+  private syncWarpDeployConfigToRegistry(
+    warpRouteId?: string,
+    warpDeployPath?: string,
+  ) {
+    if (!warpRouteId || !warpDeployPath) return;
+    if (!isFile(warpDeployPath)) return;
     let config: unknown;
     try {
-      config = readYamlOrJson(this.outputPath);
+      config = readYamlOrJson(warpDeployPath);
     } catch {
       return;
     }
