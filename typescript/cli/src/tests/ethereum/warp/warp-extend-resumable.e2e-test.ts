@@ -18,6 +18,7 @@ import {
   hyperlaneWarpApplyRaw,
   hyperlaneWarpDeploy,
   readWarpConfig,
+  syncWarpDeployConfigToRegistry,
 } from '../commands/warp.js';
 import {
   ANVIL_KEY,
@@ -79,6 +80,7 @@ describe('hyperlane warp apply resumable extension tests', async function () {
       extendedConfig: config3,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
       warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
+      warpRouteId: WARP_DEPLOY_2_ID,
     });
 
     // Step 2: Record anvil3's deployed address from the registry
@@ -236,12 +238,12 @@ describe('hyperlane warp apply resumable extension tests', async function () {
       },
     };
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    syncWarpDeployConfigToRegistry(warpDeployPath, WARP_DEPLOY_2_ID);
 
     // Run warp apply — anvil3 should succeed, anvil4 should fail
     try {
       const result = await hyperlaneWarpApplyRaw({
-        warpDeployPath,
-        warpCorePath: WARP_CORE_CONFIG_PATH_2,
+        warpRouteId: WARP_DEPLOY_2_ID,
       }).nothrow();
       expect(result.exitCode).to.not.equal(0);
     } finally {
