@@ -1,4 +1,3 @@
-import { WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { isFile, readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
@@ -17,8 +16,10 @@ export function syncWarpDeployConfigToRegistry({
     `[syncWarpDeployConfigToRegistry] Warp deploy config file not found: ${warpDeployPath}`,
   );
 
-  const config = WarpRouteDeployConfigSchema.parse(
-    readYamlOrJson(warpDeployPath),
+  const config = readYamlOrJson(warpDeployPath) as unknown;
+  assert(
+    typeof config === 'object' && config !== null && !Array.isArray(config),
+    `[syncWarpDeployConfigToRegistry] Invalid warp deploy config at ${warpDeployPath}: expected object map`,
   );
   const registryDeployPath = `${registryPath}/deployments/warp_routes/${warpRouteId}-deploy.yaml`;
   writeYamlOrJson(registryDeployPath, config);
