@@ -23,6 +23,16 @@ import {
 } from '../context/types.js';
 import { logRed } from '../logger.js';
 
+/**
+ * Resolves a warp route ID and returns its WarpCoreConfig.
+ *
+ * Supports either:
+ * - full route IDs (e.g. `ETH/ethereum-arbitrum`)
+ * - symbol-only IDs (e.g. `ETH`) that auto-resolve when unique
+ *
+ * When `chains` is provided, symbol-only resolution is limited to routes
+ * that span all provided chains.
+ */
 export async function getWarpCoreConfigOrExit({
   context,
   warpRouteId,
@@ -42,6 +52,16 @@ export async function getWarpCoreConfigOrExit({
   return config;
 }
 
+/**
+ * Resolves user input into a concrete warp route ID.
+ *
+ * Behavior:
+ * - Full route ID input (`SYMBOL/route`) is validated and returned as-is.
+ * - Symbol-only input (`SYMBOL`) resolves to matching IDs and prompts when
+ *   ambiguous (unless `skipConfirmation` is set).
+ * - Optional `chains` filtering narrows symbol matches to routes that span all
+ *   specified chains.
+ */
 export async function resolveWarpRouteId({
   context,
   warpRouteId,
@@ -62,20 +82,27 @@ export async function resolveWarpRouteId({
 
   if (warpRouteId) {
     if (warpRouteId.includes('/')) {
+      if (promptByDeploymentConfigs) {
+        assert(
+          Object.hasOwn(source, warpRouteId),
+          `No warp route found with ID "${warpRouteId}"`,
+        );
+      } else {
+        const config = await context.registry.getWarpRoute(warpRouteId);
+        assert(config, `No warp route found with ID "${warpRouteId}"`);
+      }
       return warpRouteId;
     }
 
     const symbol = warpRouteId.toUpperCase();
-    let matchingIds: string[];
+    const { ids: symbolMatchedIds } = filterWarpRoutesIds(source, { symbol });
+    let matchingIds = symbolMatchedIds;
 
-    // When chains are specified, load full configs and filter by chains
     if (chains && chains.length > 0) {
       const warpConfigs = await context.registry.getWarpRoutes({ symbol });
       const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
-      matchingIds = Object.keys(filtered);
-    } else {
-      const { ids } = filterWarpRoutesIds(source, { symbol });
-      matchingIds = ids;
+      const chainFilteredIds = new Set(Object.keys(filtered));
+      matchingIds = matchingIds.filter((id) => chainFilteredIds.has(id));
     }
 
     if (matchingIds.length === 0) {
@@ -85,9 +112,13 @@ export async function resolveWarpRouteId({
             `Try without --chains to see all available routes for this symbol.`,
         );
       }
+      const availableExamples = Object.keys(source).slice(0, 3).join(', ');
       throw new Error(
         `No warp route found for symbol "${symbol}". ` +
-          `Provide a full route ID (for example "${symbol}/<chain-or-chain-pair>").`,
+          `Provide a full route ID (for example "${symbol}/<chain-or-chain-pair>").` +
+          (availableExamples.length > 0
+            ? ` Available route IDs include: ${availableExamples}.`
+            : ''),
       );
     }
 
@@ -112,7 +143,10 @@ export async function resolveWarpRouteId({
     })) as string;
   }
 
-  assert(!context.skipConfirmation, 'Warp route ID is required (use -w)');
+  assert(
+    !context.skipConfirmation,
+    'Warp route ID is required (use --warp-route-id)',
+  );
 
   let routeIds: string[];
 

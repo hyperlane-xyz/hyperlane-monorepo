@@ -144,14 +144,16 @@ describe('hyperlane warp read e2e tests', async function () {
         // Select the anvil2-anvil3 ETH route from the selection prompt
         {
           check: (currentOutput: string) =>
-            currentOutput.includes('Select from matching warp routes'),
+            currentOutput.includes('Select from matching warp routes') ||
+            currentOutput.includes('Multiple routes found') ||
+            currentOutput.includes('Select a warp route'),
           input: KeyBoardKeys.ENTER,
         },
       ];
 
       const output = hyperlaneWarp
         .readRaw({
-          warpRouteId: WARP_DEPLOY_OUTPUT_ID,
+          warpRouteId: 'ETH',
           outputPath: readOutputPath,
         })
         .stdio('pipe')
