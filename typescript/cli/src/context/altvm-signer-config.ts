@@ -9,13 +9,17 @@ export function resolveStarknetAccountAddress(
 ): string | undefined {
   const strategySubmitter = strategyConfig[chain]?.submitter;
   if (strategySubmitter?.type === JSON_RPC_SUBMITTER_TYPE) {
-    const maybeAddress =
-      ('accountAddress' in strategySubmitter
+    const accountAddress =
+      'accountAddress' in strategySubmitter
         ? strategySubmitter.accountAddress
-        : undefined) ||
-      ('userAddress' in strategySubmitter
+        : undefined;
+    const userAddress =
+      'userAddress' in strategySubmitter
         ? strategySubmitter.userAddress
-        : undefined);
+        : undefined;
+    const maybeAddress =
+      (typeof accountAddress === 'string' ? accountAddress : undefined) ??
+      (typeof userAddress === 'string' ? userAddress : undefined);
     if (maybeAddress) return maybeAddress;
   }
 
