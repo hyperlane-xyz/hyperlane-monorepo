@@ -373,13 +373,13 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             .unwrap();
 
         // If the commitment level set in the client is less than `finalized`,
-        // use `processed` commitment to reliably read the tx, which is the lowest commitment level.
+        // use `confirmed` commitment to reliably read the tx.
         client
             .get_transaction_with_config(
                 &signature,
                 RpcTransactionConfig {
                     encoding: Some(UiTransactionEncoding::Base64),
-                    commitment: Some(CommitmentConfig::processed()),
+                    commitment: Some(CommitmentConfig::confirmed()),
                     ..RpcTransactionConfig::default()
                 },
             )
