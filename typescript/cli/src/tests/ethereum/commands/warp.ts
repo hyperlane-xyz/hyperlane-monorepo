@@ -137,6 +137,17 @@ function hasTokenAddress(config: unknown): config is { token: string } {
 async function resolveWarpRouteSymbolFromConfig(
   warpDeployConfig: WarpRouteDeployConfig,
 ): Promise<string | undefined> {
+  let cachedContext: Awaited<ReturnType<typeof getContext>> | undefined;
+  const getCachedContext = async () => {
+    if (!cachedContext) {
+      cachedContext = await getContext({
+        registryUris: [REGISTRY_PATH],
+        key: ANVIL_KEY,
+      });
+    }
+    return cachedContext;
+  };
+
   for (const config of Object.values(warpDeployConfig)) {
     if (hasSymbol(config)) {
       return config.symbol;
@@ -144,10 +155,7 @@ async function resolveWarpRouteSymbolFromConfig(
   }
 
   try {
-    const { multiProvider } = await getContext({
-      registryUris: [REGISTRY_PATH],
-      key: ANVIL_KEY,
-    });
+    const { multiProvider } = await getCachedContext();
     const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
       multiProvider,
       warpDeployConfig,
@@ -175,10 +183,7 @@ async function resolveWarpRouteSymbolFromConfig(
   }
 
   try {
-    const { multiProvider } = await getContext({
-      registryUris: [REGISTRY_PATH],
-      key: ANVIL_KEY,
-    });
+    const { multiProvider } = await getCachedContext();
     const provider = multiProvider.getProvider(tokenChain);
     const erc20 = new ethers.Contract(
       tokenAddress,
