@@ -19,14 +19,15 @@ import {
   hyperlaneWarpApply,
   hyperlaneWarpDeploy,
   readWarpConfig,
-  syncWarpDeployConfigToRegistry,
 } from '../commands/warp.js';
+import { syncWarpDeployConfigToRegistry } from '../../commands/warp-config-sync.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  REGISTRY_PATH,
   TEMP_PATH,
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
@@ -96,7 +97,11 @@ describe('hyperlane warp apply config extension tests', async function () {
 
     // Write the updated config
     await writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    syncWarpDeployConfigToRegistry(warpDeployPath, WARP_DEPLOY_2_ID);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
+      registryPath: REGISTRY_PATH,
+    });
 
     // Apply the changes
     await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
@@ -156,7 +161,11 @@ describe('hyperlane warp apply config extension tests', async function () {
 
     // Write the updated config
     await writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    syncWarpDeployConfigToRegistry(warpDeployPath, WARP_DEPLOY_2_ID);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
+      registryPath: REGISTRY_PATH,
+    });
 
     // Apply the changes
     await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
@@ -200,7 +209,11 @@ describe('hyperlane warp apply config extension tests', async function () {
     delete warpDeployConfig[CHAIN_NAME_2].remoteRouters;
     delete warpDeployConfig[CHAIN_NAME_2].destinationGas;
     await writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    syncWarpDeployConfigToRegistry(warpDeployPath, WARP_DEPLOY_2_ID);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
+      registryPath: REGISTRY_PATH,
+    });
     await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     const updatedConfig: WarpRouteDeployConfig = readYamlOrJson(warpDeployPath);

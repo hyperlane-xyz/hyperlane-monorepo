@@ -47,20 +47,9 @@ import {
   getDomainId,
   localTestRunCmdPrefix,
 } from './helpers.js';
-import { syncWarpDeployConfigToRegistry as syncWarpDeployConfigToRegistryShared } from '../../commands/warp-config-sync.js';
+import { syncWarpDeployConfigToRegistry } from '../../commands/warp-config-sync.js';
 
 $.verbose = true;
-
-export function syncWarpDeployConfigToRegistry(
-  warpDeployPath: string,
-  warpRouteId: string,
-): string {
-  return syncWarpDeployConfigToRegistryShared({
-    warpDeployPath,
-    warpRouteId,
-    registryPath: REGISTRY_PATH,
-  });
-}
 
 export function hyperlaneWarpInitRaw({
   warpCorePath,
@@ -221,7 +210,11 @@ export async function resolveWarpRouteIdForDeploy(
   }
 
   if (warpRouteId) {
-    syncWarpDeployConfigToRegistry(warpDeployPath, warpRouteId);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId,
+      registryPath: REGISTRY_PATH,
+    });
     return warpRouteId;
   }
 
@@ -232,7 +225,11 @@ export async function resolveWarpRouteIdForDeploy(
     `[resolveWarpRouteIdForDeploy] could not resolve token symbol from "${warpDeployPath}". Add a symbol field or pass --warp-route-id explicitly.`,
   );
   const resolvedWarpRouteId = warpRouteIdFromFileName(warpDeployPath, symbol);
-  syncWarpDeployConfigToRegistry(warpDeployPath, resolvedWarpRouteId);
+  syncWarpDeployConfigToRegistry({
+    warpDeployPath,
+    warpRouteId: resolvedWarpRouteId,
+    registryPath: REGISTRY_PATH,
+  });
   return resolvedWarpRouteId;
 }
 
@@ -681,7 +678,11 @@ export async function updateOwner(
   await updateWarpOwnerConfig(chain, owner, warpCorePath, warpDeployPath);
 
   // Sync updated config to registry deploy path before applying
-  syncWarpDeployConfigToRegistry(warpDeployPath, warpRouteId);
+  syncWarpDeployConfigToRegistry({
+    warpDeployPath,
+    warpRouteId,
+    registryPath: REGISTRY_PATH,
+  });
 
   return hyperlaneWarpApply(warpRouteId);
 }
@@ -716,7 +717,11 @@ export async function extendWarpConfig(params: {
   writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
   // Sync updated config to registry deploy path before applying
-  syncWarpDeployConfigToRegistry(warpDeployPath, warpRouteId);
+  syncWarpDeployConfigToRegistry({
+    warpDeployPath,
+    warpRouteId,
+    registryPath: REGISTRY_PATH,
+  });
 
   await hyperlaneWarpApplyRaw({
     strategyUrl,
@@ -772,7 +777,11 @@ export async function setupIncompleteWarpRouteExtension(
     CHAIN_NAME_2,
     CHAIN_NAME_3,
   ]);
-  syncWarpDeployConfigToRegistry(warpConfigPath, combinedWarpRouteId);
+  syncWarpDeployConfigToRegistry({
+    warpDeployPath: warpConfigPath,
+    warpRouteId: combinedWarpRouteId,
+    registryPath: REGISTRY_PATH,
+  });
 
   const signer2 = new Wallet(
     ANVIL_KEY,

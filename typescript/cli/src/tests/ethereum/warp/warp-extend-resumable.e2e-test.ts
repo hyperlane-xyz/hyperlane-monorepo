@@ -18,8 +18,8 @@ import {
   hyperlaneWarpApplyRaw,
   hyperlaneWarpDeploy,
   readWarpConfig,
-  syncWarpDeployConfigToRegistry,
 } from '../commands/warp.js';
+import { syncWarpDeployConfigToRegistry } from '../../commands/warp-config-sync.js';
 import {
   ANVIL_KEY,
   CHAIN_4_METADATA_PATH,
@@ -28,6 +28,7 @@ import {
   CHAIN_NAME_4,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  REGISTRY_PATH,
   TEMP_PATH,
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
@@ -126,7 +127,11 @@ describe('hyperlane warp apply resumable extension tests', async function () {
     };
 
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    syncWarpDeployConfigToRegistry(warpDeployPath, WARP_DEPLOY_2_ID);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
+      registryPath: REGISTRY_PATH,
+    });
 
     await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
@@ -231,7 +236,11 @@ describe('hyperlane warp apply resumable extension tests', async function () {
       },
     };
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    syncWarpDeployConfigToRegistry(warpDeployPath, WARP_DEPLOY_2_ID);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
+      registryPath: REGISTRY_PATH,
+    });
 
     // Run warp apply — anvil3 should succeed, anvil4 should fail
     try {
