@@ -38,10 +38,7 @@ import {
 } from './options.js';
 
 const XERC20_WARP_ROUTE_BUILDER = {
-  'warp-route-id': {
-    ...warpRouteIdCommandOption,
-    demandOption: false,
-  },
+  'warp-route-id': warpRouteIdCommandOption,
 } as const;
 
 type XERC20WarpRouteBuilder = {
