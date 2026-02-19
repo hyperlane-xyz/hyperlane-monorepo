@@ -6,6 +6,7 @@ import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
+  type WarpCoreConfig,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
@@ -265,6 +266,7 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
+      preResolvedWarpCoreConfig?: WarpCoreConfig;
     }
 > = {
   command: 'send',
@@ -279,7 +281,8 @@ const send: CommandModuleWithWriteContext<
     },
     recipient: {
       type: 'string',
-      description: 'Token recipient address (defaults to sender)',
+      description:
+        'Token recipient address. Required for non-EVM destinations. Defaults to destination signer for EVM destinations.',
     },
     chains: stringArrayOptionConfig({
       description: 'List of chains to send messages to',
@@ -305,16 +308,19 @@ const send: CommandModuleWithWriteContext<
     roundTrip,
     chains: chainsArg,
     skipValidation,
+    preResolvedWarpCoreConfig,
   }) => {
     const filterChains = [origin, destination, ...(chainsArg || [])]
       .filter(Boolean)
       .filter((v, i, a) => a.indexOf(v) === i) as string[];
 
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
-      warpRouteId,
-      context,
-      chains: filterChains.length > 0 ? filterChains : undefined,
-    });
+    const warpCoreConfig =
+      preResolvedWarpCoreConfig ??
+      (await getWarpCoreConfigOrExit({
+        warpRouteId,
+        context,
+        chains: filterChains.length > 0 ? filterChains : undefined,
+      }));
     let chains = chainsArg?.length ? chainsArg : [];
 
     if (origin && destination) {
@@ -323,9 +329,7 @@ const send: CommandModuleWithWriteContext<
     }
 
     const supportedChains = new Set(
-      warpCoreConfig.tokens
-        .map((t) => t.chainName)
-        .sort((a, b) => a.localeCompare(b)),
+      warpCoreConfig.tokens.map((t) => t.chainName),
     );
 
     // Check if any of the chain selection through --chains or --origin & --destination are not in the warp core
@@ -338,9 +342,24 @@ const send: CommandModuleWithWriteContext<
       `Chain(s) ${[...unsupportedChains].join(', ')} are not part of the warp route.`,
     );
 
+    const orderedDefaultChains = [
+      ...[...supportedChains]
+        .filter(
+          (chain) =>
+            context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+        )
+        .sort((a, b) => a.localeCompare(b)),
+      ...[...supportedChains]
+        .filter(
+          (chain) =>
+            context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+        )
+        .sort((a, b) => a.localeCompare(b)),
+    ];
+
     chains =
       chains.length === 0
-        ? [...supportedChains]
+        ? orderedDefaultChains
         : [...intersection(new Set(chains), supportedChains)];
 
     if (roundTrip) {
