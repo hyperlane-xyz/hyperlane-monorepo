@@ -17,8 +17,8 @@ import {
   hyperlaneWarpApply,
   hyperlaneWarpDeploy,
   readWarpConfig,
-  syncWarpDeployConfigToRegistry,
 } from '../commands/warp.js';
+import { syncWarpDeployConfigToRegistry } from '../../commands/warp-config-sync.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
@@ -27,6 +27,7 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   E2E_TEST_BURN_ADDRESS,
   EXAMPLES_PATH,
+  REGISTRY_PATH,
   TEMP_PATH,
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
@@ -198,7 +199,11 @@ describe('hyperlane warp apply basic extension tests', async function () {
 
     warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    syncWarpDeployConfigToRegistry(warpDeployPath, WARP_DEPLOY_2_ID);
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
+      registryPath: REGISTRY_PATH,
+    });
     await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     const updatedWarpDeployConfig_2 = await readWarpConfig(
@@ -260,10 +265,11 @@ describe('hyperlane warp apply basic extension tests', async function () {
 
     warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
     writeYamlOrJson(WARP_DEPLOY_CONFIG_CHAIN_2, warpDeployConfig);
-    syncWarpDeployConfigToRegistry(
-      WARP_DEPLOY_CONFIG_CHAIN_2,
-      WARP_DEPLOY_2_ID,
-    );
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
+      warpRouteId: WARP_DEPLOY_2_ID,
+      registryPath: REGISTRY_PATH,
+    });
     await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     // Check that chain2 is enrolled in chain1
