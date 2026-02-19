@@ -85,7 +85,7 @@ export async function sendTestTransfer({
   const finalDestination = chains[chains.length - 1];
   if (
     selfRelay &&
-    multiProvider.getProtocol(finalDestination) === ProtocolType.Ethereum
+    isEVMLike(multiProvider.getProtocol(finalDestination))
   ) {
     signerChains.add(finalDestination);
   }
@@ -154,18 +154,23 @@ async function executeDelivery({
   const signerAddress = await signer.getAddress();
 
   const isEvmDestination = isEVMLike(multiProvider.getProtocol(destination));
+  const normalizedRecipient =
+    recipient && recipient.trim().length > 0 ? recipient : undefined;
 
   // For non-EVM destinations, recipient must be provided explicitly.
-  if (!recipient && !isEvmDestination) {
+  if (!normalizedRecipient && !isEvmDestination) {
     throw new Error(
       `Recipient address is required when sending to non-EVM destination '${destination}'`,
     );
   }
 
-  // Default recipient to sender for EVM destinations.
-  const recipientAddress = recipient ?? signerAddress;
-  if (!recipient && isEvmDestination) {
-    logBlue(`No recipient specified, defaulting to sender: ${signerAddress}`);
+  const recipientAddress =
+    normalizedRecipient ??
+    (await multiProvider.getSigner(destination).getAddress());
+  if (!normalizedRecipient && isEvmDestination) {
+    logBlue(
+      `No recipient specified, defaulting to destination signer: ${recipientAddress}`,
+    );
   }
 
   const chainAddresses = await registry.getAddresses();

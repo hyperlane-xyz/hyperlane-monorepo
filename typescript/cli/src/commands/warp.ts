@@ -368,7 +368,7 @@ const send: CommandModuleWithWriteContext<
     recipient: {
       type: 'string',
       description:
-        'Token recipient address. Required for non-EVM destinations. Defaults to sender for EVM destinations.',
+        'Token recipient address. Required for non-EVM destinations. Defaults to destination signer for EVM destinations.',
     },
     chains: stringArrayOptionConfig({
       description: 'List of chains to send messages to',
@@ -424,9 +424,7 @@ const send: CommandModuleWithWriteContext<
     }
 
     const supportedChains = new Set(
-      warpCoreConfig.tokens
-        .map((t) => t.chainName)
-        .sort((a, b) => a.localeCompare(b)),
+      warpCoreConfig.tokens.map((t) => t.chainName),
     );
 
     // Check if any of the chain selection through --chains or --origin & --destination are not in the warp core
@@ -445,9 +443,27 @@ const send: CommandModuleWithWriteContext<
     if (origin && destination) {
       chains = [origin, destination];
     } else {
+      // Order EVM chains first so non-EVM chains are final destinations
+      const orderedDefaultChains = [
+        ...[...supportedChains]
+          .filter(
+            (chain) =>
+              context.multiProvider.getProtocol(chain) ===
+              ProtocolType.Ethereum,
+          )
+          .sort((a, b) => a.localeCompare(b)),
+        ...[...supportedChains]
+          .filter(
+            (chain) =>
+              context.multiProvider.getProtocol(chain) !==
+              ProtocolType.Ethereum,
+          )
+          .sort((a, b) => a.localeCompare(b)),
+      ];
+
       chains =
         chains.length === 0
-          ? [...supportedChains]
+          ? orderedDefaultChains
           : [...intersection(new Set(chains), supportedChains)];
     }
 
