@@ -1,4 +1,4 @@
-import { Wallet } from 'ethers';
+import { Wallet, ethers } from 'ethers';
 import { $, type ProcessOutput, type ProcessPromise } from 'zx';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
@@ -124,9 +124,29 @@ function hasSymbol(config: unknown): config is { symbol: string } {
   );
 }
 
+function hasTokenAddress(config: unknown): config is { token: string } {
+  return (
+    typeof config === 'object' &&
+    config !== null &&
+    'token' in config &&
+    typeof (config as { token?: unknown }).token === 'string'
+  );
+}
+
 async function resolveWarpRouteSymbolFromConfig(
   warpDeployConfig: WarpRouteDeployConfig,
 ): Promise<string | undefined> {
+  let cachedContext: Awaited<ReturnType<typeof getContext>> | undefined;
+  const getCachedContext = async () => {
+    if (!cachedContext) {
+      cachedContext = await getContext({
+        registryUris: [REGISTRY_PATH],
+        key: ANVIL_KEY,
+      });
+    }
+    return cachedContext;
+  };
+
   for (const config of Object.values(warpDeployConfig)) {
     if (hasSymbol(config)) {
       return config.symbol;
@@ -134,10 +154,7 @@ async function resolveWarpRouteSymbolFromConfig(
   }
 
   try {
-    const { multiProvider } = await getContext({
-      registryUris: [REGISTRY_PATH],
-      key: ANVIL_KEY,
-    });
+    const { multiProvider } = await getCachedContext();
     const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
       multiProvider,
       warpDeployConfig,
@@ -145,7 +162,36 @@ async function resolveWarpRouteSymbolFromConfig(
     return tokenMetadata.getDefaultSymbol();
   } catch (error: unknown) {
     console.warn(
-      `[resolveWarpRouteSymbolFromConfig] token metadata derivation failed for registry "${REGISTRY_PATH}".`,
+      `[resolveWarpRouteSymbolFromConfig] token metadata derivation failed for registry "${REGISTRY_PATH}". Falling back to RPC symbol lookup.`,
+      error,
+    );
+  }
+
+  let tokenChain: string | undefined;
+  let tokenAddress: string | undefined;
+  for (const [chainName, config] of Object.entries(warpDeployConfig)) {
+    if (hasTokenAddress(config)) {
+      tokenChain = chainName;
+      tokenAddress = config.token;
+      break;
+    }
+  }
+  if (!tokenChain || !tokenAddress) {
+    return undefined;
+  }
+
+  try {
+    const { multiProvider } = await getCachedContext();
+    const provider = multiProvider.getProvider(tokenChain);
+    const erc20 = new ethers.Contract(
+      tokenAddress,
+      ['function symbol() view returns (string)'],
+      provider,
+    );
+    return await erc20.symbol();
+  } catch (error: unknown) {
+    console.warn(
+      `[resolveWarpRouteSymbolFromConfig] RPC symbol() lookup failed for chain "${tokenChain}" token "${tokenAddress}".`,
       error,
     );
     return undefined;
@@ -376,18 +422,43 @@ export function hyperlaneWarpRebalancer(
         ${amount ? ['--amount', amount] : []}`;
 }
 
+type ReadWarpConfigOptions = {
+  // Preserve chains not returned by `warp read` (which may only output the queried chain).
+  preserveExistingChains?: boolean;
+};
+
 export async function readWarpConfig(
   chain: string,
   warpCorePath: string,
   warpDeployPath: string,
+  options: ReadWarpConfigOptions = {},
 ): Promise<WarpRouteDeployConfigMailboxRequired> {
+  const { preserveExistingChains = true } = options;
+  const existingConfig =
+    preserveExistingChains && isFile(warpDeployPath)
+      ? (readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig)
+      : undefined;
   const warpAddress = getDeployedWarpAddress(chain, warpCorePath);
   await hyperlaneWarpRead(chain, warpAddress!, warpDeployPath);
   const freshConfig = readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig;
+  const freshReadChains = Object.keys(freshConfig);
+  assert(
+    freshReadChains.length > 0,
+    `[readWarpConfig] no chains found in fresh read output at ${warpDeployPath}`,
+  );
+
+  const mergedConfig: WarpRouteDeployConfig = { ...freshConfig };
+  if (existingConfig) {
+    for (const [existingChain, config] of Object.entries(existingConfig)) {
+      if (!(existingChain in mergedConfig)) {
+        mergedConfig[existingChain] = config;
+      }
+    }
+  }
 
   const missingMailboxChains: string[] = [];
-  for (const configChain of Object.keys(freshConfig)) {
-    const config = freshConfig[configChain];
+  for (const configChain of freshReadChains) {
+    const config = mergedConfig[configChain];
     const mailbox = (config as { mailbox?: string }).mailbox;
     if (!(typeof mailbox === 'string' && mailbox.length > 0)) {
       missingMailboxChains.push(configChain);
@@ -398,7 +469,7 @@ export async function readWarpConfig(
     `[readWarpConfig] missing mailbox for chain(s) "${missingMailboxChains.join(', ')}" in ${warpDeployPath}`,
   );
 
-  return freshConfig as WarpRouteDeployConfigMailboxRequired;
+  return mergedConfig as WarpRouteDeployConfigMailboxRequired;
 }
 
 type GetWarpTokenConfigByTokenTypeOptions = {
