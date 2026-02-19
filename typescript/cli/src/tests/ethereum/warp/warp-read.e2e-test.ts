@@ -7,11 +7,6 @@ import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
-import {
-  KeyBoardKeys,
-  type TestPromptAction,
-  handlePrompts,
-} from '../../commands/helpers.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import { hyperlaneWarpDeploy } from '../commands/warp.js';
 import {
@@ -122,6 +117,7 @@ describe('hyperlane warp read e2e tests', async function () {
   describe('hyperlane warp read --symbol ...', () => {
     it('should successfully read the complete warp route config from all the chains', async () => {
       const readOutputPath = `${TEMP_PATH}/warp-read-all-chain-with-symbol.yaml`;
+      const warpRouteId = 'READTEST/ethereum-warp-read-symbol';
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
@@ -137,28 +133,14 @@ describe('hyperlane warp read e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, WARP_DEPLOY_OUTPUT_ID);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, warpRouteId);
 
-      const steps: TestPromptAction[] = [
-        // Select the anvil2-anvil3 ETH route from the selection prompt
-        {
-          check: (currentOutput: string) =>
-            currentOutput.includes('Select from matching warp routes') ||
-            currentOutput.includes('Multiple routes found') ||
-            currentOutput.includes('Select a warp route'),
-          input: KeyBoardKeys.ENTER,
-        },
-      ];
-
-      const output = hyperlaneWarp
+      const finalOutput = await hyperlaneWarp
         .readRaw({
-          warpRouteId: 'ETH',
+          warpRouteId: 'READTEST',
           outputPath: readOutputPath,
         })
-        .stdio('pipe')
         .nothrow();
-
-      const finalOutput = await handlePrompts(output, steps);
 
       expect(finalOutput.exitCode).to.equal(0);
 
