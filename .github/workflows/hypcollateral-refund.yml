@@ -60,6 +60,7 @@ jobs:
           echo "OLD_ROUTER=$OLD_ROUTER" >> $GITHUB_OUTPUT
           echo "REMOTE_DOMAIN=$REMOTE_DOMAIN" >> $GITHUB_OUTPUT
           echo "CHAIN=$CHAIN" >> $GITHUB_OUTPUT
+          echo "TX_HASHES=$TX_HASHES" >> $GITHUB_OUTPUT
 
       - name: Set RPC URL
         env:

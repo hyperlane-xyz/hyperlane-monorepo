@@ -22,15 +22,18 @@ import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
  * Environment variables:
  *   OLD_ROUTER     - Address of the old HypERC20Collateral contract
  *   REMOTE_DOMAIN  - Any enrolled remote domain to spoof messages from
+ *
+ * Requires REFUND_RECIPIENTS and REFUND_AMOUNTS env vars (set by refund-pipeline.sh)
  */
 contract HypERC20CollateralRefund is Script {
     using TypeCasts for address;
 
     uint8 constant MAILBOX_VERSION = 3;
 
+    // Fields in alphabetical order for vm.parseJson compatibility
     struct Refund {
-        address recipient;
         uint256 amount;
+        address recipient;
     }
 
     struct Config {
@@ -44,12 +47,16 @@ contract HypERC20CollateralRefund is Script {
         bytes32 salt;
     }
 
-    function _refunds() internal pure returns (Refund[] memory) {
-        Refund[] memory r = new Refund[](4);
-        r[0] = Refund(0x71E91e35C770b4fB56F419aDa46CF5348530D26d, 988834);
-        r[1] = Refund(0x6af58cED7d0E5162aAe77aA05B7Eb6CB026EF60b, 3725000000);
-        r[2] = Refund(0x5D0A4B19371f18d98d8ae135655ea8e12D7827E2, 99959241);
-        r[3] = Refund(0xD0F6c33de5Ab51301845b75835A1AE0d9F6AD294, 1000);
+    function _refunds() internal view returns (Refund[] memory) {
+        address[] memory recipients = vm.envAddress("REFUND_RECIPIENTS", ",");
+        uint256[] memory amounts = vm.envUint("REFUND_AMOUNTS", ",");
+        require(recipients.length == amounts.length, "Refund length mismatch");
+
+        Refund[] memory r = new Refund[](recipients.length);
+        for (uint256 i = 0; i < recipients.length; i++) {
+            r[i].recipient = recipients[i];
+            r[i].amount = amounts[i];
+        }
         return r;
     }
 
