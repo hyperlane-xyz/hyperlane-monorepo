@@ -98,8 +98,6 @@ export function hyperlaneWarpDeployRaw({
         ${skipConfirmationPrompts ? ['--yes'] : []}`;
 }
 
-const WARP_ROUTE_ID_REGEX = /^[a-zA-Z0-9.*]+\/[a-z0-9-]+$/;
-
 export function syncWarpDeployConfigToRegistry(
   warpDeployPath: string,
   warpRouteId: string,
@@ -161,52 +159,37 @@ async function resolveWarpRouteSymbolFromConfig(
   }
 }
 
-export async function resolveWarpRouteIdForDeploy(
-  warpDeployPathOrWarpRouteId: string,
-  warpRouteId?: string,
-): Promise<string> {
-  // Detect file paths by checking for path prefixes or file extensions
-  // Warp route IDs like "TOKEN/anvil3" don't start with ./ or / and don't have extensions
-  const isFilePath =
-    warpDeployPathOrWarpRouteId.startsWith('./') ||
-    warpDeployPathOrWarpRouteId.startsWith('/') ||
-    warpDeployPathOrWarpRouteId.endsWith('.yaml') ||
-    warpDeployPathOrWarpRouteId.endsWith('.yml') ||
-    warpDeployPathOrWarpRouteId.endsWith('.json');
-  const looksLikeWarpRouteId = WARP_ROUTE_ID_REGEX.test(
-    warpDeployPathOrWarpRouteId,
-  );
-
-  let resolvedWarpRouteId: string;
-
-  if (warpRouteId) {
-    // Two args: first is file path, second is warp route ID
-    resolvedWarpRouteId = warpRouteId;
-    if (warpDeployPathOrWarpRouteId !== warpRouteId && isFilePath) {
-      syncWarpDeployConfigToRegistry(
-        warpDeployPathOrWarpRouteId,
-        resolvedWarpRouteId,
-      );
+type ResolveWarpRouteIdForDeployOptions =
+  | {
+      warpDeployPath: string;
+      warpRouteId?: string;
     }
-  } else if (isFilePath && !looksLikeWarpRouteId) {
-    // One arg that's a file path: derive warp route ID from filename + symbol
-    const config = readYamlOrJson(
-      warpDeployPathOrWarpRouteId,
-    ) as WarpRouteDeployConfig;
-    const symbol = (await resolveWarpRouteSymbolFromConfig(config)) ?? 'ETH';
-    resolvedWarpRouteId = warpRouteIdFromFileName(
-      warpDeployPathOrWarpRouteId,
-      symbol,
-    );
-    syncWarpDeployConfigToRegistry(
-      warpDeployPathOrWarpRouteId,
-      resolvedWarpRouteId,
-    );
-  } else {
-    // One arg that's a warp route ID
-    resolvedWarpRouteId = warpDeployPathOrWarpRouteId;
+  | {
+      warpRouteId: string;
+      warpDeployPath?: undefined;
+    };
+
+export async function resolveWarpRouteIdForDeploy(
+  options: ResolveWarpRouteIdForDeployOptions,
+): Promise<string> {
+  if (!options.warpDeployPath) {
+    return options.warpRouteId;
   }
 
+  if (options.warpRouteId) {
+    syncWarpDeployConfigToRegistry(options.warpDeployPath, options.warpRouteId);
+    return options.warpRouteId;
+  }
+
+  const config = readYamlOrJson(
+    options.warpDeployPath,
+  ) as WarpRouteDeployConfig;
+  const symbol = (await resolveWarpRouteSymbolFromConfig(config)) ?? 'ETH';
+  const resolvedWarpRouteId = warpRouteIdFromFileName(
+    options.warpDeployPath,
+    symbol,
+  );
+  syncWarpDeployConfigToRegistry(options.warpDeployPath, resolvedWarpRouteId);
   return resolvedWarpRouteId;
 }
 
@@ -214,10 +197,18 @@ export async function hyperlaneWarpDeploy(
   warpDeployPathOrWarpRouteId: string,
   warpRouteId?: string,
 ): Promise<ProcessOutput> {
-  const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy(
-    warpDeployPathOrWarpRouteId,
-    warpRouteId,
-  );
+  const resolvedWarpRouteId = warpRouteId
+    ? await resolveWarpRouteIdForDeploy({
+        warpDeployPath: warpDeployPathOrWarpRouteId,
+        warpRouteId,
+      })
+    : isFile(warpDeployPathOrWarpRouteId)
+      ? await resolveWarpRouteIdForDeploy({
+          warpDeployPath: warpDeployPathOrWarpRouteId,
+        })
+      : await resolveWarpRouteIdForDeploy({
+          warpRouteId: warpDeployPathOrWarpRouteId,
+        });
 
   return hyperlaneWarpDeployRaw({
     privateKey: ANVIL_KEY,
@@ -390,12 +381,19 @@ export async function readWarpConfig(
   await hyperlaneWarpRead(chain, warpAddress!, warpDeployPath);
   const freshConfig = readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig;
   if (existingConfig && typeof existingConfig === 'object') {
+    const missingChains: string[] = [];
     for (const [existingChain, config] of Object.entries(existingConfig)) {
       if (!(existingChain in freshConfig)) {
-        freshConfig[existingChain] = config as any;
+        missingChains.push(existingChain);
+        freshConfig[existingChain] = config;
       }
     }
-    writeYamlOrJson(warpDeployPath, freshConfig);
+    if (missingChains.length > 0) {
+      console.warn(
+        `[readWarpConfig] preserving ${missingChains.length} existing chain config(s) missing from fresh read: ${missingChains.join(', ')}`,
+      );
+      writeYamlOrJson(warpDeployPath, freshConfig);
+    }
   }
   return freshConfig as WarpRouteDeployConfigMailboxRequired;
 }
