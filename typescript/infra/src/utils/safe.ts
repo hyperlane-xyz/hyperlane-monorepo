@@ -246,23 +246,22 @@ export async function deleteAllPendingSafeTxs(
 
   // Fetch all pending transactions
   const pendingTxsUrl = `${txServiceUrl}/api/v2/safes/${safeAddress}/multisig-transactions/?executed=false&limit=100`;
-  const pendingTxsResponse = await fetch(pendingTxsUrl, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'node-fetch',
-      Authorization: `Bearer ${safeApiKey}`,
-    },
+  const pendingTxs = await retrySafeApi(async () => {
+    const pendingTxsResponse = await fetch(pendingTxsUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'node-fetch',
+        Authorization: `Bearer ${safeApiKey}`,
+      },
+    });
+
+    if (!pendingTxsResponse.ok) {
+      throw new Error(`HTTP error! status: ${pendingTxsResponse.status}`);
+    }
+
+    return pendingTxsResponse.json();
   });
-
-  if (!pendingTxsResponse.ok) {
-    rootLogger.error(
-      chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
-    );
-    return;
-  }
-
-  const pendingTxs = await pendingTxsResponse.json();
 
   // Delete each pending transaction
   for (const tx of pendingTxs.results) {
@@ -326,23 +325,22 @@ export async function deleteSafeTx(
 
   // Fetch the transaction details to get the proposer
   const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
-  const txDetailsResponse = await fetch(txDetailsUrl, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'node-fetch',
-      Authorization: `Bearer ${safeApiKey}`,
-    },
+  const txDetails = await retrySafeApi(async () => {
+    const txDetailsResponse = await fetch(txDetailsUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'node-fetch',
+        Authorization: `Bearer ${safeApiKey}`,
+      },
+    });
+
+    if (!txDetailsResponse.ok) {
+      throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
+    }
+
+    return txDetailsResponse.json();
   });
-
-  if (!txDetailsResponse.ok) {
-    rootLogger.error(
-      chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
-    );
-    return;
-  }
-
-  const txDetails = await txDetailsResponse.json();
   const proposer = txDetails.proposer;
 
   if (!proposer) {
@@ -401,31 +399,31 @@ export async function deleteSafeTx(
 
     // Make the API call to delete the transaction
     const deleteUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
-    const res = await fetch(deleteUrl, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'node-fetch',
-        Authorization: `Bearer ${safeApiKey}`,
-      },
-      body: JSON.stringify({ safeTxHash: safeTxHash, signature: signature }),
-    });
+    await retrySafeApi(async () => {
+      const res = await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'node-fetch',
+          Authorization: `Bearer ${safeApiKey}`,
+        },
+        body: JSON.stringify({ safeTxHash: safeTxHash, signature: signature }),
+      });
 
-    if (res.status === 204) {
-      rootLogger.info(
-        chalk.green(
-          `Successfully deleted transaction ${safeTxHash} on ${chain}`,
-        ),
+      if (res.status === 204) {
+        rootLogger.info(
+          chalk.green(
+            `Successfully deleted transaction ${safeTxHash} on ${chain}`,
+          ),
+        );
+        return;
+      }
+
+      const errorBody = await res.text();
+      throw new Error(
+        `Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
       );
-      return;
-    }
-
-    const errorBody = await res.text();
-    rootLogger.error(
-      chalk.red(
-        `Failed to delete transaction ${safeTxHash} on ${chain}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
-      ),
-    );
+    });
   } catch (error) {
     rootLogger.error(
       chalk.red(`Failed to delete transaction ${safeTxHash} on ${chain}:`),
