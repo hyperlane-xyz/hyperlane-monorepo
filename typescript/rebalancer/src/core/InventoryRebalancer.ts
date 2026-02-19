@@ -1,4 +1,5 @@
 import type { Logger } from 'pino';
+import { Wallet } from 'ethers';
 
 import {
   type AnnotatedEV5Transaction,
@@ -10,6 +11,7 @@ import {
   TOKEN_COLLATERALIZED_STANDARDS,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 import type {
@@ -1191,8 +1193,12 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       const signingProvider =
         this.config.inventoryMultiProvider ?? this.multiProvider;
       const signer = signingProvider.getSigner(sourceChain);
+      assert(
+        signer instanceof Wallet,
+        `External bridge execution requires a Wallet signer with private key access, got ${signer.constructor.name}`,
+      );
 
-      const result = await externalBridge.execute(quote, signer);
+      const result = await externalBridge.execute(quote, signer.privateKey);
 
       this.logger.info(
         {

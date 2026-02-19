@@ -1,5 +1,6 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
+import { Wallet } from 'ethers';
 import { pino } from 'pino';
 import Sinon, { type SinonStubbedInstance } from 'sinon';
 
@@ -40,7 +41,10 @@ describe('InventoryRebalancer E2E', () => {
   const SOLANA_CHAIN = 'solanamainnet' as ChainName;
   const ARBITRUM_DOMAIN = 42161;
   const SOLANA_DOMAIN = 1399811149;
-  const INVENTORY_SIGNER = '0xInventorySigner';
+  const TEST_PRIVATE_KEY =
+    '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+  const TEST_WALLET = new Wallet(TEST_PRIVATE_KEY);
+  const INVENTORY_SIGNER = TEST_WALLET.address;
 
   beforeEach(() => {
     // Config
@@ -157,9 +161,7 @@ describe('InventoryRebalancer E2E', () => {
         blocks: { reorgPeriod: 1 }, // Quick confirmations for tests
       }),
       getProvider: Sinon.stub().returns(mockProvider),
-      getSigner: Sinon.stub().returns({
-        getAddress: Sinon.stub().resolves(INVENTORY_SIGNER),
-      }),
+      getSigner: Sinon.stub().returns(TEST_WALLET),
       sendTransaction: Sinon.stub().resolves({
         transactionHash: '0xTransferRemoteTxHash',
         logs: [], // Required for HyperlaneCore.getDispatchedMessages
@@ -539,6 +541,43 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('Gas quote failed');
+    });
+
+    it('throws when signer is not a Wallet instance', async () => {
+      multiProvider.getSigner = Sinon.stub().returns({
+        getAddress: Sinon.stub().resolves(INVENTORY_SIGNER),
+      });
+
+      inventoryRebalancer = new InventoryRebalancer(
+        config,
+        actionTracker as unknown as IActionTracker,
+        { lifi: bridge as unknown as IExternalBridge },
+        warpCore as unknown as WarpCore,
+        multiProvider as unknown as MultiProvider,
+        testLogger,
+      );
+
+      const route = createTestRoute({ amount: BigInt(1e18) });
+      createTestIntent({ amount: BigInt(1e18) });
+
+      inventoryRebalancer.setInventoryBalances({
+        [ARBITRUM_CHAIN]: BigInt(10e18),
+        [SOLANA_CHAIN]: 0n,
+      });
+
+      bridge.quote.resolves(
+        createMockBridgeQuote({
+          fromAmount: BigInt(1e18),
+          toAmount: BigInt(0.98e18),
+        }),
+      );
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.false;
+      expect(results[0].error).to.include('Wallet');
+      expect(bridge.execute.called).to.be.false;
     });
   });
 
@@ -1206,11 +1245,7 @@ describe('InventoryRebalancer E2E', () => {
       };
       warpCore.tokens.push(baseToken);
 
-      // Mock getSigner for bridge execution
-      const mockSigner = {
-        getAddress: Sinon.stub().resolves(INVENTORY_SIGNER),
-      };
-      multiProvider.getSigner = Sinon.stub().returns(mockSigner);
+      multiProvider.getSigner = Sinon.stub().returns(TEST_WALLET);
     });
 
     it('bridges from multiple sources in parallel', async () => {
