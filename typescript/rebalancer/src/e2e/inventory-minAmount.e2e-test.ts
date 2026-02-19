@@ -1,0 +1,488 @@
+import { expect } from 'chai';
+import { BigNumber, ethers, providers } from 'ethers';
+
+import {
+  HyperlaneCore,
+  MultiProvider,
+  revertToSnapshot,
+  snapshot,
+} from '@hyperlane-xyz/sdk';
+
+import { ExternalBridgeType } from '../config/types.js';
+
+import {
+  ANVIL_USER_PRIVATE_KEY,
+  DOMAIN_IDS,
+  type NativeDeployedAddresses,
+  TEST_CHAINS,
+  buildInventoryMinAmountStrategyConfig,
+} from './fixtures/routes.js';
+import { MockExternalBridge } from './harness/MockExternalBridge.js';
+import { NativeLocalDeploymentManager } from './harness/NativeLocalDeploymentManager.js';
+import { getFirstMonitorEvent } from './harness/TestHelpers.js';
+import {
+  TestRebalancerBuilder,
+  type TestRebalancerContext,
+} from './harness/TestRebalancer.js';
+import { tryRelayMessage } from './harness/TransferHelper.js';
+
+describe('InventoryMinAmountStrategy E2E', function () {
+  this.timeout(300_000);
+
+  let deploymentManager: NativeLocalDeploymentManager;
+  let multiProvider: MultiProvider;
+  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let snapshotIds: Map<string, string>;
+  let hyperlaneCore: HyperlaneCore;
+  let nativeDeployedAddresses: NativeDeployedAddresses;
+  let mockBridge: MockExternalBridge;
+
+  const inventorySignerAddress = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY)
+    .address;
+  const oneEth = BigNumber.from('1000000000000000000');
+  const twoEth = BigNumber.from('2000000000000000000');
+
+  function chainFromDomain(domain: number): string {
+    const found = Object.entries(DOMAIN_IDS).find(([, d]) => d === domain);
+    if (!found) {
+      throw new Error(`Unknown domain: ${domain}`);
+    }
+    return found[0];
+  }
+
+  async function executeCycle(context: TestRebalancerContext): Promise<void> {
+    const monitor = context.createMonitor(0);
+    const event = await getFirstMonitorEvent(monitor);
+    await context.orchestrator.executeCycle(event);
+  }
+
+  async function setInventorySignerBalance(
+    chain: string,
+    balance: BigNumber,
+  ): Promise<void> {
+    const provider = localProviders.get(chain)!;
+    await provider.send('anvil_setBalance', [
+      inventorySignerAddress,
+      ethers.utils.hexValue(balance),
+    ]);
+  }
+
+  async function relayInProgressInventoryDeposits(
+    context: TestRebalancerContext,
+  ): Promise<void> {
+    const inProgressActions = await context.tracker.getInProgressActions();
+    const depositActions = inProgressActions.filter(
+      (a) => a.type === 'inventory_deposit' && a.txHash && a.messageId,
+    );
+
+    for (const action of depositActions) {
+      const origin = chainFromDomain(action.origin);
+      const destination = chainFromDomain(action.destination);
+      const provider = localProviders.get(origin)!;
+      const dispatchTx = await provider.getTransactionReceipt(action.txHash!);
+
+      const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
+        dispatchTx,
+        messageId: action.messageId!,
+        origin,
+        destination,
+      });
+
+      expect(
+        relayResult.success,
+        `Inventory deposit relay should succeed: ${relayResult.error}`,
+      ).to.be.true;
+    }
+
+    await context.tracker.syncRebalanceActions();
+  }
+
+  before(async function () {
+    deploymentManager = new NativeLocalDeploymentManager(
+      inventorySignerAddress,
+    );
+    const ctx = await deploymentManager.start();
+    multiProvider = ctx.multiProvider;
+    localProviders = ctx.providers;
+    nativeDeployedAddresses = ctx.deployedAddresses;
+
+    const coreAddresses: Record<string, Record<string, string>> = {};
+    for (const chain of TEST_CHAINS) {
+      coreAddresses[chain] = {
+        mailbox: nativeDeployedAddresses.chains[chain].mailbox,
+        interchainSecurityModule: nativeDeployedAddresses.chains[chain].ism,
+      };
+    }
+    hyperlaneCore = HyperlaneCore.fromAddressesMap(
+      coreAddresses,
+      multiProvider,
+    );
+
+    mockBridge = new MockExternalBridge(
+      nativeDeployedAddresses,
+      multiProvider,
+      hyperlaneCore,
+    );
+
+    snapshotIds = new Map();
+    for (const [chain, provider] of localProviders) {
+      snapshotIds.set(chain, await snapshot(provider));
+    }
+  });
+
+  afterEach(async function () {
+    mockBridge.reset();
+    for (const [chain, provider] of localProviders) {
+      const id = snapshotIds.get(chain)!;
+      await revertToSnapshot(provider, id);
+      snapshotIds.set(chain, await snapshot(provider));
+    }
+  });
+
+  after(async function () {
+    if (deploymentManager) await deploymentManager.stop();
+  });
+
+  it('executes transferRemote when destination collateral is below minimum and inventory exists locally', async function () {
+    const context = await new TestRebalancerBuilder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(
+        buildInventoryMinAmountStrategyConfig(nativeDeployedAddresses),
+      )
+      .withInventoryConfig({
+        inventorySignerKey: ANVIL_USER_PRIVATE_KEY,
+        nativeDeployedAddresses,
+      })
+      .withMockExternalBridge(mockBridge)
+      .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withExecutionMode('execute')
+      .build();
+
+    await executeCycle(context);
+
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
+    expect(activeIntents[0].amount).to.equal(twoEth.toBigInt());
+
+    const inProgressActions = await context.tracker.getInProgressActions();
+    const depositAction = inProgressActions.find(
+      (a) => a.type === 'inventory_deposit',
+    );
+    expect(depositAction).to.exist;
+
+    await relayInProgressInventoryDeposits(context);
+
+    const completedAction = await context.tracker.getRebalanceAction(
+      depositAction!.id,
+    );
+    expect(completedAction!.status).to.equal('complete');
+
+    const completedIntent = await context.tracker.getRebalanceIntent(
+      activeIntents[0].id,
+    );
+    expect(completedIntent!.status).to.equal('complete');
+  });
+
+  it('handles partial deposit, bridges inventory, then completes final deposit', async function () {
+    const context = await new TestRebalancerBuilder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(
+        buildInventoryMinAmountStrategyConfig(nativeDeployedAddresses),
+      )
+      .withInventoryConfig({
+        inventorySignerKey: ANVIL_USER_PRIVATE_KEY,
+        nativeDeployedAddresses,
+      })
+      .withMockExternalBridge(mockBridge)
+      .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withExecutionMode('execute')
+      .build();
+
+    await setInventorySignerBalance(
+      'anvil2',
+      BigNumber.from('500000000000000000'),
+    );
+
+    await executeCycle(context);
+    await relayInProgressInventoryDeposits(context);
+
+    let partialIntents =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partialIntents.length).to.equal(1);
+    expect(partialIntents[0].completedAmount > 0n).to.be.true;
+    expect(partialIntents[0].remaining > 0n).to.be.true;
+
+    await setInventorySignerBalance('anvil2', BigNumber.from(0));
+
+    await executeCycle(context);
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+
+    const activeIntent = partialIntents[0].intent;
+    const actionsAfterBridge = await context.tracker.getActionsForIntent(
+      activeIntent.id,
+    );
+    const completedMovementActions = actionsAfterBridge.filter(
+      (a) => a.type === 'inventory_movement' && a.status === 'complete',
+    );
+    expect(completedMovementActions.length).to.be.greaterThan(0);
+
+    await executeCycle(context);
+    await relayInProgressInventoryDeposits(context);
+
+    const completedIntent = await context.tracker.getRebalanceIntent(
+      activeIntent.id,
+    );
+    expect(completedIntent!.status).to.equal('complete');
+  });
+
+  it('loops across multiple cycles with partial fills before final completion', async function () {
+    const context = await new TestRebalancerBuilder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(
+        buildInventoryMinAmountStrategyConfig(nativeDeployedAddresses),
+      )
+      .withInventoryConfig({
+        inventorySignerKey: ANVIL_USER_PRIVATE_KEY,
+        nativeDeployedAddresses,
+      })
+      .withMockExternalBridge(mockBridge)
+      .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withExecutionMode('execute')
+      .build();
+
+    await setInventorySignerBalance('anvil1', oneEth);
+    await setInventorySignerBalance(
+      'anvil2',
+      BigNumber.from('300000000000000000'),
+    );
+    await setInventorySignerBalance('anvil3', oneEth);
+
+    let targetIntentId: string | undefined;
+    for (let i = 0; i < 6; i++) {
+      await executeCycle(context);
+      await context.tracker.syncInventoryMovementActions({
+        [ExternalBridgeType.LiFi]: mockBridge,
+      });
+      await relayInProgressInventoryDeposits(context);
+
+      const activeIntents = await context.tracker.getActiveRebalanceIntents();
+      if (!targetIntentId && activeIntents.length > 0) {
+        targetIntentId = activeIntents[0].id;
+      }
+
+      if (!targetIntentId) continue;
+
+      const intent = await context.tracker.getRebalanceIntent(targetIntentId);
+      if (intent?.status === 'complete') {
+        break;
+      }
+    }
+
+    expect(targetIntentId).to.exist;
+    const finalIntent = await context.tracker.getRebalanceIntent(
+      targetIntentId!,
+    );
+    expect(finalIntent!.status).to.equal('complete');
+
+    const actions = await context.tracker.getActionsForIntent(targetIntentId!);
+    const movementCount = actions.filter(
+      (a) => a.type === 'inventory_movement',
+    ).length;
+    const depositCount = actions.filter(
+      (a) => a.type === 'inventory_deposit',
+    ).length;
+    expect(actions.length).to.be.greaterThan(2);
+    expect(movementCount).to.be.greaterThan(0);
+    expect(depositCount).to.be.greaterThan(1);
+  });
+
+  it('retries after bridge execution failure and bridge status failure', async function () {
+    const context = await new TestRebalancerBuilder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(
+        buildInventoryMinAmountStrategyConfig(nativeDeployedAddresses),
+      )
+      .withInventoryConfig({
+        inventorySignerKey: ANVIL_USER_PRIVATE_KEY,
+        nativeDeployedAddresses,
+      })
+      .withMockExternalBridge(mockBridge)
+      .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withExecutionMode('execute')
+      .build();
+
+    await setInventorySignerBalance('anvil1', twoEth);
+    await setInventorySignerBalance('anvil2', BigNumber.from(0));
+    await setInventorySignerBalance('anvil3', BigNumber.from(0));
+
+    mockBridge.failNextExecute();
+    await executeCycle(context);
+
+    const activeAfterFailure =
+      await context.tracker.getActiveRebalanceIntents();
+    expect(activeAfterFailure.length).to.equal(1);
+    let actions = await context.tracker.getActionsForIntent(
+      activeAfterFailure[0].id,
+    );
+    expect(
+      actions.filter((a) => a.type === 'inventory_movement').length,
+    ).to.equal(0);
+
+    await executeCycle(context);
+    actions = await context.tracker.getActionsForIntent(
+      activeAfterFailure[0].id,
+    );
+    const firstMovement = actions.find((a) => a.type === 'inventory_movement');
+    expect(firstMovement).to.exist;
+
+    mockBridge.failStatusFor(firstMovement!.txHash!, { status: 'failed' });
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+
+    const failedMovement = await context.tracker.getRebalanceAction(
+      firstMovement!.id,
+    );
+    expect(failedMovement!.status).to.equal('failed');
+
+    await executeCycle(context);
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+
+    actions = await context.tracker.getActionsForIntent(
+      activeAfterFailure[0].id,
+    );
+    const completedMovement = actions.find(
+      (a) =>
+        a.type === 'inventory_movement' &&
+        a.status === 'complete' &&
+        a.id !== firstMovement!.id,
+    );
+    expect(completedMovement).to.exist;
+
+    await executeCycle(context);
+    await relayInProgressInventoryDeposits(context);
+
+    const finalIntent = await context.tracker.getRebalanceIntent(
+      activeAfterFailure[0].id,
+    );
+    expect(finalIntent!.status).to.equal('complete');
+  });
+
+  it('enforces single active inventory intent when multiple deficit chains exist', async function () {
+    const context = await new TestRebalancerBuilder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(
+        buildInventoryMinAmountStrategyConfig(nativeDeployedAddresses),
+      )
+      .withInventoryConfig({
+        inventorySignerKey: ANVIL_USER_PRIVATE_KEY,
+        nativeDeployedAddresses,
+      })
+      .withMockExternalBridge(mockBridge)
+      .withInventoryBalances({
+        anvil1: BigNumber.from('5000000000000000000'),
+        anvil2: BigNumber.from(0),
+        anvil3: BigNumber.from(0),
+      })
+      .withExecutionMode('execute')
+      .build();
+
+    await executeCycle(context);
+
+    let activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    const firstIntentId = activeIntents[0].id;
+    const firstDestination = activeIntents[0].destination;
+
+    for (let i = 0; i < 5; i++) {
+      await context.tracker.syncInventoryMovementActions({
+        [ExternalBridgeType.LiFi]: mockBridge,
+      });
+      await relayInProgressInventoryDeposits(context);
+      const firstIntent =
+        await context.tracker.getRebalanceIntent(firstIntentId);
+      if (firstIntent?.status === 'complete') {
+        break;
+      }
+      await executeCycle(context);
+    }
+
+    const completedFirstIntent =
+      await context.tracker.getRebalanceIntent(firstIntentId);
+    expect(completedFirstIntent!.status).to.equal('complete');
+
+    await executeCycle(context);
+    activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    expect(activeIntents[0].id).to.not.equal(firstIntentId);
+    expect(activeIntents[0].destination).to.not.equal(firstDestination);
+  });
+
+  it('uses multiple bridge movements from different sources before completing deposit', async function () {
+    const context = await new TestRebalancerBuilder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(
+        buildInventoryMinAmountStrategyConfig(nativeDeployedAddresses),
+      )
+      .withInventoryConfig({
+        inventorySignerKey: ANVIL_USER_PRIVATE_KEY,
+        nativeDeployedAddresses,
+      })
+      .withMockExternalBridge(mockBridge)
+      .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withExecutionMode('execute')
+      .build();
+
+    await setInventorySignerBalance(
+      'anvil1',
+      BigNumber.from('1200000000000000000'),
+    );
+    await setInventorySignerBalance('anvil2', BigNumber.from(0));
+    await setInventorySignerBalance(
+      'anvil3',
+      BigNumber.from('1200000000000000000'),
+    );
+
+    await executeCycle(context);
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    const intentId = activeIntents[0].id;
+
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+    });
+
+    const actionsAfterMovements =
+      await context.tracker.getActionsForIntent(intentId);
+    const movementActions = actionsAfterMovements.filter(
+      (a) => a.type === 'inventory_movement' && a.status === 'complete',
+    );
+    expect(movementActions.length).to.be.greaterThan(1);
+    const movementOrigins = new Set(movementActions.map((a) => a.origin));
+    expect(movementOrigins.has(DOMAIN_IDS.anvil1)).to.be.true;
+    expect(movementOrigins.has(DOMAIN_IDS.anvil3)).to.be.true;
+
+    await executeCycle(context);
+    await relayInProgressInventoryDeposits(context);
+
+    const finalIntent = await context.tracker.getRebalanceIntent(intentId);
+    expect(finalIntent!.status).to.equal('complete');
+  });
+});
