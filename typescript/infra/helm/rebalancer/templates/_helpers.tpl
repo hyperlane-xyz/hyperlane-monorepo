@@ -82,13 +82,11 @@ The rebalancer container
   - name: REGISTRY_URI
     value: {{ .Values.hyperlane.registryUri }}
   {{- end }}
-  - name: HYP_REBALANCER_KEY
-    value: $(HYP_REBALANCER_KEY)
-  {{- if .Values.hyperlane.inventoryRebalancerEnabled }}
-  - name: HYP_INVENTORY_KEY
-    value: $(HYP_INVENTORY_KEY)
-  {{- end }}
-  - name: COINGECKO_API_KEY
+   - name: HYP_REBALANCER_KEY
+     value: $(HYP_REBALANCER_KEY)
+   - name: HYP_INVENTORY_KEY
+     value: $(HYP_INVENTORY_KEY)
+   - name: COINGECKO_API_KEY
     value: $(COINGECKO_API_KEY)
   - name: REBALANCER_CONFIG_FILE
     value: "/config/rebalancer-config.yaml"

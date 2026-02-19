@@ -8,10 +8,9 @@ hyperlane:
   registryUri: ''
   rebalancerConfig: ''
   withMetrics: true
-  # Used for fetching private RPC secrets
-  chains: []
-  inventoryRebalancerEnabled: false
-nameOverride: ''
+   # Used for fetching private RPC secrets
+   chains: []
+ nameOverride: ''
 fullnameOverride: ''
 externalSecrets:
   clusterSecretStore:
