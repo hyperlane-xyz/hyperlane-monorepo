@@ -46,6 +46,7 @@ import {
   removeTrailingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { getOrderedWarpSendChains } from '../utils/warp-send.js';
 import {
   filterWarpConfigsToMatchingChains,
   getWarpConfigs,
@@ -339,20 +340,10 @@ const send: CommandModuleWithWriteContext<
       `Chain(s) ${[...unsupportedChains].join(', ')} are not part of the warp route.`,
     );
 
-    const orderedDefaultChains = [
-      ...[...supportedChains]
-        .filter(
-          (chain) =>
-            context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-        )
-        .sort((a, b) => a.localeCompare(b)),
-      ...[...supportedChains]
-        .filter(
-          (chain) =>
-            context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
-        )
-        .sort((a, b) => a.localeCompare(b)),
-    ];
+    const orderedDefaultChains = getOrderedWarpSendChains(
+      supportedChains,
+      context.multiProvider,
+    );
 
     chains =
       chains.length === 0

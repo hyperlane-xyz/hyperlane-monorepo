@@ -21,6 +21,7 @@ import {
   filterOutDisabledChains,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
+import { getOrderedWarpSendChains } from '../../../utils/warp-send.js';
 import {
   getWarpConfigs,
   getWarpCoreConfigOrExit,
@@ -160,22 +161,10 @@ async function resolveWarpSendChains(
     });
     argv.context.warpCoreConfig = warpCoreConfig;
 
-    const supportedChains = new Set(
-      warpCoreConfig.tokens.map((token) => token.chainName),
+    const supportedChains = warpCoreConfig.tokens.map(
+      (token) => token.chainName,
     );
-    const orderedDefaultChains = [
-      ...[...supportedChains]
-        .filter(
-          (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-        )
-        .sort((a, b) => a.localeCompare(b)),
-      ...[...supportedChains]
-        .filter(
-          (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
-        )
-        .sort((a, b) => a.localeCompare(b)),
-    ];
-    chainPath.push(...orderedDefaultChains);
+    chainPath.push(...getOrderedWarpSendChains(supportedChains, multiProvider));
   }
 
   const signerChains = new Set<ChainName>();
