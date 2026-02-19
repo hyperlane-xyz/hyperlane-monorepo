@@ -143,6 +143,14 @@ async function main(): Promise<void> {
       );
     }
 
+    // Warn if config references inventorySigner but no HYP_INVENTORY_KEY is provided
+    if (rebalancerConfig.inventorySigner && !inventoryPrivateKey) {
+      logger.warn(
+        { inventorySigner: rebalancerConfig.inventorySigner },
+        'Config specifies inventorySigner but HYP_INVENTORY_KEY is not set. Inventory rebalancing will be skipped.',
+      );
+    }
+
     // MultiProtocolProvider will be derived from multiProvider in factory
     const multiProtocolProvider = undefined;
 
@@ -161,6 +169,7 @@ async function main(): Promise<void> {
         coingeckoApiKey,
         logger,
         version: VERSION,
+        inventoryPrivateKey,
       },
     );
 
