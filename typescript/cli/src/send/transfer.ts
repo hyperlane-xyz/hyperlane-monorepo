@@ -75,9 +75,22 @@ export async function sendTestTransfer({
     throw new Error('At least two chains are required to send a warp transfer');
   }
 
+  const finalDestination = chains[chains.length - 1];
+  const normalizedRecipient =
+    recipient && recipient.trim().length > 0 ? recipient : undefined;
+
+  // Validate once up front to avoid partial multi-hop sends before failing.
+  if (
+    !normalizedRecipient &&
+    multiProvider.getProtocol(finalDestination) !== ProtocolType.Ethereum
+  ) {
+    throw new Error(
+      `Recipient address is required when sending to non-EVM destination '${finalDestination}'`,
+    );
+  }
+
   // Include final destination in preflight if self-relaying to EVM
   const signerChains = new Set(hopOrigins);
-  const finalDestination = chains[chains.length - 1];
   if (
     selfRelay &&
     multiProvider.getProtocol(finalDestination) === ProtocolType.Ethereum
@@ -104,7 +117,7 @@ export async function sendTestTransfer({
           destination,
           warpCoreConfig,
           amount,
-          recipient,
+          recipient: normalizedRecipient,
           skipWaitForDelivery,
           selfRelay,
           skipValidation,
