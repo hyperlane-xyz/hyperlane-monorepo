@@ -42,9 +42,10 @@ const BRIDGE_BUFFER_PERCENT = 5n;
 /**
  * Multiplier applied to LiFi's quoted gas costs.
  * LiFi consistently underestimates gas, and gas prices can spike significantly
- * between quote and execution. Using 100x provides headroom for volatility.
+ * between quote and execution. Using 20x provides headroom for volatility
+ * (historically LiFi underestimates by ~14x).
  */
-const GAS_COST_MULTIPLIER = 100n;
+const GAS_COST_MULTIPLIER = 20n;
 
 /**
  * Maximum percentage of inventory that gas costs can consume for a bridge to be viable.
@@ -670,7 +671,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         const amountFromSource =
           source.maxViable >= remaining ? remaining : source.maxViable; // Already gas-adjusted!
 
-        bridgePlans.push({ chain: source.chain, amount: amountFromSource });
+        bridgePlans.push({
+          chain: source.chain,
+          amount: amountFromSource,
+        });
         totalPlanned += amountFromSource;
       }
 
@@ -736,7 +740,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
             failedErrors.push(`${plan.chain}: ${error}`);
           }
           this.logger.warn(
-            { sourceChain: plan.chain, amount: plan.amount.toString(), error },
+            {
+              sourceChain: plan.chain,
+              amount: plan.amount.toString(),
+              error,
+            },
             'Inventory movement failed',
           );
         }
@@ -910,7 +918,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       const effectiveAvailable = balance > consumed ? balance - consumed : 0n;
 
       if (effectiveAvailable > 0n) {
-        sources.push({ chain: chainName, availableAmount: effectiveAvailable });
+        sources.push({
+          chain: chainName,
+          availableAmount: effectiveAvailable,
+        });
       }
     }
 
