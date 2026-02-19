@@ -117,13 +117,20 @@ async function getWarpConfigsFromContextOrRegistry({
     };
   }
 
-  const { warpCoreConfig, warpDeployConfig, resolvedWarpRouteId } =
-    await getWarpConfigs({
-      context,
-      warpRouteId,
-    });
+  const fetchedConfigs = await getWarpConfigs({
+    context,
+    warpRouteId,
+  });
+  const warpCoreConfig =
+    context.warpCoreConfig ?? fetchedConfigs.warpCoreConfig;
+  const warpDeployConfig =
+    context.warpDeployConfig ?? fetchedConfigs.warpDeployConfig;
   context.warpCoreConfig = warpCoreConfig;
   context.warpDeployConfig = warpDeployConfig;
+  const resolvedWarpRouteId =
+    context.resolvedWarpRouteId ??
+    fetchedConfigs.resolvedWarpRouteId ??
+    warpRouteId;
   context.resolvedWarpRouteId = resolvedWarpRouteId;
   return {
     warpCoreConfig,
