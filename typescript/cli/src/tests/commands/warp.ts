@@ -195,7 +195,6 @@ export class HyperlaneE2EWarpTestCommands {
     }
     if (!isValidWarpRouteDeployConfig(config)) return;
     const registryDeployPath = `${this.registryPath}/deployments/warp_routes/${warpRouteId}-deploy.yaml`;
-    if (isFile(registryDeployPath)) return;
     writeYamlOrJson(registryDeployPath, config);
   }
 }

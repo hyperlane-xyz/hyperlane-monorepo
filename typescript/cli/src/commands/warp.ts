@@ -22,6 +22,7 @@ import {
 import { runWarpIcaOwnerCheck, runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
+  type CommandContext,
   type CommandModuleWithContext,
   type CommandModuleWithWarpApplyContext,
   type CommandModuleWithWarpDeployContext,
@@ -95,6 +96,27 @@ const WARP_ROUTE_OPTIONS = {
 type WarpRouteOptions = {
   warpRouteId?: string;
 };
+
+async function getWarpConfigsFromContextOrRegistry({
+  context,
+  warpRouteId,
+}: {
+  context: CommandContext;
+  warpRouteId?: string;
+}) {
+  if (context.warpCoreConfig && context.warpDeployConfig) {
+    return {
+      warpCoreConfig: context.warpCoreConfig,
+      warpDeployConfig: context.warpDeployConfig,
+      resolvedWarpRouteId: context.resolvedWarpRouteId ?? warpRouteId ?? '',
+    };
+  }
+
+  return getWarpConfigs({
+    context,
+    warpRouteId,
+  });
+}
 
 export const apply: CommandModuleWithWarpApplyContext<
   WarpRouteOptions & {
@@ -415,10 +437,11 @@ export const check: CommandModuleWithContext<
   }) => {
     logCommandHeader('Hyperlane Warp Check');
 
-    let { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
-      context,
-      warpRouteId,
-    });
+    let { warpCoreConfig, warpDeployConfig } =
+      await getWarpConfigsFromContextOrRegistry({
+        context,
+        warpRouteId,
+      });
 
     // If --ica flag is set, run ICA owner check instead of the regular config check
     // Note: ICA check uses full warpDeployConfig (not filtered) to support pre-deployed chains
@@ -622,7 +645,7 @@ export const verify: CommandModuleWithWriteContext<WarpRouteOptions> = {
   handler: async ({ context, warpRouteId }) => {
     logCommandHeader('Hyperlane Warp Verify');
 
-    const { warpCoreConfig } = await getWarpConfigs({
+    const { warpCoreConfig } = await getWarpConfigsFromContextOrRegistry({
       context,
       warpRouteId,
     });
@@ -660,7 +683,7 @@ const fork: CommandModuleWithContext<
       forkConfig = {};
     }
 
-    const { warpDeployConfig } = await getWarpConfigs({
+    const { warpDeployConfig } = await getWarpConfigsFromContextOrRegistry({
       context,
       warpRouteId,
     });
