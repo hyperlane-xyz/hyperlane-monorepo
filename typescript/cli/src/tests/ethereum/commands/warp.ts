@@ -396,6 +396,7 @@ export async function readWarpConfig(
   const warpAddress = getDeployedWarpAddress(chain, warpCorePath);
   await hyperlaneWarpRead(chain, warpAddress!, warpDeployPath);
   const freshConfig = readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig;
+  const freshReadChains = new Set(Object.keys(freshConfig));
   if (existingConfig && typeof existingConfig === 'object') {
     const missingChains: string[] = [];
     for (const [existingChain, config] of Object.entries(existingConfig)) {
@@ -412,13 +413,18 @@ export async function readWarpConfig(
     }
   }
 
-  for (const [configChain, config] of Object.entries(freshConfig)) {
+  const missingMailboxChains: string[] = [];
+  for (const configChain of freshReadChains) {
+    const config = freshConfig[configChain];
     const mailbox = (config as { mailbox?: string }).mailbox;
-    assert(
-      typeof mailbox === 'string' && mailbox.length > 0,
-      `[readWarpConfig] missing mailbox for chain "${configChain}" in ${warpDeployPath}`,
-    );
+    if (!(typeof mailbox === 'string' && mailbox.length > 0)) {
+      missingMailboxChains.push(configChain);
+    }
   }
+  assert(
+    missingMailboxChains.length === 0,
+    `[readWarpConfig] missing mailbox for chain(s) "${missingMailboxChains.join(', ')}" in ${warpDeployPath}`,
+  );
 
   return freshConfig as WarpRouteDeployConfigMailboxRequired;
 }

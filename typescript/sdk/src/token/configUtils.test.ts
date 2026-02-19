@@ -1,10 +1,10 @@
-import { Address } from '@arbitrum/sdk';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 
 import { ResolvedRoutingFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
+import type { WarpCoreConfig } from '../warp/types.js';
 
 import { TokenType } from './config.js';
 import {
@@ -14,6 +14,7 @@ import {
   transformConfigToCheck,
   warpCoreConfigMatchesChains,
 } from './configUtils.js';
+import { TokenStandard } from './TokenStandard.js';
 import { HypTokenConfig } from './types.js';
 
 describe('configUtils', () => {
@@ -45,7 +46,7 @@ describe('configUtils', () => {
               },
               {
                 type: IsmType.FALLBACK_ROUTING,
-                address: Address,
+                address: ADDRESS,
               },
             ],
           },
@@ -321,35 +322,34 @@ describe('configUtils', () => {
     });
   });
 
+  const buildWarpCoreConfig = (chainNames: string[]): WarpCoreConfig => ({
+    tokens: chainNames.map((chainName, index) => ({
+      chainName,
+      standard: TokenStandard.EvmHypSynthetic,
+      decimals: 18,
+      symbol: `TKN${index + 1}`,
+      name: `Token ${index + 1}`,
+      addressOrDenom: `0x${(index + 1).toString(16).padStart(40, '0')}`,
+    })),
+  });
+
   describe('getChainsFromWarpCoreConfig', () => {
     it('should return chain names from tokens', () => {
-      const config = {
-        tokens: [
-          { chainName: 'ethereum', addressOrDenom: '0x1' },
-          { chainName: 'arbitrum', addressOrDenom: '0x2' },
-          { chainName: 'optimism', addressOrDenom: '0x3' },
-        ],
-      } as any;
+      const config = buildWarpCoreConfig(['ethereum', 'arbitrum', 'optimism']);
 
       const result = getChainsFromWarpCoreConfig(config);
       expect(result).to.deep.equal(['ethereum', 'arbitrum', 'optimism']);
     });
 
     it('should return empty array for empty tokens', () => {
-      const config = { tokens: [] } as any;
+      const config = buildWarpCoreConfig([]);
       const result = getChainsFromWarpCoreConfig(config);
       expect(result).to.deep.equal([]);
     });
   });
 
   describe('warpCoreConfigMatchesChains', () => {
-    const config = {
-      tokens: [
-        { chainName: 'ethereum', addressOrDenom: '0x1' },
-        { chainName: 'arbitrum', addressOrDenom: '0x2' },
-        { chainName: 'optimism', addressOrDenom: '0x3' },
-      ],
-    } as any;
+    const config = buildWarpCoreConfig(['ethereum', 'arbitrum', 'optimism']);
 
     it('should return true when all chains are present', () => {
       expect(warpCoreConfigMatchesChains(config, ['ethereum', 'arbitrum'])).to
@@ -371,26 +371,11 @@ describe('configUtils', () => {
   });
 
   describe('filterWarpCoreConfigMapByChains', () => {
-    const configMap = {
-      'ETH/ethereum-arbitrum': {
-        tokens: [
-          { chainName: 'ethereum', addressOrDenom: '0x1' },
-          { chainName: 'arbitrum', addressOrDenom: '0x2' },
-        ],
-      },
-      'ETH/ethereum-optimism': {
-        tokens: [
-          { chainName: 'ethereum', addressOrDenom: '0x3' },
-          { chainName: 'optimism', addressOrDenom: '0x4' },
-        ],
-      },
-      'USDC/arbitrum-optimism': {
-        tokens: [
-          { chainName: 'arbitrum', addressOrDenom: '0x5' },
-          { chainName: 'optimism', addressOrDenom: '0x6' },
-        ],
-      },
-    } as any;
+    const configMap: Record<string, WarpCoreConfig> = {
+      'ETH/ethereum-arbitrum': buildWarpCoreConfig(['ethereum', 'arbitrum']),
+      'ETH/ethereum-optimism': buildWarpCoreConfig(['ethereum', 'optimism']),
+      'USDC/arbitrum-optimism': buildWarpCoreConfig(['arbitrum', 'optimism']),
+    };
 
     it('should filter to routes containing all specified chains', () => {
       const result = filterWarpCoreConfigMapByChains(configMap, [

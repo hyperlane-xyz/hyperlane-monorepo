@@ -86,7 +86,6 @@ const apply: CommandModuleWithWriteContext<
     const { warpDeployConfig, warpCoreConfig } = await getWarpConfigs({
       context,
       warpRouteId,
-      chains,
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
@@ -158,7 +157,6 @@ const read: CommandModuleWithContext<
     const { warpDeployConfig, warpCoreConfig } = await getWarpConfigs({
       context,
       warpRouteId,
-      chains,
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);

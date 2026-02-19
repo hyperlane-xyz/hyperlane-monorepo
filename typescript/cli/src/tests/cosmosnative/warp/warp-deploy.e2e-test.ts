@@ -134,7 +134,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `No warp route deploy config found!`,
+        `No warp route found for symbol "${nonExistingFilePath.toUpperCase()}"`,
       );
     });
 
@@ -290,7 +290,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `No warp route deploy config found!`,
+        `No warp route found for symbol "${nonExistingFilePath.toUpperCase()}"`,
       );
     });
 
