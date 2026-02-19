@@ -1,5 +1,4 @@
 import { ethers } from 'ethers';
-import fs from 'fs';
 import http from 'http';
 import path from 'path';
 import { $ } from 'zx';
@@ -46,70 +45,8 @@ export const GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH = (
   symbol: string,
 ): string => {
   const fileName = path.parse(originalDeployConfigPath).name;
-  const expectedPath = getCombinedWarpRoutePath(symbol, [fileName]);
-  if (isFile(expectedPath)) {
-    return expectedPath;
-  }
-
-  const fallbackPath = findWarpCoreConfigPathByFileName(fileName);
-  return fallbackPath ?? expectedPath;
+  return getCombinedWarpRoutePath(symbol, [fileName]);
 };
-
-function listFilesRecursive(dirPath: string): string[] {
-  if (!fs.existsSync(dirPath)) {
-    return [];
-  }
-  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-  return entries.flatMap((entry) => {
-    const fullPath = path.join(dirPath, entry.name);
-    return entry.isDirectory() ? listFilesRecursive(fullPath) : [fullPath];
-  });
-}
-
-function findWarpCoreConfigPathByFileName(
-  fileName: string,
-): string | undefined {
-  const warpRoutesDir = path.join(REGISTRY_PATH, 'deployments', 'warp_routes');
-  const targetNames = new Set([
-    `${fileName}-config.yaml`,
-    `${fileName}-config.yml`,
-    `${fileName}-config.json`,
-  ]);
-
-  for (const filePath of listFilesRecursive(warpRoutesDir)) {
-    if (targetNames.has(path.basename(filePath))) {
-      return filePath;
-    }
-  }
-
-  return undefined;
-}
-
-function findWarpCoreConfigByChain(chain: string): WarpCoreConfig | undefined {
-  const warpRoutesDir = path.join(REGISTRY_PATH, 'deployments', 'warp_routes');
-  const candidateFiles = listFilesRecursive(warpRoutesDir).filter(
-    (file) =>
-      file.endsWith('-config.yaml') ||
-      file.endsWith('-config.yml') ||
-      file.endsWith('-config.json'),
-  );
-
-  for (const filePath of candidateFiles) {
-    try {
-      const config = readYamlOrJson(filePath) as WarpCoreConfig;
-      if (
-        Array.isArray(config?.tokens) &&
-        config.tokens.some((token) => token.chainName === chain)
-      ) {
-        return config;
-      }
-    } catch {
-      // Ignore unreadable files and continue searching
-    }
-  }
-
-  return undefined;
-}
 
 export function exportWarpConfigsToFilePaths({
   warpRouteId,
@@ -220,16 +157,8 @@ export function getTokenAddressFromWarpConfig(
  * Retrieves the deployed Warp address from the Warp core config.
  */
 export function getDeployedWarpAddress(chain: string, warpCorePath: string) {
-  let warpCoreConfig: WarpCoreConfig;
-  try {
-    warpCoreConfig = readYamlOrJson(warpCorePath);
-  } catch {
-    const fallbackConfig = findWarpCoreConfigByChain(chain);
-    if (!fallbackConfig) {
-      throw new Error(`File doesn't exist at ${warpCorePath}`);
-    }
-    warpCoreConfig = fallbackConfig;
-  }
+  assert(isFile(warpCorePath), `File doesn't exist at ${warpCorePath}`);
+  const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpCorePath);
   WarpCoreConfigSchema.parse(warpCoreConfig);
   const tokenConfig = warpCoreConfig.tokens.find(
     (token) => token.chainName === chain,
