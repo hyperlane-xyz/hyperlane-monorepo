@@ -194,9 +194,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy(
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      });
 
       const steps: TestPromptAction[] = [
         {
@@ -256,9 +256,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy(
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      });
 
       const steps: TestPromptAction[] = [
         {
@@ -394,9 +394,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy(
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      });
 
       const steps: TestPromptAction[] = [
         {
@@ -527,9 +527,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy(
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy({
+        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      });
 
       const steps: TestPromptAction[] = [
         {
