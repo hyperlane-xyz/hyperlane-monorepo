@@ -114,6 +114,8 @@ export async function sendTestTransfer({
     const destination = chains[i + 1];
 
     if (destination) {
+      const recipientForHop =
+        destination === finalDestination ? normalizedRecipient : undefined;
       logBlue(`Sending a message from ${origin} to ${destination}`);
       await timeout(
         executeDelivery({
@@ -122,7 +124,7 @@ export async function sendTestTransfer({
           destination,
           warpCoreConfig,
           amount,
-          recipient: normalizedRecipient,
+          recipient: recipientForHop,
           skipWaitForDelivery,
           selfRelay,
           skipValidation,
