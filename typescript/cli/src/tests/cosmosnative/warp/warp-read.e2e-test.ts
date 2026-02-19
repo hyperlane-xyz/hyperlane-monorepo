@@ -132,7 +132,7 @@ describe('hyperlane warp read e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_CONFIG_PATH_1, warpConfig);
-      await hyperlaneWarp.deploy(HYP_KEY, warpRouteId);
+      await hyperlaneWarp.deploy(HYP_KEY, warpRouteId, WARP_CONFIG_PATH_1);
 
       const finalOutput = await hyperlaneWarp
         .readRaw({
