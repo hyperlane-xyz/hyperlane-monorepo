@@ -35,6 +35,7 @@ import {
 } from '../fixtures/routes.js';
 
 import { setupCollateralBalances } from './BridgeSetup.js';
+import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
 import { ForkIndexer } from './ForkIndexer.js';
 import {
   type LocalDeploymentContext,
@@ -87,7 +88,7 @@ export class TestRebalancerBuilder {
   private readonly logger: Logger;
 
   constructor(
-    private readonly deploymentManager: LocalDeploymentManager,
+    private readonly deploymentManager: BaseLocalDeploymentManager<any>,
     private readonly multiProvider: MultiProvider,
   ) {
     this.logger = pino({ level: 'debug' }).child({ module: 'TestRebalancer' });
