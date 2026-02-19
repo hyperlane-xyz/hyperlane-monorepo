@@ -410,7 +410,8 @@ export async function deleteSafeTx(
         body: JSON.stringify({ safeTxHash: safeTxHash, signature: signature }),
       });
 
-      if (res.status === 204) {
+      // 204: deleted successfully. 404: already deleted (e.g. prior retry succeeded but response was lost).
+      if (res.status === 204 || res.status === 404) {
         rootLogger.info(
           chalk.green(
             `Successfully deleted transaction ${safeTxHash} on ${chain}`,
