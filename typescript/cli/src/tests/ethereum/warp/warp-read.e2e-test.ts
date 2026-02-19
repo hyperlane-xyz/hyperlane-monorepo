@@ -85,7 +85,6 @@ describe('hyperlane warp read e2e tests', async function () {
     writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
 
     anvil2WarpRouteId = WARP_DEPLOY_2_ID;
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, anvil2WarpRouteId);
   });
 
   beforeEach(async function () {
@@ -247,9 +246,6 @@ describe('hyperlane warp read e2e tests', async function () {
 
   describe('hyperlane warp read --chain ... --warp-route-id ...', () => {
     it('should be able to read a warp route', async function () {
-      writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
-      await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, anvil2WarpRouteId);
-
       const warpReadResult: WarpRouteDeployConfig =
         await hyperlaneWarp.readConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2);
 

@@ -38,15 +38,15 @@ import {
 } from './options.js';
 
 const XERC20_WARP_ROUTE_BUILDER = {
-  warpRouteId: {
+  'warp-route-id': {
     ...warpRouteIdCommandOption,
     demandOption: false,
   },
 } as const;
 
-type XERC20WarpRouteBuilder = Partial<
-  Record<keyof typeof XERC20_WARP_ROUTE_BUILDER, string>
->;
+type XERC20WarpRouteBuilder = {
+  warpRouteId?: string;
+};
 
 export const xerc20Command: CommandModule = {
   command: 'xerc20',
