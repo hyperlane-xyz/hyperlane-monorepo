@@ -120,7 +120,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       this.logger.info('Rebalance successful');
     }
 
-    return this.toPublicResults(allInternalResults, routes);
+    return this.toPublicResults(allInternalResults);
   }
 
   private async createIntents(
@@ -185,10 +185,9 @@ export class Rebalancer implements IMovableCollateralRebalancer {
 
   private toPublicResults(
     internalResults: InternalExecutionResult[],
-    originalRoutes: MovableCollateralRoute[],
   ): MovableCollateralExecutionResult[] {
-    return internalResults.map((internal, idx) => ({
-      route: originalRoutes[idx],
+    return internalResults.map((internal) => ({
+      route: internal.route,
       success: internal.success,
       error: internal.error,
       messageId: internal.messageId || '', // Ensure messageId is always a string
