@@ -1,8 +1,8 @@
-import { password } from '@inquirer/prompts';
+import { input, password } from '@inquirer/prompts';
 
 import {
   type AltVM,
-  type ProtocolType,
+  type ChainMetadataForAltVM,
   getProtocolProvider,
   hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
@@ -10,15 +10,18 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import {
-  type ChainMap,
-  type ChainMetadataManager,
-  TxSubmitterType,
-} from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
 import { type SignerKeyProtocolMap } from './types.js';
+import { resolveAltVmAccountAddress } from './altvm-signer-config.js';
+
+type ChainMetadataManagerLike = {
+  getChainMetadata: (chain: string) => ChainMetadataForAltVM;
+};
+
+type ChainMap<T> = Record<string, T>;
 
 async function loadPrivateKey(
   keyByProtocol: SignerKeyProtocolMap,
@@ -36,7 +39,7 @@ async function loadPrivateKey(
   if (strategyConfig[chain]) {
     const rawConfig = strategyConfig[chain]!.submitter;
 
-    if (rawConfig.type === TxSubmitterType.JSON_RPC) {
+    if (rawConfig.type === 'jsonRpc') {
       if (!rawConfig.privateKey) {
         throw new Error(
           `missing private key in strategy config for chain ${chain}`,
@@ -57,13 +60,29 @@ async function loadPrivateKey(
   return keyByProtocol[protocol]!;
 }
 
+async function loadAccountAddress(
+  strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
+  protocol: ProtocolType,
+  chain: string,
+): Promise<string | undefined> {
+  if (protocol !== ProtocolType.Starknet) return undefined;
+  const resolved = resolveAltVmAccountAddress(strategyConfig, protocol, chain);
+  if (resolved) return resolved;
+
+  return input({
+    message: `Please enter the Starknet account contract address for chain ${chain}`,
+  });
+}
+
 export async function createAltVMSigners(
-  metadataManager: ChainMetadataManager,
+  metadataManager: ChainMetadataManagerLike,
   chains: string[],
   keyByProtocol: SignerKeyProtocolMap,
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
 ) {
   const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
+  const accountAddressByProtocol: Partial<Record<ProtocolType, string>> = {};
+
   for (const chain of chains) {
     const metadata = metadataManager.getChainMetadata(chain);
 
@@ -78,7 +97,18 @@ export async function createAltVMSigners(
         metadata.protocol,
         chain,
       ),
+      accountAddress:
+        accountAddressByProtocol[metadata.protocol] ||
+        (await loadAccountAddress(
+          strategyConfig,
+          metadata.protocol,
+          chain,
+        )),
     };
+
+    if (signerConfig.accountAddress) {
+      accountAddressByProtocol[metadata.protocol] = signerConfig.accountAddress;
+    }
 
     signers[chain] = await getProtocolProvider(metadata.protocol).createSigner(
       metadata,
