@@ -119,7 +119,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     );
   }
 
-  describe('hyperlane warp deploy (invalid config)', () => {
+  describe('hyperlane warp deploy', () => {
     it(`should exit early when the provided deployment file does not exist`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -478,7 +478,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp deploy --yes (invalid config)', () => {
+  describe('hyperlane warp deploy --yes', () => {
     it(`should exit early when the provided deployment file does not exist and the skip flag is provided`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -520,7 +520,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
         token.symbol(),
         token.decimals(),
       ]);
-      console.log(expectedTokenDecimals);
       const COMBINED_WARP_CORE_CONFIG_PATH =
         GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
           WARP_DEPLOY_OUTPUT_PATH,

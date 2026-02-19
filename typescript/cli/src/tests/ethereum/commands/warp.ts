@@ -113,12 +113,30 @@ export function syncWarpDeployConfigToRegistry(
   return registryDeployPath;
 }
 
+function hasSymbol(config: unknown): config is { symbol: string } {
+  return (
+    typeof config === 'object' &&
+    config !== null &&
+    'symbol' in config &&
+    typeof (config as { symbol?: unknown }).symbol === 'string'
+  );
+}
+
+function hasTokenAddress(config: unknown): config is { token: string } {
+  return (
+    typeof config === 'object' &&
+    config !== null &&
+    'token' in config &&
+    typeof (config as { token?: unknown }).token === 'string'
+  );
+}
+
 async function resolveWarpRouteSymbolFromConfig(
   warpDeployConfig: WarpRouteDeployConfig,
 ): Promise<string | undefined> {
   for (const config of Object.values(warpDeployConfig)) {
-    if (typeof (config as { symbol?: string }).symbol === 'string') {
-      return (config as { symbol: string }).symbol;
+    if (hasSymbol(config)) {
+      return config.symbol;
     }
   }
 
@@ -139,23 +157,26 @@ async function resolveWarpRouteSymbolFromConfig(
     );
   }
 
-  const tokenEntry = Object.entries(warpDeployConfig).find(
-    ([, config]) => typeof (config as { token?: string }).token === 'string',
-  );
-
-  if (!tokenEntry) {
-    return undefined;
+  let tokenChain: string | undefined;
+  let tokenAddress: string | undefined;
+  for (const [chainName, config] of Object.entries(warpDeployConfig)) {
+    if (hasTokenAddress(config)) {
+      tokenChain = chainName;
+      tokenAddress = config.token;
+      break;
+    }
   }
 
-  const [chainName, config] = tokenEntry;
-  const tokenAddress = (config as { token: string }).token;
+  if (!tokenChain || !tokenAddress) {
+    return undefined;
+  }
 
   try {
     const { multiProvider } = await getContext({
       registryUris: [REGISTRY_PATH],
       key: ANVIL_KEY,
     });
-    const provider = multiProvider.getProvider(chainName);
+    const provider = multiProvider.getProvider(tokenChain);
     const erc20 = new ethers.Contract(
       tokenAddress,
       ['function symbol() view returns (string)'],
@@ -164,7 +185,7 @@ async function resolveWarpRouteSymbolFromConfig(
     return await erc20.symbol();
   } catch (error: unknown) {
     console.warn(
-      `[resolveWarpRouteSymbolFromConfig] RPC symbol() lookup failed for chain "${chainName}" token "${tokenAddress}".`,
+      `[resolveWarpRouteSymbolFromConfig] RPC symbol() lookup failed for chain "${tokenChain}" token "${tokenAddress}".`,
       error,
     );
     return undefined;
@@ -209,6 +230,16 @@ export async function resolveWarpRouteIdForDeploy(
   return resolvedWarpRouteId;
 }
 
+/**
+ * Deploys a warp route in e2e tests.
+ *
+ * `warpDeployPathOrWarpRouteId` is interpreted as:
+ * - deploy config path, when it points to an existing file (`isFile(...)`)
+ * - warp route ID otherwise
+ *
+ * If `warpRouteId` is provided, `warpDeployPathOrWarpRouteId` is treated as
+ * the deploy config path and synced to that explicit route ID.
+ */
 export async function hyperlaneWarpDeploy(
   warpDeployPathOrWarpRouteId: string,
   warpRouteId?: string,

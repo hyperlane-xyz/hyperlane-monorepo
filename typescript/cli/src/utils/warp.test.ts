@@ -306,7 +306,7 @@ describe('getWarpCoreConfigOrExit', () => {
     ({
       registry: createMockRegistry(),
       skipConfirmation,
-    }) as unknown as CommandContext;
+    }) as CommandContext;
 
   it('should resolve and return config using chain filtering', async () => {
     const context = createMockContext();
