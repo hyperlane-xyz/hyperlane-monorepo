@@ -16,7 +16,7 @@ export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 // Key switches based on test stack
 export const ANVIL_KEY =
   TEST_STACK === 'tron'
-    ? '0x0000000000000000000000000000000000000000000000000000000000000000'
+    ? '0xedb728e259afca2ddcc428459e7681b8414668649aedbc8d25c0872da219b2e6'
     : '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
 export const ANVIL_DEPLOYER_ADDRESS =
