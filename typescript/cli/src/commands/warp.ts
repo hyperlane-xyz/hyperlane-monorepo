@@ -51,6 +51,7 @@ import {
   removeTrailingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { getOrderedWarpSendChains } from '../utils/warp-send.js';
 import {
   filterWarpConfigsToMatchingChains,
   getWarpConfigs,
@@ -441,12 +442,10 @@ const send: CommandModuleWithWriteContext<
     if (origin && destination) {
       chains = [origin, destination];
     } else {
-      // Order EVM chains first so non-EVM chains are final destinations
-      const orderedDefaultChains = [...supportedChains].sort((a, b) => {
-        const aEvm = isEVMLike(context.multiProvider.getProtocol(a)) ? 0 : 1;
-        const bEvm = isEVMLike(context.multiProvider.getProtocol(b)) ? 0 : 1;
-        return aEvm - bEvm || a.localeCompare(b);
-      });
+      const orderedDefaultChains = getOrderedWarpSendChains(
+        supportedChains,
+        context.multiProvider,
+      );
 
       chains =
         chains.length === 0
