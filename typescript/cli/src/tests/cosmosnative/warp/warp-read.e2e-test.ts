@@ -106,7 +106,7 @@ describe('hyperlane warp read e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp read --symbol ...', () => {
+  describe('hyperlane warp read --warp-route-id <symbol-only> ...', () => {
     it('should successfully read the complete warp route config from all the chains', async () => {
       const readOutputPath = `${TEMP_PATH}/warp-read-all-chain-with-symbol.yaml`;
       const warpRouteId = 'READTEST/cosmosnative-warp-read-symbol';
