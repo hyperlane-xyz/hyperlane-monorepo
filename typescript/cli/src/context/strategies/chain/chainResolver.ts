@@ -247,12 +247,16 @@ async function resolveWarpSendChains(
       .forEach((chain) => selectedChains.add(chain as ChainName));
   }
 
-  if (selectedChains.size === 0) {
+  // If no explicit origin was provided (destination-only or fully implicit),
+  // derive signer chains from the resolved route so middleware signer setup
+  // matches the path warp send will execute.
+  if (selectedChains.size === 0 || (!argv.origin && !argv.chains?.length)) {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       context: argv.context,
       warpRouteId: argv.warpRouteId,
     });
     argv.preResolvedWarpCoreConfig = warpCoreConfig;
+    selectedChains.clear();
     warpCoreConfig.tokens.forEach((token) =>
       selectedChains.add(token.chainName),
     );
