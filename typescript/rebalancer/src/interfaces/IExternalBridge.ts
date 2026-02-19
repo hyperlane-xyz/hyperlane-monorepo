@@ -9,6 +9,8 @@ export interface ExternalBridgeConfig {
   integrator: string; // Required: dApp/company name for bridge integration
   apiKey?: string; // Optional: API key for higher rate limits
   defaultSlippage?: number; // Default slippage tolerance (e.g., 0.005 = 0.5%)
+  privateKey?: string; // Optional: private key for viem wallet (avoids unsafe signer cast)
+  getChainRpcUrl?: (chainId: number) => string | undefined; // Optional: RPC URL resolver
 }
 
 /**
