@@ -2,15 +2,11 @@ import search from '@inquirer/search';
 
 import { filterWarpRoutesIds } from '@hyperlane-xyz/registry';
 import {
+  filterWarpCoreConfigMapByChains,
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
-import {
-  assert,
-  intersection,
-  objFilter,
-  setEquality,
-} from '@hyperlane-xyz/utils';
+import { assert, intersection, setEquality } from '@hyperlane-xyz/utils';
 
 import {
   readWarpCoreConfig,
@@ -32,19 +28,6 @@ import { logRed } from '../logger.js';
  * When `chains` is provided, symbol-only resolution is limited to routes
  * that span all provided chains.
  */
-function filterWarpCoreConfigsByChains<T extends WarpCoreConfig>(
-  configMap: Record<string, T>,
-  chains: string[],
-): Record<string, T> {
-  if (chains.length === 0) {
-    return configMap;
-  }
-
-  return objFilter(configMap, (_id, config): config is T => {
-    const configChains = new Set(config.tokens.map((token) => token.chainName));
-    return chains.every((chain) => configChains.has(chain));
-  });
-}
 export async function getWarpCoreConfigOrExit({
   context,
   warpRouteId,
@@ -124,7 +107,7 @@ export async function resolveWarpRouteId(args: {
 
     if (chains && chains.length > 0) {
       const warpConfigs = await context.registry.getWarpRoutes({ symbol });
-      const filtered = filterWarpCoreConfigsByChains(warpConfigs, chains);
+      const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
       const chainFilteredIds = new Set(Object.keys(filtered));
       matchingIds = matchingIds.filter((id) => chainFilteredIds.has(id));
     }
@@ -176,7 +159,7 @@ export async function resolveWarpRouteId(args: {
 
   if (chains && chains.length > 0) {
     const warpConfigs = await context.registry.getWarpRoutes();
-    const filtered = filterWarpCoreConfigsByChains(warpConfigs, chains);
+    const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
     routeIds = Object.keys(filtered);
   } else {
     const result = filterWarpRoutesIds(source);
@@ -267,10 +250,11 @@ export function filterWarpConfigsToMatchingChains(
       ).join(', ')}\n`,
     );
 
-    const filteredWarpDeployConfig = objFilter(
-      warpDeployConfig,
-      (chain: string, _v): _v is any => matchingChains.has(chain),
-    );
+    const filteredWarpDeployConfig = Object.fromEntries(
+      Object.entries(warpDeployConfig).filter(([chain]) =>
+        matchingChains.has(chain),
+      ),
+    ) as WarpRouteDeployConfigMailboxRequired;
     const filteredWarpCoreConfig = {
       ...warpCoreConfig,
       tokens: warpCoreConfig.tokens.filter((token: { chainName: string }) =>

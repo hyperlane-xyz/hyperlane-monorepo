@@ -110,7 +110,7 @@ export async function sendTestTransfer({
 
     if (destination) {
       const recipientForHop =
-        destination === finalDestination ? normalizedRecipient : undefined;
+        i === chains.length - 2 ? normalizedRecipient : undefined;
       logBlue(`Sending a message from ${origin} to ${destination}`);
       await timeout(
         executeDelivery({
