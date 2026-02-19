@@ -79,6 +79,23 @@ export async function retrySafeApi<T>(runner: () => Promise<T>): Promise<T> {
   throw new Error('Unreachable');
 }
 
+async function fetchSafeApi<T>(url: string, safeApiKey: string): Promise<T> {
+  return retrySafeApi(async () => {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'node-fetch',
+        Authorization: `Bearer ${safeApiKey}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  });
+}
+
 export async function getSafeApiKey(): Promise<string> {
   return (await fetchGCPSecret(safeApiKeySecretName, false)) as string;
 }
@@ -248,22 +265,10 @@ export async function deleteAllPendingSafeTxs(
   const pendingTxsUrl = `${txServiceUrl}/api/v2/safes/${safeAddress}/multisig-transactions/?executed=false&limit=100`;
   let pendingTxs;
   try {
-    pendingTxs = await retrySafeApi(async () => {
-      const pendingTxsResponse = await fetch(pendingTxsUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'node-fetch',
-          Authorization: `Bearer ${safeApiKey}`,
-        },
-      });
-
-      if (!pendingTxsResponse.ok) {
-        throw new Error(`HTTP error! status: ${pendingTxsResponse.status}`);
-      }
-
-      return pendingTxsResponse.json();
-    });
+    pendingTxs = await fetchSafeApi<{ results: { safeTxHash: string }[] }>(
+      pendingTxsUrl,
+      safeApiKey,
+    );
   } catch (error) {
     rootLogger.error(
       chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
@@ -294,22 +299,7 @@ export async function getSafeTx(
   const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
 
   try {
-    return await retrySafeApi(async () => {
-      const txDetailsResponse = await fetch(txDetailsUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'node-fetch',
-          Authorization: `Bearer ${safeApiKey}`,
-        },
-      });
-
-      if (!txDetailsResponse.ok) {
-        throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
-      }
-
-      return txDetailsResponse.json();
-    });
+    return await fetchSafeApi(txDetailsUrl, safeApiKey);
   } catch (error) {
     rootLogger.error(
       chalk.red(
@@ -336,22 +326,10 @@ export async function deleteSafeTx(
   const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
   let txDetails;
   try {
-    txDetails = await retrySafeApi(async () => {
-      const txDetailsResponse = await fetch(txDetailsUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'node-fetch',
-          Authorization: `Bearer ${safeApiKey}`,
-        },
-      });
-
-      if (!txDetailsResponse.ok) {
-        throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
-      }
-
-      return txDetailsResponse.json();
-    });
+    txDetails = await fetchSafeApi<{ proposer?: string }>(
+      txDetailsUrl,
+      safeApiKey,
+    );
   } catch (error) {
     rootLogger.error(
       chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
@@ -428,12 +406,19 @@ export async function deleteSafeTx(
         body: JSON.stringify({ safeTxHash: safeTxHash, signature: signature }),
       });
 
-      // 204: deleted successfully. 404: already deleted (e.g. prior retry succeeded but response was lost).
-      if (res.status === 204 || res.status === 404) {
+      if (res.status === 204) {
         rootLogger.info(
           chalk.green(
             `Successfully deleted transaction ${safeTxHash} on ${chain}`,
           ),
+        );
+        return;
+      }
+
+      // 404: already deleted (e.g. prior retry succeeded but response was lost)
+      if (res.status === 404) {
+        rootLogger.info(
+          chalk.green(`Transaction ${safeTxHash} on ${chain} already deleted`),
         );
         return;
       }
