@@ -92,9 +92,13 @@ export async function signerMiddleware(argv: Record<string, any>) {
       const protocol = multiProvider.getProtocol(chain);
       const metadata = multiProvider.getChainMetadata(chain);
 
-      if (hasProtocol(protocol))
-        altVmProviders[chain] =
+      if (hasProtocol(protocol)) {
+        const provider =
           await getProtocolProvider(protocol).createProvider(metadata);
+        altVmProviders[chain] = provider;
+        // multiProtocolProvider keeps its own typed providers from metadata/rpcUrls.
+        // Avoid injecting AltVM.IProvider here because it requires unsafe casting.
+      }
     }),
   );
 

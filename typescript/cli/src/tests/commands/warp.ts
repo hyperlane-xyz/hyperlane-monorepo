@@ -121,15 +121,17 @@ export class HyperlaneE2EWarpTestCommands {
     skipConfirmationPrompts,
     privateKey,
     warpRouteId,
+    warpDeployPath,
     extraArgs,
   }: {
     hypKey?: string;
     skipConfirmationPrompts?: boolean;
     privateKey?: string;
     warpRouteId?: string;
+    warpDeployPath?: string;
     extraArgs?: string[];
   }): ProcessPromise {
-    this.syncWarpDeployConfigToRegistry(warpRouteId);
+    this.syncWarpDeployConfigToRegistry(warpRouteId, warpDeployPath);
     return $`${
       hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
     } ${localTestRunCmdPrefix()} hyperlane warp deploy \
@@ -184,12 +186,16 @@ export class HyperlaneE2EWarpTestCommands {
           `;
   }
 
-  private syncWarpDeployConfigToRegistry(warpRouteId?: string) {
-    if (!warpRouteId || !this.outputPath) return;
-    if (!isFile(this.outputPath)) return;
+  private syncWarpDeployConfigToRegistry(
+    warpRouteId?: string,
+    warpDeployPath?: string,
+  ) {
+    const deployPath = warpDeployPath || this.outputPath;
+    if (!warpRouteId || !deployPath) return;
+    if (!isFile(deployPath)) return;
     let config: unknown;
     try {
-      config = readYamlOrJson(this.outputPath);
+      config = readYamlOrJson(deployPath);
     } catch {
       return;
     }
@@ -197,5 +203,55 @@ export class HyperlaneE2EWarpTestCommands {
     const registryDeployPath = `${this.registryPath}/deployments/warp_routes/${warpRouteId}-deploy.yaml`;
     if (isFile(registryDeployPath)) return;
     writeYamlOrJson(registryDeployPath, config);
+  }
+
+  public sendRaw({
+    origin,
+    destination,
+    warpRouteId,
+    amount,
+    recipient,
+    relay,
+    quick,
+    chains,
+    roundTrip,
+    skipValidation,
+    privateKey,
+    hypKey,
+    extraArgs,
+  }: {
+    origin?: string;
+    destination?: string;
+    warpRouteId?: string;
+    amount?: number | string;
+    recipient?: string;
+    relay?: boolean;
+    quick?: boolean;
+    chains?: string[];
+    roundTrip?: boolean;
+    skipValidation?: boolean;
+    privateKey?: string;
+    hypKey?: string;
+    extraArgs?: string[];
+  }): ProcessPromise {
+    return $`${
+      hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
+    } ${localTestRunCmdPrefix()} hyperlane warp send \
+          --registry ${this.registryPath} \
+          ${origin ? ['--origin', origin] : []} \
+          ${destination ? ['--destination', destination] : []} \
+          ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
+          ${amount !== undefined ? ['--amount', amount] : []} \
+          ${recipient ? ['--recipient', recipient] : []} \
+          ${relay ? ['--relay'] : []} \
+          ${quick ? ['--quick'] : []} \
+          ${chains?.length ? ['--chains', ...chains] : []} \
+          ${roundTrip ? ['--round-trip'] : []} \
+          ${skipValidation ? ['--skip-validation'] : []} \
+          ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
+          --verbosity debug \
+          --yes \
+          ${extraArgs ? extraArgs : []}
+          `;
   }
 }

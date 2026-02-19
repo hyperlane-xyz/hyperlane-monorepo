@@ -1,0 +1,69 @@
+defaultHook:
+  beneficiary: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
+  oracleConfig:
+    # Cosmos chains (6 decimals)
+    hyp1:
+      gasPrice: '1'
+      tokenDecimals: 6
+      tokenExchangeRate: '10000000000'
+    hyp2:
+      gasPrice: '1'
+      tokenDecimals: 6
+      tokenExchangeRate: '10000000000'
+    hyp3:
+      gasPrice: '1'
+      tokenDecimals: 6
+      tokenExchangeRate: '10000000000'
+    # EVM chains (18 decimals)
+    anvil1:
+      gasPrice: '1'
+      tokenDecimals: 18
+      tokenExchangeRate: '10000000000'
+    anvil2:
+      gasPrice: '1'
+      tokenDecimals: 18
+      tokenExchangeRate: '10000000000'
+    anvil3:
+      gasPrice: '1'
+      tokenDecimals: 18
+      tokenExchangeRate: '10000000000'
+    anvil4:
+      gasPrice: '1'
+      tokenDecimals: 18
+      tokenExchangeRate: '10000000000'
+    # Radix chains (18 decimals)
+    radix1:
+      gasPrice: '1'
+      tokenDecimals: 18
+      tokenExchangeRate: '10000000000'
+    radix2:
+      gasPrice: '1'
+      tokenDecimals: 18
+      tokenExchangeRate: '10000000000'
+    # Sealevel chains (9 decimals)
+    sealevel1:
+      gasPrice: '1'
+      tokenDecimals: 9
+      tokenExchangeRate: '10000000000'
+  oracleKey: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
+  overhead:
+    hyp1: 200000
+    hyp2: 200000
+    hyp3: 200000
+    anvil1: 200000
+    anvil2: 200000
+    anvil3: 200000
+    anvil4: 200000
+    radix1: 200000
+    radix2: 200000
+    sealevel1: 200000
+  owner: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
+  type: interchainGasPaymaster
+defaultIsm:
+  threshold: 1
+  type: merkleRootMultisigIsm
+  validators:
+    - '0x0c60e7eCd06429052223C78452F791AAb5C5CAc6'
+owner: hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5
+requiredHook:
+  type: merkleTreeHook

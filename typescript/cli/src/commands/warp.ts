@@ -6,7 +6,6 @@ import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
-  type WarpCoreConfig,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
@@ -47,6 +46,7 @@ import {
   removeTrailingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { getOrderedWarpSendChains } from '../utils/warp-send.js';
 import {
   filterWarpConfigsToMatchingChains,
   getWarpConfigs,
@@ -266,7 +266,6 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
-      preResolvedWarpCoreConfig?: WarpCoreConfig;
     }
 > = {
   command: 'send',
@@ -308,14 +307,13 @@ const send: CommandModuleWithWriteContext<
     roundTrip,
     chains: chainsArg,
     skipValidation,
-    preResolvedWarpCoreConfig,
   }) => {
     const filterChains = [origin, destination, ...(chainsArg || [])]
       .filter(Boolean)
       .filter((v, i, a) => a.indexOf(v) === i) as string[];
 
     const warpCoreConfig =
-      preResolvedWarpCoreConfig ??
+      context.warpCoreConfig ??
       (await getWarpCoreConfigOrExit({
         warpRouteId,
         context,
@@ -342,20 +340,10 @@ const send: CommandModuleWithWriteContext<
       `Chain(s) ${[...unsupportedChains].join(', ')} are not part of the warp route.`,
     );
 
-    const orderedDefaultChains = [
-      ...[...supportedChains]
-        .filter(
-          (chain) =>
-            context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-        )
-        .sort((a, b) => a.localeCompare(b)),
-      ...[...supportedChains]
-        .filter(
-          (chain) =>
-            context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
-        )
-        .sort((a, b) => a.localeCompare(b)),
-    ];
+    const orderedDefaultChains = getOrderedWarpSendChains(
+      supportedChains,
+      context.multiProvider,
+    );
 
     chains =
       chains.length === 0

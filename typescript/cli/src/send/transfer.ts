@@ -1,29 +1,38 @@
+import { type TransactionReceipt } from '@ethersproject/providers';
 import { stringify as yamlStringify } from 'yaml';
 
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import {
   type ChainMap,
   type ChainName,
-  type DispatchedMessage,
+  type CoreAddresses,
   HyperlaneCore,
-  MultiProtocolProvider,
+  MultiProtocolCore,
   ProviderType,
   type Token,
   TokenAmount,
+  type TypedTransactionReceipt,
   WarpCore,
   type WarpCoreConfig,
+  WarpTxCategory,
 } from '@hyperlane-xyz/sdk';
-import type { Address } from '@hyperlane-xyz/utils';
 import {
   ProtocolType,
+  mustGet,
+  objMap,
   parseWarpRouteMessage,
+  sleep,
   timeout,
 } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';
 import { type WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
-import { log, logBlue, logGreen, logRed, warnYellow } from '../logger.js';
+import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
 import { runSelfRelay } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
@@ -31,6 +40,50 @@ import { runTokenSelectionStep } from '../utils/tokens.js';
 export const WarpSendLogs = {
   SUCCESS: 'Transfer was self-relayed!',
 };
+
+const SUPPORTED_PROTOCOLS = new Set<ProtocolType>([
+  ProtocolType.Ethereum,
+  ProtocolType.Sealevel,
+  ProtocolType.Cosmos,
+  ProtocolType.CosmosNative,
+  ProtocolType.Starknet,
+  ProtocolType.Radix,
+]);
+
+const EXPLORER_GRAPHQL_URL =
+  process.env.HYPERLANE_EXPLORER_GRAPHQL_URL ??
+  process.env.EXPLORER_GRAPHQL_URL ??
+  'https://explorer4.hasura.app/v1/graphql';
+const EXPLORER_POLL_INTERVAL_MS = 5000;
+const EXPLORER_NO_RESULT_FALLBACK_COUNT = 3;
+
+function isAnnotatedTx(value: unknown): value is AnnotatedTx {
+  return typeof value === 'object' && value !== null;
+}
+
+function toTypedAltVmReceipt(
+  providerType: ProviderType,
+  receipt: TxReceipt,
+): TypedTransactionReceipt {
+  switch (providerType) {
+    case ProviderType.SolanaWeb3:
+    case ProviderType.CosmJs:
+    case ProviderType.CosmJsWasm:
+    case ProviderType.CosmJsNative:
+    case ProviderType.Starknet:
+    case ProviderType.Radix:
+    case ProviderType.Aleo:
+      // Provider SDK receipts are protocol-specific at runtime, but typed as TxReceipt.
+      return {
+        type: providerType,
+        receipt,
+      } as TypedTransactionReceipt;
+    default:
+      throw new Error(
+        `Unsupported provider type for non-EVM transfer execution: ${providerType}`,
+      );
+  }
+}
 
 export async function sendTestTransfer({
   context,
@@ -55,24 +108,16 @@ export async function sendTestTransfer({
 }) {
   const { multiProvider } = context;
 
-  // Each hop's origin must be EVM (we need an EVM signer to submit).
-  // Destinations can be any protocol - the Rust relayer handles delivery.
-  // When using --chains, non-EVM chains must be the final destination
-  // (e.g., --chains ethereum,sealevel OK; --chains sealevel,ethereum NOT OK).
-  const hopOrigins = new Set<ChainName>();
-  for (let i = 0; i < chains.length - 1; i++) {
-    const hopOrigin = chains[i];
-    hopOrigins.add(hopOrigin);
-    if (multiProvider.getProtocol(hopOrigin) !== ProtocolType.Ethereum) {
-      throw new Error(
-        `'hyperlane warp send' requires EVM origin chains. '${hopOrigin}' is ${multiProvider.getProtocol(hopOrigin)}. ` +
-          `Non-EVM chains can only be the final destination. ` +
-          `When using --chains, list EVM chains first (e.g., --chains ethereum,solana).`,
-      );
-    }
-  }
-  if (hopOrigins.size === 0) {
-    throw new Error('At least two chains are required to send a warp transfer');
+  const unsupportedChains = chains.filter(
+    (chain) => !SUPPORTED_PROTOCOLS.has(multiProvider.getProtocol(chain)),
+  );
+  if (unsupportedChains.length > 0) {
+    const chainDetails = unsupportedChains
+      .map((chain) => `'${chain}' (${multiProvider.getProtocol(chain)})`)
+      .join(', ');
+    throw new Error(
+      `Unsupported protocol for chain(s): ${chainDetails}. Supported protocols: ${[...SUPPORTED_PROTOCOLS].join(', ')}.`,
+    );
   }
 
   const finalDestination = chains[chains.length - 1];
@@ -89,18 +134,9 @@ export async function sendTestTransfer({
     );
   }
 
-  // Include final destination in preflight if self-relaying to EVM
-  const signerChains = new Set(hopOrigins);
-  if (
-    selfRelay &&
-    multiProvider.getProtocol(finalDestination) === ProtocolType.Ethereum
-  ) {
-    signerChains.add(finalDestination);
-  }
-
   await runPreflightChecksForChains({
     context,
-    chains: Array.from(signerChains),
+    chains,
     minGas: GasAction.TEST_SEND_GAS,
   });
 
@@ -123,6 +159,7 @@ export async function sendTestTransfer({
           skipWaitForDelivery,
           selfRelay,
           skipValidation,
+          timeoutSec,
         }),
         timeoutSec * 1000,
         'Timed out waiting for messages to be delivered',
@@ -141,6 +178,7 @@ async function executeDelivery({
   skipWaitForDelivery,
   selfRelay,
   skipValidation,
+  timeoutSec,
 }: {
   context: WriteCommandContext;
   origin: ChainName;
@@ -151,19 +189,22 @@ async function executeDelivery({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
   skipValidation?: boolean;
+  timeoutSec: number;
 }) {
-  const { multiProvider, registry } = context;
+  const { multiProvider, registry, altVmSigners, multiProtocolProvider } =
+    context;
 
-  const signer = multiProvider.getSigner(origin);
-  const signerAddress = await signer.getAddress();
+  const originProtocol = multiProvider.getProtocol(origin);
+  const destinationProtocol = multiProvider.getProtocol(destination);
 
-  const isEvmDestination =
-    multiProvider.getProtocol(destination) === ProtocolType.Ethereum;
+  const signerAddress =
+    originProtocol === ProtocolType.Ethereum
+      ? await multiProvider.getSigner(origin).getAddress()
+      : mustGet(altVmSigners, origin).getSignerAddress();
   const normalizedRecipient =
     recipient && recipient.trim().length > 0 ? recipient : undefined;
 
-  // For non-EVM destinations, recipient must be provided explicitly.
-  if (!normalizedRecipient && !isEvmDestination) {
+  if (!normalizedRecipient && destinationProtocol !== ProtocolType.Ethereum) {
     throw new Error(
       `Recipient address is required when sending to non-EVM destination '${destination}'`,
     );
@@ -172,33 +213,23 @@ async function executeDelivery({
   const recipientAddress =
     normalizedRecipient ??
     (await multiProvider.getSigner(destination).getAddress());
-  if (!normalizedRecipient && isEvmDestination) {
-    logBlue(
-      `No recipient specified, defaulting to destination signer: ${recipientAddress}`,
-    );
+
+  if (!normalizedRecipient) {
+    logBlue(`No recipient specified, defaulting to: ${recipientAddress}`);
   }
 
   const chainAddresses = await registry.getAddresses();
 
-  // Core is needed for on-chain wait (EVM destinations)
-  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
+  const mailboxes = objMap(chainAddresses, (_, { mailbox }) => ({ mailbox }));
+  const warpMultiProvider =
+    multiProtocolProvider.extendChainMetadata(mailboxes);
 
-  // Extract mailbox addresses from registry for each chain
-  // Required for Sealevel/non-EVM token adapters during validation
-  const mailboxAddresses: ChainMap<{ mailbox?: Address }> = {};
-  for (const [chainName, addresses] of Object.entries(chainAddresses)) {
-    if (addresses?.mailbox) {
-      mailboxAddresses[chainName] = { mailbox: addresses.mailbox };
-    }
-  }
+  const core = MultiProtocolCore.fromAddressesMap(
+    chainAddresses as ChainMap<CoreAddresses>,
+    warpMultiProvider,
+  );
 
-  // Extend the MultiProtocolProvider with mailbox addresses
-  const multiProtocolProvider =
-    MultiProtocolProvider.fromMultiProvider(multiProvider).extendChainMetadata(
-      mailboxAddresses,
-    );
-
-  const warpCore = WarpCore.FromConfig(multiProtocolProvider, warpCoreConfig);
+  const warpCore = WarpCore.FromConfig(warpMultiProvider, warpCoreConfig);
 
   let token: Token;
   const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
@@ -213,7 +244,22 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
-  if (!skipValidation) {
+  const isCosmosOrigin =
+    originProtocol === ProtocolType.Cosmos ||
+    originProtocol === ProtocolType.CosmosNative;
+  const skippedByUser = !!skipValidation;
+  const shouldSkipTransferValidation = skippedByUser || isCosmosOrigin;
+  if (isCosmosOrigin) {
+    log(
+      `Skipping transfer validation for ${origin} because Cosmos-origin validation is currently unsupported (CosmJS gas estimation requires sender public key).`,
+    );
+  } else if (skippedByUser) {
+    log(
+      `Skipping transfer validation for ${origin} because --skip-validation was set.`,
+    );
+  }
+
+  if (!shouldSkipTransferValidation) {
     const errors = await warpCore.validateTransfer({
       originTokenAmount: token.amount(amount),
       destination,
@@ -234,53 +280,203 @@ async function executeDelivery({
     recipient: recipientAddress,
   });
 
-  const txReceipts = [];
+  const txReceipts: TypedTransactionReceipt[] = [];
+  let transferReceipt: TypedTransactionReceipt | null = null;
+  let evmTransferReceipt: TransactionReceipt | null = null;
   for (const tx of transferTxs) {
     if (tx.type === ProviderType.EthersV5) {
+      const signer = multiProvider.getSigner(origin);
       const txResponse = await signer.sendTransaction(tx.transaction);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
-      txReceipts.push(txReceipt);
+      const typedReceipt: TypedTransactionReceipt = {
+        type: ProviderType.EthersV5,
+        receipt: txReceipt,
+      };
+      txReceipts.push(typedReceipt);
+      if (tx.category === WarpTxCategory.Transfer) {
+        transferReceipt = typedReceipt;
+        evmTransferReceipt = txReceipt;
+      }
+    } else {
+      const signer = mustGet(altVmSigners, origin);
+      if (!isAnnotatedTx(tx.transaction)) {
+        throw new Error(
+          `Expected AnnotatedTx for non-EVM transfer execution, got ${typeof tx.transaction}`,
+        );
+      }
+      const txReceipt = await signer.sendAndConfirmTransaction(tx.transaction);
+      const typedReceipt = toTypedAltVmReceipt(tx.type, txReceipt);
+      txReceipts.push(typedReceipt);
+      if (tx.category === WarpTxCategory.Transfer) {
+        transferReceipt = typedReceipt;
+      }
     }
   }
-  const transferTxReceipt = txReceipts[txReceipts.length - 1];
-  const messageIndex: number = 0;
-  const message: DispatchedMessage =
-    HyperlaneCore.getDispatchedMessages(transferTxReceipt)[messageIndex];
 
-  const parsed = parseWarpRouteMessage(message.parsed.body);
+  transferReceipt ||= txReceipts[txReceipts.length - 1] ?? null;
+  if (!transferReceipt) {
+    throw new Error('No transfer transaction receipt found');
+  }
+
+  const extracted = core.extractMessageIds(origin, transferReceipt);
+  const messageId = extracted[0]?.messageId;
+  if (!messageId) {
+    throw new Error('No dispatched message found in transfer receipt');
+  }
 
   logBlue(
     `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipientAddress}) on ${destination}.`,
   );
-  logBlue(`Message ID: ${message.id}`);
-  logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);
-  log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
-  log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
+  logBlue(`Message ID: ${messageId}`);
+  logBlue(`Explorer Link: ${EXPLORER_URL}/message/${messageId}`);
+  if (transferReceipt.type === ProviderType.EthersV5 && evmTransferReceipt) {
+    const messageIndex: number = 0;
+    const message =
+      HyperlaneCore.getDispatchedMessages(evmTransferReceipt)[messageIndex];
+    if (message) {
+      const parsed = parseWarpRouteMessage(message.parsed.body);
+      log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
+      log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
+    }
+  }
+
+  if (
+    selfRelay &&
+    (originProtocol !== ProtocolType.Ethereum ||
+      destinationProtocol !== ProtocolType.Ethereum)
+  ) {
+    log(
+      `Self-relay is only supported for EVM destinations. Skipping self-relay for ${destination}.`,
+    );
+    selfRelay = false;
+  }
 
   if (selfRelay) {
-    if (!isEvmDestination) {
-      warnYellow(
-        `Self-relay not supported for non-EVM destination '${destination}'. Skipping relay.`,
-      );
-    } else {
-      return runSelfRelay({
-        txReceipt: transferTxReceipt,
-        multiProvider: multiProvider,
-        registry: registry,
-        successMessage: WarpSendLogs.SUCCESS,
-      });
+    if (!evmTransferReceipt) {
+      throw new Error('Missing EVM transfer receipt required for self-relay');
     }
+    return runSelfRelay({
+      txReceipt: evmTransferReceipt,
+      multiProvider: multiProvider,
+      registry: registry,
+      successMessage: WarpSendLogs.SUCCESS,
+    });
   }
 
   if (skipWaitForDelivery) return;
 
-  if (isEvmDestination) {
-    // Max wait 10 minutes
-    await core.waitForMessageProcessed(transferTxReceipt, 10000, 60);
-    logGreen(`Transfer delivered to ${destination} chain!`);
+  const timeoutMs = timeoutSec * 1000;
+  if (destinationProtocol === ProtocolType.Ethereum) {
+    const delayMs = 10000;
+    const maxAttempts = Math.ceil(timeoutMs / delayMs);
+    await core.waitForMessagesProcessed(
+      origin,
+      destination,
+      transferReceipt,
+      delayMs,
+      maxAttempts,
+    );
   } else {
-    logBlue(
-      `Skipping delivery wait for non-EVM destination '${destination}'. Track at ${EXPLORER_URL}/message/${message.id}`,
+    try {
+      await waitForExplorerDelivery(messageId, timeoutMs);
+    } catch (error) {
+      const message = (error as Error).message;
+      if (
+        message.startsWith('Explorer has no record') ||
+        message.startsWith('Explorer query failed') ||
+        message.startsWith('Explorer query error') ||
+        message.startsWith('Explorer query returned invalid JSON') ||
+        message.toLowerCase().includes('fetch failed')
+      ) {
+        log(
+          `Explorer delivery check failed (${message}). Falling back to on-chain wait.`,
+        );
+        const delayMs = 10000;
+        const maxAttempts = Math.ceil(timeoutMs / delayMs);
+        await core.waitForMessagesProcessed(
+          origin,
+          destination,
+          transferReceipt,
+          delayMs,
+          maxAttempts,
+        );
+      } else {
+        throw error;
+      }
+    }
+  }
+  logGreen(`Transfer sent to ${destination} chain!`);
+}
+
+async function waitForExplorerDelivery(
+  messageId: string,
+  timeoutMs: number,
+): Promise<void> {
+  let noResultCount = 0;
+  const maxAttempts = Math.max(
+    1,
+    Math.ceil(timeoutMs / EXPLORER_POLL_INTERVAL_MS),
+  );
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const result = await queryExplorerDelivered(messageId);
+    if (result === 'not-found') {
+      noResultCount += 1;
+      if (noResultCount >= EXPLORER_NO_RESULT_FALLBACK_COUNT) {
+        throw new Error('Explorer has no record of message');
+      }
+    } else if (result === true) {
+      return;
+    }
+
+    await sleep(EXPLORER_POLL_INTERVAL_MS);
+  }
+  throw new Error('Timed out waiting for message delivery via Explorer');
+}
+
+async function queryExplorerDelivered(
+  messageId: string,
+): Promise<true | false | 'not-found'> {
+  const body = JSON.stringify({
+    query: `query MessageDelivered($id: bytea!) {
+      message_view(where: { msg_id: { _eq: $id } }, limit: 1) {
+        is_delivered
+      }
+    }`,
+    variables: {
+      id: messageId.replace(/^0x/i, '\\x').toLowerCase(),
+    },
+  });
+
+  const response = await fetch(EXPLORER_GRAPHQL_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Explorer query failed: ${response.status} ${errorText || response.statusText}`,
     );
   }
+
+  const payloadText = await response.text();
+  let payload: {
+    errors?: unknown[];
+    data?: { message_view?: Array<{ is_delivered?: boolean }> };
+  };
+  try {
+    payload = payloadText ? JSON.parse(payloadText) : {};
+  } catch {
+    throw new Error(
+      `Explorer query returned invalid JSON: ${payloadText || '<empty response>'}`,
+    );
+  }
+  if (payload?.errors?.length) {
+    throw new Error(`Explorer query error: ${JSON.stringify(payload.errors)}`);
+  }
+
+  const rows = payload?.data?.message_view ?? [];
+  if (!rows.length) return 'not-found';
+  return !!rows[0]?.is_delivered;
 }
