@@ -102,6 +102,7 @@ async function resolveWarpReadChains(
       context: argv.context,
       warpRouteId: argv.warpRouteId,
     });
+    argv.context.warpCoreConfig = warpCoreConfig;
     argv.context.chains = warpCoreConfig.tokens.map((token) => token.chainName);
   }
 

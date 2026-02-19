@@ -56,6 +56,7 @@ export interface CommandContext extends Omit<
   altVmProviders: ChainMap<AltVM.IProvider>;
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
+  warpCoreConfig?: WarpCoreConfig;
   // just for evm chains backward compatibility
   signerAddress?: string;
 }
