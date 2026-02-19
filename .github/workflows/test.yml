@@ -352,6 +352,7 @@ jobs:
           - warp-extend-basic
           - warp-extend-config
           - warp-extend-recovery
+          - warp-extend-resumable
           # deploy
           - warp-bridge-1
           - warp-bridge-2

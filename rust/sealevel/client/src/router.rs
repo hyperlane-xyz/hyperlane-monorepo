@@ -306,7 +306,7 @@ pub(crate) fn deploy_routers<
     let existing_program_ids = read_router_program_ids(&deploy_dir);
 
     if ctx.write_instructions_enabled {
-        ctx.instructions_path = Some(deploy_dir.join("instructions.yaml"));
+        ctx.instructions_path = Some(deploy_dir.clone());
     }
 
     // Builds a HashMap of all the foreign deployments from the app config.

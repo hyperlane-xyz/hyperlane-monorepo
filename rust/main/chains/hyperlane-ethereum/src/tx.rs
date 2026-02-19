@@ -159,7 +159,7 @@ where
             .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?,
     };
     let block_gas_limit: U256 = latest_block.gas_limit.into();
-    let gas_limit = if gas_limit > block_gas_limit {
+    let gas_limit = if !block_gas_limit.is_zero() && gas_limit > block_gas_limit {
         warn!(
             ?gas_limit,
             ?block_gas_limit,
