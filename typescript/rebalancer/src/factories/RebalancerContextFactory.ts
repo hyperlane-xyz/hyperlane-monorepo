@@ -383,9 +383,11 @@ export class RebalancerContextFactory {
    * Returns null if inventory config is not available.
    *
    * @param actionTracker - ActionTracker instance for tracking inventory actions
+   * @param externalBridgeRegistryOverride - Optional override for external bridge registry (for testing)
    */
   private async createInventoryRebalancerAndConfig(
     actionTracker: IActionTracker,
+    externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>,
   ): Promise<{
     inventoryRebalancer: IRebalancer;
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
@@ -418,6 +420,31 @@ export class RebalancerContextFactory {
     if (inventoryChains.length === 0) {
       this.logger.debug('No inventory chains configured');
       return null;
+    }
+
+    // Use override if provided, skip the bridge registry build
+    if (externalBridgeRegistryOverride !== undefined) {
+      const inventoryConfig: InventoryMonitorConfig = {
+        inventoryAddress: inventorySigner,
+        chains: inventoryChains,
+      };
+      const inventoryRebalancer = new InventoryRebalancer(
+        {
+          inventorySigner,
+          inventoryMultiProvider: this.inventoryMultiProvider,
+          inventoryChains,
+        },
+        actionTracker,
+        externalBridgeRegistryOverride,
+        this.warpCore,
+        this.multiProvider,
+        this.logger,
+      );
+      return {
+        inventoryRebalancer,
+        externalBridgeRegistry: externalBridgeRegistryOverride,
+        inventoryConfig,
+      };
     }
 
     // Build registry dynamically from ExternalBridgeType enum
@@ -490,10 +517,15 @@ export class RebalancerContextFactory {
    * Creates all rebalancers based on config execution types.
    * Returns an array of rebalancers (movableCollateral and/or inventory)
    * along with metadata needed for monitor and orchestrator.
+   *
+   * @param actionTracker - ActionTracker instance for tracking actions
+   * @param metrics - Optional Metrics instance
+   * @param externalBridgeRegistryOverride - Optional override for external bridge registry (for testing)
    */
   public async createRebalancers(
     actionTracker: IActionTracker,
     metrics?: Metrics,
+    externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>,
   ): Promise<{
     rebalancers: IRebalancer[];
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
@@ -514,8 +546,10 @@ export class RebalancerContextFactory {
     }
 
     // Check if any chains use inventory execution type
-    const inventoryComponents =
-      await this.createInventoryRebalancerAndConfig(actionTracker);
+    const inventoryComponents = await this.createInventoryRebalancerAndConfig(
+      actionTracker,
+      externalBridgeRegistryOverride,
+    );
     if (inventoryComponents) {
       rebalancers.push(inventoryComponents.inventoryRebalancer);
       externalBridgeRegistry = inventoryComponents.externalBridgeRegistry;
