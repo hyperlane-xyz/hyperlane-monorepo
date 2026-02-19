@@ -177,6 +177,9 @@ export class RadixIgpHookWriter
     // Read current state
     const currentState = await this.read(deployed.address);
 
+    // This is the address that has to execute the update transactions
+    const currentOwnerAddress = currentState.config.owner;
+
     // Update destination gas configs
     for (const [domainIdStr, gasConfig] of Object.entries(
       config.oracleConfig,
@@ -192,7 +195,7 @@ export class RadixIgpHookWriter
       if (needsUpdate) {
         const setConfigTx = await getSetIgpDestinationGasConfigTx(
           this.base,
-          this.signer.getAddress(),
+          currentOwnerAddress,
           {
             igpAddress: deployed.address,
             destinationGasConfig: {
@@ -218,7 +221,7 @@ export class RadixIgpHookWriter
       const setOwnerTx = await getSetIgpOwnerTx(
         this.base,
         this.gateway,
-        this.signer.getAddress(),
+        currentOwnerAddress,
         {
           igpAddress: deployed.address,
           newOwner: config.owner,
