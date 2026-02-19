@@ -45,10 +45,12 @@ export async function runWarpRouteRead({
   let addresses: ChainMap<Address>;
   let warpCoreConfig: WarpCoreConfig | undefined;
   if (warpRouteId) {
-    warpCoreConfig = await getWarpCoreConfigOrExit({
-      context,
-      warpRouteId,
-    });
+    warpCoreConfig =
+      context.warpCoreConfig ??
+      (await getWarpCoreConfigOrExit({
+        context,
+        warpRouteId,
+      }));
 
     addresses = Object.fromEntries(
       warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
