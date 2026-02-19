@@ -16,7 +16,7 @@ export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 // Key switches based on test stack
 export const ANVIL_KEY =
   TEST_STACK === 'tron'
-    ? 'b5a4cea271ff424d7c31dc12a3e43e401df7a40d7412a15750f3f0b6b5449a28'
+    ? '0x0000000000000000000000000000000000000000000000000000000000000000'
     : '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
 export const ANVIL_DEPLOYER_ADDRESS =
@@ -66,15 +66,6 @@ export const DEFAULT_E2E_TEST_TIMEOUT =
 
 // Export test stack for conditional logic in setup
 export const IS_TRON_TEST = TEST_STACK === 'tron';
-
-// Deterministic TRE keys derived from BIP-44 m/44'/195'/0'/0/N
-// Mnemonic: abandon abandon abandon abandon abandon abandon abandon about
-// Key 0 = ANVIL_KEY for tron. Keys 1-2 used as separate deployers to avoid
-// "Dup transaction" errors when deploying identical core contracts in parallel.
-export const TRON_KEY_1 =
-  'edb728e259afca2ddcc428459e7681b8414668649aedbc8d25c0872da219b2e6';
-export const TRON_KEY_2 =
-  '0e5684898be2d272d54eb2be3fd41a12f720db6358cee02c2d23043eed4bf7a2';
 
 export function getCombinedWarpRoutePath(
   tokenSymbol: string,

@@ -48,16 +48,6 @@ before(async function () {
       },
     );
   }
-
-  // Also clean up Tron registry anvil aliases
-  if (IS_TRON_TEST) {
-    for (const chainName of ['anvil2', 'anvil3', 'anvil4']) {
-      const path = `${OLD_REGISTRY_PATH}/chains/${chainName}/addresses.yaml`;
-      if (fs.existsSync(path)) {
-        fs.rmSync(path, { recursive: true, force: true });
-      }
-    }
-  }
 });
 
 // Reset the test registry for each test invocation
