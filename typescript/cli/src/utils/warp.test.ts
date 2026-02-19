@@ -86,6 +86,21 @@ describe('resolveWarpRouteId', () => {
     expect(result).to.equal('ETH/ethereum-arbitrum');
   });
 
+  it('should throw when a full warp route ID does not exist', async () => {
+    const context = createMockContext();
+    try {
+      await resolveWarpRouteId({
+        context,
+        warpRouteId: 'ETH/does-not-exist',
+      });
+      expect.fail('Should have thrown an error');
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        'No warp route found with ID "ETH/does-not-exist"',
+      );
+    }
+  });
+
   it('should return the single matching route when symbol matches one route', async () => {
     const context = createMockContext();
     const result = await resolveWarpRouteId({

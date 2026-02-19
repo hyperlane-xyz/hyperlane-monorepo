@@ -142,7 +142,9 @@ describe('hyperlane warp read e2e tests', async function () {
         // Select the hyp1-hyp2 HYP route from the selection prompt
         {
           check: (currentOutput: string) =>
-            currentOutput.includes('Select from matching warp routes'),
+            currentOutput.includes('Select from matching warp routes') ||
+            currentOutput.includes('Multiple routes found') ||
+            currentOutput.includes('Select a warp route'),
           input: KeyBoardKeys.ENTER,
         },
       ];
@@ -150,7 +152,7 @@ describe('hyperlane warp read e2e tests', async function () {
       const output = hyperlaneWarp
         .readRaw({
           outputPath: readOutputPath,
-          warpRouteId: 'TEST/hyp1',
+          warpRouteId: 'TEST',
         })
         .stdio('pipe')
         .nothrow();
