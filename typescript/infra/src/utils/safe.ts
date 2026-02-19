@@ -246,22 +246,31 @@ export async function deleteAllPendingSafeTxs(
 
   // Fetch all pending transactions
   const pendingTxsUrl = `${txServiceUrl}/api/v2/safes/${safeAddress}/multisig-transactions/?executed=false&limit=100`;
-  const pendingTxs = await retrySafeApi(async () => {
-    const pendingTxsResponse = await fetch(pendingTxsUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'node-fetch',
-        Authorization: `Bearer ${safeApiKey}`,
-      },
+  let pendingTxs;
+  try {
+    pendingTxs = await retrySafeApi(async () => {
+      const pendingTxsResponse = await fetch(pendingTxsUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'node-fetch',
+          Authorization: `Bearer ${safeApiKey}`,
+        },
+      });
+
+      if (!pendingTxsResponse.ok) {
+        throw new Error(`HTTP error! status: ${pendingTxsResponse.status}`);
+      }
+
+      return pendingTxsResponse.json();
     });
-
-    if (!pendingTxsResponse.ok) {
-      throw new Error(`HTTP error! status: ${pendingTxsResponse.status}`);
-    }
-
-    return pendingTxsResponse.json();
-  });
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
+      error,
+    );
+    return;
+  }
 
   // Delete each pending transaction
   for (const tx of pendingTxs.results) {
