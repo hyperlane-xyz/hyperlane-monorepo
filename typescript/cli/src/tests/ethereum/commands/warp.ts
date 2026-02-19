@@ -132,8 +132,11 @@ async function resolveWarpRouteSymbolFromConfig(
       warpDeployConfig,
     );
     return tokenMetadata.getDefaultSymbol();
-  } catch {
-    // Fall through to RPC-based lookup below.
+  } catch (error: unknown) {
+    console.warn(
+      `[resolveWarpRouteSymbolFromConfig] token metadata derivation failed for registry "${REGISTRY_PATH}". Falling back to RPC symbol lookup.`,
+      error,
+    );
   }
 
   const tokenEntry = Object.entries(warpDeployConfig).find(
@@ -159,7 +162,11 @@ async function resolveWarpRouteSymbolFromConfig(
       provider,
     );
     return await erc20.symbol();
-  } catch {
+  } catch (error: unknown) {
+    console.warn(
+      `[resolveWarpRouteSymbolFromConfig] RPC symbol() lookup failed for chain "${chainName}" token "${tokenAddress}".`,
+      error,
+    );
     return undefined;
   }
 }
@@ -192,7 +199,11 @@ export async function resolveWarpRouteIdForDeploy(
   }
 
   const config = readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig;
-  const symbol = (await resolveWarpRouteSymbolFromConfig(config)) ?? 'ETH';
+  const symbol = await resolveWarpRouteSymbolFromConfig(config);
+  assert(
+    symbol && symbol.length > 0,
+    `[resolveWarpRouteIdForDeploy] could not resolve token symbol from "${warpDeployPath}". Add a symbol field or pass --warp-route-id explicitly.`,
+  );
   const resolvedWarpRouteId = warpRouteIdFromFileName(warpDeployPath, symbol);
   syncWarpDeployConfigToRegistry(warpDeployPath, resolvedWarpRouteId);
   return resolvedWarpRouteId;
