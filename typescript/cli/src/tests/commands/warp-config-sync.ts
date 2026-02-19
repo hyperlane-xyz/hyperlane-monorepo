@@ -16,7 +16,7 @@ export function syncWarpDeployConfigToRegistry({
     `[syncWarpDeployConfigToRegistry] Warp deploy config file not found: ${warpDeployPath}`,
   );
 
-  const config = readYamlOrJson(warpDeployPath) as unknown;
+  const config = readYamlOrJson(warpDeployPath);
   assert(
     typeof config === 'object' && config !== null && !Array.isArray(config),
     `[syncWarpDeployConfigToRegistry] Invalid warp deploy config at ${warpDeployPath}: expected object map`,
