@@ -2,7 +2,10 @@ import { type TransactionReceipt } from '@ethersproject/providers';
 import { stringify as yamlStringify } from 'yaml';
 
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
-import { type AnnotatedTx } from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
 import {
   type ChainMap,
   type ChainName,
@@ -53,6 +56,34 @@ const EXPLORER_GRAPHQL_URL =
   'https://explorer4.hasura.app/v1/graphql';
 const EXPLORER_POLL_INTERVAL_MS = 5000;
 const EXPLORER_NO_RESULT_FALLBACK_COUNT = 3;
+
+function isAnnotatedTx(value: unknown): value is AnnotatedTx {
+  return typeof value === 'object' && value !== null;
+}
+
+function toTypedAltVmReceipt(
+  providerType: ProviderType,
+  receipt: TxReceipt,
+): TypedTransactionReceipt {
+  switch (providerType) {
+    case ProviderType.SolanaWeb3:
+    case ProviderType.CosmJs:
+    case ProviderType.CosmJsWasm:
+    case ProviderType.CosmJsNative:
+    case ProviderType.Starknet:
+    case ProviderType.Radix:
+    case ProviderType.Aleo:
+      // Provider SDK receipts are protocol-specific at runtime, but typed as TxReceipt.
+      return {
+        type: providerType,
+        receipt,
+      } as TypedTransactionReceipt;
+    default:
+      throw new Error(
+        `Unsupported provider type for non-EVM transfer execution: ${providerType}`,
+      );
+  }
+}
 
 export async function sendTestTransfer({
   context,
@@ -213,17 +244,22 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
-  const shouldSkipValidation =
-    skipValidation ||
+  const isCosmosOrigin =
     originProtocol === ProtocolType.Cosmos ||
     originProtocol === ProtocolType.CosmosNative;
-  if (!skipValidation && shouldSkipValidation) {
+  const skippedByUser = !!skipValidation;
+  const shouldSkipTransferValidation = skippedByUser || isCosmosOrigin;
+  if (isCosmosOrigin) {
     log(
-      `Skipping transfer validation for ${origin} because the sender public key is required for CosmJS gas estimation.`,
+      `Skipping transfer validation for ${origin} because Cosmos-origin validation is currently unsupported (CosmJS gas estimation requires sender public key).`,
+    );
+  } else if (skippedByUser) {
+    log(
+      `Skipping transfer validation for ${origin} because --skip-validation was set.`,
     );
   }
 
-  if (!shouldSkipValidation) {
+  if (!shouldSkipTransferValidation) {
     const errors = await warpCore.validateTransfer({
       originTokenAmount: token.amount(amount),
       destination,
@@ -263,13 +299,13 @@ async function executeDelivery({
       }
     } else {
       const signer = mustGet(altVmSigners, origin);
-      const txReceipt = await signer.sendAndConfirmTransaction(
-        tx.transaction as AnnotatedTx,
-      );
-      const typedReceipt = {
-        type: tx.type,
-        receipt: txReceipt,
-      } as TypedTransactionReceipt;
+      if (!isAnnotatedTx(tx.transaction)) {
+        throw new Error(
+          `Expected AnnotatedTx for non-EVM transfer execution, got ${typeof tx.transaction}`,
+        );
+      }
+      const txReceipt = await signer.sendAndConfirmTransaction(tx.transaction);
+      const typedReceipt = toTypedAltVmReceipt(tx.type, txReceipt);
       txReceipts.push(typedReceipt);
       if (tx.category === WarpTxCategory.Transfer) {
         transferReceipt = typedReceipt;

@@ -16,8 +16,6 @@ import {
   ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
-  PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
-  type TypedProvider,
 } from '@hyperlane-xyz/sdk';
 import { type Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -35,17 +33,6 @@ import {
   type SignerKeyProtocolMap,
   SignerKeyProtocolMapSchema,
 } from './types.js';
-
-type DefaultProviderProtocol = keyof typeof PROTOCOL_TO_DEFAULT_PROVIDER_TYPE;
-
-function isKnownProtocolType(
-  protocol: ProtocolType,
-): protocol is DefaultProviderProtocol {
-  return Object.prototype.hasOwnProperty.call(
-    PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
-    protocol,
-  );
-}
 
 export async function contextMiddleware(argv: Record<string, any>) {
   const requiresKey = isSignCommand(argv);
@@ -101,8 +88,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   await Promise.all(
     altVmChains.map(async (chain) => {
-      const { altVmProviders, multiProvider, multiProtocolProvider } =
-        argv.context;
+      const { altVmProviders, multiProvider } = argv.context;
       const protocol = multiProvider.getProtocol(chain);
       const metadata = multiProvider.getChainMetadata(chain);
 
@@ -110,15 +96,8 @@ export async function signerMiddleware(argv: Record<string, any>) {
         const provider =
           await getProtocolProvider(protocol).createProvider(metadata);
         altVmProviders[chain] = provider;
-
-        // Also set on multiProtocolProvider so SDK validation can use it
-        if (isKnownProtocolType(protocol)) {
-          const providerType = PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol];
-          multiProtocolProvider.setProvider(chain, {
-            type: providerType,
-            provider,
-          } as TypedProvider);
-        }
+        // multiProtocolProvider keeps its own typed providers from metadata/rpcUrls.
+        // Avoid injecting AltVM.IProvider here because it requires unsafe casting.
       }
     }),
   );
