@@ -84,8 +84,10 @@ The rebalancer container
   {{- end }}
   - name: HYP_REBALANCER_KEY
     value: $(HYP_REBALANCER_KEY)
+  {{- if .Values.hyperlane.inventoryRebalancerEnabled }}
   - name: HYP_INVENTORY_KEY
     value: $(HYP_INVENTORY_KEY)
+  {{- end }}
   - name: COINGECKO_API_KEY
     value: $(COINGECKO_API_KEY)
   - name: REBALANCER_CONFIG_FILE
