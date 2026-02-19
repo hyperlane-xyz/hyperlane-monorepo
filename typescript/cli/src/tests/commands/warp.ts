@@ -225,7 +225,7 @@ export class HyperlaneE2EWarpTestCommands {
     recipient?: string;
     relay?: boolean;
     quick?: boolean;
-    chains?: string;
+    chains?: string[];
     roundTrip?: boolean;
     skipValidation?: boolean;
     privateKey?: string;
@@ -243,7 +243,7 @@ export class HyperlaneE2EWarpTestCommands {
           ${recipient ? ['--recipient', recipient] : []} \
           ${relay ? ['--relay'] : []} \
           ${quick ? ['--quick'] : []} \
-          ${chains ? ['--chains', chains] : []} \
+          ${chains?.length ? ['--chains', ...chains] : []} \
           ${roundTrip ? ['--round-trip'] : []} \
           ${skipValidation ? ['--skip-validation'] : []} \
           ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
