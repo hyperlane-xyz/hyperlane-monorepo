@@ -1,6 +1,9 @@
 import { BigNumber, ethers, providers } from 'ethers';
 
-import { ERC20__factory } from '@hyperlane-xyz/core';
+import {
+  ERC20__factory,
+  MovableCollateralRouter__factory,
+} from '@hyperlane-xyz/core';
 
 export async function setupCollateralBalances(
   providers: Map<string, providers.JsonRpcProvider>,
@@ -64,4 +67,28 @@ export async function getAllCollateralBalances(
     );
   }
   return balances;
+}
+
+export interface AllowedBridgeConfig {
+  monitoredRouterAddress: string;
+  bridgeAddress: string;
+  destinationDomain: number;
+}
+
+export async function configureAllowedBridges(
+  provider: providers.JsonRpcProvider,
+  configs: AllowedBridgeConfig[],
+  deployerKey: string,
+): Promise<void> {
+  if (configs.length === 0) return;
+
+  const deployer = new ethers.Wallet(deployerKey, provider);
+  const router = MovableCollateralRouter__factory.connect(
+    configs[0].monitoredRouterAddress,
+    deployer,
+  );
+
+  for (const config of configs) {
+    await router.addBridge(config.destinationDomain, config.bridgeAddress);
+  }
 }
