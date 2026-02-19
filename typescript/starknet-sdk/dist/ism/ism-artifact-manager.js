@@ -46,7 +46,9 @@ class StarknetMerkleRootMultisigIsmReader {
         this.provider = provider;
     }
     async read(address) {
-        const ism = await this.provider.getMerkleRootMultisigIsm({ ismAddress: address });
+        const ism = await this.provider.getMerkleRootMultisigIsm({
+            ismAddress: address,
+        });
         return {
             artifactState: ArtifactState.DEPLOYED,
             config: {
@@ -90,7 +92,9 @@ class StarknetMessageIdMultisigIsmReader {
         this.provider = provider;
     }
     async read(address) {
-        const ism = await this.provider.getMessageIdMultisigIsm({ ismAddress: address });
+        const ism = await this.provider.getMessageIdMultisigIsm({
+            ismAddress: address,
+        });
         return {
             artifactState: ArtifactState.DEPLOYED,
             config: {
@@ -208,7 +212,8 @@ class StarknetRoutingIsmWriter extends StarknetRoutingIsmReader {
         const updateTxs = [];
         for (const route of expectedRoutes) {
             const actualAddress = actualByDomain.get(route.domainId);
-            if (!actualAddress || !eqAddressStarknet(actualAddress, route.ismAddress)) {
+            if (!actualAddress ||
+                !eqAddressStarknet(actualAddress, route.ismAddress)) {
                 updateTxs.push({
                     annotation: `Setting routing ISM route ${route.domainId}`,
                     ...(await this.signer.getSetRoutingIsmRouteTransaction({

@@ -1,5 +1,5 @@
 import { Account, CallData, ContractFactory, } from 'starknet';
-import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
+import { getCompiledContract, } from '@hyperlane-xyz/starknet-core';
 import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 import { normalizeStarknetAddress } from '../contracts.js';
 import { StarknetProvider } from './provider.js';

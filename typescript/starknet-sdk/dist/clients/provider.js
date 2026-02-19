@@ -566,7 +566,9 @@ export class StarknetProvider {
         ]);
     }
     async getTransferTransaction(req) {
-        const denom = req.denom ? normalizeStarknetAddress(req.denom) : this.feeTokenAddress;
+        const denom = req.denom
+            ? normalizeStarknetAddress(req.denom)
+            : this.feeTokenAddress;
         const token = this.withContract(StarknetContractName.ETHER, denom, this.provider, ContractType.TOKEN);
         return populateInvokeTx(token, 'transfer', [
             normalizeStarknetAddress(req.recipient),
@@ -581,7 +583,9 @@ export class StarknetProvider {
             req.amount,
             req.maxFee.amount,
             req.customHookMetadata ?? [],
-            req.customHookAddress ? normalizeStarknetAddress(req.customHookAddress) : [],
+            req.customHookAddress
+                ? normalizeStarknetAddress(req.customHookAddress)
+                : [],
         ]);
     }
 }

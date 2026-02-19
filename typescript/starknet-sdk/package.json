@@ -28,19 +28,23 @@
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
     "clean": "rm -rf ./dist ./cache",
-    "test": "echo \"no tests in starknet-sdk\"",
-    "test:ci": "echo \"no tests in starknet-sdk\""
+    "test": "mocha --config .mocharc.json",
+    "test:ci": "pnpm test"
   },
   "devDependencies": {
+    "@types/chai": "catalog:",
+    "@types/mocha": "catalog:",
     "@eslint/js": "catalog:",
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
+    "chai": "catalog:",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
+    "mocha": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"

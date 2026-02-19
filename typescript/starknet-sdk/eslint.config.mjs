@@ -4,6 +4,11 @@ export default [
   ...MonorepoDefaults,
   {
     files: ['src/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: './tsconfig.eslint.json',
+      },
+    },
     rules: {
       '@typescript-eslint/consistent-type-imports': [
         'error',

@@ -19,9 +19,12 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type CoreConfig,
+  type HookConfig,
+  HookType,
   TokenType,
   type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 /**
  * Supported token types in provider-sdk.
@@ -32,6 +35,42 @@ const SUPPORTED_TOKEN_TYPES = new Set<TokenType>([
   TokenType.collateral,
   TokenType.native,
 ]);
+
+const DEFAULT_SUPPORTED_HOOK_TYPES = new Set<HookType>([
+  HookType.MERKLE_TREE,
+  HookType.INTERCHAIN_GAS_PAYMASTER,
+]);
+
+const STARKNET_SUPPORTED_HOOK_TYPES = new Set<HookType>([
+  HookType.MERKLE_TREE,
+  HookType.PROTOCOL_FEE,
+]);
+
+function supportedHooksForProtocol(protocol: ProtocolType): Set<HookType> {
+  if (protocol === ProtocolType.Starknet) {
+    return STARKNET_SUPPORTED_HOOK_TYPES;
+  }
+  return DEFAULT_SUPPORTED_HOOK_TYPES;
+}
+
+function validateHookConfigForAltVM(
+  hookConfig: HookConfig | string | undefined,
+  chain: string,
+  protocol: ProtocolType,
+  path: string,
+) {
+  if (!hookConfig || typeof hookConfig === 'string') {
+    return;
+  }
+
+  const supportedHookTypes = supportedHooksForProtocol(protocol);
+  if (!supportedHookTypes.has(hookConfig.type)) {
+    const supported = Array.from(supportedHookTypes).join(', ');
+    throw new Error(
+      `Unsupported hook type '${hookConfig.type}' for Alt-VM chain '${chain}' at ${path}. Supported hook types for protocol '${protocol}': ${supported}.`,
+    );
+  }
+}
 
 /**
  * Validates that a CoreConfig is compatible with provider-sdk requirements.
@@ -44,6 +83,7 @@ const SUPPORTED_TOKEN_TYPES = new Set<TokenType>([
 export function validateCoreConfigForAltVM(
   config: CoreConfig,
   chain: string,
+  protocol: ProtocolType,
 ): ProviderCoreConfig {
   // Validate ISM configuration (handles recursion for routing ISMs)
   if (config.defaultIsm) {
@@ -54,9 +94,18 @@ export function validateCoreConfigForAltVM(
     );
   }
 
-  // Validate Hook configuration
-  // For now, we accept all hook types but could add validation here
-  // if specific hook types are not supported on Alt-VM chains
+  validateHookConfigForAltVM(
+    config.defaultHook,
+    chain,
+    protocol,
+    'defaultHook',
+  );
+  validateHookConfigForAltVM(
+    config.requiredHook,
+    chain,
+    protocol,
+    'requiredHook',
+  );
 
   // Type assertion is safe here because we've validated the structure
   // and provider-sdk types are a subset of SDK types
@@ -74,6 +123,7 @@ export function validateCoreConfigForAltVM(
 export function validateWarpConfigForAltVM(
   config: WarpRouteDeployConfigMailboxRequired[string],
   chain: string,
+  protocol: ProtocolType,
 ): ProviderWarpConfig {
   // Check if token type is supported
   if (!SUPPORTED_TOKEN_TYPES.has(config.type)) {
@@ -100,6 +150,8 @@ export function validateWarpConfigForAltVM(
       'warp config',
     );
   }
+
+  validateHookConfigForAltVM(config.hook, chain, protocol, 'hook');
 
   // Construct the provider-sdk config
   const baseConfig = {

@@ -1,5 +1,5 @@
-import { type ContractType } from '@hyperlane-xyz/starknet-core';
 import { type AnnotatedTx, type TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { type ContractType } from '@hyperlane-xyz/starknet-core';
 export type StarknetInvokeTx = AnnotatedTx & {
     kind: 'invoke';
     contractAddress: string;

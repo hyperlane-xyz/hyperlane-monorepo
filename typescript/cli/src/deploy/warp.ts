@@ -749,6 +749,7 @@ async function updateExistingWarpRoute(
             const validatedConfig = validateWarpConfigForAltVM(
               configWithMailbox,
               chain,
+              protocolType,
             );
 
             const warpModule = new AltVMWarpModule(

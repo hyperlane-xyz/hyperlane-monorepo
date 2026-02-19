@@ -143,7 +143,9 @@ export function getFeeTokenAddress(params) {
     return normalizeStarknetAddress(token);
 }
 export function normalizeRoutersAddress(value) {
-    if (value && typeof value === 'object' && ('low' in value || 'high' in value)) {
+    if (value &&
+        typeof value === 'object' &&
+        ('low' in value || 'high' in value)) {
         return normalizeStarknetAddress(num.toHex(uint256.uint256ToBN(value)));
     }
     return normalizeStarknetAddress(value);
