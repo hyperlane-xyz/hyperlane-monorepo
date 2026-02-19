@@ -170,6 +170,7 @@ export async function getContext({
     ProtocolType.Radix,
     ProtocolType.Aleo,
     ProtocolType.Sealevel,
+    ProtocolType.Starknet,
   ];
 
   return {
