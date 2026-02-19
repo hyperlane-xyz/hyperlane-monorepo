@@ -82,11 +82,6 @@ describe('hyperlane warp read e2e tests', async function () {
     anvil2WarpRouteId = WARP_DEPLOY_2_ID;
   });
 
-  beforeEach(async function () {
-    writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, anvil2WarpRouteId);
-  });
-
   describe('hyperlane warp read (no args)', () => {
     it('should exit early if no symbol or no chain and address', async () => {
       const output = await hyperlaneWarp.readRaw({}).nothrow();
@@ -97,6 +92,11 @@ describe('hyperlane warp read e2e tests', async function () {
   });
 
   describe('hyperlane warp read --warp-route-id ...', () => {
+    beforeEach(async function () {
+      writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
+      await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, anvil2WarpRouteId);
+    });
+
     it('should successfully read the complete warp route config from all the chains', async () => {
       const output = await hyperlaneWarp
         .readRaw({
@@ -114,7 +114,7 @@ describe('hyperlane warp read e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp read --symbol ...', () => {
+  describe('hyperlane warp read --warp-route-id <symbol-only> ...', () => {
     it('should successfully read the complete warp route config from all the chains', async () => {
       const readOutputPath = `${TEMP_PATH}/warp-read-all-chain-with-symbol.yaml`;
       const warpRouteId = 'READTEST/ethereum-warp-read-symbol';
@@ -227,6 +227,11 @@ describe('hyperlane warp read e2e tests', async function () {
   });
 
   describe('hyperlane warp read --chain ... --warp-route-id ...', () => {
+    beforeEach(async function () {
+      writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
+      await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, anvil2WarpRouteId);
+    });
+
     it('should be able to read a warp route', async function () {
       const warpReadResult: WarpRouteDeployConfig =
         await hyperlaneWarp.readConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2);

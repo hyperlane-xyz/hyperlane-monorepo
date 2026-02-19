@@ -57,6 +57,8 @@ export interface CommandContext extends Omit<
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
   warpCoreConfig?: WarpCoreConfig;
+  warpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
+  resolvedWarpRouteId?: string;
   // just for evm chains backward compatibility
   signerAddress?: string;
 }
