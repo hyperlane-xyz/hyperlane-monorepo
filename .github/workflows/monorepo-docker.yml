@@ -55,7 +55,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: Generate tag data
         id: taggen
         run: |

@@ -501,6 +501,7 @@ Convert addresses to names: `grep -i "[address]" typescript/sdk/src/consts/multi
 ### Type Safety
 
 - Avoid unnecessary type casts (`as` assertions), especially `as unknown as X` double-casts
+- Do not add bandaid casts like `as T['field']`; fix the function/type signatures instead
 - If types don't match, fix the underlying types rather than casting:
   - Adjust interface definitions to be compatible
   - Use type guards for runtime narrowing

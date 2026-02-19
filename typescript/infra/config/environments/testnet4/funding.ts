@@ -49,6 +49,7 @@ export const keyFunderConfig: KeyFunderConfig<
     radixtestnet: '0',
     sepolia: '5',
     starknetsepolia: '0',
+    somniatestnet: '10',
     // no funding for SVM chains
     solanatestnet: '0',
     // no funding for SVM chains

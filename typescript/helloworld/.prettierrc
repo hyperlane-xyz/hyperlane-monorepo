@@ -14,7 +14,5 @@
       }
     }
   ],
-  "plugins": [
-    "prettier-plugin-solidity"
-  ]
+  "plugins": ["prettier-plugin-solidity"]
 }

@@ -113,6 +113,7 @@
         "typescript/utils/src/**/*.ts"
       ],
       "rules": {
+        "import/no-nodejs-modules": "warn",
         "no-restricted-imports": [
           "warn",
           {
@@ -177,11 +178,19 @@
     {
       "files": [
         "typescript/utils/src/fs/**/*.ts",
+        "typescript/utils/src/eslint-rules/**/*.ts",
         "typescript/sdk/src/**/*.test.ts",
+        "typescript/sdk/src/**/*.spec.ts",
+        "typescript/sdk/src/**/*-test.ts",
         "typescript/widgets/src/**/*.test.ts",
-        "typescript/utils/src/**/*.test.ts"
+        "typescript/widgets/src/**/*.spec.ts",
+        "typescript/widgets/src/**/*-test.ts",
+        "typescript/utils/src/**/*.test.ts",
+        "typescript/utils/src/**/*.spec.ts",
+        "typescript/utils/src/**/*-test.ts"
       ],
       "rules": {
+        "import/no-nodejs-modules": "off",
         "no-restricted-imports": "off"
       }
     }

@@ -12,6 +12,7 @@
  * - COINGECKO_API_KEY: API key for CoinGecko price fetching (optional)
  * - LOG_LEVEL: Logging level (default: "info") - supported by pino
  * - REGISTRY_URI: Registry URI for chain metadata. Can include /tree/{commit} to pin version (default: GitHub registry)
+ * - RPC_URL_<CHAIN>: Override RPC URL for a specific chain (e.g., RPC_URL_ETHEREUM, RPC_URL_ARBITRUM)
  *
  * Usage:
  *   node dist/service.js
