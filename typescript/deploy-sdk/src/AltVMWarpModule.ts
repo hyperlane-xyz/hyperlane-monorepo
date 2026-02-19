@@ -344,15 +344,6 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
 
     const updateTransactions: AnnotatedTx[] = [];
 
-    // Only Aleo supports hook updates for AltVM chains
-    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
-    if (metadata.protocol !== ProtocolType.Aleo) {
-      this.logger.debug(
-        `Hook updates not supported for protocol ${metadata.protocol}. Skipping.`,
-      );
-      return updateTransactions;
-    }
-
     if (
       deepEquals(
         normalizeConfig(actualConfig.hook),

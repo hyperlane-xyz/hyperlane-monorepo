@@ -57,6 +57,7 @@ export type DeployedCoreAddresses = {
   interchainAccountRouter: string;
   merkleTreeHook?: string;
   interchainGasPaymaster?: string;
+  protocolFee?: string;
 };
 
 /**
@@ -171,6 +172,9 @@ export function coreResultToDeployedAddresses(result: {
       case 'merkleTreeHook':
         addresses.merkleTreeHook = hookAddress;
         break;
+      case 'protocolFee':
+        addresses.protocolFee = hookAddress;
+        break;
     }
   }
 
@@ -189,6 +193,11 @@ export function coreResultToDeployedAddresses(result: {
         // Only set if not already set by default hook
         if (!addresses.merkleTreeHook) {
           addresses.merkleTreeHook = hookAddress;
+        }
+        break;
+      case 'protocolFee':
+        if (!addresses.protocolFee) {
+          addresses.protocolFee = hookAddress;
         }
         break;
     }

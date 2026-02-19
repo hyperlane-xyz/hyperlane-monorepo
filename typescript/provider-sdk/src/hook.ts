@@ -25,6 +25,7 @@ export type HookModuleType = {
 export interface HookConfigs {
   interchainGasPaymaster: IgpHookModuleConfig;
   merkleTreeHook: MerkleTreeHookConfig;
+  protocolFee: ProtocolFeeHookConfig;
 }
 export type HookType = keyof HookConfigs;
 export type HookConfig = HookConfigs[HookType];
@@ -38,6 +39,8 @@ export function altVmHookTypeToProviderHookType(
       return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
     case AltVM.HookType.MERKLE_TREE:
       return AltVM.HookType.MERKLE_TREE;
+    case AltVM.HookType.PROTOCOL_FEE:
+      return AltVM.HookType.PROTOCOL_FEE;
     default:
       throw new Error(`Unsupported hook type in provider API: ${hookType}`);
   }
@@ -45,7 +48,7 @@ export function altVmHookTypeToProviderHookType(
 
 export const MUTABLE_HOOK_TYPE: HookType[] = [
   'interchainGasPaymaster',
-  // 'protocolFee',
+  'protocolFee',
   // 'domainRoutingHook',
   // 'fallbackRoutingHook',
   // 'pausableHook',
@@ -69,6 +72,15 @@ export interface IgpHookModuleConfig {
 
 export interface MerkleTreeHookConfig {
   type: 'merkleTreeHook';
+}
+
+export interface ProtocolFeeHookConfig {
+  type: 'protocolFee';
+  owner: string;
+  beneficiary: string;
+  maxProtocolFee: string;
+  protocolFee: string;
+  tokenAddress: string;
 }
 
 export type HookModuleAddresses = {
@@ -106,6 +118,7 @@ export interface IgpHookConfig {
 export interface HookArtifactConfigs {
   interchainGasPaymaster: IgpHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
+  protocolFee: ProtocolFeeHookConfig;
 }
 
 /**
@@ -138,6 +151,7 @@ export type IHookArtifactManager = IArtifactManager<
 export interface RawHookArtifactConfigs {
   interchainGasPaymaster: IgpHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
+  protocolFee: ProtocolFeeHookConfig;
 }
 
 /**
@@ -267,6 +281,19 @@ export function hookConfigToArtifact(
         },
       };
 
+    case 'protocolFee':
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: AltVM.HookType.PROTOCOL_FEE,
+          owner: config.owner,
+          beneficiary: config.beneficiary,
+          maxProtocolFee: config.maxProtocolFee,
+          protocolFee: config.protocolFee,
+          tokenAddress: config.tokenAddress,
+        },
+      };
+
     default: {
       throw new Error(`Unhandled hook type: ${(config as any).type}`);
     }
@@ -305,6 +332,18 @@ export function shouldDeployNewHook(
     case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
       // IGP hooks are mutable - can be updated
       return false;
+
+    case AltVM.HookType.PROTOCOL_FEE: {
+      // protocol fee + beneficiary + owner are mutable
+      // maxProtocolFee and tokenAddress require redeploy
+      const actualProtocolFee = actual as ProtocolFeeHookConfig;
+      const expectedProtocolFee = expected as ProtocolFeeHookConfig;
+      return (
+        actualProtocolFee.maxProtocolFee !==
+          expectedProtocolFee.maxProtocolFee ||
+        actualProtocolFee.tokenAddress !== expectedProtocolFee.tokenAddress
+      );
+    }
 
     default: {
       throw new Error(`Unhandled hook type: ${(expected as any).type}`);
@@ -416,6 +455,12 @@ export function hookArtifactToDerivedConfig(
 
     case AltVM.HookType.MERKLE_TREE:
       // For MerkleTree hooks, just add the address
+      return {
+        ...config,
+        address,
+      };
+
+    case AltVM.HookType.PROTOCOL_FEE:
       return {
         ...config,
         address,

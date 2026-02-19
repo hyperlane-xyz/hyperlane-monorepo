@@ -65,6 +65,9 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
     } = {
       merkleTreeHook: () => new RadixMerkleTreeHookReader(this.gateway),
       interchainGasPaymaster: () => new RadixIgpHookReader(this.gateway),
+      protocolFee: () => {
+        throw new Error('Protocol fee hook unsupported on Radix');
+      },
     };
 
     return readers[type]();
@@ -96,6 +99,9 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
           this.base,
           this.nativeTokenDenom,
         ),
+      protocolFee: () => {
+        throw new Error('Protocol fee hook unsupported on Radix');
+      },
     };
 
     return writers[type]();

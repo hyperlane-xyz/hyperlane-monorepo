@@ -126,8 +126,11 @@ export class HookWriter
   async update(artifact: DeployedHookArtifact): Promise<AnnotatedTx[]> {
     const { artifactState, config, deployed } = artifact;
 
-    // Only IGP hooks are mutable - support gas config and owner updates
-    if (config.type === AltVM.HookType.INTERCHAIN_GAS_PAYMASTER) {
+    // Mutable hooks support in-place updates
+    if (
+      config.type === AltVM.HookType.INTERCHAIN_GAS_PAYMASTER ||
+      config.type === AltVM.HookType.PROTOCOL_FEE
+    ) {
       const writer = this.artifactManager.createWriter(
         config.type,
         this.signer,

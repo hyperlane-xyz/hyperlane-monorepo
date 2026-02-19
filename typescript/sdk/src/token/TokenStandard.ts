@@ -300,6 +300,21 @@ export const tokenTypeToStandard = (
         `token type ${tokenType} not available on protocol ${protocolType}`,
       );
     }
+    case ProtocolType.Starknet: {
+      if (
+        STARKNET_SUPPORTED_TOKEN_TYPES.includes(
+          tokenType as StarknetSupportedTokenTypes,
+        )
+      ) {
+        return STARKNET_TOKEN_TYPE_TO_STANDARD[
+          tokenType as StarknetSupportedTokenTypes
+        ];
+      }
+
+      throw new Error(
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+    }
     case ProtocolType.Sealevel: {
       const sealevelTokenStandard =
         SEALEVEL_TOKEN_TYPE_TO_STANDARD[

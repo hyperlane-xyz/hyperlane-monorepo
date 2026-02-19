@@ -124,6 +124,9 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
       [AltVM.HookType.MERKLE_TREE]: () => new CosmosMerkleTreeHookReader(query),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new CosmosIgpHookReader(query),
+      [AltVM.HookType.PROTOCOL_FEE]: () => {
+        throw new Error('Protocol fee hook unsupported on CosmosNative');
+      },
     };
 
     return readers[type]();
@@ -196,6 +199,9 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
           signer,
           this.config.nativeTokenDenom,
         );
+      },
+      [AltVM.HookType.PROTOCOL_FEE]: () => {
+        throw new Error('Protocol fee hook unsupported on CosmosNative');
       },
     };
 

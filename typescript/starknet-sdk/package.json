@@ -1,0 +1,54 @@
+{
+  "name": "@hyperlane-xyz/starknet-sdk",
+  "version": "24.0.0",
+  "description": "Hyperlane TypeScript SDK for Starknet artifact API support",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "dist/index.d.ts",
+  "files": [
+    "/dist"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "keywords": [
+    "hyperlane",
+    "starknet",
+    "blockchain",
+    "sdk"
+  ],
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "rm -rf ./dist && tsc",
+    "format": "prettier --write .",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "prettier": "prettier --write ./src",
+    "clean": "rm -rf ./dist ./cache",
+    "test": "echo \"no tests in starknet-sdk\"",
+    "test:ci": "echo \"no tests in starknet-sdk\""
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/starknet-core": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "starknet": "catalog:"
+  }
+}

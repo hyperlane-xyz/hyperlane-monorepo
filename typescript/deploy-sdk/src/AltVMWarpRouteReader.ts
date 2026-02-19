@@ -1,4 +1,4 @@
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainLookup,
   ChainMetadataForAltVM,
@@ -79,18 +79,11 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
         : // TODO: replace with protocol-specific zero address
           '0x0000000000000000000000000000000000000000';
 
-    // Hook address is not exposed by providers yet, use zero address as placeholder
-    // TODO: replace with protocol-specific zero address
-    let hook: DerivedWarpConfig['hook'];
-    if (this.chainMetadata.protocol !== ProtocolType.Aleo) {
-      hook = '0x0000000000000000000000000000000000000000';
-    } else {
-      hook =
-        // Not using isNullish because some protocol impl might return an empty string
-        token.hookAddress && !isZeroishAddress(token.hookAddress)
-          ? await this.hookReader.deriveHookConfig(token.hookAddress)
-          : '0x0000000000000000000000000000000000000000';
-    }
+    const hook =
+      // Not using isNullish because some protocol impl might return an empty string
+      token.hookAddress && !isZeroishAddress(token.hookAddress)
+        ? await this.hookReader.deriveHookConfig(token.hookAddress)
+        : '0x0000000000000000000000000000000000000000';
 
     const baseConfig = {
       owner: token.owner,

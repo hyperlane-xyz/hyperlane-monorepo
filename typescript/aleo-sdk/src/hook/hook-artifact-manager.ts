@@ -65,6 +65,9 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
         new AleoMerkleTreeHookReader(this.aleoClient),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new AleoIgpHookReader(this.aleoClient),
+      [AltVM.HookType.PROTOCOL_FEE]: () => {
+        throw new Error('Protocol fee hook unsupported on Aleo');
+      },
     };
 
     const maybeReader = readers[type]();
@@ -90,6 +93,9 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
         new AleoMerkleTreeHookWriter(this.aleoClient, signer, mailboxAddress),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new AleoIgpHookWriter(this.aleoClient, signer, mailboxAddress),
+      [AltVM.HookType.PROTOCOL_FEE]: () => {
+        throw new Error('Protocol fee hook unsupported on Aleo');
+      },
     };
 
     const maybeWriter = writers[type]();

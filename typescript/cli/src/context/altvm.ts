@@ -1,4 +1,4 @@
-import { password } from '@inquirer/prompts';
+import { input, password } from '@inquirer/prompts';
 
 import {
   type AltVM,
@@ -57,6 +57,29 @@ async function loadPrivateKey(
   return keyByProtocol[protocol]!;
 }
 
+async function loadAccountAddress(
+  strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
+  protocol: ProtocolType,
+  chain: string,
+): Promise<string | undefined> {
+  if (protocol !== 'starknet') {
+    return undefined;
+  }
+
+  const rawConfig = strategyConfig[chain]?.submitter;
+  if (rawConfig?.type === TxSubmitterType.JSON_RPC && rawConfig.userAddress) {
+    return rawConfig.userAddress;
+  }
+
+  if (process.env.HYP_ACCOUNT_ADDRESS_STARKNET) {
+    return process.env.HYP_ACCOUNT_ADDRESS_STARKNET;
+  }
+
+  return input({
+    message: `Please enter the Starknet account address for chain ${chain}`,
+  });
+}
+
 export async function createAltVMSigners(
   metadataManager: ChainMetadataManager,
   chains: string[],
@@ -74,6 +97,11 @@ export async function createAltVMSigners(
     const signerConfig = {
       privateKey: await loadPrivateKey(
         keyByProtocol,
+        strategyConfig,
+        metadata.protocol,
+        chain,
+      ),
+      accountAddress: await loadAccountAddress(
         strategyConfig,
         metadata.protocol,
         chain,
