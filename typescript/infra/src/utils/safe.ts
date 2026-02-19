@@ -334,22 +334,31 @@ export async function deleteSafeTx(
 
   // Fetch the transaction details to get the proposer
   const txDetailsUrl = `${txServiceUrl}/api/v2/multisig-transactions/${safeTxHash}/`;
-  const txDetails = await retrySafeApi(async () => {
-    const txDetailsResponse = await fetch(txDetailsUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'node-fetch',
-        Authorization: `Bearer ${safeApiKey}`,
-      },
+  let txDetails;
+  try {
+    txDetails = await retrySafeApi(async () => {
+      const txDetailsResponse = await fetch(txDetailsUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'node-fetch',
+          Authorization: `Bearer ${safeApiKey}`,
+        },
+      });
+
+      if (!txDetailsResponse.ok) {
+        throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
+      }
+
+      return txDetailsResponse.json();
     });
-
-    if (!txDetailsResponse.ok) {
-      throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
-    }
-
-    return txDetailsResponse.json();
-  });
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
+      error,
+    );
+    return;
+  }
   const proposer = txDetails.proposer;
 
   if (!proposer) {
