@@ -74,6 +74,7 @@ export class RebalancerContextFactory {
     private readonly multiProtocolProvider: MultiProtocolProvider,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
+    private readonly inventoryPrivateKey?: string,
   ) {}
 
   /**
@@ -92,6 +93,7 @@ export class RebalancerContextFactory {
     registry: IRegistry,
     logger: Logger,
     warpCoreConfigOverride?: WarpCoreConfig,
+    inventoryPrivateKey?: string,
   ): Promise<RebalancerContextFactory> {
     logger.debug(
       {
@@ -155,6 +157,7 @@ export class RebalancerContextFactory {
       extendedMultiProtocolProvider,
       registry,
       logger,
+      inventoryPrivateKey,
     );
   }
 
@@ -432,6 +435,16 @@ export class RebalancerContextFactory {
               {
                 integrator: lifiConfig.integrator,
                 defaultSlippage: lifiConfig.defaultSlippage,
+                privateKey: this.inventoryPrivateKey,
+                getChainRpcUrl: (chainId: number) => {
+                  const chainName = this.multiProvider.tryGetChainName(chainId);
+                  if (!chainName) return undefined;
+                  try {
+                    return this.multiProvider.getRpcUrl(chainName);
+                  } catch {
+                    return undefined;
+                  }
+                },
               },
               this.logger,
             );
