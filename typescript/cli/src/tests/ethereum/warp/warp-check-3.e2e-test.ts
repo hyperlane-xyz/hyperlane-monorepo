@@ -65,12 +65,6 @@ describe('hyperlane warp check e2e tests', async function () {
     warpRouteId: string;
   }> {
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    // currently warp deploy is not writing the deploy config to the registry
-    // should remove this once the deploy config is written to the registry
-    writeYamlOrJson(
-      combinedWarpCoreConfigPath.replace('-config.yaml', '-deploy.yaml'),
-      warpConfig,
-    );
 
     const currentWarpId = createWarpRouteConfigId(
       await token.symbol(),
