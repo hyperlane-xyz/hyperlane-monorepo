@@ -179,6 +179,10 @@ export async function resolveWarpRouteIdForDeploy(
   );
 
   if (!warpDeployPath) {
+    assert(
+      warpRouteId,
+      'warpRouteId is required when warpDeployPath is omitted',
+    );
     return warpRouteId;
   }
 
