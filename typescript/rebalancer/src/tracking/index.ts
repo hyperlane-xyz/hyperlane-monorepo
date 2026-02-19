@@ -17,6 +17,10 @@ export type {
   Transfer,
   RebalanceIntent,
   RebalanceAction,
+  // Action types
+  ActionType,
+  // Derived types
+  PartialInventoryIntent,
   // Store type aliases
   ITransferStore,
   IRebalanceIntentStore,

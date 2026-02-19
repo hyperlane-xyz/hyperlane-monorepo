@@ -102,6 +102,8 @@ export type {
   Transfer,
   RebalanceIntent,
   RebalanceAction,
+  ActionType,
+  PartialInventoryIntent,
 } from './tracking/types.js';
 
 // Factory
