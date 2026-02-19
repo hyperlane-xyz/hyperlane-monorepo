@@ -56,6 +56,20 @@ View SDK contract addresses: `hyperlane chains addresses`
 
 Send test message: `hyperlane send message`
 
+## Starknet signer configuration
+
+For Starknet JSON-RPC submitters, you must provide both:
+
+- A private key (via CLI key input, strategy, or env flow)
+- A Starknet account address
+
+The account address can be set either:
+
+- In strategy config as `submitter.userAddress`
+- Or via environment variable `HYP_ACCOUNT_ADDRESS_STARKNET`
+
+Example strategy: `examples/submit/strategy/starknet-json-rpc-chain-strategy.yaml`
+
 ## Logging
 
 The logging format can be toggled between human-readable vs JSON-structured logs using the `LOG_FORMAT` environment variable or the `--log <pretty|json>` flag.

@@ -1,0 +1,7 @@
+starknet:
+  submitter:
+    chain: starknet
+    type: jsonRpc
+    # Required for Starknet submitters:
+    # Either set this userAddress or export HYP_ACCOUNT_ADDRESS_STARKNET.
+    userAddress: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
