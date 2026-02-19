@@ -108,14 +108,14 @@ async function getWarpConfigsFromContextOrRegistry({
     return {
       warpCoreConfig: context.warpCoreConfig,
       warpDeployConfig: context.warpDeployConfig,
-      resolvedWarpRouteId: context.resolvedWarpRouteId ?? warpRouteId ?? '',
     };
   }
 
-  return getWarpConfigs({
+  const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
     context,
     warpRouteId,
   });
+  return { warpCoreConfig, warpDeployConfig };
 }
 
 export const apply: CommandModuleWithWarpApplyContext<
