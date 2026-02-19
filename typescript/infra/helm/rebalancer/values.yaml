@@ -10,6 +10,7 @@ hyperlane:
   withMetrics: true
   # Used for fetching private RPC secrets
   chains: []
+  inventoryRebalancerEnabled: false
 nameOverride: ''
 fullnameOverride: ''
 externalSecrets:

@@ -7,7 +7,10 @@ export enum Role {
   InventoryRebalancer = 'inventoryrebalancer',
 }
 
-export type FundableRole = Role.Relayer | Role.Rebalancer;
+export type FundableRole =
+  | Role.Relayer
+  | Role.Rebalancer
+  | Role.InventoryRebalancer;
 
 export const ALL_KEY_ROLES = [
   Role.Validator,
