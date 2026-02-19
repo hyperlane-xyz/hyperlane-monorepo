@@ -101,6 +101,21 @@ describe('resolveWarpRouteId', () => {
     }
   });
 
+  it('should throw explicit error for legacy symbol/warp params', async () => {
+    const context = createMockContext();
+    try {
+      await resolveWarpRouteId({
+        context,
+        symbol: 'ETH',
+      });
+      expect.fail('Should have thrown an error');
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        'Legacy "symbol"/"warp" params are not supported',
+      );
+    }
+  });
+
   it('should return the single matching route when symbol matches one route', async () => {
     const context = createMockContext();
     const result = await resolveWarpRouteId({

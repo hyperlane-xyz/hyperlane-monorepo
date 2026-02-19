@@ -62,18 +62,30 @@ export async function getWarpCoreConfigOrExit({
  * - Optional `chains` filtering narrows symbol matches to routes that span all
  *   specified chains.
  */
-export async function resolveWarpRouteId({
-  context,
-  warpRouteId,
-  promptByDeploymentConfigs,
-  chains,
-}: {
+export async function resolveWarpRouteId(args: {
   context: CommandContext;
   warpRouteId?: string;
   promptByDeploymentConfigs?: boolean;
   /** Filter routes to only those spanning all specified chains */
   chains?: string[];
+  /** @deprecated use warpRouteId */
+  symbol?: string;
+  /** @deprecated use warpRouteId */
+  warp?: string;
 }): Promise<string> {
+  const {
+    context,
+    warpRouteId,
+    promptByDeploymentConfigs,
+    chains,
+    symbol: legacySymbol,
+    warp: legacyWarp,
+  } = args;
+  assert(
+    !(legacySymbol || legacyWarp),
+    'Legacy "symbol"/"warp" params are not supported. Use "warpRouteId".',
+  );
+
   const deployments = (await context.registry.listRegistryContent())
     .deployments;
   const source = promptByDeploymentConfigs
