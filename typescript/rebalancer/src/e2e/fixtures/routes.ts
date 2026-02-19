@@ -198,8 +198,8 @@ export function buildInventoryMinAmountStrategyConfig(
       chains: {
         anvil1: {
           minAmount: {
-            min: '1000000000000000000',
-            target: '2000000000000000000',
+            min: '1',
+            target: '2',
             type: RebalancerMinAmountType.Absolute,
           },
           executionType: ExecutionType.Inventory,
@@ -207,8 +207,8 @@ export function buildInventoryMinAmountStrategyConfig(
         },
         anvil2: {
           minAmount: {
-            min: '1000000000000000000',
-            target: '2000000000000000000',
+            min: '1',
+            target: '2',
             type: RebalancerMinAmountType.Absolute,
           },
           executionType: ExecutionType.Inventory,
@@ -216,8 +216,8 @@ export function buildInventoryMinAmountStrategyConfig(
         },
         anvil3: {
           minAmount: {
-            min: '1000000000000000000',
-            target: '2000000000000000000',
+            min: '1',
+            target: '2',
             type: RebalancerMinAmountType.Absolute,
           },
           executionType: ExecutionType.Inventory,
