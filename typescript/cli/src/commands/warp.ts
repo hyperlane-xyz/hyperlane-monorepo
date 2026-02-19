@@ -6,6 +6,7 @@ import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
+  type WarpCoreConfig,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
   getRouterAddressesFromWarpCoreConfig,
@@ -353,6 +354,7 @@ const send: CommandModuleWithWriteContext<
       skipValidation?: boolean;
       sourceToken?: string;
       destinationToken?: string;
+      preResolvedWarpCoreConfig?: WarpCoreConfig;
     }
 > = {
   command: 'send',
@@ -406,16 +408,19 @@ const send: CommandModuleWithWriteContext<
     skipValidation,
     sourceToken,
     destinationToken,
+    preResolvedWarpCoreConfig,
   }) => {
     const filterChains = [origin, destination, ...(chainsArg || [])]
       .filter((v): v is string => Boolean(v))
       .filter((v, i, a) => a.indexOf(v) === i);
 
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
-      warpRouteId,
-      context,
-      chains: filterChains.length > 0 ? filterChains : undefined,
-    });
+    const warpCoreConfig =
+      preResolvedWarpCoreConfig ??
+      (await getWarpCoreConfigOrExit({
+        warpRouteId,
+        context,
+        chains: filterChains.length > 0 ? filterChains : undefined,
+      }));
     let chains = chainsArg?.length ? chainsArg : [];
 
     if (origin && destination) {

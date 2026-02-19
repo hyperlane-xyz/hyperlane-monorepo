@@ -266,6 +266,7 @@ async function resolveWarpSendChains(
       context: argv.context,
       warpRouteId: argv.warpRouteId,
     });
+    argv.preResolvedWarpCoreConfig = warpCoreConfig;
     warpCoreConfig.tokens.forEach((token) =>
       selectedChains.add(token.chainName),
     );
