@@ -15,6 +15,7 @@ import type {
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
+import { isNativeTokenStandard } from '../utils/tokenUtils.js';
 import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
@@ -116,9 +117,10 @@ export class MinAmountStrategy extends BaseStrategy {
         if (chainConfig.minAmount.type === RebalancerMinAmountType.Absolute) {
           const token = this.getTokenByChainName(chain);
 
-          minAmount = BigInt(toWei(chainConfig.minAmount.min, token.decimals));
-          targetAmount = BigInt(
-            toWei(chainConfig.minAmount.target, token.decimals),
+          minAmount = this.getAbsoluteAmount(chainConfig.minAmount.min, token);
+          targetAmount = this.getAbsoluteAmount(
+            chainConfig.minAmount.target,
+            token,
           );
         } else {
           minAmount = BigInt(
@@ -163,6 +165,18 @@ export class MinAmountStrategy extends BaseStrategy {
     return token;
   }
 
+  private getAbsoluteAmount(value: string | number, token: Token): bigint {
+    const strValue = String(value);
+    if (isNativeTokenStandard(token.standard) && !strValue.includes('.')) {
+      const normalizedValue = strValue.replace(/^0+/, '') || '0';
+      if (normalizedValue.length > token.decimals) {
+        return BigInt(strValue);
+      }
+    }
+
+    return BigInt(toWei(strValue, token.decimals));
+  }
+
   private validateAmounts(
     totalCollateral: bigint,
     minAmountType: RebalancerMinAmountType,
@@ -179,8 +193,9 @@ export class MinAmountStrategy extends BaseStrategy {
         // all the tokens have the same amount of decimals
         decimals = token.decimals;
 
-        totalTargets += BigInt(
-          toWei(config[chainName].minAmount.target, token.decimals),
+        totalTargets += this.getAbsoluteAmount(
+          config[chainName].minAmount.target,
+          token,
         );
       }
 
