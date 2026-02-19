@@ -1,5 +1,7 @@
 import type { Logger } from 'pino';
 
+import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+
 import type { ExternalBridgeType } from '../config/types.js';
 
 /**
@@ -9,8 +11,7 @@ export interface ExternalBridgeConfig {
   integrator: string; // Required: dApp/company name for bridge integration
   apiKey?: string; // Optional: API key for higher rate limits
   defaultSlippage?: number; // Default slippage tolerance (e.g., 0.005 = 0.5%)
-  privateKey?: string; // Optional: private key for viem wallet (avoids unsafe signer cast)
-  getChainRpcUrl?: (chainId: number) => string | undefined; // Optional: RPC URL resolver
+  chainMetadata?: ChainMap<ChainMetadata>; // Optional: chain metadata for resolving RPC URLs by chainId
 }
 
 /**
@@ -85,9 +86,12 @@ export interface IExternalBridge {
   /**
    * Execute a bridge transfer using a previously obtained quote.
    * @param quote - Quote obtained from quote()
-   * @param signer - Signer for the transaction (type depends on bridge implementation)
+   * @param privateKey - Private key hex string (0x-prefixed) for signing the transaction
    */
-  execute(quote: BridgeQuote, signer: unknown): Promise<BridgeTransferResult>;
+  execute(
+    quote: BridgeQuote,
+    privateKey: string,
+  ): Promise<BridgeTransferResult>;
 
   /**
    * Get the status of a bridge transfer.

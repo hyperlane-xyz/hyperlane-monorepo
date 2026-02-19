@@ -8,7 +8,6 @@ import {
   getStatus,
   config as lifiConfig,
 } from '@lifi/sdk';
-import type { Signer } from 'ethers';
 import type { Logger } from 'pino';
 import { type Chain, createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -141,6 +140,20 @@ export class LiFiBridge implements IExternalBridge {
       { integrator: this.config.integrator },
       'LiFi SDK initialized',
     );
+  }
+
+  /**
+   * Resolve RPC URL for a given EVM chainId from chain metadata.
+   * Iterates metadata to find matching chainId and returns first HTTP RPC URL.
+   */
+  private getRpcUrlForChainId(chainId: number): string | undefined {
+    if (!this.config.chainMetadata) return undefined;
+    for (const metadata of Object.values(this.config.chainMetadata)) {
+      if (metadata.chainId === chainId && metadata.rpcUrls?.length) {
+        return metadata.rpcUrls[0].http;
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -334,11 +347,11 @@ export class LiFiBridge implements IExternalBridge {
    * Handles approvals, transaction signing, and execution automatically.
    *
    * @param quote - Quote obtained from quote()
-   * @param signer - Ethers Signer (must be a Wallet with private key access)
+   * @param privateKey - Private key hex string (0x-prefixed) for signing the transaction
    */
   async execute(
     quote: BridgeQuote,
-    _signer: Signer,
+    privateKey: string,
   ): Promise<BridgeTransferResult> {
     this.initialize();
 
@@ -361,16 +374,9 @@ export class LiFiBridge implements IExternalBridge {
       'Executing LiFi bridge transfer',
     );
 
-    const privateKey = this.config.privateKey;
-    if (!privateKey) {
-      throw new Error(
-        'LiFiBridge config must include privateKey for execution',
-      );
-    }
-
     // Create viem account and wallet client for the source chain
     const account = privateKeyToAccount(privateKey as `0x${string}`);
-    const rpcUrl = this.config.getChainRpcUrl?.(fromChain);
+    const rpcUrl = this.getRpcUrlForChainId(fromChain);
     const chain = getViemChain(fromChain, rpcUrl);
 
     const walletClient = createWalletClient({
@@ -393,7 +399,7 @@ export class LiFiBridge implements IExternalBridge {
       EVM({
         getWalletClient: async () => walletClient,
         switchChain: async (requiredChainId: number) => {
-          const switchRpcUrl = this.config.getChainRpcUrl?.(requiredChainId);
+          const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
           const requiredChain = getViemChain(requiredChainId, switchRpcUrl);
           return createWalletClient({
             account,
