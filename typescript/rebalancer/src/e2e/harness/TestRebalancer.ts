@@ -43,10 +43,7 @@ import {
 import { setupCollateralBalances } from './BridgeSetup.js';
 import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
 import { ForkIndexer } from './ForkIndexer.js';
-import {
-  type LocalDeploymentContext,
-  LocalDeploymentManager,
-} from './LocalDeploymentManager.js';
+import { type LocalDeploymentContext } from './LocalDeploymentManager.js';
 import {
   MockExplorerClient,
   type MockExplorerConfig,
@@ -522,7 +519,7 @@ export class TestRebalancerBuilder {
 
 export class TestRebalancer {
   static builder(
-    deploymentManager: LocalDeploymentManager,
+    deploymentManager: BaseLocalDeploymentManager<any>,
     multiProvider: MultiProvider,
   ): TestRebalancerBuilder {
     return new TestRebalancerBuilder(deploymentManager, multiProvider);
