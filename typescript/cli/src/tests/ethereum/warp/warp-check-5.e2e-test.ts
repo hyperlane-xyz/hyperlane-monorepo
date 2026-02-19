@@ -3,10 +3,7 @@ import { type Signer, Wallet, ethers } from 'ethers';
 import { zeroAddress } from 'viem';
 
 import { type ERC20Test, Mailbox__factory } from '@hyperlane-xyz/core';
-import {
-  type ChainAddresses,
-  createWarpRouteConfigId,
-} from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
   HookType,
@@ -32,6 +29,7 @@ import {
   WARP_DEPLOY_DEFAULT_FILE_NAME,
   WARP_DEPLOY_OUTPUT_PATH,
   getCombinedWarpRoutePath,
+  getWarpRouteId,
 } from '../consts.js';
 
 describe('hyperlane warp check e2e tests', async function () {
@@ -74,10 +72,7 @@ describe('hyperlane warp check e2e tests', async function () {
   }> {
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
 
-    const currentWarpId = createWarpRouteConfigId(
-      await token.symbol(),
-      CHAIN_NAME_3,
-    );
+    const currentWarpId = getWarpRouteId(tokenSymbol, [CHAIN_NAME_3]);
 
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, currentWarpId);
 
@@ -120,10 +115,7 @@ describe('hyperlane warp check e2e tests', async function () {
       );
       writeYamlOrJson(warpDeployPath, warpConfig);
 
-      const currentWarpId = createWarpRouteConfigId(
-        await token.symbol(),
-        CHAIN_NAME_3,
-      );
+      const currentWarpId = getWarpRouteId(tokenSymbol, [CHAIN_NAME_3]);
 
       const warpDeployConfig = warpConfig;
       await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
@@ -193,14 +185,12 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     it(`should find inconsistent decimals without scale`, async function () {
-      const currentWarpId = createWarpRouteConfigId(
-        await token.symbol(),
+      const currentWarpId = getWarpRouteId(tokenSymbol, [
         WARP_DEPLOY_DEFAULT_FILE_NAME,
-      );
-      const registryDeployPath = getCombinedWarpRoutePath(
-        await token.symbol(),
-        [WARP_DEPLOY_DEFAULT_FILE_NAME],
-      ).replace('-config.yaml', '-deploy.yaml');
+      ]);
+      const registryDeployPath = getCombinedWarpRoutePath(tokenSymbol, [
+        WARP_DEPLOY_DEFAULT_FILE_NAME,
+      ]).replace('-config.yaml', '-deploy.yaml');
 
       writeYamlOrJson(registryDeployPath, warpConfig);
       await hyperlaneWarpDeploy(currentWarpId);
@@ -224,14 +214,12 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     it(`should find invalid scale config`, async function () {
-      const currentWarpId = createWarpRouteConfigId(
-        await token.symbol(),
+      const currentWarpId = getWarpRouteId(tokenSymbol, [
         WARP_DEPLOY_DEFAULT_FILE_NAME,
-      );
-      const registryDeployPath = getCombinedWarpRoutePath(
-        await token.symbol(),
-        [WARP_DEPLOY_DEFAULT_FILE_NAME],
-      ).replace('-config.yaml', '-deploy.yaml');
+      ]);
+      const registryDeployPath = getCombinedWarpRoutePath(tokenSymbol, [
+        WARP_DEPLOY_DEFAULT_FILE_NAME,
+      ]).replace('-config.yaml', '-deploy.yaml');
 
       writeYamlOrJson(registryDeployPath, warpConfig);
       await hyperlaneWarpDeploy(currentWarpId);
