@@ -1,4 +1,4 @@
-import { Wallet, ethers } from 'ethers';
+import { Wallet } from 'ethers';
 import { $, type ProcessOutput, type ProcessPromise } from 'zx';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
@@ -124,29 +124,9 @@ function hasSymbol(config: unknown): config is { symbol: string } {
   );
 }
 
-function hasTokenAddress(config: unknown): config is { token: string } {
-  return (
-    typeof config === 'object' &&
-    config !== null &&
-    'token' in config &&
-    typeof (config as { token?: unknown }).token === 'string'
-  );
-}
-
 async function resolveWarpRouteSymbolFromConfig(
   warpDeployConfig: WarpRouteDeployConfig,
 ): Promise<string | undefined> {
-  let cachedContext: Awaited<ReturnType<typeof getContext>> | undefined;
-  const getCachedContext = async () => {
-    if (!cachedContext) {
-      cachedContext = await getContext({
-        registryUris: [REGISTRY_PATH],
-        key: ANVIL_KEY,
-      });
-    }
-    return cachedContext;
-  };
-
   for (const config of Object.values(warpDeployConfig)) {
     if (hasSymbol(config)) {
       return config.symbol;
@@ -154,7 +134,10 @@ async function resolveWarpRouteSymbolFromConfig(
   }
 
   try {
-    const { multiProvider } = await getCachedContext();
+    const { multiProvider } = await getContext({
+      registryUris: [REGISTRY_PATH],
+      key: ANVIL_KEY,
+    });
     const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
       multiProvider,
       warpDeployConfig,
@@ -162,37 +145,7 @@ async function resolveWarpRouteSymbolFromConfig(
     return tokenMetadata.getDefaultSymbol();
   } catch (error: unknown) {
     console.warn(
-      `[resolveWarpRouteSymbolFromConfig] token metadata derivation failed for registry "${REGISTRY_PATH}". Falling back to RPC symbol lookup.`,
-      error,
-    );
-  }
-
-  let tokenChain: string | undefined;
-  let tokenAddress: string | undefined;
-  for (const [chainName, config] of Object.entries(warpDeployConfig)) {
-    if (hasTokenAddress(config)) {
-      tokenChain = chainName;
-      tokenAddress = config.token;
-      break;
-    }
-  }
-
-  if (!tokenChain || !tokenAddress) {
-    return undefined;
-  }
-
-  try {
-    const { multiProvider } = await getCachedContext();
-    const provider = multiProvider.getProvider(tokenChain);
-    const erc20 = new ethers.Contract(
-      tokenAddress,
-      ['function symbol() view returns (string)'],
-      provider,
-    );
-    return await erc20.symbol();
-  } catch (error: unknown) {
-    console.warn(
-      `[resolveWarpRouteSymbolFromConfig] RPC symbol() lookup failed for chain "${tokenChain}" token "${tokenAddress}".`,
+      `[resolveWarpRouteSymbolFromConfig] token metadata derivation failed for registry "${REGISTRY_PATH}".`,
       error,
     );
     return undefined;
@@ -428,31 +381,12 @@ export async function readWarpConfig(
   warpCorePath: string,
   warpDeployPath: string,
 ): Promise<WarpRouteDeployConfigMailboxRequired> {
-  const existingConfig = isFile(warpDeployPath)
-    ? (readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig)
-    : undefined;
   const warpAddress = getDeployedWarpAddress(chain, warpCorePath);
   await hyperlaneWarpRead(chain, warpAddress!, warpDeployPath);
   const freshConfig = readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig;
-  const freshReadChains = new Set(Object.keys(freshConfig));
-  if (existingConfig && typeof existingConfig === 'object') {
-    const missingChains: string[] = [];
-    for (const [existingChain, config] of Object.entries(existingConfig)) {
-      if (!(existingChain in freshConfig)) {
-        missingChains.push(existingChain);
-        freshConfig[existingChain] = config;
-      }
-    }
-    if (missingChains.length > 0) {
-      console.warn(
-        `[readWarpConfig] preserving ${missingChains.length} existing chain config(s) missing from fresh read: ${missingChains.join(', ')}`,
-      );
-      writeYamlOrJson(warpDeployPath, freshConfig);
-    }
-  }
 
   const missingMailboxChains: string[] = [];
-  for (const configChain of freshReadChains) {
+  for (const configChain of Object.keys(freshConfig)) {
     const config = freshConfig[configChain];
     const mailbox = (config as { mailbox?: string }).mailbox;
     if (!(typeof mailbox === 'string' && mailbox.length > 0)) {
