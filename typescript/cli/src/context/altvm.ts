@@ -64,14 +64,23 @@ async function loadAccountAddress(
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
   protocol: ProtocolType,
   chain: string,
-): Promise<string | undefined> {
-  if (protocol !== ProtocolType.Starknet) return undefined;
-  const resolved = resolveAltVmAccountAddress(strategyConfig, protocol, chain);
-  if (resolved) return resolved;
+  fallbackPromptedAddress?: string,
+): Promise<{ accountAddress?: string; isPrompted: boolean }> {
+  if (protocol !== ProtocolType.Starknet) {
+    return { accountAddress: undefined, isPrompted: false };
+  }
 
-  return input({
+  const resolved = resolveAltVmAccountAddress(strategyConfig, protocol, chain);
+  if (resolved) return { accountAddress: resolved, isPrompted: false };
+
+  if (fallbackPromptedAddress) {
+    return { accountAddress: fallbackPromptedAddress, isPrompted: false };
+  }
+
+  const promptedAddress = await input({
     message: `Please enter the Starknet account contract address for chain ${chain}`,
   });
+  return { accountAddress: promptedAddress, isPrompted: true };
 }
 
 export async function createAltVMSigners(
@@ -81,7 +90,9 @@ export async function createAltVMSigners(
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
 ) {
   const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
-  const accountAddressByProtocol: Partial<Record<ProtocolType, string>> = {};
+  const promptedAccountAddressByProtocol: Partial<
+    Record<ProtocolType, string>
+  > = {};
 
   for (const chain of chains) {
     const metadata = metadataManager.getChainMetadata(chain);
@@ -90,10 +101,11 @@ export async function createAltVMSigners(
       continue;
     }
 
-    const accountAddressFromConfig = resolveAltVmAccountAddress(
+    const { accountAddress, isPrompted } = await loadAccountAddress(
       strategyConfig,
       metadata.protocol,
       chain,
+      promptedAccountAddressByProtocol[metadata.protocol],
     );
     const signerConfig = {
       privateKey: await loadPrivateKey(
@@ -102,14 +114,12 @@ export async function createAltVMSigners(
         metadata.protocol,
         chain,
       ),
-      accountAddress:
-        accountAddressFromConfig ??
-        accountAddressByProtocol[metadata.protocol] ??
-        (await loadAccountAddress(strategyConfig, metadata.protocol, chain)),
+      accountAddress,
     };
 
-    if (!accountAddressFromConfig && signerConfig.accountAddress) {
-      accountAddressByProtocol[metadata.protocol] = signerConfig.accountAddress;
+    if (isPrompted && signerConfig.accountAddress) {
+      promptedAccountAddressByProtocol[metadata.protocol] =
+        signerConfig.accountAddress;
     }
 
     signers[chain] = await getProtocolProvider(metadata.protocol).createSigner(

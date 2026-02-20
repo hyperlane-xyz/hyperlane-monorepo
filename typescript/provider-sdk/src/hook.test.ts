@@ -30,7 +30,7 @@ describe('hook protocolFee support', () => {
     });
   });
 
-  it('treats protocolFee hook as mutable', () => {
+  it('keeps protocolFee hook mutable when maxProtocolFee unchanged', () => {
     const actual = {
       type: 'protocolFee',
       owner: '0xowner',
@@ -49,7 +49,7 @@ describe('hook protocolFee support', () => {
     expect(shouldDeployNewHook(actual, expected)).to.equal(false);
   });
 
-  it('requires redeploy when protocol fee max changes', () => {
+  it('requires redeploy when protocolFee maxProtocolFee changes', () => {
     const actual = {
       type: 'protocolFee',
       owner: '0xowner',
@@ -58,8 +58,11 @@ describe('hook protocolFee support', () => {
       protocolFee: '10',
     } as const;
     const expected = {
-      ...actual,
+      type: 'protocolFee',
+      owner: '0xowner',
+      beneficiary: '0xbeneficiary',
       maxProtocolFee: '200',
+      protocolFee: '10',
     } as const;
 
     expect(shouldDeployNewHook(actual, expected)).to.equal(true);

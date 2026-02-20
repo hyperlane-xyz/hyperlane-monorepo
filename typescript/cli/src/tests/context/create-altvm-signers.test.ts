@@ -179,4 +179,49 @@ describe('createAltVMSigners', () => {
       accountAddress: '0xenv-account',
     });
   });
+
+  it('resolves Starknet accountAddress per chain before fallback cache reuse', async () => {
+    const strategy = {
+      starknetsepolia: {
+        submitter: {
+          type: 'jsonRpc',
+          chain: 'starknetsepolia',
+          privateKey: '0xkey',
+          accountAddress: '0xaaa',
+        },
+      },
+      starknetmainnet: {
+        submitter: {
+          type: 'jsonRpc',
+          chain: 'starknetmainnet',
+          privateKey: '0xkey',
+          accountAddress: '0xbbb',
+        },
+      },
+    } as any;
+
+    const keys: SignerKeyProtocolMap = {
+      [ProtocolType.Starknet]: '0xkey',
+    };
+
+    await createAltVMSigners(
+      {
+        getChainMetadata: (chainName: string) =>
+          ({
+            name: chainName,
+            protocol: ProtocolType.Starknet,
+            chainId: chainName === 'starknetmainnet' ? 'SN_MAIN' : 'SN_SEPOLIA',
+            domainId: chainName === 'starknetmainnet' ? 1234 : 421614,
+            rpcUrls: [{ http: 'http://localhost:9545' }],
+          }) as any,
+      } as any,
+      ['starknetsepolia', 'starknetmainnet'],
+      keys,
+      strategy,
+    );
+
+    expect(capturedConfigs).to.have.length(2);
+    expect(capturedConfigs[0].accountAddress).to.equal('0xaaa');
+    expect(capturedConfigs[1].accountAddress).to.equal('0xbbb');
+  });
 });
