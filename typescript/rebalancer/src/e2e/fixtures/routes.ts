@@ -33,6 +33,10 @@ export const BRIDGE_ROUTE_1_ID = 'USDC/test-bridge-1';
 export const BRIDGE_ROUTE_2_ID = 'USDC/test-bridge-2';
 export const NATIVE_MONITORED_ROUTE_ID = 'ETH/test-native-monitored';
 export const NATIVE_BRIDGE_ROUTE_ID = 'ETH/test-native-bridge';
+export const ERC20_INVENTORY_MONITORED_ROUTE_ID =
+  'USDC/test-erc20-inventory-monitored';
+export const ERC20_INVENTORY_BRIDGE_ROUTE_ID =
+  'USDC/test-erc20-inventory-bridge';
 
 // Deployed contract addresses (populated by LocalDeploymentManager)
 export interface ChainDeployment {
@@ -64,6 +68,21 @@ export interface NativeDeployedAddresses {
   chains: Record<TestChain, NativeChainDeployment>;
   monitoredRoute: Record<TestChain, string>; // shorthand: chain -> monitored router address
   bridgeRoute: Record<TestChain, string>; // shorthand: chain -> bridge router address
+}
+
+export interface Erc20InventoryChainDeployment {
+  mailbox: string;
+  ism: string;
+  monitoredRouter: string;
+  bridgeRouter: string;
+  token: string;
+}
+
+export interface Erc20InventoryDeployedAddresses {
+  chains: Record<TestChain, Erc20InventoryChainDeployment>;
+  monitoredRoute: Record<TestChain, string>; // shorthand: chain -> monitored router address
+  bridgeRoute: Record<TestChain, string>; // shorthand: chain -> bridge router address
+  tokens: Record<TestChain, string>; // shorthand: chain -> token address
 }
 
 // Build WarpCoreConfig dynamically from deployed addresses
@@ -102,6 +121,28 @@ export function buildNativeWarpRouteConfig(
       symbol: 'ETH',
       name: 'Ether',
       addressOrDenom: addresses.monitoredRoute[chain.name],
+      connections: chains
+        .filter((other) => other.name !== chain.name)
+        .map((other) => ({
+          token: `${ProtocolType.Ethereum}|${other.name}|${addresses.monitoredRoute[other.name]}`,
+        })),
+    })),
+  };
+}
+
+export function buildErc20InventoryWarpRouteConfig(
+  addresses: Erc20InventoryDeployedAddresses,
+): WarpCoreConfig {
+  const chains = TEST_CHAIN_CONFIGS;
+  return {
+    tokens: chains.map((chain) => ({
+      chainName: chain.name,
+      standard: TokenStandard.EvmHypCollateral,
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USD Coin',
+      addressOrDenom: addresses.monitoredRoute[chain.name],
+      collateralAddressOrDenom: addresses.tokens[chain.name],
       connections: chains
         .filter((other) => other.name !== chain.name)
         .map((other) => ({
@@ -191,6 +232,31 @@ export const BALANCE_PRESETS: Record<string, Record<TestChain, string>> = {
     anvil1: '7000000000000000000',
     anvil2: '2000000000000000000',
     anvil3: '1000000000000000000',
+  },
+  ERC20_INVENTORY_BALANCED: {
+    anvil1: '5000000000',
+    anvil2: '5000000000',
+    anvil3: '5000000000',
+  },
+  ERC20_INVENTORY_PARTIAL: {
+    anvil1: '5000000000',
+    anvil2: '2000000000',
+    anvil3: '5000000000',
+  },
+  ERC20_INVENTORY_EMPTY_DEST: {
+    anvil1: '5000000000',
+    anvil2: '0',
+    anvil3: '5000000000',
+  },
+  ERC20_INVENTORY_MULTI_SOURCE: {
+    anvil1: '3000000000',
+    anvil2: '0',
+    anvil3: '3000000000',
+  },
+  ERC20_INVENTORY_WEIGHTED_IMBALANCED: {
+    anvil1: '7000000000',
+    anvil2: '2000000000',
+    anvil3: '1000000000',
   },
   INVENTORY_WEIGHTED_ALL_ANVIL1: {
     anvil1: '10000000000000000000',
@@ -310,6 +376,72 @@ export function buildInventoryMinAmountStrategyConfig(
 
 export function buildInventoryWeightedStrategyConfig(
   _addresses: NativeDeployedAddresses,
+): StrategyConfig[] {
+  return [
+    {
+      rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+      chains: {
+        anvil1: {
+          weighted: { weight: 60n, tolerance: 5n },
+          executionType: ExecutionType.Inventory,
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+        anvil2: {
+          weighted: { weight: 20n, tolerance: 5n },
+          executionType: ExecutionType.Inventory,
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+        anvil3: {
+          weighted: { weight: 20n, tolerance: 5n },
+          executionType: ExecutionType.Inventory,
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+      },
+    },
+  ];
+}
+
+export function buildErc20InventoryMinAmountStrategyConfig(
+  _addresses: Erc20InventoryDeployedAddresses,
+): StrategyConfig[] {
+  return [
+    {
+      rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
+      chains: {
+        anvil1: {
+          minAmount: {
+            min: '100',
+            target: '200',
+            type: RebalancerMinAmountType.Absolute,
+          },
+          executionType: ExecutionType.Inventory,
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+        anvil2: {
+          minAmount: {
+            min: '100',
+            target: '200',
+            type: RebalancerMinAmountType.Absolute,
+          },
+          executionType: ExecutionType.Inventory,
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+        anvil3: {
+          minAmount: {
+            min: '100',
+            target: '200',
+            type: RebalancerMinAmountType.Absolute,
+          },
+          executionType: ExecutionType.Inventory,
+          externalBridge: ExternalBridgeType.LiFi,
+        },
+      },
+    },
+  ];
+}
+
+export function buildErc20InventoryWeightedStrategyConfig(
+  _addresses: Erc20InventoryDeployedAddresses,
 ): StrategyConfig[] {
   return [
     {
