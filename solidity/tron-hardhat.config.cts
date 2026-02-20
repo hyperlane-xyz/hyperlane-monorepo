@@ -1,5 +1,6 @@
 import './plugins/hardhat-tron-solc.cjs';
 import '@nomicfoundation/hardhat-foundry';
+import '@nomicfoundation/hardhat-viem';
 import 'hardhat-ignore-warnings';
 
 import {rootHardhatConfig} from "./rootHardhatConfig.cjs";

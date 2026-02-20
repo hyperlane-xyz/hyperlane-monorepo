@@ -1,5 +1,6 @@
 import '@matterlabs/hardhat-zksync-solc';
 import '@nomicfoundation/hardhat-foundry';
+import '@nomicfoundation/hardhat-viem';
 import 'hardhat-ignore-warnings';
 
 import { rootHardhatConfig } from './rootHardhatConfig.cjs';

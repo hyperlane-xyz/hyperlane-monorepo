@@ -44,6 +44,7 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@nomicfoundation/hardhat-viem": "catalog:",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
