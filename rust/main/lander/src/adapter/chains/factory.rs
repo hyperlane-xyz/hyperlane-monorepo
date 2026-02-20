@@ -65,6 +65,7 @@ impl AdapterFactory {
                 let adapter = AleoAdapter::from_conf(conf, core_metrics, &connection_conf)?;
                 Arc::new(adapter)
             }
+            ChainConnectionConf::Sovereign(_) => todo!(),
             ChainConnectionConf::Tron(connection_conf) => {
                 let adapter = TronAdapter::from_conf(conf, core_metrics, &connection_conf)?;
                 Arc::new(adapter)
