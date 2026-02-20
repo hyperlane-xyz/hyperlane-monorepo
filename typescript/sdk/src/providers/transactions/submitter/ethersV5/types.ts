@@ -34,6 +34,7 @@ export type EV5GnosisSafeTxBuilderProps = z.infer<
 export const EV5JsonRpcTxSubmitterPropsSchema = z.object({
   chain: ZChainName,
   userAddress: ZHash.optional(),
+  accountAddress: ZHash.optional(),
   privateKey: ZHash.optional(),
   extraParams: z.record(z.string(), z.string()).optional(),
 });

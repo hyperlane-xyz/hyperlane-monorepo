@@ -9,6 +9,8 @@ import {
   EV5GnosisSafeTxSubmitterPropsSchema,
   EV5ImpersonatedAccountTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
+  EV5JsonRpcTxSubmitterProps,
+  EV5JsonRpcTxSubmitterPropsSchema,
 } from './types.js';
 
 describe('ethersV5 submitter props schemas', () => {
@@ -56,6 +58,22 @@ describe('ethersV5 submitter props schemas', () => {
       const result =
         EV5ImpersonatedAccountTxSubmitterPropsSchema.safeParse(invalidProps);
       expect(result.success).to.be.false;
+    });
+  });
+
+  describe('EV5JsonRpcTxSubmitterPropsSchema', () => {
+    it('should parse and retain accountAddress when provided', () => {
+      const validProps: EV5JsonRpcTxSubmitterProps = {
+        chain: CHAIN_MOCK,
+        privateKey: ADDRESS_MOCK,
+        accountAddress: ADDRESS_MOCK,
+      };
+
+      const result = EV5JsonRpcTxSubmitterPropsSchema.safeParse(validProps);
+      expect(result.success).to.be.true;
+      if (result.success) {
+        expect(result.data.accountAddress).to.equal(ADDRESS_MOCK);
+      }
     });
   });
 });

@@ -1,0 +1,11 @@
+# Starknet JSON-RPC strategy example.
+# Starknet submitters require both a private key and an account contract address.
+
+starknetsepolia:
+  submitter:
+    chain: starknetsepolia
+    type: jsonRpc
+    # privateKey is loaded from --key.starknet or HYP_KEY_STARKNET.
+    # accountAddress can be provided here (preferred), via HYP_ACCOUNT_ADDRESS_STARKNET,
+    # or entered interactively.
+    userAddress: "0x0123456789abcdef"
