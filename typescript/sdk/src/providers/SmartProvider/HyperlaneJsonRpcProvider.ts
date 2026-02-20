@@ -122,6 +122,10 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
     return json.result;
   }
 
+  async send(method: string, params: unknown[]): Promise<unknown> {
+    return this.request(method, params);
+  }
+
   async perform(method: string, params: any, reqId?: number): Promise<any> {
     if (this.options?.debug)
       this.logger.debug(
