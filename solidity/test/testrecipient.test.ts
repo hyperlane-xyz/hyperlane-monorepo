@@ -10,35 +10,38 @@ const testData = stringToHex("test");
 describe("TestRecipient", () => {
     let recipient: any;
     let signerAddress: string;
+    let publicClient: any;
 
     before(async () => {
         const signer = await getSigner();
-        signerAddress = await signer.getAddress();
-        const recipientFactory = await hre.ethers.getContractFactory(
-            "TestRecipient",
-            signer,
-        );
-        recipient = await recipientFactory.deploy();
+        if (!signer.account) {
+            throw new Error("Expected configured hardhat wallet account");
+        }
+        signerAddress = signer.account.address;
+        publicClient = await hre.viem.getPublicClient();
+        recipient = await hre.viem.deployContract("TestRecipient");
     });
 
     it("handles a message", async () => {
-        const tx = await recipient.handle(
-            0,
+        const tx = await recipient.write.handle([
+            0n,
             addressToBytes32(signerAddress),
             testData,
-        );
-        await tx.wait();
-        expect(await recipient.lastSender()).to.eql(
+        ]);
+        await publicClient.waitForTransactionReceipt({hash: tx});
+        expect(await recipient.read.lastSender()).to.eql(
             addressToBytes32(signerAddress),
         );
-        expect(await recipient.lastData()).to.eql(testData);
+        expect(await recipient.read.lastData()).to.eql(testData);
     });
 
     it("handles a call", async () => {
-        const tx = await recipient.fooBar(1, "test");
-        await tx.wait();
+        const tx = await recipient.write.fooBar([1n, "test"]);
+        await publicClient.waitForTransactionReceipt({hash: tx});
 
-        expect(await recipient.lastCaller()).to.eql(signerAddress);
-        expect(await recipient.lastCallMessage()).to.eql("test");
+        expect((await recipient.read.lastCaller()).toLowerCase()).to.eql(
+            signerAddress.toLowerCase(),
+        );
+        expect(await recipient.read.lastCallMessage()).to.eql("test");
     });
 });

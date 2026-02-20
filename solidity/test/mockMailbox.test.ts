@@ -4,41 +4,37 @@ import {bytesToHex, toBytes} from "viem";
 
 import {addressToBytes32} from "@hyperlane-xyz/utils";
 
-import {getSigner} from "./signer";
-
 const ORIGIN_DOMAIN = 1000;
 const DESTINATION_DOMAIN = 2000;
 
 describe("MockMailbox", function () {
     it("should be able to mock sending and receiving a message", async function () {
-        const signer = await getSigner();
-        const mailboxFactory = await hre.ethers.getContractFactory(
+        const publicClient = await hre.viem.getPublicClient();
+        const originMailbox = await hre.viem.deployContract("MockMailbox", [
+            ORIGIN_DOMAIN,
+        ]);
+        const destinationMailbox = await hre.viem.deployContract(
             "MockMailbox",
-            signer,
+            [DESTINATION_DOMAIN],
         );
-        const testRecipientFactory = await hre.ethers.getContractFactory(
-            "TestRecipient",
-            signer,
-        );
-        const originMailbox = await mailboxFactory.deploy(ORIGIN_DOMAIN);
-        const destinationMailbox =
-            await mailboxFactory.deploy(DESTINATION_DOMAIN);
-        await originMailbox.addRemoteMailbox(
-            DESTINATION_DOMAIN,
+        await originMailbox.write.addRemoteMailbox([
+            BigInt(DESTINATION_DOMAIN),
             destinationMailbox.address,
-        );
-        const recipient = await testRecipientFactory.deploy();
+        ]);
+        const recipient = await hre.viem.deployContract("TestRecipient");
 
         const body = toBytes("This is a test message");
 
-        await originMailbox["dispatch(uint32,bytes32,bytes)"](
-            DESTINATION_DOMAIN,
+        await originMailbox.write.dispatch([
+            BigInt(DESTINATION_DOMAIN),
             addressToBytes32(recipient.address),
-            body,
-        );
-        await destinationMailbox.processNextInboundMessage();
+            bytesToHex(body),
+        ]);
+        const processTx =
+            await destinationMailbox.write.processNextInboundMessage();
+        await publicClient.waitForTransactionReceipt({hash: processTx});
 
-        const dataReceived = await recipient.lastData();
+        const dataReceived = await recipient.read.lastData();
         expect(dataReceived).to.eql(bytesToHex(body));
     });
 });
