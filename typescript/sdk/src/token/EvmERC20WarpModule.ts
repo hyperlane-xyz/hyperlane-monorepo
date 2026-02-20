@@ -59,6 +59,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { scaleToScalar } from '../utils/decimals.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
@@ -1185,6 +1186,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     assert(
       contractVersionMatchesDependency(expectedConfig.contractVersion),
       VERSION_ERROR_MESSAGE,
+    );
+
+    // Scale values are immutables baked into the implementation bytecode.
+    // Changing the effective scale during an upgrade would cause in-flight
+    // messages to be decoded with incorrect scaling.
+    const actualScalar = scaleToScalar(actualConfig.scale);
+    const expectedScalar = scaleToScalar(expectedConfig.scale);
+    assert(
+      actualScalar === expectedScalar,
+      `Scale change detected during upgrade: effective scale changed from ${actualScalar} to ${expectedScalar}. ` +
+        `Changing scale on an existing deployment may cause in-flight messages to be decoded incorrectly.`,
     );
 
     this.logger.info(
