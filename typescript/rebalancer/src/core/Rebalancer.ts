@@ -1,4 +1,3 @@
-import { type PopulatedTransaction, type providers } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
@@ -32,6 +31,9 @@ type InternalExecutionResult = MovableCollateralExecutionResult & {
 };
 
 type InternalRoute = MovableCollateralRoute & { intentId: string };
+
+type RebalanceTx = PreparedTransaction['populatedTx'];
+type TxReceipt = Awaited<ReturnType<MultiProvider['sendTransaction']>>;
 
 export class Rebalancer implements IMovableCollateralRebalancer {
   public readonly rebalancerType: RebalancerType = 'movableCollateral';
@@ -298,7 +300,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     }
 
     // 3. Populate transaction
-    let populatedTx: PopulatedTransaction;
+    let populatedTx: RebalanceTx;
     try {
       populatedTx = await originHypAdapter.populateRebalanceTx(
         destinationChainMeta.domainId,
@@ -516,7 +518,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     // 5. Collect successful sends and record send failures
     const successfulSends: Array<{
       transaction: PreparedTransaction;
-      receipt: providers.TransactionReceipt;
+      receipt: TxReceipt;
     }> = [];
 
     chainSendResults.forEach((chainResult) => {
@@ -571,7 +573,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     Array<
       | {
           transaction: PreparedTransaction;
-          receipt: providers.TransactionReceipt;
+          receipt: TxReceipt;
         }
       | { transaction: PreparedTransaction; error: string }
     >
@@ -579,7 +581,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     const results: Array<
       | {
           transaction: PreparedTransaction;
-          receipt: providers.TransactionReceipt;
+          receipt: TxReceipt;
         }
       | { transaction: PreparedTransaction; error: string }
     > = [];
@@ -650,7 +652,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
    */
   private buildResult(
     transaction: PreparedTransaction,
-    receipt: providers.TransactionReceipt,
+    receipt: TxReceipt,
   ): InternalExecutionResult {
     const { origin, destination } = transaction.route;
     const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
