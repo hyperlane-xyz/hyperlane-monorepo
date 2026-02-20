@@ -1,35 +1,42 @@
 import { SendTransactionParameters } from '@wagmi/core';
-import {
-  PopulatedTransaction as Ethers5Transaction,
-  BigNumber as EthersBN,
-} from 'ethers';
 
 import { ChainMetadata, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+type EvmTransactionLike = {
+  to?: string | null;
+  value?: bigint | string | number;
+  data?: `0x${string}` | string;
+  nonce?: number;
+  chainId?: number;
+  gas?: bigint | string | number;
+  gasLimit?: bigint | string | number;
+  gasPrice?: bigint | string | number;
+  maxFeePerGas?: bigint | string | number;
+  maxPriorityFeePerGas?: bigint | string | number;
+};
+
 export function ethers5TxToWagmiTx(
-  tx: Ethers5Transaction,
+  tx: EvmTransactionLike,
 ): SendTransactionParameters {
   if (!tx.to) throw new Error('No tx recipient address specified');
   return {
     to: tx.to as `0x${string}`,
-    value: ethersBnToBigInt(tx.value || EthersBN.from('0')),
+    value: toBigInt(tx.value ?? 0n),
     data: tx.data as `0x{string}` | undefined,
     nonce: tx.nonce,
     chainId: tx.chainId,
-    gas: tx.gasLimit ? ethersBnToBigInt(tx.gasLimit) : undefined,
-    gasPrice: tx.gasPrice ? ethersBnToBigInt(tx.gasPrice) : undefined,
-    maxFeePerGas: tx.maxFeePerGas
-      ? ethersBnToBigInt(tx.maxFeePerGas)
-      : undefined,
+    gas: tx.gasLimit ? toBigInt(tx.gasLimit) : tx.gas ? toBigInt(tx.gas) : undefined,
+    gasPrice: tx.gasPrice ? toBigInt(tx.gasPrice) : undefined,
+    maxFeePerGas: tx.maxFeePerGas ? toBigInt(tx.maxFeePerGas) : undefined,
     maxPriorityFeePerGas: tx.maxPriorityFeePerGas
-      ? ethersBnToBigInt(tx.maxPriorityFeePerGas)
+      ? toBigInt(tx.maxPriorityFeePerGas)
       : undefined,
   };
 }
 
-function ethersBnToBigInt(bn: EthersBN): bigint {
-  return BigInt(bn.toString());
+function toBigInt(value: bigint | string | number): bigint {
+  return typeof value === 'bigint' ? value : BigInt(value);
 }
 
 export function getChainsForProtocol(
