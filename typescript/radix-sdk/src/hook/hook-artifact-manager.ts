@@ -11,6 +11,8 @@ import {
   HookType,
   IRawHookArtifactManager,
   RawHookArtifactConfigs,
+  createUnsupportedHookReader,
+  createUnsupportedHookWriter,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
 import { RadixSigner } from '../clients/signer.js';
@@ -57,16 +59,6 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const unsupportedProtocolFeeReader = () =>
-      ({
-        read: async () => {
-          throw new Error('protocolFee hook type is unsupported on Radix');
-        },
-      }) as ArtifactReader<
-        RawHookArtifactConfigs['protocolFee'],
-        DeployedHookAddress
-      >;
-
     const readers: {
       [K in HookType]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
@@ -75,7 +67,8 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
     } = {
       merkleTreeHook: () => new RadixMerkleTreeHookReader(this.gateway),
       interchainGasPaymaster: () => new RadixIgpHookReader(this.gateway),
-      protocolFee: unsupportedProtocolFeeReader,
+      protocolFee: () =>
+        createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Radix'),
     };
 
     return readers[type]();
@@ -86,22 +79,6 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
     signer: RadixSigner,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
     const baseSigner = signer.getBaseSigner();
-
-    const unsupportedProtocolFeeWriter = () =>
-      ({
-        read: async () => {
-          throw new Error('protocolFee hook type is unsupported on Radix');
-        },
-        create: async () => {
-          throw new Error('protocolFee hook type is unsupported on Radix');
-        },
-        update: async () => {
-          throw new Error('protocolFee hook type is unsupported on Radix');
-        },
-      }) as ArtifactWriter<
-        RawHookArtifactConfigs['protocolFee'],
-        DeployedHookAddress
-      >;
 
     const writers: {
       [K in HookType]: () => ArtifactWriter<
@@ -123,7 +100,8 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
           this.base,
           this.nativeTokenDenom,
         ),
-      protocolFee: unsupportedProtocolFeeWriter,
+      protocolFee: () =>
+        createUnsupportedHookWriter(AltVM.HookType.PROTOCOL_FEE, 'Radix'),
     };
 
     return writers[type]();

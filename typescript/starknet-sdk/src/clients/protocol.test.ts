@@ -40,6 +40,15 @@ describe('StarknetProtocolProvider', () => {
     expect(String(caughtError)).to.match(/accountAddress missing/i);
   });
 
+  it('reports Starknet signer batch transaction support', async () => {
+    const signer = await provider.createSigner(metadata, {
+      privateKey:
+        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      accountAddress: '0x1',
+    });
+    expect(signer.supportsTransactionBatching()).to.equal(true);
+  });
+
   it('creates Starknet hook manager with explicit protocolFee support', () => {
     const manager = provider.createHookArtifactManager(metadata);
     const reader = manager.createReader('protocolFee');

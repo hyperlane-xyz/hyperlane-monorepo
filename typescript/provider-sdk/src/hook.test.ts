@@ -3,6 +3,8 @@ import { expect } from 'chai';
 import { ArtifactState } from './artifact.js';
 import {
   HookConfig,
+  createUnsupportedHookReader,
+  createUnsupportedHookWriter,
   hookArtifactToDerivedConfig,
   hookConfigToArtifact,
   shouldDeployNewHook,
@@ -92,5 +94,31 @@ describe('hook protocolFee support', () => {
       protocolFee: '10',
       address: '0xabc',
     });
+  });
+
+  it('creates unsupported hook reader/writer helpers with clear errors', async () => {
+    const reader = createUnsupportedHookReader('protocolFee', 'Aleo');
+    const writer = createUnsupportedHookWriter('protocolFee', 'Aleo');
+
+    let readerError: unknown;
+    try {
+      await reader.read('0x1');
+    } catch (error) {
+      readerError = error;
+    }
+
+    let writerError: unknown;
+    try {
+      await writer.create({} as any);
+    } catch (error) {
+      writerError = error;
+    }
+
+    expect(String(readerError)).to.include(
+      'protocolFee hook type is unsupported on Aleo',
+    );
+    expect(String(writerError)).to.include(
+      'protocolFee hook type is unsupported on Aleo',
+    );
   });
 });
