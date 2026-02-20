@@ -82,6 +82,9 @@ export interface ProtocolFeeHookModuleConfig {
   protocolFee: string;
 }
 
+// Protocol fee config has identical shapes for Config API and Artifact API.
+export type ProtocolFeeHookConfig = ProtocolFeeHookModuleConfig;
+
 export type HookModuleAddresses = {
   deployedHook: string;
   mailbox: string;
@@ -151,14 +154,6 @@ export interface RawHookArtifactConfigs {
   interchainGasPaymaster: IgpHookConfig;
   protocolFee: ProtocolFeeHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
-}
-
-export interface ProtocolFeeHookConfig {
-  type: 'protocolFee';
-  owner: string;
-  beneficiary: string;
-  maxProtocolFee: string;
-  protocolFee: string;
 }
 
 /**

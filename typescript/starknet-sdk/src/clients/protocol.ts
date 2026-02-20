@@ -83,11 +83,11 @@ export class StarknetProtocolProvider implements ProtocolProvider {
 
   getMinGas(): MinimumRequiredGasByAction {
     return {
-      CORE_DEPLOY_GAS: 0n,
-      WARP_DEPLOY_GAS: 0n,
-      TEST_SEND_GAS: 0n,
-      AVS_GAS: 0n,
-      ISM_DEPLOY_GAS: 0n,
+      CORE_DEPLOY_GAS: BigInt(1e9),
+      WARP_DEPLOY_GAS: BigInt(3e8),
+      TEST_SEND_GAS: BigInt(3e7),
+      AVS_GAS: BigInt(3e8),
+      ISM_DEPLOY_GAS: BigInt(5e7),
     };
   }
 }

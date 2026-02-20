@@ -45,4 +45,14 @@ describe('StarknetProtocolProvider', () => {
     const reader = manager.createReader('protocolFee');
     expect(reader).to.have.property('read');
   });
+
+  it('returns non-zero minimum gas defaults', () => {
+    expect(provider.getMinGas()).to.deep.equal({
+      CORE_DEPLOY_GAS: BigInt(1e9),
+      WARP_DEPLOY_GAS: BigInt(3e8),
+      TEST_SEND_GAS: BigInt(3e7),
+      AVS_GAS: BigInt(3e8),
+      ISM_DEPLOY_GAS: BigInt(5e7),
+    });
+  });
 });
