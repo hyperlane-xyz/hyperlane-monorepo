@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
 import { type Hex, hexToBytes, recoverMessageAddress } from 'viem';
+import { Web3Provider } from 'zksync-ethers';
 
 import { TestCcipReadIsm, TestCcipReadIsm__factory } from '@hyperlane-xyz/core';
 import {
@@ -21,6 +22,20 @@ import { BaseMetadataBuilder } from './builder.js';
 import { MetadataContext, isMetadataBuildable } from './types.js';
 
 const OFFCHAIN_LOOKUP_SERVER_URL = 'http://example.com/namespace';
+type SignerWithAddress = { address: string; [key: string]: any };
+
+async function getHardhatSigners(): Promise<SignerWithAddress[]> {
+  const wallets = await hre.viem.getWalletClients();
+  const provider = new Web3Provider(hre.network.provider as any);
+  return wallets.map((wallet) => {
+    const signer = provider.getSigner(
+      wallet.account.address,
+    ) as SignerWithAddress;
+    signer.address = wallet.account.address;
+    return signer;
+  });
+}
+
 describe('Offchain Lookup ISM Integration', () => {
   let core: HyperlaneCore;
   let multiProvider: MultiProvider;
@@ -29,10 +44,11 @@ describe('Offchain Lookup ISM Integration', () => {
   let metadataBuilder: BaseMetadataBuilder;
   let ismFactory: HyperlaneIsmFactory;
   let fetchStub: sinon.SinonStub;
+  let signers: SignerWithAddress[];
 
   beforeEach(async () => {
     // Set up a local test multi-provider and Hyperlane core
-    const signers = await hre.ethers.getSigners();
+    signers = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({
       signer: signers[0],
     });
@@ -153,7 +169,7 @@ describe('Offchain Lookup ISM Integration', () => {
       ),
       signature: payload.signature as Hex,
     });
-    expect(recovered).to.equal((await hre.ethers.getSigners())[0].address);
+    expect(recovered.toLowerCase()).to.equal(signers[0].address.toLowerCase());
   });
 
   afterEach(() => {
