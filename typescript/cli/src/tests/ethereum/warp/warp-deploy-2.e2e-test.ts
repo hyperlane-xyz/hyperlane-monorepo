@@ -1,6 +1,5 @@
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Provider, Wallet } from 'zksync-ethers';
 
 import {
   type ERC20Test,
@@ -10,7 +9,9 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   type ChainMetadata,
+  HyperlaneSmartProvider,
   type LinearFeeConfig,
+  LocalAccountEvmSigner,
   type TokenFeeConfig,
   type TokenFeeConfigInput,
   TokenFeeType,
@@ -28,6 +29,7 @@ import {
   normalizeAddressEvm,
   objMap,
   pick,
+  ensure0x,
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -90,13 +92,18 @@ describe('hyperlane warp deploy e2e tests', async function () {
   let chain4DomainId: number;
 
   let ownerAddress: Address;
-  let walletChain2: Wallet;
-  let providerChain2: Provider;
+  let walletChain2: ReturnType<LocalAccountEvmSigner['connect']>;
+  let providerChain2: HyperlaneSmartProvider;
 
   before(async function () {
     chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    providerChain2 = new Provider(chain2Metadata.rpcUrls[0].http);
-    walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
+    providerChain2 = HyperlaneSmartProvider.fromRpcUrl(
+      chain2Metadata.chainId,
+      chain2Metadata.rpcUrls[0].http,
+    );
+    walletChain2 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      providerChain2,
+    );
     ownerAddress = walletChain2.address;
 
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);

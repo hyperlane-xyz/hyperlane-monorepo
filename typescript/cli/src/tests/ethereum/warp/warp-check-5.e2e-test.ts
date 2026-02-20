@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { zeroAddress } from 'viem';
-import { Provider, type Signer, Wallet } from 'zksync-ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { type ERC20Test, Mailbox__factory } from '@hyperlane-xyz/core';
 import {
@@ -9,11 +9,13 @@ import {
 } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
+  HyperlaneSmartProvider,
   HookType,
+  LocalAccountEvmSigner,
   TokenType,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import { type Address, ensure0x } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -37,7 +39,7 @@ import {
 describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let signer: Signer;
+  let signer: ReturnType<LocalAccountEvmSigner['connect']>;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let token: ERC20Test;
@@ -54,9 +56,11 @@ describe('hyperlane warp check e2e tests', async function () {
 
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
 
-    const provider = new Provider(chainMetadata.rpcUrls[0].http);
-
-    signer = new Wallet(ANVIL_KEY).connect(provider);
+    const provider = HyperlaneSmartProvider.fromRpcUrl(
+      chainMetadata.chainId,
+      chainMetadata.rpcUrls[0].http,
+    );
+    signer = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(provider);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     tokenSymbol = await token.symbol();
@@ -87,7 +91,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
   // Reset config before each test to avoid test changes intertwining
   beforeEach(async function () {
-    ownerAddress = new Wallet(ANVIL_KEY).address;
+    ownerAddress = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
     warpConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
