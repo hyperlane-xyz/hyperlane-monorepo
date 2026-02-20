@@ -1,11 +1,12 @@
 import { expect } from 'chai';
-import { Provider, type Signer, Wallet } from 'zksync-ethers';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   type ChainMetadata,
   type CoreConfig,
   type DerivedCoreConfig,
+  HyperlaneSmartProvider,
+  LocalAccountEvmSigner,
   type ProtocolFeeHookConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
@@ -14,6 +15,7 @@ import {
   type Domain,
   ProtocolType,
   addressToBytes32,
+  ensure0x,
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -52,7 +54,7 @@ describe('hyperlane core apply e2e tests', async function () {
     CORE_READ_CHAIN_3_CONFIG_PATH,
   );
 
-  let signer: Signer;
+  let signer: ReturnType<LocalAccountEvmSigner['connect']>;
   let initialOwnerAddress: Address;
   let chain2DomainId: Domain;
   let chain3DomainId: Domain;
@@ -61,11 +63,14 @@ describe('hyperlane core apply e2e tests', async function () {
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-    const provider = new Provider(chain2Metadata.rpcUrls[0].http);
+    const provider = HyperlaneSmartProvider.fromRpcUrl(
+      chain2Metadata.chainId,
+      chain2Metadata.rpcUrls[0].http,
+    );
 
     chain2DomainId = chain2Metadata.domainId;
     chain3DomainId = chain3Metadata.domainId;
-    const wallet = new Wallet(ANVIL_KEY);
+    const wallet = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY));
     signer = wallet.connect(provider);
 
     initialOwnerAddress = await signer.getAddress();

@@ -1,8 +1,8 @@
 import { expect } from 'chai';
-import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
 import {
   ChainTechnicalStack,
+  LocalAccountEvmSigner,
   MultiProtocolProvider,
   MultiProvider,
   test1,
@@ -14,7 +14,7 @@ import { type SignerKeyProtocolMap } from '../../context/types.js';
 import { ANVIL_KEY } from '../ethereum/consts.js';
 
 describe('ensureEvmSignersForChains', () => {
-  it('uses ZkSync wallet for ZkSync chains', async () => {
+  it('uses local account signer for ZkSync chains', async () => {
     const chainMetadata = {
       test1: {
         ...test1,
@@ -34,6 +34,6 @@ describe('ensureEvmSignersForChains', () => {
     );
 
     const signer = multiProvider.getSigner('test1');
-    expect(signer).to.be.instanceOf(ZKSyncWallet);
+    expect(signer).to.be.instanceOf(LocalAccountEvmSigner);
   });
 });
