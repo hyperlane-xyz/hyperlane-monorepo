@@ -30,6 +30,7 @@
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
     "test": "mocha --config .mocharc.json",
+    "test:e2e": "mocha --config .mocharc-e2e.json",
     "test:ci": "pnpm test"
   },
   "devDependencies": {
@@ -47,6 +48,7 @@
     "eslint-plugin-import": "catalog:",
     "mocha": "catalog:",
     "prettier": "catalog:",
+    "testcontainers": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
