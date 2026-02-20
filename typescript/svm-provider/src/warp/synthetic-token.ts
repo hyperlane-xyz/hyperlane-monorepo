@@ -306,6 +306,8 @@ async function fetchTokenMetadata(
       TOKEN_2022_PROGRAM_ID,
     );
 
+    console.log('META', metadata);
+
     return metadata
       ? { name: metadata.name, symbol: metadata.symbol, uri: metadata.uri }
       : null;
@@ -485,7 +487,11 @@ export class SvmSyntheticTokenWriter
       // Fund mint account for metadata extension (~1M lamports for safety)
       const fundMintData = new Uint8Array(12);
       fundMintData[0] = 2; // Transfer instruction
-      new DataView(fundMintData.buffer).setBigUint64(4, BigInt(1_000_000), true);
+      new DataView(fundMintData.buffer).setBigUint64(
+        4,
+        BigInt(1_000_000),
+        true,
+      );
 
       const fundMintIx: SvmInstruction = {
         programAddress: SYSTEM_PROGRAM_ID,

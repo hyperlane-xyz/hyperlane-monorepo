@@ -63,19 +63,15 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
   });
 
   after(async () => {
-    console.log('\n=== Validator kept running for debugging ===');
-    console.log(`RPC: http://127.0.0.1:8899`);
-    console.log('Stop with: pkill solana-test-validator');
-    // Don't stop - keep for debugging
-    // if (solana) {
-    //   await solana.stop();
-    // }
+    if (solana) {
+      await solana.stop();
+    }
   });
 
   describe('Synthetic Token', () => {
     let deployedProgramId: string;
 
-    it.only('should deploy and initialize synthetic token', async () => {
+    it('should deploy and initialize synthetic token', async () => {
       const writer = new SvmSyntheticTokenWriter(
         rpc,
         signer,
@@ -107,7 +103,7 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       expect(receipts.length).to.be.greaterThan(0);
     });
 
-    it.only('should read synthetic token config and validate metadata', async () => {
+    it('should read synthetic token config and validate metadata', async () => {
       const reader = new SvmSyntheticTokenReader(rpc, solana.rpcUrl);
       const token = await reader.read(deployedProgramId);
 
@@ -120,9 +116,11 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       console.log('Metadata:', {
         name: token.config.name,
         symbol: token.config.symbol,
+        decimals: token.config.decimals,
       });
       expect(token.config.name).to.equal('Test Token');
       expect(token.config.symbol).to.equal('TEST');
+      expect(token.config.decimals).to.equal(token.config.decimals);
     });
 
     it('should enroll remote routers', async () => {
