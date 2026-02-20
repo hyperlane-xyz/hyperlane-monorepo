@@ -114,7 +114,10 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
       ).to.be.true;
     }
 
-    await context.tracker.syncRebalanceActions();
+    const useLatestBlockTags = Object.fromEntries(
+      TEST_CHAINS.map((c) => [c, undefined]),
+    );
+    await context.tracker.syncRebalanceActions(useLatestBlockTags);
   }
 
   before(async function () {
@@ -361,7 +364,13 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
     let activeAfterFailure = await context.tracker.getActiveRebalanceIntents();
     expect(activeAfterFailure.length).to.equal(0);
 
+    // For ERC20, the inventory signer has ETH on all chains, so the bridge movement
+    // would succeed immediately. To test the retry-after-failure scenario, we keep
+    // failing the bridge execute so no inventory_movement is ever created.
+    // This mirrors the native test behavior where the signer has no ETH on the source
+    // chain, causing the bridge to always fail.
     for (let i = 0; i < 12; i++) {
+      mockBridge.failNextExecute();
       await executeCycle(context);
       activeAfterFailure = await context.tracker.getActiveRebalanceIntents();
       if (activeAfterFailure.length > 0) {
@@ -372,11 +381,12 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
     const partialIntents =
       await context.tracker.getPartiallyFulfilledInventoryIntents();
     expect(partialIntents.length).to.equal(1);
-
     const intentId = partialIntents[0].intent.id;
+
     let actions = await context.tracker.getActionsForIntent(intentId);
     let firstMovement = actions.find((a) => a.type === 'inventory_movement');
     for (let i = 0; i < 8 && !firstMovement; i++) {
+      mockBridge.failNextExecute();
       await executeCycle(context);
       await context.tracker.syncInventoryMovementActions({
         [ExternalBridgeType.LiFi]: mockBridge,
