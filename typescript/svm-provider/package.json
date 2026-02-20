@@ -44,7 +44,8 @@
     "test:ci": "echo \"e2e tests require Docker - run locally\"",
     "test:ism": "mocha --require tsx --timeout 300000 'src/tests/ism.e2e-test.ts'",
     "test:hook": "mocha --require tsx --timeout 300000 'src/tests/hook.e2e-test.ts'",
-    "test:warp": "mocha --require tsx --timeout 300000 'src/tests/warp.e2e-test.ts'"
+    "test:warp": "mocha --require tsx --timeout 300000 'src/tests/warp.e2e-test.ts'",
+    "test:warp:synthetic": "mocha --require tsx --timeout 300000 'src/tests/warp-synthetic.e2e-test.ts'"
   },
   "devDependencies": {
     "@codama/nodes-from-anchor": "^1.3.8",

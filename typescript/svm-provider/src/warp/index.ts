@@ -23,5 +23,11 @@ export {
   computeWarpTokenUpdateInstructions,
 } from './warp-tx.js';
 
-// Native token (MVP - focus on this first)
+// Native token
 export { SvmNativeTokenReader, SvmNativeTokenWriter } from './native-token.js';
+
+// Synthetic token
+export {
+  SvmSyntheticTokenReader,
+  SvmSyntheticTokenWriter,
+} from './synthetic-token.js';
