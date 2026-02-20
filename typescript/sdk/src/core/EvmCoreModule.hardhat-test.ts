@@ -18,6 +18,7 @@ import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { randomAddress, testCoreConfig } from '../test/testUtils.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
@@ -41,7 +42,7 @@ describe('EvmCoreModule', async () => {
     }
   }
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     config = {
       ...testCoreConfig([CHAIN])[CHAIN],

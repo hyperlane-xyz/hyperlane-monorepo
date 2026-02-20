@@ -1,7 +1,5 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import hre from 'hardhat';
 import sinon from 'sinon';
 import { keccak256, parseEther, stringToHex } from 'viem';
 
@@ -14,6 +12,7 @@ import {
   baseTestChain,
 } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
 
 import {
@@ -21,6 +20,8 @@ import {
   EvmEventLogsReader,
   EvmRpcEventLogsReader,
 } from './EvmEventLogsReader.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 chai.use(chaiAsPromised);
 
@@ -41,7 +42,7 @@ describe('EvmEventLogsReader', () => {
 
   beforeEach(async () => {
     [contractOwner, tokenRecipient1, tokenRecipient2] =
-      await hre.ethers.getSigners();
+      await getHardhatSigners();
 
     assert(contractOwner.provider, 'Provider should be available');
 

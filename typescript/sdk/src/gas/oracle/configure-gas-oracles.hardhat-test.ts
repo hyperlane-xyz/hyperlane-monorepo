@@ -6,6 +6,7 @@ import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
 import { testIgpConfig } from '../../test/testUtils.js';
 import { ChainMap } from '../../types.js';
 import { HyperlaneIgpDeployer } from '../HyperlaneIgpDeployer.js';
@@ -23,7 +24,7 @@ describe('HyperlaneIgpDeployer', () => {
   let testConfig: ChainMap<IgpConfig>;
 
   before(async () => {
-    const [signer] = await hre.ethers.getSigners();
+    const [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     remoteId = multiProvider.getDomainId(remote);
     deployer = new HyperlaneIgpDeployer(multiProvider);

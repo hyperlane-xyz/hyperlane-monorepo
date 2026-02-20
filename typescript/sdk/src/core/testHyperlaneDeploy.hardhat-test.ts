@@ -9,6 +9,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
 
 import { TestCoreApp } from './TestCoreApp.js';
 import { TestCoreDeployer } from './TestCoreDeployer.js';
@@ -24,7 +25,7 @@ describe('TestCoreDeployer', async () => {
     dispatchReceipt: ContractReceipt;
 
   beforeEach(async () => {
-    const [signer] = await hre.ethers.getSigners();
+    const [signer] = await getHardhatSigners();
 
     const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 

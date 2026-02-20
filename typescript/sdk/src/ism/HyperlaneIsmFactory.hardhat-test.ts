@@ -11,6 +11,7 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
 import {
   randomAddress,
   randomDeployableIsmConfig,
@@ -39,7 +40,7 @@ describe('HyperlaneIsmFactory', async () => {
   const chain = TestChainName.test1;
 
   before(async () => {
-    const [signer] = await hre.ethers.getSigners();
+    const [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
@@ -58,7 +59,7 @@ describe('HyperlaneIsmFactory', async () => {
   });
 
   beforeEach(async () => {
-    const [signer] = await hre.ethers.getSigners();
+    const [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);

@@ -57,6 +57,7 @@ import {
 } from '../fee/EvmTokenFeeReader.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
 import { ChainMap } from '../types.js';
 
 import {
@@ -102,7 +103,7 @@ describe('EvmWarpRouteReader', async () => {
   let mockCircleMessageTransmitter: MockCircleMessageTransmitter;
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
 
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);

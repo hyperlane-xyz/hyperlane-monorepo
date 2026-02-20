@@ -17,6 +17,7 @@ import {
 } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { testCoreConfig } from '../test/testUtils.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
 import { ChainMap } from '../types.js';
 
 import { EvmCoreReader } from './EvmCoreReader.js';
@@ -37,7 +38,7 @@ describe('core', async () => {
   let signer: SignerWithAddress;
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
@@ -75,7 +76,7 @@ describe('core', async () => {
         requiredHook: config.defaultHook,
       }));
 
-      const [signer] = await hre.ethers.getSigners();
+      const [signer] = await getHardhatSigners();
       const nonceBefore = await signer.getTransactionCount();
 
       const updatedContracts = await deployer.deploy(updatedConfig);
@@ -112,7 +113,7 @@ describe('core', async () => {
         },
       );
 
-      const [signer] = await hre.ethers.getSigners();
+      const [signer] = await getHardhatSigners();
       const nonceBefore = await signer.getTransactionCount();
 
       await deployer.deploy(updatedConfig);

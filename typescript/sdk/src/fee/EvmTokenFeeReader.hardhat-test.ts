@@ -7,6 +7,7 @@ import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
 import { randomInt } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -30,7 +31,7 @@ describe('EvmTokenFeeReader', () => {
   const TOKEN_TOTAL_SUPPLY = '100000000000000000000';
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const factory = new ERC20Test__factory(signer);

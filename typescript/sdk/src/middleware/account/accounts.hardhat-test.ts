@@ -21,6 +21,7 @@ import { FeeTokenApproval, IcaRouterConfig } from '../../ica/types.js';
 import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
 import { IsmType } from '../../ism/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
 import { ChainMap } from '../../types.js';
 
 import { InterchainAccount } from './InterchainAccount.js';
@@ -43,7 +44,7 @@ describe('InterchainAccounts', async () => {
   let config: ChainMap<IcaRouterConfig>;
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
