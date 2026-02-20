@@ -74,7 +74,7 @@ export class StarknetSigner
   }
 
   supportsTransactionBatching(): boolean {
-    return false;
+    return true;
   }
 
   async transactionToPrintableJson(

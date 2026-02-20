@@ -13,6 +13,8 @@ import {
   type HookType,
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
+  createUnsupportedHookReader,
+  createUnsupportedHookWriter,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -115,16 +117,6 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     type: T,
     query: CosmosHookQueryClient,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const unsupportedProtocolFeeReader = () =>
-      ({
-        read: async () => {
-          throw new Error('protocolFee hook type is unsupported on Cosmos');
-        },
-      }) as ArtifactReader<
-        RawHookArtifactConfigs['protocolFee'],
-        DeployedHookAddress
-      >;
-
     const readers: {
       [K in HookType]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
@@ -134,7 +126,8 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
       [AltVM.HookType.MERKLE_TREE]: () => new CosmosMerkleTreeHookReader(query),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new CosmosIgpHookReader(query),
-      [AltVM.HookType.PROTOCOL_FEE]: unsupportedProtocolFeeReader,
+      [AltVM.HookType.PROTOCOL_FEE]: () =>
+        createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Cosmos'),
     };
 
     return readers[type]();
@@ -184,22 +177,6 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     query: CosmosHookQueryClient,
     signer: CosmosNativeSigner,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const unsupportedProtocolFeeWriter = () =>
-      ({
-        read: async () => {
-          throw new Error('protocolFee hook type is unsupported on Cosmos');
-        },
-        create: async () => {
-          throw new Error('protocolFee hook type is unsupported on Cosmos');
-        },
-        update: async () => {
-          throw new Error('protocolFee hook type is unsupported on Cosmos');
-        },
-      }) as ArtifactWriter<
-        RawHookArtifactConfigs['protocolFee'],
-        DeployedHookAddress
-      >;
-
     const writers: {
       [K in HookType]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
@@ -224,7 +201,8 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
           this.config.nativeTokenDenom,
         );
       },
-      [AltVM.HookType.PROTOCOL_FEE]: unsupportedProtocolFeeWriter,
+      [AltVM.HookType.PROTOCOL_FEE]: () =>
+        createUnsupportedHookWriter(AltVM.HookType.PROTOCOL_FEE, 'Cosmos'),
     };
 
     return writers[type]();

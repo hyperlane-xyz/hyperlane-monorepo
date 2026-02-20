@@ -10,7 +10,9 @@ import * as AltVM from './altvm.js';
 import {
   ArtifactDeployed,
   ArtifactNew,
+  ArtifactReader,
   ArtifactState,
+  ArtifactWriter,
   IArtifactManager,
   isArtifactDeployed,
 } from './artifact.js';
@@ -179,6 +181,42 @@ export interface IRawHookArtifactManager
    * @returns The artifact configuration and deployment data
    */
   readHook(address: string): Promise<DeployedHookArtifact>;
+}
+
+export function createUnsupportedHookReader<T extends HookType>(
+  hookType: T,
+  protocolName: string,
+): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  return {
+    read: async () => {
+      throw new Error(
+        `${hookType} hook type is unsupported on ${protocolName}`,
+      );
+    },
+  };
+}
+
+export function createUnsupportedHookWriter<T extends HookType>(
+  hookType: T,
+  protocolName: string,
+): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  return {
+    read: async () => {
+      throw new Error(
+        `${hookType} hook type is unsupported on ${protocolName}`,
+      );
+    },
+    create: async () => {
+      throw new Error(
+        `${hookType} hook type is unsupported on ${protocolName}`,
+      );
+    },
+    update: async () => {
+      throw new Error(
+        `${hookType} hook type is unsupported on ${protocolName}`,
+      );
+    },
+  };
 }
 
 // Hook Config Utilities
