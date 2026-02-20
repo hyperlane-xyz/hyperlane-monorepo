@@ -1,5 +1,4 @@
 import '@nomiclabs/hardhat-ethers';
-import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import { ContractReceipt } from 'ethers';
 import hre from 'hardhat';
@@ -55,20 +54,27 @@ describe('TestCoreDeployer', async () => {
       message,
       { value: interchainGasPayment },
     );
-    await expect(dispatchResponse).to.emit(localMailbox, 'Dispatch');
+    const dispatchReceipt = await (await dispatchResponse).wait();
+    expect(
+      dispatchReceipt.events?.some((event) => event.event === 'Dispatch'),
+    ).to.equal(true);
     dispatchReceipt = await testCoreApp.multiProvider.handleTx(
       localChain,
       dispatchResponse,
     );
     remoteMailbox = testCoreApp.getContracts(remoteChain).mailbox;
-    await expect(
-      remoteMailbox['dispatch(uint32,bytes32,bytes)'](
-        multiProvider.getDomainId(localChain),
-        addressToBytes32(recipient.address),
-        message,
-        { value: interchainGasPayment },
-      ),
-    ).to.emit(remoteMailbox, 'Dispatch');
+    const remoteDispatchResponse = remoteMailbox[
+      'dispatch(uint32,bytes32,bytes)'
+    ](
+      multiProvider.getDomainId(localChain),
+      addressToBytes32(recipient.address),
+      message,
+      { value: interchainGasPayment },
+    );
+    const remoteDispatchReceipt = await (await remoteDispatchResponse).wait();
+    expect(
+      remoteDispatchReceipt.events?.some((event) => event.event === 'Dispatch'),
+    ).to.equal(true);
   });
 
   it('processes outbound messages for a single domain', async () => {
