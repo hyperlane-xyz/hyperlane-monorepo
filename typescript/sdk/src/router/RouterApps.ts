@@ -1,87 +1,94 @@
-import type { BigNumber } from 'ethers';
-import { Logger } from 'pino';
+import {Logger} from "pino";
 
-import { GasRouter, Router } from '@hyperlane-xyz/core';
+import {GasRouter, Router} from "@hyperlane-xyz/core";
 import {
-  Address,
-  ProtocolType,
-  objMap,
-  promiseObjAll,
-} from '@hyperlane-xyz/utils';
+    Address,
+    ProtocolType,
+    objMap,
+    promiseObjAll,
+} from "@hyperlane-xyz/utils";
 
-import { HyperlaneApp } from '../app/HyperlaneApp.js';
+import {HyperlaneApp} from "../app/HyperlaneApp.js";
 import {
-  HyperlaneContracts,
-  HyperlaneContractsMap,
-  HyperlaneFactories,
-} from '../contracts/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainMap, ChainName } from '../types.js';
+    HyperlaneContracts,
+    HyperlaneContractsMap,
+    HyperlaneFactories,
+} from "../contracts/types.js";
+import {MultiProvider} from "../providers/MultiProvider.js";
+import {ChainMap, ChainName} from "../types.js";
+
+type GasQuote = Awaited<ReturnType<GasRouter["quoteGasPayment"]>>;
 
 export abstract class RouterApp<
-  Factories extends HyperlaneFactories,
+    Factories extends HyperlaneFactories,
 > extends HyperlaneApp<Factories> {
-  constructor(
-    contractsMap: HyperlaneContractsMap<Factories>,
-    multiProvider: MultiProvider,
-    logger?: Logger,
-    readonly foreignDeployments: ChainMap<Address> = {},
-  ) {
-    super(contractsMap, multiProvider, logger);
-  }
-
-  abstract router(contracts: HyperlaneContracts<Factories>): Router;
-
-  routerAddress(chainName: string): Address {
-    if (
-      this.multiProvider.getChainMetadata(chainName).protocol ===
-      ProtocolType.Ethereum
+    constructor(
+        contractsMap: HyperlaneContractsMap<Factories>,
+        multiProvider: MultiProvider,
+        logger?: Logger,
+        readonly foreignDeployments: ChainMap<Address> = {},
     ) {
-      return this.router(this.contractsMap[chainName]).address;
+        super(contractsMap, multiProvider, logger);
     }
-    return this.foreignDeployments[chainName];
-  }
 
-  // check onchain for remote enrollments
-  override async remoteChains(chainName: string): Promise<ChainName[]> {
-    const router = this.router(this.contractsMap[chainName]);
-    const onchainRemoteChainNames = (await router.domains()).map((domain) => {
-      const chainName = this.multiProvider.tryGetChainName(domain);
-      if (chainName === null) {
-        throw new Error(`Chain name not found for domain: ${domain}`);
-      }
-      return chainName;
-    });
-    return onchainRemoteChainNames;
-  }
+    abstract router(contracts: HyperlaneContracts<Factories>): Router;
 
-  getSecurityModules(): Promise<ChainMap<Address>> {
-    return promiseObjAll(
-      objMap(this.chainMap, (_, contracts) =>
-        this.router(contracts).interchainSecurityModule(),
-      ),
-    );
-  }
+    routerAddress(chainName: string): Address {
+        if (
+            this.multiProvider.getChainMetadata(chainName).protocol ===
+            ProtocolType.Ethereum
+        ) {
+            return this.router(this.contractsMap[chainName]).address;
+        }
+        return this.foreignDeployments[chainName];
+    }
 
-  getOwners(): Promise<ChainMap<Address>> {
-    return promiseObjAll(
-      objMap(this.chainMap, (_, contracts) => this.router(contracts).owner()),
-    );
-  }
+    // check onchain for remote enrollments
+    override async remoteChains(chainName: string): Promise<ChainName[]> {
+        const router = this.router(this.contractsMap[chainName]);
+        const onchainRemoteChainNames = (await router.domains()).map(
+            (domain) => {
+                const chainName = this.multiProvider.tryGetChainName(domain);
+                if (chainName === null) {
+                    throw new Error(
+                        `Chain name not found for domain: ${domain}`,
+                    );
+                }
+                return chainName;
+            },
+        );
+        return onchainRemoteChainNames;
+    }
+
+    getSecurityModules(): Promise<ChainMap<Address>> {
+        return promiseObjAll(
+            objMap(this.chainMap, (_, contracts) =>
+                this.router(contracts).interchainSecurityModule(),
+            ),
+        );
+    }
+
+    getOwners(): Promise<ChainMap<Address>> {
+        return promiseObjAll(
+            objMap(this.chainMap, (_, contracts) =>
+                this.router(contracts).owner(),
+            ),
+        );
+    }
 }
 
 export abstract class GasRouterApp<
-  Factories extends HyperlaneFactories,
-  R extends GasRouter,
+    Factories extends HyperlaneFactories,
+    R extends GasRouter,
 > extends RouterApp<Factories> {
-  abstract router(contracts: HyperlaneContracts<Factories>): R;
+    abstract router(contracts: HyperlaneContracts<Factories>): R;
 
-  async quoteGasPayment(
-    origin: ChainName,
-    destination: ChainName,
-  ): Promise<BigNumber> {
-    return this.getContracts(origin).router.quoteGasPayment(
-      this.multiProvider.getDomainId(destination),
-    );
-  }
+    async quoteGasPayment(
+        origin: ChainName,
+        destination: ChainName,
+    ): Promise<GasQuote> {
+        return this.getContracts(origin).router.quoteGasPayment(
+            this.multiProvider.getDomainId(destination),
+        );
+    }
 }
