@@ -1,6 +1,5 @@
-import { formatUnits, parseUnits } from '@ethersproject/units';
 import { BigNumber } from 'bignumber.js';
-import { ethers } from 'ethers';
+import { formatUnits, parseUnits } from 'viem';
 
 const DEFAULT_DISPLAY_DECIMALS = 4;
 const DEFAULT_TOKEN_DECIMALS = 18;
@@ -17,7 +16,7 @@ export function fromWei(
   if (!value) return (0).toString();
   const valueString = value.toString(10).trim();
   const flooredValue = BigNumber(valueString).toFixed(0, BigNumber.ROUND_FLOOR);
-  return parseFloat(formatUnits(flooredValue, decimals)).toString();
+  return parseFloat(formatUnits(BigInt(flooredValue), decimals)).toString();
 }
 
 /**
@@ -34,7 +33,7 @@ export function fromWeiRounded(
 ): string {
   if (!value) return '0';
   const flooredValue = BigNumber(value).toFixed(0, BigNumber.ROUND_FLOOR);
-  const amount = BigNumber(formatUnits(flooredValue, decimals));
+  const amount = BigNumber(formatUnits(BigInt(flooredValue), decimals));
   if (amount.isZero()) return '0';
   displayDecimals ??= amount.gte(10000) ? 2 : DEFAULT_DISPLAY_DECIMALS;
   return amount.toFixed(displayDecimals, BigNumber.ROUND_FLOOR);
@@ -57,13 +56,13 @@ export function toWei(
   const valueString = valueBN.toString(10).trim();
   const components = valueString.split('.');
   if (components.length === 1) {
-    return parseUnits(valueString, decimals).toString();
+    return parseUnits(valueString, decimals).toString(10);
   } else if (components.length === 2) {
     const trimmedFraction = components[1].substring(0, decimals);
     return parseUnits(
       `${components[0]}.${trimmedFraction}`,
       decimals,
-    ).toString();
+    ).toString(10);
   } else {
     throw new Error(`Cannot convert ${valueString} to wei`);
   }
@@ -149,11 +148,15 @@ const DEFAULT_GAS_LIMIT_BUFFER_PERCENT = 10;
  * @returns The calculated gas limit with the buffer added.
  */
 export function addBufferToGasLimit(
-  estimatedGas: ethers.BigNumber,
+  estimatedGas: bigint | { toString: () => string },
   bufferPercent: number = DEFAULT_GAS_LIMIT_BUFFER_PERCENT,
-): ethers.BigNumber {
-  const bufferMultiplier = 100 + bufferPercent;
-  return estimatedGas.mul(bufferMultiplier).div(100);
+): bigint {
+  const baseGas =
+    typeof estimatedGas === 'bigint'
+      ? estimatedGas
+      : BigInt(estimatedGas.toString());
+  const bufferMultiplier = BigInt(100 + bufferPercent);
+  return (baseGas * bufferMultiplier) / 100n;
 }
 
 /**
