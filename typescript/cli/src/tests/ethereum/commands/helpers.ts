@@ -1,7 +1,6 @@
 import http from 'http';
 import path from 'path';
 import { $ } from 'zx';
-import { Wallet } from 'zksync-ethers';
 
 import {
   type AbstractCcipReadIsm,
@@ -21,11 +20,12 @@ import {
 } from '@hyperlane-xyz/core';
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  LocalAccountEvmSigner,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, inCIMode } from '@hyperlane-xyz/utils';
+import { type Address, assert, ensure0x, inCIMode } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -186,7 +186,10 @@ export async function deployToken(
   });
 
   // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(chain, new Wallet(privateKey));
+  multiProvider.setSigner(
+    chain,
+    new LocalAccountEvmSigner(ensure0x(privateKey)),
+  );
 
   const token = await new ERC20Test__factory(
     multiProvider.getSigner(chain),
@@ -208,7 +211,10 @@ export async function deployFiatToken(
     key: privateKey,
   });
 
-  multiProvider.setSigner(chain, new Wallet(privateKey));
+  multiProvider.setSigner(
+    chain,
+    new LocalAccountEvmSigner(ensure0x(privateKey)),
+  );
 
   const token = await new FiatTokenTest__factory(
     multiProvider.getSigner(chain),
@@ -229,7 +235,10 @@ export async function deploy4626Vault(
   });
 
   // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(chain, new Wallet(privateKey));
+  multiProvider.setSigner(
+    chain,
+    new LocalAccountEvmSigner(ensure0x(privateKey)),
+  );
 
   const vault = await new ERC4626Test__factory(
     multiProvider.getSigner(chain),
@@ -251,7 +260,10 @@ export async function deployXERC20VSToken(
   });
 
   // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(chain, new Wallet(privateKey));
+  multiProvider.setSigner(
+    chain,
+    new LocalAccountEvmSigner(ensure0x(privateKey)),
+  );
 
   const token = await new XERC20VSTest__factory(
     multiProvider.getSigner(chain),
@@ -277,7 +289,10 @@ export async function deployXERC20LockboxToken(
   });
 
   // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(chain, new Wallet(privateKey));
+  multiProvider.setSigner(
+    chain,
+    new LocalAccountEvmSigner(ensure0x(privateKey)),
+  );
 
   const [tokenSymbol, tokenName, tokenDecimals, tokenTotalSupply] =
     await Promise.all([
@@ -311,7 +326,10 @@ export async function deployTestOffchainLookupISM(
     key: privateKey,
   });
 
-  multiProvider.setSigner(chain, new Wallet(privateKey));
+  multiProvider.setSigner(
+    chain,
+    new LocalAccountEvmSigner(ensure0x(privateKey)),
+  );
 
   const testIsm = await new TestCcipReadIsm__factory(
     multiProvider.getSigner(chain),
@@ -334,7 +352,10 @@ export async function deployEverclearBridgeAdapter(
     key: privateKey,
   });
 
-  multiProvider.setSigner(chain, new Wallet(privateKey));
+  multiProvider.setSigner(
+    chain,
+    new LocalAccountEvmSigner(ensure0x(privateKey)),
+  );
 
   const adapter = await new MockEverclearAdapter__factory(
     multiProvider.getSigner(chain),
