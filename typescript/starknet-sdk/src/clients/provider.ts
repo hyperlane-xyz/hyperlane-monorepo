@@ -95,11 +95,12 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     }
 
     if (value && typeof value === 'object') {
+      if ('value' in value) return this.parseString((value as any).value);
+
       if ('toString' in value && typeof value.toString === 'function') {
         const parsed = value.toString();
-        if (parsed) return parsed;
+        if (parsed && parsed !== '[object Object]') return parsed;
       }
-      if ('value' in value) return this.parseString((value as any).value);
     }
 
     return '';
