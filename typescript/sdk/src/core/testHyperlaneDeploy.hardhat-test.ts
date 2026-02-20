@@ -1,4 +1,3 @@
-import '@nomiclabs/hardhat-ethers';
 import { expect } from 'chai';
 import hre from 'hardhat';
 
