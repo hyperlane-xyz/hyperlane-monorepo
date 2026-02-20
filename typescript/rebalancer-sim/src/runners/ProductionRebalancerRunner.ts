@@ -1,6 +1,6 @@
-import { ethers } from 'ethers';
 import { EventEmitter } from 'events';
 import { pino } from 'pino';
+import { Provider, Wallet } from 'zksync-ethers';
 
 import {
   DEFAULT_INTENT_TTL_MS,
@@ -171,25 +171,19 @@ export class ProductionRebalancerRunner
     });
 
     // Create provider and wallet
-    const provider = new ethers.providers.JsonRpcProvider(
-      this.config.deployment.anvilRpc,
-    );
+    const provider = new Provider(this.config.deployment.anvilRpc);
     // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
     provider.pollingInterval = 100;
     provider.polling = false;
 
-    const wallet = new ethers.Wallet(
-      this.config.deployment.rebalancerKey,
-      provider,
-    );
+    const wallet = new Wallet(this.config.deployment.rebalancerKey, provider);
     multiProvider.setSharedSigner(wallet);
 
     // Set fast polling interval and disable automatic polling on all internal providers
     for (const chainName of multiProvider.getKnownChainNames()) {
       const chainProvider = multiProvider.tryGetProvider(chainName);
       if (chainProvider && 'polling' in chainProvider) {
-        const jsonRpcProvider =
-          chainProvider as ethers.providers.JsonRpcProvider;
+        const jsonRpcProvider = chainProvider as Provider;
         jsonRpcProvider.pollingInterval = 100;
         jsonRpcProvider.polling = false;
       }
@@ -203,8 +197,7 @@ export class ProductionRebalancerRunner
       try {
         const mppProvider = multiProtocolProvider.getProvider(chainName);
         if (mppProvider && 'polling' in mppProvider) {
-          (mppProvider as unknown as ethers.providers.JsonRpcProvider).polling =
-            false;
+          (mppProvider as Provider).polling = false;
         }
       } catch (error) {
         logger.debug(
