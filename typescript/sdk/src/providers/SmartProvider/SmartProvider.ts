@@ -1,5 +1,4 @@
 import { Logger, pino } from 'pino';
-import { Provider as ZkProvider } from 'zksync-ethers';
 
 import {
   isObjEmpty,
@@ -133,10 +132,7 @@ export class BlockchainError extends Error {
   }
 }
 
-export class HyperlaneSmartProvider
-  extends ZkProvider
-  implements IProviderMethods
-{
+export class HyperlaneSmartProvider implements IProviderMethods {
   protected logger: Logger;
 
   // TODO also support blockscout here
@@ -144,6 +140,11 @@ export class HyperlaneSmartProvider
   public readonly rpcProviders: HyperlaneJsonRpcProvider[];
   public readonly supportedMethods: ProviderMethod[];
   public requestCount = 0;
+  public readonly network: {
+    chainId: number;
+    name: string;
+    ensAddress?: string;
+  };
 
   constructor(
     network: Networkish,
@@ -151,7 +152,7 @@ export class HyperlaneSmartProvider
     blockExplorers?: BlockExplorer[],
     public readonly options?: SmartProviderOptions,
   ) {
-    super(rpcUrls?.[0]?.http ?? 'http://127.0.0.1:8545', network as any);
+    this.network = normalizeNetworkish(network);
     const supportedMethods = new Set<ProviderMethod>();
 
     this.logger = rootLogger.child({
@@ -248,6 +249,234 @@ export class HyperlaneSmartProvider
     // the provided RPC urls are correct and returns static data here instead of
     // querying each sub-provider for network info
     return this.network;
+  }
+
+  async getNetwork(): Promise<{ chainId: number; name: string }> {
+    return this.detectNetwork();
+  }
+
+  async send(method: string, params: unknown[]): Promise<unknown> {
+    const provider = this.rpcProviders[0];
+    if (!provider) throw new Error('No RPC providers available');
+    return provider.send(method, params);
+  }
+
+  async getBlockNumber(): Promise<number> {
+    const result = await this.perform(ProviderMethod.GetBlockNumber, {});
+    return rpcHexToNumber(result);
+  }
+
+  async getBlock(
+    blockTag: string | number = 'latest',
+  ): Promise<Record<string, unknown> & { number: number }> {
+    const result = (await this.perform(ProviderMethod.GetBlock, {
+      blockTag,
+      includeTransactions: false,
+    })) as Record<string, unknown> | null;
+    if (!result) throw new Error(`Block ${String(blockTag)} not found`);
+    const number = rpcHexToNumber(result.number);
+    return {
+      ...result,
+      number,
+    };
+  }
+
+  async getBalance(
+    address: string,
+    blockTag: string | number = 'latest',
+  ): Promise<bigint> {
+    const result = await this.perform(ProviderMethod.GetBalance, {
+      address,
+      blockTag,
+    });
+    return rpcHexToBigInt(result);
+  }
+
+  async getGasPrice(): Promise<bigint> {
+    const result = await this.perform(ProviderMethod.GetGasPrice, {});
+    return rpcHexToBigInt(result);
+  }
+
+  async getFeeData(): Promise<{
+    gasPrice: bigint;
+    maxFeePerGas: bigint;
+    maxPriorityFeePerGas: bigint;
+  }> {
+    const [gasPrice, maxPriorityFeePerGas] = await Promise.all([
+      this.getGasPrice(),
+      this.perform(ProviderMethod.MaxPriorityFeePerGas, {}).then(
+        rpcHexToBigInt,
+      ),
+    ]);
+    return {
+      gasPrice,
+      maxFeePerGas: gasPrice + maxPriorityFeePerGas,
+      maxPriorityFeePerGas,
+    };
+  }
+
+  async getCode(
+    address: string,
+    blockTag: string | number = 'latest',
+  ): Promise<string> {
+    return (await this.perform(ProviderMethod.GetCode, {
+      address,
+      blockTag,
+    })) as string;
+  }
+
+  async getStorageAt(
+    address: string,
+    position: string,
+    blockTag: string | number = 'latest',
+  ): Promise<string> {
+    return (await this.perform(ProviderMethod.GetStorageAt, {
+      address,
+      position,
+      blockTag,
+    })) as string;
+  }
+
+  async getTransactionCount(
+    address: string,
+    blockTag: string | number = 'latest',
+  ): Promise<number> {
+    const result = await this.perform(ProviderMethod.GetTransactionCount, {
+      address,
+      blockTag,
+    });
+    return rpcHexToNumber(result);
+  }
+
+  async getLogs(filter: Record<string, unknown>): Promise<unknown[]> {
+    return (await this.perform(ProviderMethod.GetLogs, {
+      filter,
+    })) as unknown[];
+  }
+
+  async getTransactionReceipt(
+    transactionHash: string,
+  ): Promise<Record<string, unknown> | null> {
+    const result = (await this.perform(ProviderMethod.GetTransactionReceipt, {
+      transactionHash,
+    })) as Record<string, unknown> | null;
+    if (!result) return null;
+    return {
+      ...result,
+      blockNumber: rpcHexToNumber(result.blockNumber),
+    };
+  }
+
+  async estimateGas(transaction: Record<string, unknown>): Promise<bigint> {
+    const result = await this.perform(ProviderMethod.EstimateGas, {
+      transaction,
+    });
+    return rpcHexToBigInt(result);
+  }
+
+  async call(
+    transaction: Record<string, unknown>,
+    blockTag: string | number = 'latest',
+  ): Promise<string> {
+    return (await this.perform(ProviderMethod.Call, {
+      transaction,
+      blockTag,
+    })) as string;
+  }
+
+  async sendTransaction(
+    signedTransaction: string,
+  ): Promise<{ hash: string; wait(confirmations?: number): Promise<unknown> }> {
+    const hash = (await this.perform(ProviderMethod.SendTransaction, {
+      signedTransaction,
+    })) as string;
+    return {
+      hash,
+      wait: (confirmations = 1) =>
+        this.waitForTransactionReceipt(hash, confirmations),
+    };
+  }
+
+  async waitForTransactionReceipt(
+    hash: string,
+    confirmations = 1,
+    timeoutMs = 120_000,
+  ): Promise<Record<string, unknown>> {
+    const started = Date.now();
+    let receipt = await this.getTransactionReceipt(hash);
+    while (!receipt) {
+      if (Date.now() - started > timeoutMs) {
+        throw new Error(`Timeout waiting for transaction ${hash}`);
+      }
+      await sleep(500);
+      receipt = await this.getTransactionReceipt(hash);
+    }
+    if (confirmations <= 1) return receipt;
+
+    const txBlockNumber = rpcHexToNumber(receipt.blockNumber);
+    while (Date.now() - started <= timeoutMs) {
+      const latestBlock = await this.getBlock('latest');
+      if (latestBlock.number >= txBlockNumber + confirmations - 1) {
+        return (await this.getTransactionReceipt(hash)) || receipt;
+      }
+      await sleep(500);
+    }
+    throw new Error(
+      `Timeout waiting for ${confirmations} confirmations for transaction ${hash}`,
+    );
+  }
+
+  getSigner(address: string): {
+    address: string;
+    provider: HyperlaneSmartProvider;
+    connect(
+      provider: HyperlaneSmartProvider,
+    ): ReturnType<HyperlaneSmartProvider['getSigner']>;
+    getAddress(): Promise<string>;
+    estimateGas(tx: Record<string, unknown>): Promise<bigint>;
+    sendTransaction(tx: Record<string, unknown>): Promise<{
+      hash: string;
+      wait(confirmations?: number): Promise<unknown>;
+    }>;
+    signMessage(message: string | Uint8Array): Promise<string>;
+  } {
+    const provider = this;
+    const signer = {
+      address,
+      provider,
+      connect(newProvider: HyperlaneSmartProvider) {
+        return newProvider.getSigner(address);
+      },
+      async getAddress() {
+        return address;
+      },
+      async estimateGas(tx: Record<string, unknown>) {
+        return provider.estimateGas({ ...tx, from: address });
+      },
+      async sendTransaction(tx: Record<string, unknown>) {
+        const hash = (await provider.send('eth_sendTransaction', [
+          normalizeRpcTx({ ...tx, from: address }),
+        ])) as string;
+        return {
+          hash,
+          wait: (confirmations = 1) =>
+            provider.waitForTransactionReceipt(hash, confirmations),
+        };
+      },
+      async signMessage(message: string | Uint8Array) {
+        const data =
+          typeof message === 'string'
+            ? message.startsWith('0x')
+              ? message
+              : `0x${Buffer.from(message, 'utf8').toString('hex')}`
+            : `0x${Buffer.from(message).toString('hex')}`;
+        return provider.send('personal_sign', [
+          data,
+          address,
+        ]) as Promise<string>;
+      },
+    };
+    return signer;
   }
 
   async perform(method: string, params: { [name: string]: any }): Promise<any> {
@@ -628,6 +857,82 @@ function chainMetadataToProviderNetwork(
     // @ts-ignore add ensAddress to ChainMetadata
     ensAddress: chainMetadata.ensAddress,
   };
+}
+
+function normalizeNetworkish(network: Networkish): {
+  chainId: number;
+  name: string;
+  ensAddress?: string;
+} {
+  if (typeof network === 'number') {
+    return { chainId: network, name: String(network) };
+  }
+  if (typeof network === 'string') {
+    const chainId = Number(network);
+    return {
+      chainId: Number.isFinite(chainId) ? chainId : 0,
+      name: network,
+    };
+  }
+  return {
+    chainId: network.chainId,
+    name: network.name || String(network.chainId),
+  };
+}
+
+function rpcHexToBigInt(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') {
+    if (value.startsWith('0x')) return BigInt(value);
+    return BigInt(value || '0');
+  }
+  return 0n;
+}
+
+function rpcHexToNumber(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') {
+    if (value.startsWith('0x')) return Number(BigInt(value));
+    return Number(value || 0);
+  }
+  return 0;
+}
+
+function normalizeRpcTx(tx: Record<string, unknown>): Record<string, unknown> {
+  const request = { ...tx };
+  const normalized: Record<string, unknown> = {
+    ...request,
+    gas: toRpcQuantity(request.gas ?? request.gasLimit),
+    gasPrice: toRpcQuantity(request.gasPrice),
+    maxFeePerGas: toRpcQuantity(request.maxFeePerGas),
+    maxPriorityFeePerGas: toRpcQuantity(request.maxPriorityFeePerGas),
+    nonce: toRpcQuantity(request.nonce),
+    value: toRpcQuantity(request.value),
+  };
+  if (!normalized.gas) delete normalized.gas;
+  if (!normalized.gasPrice) delete normalized.gasPrice;
+  if (!normalized.maxFeePerGas) delete normalized.maxFeePerGas;
+  if (!normalized.maxPriorityFeePerGas) delete normalized.maxPriorityFeePerGas;
+  if (!normalized.nonce) delete normalized.nonce;
+  if (!normalized.value) delete normalized.value;
+  return normalized;
+}
+
+function toRpcQuantity(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') {
+    if (value.startsWith('0x')) return value;
+    return `0x${BigInt(value).toString(16)}`;
+  }
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    return `0x${BigInt(value).toString(16)}`;
+  }
+  if (typeof value === 'object' && value && 'toString' in value) {
+    return `0x${BigInt(value.toString()).toString(16)}`;
+  }
+  return undefined;
 }
 
 function timeoutResult(staggerDelay: number, multiplier = 1) {
