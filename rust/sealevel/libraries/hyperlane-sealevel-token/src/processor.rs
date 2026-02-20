@@ -116,14 +116,23 @@ where
         token_message: &TokenMessage,
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError>;
 
-    /// Verifies the fee recipient account is valid for this token type.
-    /// SPL plugins: verify it's the ATA of (fee_recipient, mint).
-    /// Native plugin: verify it matches fee_recipient directly.
+    /// Computes the expected public key of the fee recipient account.
+    /// Native: fee_recipient directly. SPL: ATA(fee_recipient, mint, token_program).
+    fn fee_recipient_account_key(token: &HyperlaneToken<Self>, fee_recipient: &Pubkey) -> Pubkey;
+
+    /// Verifies the fee recipient account key matches the expected key.
     fn verify_fee_recipient_account(
         token: &HyperlaneToken<Self>,
         fee_recipient: &Pubkey,
         fee_recipient_account: &AccountInfo,
-    ) -> Result<(), ProgramError>;
+    ) -> Result<(), ProgramError> {
+        if fee_recipient_account.key != &Self::fee_recipient_account_key(token, fee_recipient) {
+            return Err(ProgramError::from(
+                crate::error::Error::InvalidFeeRecipientAccount,
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Core functionality of a Hyperlane Sealevel Token program that uses
@@ -280,8 +289,8 @@ where
     ///   ---- If fee_config is set ----
     /// - F:   `[executable]` The fee program.
     /// - F+1: `[]` The fee account.
-    /// - F+2..F+1+N: `[]` Additional fee accounts (N = additional_fee_account_count).
-    /// - F+2+N: `[writeable]` Fee recipient account.
+    /// - F+2..F+1+N: `[]` Additional fee accounts (variable, terminated by sentinel).
+    /// - F+2+N: `[writeable]` Fee recipient account (sentinel — key matches expected fee recipient).
     ///   ---- End if ----
     ///   ---- If using an IGP ----
     /// - G:   `[executable]` The IGP program.
@@ -962,9 +971,10 @@ where
     /// Verifies fee accounts against the FeeConfig and quotes the fee via CPI.
     ///
     /// Validates that the fee program and fee account passed in match the
-    /// stored FeeConfig, then invokes the fee program's QuoteFee instruction
-    /// via CPI to get the fee amount. Finally, consumes and verifies the
-    /// fee recipient account.
+    /// stored FeeConfig, then collects additional fee accounts using the
+    /// fee recipient account as a sentinel (its expected key is computed via
+    /// `T::fee_recipient_account_key`). Invokes the fee program's QuoteFee
+    /// instruction via CPI to get the fee amount.
     ///
     /// Returns (fee_amount, fee_recipient_account_info).
     fn verify_and_quote_fee<'a, 'b>(
@@ -989,14 +999,20 @@ where
             return Err(Error::FeeAccountMismatch.into());
         }
 
-        // Accounts F+2..F+1+N: Additional fee accounts
+        // Accounts F+2..F+1+N: Additional fee accounts, terminated by fee recipient sentinel.
+        // Loop until we find the account whose key matches the expected fee recipient key.
+        let expected_fee_recipient_key =
+            T::fee_recipient_account_key(token, &fee_config.fee_recipient);
         let mut additional_accounts = Vec::new();
         let mut additional_account_infos = Vec::new();
-        for _ in 0..fee_config.additional_fee_account_count {
+        let fee_recipient_account = loop {
             let acct = next_account_info(accounts_iter)?;
+            if acct.key == &expected_fee_recipient_key {
+                break acct;
+            }
             additional_accounts.push(AccountMeta::new_readonly(*acct.key, false));
             additional_account_infos.push(acct.clone());
-        }
+        };
 
         // The local amount for fee computation
         let local_amount: u64 = (*amount_or_id)
@@ -1031,18 +1047,6 @@ where
                 .try_into()
                 .map_err(|_| Error::FeeQuoteReturnDataInvalid)?,
         );
-
-        // Account F+2+N: Fee recipient account
-        let fee_recipient_account = next_account_info(accounts_iter)?;
-
-        // Verify the fee recipient account using the plugin's verification method
-        if fee_amount > 0 {
-            T::verify_fee_recipient_account(
-                token,
-                &fee_config.fee_recipient,
-                fee_recipient_account,
-            )?;
-        }
 
         Ok((fee_amount, fee_recipient_account))
     }

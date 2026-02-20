@@ -200,17 +200,8 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         Ok(())
     }
 
-    fn verify_fee_recipient_account(
-        _token: &HyperlaneToken<Self>,
-        fee_recipient: &Pubkey,
-        fee_recipient_account: &AccountInfo,
-    ) -> Result<(), ProgramError> {
-        if fee_recipient_account.key != fee_recipient {
-            return Err(ProgramError::from(
-                hyperlane_sealevel_token_lib::error::Error::InvalidFeeRecipientAccount,
-            ));
-        }
-        Ok(())
+    fn fee_recipient_account_key(_token: &HyperlaneToken<Self>, fee_recipient: &Pubkey) -> Pubkey {
+        *fee_recipient
     }
 
     /// Returns the accounts required for `transfer_out`.

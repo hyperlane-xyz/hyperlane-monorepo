@@ -25,9 +25,6 @@ pub struct FeeConfig {
     pub fee_account: Pubkey,
     /// The wallet address that receives collected fees.
     pub fee_recipient: Pubkey,
-    /// Number of additional accounts the fee program needs for QuoteFee
-    /// beyond the fee_account itself (e.g. 2 for Routing: route PDA + delegated fee account).
-    pub additional_fee_account_count: u8,
 }
 
 /// HyperlaneToken account data.
@@ -196,8 +193,8 @@ where
         // plugin_data
         self.plugin_data.size() +
         // fee_config: Option<FeeConfig>
-        // 1 byte for Option discriminant + if Some: 32 + 32 + 32 + 1 = 97
-        1 + if self.fee_config.is_some() { 32 + 32 + 32 + 1 } else { 0 }
+        // 1 byte for Option discriminant + if Some: 32 + 32 + 32 = 96
+        1 + if self.fee_config.is_some() { 32 + 32 + 32 } else { 0 }
     }
 }
 
@@ -428,7 +425,6 @@ mod test {
                 fee_program: Pubkey::new_unique(),
                 fee_account: Pubkey::new_unique(),
                 fee_recipient: Pubkey::new_unique(),
-                additional_fee_account_count: 2,
             }),
             ..hyperlane_token_foo
         };

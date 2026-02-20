@@ -495,6 +495,7 @@ async fn test_initialize() {
                 escrow_bump: hyperlane_token_accounts.escrow_bump,
                 ata_payer_bump: hyperlane_token_accounts.ata_payer_bump,
             },
+            fee_config: None,
         }),
     );
 

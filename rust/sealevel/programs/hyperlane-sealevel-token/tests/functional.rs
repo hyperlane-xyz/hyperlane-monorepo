@@ -1445,7 +1445,6 @@ async fn test_set_fee_config() {
         fee_program: fee_program_id(),
         fee_account: fee_key,
         fee_recipient,
-        additional_fee_account_count: 0,
     };
 
     // Set fee config
@@ -1493,7 +1492,6 @@ async fn test_set_fee_config_clear() {
         fee_program: fee_program_id(),
         fee_account: fee_key,
         fee_recipient: Pubkey::new_unique(),
-        additional_fee_account_count: 0,
     };
 
     // Set fee config, then clear it
@@ -1530,7 +1528,6 @@ async fn test_set_fee_config_errors_if_not_owner() {
         fee_program: fee_program_id(),
         fee_account: Pubkey::new_unique(),
         fee_recipient: Pubkey::new_unique(),
-        additional_fee_account_count: 0,
     };
 
     // Build the instruction manually with non_owner
@@ -1643,7 +1640,6 @@ async fn test_transfer_remote_with_linear_fee() {
         fee_program: fee_program_id(),
         fee_account: fee_key,
         fee_recipient: fee_recipient_wallet,
-        additional_fee_account_count: 0,
     };
     set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
 
@@ -1835,7 +1831,6 @@ async fn test_transfer_remote_with_zero_fee() {
         fee_program: fee_program_id(),
         fee_account: fee_key,
         fee_recipient: fee_recipient_wallet,
-        additional_fee_account_count: 0,
     };
     set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
 
@@ -1968,7 +1963,6 @@ async fn test_transfer_remote_with_wrong_fee_recipient_ata() {
         fee_program: fee_program_id(),
         fee_account: fee_key,
         fee_recipient: fee_recipient_wallet,
-        additional_fee_account_count: 0,
     };
     set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
 
@@ -2030,9 +2024,10 @@ async fn test_transfer_remote_with_wrong_fee_recipient_ata() {
     );
     let result = banks_client.process_transaction(transaction).await;
 
-    // Should fail with InvalidFeeRecipientAccount (Custom(5))
+    // With sentinel-based fee recipient detection, a wrong ATA means the
+    // sentinel is never found and accounts are exhausted → NotEnoughAccountKeys.
     assert_transaction_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::Custom(5)),
+        TransactionError::InstructionError(0, InstructionError::NotEnoughAccountKeys),
     );
 }

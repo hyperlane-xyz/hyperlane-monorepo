@@ -369,22 +369,12 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         Ok(())
     }
 
-    fn verify_fee_recipient_account(
-        token: &HyperlaneToken<Self>,
-        fee_recipient: &Pubkey,
-        fee_recipient_account: &AccountInfo,
-    ) -> Result<(), ProgramError> {
-        let expected_ata = get_associated_token_address_with_program_id(
+    fn fee_recipient_account_key(token: &HyperlaneToken<Self>, fee_recipient: &Pubkey) -> Pubkey {
+        get_associated_token_address_with_program_id(
             fee_recipient,
             &token.plugin_data.mint,
             &spl_token_2022::id(),
-        );
-        if fee_recipient_account.key != &expected_ata {
-            return Err(ProgramError::from(
-                hyperlane_sealevel_token_lib::error::Error::InvalidFeeRecipientAccount,
-            ));
-        }
-        Ok(())
+        )
     }
 
     fn transfer_out_account_metas(
