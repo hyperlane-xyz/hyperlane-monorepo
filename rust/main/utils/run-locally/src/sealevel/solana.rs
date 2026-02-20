@@ -426,6 +426,17 @@ pub fn start_solana_test_validator(
         .run()
         .join();
 
+    // Set sealeveltest2's default ISM to sealeveltest3's NEW multisig ISM
+    // This tests old mailbox + new ISM backward compatibility
+    sealevel_client
+        .clone()
+        .cmd("mailbox")
+        .cmd("set-default-ism")
+        .arg("program-id", SEALEVELTEST2_MAILBOX_PROGRAM_ID)
+        .arg("default-ism", SEALEVELTEST3_MULTISIG_ISM_PROGRAM_ID)
+        .run()
+        .join();
+
     // So we can test paying for gas with a different IGP account
     const ALTERNATIVE_SALT: &str =
         "0x0000000000000000000000000000000000000000000000000000000000000001";
