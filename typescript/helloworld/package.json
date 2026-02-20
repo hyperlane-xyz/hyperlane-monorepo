@@ -45,8 +45,6 @@
   "devDependencies": {
     "@eslint/js": "catalog:",
     "@nomiclabs/hardhat-ethers": "catalog:",
-    "@typechain/ethers-v6": "catalog:",
-    "@typechain/hardhat": "catalog:",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
@@ -67,7 +65,6 @@
     "solidity-coverage": "catalog:",
     "ts-node": "catalog:",
     "tsx": "catalog:",
-    "typechain": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {

@@ -1,6 +1,5 @@
 import "@nomicfoundation/hardhat-foundry";
 import "@nomiclabs/hardhat-ethers";
-import "@typechain/hardhat";
 import "hardhat-gas-reporter";
 import "hardhat-ignore-warnings";
 import "solidity-coverage";
@@ -14,11 +13,5 @@ module.exports = {
     ...rootHardhatConfig,
     gasReporter: {
         currency: "USD",
-    },
-    typechain: {
-        outDir: "./core-utils/typechain",
-        target: "ethers-v6",
-        alwaysGenerateOverloads: true,
-        node16Modules: true,
     },
 };
