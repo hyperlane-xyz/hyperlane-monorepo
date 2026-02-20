@@ -246,25 +246,20 @@ async fn test_set_route() {
     .await
     .unwrap();
 
-    // Init a delegated linear fee account
-    let delegated_salt = H256::from_low_u64_be(1);
-    let delegated_key = init_fee(
-        &mut banks_client,
-        &payer,
-        delegated_salt,
-        payer.pubkey(),
-        FeeData::Linear {
-            max_fee: 1_000_000,
-            half_amount: 500_000,
-        },
-    )
-    .await
-    .unwrap();
-
-    // Set route for domain 42
+    // Set route for domain 42 with inlined Linear fee
     let domain = 42u32;
-    let ixn =
-        set_route_instruction(program_id, payer.pubkey(), fee_key, domain, delegated_key).unwrap();
+    let route_fee_data = FeeData::Linear {
+        max_fee: 1_000_000,
+        half_amount: 500_000,
+    };
+    let ixn = set_route_instruction(
+        program_id,
+        payer.pubkey(),
+        fee_key,
+        domain,
+        route_fee_data.clone(),
+    )
+    .unwrap();
     process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
         .await
         .unwrap();
@@ -281,7 +276,7 @@ async fn test_set_route() {
     let route = RouteDomainData::fetch(&mut &route_data[..])
         .unwrap()
         .into_inner();
-    assert_eq!(route.fee_account, delegated_key);
+    assert_eq!(route.fee_data, route_fee_data);
 }
 
 #[tokio::test]
@@ -309,7 +304,10 @@ async fn test_set_route_errors_if_not_routing_type() {
         payer.pubkey(),
         fee_key,
         42,
-        Pubkey::new_unique(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
     )
     .unwrap();
     let result = process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer]).await;
@@ -341,7 +339,10 @@ async fn test_set_route_errors_if_not_owner() {
         non_owner.pubkey(),
         fee_key,
         42,
-        Pubkey::new_unique(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
     )
     .unwrap();
     let result =
@@ -369,11 +370,19 @@ async fn test_remove_route() {
     .unwrap();
 
     let domain = 42u32;
-    let delegated_key = Pubkey::new_unique();
 
     // Set route
-    let ixn =
-        set_route_instruction(program_id, payer.pubkey(), fee_key, domain, delegated_key).unwrap();
+    let ixn = set_route_instruction(
+        program_id,
+        payer.pubkey(),
+        fee_key,
+        domain,
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .unwrap();
     process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
         .await
         .unwrap();
@@ -778,7 +787,7 @@ async fn test_quote_zero_amount_returns_zero_fee() {
 }
 
 #[tokio::test]
-async fn test_quote_routing_fee_with_delegated() {
+async fn test_quote_routing_fee() {
     let (mut banks_client, payer) = setup_client().await;
     let program_id = fee_program_id();
 
@@ -794,38 +803,26 @@ async fn test_quote_routing_fee_with_delegated() {
     .await
     .unwrap();
 
-    // Create delegated linear fee account
-    let delegated_salt = H256::from_low_u64_be(1);
+    // Set route for domain 42 with inlined Linear fee
+    let domain = 42u32;
     let max_fee = 1_000_000u64;
     let half_amount = 500_000u64;
-    let delegated_key = init_fee(
-        &mut banks_client,
-        &payer,
-        delegated_salt,
-        payer.pubkey(),
-        FeeData::Linear {
-            max_fee,
-            half_amount,
-        },
-    )
-    .await
-    .unwrap();
-
-    // Set route for domain 42
-    let domain = 42u32;
     let ixn = set_route_instruction(
         program_id,
         payer.pubkey(),
         routing_fee_key,
         domain,
-        delegated_key,
+        FeeData::Linear {
+            max_fee,
+            half_amount,
+        },
     )
     .unwrap();
     process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
         .await
         .unwrap();
 
-    // Quote: need route PDA + delegated fee account as additional accounts
+    // Quote: only need route PDA as additional account
     let (route_pda, _) =
         Pubkey::find_program_address(fee_route_pda_seeds!(routing_fee_key, domain), &program_id);
 
@@ -835,10 +832,7 @@ async fn test_quote_routing_fee_with_delegated() {
         routing_fee_key,
         domain,
         amount,
-        vec![
-            AccountMeta::new_readonly(route_pda, false),
-            AccountMeta::new_readonly(delegated_key, false),
-        ],
+        vec![AccountMeta::new_readonly(route_pda, false)],
     )
     .unwrap();
 
@@ -945,33 +939,15 @@ async fn test_set_route_overwrites_existing() {
     .await
     .unwrap();
 
-    let first_delegated = init_fee(
-        &mut banks_client,
-        &payer,
-        H256::from_low_u64_be(1),
-        payer.pubkey(),
-        FeeData::Linear {
-            max_fee: 100,
-            half_amount: 50,
-        },
-    )
-    .await
-    .unwrap();
-
-    let second_delegated = init_fee(
-        &mut banks_client,
-        &payer,
-        H256::from_low_u64_be(2),
-        payer.pubkey(),
-        FeeData::Regressive {
-            max_fee: 200,
-            half_amount: 100,
-        },
-    )
-    .await
-    .unwrap();
-
     let domain = 42u32;
+    let first_fee_data = FeeData::Linear {
+        max_fee: 100,
+        half_amount: 50,
+    };
+    let second_fee_data = FeeData::Regressive {
+        max_fee: 200,
+        half_amount: 100,
+    };
 
     // Set first route
     let ixn = set_route_instruction(
@@ -979,7 +955,7 @@ async fn test_set_route_overwrites_existing() {
         payer.pubkey(),
         routing_fee_key,
         domain,
-        first_delegated,
+        first_fee_data,
     )
     .unwrap();
     process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
@@ -992,7 +968,7 @@ async fn test_set_route_overwrites_existing() {
         payer.pubkey(),
         routing_fee_key,
         domain,
-        second_delegated,
+        second_fee_data.clone(),
     )
     .unwrap();
     process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
@@ -1011,7 +987,7 @@ async fn test_set_route_overwrites_existing() {
     let route = RouteDomainData::fetch(&mut &route_data[..])
         .unwrap()
         .into_inner();
-    assert_eq!(route.fee_account, second_delegated);
+    assert_eq!(route.fee_data, second_fee_data);
 }
 
 // ---- Remove then recreate route ----
@@ -1031,19 +1007,6 @@ async fn test_remove_route_then_recreate() {
     .await
     .unwrap();
 
-    let delegated_key = init_fee(
-        &mut banks_client,
-        &payer,
-        H256::from_low_u64_be(1),
-        payer.pubkey(),
-        FeeData::Linear {
-            max_fee: 100,
-            half_amount: 50,
-        },
-    )
-    .await
-    .unwrap();
-
     let domain = 42u32;
 
     // Set route
@@ -1052,7 +1015,10 @@ async fn test_remove_route_then_recreate() {
         payer.pubkey(),
         routing_fee_key,
         domain,
-        delegated_key,
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
     )
     .unwrap();
     process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
@@ -1066,33 +1032,24 @@ async fn test_remove_route_then_recreate() {
         .await
         .unwrap();
 
-    // Re-create route for the same domain with a different delegated account
-    let new_delegated_key = init_fee(
-        &mut banks_client,
-        &payer,
-        H256::from_low_u64_be(2),
-        payer.pubkey(),
-        FeeData::Regressive {
-            max_fee: 200,
-            half_amount: 100,
-        },
-    )
-    .await
-    .unwrap();
-
+    // Re-create route for the same domain with different fee data
+    let new_fee_data = FeeData::Regressive {
+        max_fee: 200,
+        half_amount: 100,
+    };
     let ixn = set_route_instruction(
         program_id,
         payer.pubkey(),
         routing_fee_key,
         domain,
-        new_delegated_key,
+        new_fee_data.clone(),
     )
     .unwrap();
     process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
         .await
         .unwrap();
 
-    // Verify the re-created route points to the new delegated account
+    // Verify the re-created route has the new fee data
     let (route_pda, _) =
         Pubkey::find_program_address(fee_route_pda_seeds!(routing_fee_key, domain), &program_id);
     let route_data = banks_client
@@ -1104,7 +1061,7 @@ async fn test_remove_route_then_recreate() {
     let route = RouteDomainData::fetch(&mut &route_data[..])
         .unwrap()
         .into_inner();
-    assert_eq!(route.fee_account, new_delegated_key);
+    assert_eq!(route.fee_data, new_fee_data);
 }
 
 // ---- RemoveRoute error cases ----
@@ -1130,7 +1087,10 @@ async fn test_remove_route_errors_if_not_owner() {
         payer.pubkey(),
         fee_key,
         domain,
-        Pubkey::new_unique(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
     )
     .unwrap();
     process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
@@ -1376,25 +1336,15 @@ async fn test_quote_routing_fee_wrong_route_pda() {
     .unwrap();
 
     // Set route for domain 42
-    let delegated_key = init_fee(
-        &mut banks_client,
-        &payer,
-        H256::from_low_u64_be(1),
-        payer.pubkey(),
-        FeeData::Linear {
-            max_fee: 1000,
-            half_amount: 500,
-        },
-    )
-    .await
-    .unwrap();
-
     let ixn = set_route_instruction(
         program_id,
         payer.pubkey(),
         routing_fee_key,
         42,
-        delegated_key,
+        FeeData::Linear {
+            max_fee: 1000,
+            half_amount: 500,
+        },
     )
     .unwrap();
     process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
@@ -1427,95 +1377,6 @@ async fn test_quote_routing_fee_wrong_route_pda() {
         .unwrap();
 
     // Should fail with InvalidRouteDomainPda (Custom(7))
-    let result = simulation.result.unwrap();
-    assert!(result.is_err());
-}
-
-#[tokio::test]
-async fn test_quote_routing_fee_wrong_delegated_account() {
-    let (mut banks_client, payer) = setup_client().await;
-    let program_id = fee_program_id();
-
-    let routing_fee_key = init_fee(
-        &mut banks_client,
-        &payer,
-        H256::zero(),
-        payer.pubkey(),
-        FeeData::Routing,
-    )
-    .await
-    .unwrap();
-
-    // Create two delegated fee accounts
-    let correct_delegated = init_fee(
-        &mut banks_client,
-        &payer,
-        H256::from_low_u64_be(1),
-        payer.pubkey(),
-        FeeData::Linear {
-            max_fee: 1000,
-            half_amount: 500,
-        },
-    )
-    .await
-    .unwrap();
-
-    let wrong_delegated = init_fee(
-        &mut banks_client,
-        &payer,
-        H256::from_low_u64_be(2),
-        payer.pubkey(),
-        FeeData::Linear {
-            max_fee: 9999,
-            half_amount: 1,
-        },
-    )
-    .await
-    .unwrap();
-
-    // Set route for domain 42 pointing to correct_delegated
-    let domain = 42u32;
-    let ixn = set_route_instruction(
-        program_id,
-        payer.pubkey(),
-        routing_fee_key,
-        domain,
-        correct_delegated,
-    )
-    .unwrap();
-    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
-        .await
-        .unwrap();
-
-    // Quote but pass wrong_delegated instead of correct_delegated
-    let (route_pda, _) =
-        Pubkey::find_program_address(fee_route_pda_seeds!(routing_fee_key, domain), &program_id);
-
-    let ixn = quote_fee_instruction(
-        program_id,
-        routing_fee_key,
-        domain,
-        500_000,
-        vec![
-            AccountMeta::new_readonly(route_pda, false),
-            AccountMeta::new_readonly(wrong_delegated, false), // wrong!
-        ],
-    )
-    .unwrap();
-
-    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
-    let simulation = banks_client
-        .simulate_transaction(Transaction::new_unsigned(
-            solana_sdk::message::Message::new_with_blockhash(
-                &[ixn],
-                Some(&payer.pubkey()),
-                &recent_blockhash,
-            ),
-        ))
-        .await
-        .unwrap();
-
-    // Should fail — delegated account doesn't match route
     let result = simulation.result.unwrap();
     assert!(result.is_err());
 }

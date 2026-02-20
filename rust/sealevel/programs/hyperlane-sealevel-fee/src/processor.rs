@@ -167,7 +167,7 @@ fn process_set_route(
 
     let route_domain = RouteDomain {
         bump: route_bump,
-        fee_account: route.fee_account,
+        fee_data: route.fee_data,
     };
     let route_domain_data = RouteDomainData::from(route_domain);
 
@@ -185,14 +185,15 @@ fn process_set_route(
             fee_route_pda_seeds!(fee_account_info.key, route.domain, route_bump),
         )?;
     }
-    // Store (overwrite if existing)
-    route_domain_data.store(route_pda_info, false)?;
+    // Store (overwrite with realloc if size changed)
+    route_domain_data.store_with_rent_exempt_realloc(
+        route_pda_info,
+        &rent,
+        owner_info,
+        system_program_account,
+    )?;
 
-    msg!(
-        "Route set for domain {} -> fee account {}",
-        route.domain,
-        route.fee_account,
-    );
+    msg!("Route set for domain {}", route.domain);
     Ok(())
 }
 
@@ -365,7 +366,6 @@ fn process_transfer_ownership(
 /// 0. `[]` Fee account
 /// For Routing type, additional accounts:
 /// 1. `[]` Route domain PDA
-/// 2. `[]` Delegated fee account
 fn process_quote_fee(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -396,19 +396,7 @@ fn process_quote_fee(
             } else {
                 let route_domain =
                     RouteDomainData::fetch(&mut &route_pda_info.data.borrow()[..])?.into_inner();
-
-                // Read the delegated fee account
-                let delegated_fee_info = next_account_info(accounts_iter)?;
-                if delegated_fee_info.key != &route_domain.fee_account {
-                    return Err(ProgramError::InvalidArgument);
-                }
-                if delegated_fee_info.owner != program_id {
-                    return Err(ProgramError::IncorrectProgramId);
-                }
-
-                let delegated_fee =
-                    FeeAccountData::fetch(&mut &delegated_fee_info.data.borrow()[..])?.into_inner();
-                compute_fee(&delegated_fee.fee_data, quote.amount)?
+                compute_fee(&route_domain.fee_data, quote.amount)?
             }
         }
         fee_data => compute_fee(fee_data, quote.amount)?,

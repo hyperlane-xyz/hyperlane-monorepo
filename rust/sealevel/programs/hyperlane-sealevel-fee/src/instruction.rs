@@ -64,14 +64,13 @@ pub struct InitFee {
 /// Data for SetRoute instruction.
 ///
 /// Creates or overwrites a route domain PDA that maps a destination domain
-/// to a delegated fee account. The delegated fee account must already exist
-/// and be owned by this program.
+/// to inlined fee parameters.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct SetRoute {
     /// The destination domain to route.
     pub domain: u32,
-    /// The fee account pubkey to delegate to for this domain.
-    pub fee_account: Pubkey,
+    /// The fee configuration data for this domain.
+    pub fee_data: FeeData,
 }
 
 /// Data for QuoteFee instruction.
@@ -129,16 +128,13 @@ pub fn set_route_instruction(
     owner: Pubkey,
     fee_account: Pubkey,
     domain: u32,
-    delegated_fee_account: Pubkey,
+    fee_data: FeeData,
 ) -> Result<SolanaInstruction, ProgramError> {
     let (route_pda, _) =
         Pubkey::try_find_program_address(fee_route_pda_seeds!(fee_account, domain), &program_id)
             .ok_or(ProgramError::InvalidSeeds)?;
 
-    let ixn = FeeInstruction::SetRoute(SetRoute {
-        domain,
-        fee_account: delegated_fee_account,
-    });
+    let ixn = FeeInstruction::SetRoute(SetRoute { domain, fee_data });
 
     // Accounts:
     // 0. `[executable]` System program

@@ -68,21 +68,21 @@ impl FeeAccountHeader {
 /// Per-domain route PDA for RoutingFee, wrapped in AccountData.
 pub type RouteDomainData = AccountData<RouteDomain>;
 
-/// A per-domain route that points to a delegated fee account.
+/// A per-domain route with inlined fee parameters.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
 pub struct RouteDomain {
     /// PDA bump seed.
     pub bump: u8,
-    /// The delegated fee account pubkey.
-    pub fee_account: Pubkey,
+    /// The fee configuration data for this domain.
+    pub fee_data: FeeData,
 }
 
 impl SizedData for RouteDomain {
     fn size(&self) -> usize {
         // bump
         std::mem::size_of::<u8>()
-        // fee_account
-        + 32
+        // fee_data
+        + self.fee_data.size()
     }
 }
 
@@ -127,12 +127,11 @@ pub enum FeeData {
     /// Example: max_fee=10, half_amount=1000
     ///   amount=1000 -> fee=5, amount=100 -> fee=0, amount=10000 -> fee=9
     Progressive { max_fee: u64, half_amount: u64 },
-    /// Routing fee: delegates to per-domain fee accounts via PDAs.
+    /// Routing fee: per-domain fee parameters stored in route PDAs.
     ///
     /// The routing fee account itself holds no fee parameters. Instead, it
-    /// maintains per-domain route PDAs that each point to a delegated fee
-    /// account (which can be any other FeeData variant, including another
-    /// Routing account for multi-level delegation).
+    /// maintains per-domain route PDAs that each inline a FeeData variant
+    /// (Linear, Regressive, or Progressive).
     ///
     /// If no route is set for a domain, the fee is 0.
     Routing,
