@@ -1,6 +1,5 @@
 import { ChildToParentMessageStatus } from '@arbitrum/sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
-import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';

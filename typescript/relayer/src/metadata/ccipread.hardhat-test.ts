@@ -1,4 +1,3 @@
-import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
@@ -104,8 +103,7 @@ describe('Offchain Lookup ISM Integration', () => {
 
     // Finally, call mailbox.process on test2 with the metadata and message
     const mailbox = core.getContracts('test2').mailbox;
-    await expect(mailbox.process(result.metadata, message.message)).to.not.be
-      .reverted;
+    await mailbox.process(result.metadata, message.message);
   });
 
   it('sends signature field in request when calling fetch', async () => {
