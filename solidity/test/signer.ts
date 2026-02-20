@@ -1,13 +1,17 @@
 import hre from "hardhat";
 
-type EvmSigner = Awaited<ReturnType<typeof hre.ethers.getSigners>>[number];
+export type EvmSigner = Awaited<
+    ReturnType<typeof hre.viem.getWalletClients>
+>[number];
 
 export async function getSigners(): Promise<EvmSigner[]> {
-    // @ts-ignore Hardhat type overrides from @nomiclabs/hardhat-ethers don't work
-    return hre.ethers.getSigners();
+    return hre.viem.getWalletClients();
 }
 
 export async function getSigner(): Promise<EvmSigner> {
     const [signer] = await getSigners();
+    if (!signer) {
+        throw new Error("No Hardhat viem wallet client available");
+    }
     return signer;
 }
