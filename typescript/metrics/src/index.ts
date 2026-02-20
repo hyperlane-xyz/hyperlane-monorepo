@@ -33,7 +33,6 @@ export {
 export {
   getExtraLockboxBalance,
   getExtraLockboxInfo,
-  getManagedLockBox,
   getManagedLockBoxCollateralInfo,
   getSealevelAtaPayerBalance,
   getTokenBridgedBalance,
