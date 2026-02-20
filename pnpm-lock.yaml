@@ -261,9 +261,6 @@ catalogs:
     yargs:
       specifier: ^17.7.2
       version: 17.7.2
-    zksync-ethers:
-      specifier: ^5.10.0
-      version: 5.11.0
     zod:
       specifier: ^3.21.2
       version: 3.25.76
@@ -440,9 +437,6 @@ importers:
       viem:
         specifier: 'catalog:'
         version: 2.39.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      zksync-ethers:
-        specifier: 'catalog:'
-        version: 5.11.0(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
 
   starknet:
     dependencies:
@@ -863,9 +857,6 @@ importers:
       yargs:
         specifier: 'catalog:'
         version: 17.7.2
-      zksync-ethers:
-        specifier: 'catalog:'
-        version: 5.11.0(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       zod:
         specifier: 'catalog:'
         version: 3.25.76
@@ -1166,9 +1157,6 @@ importers:
       viem:
         specifier: 'catalog:'
         version: 2.39.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      zksync-ethers:
-        specifier: 'catalog:'
-        version: 5.11.0(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
     devDependencies:
       '@eslint/js':
         specifier: 'catalog:'
@@ -1471,9 +1459,6 @@ importers:
       yargs:
         specifier: 'catalog:'
         version: 17.7.2
-      zksync-ethers:
-        specifier: 'catalog:'
-        version: 5.11.0(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       zod:
         specifier: 'catalog:'
         version: 3.25.76
@@ -1589,9 +1574,6 @@ importers:
       yaml:
         specifier: 'catalog:'
         version: 2.4.5
-      zksync-ethers:
-        specifier: 'catalog:'
-        version: 5.11.0(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       zod:
         specifier: 'catalog:'
         version: 3.25.76
@@ -1887,9 +1869,6 @@ importers:
       yaml:
         specifier: 'catalog:'
         version: 2.4.5
-      zksync-ethers:
-        specifier: 'catalog:'
-        version: 5.11.0(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       zod:
         specifier: 'catalog:'
         version: 3.25.76
@@ -1981,9 +1960,6 @@ importers:
       viem:
         specifier: 'catalog:'
         version: 2.39.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      zksync-ethers:
-        specifier: 'catalog:'
-        version: 5.11.0(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       zod:
         specifier: 'catalog:'
         version: 3.25.76
@@ -2063,9 +2039,6 @@ importers:
       yaml:
         specifier: 'catalog:'
         version: 2.4.5
-      zksync-ethers:
-        specifier: 'catalog:'
-        version: 5.11.0(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       zod:
         specifier: 'catalog:'
         version: 3.25.76
@@ -16612,12 +16585,6 @@ packages:
   zip-stream@6.0.1:
     resolution: {integrity: sha512-zK7YHHz4ZXpW89AHXUPbQVGKI7uvkd3hzusTdotCg1UxyaVtg0zFJSTfW/Dq5f7OBBVnq6cZIaC8Ti4hb6dtCA==}
     engines: {node: '>= 14'}
-
-  zksync-ethers@5.11.0:
-    resolution: {integrity: sha512-oLwfjfVfHYjxMeDjmB3Kb+I0W0fwau5k6ZFSJJS0/gEYyu5A6AZIJV08NP/RnG30V5XP46u6Ld3Dw6HYkESJ+A==}
-    engines: {node: '>=16.0.0'}
-    peerDependencies:
-      ethers: ~5.7.0
 
   zod-validation-error@3.5.4:
     resolution: {integrity: sha512-+hEiRIiPobgyuFlEojnqjJnhFvg4r/i3cqgcm67eehZf/WBaK3g6cD02YU9mtdVxZjv8CzCA9n/Rhrs3yAAvAw==}
@@ -36326,10 +36293,6 @@ snapshots:
       archiver-utils: 5.0.2
       compress-commons: 6.0.2
       readable-stream: 4.7.0
-
-  zksync-ethers@5.11.0(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)):
-    dependencies:
-      ethers: 6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
 
   zod-validation-error@3.5.4(zod@3.25.76):
     dependencies:

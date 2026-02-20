@@ -1,7 +1,7 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { zeroAddress } from 'viem';
-import { Provider, Wallet } from 'zksync-ethers';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { rmSync } from 'fs';
 import { $, type ProcessPromise } from 'zx';
 
@@ -19,6 +19,8 @@ import {
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
+  HyperlaneSmartProvider,
+  LocalAccountEvmSigner,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
@@ -29,6 +31,7 @@ import {
   type Domain,
   addressToBytes32,
   bytes32ToAddress,
+  ensure0x,
   sleep,
   toWei,
 } from '@hyperlane-xyz/utils';
@@ -675,7 +678,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     // Generate a random key that is not a rebalancer
-    const randomKey = Wallet.createRandom().privateKey;
+    const randomKey = generatePrivateKey();
 
     await startRebalancerAndExpectLog(
       `Route validation failed: Signer is not a rebalancer`,
@@ -710,8 +713,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     // Assign rebalancer role
-    const chain3Provider = new Provider(chain3Metadata.rpcUrls[0].http);
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Provider = HyperlaneSmartProvider.fromRpcUrl(
+      chain3Metadata.chainId,
+      chain3Metadata.rpcUrls[0].http,
+    );
+    const chain3Signer = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      chain3Provider,
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
       chain3Signer,
@@ -720,7 +728,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Disallow destination by setting it to a random, non-zero address
     await chain3CollateralContract.setRecipient(
       chain2Metadata.domainId,
-      addressToBytes32(Wallet.createRandom().address),
+      addressToBytes32(privateKeyToAccount(generatePrivateKey()).address),
     );
 
     await startRebalancerAndExpectLog(
@@ -788,8 +796,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     // Assign rebalancer role
-    const chain3Provider = new Provider(chain3Metadata.rpcUrls[0].http);
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Provider = HyperlaneSmartProvider.fromRpcUrl(
+      chain3Metadata.chainId,
+      chain3Metadata.rpcUrls[0].http,
+    );
+    const chain3Signer = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      chain3Provider,
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
       chain3Signer,
@@ -808,8 +821,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should throw if the sum of minAmount targets is more than sum of collaterals', async () => {
     // Assign rebalancer role
-    const chain3Provider = new Provider(chain3Metadata.rpcUrls[0].http);
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Provider = HyperlaneSmartProvider.fromRpcUrl(
+      chain3Metadata.chainId,
+      chain3Metadata.rpcUrls[0].http,
+    );
+    const chain3Signer = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      chain3Provider,
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
       chain3Signer,
@@ -865,8 +883,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   it('should skip rebalance if amount is below minimum threshold', async () => {
     // Assign rebalancer role
-    const chain3Provider = new Provider(chain3Metadata.rpcUrls[0].http);
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Provider = HyperlaneSmartProvider.fromRpcUrl(
+      chain3Metadata.chainId,
+      chain3Metadata.rpcUrls[0].http,
+    );
+    const chain3Signer = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      chain3Provider,
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
       chain3Signer,
@@ -951,9 +974,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Assign rebalancer role
     // We need to assign to the contract who is able to send the rebalance transaction
-    const originProvider = new Provider(originRpc);
-    const destProvider = new Provider(destRpc);
-    const originSigner = new Wallet(ANVIL_KEY, originProvider);
+    const originProvider = HyperlaneSmartProvider.fromRpcUrl(31337, originRpc);
+    const destProvider = HyperlaneSmartProvider.fromRpcUrl(31337, destRpc);
+    const originSigner = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      originProvider,
+    );
     const originContract = HypERC20Collateral__factory.connect(
       originContractAddress,
       originSigner,
@@ -1056,7 +1081,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
     // Simulate bridge delivery by minting tokens to destination warp token
     // In a real bridge, tokens would be delivered to the destination chain
-    const destSigner = new Wallet(ANVIL_KEY, destProvider);
+    const destSigner = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      destProvider,
+    );
     const destCollateralToken = ERC20Test__factory.connect(
       destTknAddress,
       destSigner,
@@ -1207,9 +1234,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
       // Assign rebalancer role
       // We need to assign to the contract who is able to send the rebalance transaction
-      const originProvider = new Provider(originRpc);
-      const destProvider = new Provider(destRpc);
-      const originSigner = new Wallet(ANVIL_KEY, originProvider);
+      const originProvider = HyperlaneSmartProvider.fromRpcUrl(
+        31337,
+        originRpc,
+      );
+      const destProvider = HyperlaneSmartProvider.fromRpcUrl(31337, destRpc);
+      const originSigner = new LocalAccountEvmSigner(
+        ensure0x(ANVIL_KEY),
+      ).connect(originProvider);
       const originContract = HypERC20Collateral__factory.connect(
         originContractAddress,
         originSigner,
@@ -1325,7 +1357,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       );
 
       // Simulate bridge delivery by minting tokens to destination warp token
-      const destSigner = new Wallet(ANVIL_KEY, destProvider);
+      const destSigner = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+        destProvider,
+      );
       const destCollateralToken = ERC20Test__factory.connect(
         destTknAddress,
         destSigner,

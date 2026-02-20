@@ -56,7 +56,6 @@
     "uuid": "catalog:",
     "viem": "catalog:",
     "yaml": "catalog:",
-    "zksync-ethers": "catalog:",
     "zod": "catalog:",
     "zod-validation-error": "catalog:"
   },
