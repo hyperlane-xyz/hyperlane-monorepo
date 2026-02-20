@@ -1,11 +1,8 @@
 import {expect} from "chai";
+import hre from "hardhat";
 import {hashMessage} from "viem";
 
 import merkleTestCases from "../../vectors/merkle.json" with {type: "json"};
-import {
-    TestMerkle,
-    TestMerkle__factory,
-} from "../core-utils/typechain/index.js";
 
 import {getSigner} from "./signer.js";
 
@@ -14,12 +11,15 @@ describe("Merkle", async () => {
         const {testName, leaves, expectedRoot, proofs} = testCase;
 
         describe(testName, async () => {
-            let merkle: TestMerkle;
+            let merkle: any;
 
             before(async () => {
                 const signer = await getSigner();
 
-                const merkleFactory = new TestMerkle__factory(signer);
+                const merkleFactory = await hre.ethers.getContractFactory(
+                    "TestMerkle",
+                    signer,
+                );
                 merkle = await merkleFactory.deploy();
 
                 //insert the leaves

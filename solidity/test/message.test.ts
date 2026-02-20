@@ -1,14 +1,10 @@
 import {expect} from "chai";
+import hre from "hardhat";
 import {pad, stringToHex, toHex} from "viem";
 
 import {addressToBytes32, formatMessage, messageId} from "@hyperlane-xyz/utils";
 
 import testCases from "../../vectors/message.json" with {type: "json"};
-import {
-    Mailbox__factory,
-    TestMessage,
-    TestMessage__factory,
-} from "../core-utils/typechain/index.js";
 
 import {getSigner, getSigners} from "./signer.js";
 
@@ -17,17 +13,20 @@ const localDomain = 2000;
 const nonce = 11;
 
 describe("Message", async () => {
-    let messageLib: TestMessage;
+    let messageLib: any;
     let version: number;
 
     before(async () => {
         const signer = await getSigner();
 
-        const Message = new TestMessage__factory(signer);
+        const Message = await hre.ethers.getContractFactory(
+            "TestMessage",
+            signer,
+        );
         messageLib = await Message.deploy();
 
         // For consistency with the Mailbox version
-        const Mailbox = new Mailbox__factory(signer);
+        const Mailbox = await hre.ethers.getContractFactory("Mailbox", signer);
         const mailbox = await Mailbox.deploy(localDomain);
         version = await mailbox.VERSION();
     });

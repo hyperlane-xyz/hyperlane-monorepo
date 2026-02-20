@@ -1,21 +1,23 @@
 import {expect} from "chai";
+import hre from "hardhat";
 import {stringToHex} from "viem";
 
 import {addressToBytes32} from "@hyperlane-xyz/utils";
-
-import {TestRecipient, TestRecipient__factory} from "../core-utils/typechain";
 
 import {getSigner} from "./signer";
 
 const testData = stringToHex("test");
 describe("TestRecipient", () => {
-    let recipient: TestRecipient;
+    let recipient: any;
     let signerAddress: string;
 
     before(async () => {
         const signer = await getSigner();
         signerAddress = await signer.getAddress();
-        const recipientFactory = new TestRecipient__factory(signer);
+        const recipientFactory = await hre.ethers.getContractFactory(
+            "TestRecipient",
+            signer,
+        );
         recipient = await recipientFactory.deploy();
     });
 
