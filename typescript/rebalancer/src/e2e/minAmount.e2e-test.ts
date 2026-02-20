@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { BigNumber, Provider } from 'zksync-ethers';
 
 import {
   HyperlaneCore,
@@ -33,7 +32,7 @@ describe('MinAmountStrategy E2E', function () {
 
   let deploymentManager: LocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, Provider>;
+  let localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
   let deployedAddresses: DeployedAddresses;
@@ -197,10 +196,10 @@ describe('MinAmountStrategy E2E', function () {
     );
 
     // Assert: ethereum balance decreased by 70 USDC
-    const expectedDecrease = BigNumber.from(70000000);
-    expect(
-      initialCollateralBalances.anvil1.sub(expectedDecrease).toString(),
-    ).to.equal(balancesAfterRebalance.anvil1.toString());
+    const expectedDecrease = 70000000n;
+    expect(initialCollateralBalances.anvil1 - expectedDecrease).to.equal(
+      balancesAfterRebalance.anvil1,
+    );
 
     // Relay the rebalance message to destination
     const ethProvider = localProviders.get('anvil1')!;
@@ -292,9 +291,7 @@ describe('MinAmountStrategy E2E', function () {
 
     if (newActionsToArb.length > 0) {
       // If route was proposed, should be much smaller than original ~70 USDC
-      const proposedAmount = BigNumber.from(
-        newActionsToArb[0].amount,
-      ).toBigInt();
+      const proposedAmount = BigInt(newActionsToArb[0].amount);
       expect(
         proposedAmount < 50000000n,
         `Amount to arb (${proposedAmount}) should be reduced accounting for inflight`,

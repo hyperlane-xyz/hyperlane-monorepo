@@ -1,12 +1,13 @@
-import { BigNumber, Wallet, utils } from 'zksync-ethers';
+import { pad, toHex } from 'viem';
 import { type Logger, pino } from 'pino';
 
 import {
   HyperlaneCore,
+  LocalAccountEvmSigner,
   MultiProtocolProvider,
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { addressToBytes32, ensure0x } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
@@ -45,19 +46,16 @@ import {
   type MockExplorerConfig,
 } from './MockExplorerClient.js';
 
-function encodeWarpRouteMessageBody(
-  recipient: string,
-  amount: BigNumber,
-): string {
+function encodeWarpRouteMessageBody(recipient: string, amount: bigint): string {
   const recipientBytes32 = addressToBytes32(recipient);
-  const amountHex = utils.hexZeroPad(amount.toHexString(), 32);
+  const amountHex = pad(toHex(amount), { size: 32 });
   return recipientBytes32 + amountHex.slice(2);
 }
 
 export interface PendingTransferParams {
   from: TestChain;
   to: TestChain;
-  amount: BigNumber;
+  amount: bigint;
   warpRecipient?: string;
 }
 
@@ -75,7 +73,7 @@ export interface TestRebalancerContext {
 }
 
 type BalancePreset = keyof typeof BALANCE_PRESETS;
-type BalanceConfig = BalancePreset | Record<string, BigNumber>;
+type BalanceConfig = BalancePreset | Record<string, bigint>;
 type ExecutionMode = 'propose' | 'execute';
 
 export class TestRebalancerBuilder {
@@ -98,7 +96,7 @@ export class TestRebalancerBuilder {
     return this;
   }
 
-  withBalances(preset: BalancePreset | Record<string, BigNumber>): this {
+  withBalances(preset: BalancePreset | Record<string, bigint>): this {
     this.balanceConfig = preset;
     return this;
   }
@@ -179,8 +177,10 @@ export class TestRebalancerBuilder {
       this.multiProvider,
     );
 
-    const deployerWallet = new Wallet(ANVIL_TEST_PRIVATE_KEY);
-    const rebalancerAddresses = [deployerWallet.address];
+    const deployerWallet = new LocalAccountEvmSigner(
+      ensure0x(ANVIL_TEST_PRIVATE_KEY),
+    );
+    const rebalancerAddresses = [await deployerWallet.getAddress()];
 
     const workingMultiProvider = await this.getWorkingMultiProvider();
 
@@ -264,15 +264,12 @@ export class TestRebalancerBuilder {
     return Object.keys(this.balanceConfig);
   }
 
-  private getBalances(): Record<string, BigNumber> {
+  private getBalances(): Record<string, bigint> {
     if (typeof this.balanceConfig === 'string') {
       const preset = BALANCE_PRESETS[this.balanceConfig];
       return Object.fromEntries(
-        Object.entries(preset).map(([chain, value]) => [
-          chain,
-          BigNumber.from(value),
-        ]),
-      ) as Record<string, BigNumber>;
+        Object.entries(preset).map(([chain, value]) => [chain, BigInt(value)]),
+      ) as Record<string, bigint>;
     }
     return this.balanceConfig;
   }
@@ -357,11 +354,14 @@ export class TestRebalancerBuilder {
     const ctx = this.deploymentManager.getContext();
     const rebalancerMultiProvider = this.multiProvider.extendChainMetadata({});
 
-    const wallet = new Wallet(ANVIL_TEST_PRIVATE_KEY);
+    const wallet = new LocalAccountEvmSigner(ensure0x(ANVIL_TEST_PRIVATE_KEY));
     for (const chain of TEST_CHAINS) {
       const provider = ctx.providers.get(chain);
       if (provider) {
-        rebalancerMultiProvider.setSigner(chain, wallet.connect(provider));
+        rebalancerMultiProvider.setSigner(
+          chain,
+          wallet.connect(provider as any),
+        );
       }
     }
 

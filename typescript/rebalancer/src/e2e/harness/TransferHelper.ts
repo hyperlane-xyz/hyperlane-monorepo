@@ -1,4 +1,4 @@
-import { BigNumber, Provider, constants, utils } from 'zksync-ethers';
+import { maxUint256, parseEther, toHex } from 'viem';
 
 import {
   ERC20__factory,
@@ -18,14 +18,16 @@ type DispatchReceipt = Awaited<
   ReturnType<ReturnType<MultiProvider['getProvider']>['getTransactionReceipt']>
 >;
 type DeliveryReceipt = Awaited<ReturnType<HyperlaneCore['deliver']>>;
-type ProviderSigner = ReturnType<Provider['getSigner']>;
+type ProviderSigner = ReturnType<
+  ReturnType<MultiProvider['getProvider']>['getSigner']
+>;
 
 export interface WarpTransferParams {
   originChain: string;
   destinationChain: string;
   routerAddress: string;
   tokenAddress: string;
-  amount: BigNumber;
+  amount: bigint;
   recipient: string;
   senderAddress?: string;
 }
@@ -40,7 +42,7 @@ export interface WarpTransferResult {
 export async function executeWarpTransfer(
   multiProvider: MultiProvider,
   params: WarpTransferParams,
-  forkedProvider?: Provider,
+  forkedProvider?: ReturnType<MultiProvider['getProvider']>,
 ): Promise<WarpTransferResult> {
   const {
     originChain,
@@ -52,8 +54,7 @@ export async function executeWarpTransfer(
     senderAddress,
   } = params;
 
-  const provider =
-    forkedProvider ?? (multiProvider.getProvider(originChain) as Provider);
+  const provider = forkedProvider ?? multiProvider.getProvider(originChain);
   const destinationDomain = multiProvider.getDomainId(destinationChain);
 
   let sender: string;
@@ -64,19 +65,18 @@ export async function executeWarpTransfer(
     sender = await multiProvider.getSigner(originChain).getAddress();
   }
 
-  await provider.send('anvil_setBalance', [
-    sender,
-    utils.parseEther('100').toHexString(),
-  ]);
+  await provider.send('anvil_setBalance', [sender, toHex(parseEther('100'))]);
 
   const signer = provider.getSigner(sender);
 
   const token = ERC20__factory.connect(tokenAddress, signer);
   const router = HypERC20Collateral__factory.connect(routerAddress, signer);
 
-  const currentAllowance = await token.allowance(sender, routerAddress);
-  if (currentAllowance.lt(amount)) {
-    const approveTx = await token.approve(routerAddress, constants.MaxUint256, {
+  const currentAllowance = toBigInt(
+    await token.allowance(sender, routerAddress),
+  );
+  if (currentAllowance < amount) {
+    const approveTx = await token.approve(routerAddress, maxUint256, {
       gasLimit: 100000,
     });
     await approveTx.wait();
@@ -150,7 +150,7 @@ export async function executeWarpTransferAndRelay(
 }
 
 export async function getRebalancerAddress(
-  provider: Provider,
+  provider: ReturnType<MultiProvider['getProvider']>,
   routerAddress: string,
 ): Promise<string> {
   const movable = MovableCollateralRouter__factory.connect(
@@ -165,7 +165,7 @@ export async function getRebalancerAddress(
 }
 
 export async function impersonateRebalancer(
-  provider: Provider,
+  provider: ReturnType<MultiProvider['getProvider']>,
   routerAddress: string,
 ): Promise<{ rebalancerAddress: string; signer: ProviderSigner }> {
   const rebalancerAddress = await getRebalancerAddress(provider, routerAddress);
@@ -188,4 +188,11 @@ export async function tryRelayMessage(
   } catch (error) {
     return { success: false, error: String(error) };
   }
+}
+
+function toBigInt(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  return BigInt((value as { toString(): string }).toString());
 }

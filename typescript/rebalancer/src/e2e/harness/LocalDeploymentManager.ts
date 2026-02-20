@@ -1,11 +1,4 @@
-import {
-  BigNumber,
-  Contract,
-  Provider,
-  Wallet,
-  constants,
-  utils,
-} from 'zksync-ethers';
+import { maxUint256, pad, zeroAddress } from 'viem';
 import { type Logger, pino } from 'pino';
 import {
   GenericContainer,
@@ -24,9 +17,11 @@ import { type IRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMetadata,
   type ChainName,
+  HyperlaneSmartProvider,
+  LocalAccountEvmSigner,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, retryAsync } from '@hyperlane-xyz/utils';
+import { ProtocolType, ensure0x, retryAsync } from '@hyperlane-xyz/utils';
 
 import {
   ANVIL_TEST_PRIVATE_KEY,
@@ -37,7 +32,7 @@ import {
 } from '../fixtures/routes.js';
 
 export interface LocalDeploymentContext {
-  providers: Map<string, Provider>;
+  providers: Map<string, ReturnType<MultiProvider['getProvider']>>;
   registry: IRegistry;
   multiProvider: MultiProvider;
   deployedAddresses: DeployedAddresses;
@@ -46,7 +41,7 @@ export interface LocalDeploymentContext {
 const ANVIL_DEPLOYER_BALANCE_HEX = '0x56BC75E2D63100000';
 const USDC_INITIAL_SUPPLY = '100000000000000';
 const USDC_DECIMALS = 6;
-const TOKEN_SCALE = BigNumber.from(1);
+const TOKEN_SCALE = 1n;
 
 export class LocalDeploymentManager {
   private context?: LocalDeploymentContext;
@@ -64,15 +59,20 @@ export class LocalDeploymentManager {
       throw new Error('LocalDeploymentManager already started');
     }
 
-    const providersByChain = new Map<string, Provider>();
-    const deployerWallet = new Wallet(ANVIL_TEST_PRIVATE_KEY);
-    const deployerAddress = deployerWallet.address;
+    const providersByChain = new Map<
+      string,
+      ReturnType<MultiProvider['getProvider']>
+    >();
+    const deployerWallet = new LocalAccountEvmSigner(
+      ensure0x(ANVIL_TEST_PRIVATE_KEY),
+    );
+    const deployerAddress = await deployerWallet.getAddress();
 
     const chainDeployments = {} as Record<TestChain, ChainDeployment>;
-    const monitoredRouters = {} as Record<TestChain, Contract>;
-    const bridgeRouters1 = {} as Record<TestChain, Contract>;
-    const bridgeRouters2 = {} as Record<TestChain, Contract>;
-    const tokens = {} as Record<TestChain, Contract>;
+    const monitoredRouters = {} as Record<TestChain, { address: string }>;
+    const bridgeRouters1 = {} as Record<TestChain, { address: string }>;
+    const bridgeRouters2 = {} as Record<TestChain, { address: string }>;
+    const tokens = {} as Record<TestChain, { address: string }>;
 
     try {
       for (let i = 0; i < TEST_CHAIN_CONFIGS.length; i++) {
@@ -98,7 +98,10 @@ export class LocalDeploymentManager {
         );
         this.containers.set(config.name, container);
         const endpoint = `http://${container.getHost()}:${container.getMappedPort(8545)}`;
-        const provider = new Provider(endpoint);
+        const provider = HyperlaneSmartProvider.fromRpcUrl(
+          config.chainId,
+          endpoint,
+        );
         providersByChain.set(config.name, provider);
 
         await provider.send('anvil_setBalance', [
@@ -106,7 +109,7 @@ export class LocalDeploymentManager {
           ANVIL_DEPLOYER_BALANCE_HEX,
         ]);
 
-        const deployer = deployerWallet.connect(provider);
+        const deployer = deployerWallet.connect(provider as any);
 
         const mailbox = await new Mailbox__factory(deployer).deploy(
           config.domainId,
@@ -144,7 +147,7 @@ export class LocalDeploymentManager {
         ).deploy(token.address, TOKEN_SCALE, mailbox.address);
         await monitoredRoute.deployed();
         await monitoredRoute.initialize(
-          constants.AddressZero,
+          zeroAddress,
           ism.address,
           deployerAddress,
         );
@@ -154,7 +157,7 @@ export class LocalDeploymentManager {
         ).deploy(token.address, TOKEN_SCALE, mailbox.address);
         await bridgeRoute1.deployed();
         await bridgeRoute1.initialize(
-          constants.AddressZero,
+          zeroAddress,
           ism.address,
           deployerAddress,
         );
@@ -164,7 +167,7 @@ export class LocalDeploymentManager {
         ).deploy(token.address, TOKEN_SCALE, mailbox.address);
         await bridgeRoute2.deployed();
         await bridgeRoute2.initialize(
-          constants.AddressZero,
+          zeroAddress,
           ism.address,
           deployerAddress,
         );
@@ -195,7 +198,9 @@ export class LocalDeploymentManager {
             if (remote.name === chain.name) continue;
             remoteDomains.push(remote.domainId);
             remoteRouters.push(
-              utils.hexZeroPad(routeMap[remote.name].address, 32),
+              pad(routeMap[remote.name].address as `0x${string}`, {
+                size: 32,
+              }),
             );
           }
 
@@ -219,10 +224,10 @@ export class LocalDeploymentManager {
         }
       }
 
-      const bridgeSeedAmount = BigNumber.from(USDC_INITIAL_SUPPLY).div(10);
+      const bridgeSeedAmount = BigInt(USDC_INITIAL_SUPPLY) / 10n;
       for (const chain of TEST_CHAIN_CONFIGS) {
         const provider = providersByChain.get(chain.name)!;
-        const deployer = deployerWallet.connect(provider);
+        const deployer = deployerWallet.connect(provider as any);
         const token = ERC20Test__factory.connect(
           tokens[chain.name].address,
           deployer,
@@ -296,11 +301,16 @@ export class LocalDeploymentManager {
         chainMetadata as Record<ChainName, ChainMetadata>,
       );
 
-      const signerWallet = new Wallet(ANVIL_TEST_PRIVATE_KEY);
+      const signerWallet = new LocalAccountEvmSigner(
+        ensure0x(ANVIL_TEST_PRIVATE_KEY),
+      );
       for (const config of TEST_CHAIN_CONFIGS) {
         const provider = providersByChain.get(config.name)!;
         multiProvider.setProvider(config.name, provider);
-        multiProvider.setSigner(config.name, signerWallet.connect(provider));
+        multiProvider.setSigner(
+          config.name,
+          signerWallet.connect(provider as any),
+        );
       }
 
       this.context = {
@@ -335,7 +345,9 @@ export class LocalDeploymentManager {
     return this.context;
   }
 
-  getProvider(chain: string): Provider | undefined {
+  getProvider(
+    chain: string,
+  ): ReturnType<MultiProvider['getProvider']> | undefined {
     return this.getContext().providers.get(chain);
   }
 
