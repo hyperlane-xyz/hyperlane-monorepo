@@ -237,4 +237,11 @@ export const blacklistedMessageIds = [
 
   // USDC/eclipsemainnet warp transfer to USDC contract itself [2026-01-30]
   '0x4190cf8c0419cd966fc96fcb9050be3d941cb06974667bd768f22e90abcec6a6',
+
+  // velo_message_module stuck messages [2026-02-19]
+  // dest: soneium
+  // ERC20InsufficientBalance (1 wei deficit)
+  '0xf666afd68037e4a60f10ced5e2aeb2e2c45d738ae7b5f105348cd40863c691b3',
+  '0x096279e770460a5d8f9d7ca15a7fb987d0eba17356c0ea6b78e5ca124475882e',
+  '0xaff74fe00b93d4474b6eef40fbfcbca84c1b04b177821bcee16b8553b9193039',
 ];
