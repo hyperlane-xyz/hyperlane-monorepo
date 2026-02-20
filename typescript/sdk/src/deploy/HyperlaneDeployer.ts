@@ -161,22 +161,23 @@ export abstract class HyperlaneDeployer<
 
     const failedChains: ChainName[] = [];
     const deployChain = async (chain: ChainName) => {
+      const chainLogger = this.logger.child({ chain });
       const signerUrl =
         await this.multiProvider.tryGetExplorerAddressUrl(chain);
       const signerAddress = await this.multiProvider.getSignerAddress(chain);
       const fromString = signerUrl || signerAddress;
-      this.logger.info(`Deploying to ${chain} from ${fromString}`);
+      chainLogger.info(`Deploying to ${chain} from ${fromString}`);
 
       return runWithTimeout(this.chainTimeoutMs, async () => {
         const contracts = await this.deployContracts(chain, configMap[chain]);
         this.addDeployedContracts(chain, contracts);
       })
         .then(() => {
-          this.logger.info(`Successfully deployed contracts on ${chain}`);
+          chainLogger.info(`Successfully deployed contracts on ${chain}`);
         })
         .catch((error) => {
           failedChains.push(chain);
-          this.logger.error(`Deployment failed on ${chain}. Error: ${error}`);
+          chainLogger.error(`Deployment failed on ${chain}. Error: ${error}`);
           throw error;
         });
     };
