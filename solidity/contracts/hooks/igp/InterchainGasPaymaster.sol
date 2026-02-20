@@ -411,7 +411,16 @@ contract InterchainGasPaymaster is
                 payable(_payerOrRefundAddress).sendValue(_overpayment);
             }
         } else {
-            // Token payment: transfer exact amount from payer
+            // Token payment: transfer exact amount from payer.
+            // Revert if native value is sent alongside an ERC20 fee payment
+            // to prevent ETH from being stuck in the contract. When called
+            // via Mailbox.dispatch, the caller should send only enough
+            // msg.value to cover the requiredHook's native fee; the Mailbox
+            // forwards the remainder here, which must be zero.
+            require(
+                msg.value == 0,
+                "IGP: native value not accepted with ERC20 fee"
+            );
             IERC20(_feeToken).safeTransferFrom(
                 _payerOrRefundAddress,
                 address(this),

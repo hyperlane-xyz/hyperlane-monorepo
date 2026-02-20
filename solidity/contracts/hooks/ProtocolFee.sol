@@ -64,6 +64,20 @@ contract ProtocolFee is AbstractPostDispatchHook, Ownable {
 
     // ============ External Functions ============
 
+    /// @inheritdoc AbstractPostDispatchHook
+    /// @dev Rejects metadata with a non-zero ERC20 fee token when the protocol fee
+    /// is non-zero, since this hook only accepts native token payment via msg.value.
+    /// When protocolFee is 0, fee token metadata is accepted because the hook contributes
+    /// nothing to the Mailbox.quoteDispatch sum, avoiding denomination mixing.
+    function supportsMetadata(
+        bytes calldata metadata
+    ) public view override returns (bool) {
+        if (protocolFee > 0 && metadata.feeToken(address(0)) != address(0)) {
+            return false;
+        }
+        return super.supportsMetadata(metadata);
+    }
+
     /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
         return uint8(IPostDispatchHook.HookTypes.PROTOCOL_FEE);
