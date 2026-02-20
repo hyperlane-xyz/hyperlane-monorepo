@@ -28,6 +28,7 @@ import {
   type TestRebalancerContext,
 } from './harness/TestRebalancer.js';
 import { tryRelayMessage } from './harness/TransferHelper.js';
+import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 
 describe('Erc20 InventoryMinAmountStrategy E2E', function () {
   this.timeout(300_000);
@@ -116,7 +117,7 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
 
     const useLatestBlockTags = Object.fromEntries(
       TEST_CHAINS.map((c) => [c, undefined]),
-    );
+    ) as ConfirmedBlockTags;
     await context.tracker.syncRebalanceActions(useLatestBlockTags);
   }
 
