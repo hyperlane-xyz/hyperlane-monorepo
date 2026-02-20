@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import hre from 'hardhat';
+import { Web3Provider } from 'zksync-ethers';
 
 import {
   ChainMap,
@@ -17,6 +18,18 @@ import { HelloWorld } from '../types/index.js';
 
 type SignerWithAddress = { address: string; [key: string]: any };
 
+async function getHardhatSigners(): Promise<SignerWithAddress[]> {
+  const wallets = await hre.viem.getWalletClients();
+  const provider = new Web3Provider(hre.network.provider as any);
+  return wallets.map((wallet) => {
+    const signer = provider.getSigner(
+      wallet.account.address,
+    ) as SignerWithAddress;
+    signer.address = wallet.account.address;
+    return signer;
+  });
+}
+
 describe('HelloWorld', () => {
   const localChain = TestChainName.test1;
   const remoteChain = TestChainName.test2;
@@ -31,7 +44,7 @@ describe('HelloWorld', () => {
   let config: ChainMap<HelloWorldConfig>;
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
