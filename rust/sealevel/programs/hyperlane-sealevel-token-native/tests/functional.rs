@@ -222,7 +222,7 @@ async fn enroll_remote_router(
             .encode()
             .unwrap(),
             vec![
-                AccountMeta::new(system_program::ID, false),
+                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new(*token_account, false),
                 AccountMeta::new_readonly(payer.pubkey(), true),
             ],
@@ -913,7 +913,7 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
             .encode()
             .unwrap(),
             vec![
-                AccountMeta::new(system_program::ID, false),
+                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new(hyperlane_token_accounts.token, false),
                 AccountMeta::new_readonly(payer.pubkey(), false),
             ],
