@@ -31,3 +31,9 @@ export {
   SvmSyntheticTokenReader,
   SvmSyntheticTokenWriter,
 } from './synthetic-token.js';
+
+// Collateral token
+export {
+  SvmCollateralTokenReader,
+  SvmCollateralTokenWriter,
+} from './collateral-token.js';
