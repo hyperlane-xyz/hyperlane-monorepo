@@ -1,5 +1,4 @@
-import { Provider } from '@ethersproject/providers';
-import { Wallet } from 'ethers';
+import { Wallet, type providers } from 'ethers';
 import fs from 'fs';
 import yargs from 'yargs';
 
@@ -57,7 +56,7 @@ async function setMailboxHook(
 async function setIgpConfig(
   remoteId: number,
   signer: Wallet,
-  provider: Provider,
+  provider: providers.Provider,
   mailbox: Mailbox,
   addresses: any,
   local: ChainName,
