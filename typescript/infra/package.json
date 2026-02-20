@@ -88,7 +88,6 @@
     "viem": "catalog:",
     "yaml": "catalog:",
     "yargs": "catalog:",
-    "zksync-ethers": "catalog:",
     "zod": "catalog:",
     "zod-validation-error": "catalog:"
   },

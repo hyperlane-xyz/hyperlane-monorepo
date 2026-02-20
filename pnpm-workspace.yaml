@@ -16,7 +16,6 @@ catalog:
 
   # Ethereum/EVM
   viem: ^2.21.45
-  zksync-ethers: ^5.10.0
 
   # Logging
   pino: ^8.19.0

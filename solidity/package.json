@@ -26,8 +26,7 @@
         "ts-node": "catalog:",
         "tsx": "catalog:",
         "typescript": "catalog:",
-        "viem": "catalog:",
-        "zksync-ethers": "catalog:"
+        "viem": "catalog:"
     },
     "directories": {
         "test": "test"
