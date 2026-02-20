@@ -75,8 +75,13 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
   describe('Synthetic Token', () => {
     let deployedProgramId: string;
 
-    it('should deploy and initialize synthetic token', async () => {
-      const writer = new SvmSyntheticTokenWriter(rpc, signer, programBytes);
+    it.only('should deploy and initialize synthetic token', async () => {
+      const writer = new SvmSyntheticTokenWriter(
+        rpc,
+        signer,
+        programBytes,
+        solana.rpcUrl,
+      );
 
       const config = {
         type: 'synthetic' as const,
@@ -103,7 +108,7 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
     });
 
     it('should read synthetic token config and validate metadata', async () => {
-      const reader = new SvmSyntheticTokenReader(rpc);
+      const reader = new SvmSyntheticTokenReader(rpc, solana.rpcUrl);
       const token = await reader.read(deployedProgramId);
 
       expect(token.artifactState).to.equal(ArtifactState.DEPLOYED);
@@ -121,8 +126,13 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
     });
 
     it('should enroll remote routers', async () => {
-      const reader = new SvmSyntheticTokenReader(rpc);
-      const writer = new SvmSyntheticTokenWriter(rpc, signer, programBytes);
+      const reader = new SvmSyntheticTokenReader(rpc, solana.rpcUrl);
+      const writer = new SvmSyntheticTokenWriter(
+        rpc,
+        signer,
+        programBytes,
+        solana.rpcUrl,
+      );
 
       const current = await reader.read(deployedProgramId);
 

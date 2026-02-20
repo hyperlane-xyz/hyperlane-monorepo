@@ -6,6 +6,8 @@ import {
   getProgramDerivedAddress,
   getUtf8Encoder,
 } from '@solana/kit';
+import { TOKEN_2022_PROGRAM_ID, getTokenMetadata } from '@solana/spl-token';
+import { Connection, PublicKey } from '@solana/web3.js';
 
 import {
   type ArtifactDeployed,
@@ -48,8 +50,7 @@ import {
 } from './warp-tx.js';
 
 const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111' as Address;
-const TOKEN_2022_PROGRAM_ID =
-  'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' as Address;
+'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' as Address;
 const RENT_SYSVAR = 'SysvarRent111111111111111111111111111111111' as Address;
 const PROGRAM_INSTRUCTION_DISCRIMINATOR = new Uint8Array([
   1, 1, 1, 1, 1, 1, 1, 1,
@@ -112,7 +113,7 @@ function createInitializeMetadataPointerInstruction(
   // else: leave zeros (None)
 
   return {
-    programAddress: TOKEN_2022_PROGRAM_ID,
+    programAddress: TOKEN_2022_PROGRAM_ID.toBase58() as Address,
     accounts: [{ address: mint, role: 0 }], // readonly
     data,
   };
@@ -139,7 +140,7 @@ function createInitializeMint2Instruction(
   data[34] = 0; // COption::None for freeze authority
 
   return {
-    programAddress: TOKEN_2022_PROGRAM_ID,
+    programAddress: TOKEN_2022_PROGRAM_ID.toBase58() as Address,
     accounts: [
       { address: mint, role: 1 }, // writable
       { address: RENT_SYSVAR, role: 0 }, // rent sysvar
@@ -187,7 +188,7 @@ function createInitializeMetadataInstruction(
   data.set(uriBytes, offset);
 
   return {
-    programAddress: TOKEN_2022_PROGRAM_ID,
+    programAddress: TOKEN_2022_PROGRAM_ID.toBase58() as Address,
     accounts: [
       { address: mint, role: 1 }, // writable
       { address: updateAuthority, role: 2 }, // update authority signer
@@ -218,7 +219,7 @@ function createSetAuthorityInstruction(
   data.set(newAuthorityBytes, 3);
 
   return {
-    programAddress: TOKEN_2022_PROGRAM_ID,
+    programAddress: TOKEN_2022_PROGRAM_ID.toBase58() as Address,
     accounts: [
       { address: mint, role: 1 }, // writable
       { address: currentAuthority, role: 2 }, // current authority signer
@@ -264,26 +265,29 @@ function buildSyntheticTokenInitInstruction(
  * Fetches token metadata from SPL Token-2022 mint account.
  */
 async function fetchTokenMetadata(
-  rpc: Rpc<SolanaRpcApi>,
+  rpcUrl: string,
   programId: Address,
 ): Promise<{ name: string; symbol: string; uri: string } | null> {
   const [mintPda] = await getSyntheticMintPda(programId);
 
   try {
-    const account = await rpc
-      .getAccountInfo(mintPda, { encoding: 'base64' })
-      .send();
-    if (!account.value) return null;
+    const connection = new Connection(rpcUrl);
+    const mintPubkey = new PublicKey(mintPda);
 
-    // Metadata is stored in the mint account with Token-2022
-    // For now, return placeholder values
-    // TODO: Parse metadata from mint account data
-    return {
-      name: 'Synthetic Token',
-      symbol: 'SYN',
-      uri: '',
-    };
-  } catch {
+    const metadata = await getTokenMetadata(
+      connection,
+      mintPubkey,
+      'confirmed',
+      TOKEN_2022_PROGRAM_ID,
+    );
+
+    console.log('METADATA IS', metadata);
+
+    return metadata
+      ? { name: metadata.name, symbol: metadata.symbol, uri: metadata.uri }
+      : null;
+  } catch (error) {
+    console.error('Error fetching metadata:', error);
     return null;
   }
 }
@@ -291,7 +295,10 @@ async function fetchTokenMetadata(
 export class SvmSyntheticTokenReader
   implements ArtifactReader<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
 {
-  constructor(private readonly rpc: Rpc<SolanaRpcApi>) {}
+  constructor(
+    private readonly rpc: Rpc<SolanaRpcApi>,
+    private readonly rpcUrl: string, // Mandatory for metadata fetching
+  ) {}
 
   async read(
     address: string,
@@ -313,7 +320,7 @@ export class SvmSyntheticTokenReader
     }
 
     // Fetch metadata from mint account
-    const metadata = await fetchTokenMetadata(this.rpc, programId);
+    const metadata = await fetchTokenMetadata(this.rpcUrl, programId);
 
     const config: RawSyntheticWarpArtifactConfig = {
       type: 'synthetic',
@@ -347,6 +354,7 @@ export class SvmSyntheticTokenWriter
     private readonly rpc: Rpc<SolanaRpcApi>,
     private readonly signer: SvmSigner,
     private readonly programBytes: Uint8Array,
+    private readonly rpcUrl: string, // Mandatory for metadata operations
   ) {}
 
   async create(
@@ -463,7 +471,7 @@ export class SvmSyntheticTokenWriter
         instructions: [initMetadataIx],
       });
       receipts.push(metadataReceipt);
-      console.log('Metadata initialized');
+      console.log('Metadata initialized', metadataReceipt.signature);
     }
 
     // Step 8: Transfer mint authority to mint PDA (self-authority for minting)
@@ -478,7 +486,10 @@ export class SvmSyntheticTokenWriter
       instructions: [setAuthorityIx],
     });
     receipts.push(authorityReceipt);
-    console.log('Mint authority transferred to mint PDA');
+    console.log(
+      'Mint authority transferred to mint PDA',
+      authorityReceipt.signature,
+    );
 
     // Step 9: Configure routers
     if (Object.keys(config.remoteRouters).length > 0) {
@@ -552,7 +563,7 @@ export class SvmSyntheticTokenWriter
   ): Promise<
     ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
   > {
-    const reader = new SvmSyntheticTokenReader(this.rpc);
+    const reader = new SvmSyntheticTokenReader(this.rpc, this.rpcUrl);
     return reader.read(address);
   }
 
@@ -563,7 +574,7 @@ export class SvmSyntheticTokenWriter
     >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = artifact.deployed.address as Address;
-    const reader = new SvmSyntheticTokenReader(this.rpc);
+    const reader = new SvmSyntheticTokenReader(this.rpc, this.rpcUrl);
     const current = await reader.read(programId);
 
     const instructions = await computeWarpTokenUpdateInstructions(
