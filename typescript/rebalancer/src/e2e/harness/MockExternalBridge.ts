@@ -2,6 +2,7 @@ import { BigNumber, ethers, type providers } from 'ethers';
 import { pino, type Logger } from 'pino';
 
 import {
+  ERC20Test__factory,
   HypERC20Collateral__factory,
   HypNative__factory,
 } from '@hyperlane-xyz/core';
@@ -136,6 +137,12 @@ export class MockExternalBridge implements IExternalBridge {
 
     let tx;
     if (this.tokenType === 'erc20') {
+      const tokenAddress = (
+        this.deployedAddresses as Erc20InventoryDeployedAddresses
+      ).tokens[fromChainName];
+      const token = ERC20Test__factory.connect(tokenAddress, signer);
+      await token.approve(bridgeRouteAddress, quote.fromAmount);
+
       const bridgeRoute = HypERC20Collateral__factory.connect(
         bridgeRouteAddress,
         signer,
