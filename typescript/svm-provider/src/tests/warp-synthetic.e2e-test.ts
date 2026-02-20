@@ -146,6 +146,9 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       }
 
       const updated = await reader.read(deployedProgramId);
+
+      console.log(JSON.stringify(updated, null, 2));
+
       expect(updated.config.remoteRouters[1]).to.exist;
       expect(updated.config.remoteRouters[1]?.address).to.equal(
         '0x1111111111111111111111111111111111111111111111111111111111111111',
