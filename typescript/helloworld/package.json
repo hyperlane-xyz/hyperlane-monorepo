@@ -44,9 +44,7 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
-    "@ethereum-waffle/chai": "^4.0.10",
     "@nomiclabs/hardhat-ethers": "catalog:",
-    "@nomiclabs/hardhat-waffle": "catalog:",
     "@typechain/ethers-v6": "catalog:",
     "@typechain/hardhat": "catalog:",
     "@types/chai": "catalog:",
@@ -60,7 +58,6 @@
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
-    "ethereum-waffle": "catalog:",
     "hardhat": "catalog:",
     "hardhat-gas-reporter": "catalog:",
     "prettier": "catalog:",
