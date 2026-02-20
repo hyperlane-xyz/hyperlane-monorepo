@@ -1,8 +1,9 @@
 import { BedrockCrossChainMessageProof } from '@eth-optimism/core-utils';
 import { CoreCrossChainMessage, CrossChainMessenger } from '@eth-optimism/sdk';
-import { BytesLike, ethers, providers } from 'ethers';
+import { providers } from 'ethers';
 import { Router } from 'express';
 import { Logger } from 'pino';
+import { keccak256 } from 'viem';
 import { z } from 'zod';
 
 import { OpL2toL1Service__factory } from '@hyperlane-xyz/core';
@@ -11,7 +12,6 @@ import { createAbiHandler } from '../utils/abiHandler.js';
 
 import { BaseService, ServiceConfig } from './BaseService.js';
 import { HyperlaneService } from './HyperlaneService.js';
-import { RPCService } from './RPCService.js';
 
 const EnvSchema = z.object({
   HYPERLANE_EXPLORER_API: z.string().url(),
@@ -34,7 +34,7 @@ export class OPStackService extends BaseService {
   // External Services
   public readonly router: Router;
   private crossChainMessenger: CrossChainMessenger;
-  private l2RpcService: RPCService;
+  private l2Provider: providers.JsonRpcProvider;
   private hyperlaneService: HyperlaneService;
 
   static async create(serviceName: string): Promise<OPStackService> {
@@ -67,12 +67,13 @@ export class OPStackService extends BaseService {
       },
     };
 
+    this.l2Provider = new providers.JsonRpcProvider(l2RpcConfig.url);
     this.crossChainMessenger = new CrossChainMessenger({
       bedrock: true,
       l1ChainId: l1RpcConfig.chainId,
       l2ChainId: l2RpcConfig.chainId,
       l1SignerOrProvider: new providers.JsonRpcProvider(l1RpcConfig.url),
-      l2SignerOrProvider: new providers.JsonRpcProvider(l2RpcConfig.url),
+      l2SignerOrProvider: this.l2Provider,
       // May need to provide these if not already registered into the SDK
       contracts: opContracts,
     });
@@ -81,7 +82,6 @@ export class OPStackService extends BaseService {
       this.config.serviceName,
       hyperlaneConfig.url,
     );
-    this.l2RpcService = new RPCService(l2RpcConfig.url);
     this.router = Router();
     // CCIP-read spec: GET /getWithdrawalProof/:sender/:callData.json
     this.router.get(
@@ -134,10 +134,10 @@ export class OPStackService extends BaseService {
   }
 
   async getWithdrawalAndProofFromMessage(
-    message: BytesLike,
+    message: `0x${string}`,
     logger: Logger,
   ): Promise<[CoreCrossChainMessage, BedrockCrossChainMessageProof]> {
-    const messageId: string = ethers.utils.keccak256(message);
+    const messageId: string = keccak256(message);
     logger.info({ messageId }, 'Getting withdrawal and proof for message');
 
     const txHash =
@@ -152,8 +152,7 @@ export class OPStackService extends BaseService {
 
     logger.info({ txHash }, 'Found tx');
 
-    const receipt =
-      await this.l2RpcService.provider.getTransactionReceipt(txHash);
+    const receipt = await this.l2Provider.getTransactionReceipt(txHash);
 
     if (!receipt) {
       throw new Error('Transaction not yet mined');
@@ -171,7 +170,7 @@ export class OPStackService extends BaseService {
    * @param logger Logger for request context
    * @returns The encoded
    */
-  async getWithdrawalProof([message]: ethers.utils.Result, logger: Logger) {
+  async getWithdrawalProof([message]: [`0x${string}`], logger: Logger) {
     const log = this.addLoggerServiceContext(logger);
     log.info('getWithdrawalProof');
     const [withdrawal, proof] = await this.getWithdrawalAndProofFromMessage(
@@ -208,7 +207,7 @@ export class OPStackService extends BaseService {
    * @returns The encoded
    */
   async getFinalizeWithdrawalTx(
-    [message]: ethers.utils.Result,
+    [message]: [`0x${string}`],
     logger: Logger,
   ) {
     const log = this.addLoggerServiceContext(logger);
