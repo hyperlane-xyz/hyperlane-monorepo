@@ -1,5 +1,5 @@
-import { type PopulatedTransaction, ethers, type providers } from 'ethers';
 import Sinon from 'sinon';
+import { formatEther, parseEther, zeroAddress } from 'viem';
 
 import {
   type ChainMap,
@@ -28,6 +28,14 @@ import type {
 } from '../interfaces/IStrategy.js';
 import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
+type PopulatedTransaction = PreparedTransaction['populatedTx'];
+type TransactionReceipt = {
+  transactionHash: string;
+  blockNumber: number;
+  status: number;
+};
+type ProviderBlock = { number: number };
+
 // === Mock Classes ===
 
 export class MockRebalancer implements IRebalancer {
@@ -48,7 +56,7 @@ export function buildTestRoute(
     return {
       origin: 'ethereum',
       destination: 'arbitrum',
-      amount: ethers.utils.parseEther('100').toBigInt(),
+      amount: parseEther('100'),
       executionType: 'inventory',
       externalBridge: 'lifi',
       ...overrides,
@@ -57,7 +65,7 @@ export function buildTestRoute(
   return {
     origin: 'ethereum',
     destination: 'arbitrum',
-    amount: ethers.utils.parseEther('100').toBigInt(),
+    amount: parseEther('100'),
     executionType: 'movableCollateral',
     bridge: TEST_ADDRESSES.bridge,
     ...overrides,
@@ -70,7 +78,7 @@ export function buildTestMovableCollateralRoute(
   return {
     origin: 'ethereum',
     destination: 'arbitrum',
-    amount: ethers.utils.parseEther('100').toBigInt(),
+    amount: parseEther('100'),
     executionType: 'movableCollateral',
     bridge: TEST_ADDRESSES.bridge,
     ...overrides,
@@ -105,7 +113,7 @@ export function buildTestPreparedTransaction(
     populatedTx: {
       to: TEST_ADDRESSES.token,
       data: '0x',
-      value: ethers.BigNumber.from(0),
+      value: 0n,
     } as PopulatedTransaction,
     route,
     originTokenAmount: createMockTokenAmount(route.amount),
@@ -124,7 +132,7 @@ export function createMockTokenAmount(amount: bigint): TokenAmount {
       decimals: 18,
       addressOrDenom: TEST_ADDRESSES.token,
     },
-    getDecimalFormattedAmount: () => ethers.utils.formatEther(amount),
+    getDecimalFormattedAmount: () => formatEther(amount),
   } as unknown as TokenAmount;
 }
 
@@ -147,7 +155,7 @@ export function createMockAdapter(config: MockAdapterConfig = {}) {
     populatedTx = {
       to: TEST_ADDRESSES.token,
       data: '0x',
-      value: ethers.BigNumber.from(0),
+      value: 0n,
     },
     throwOnQuotes,
     throwOnPopulate,
@@ -198,12 +206,12 @@ export function createMockToken(config: MockTokenConfig = {}) {
 export interface MockMultiProviderConfig {
   chainMetadata?: ChainMap<Partial<ChainMetadata>>;
   signerAddress?: string;
-  sendTransactionReceipt?: providers.TransactionReceipt;
+  sendTransactionReceipt?: TransactionReceipt;
   throwOnSendTransaction?: Error;
   throwOnEstimateGas?: Error;
-  providerWaitForTransaction?: providers.TransactionReceipt;
-  providerGetBlock?: providers.Block | null;
-  providerGetTransactionReceipt?: providers.TransactionReceipt | null;
+  providerWaitForTransaction?: TransactionReceipt;
+  providerGetBlock?: ProviderBlock | null;
+  providerGetTransactionReceipt?: TransactionReceipt | null;
 }
 
 export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
@@ -215,11 +223,11 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
         '0x1111111111111111111111111111111111111111111111111111111111111111',
       blockNumber: 100,
       status: 1,
-    } as providers.TransactionReceipt,
+    } as TransactionReceipt,
     throwOnSendTransaction,
     throwOnEstimateGas,
     providerWaitForTransaction = sendTransactionReceipt,
-    providerGetBlock = { number: 150 } as providers.Block,
+    providerGetBlock = { number: 150 } as ProviderBlock,
     providerGetTransactionReceipt = sendTransactionReceipt,
   } = config;
 
@@ -254,7 +262,7 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
     getSigner: Sinon.stub().returns(mockSigner),
     estimateGas: throwOnEstimateGas
       ? Sinon.stub().rejects(throwOnEstimateGas)
-      : Sinon.stub().resolves(ethers.BigNumber.from(100000)),
+      : Sinon.stub().resolves(100000n),
     sendTransaction: throwOnSendTransaction
       ? Sinon.stub().rejects(throwOnSendTransaction)
       : Sinon.stub().resolves(sendTransactionReceipt),
@@ -422,7 +430,7 @@ export function buildTestConfig(
     (acc, chain) => {
       (acc as any)[chain] = {
         bridgeLockTime: 60 * 1000,
-        bridge: ethers.constants.AddressZero,
+        bridge: zeroAddress,
         weighted: {
           weight: BigInt(1),
           tolerance: BigInt(0),
