@@ -328,6 +328,17 @@ export async function createWarpRouteDeployConfig({
           isNft: false,
         };
         break;
+      case TokenType.multiCollateral:
+        result[chain] = {
+          type,
+          owner,
+          proxyAdmin,
+          interchainSecurityModule,
+          token: await input({
+            message: `Enter the existing token address on chain ${chain}`,
+          }),
+        };
+        break;
       default:
         throw new Error(`Token type ${type} is not supported`);
     }
