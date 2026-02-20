@@ -3,8 +3,6 @@
     "description": "Core solidity contracts for Hyperlane",
     "version": "11.0.0",
     "devDependencies": {
-        "@ethersproject/abi": "*",
-        "@ethersproject/providers": "*",
         "@hyperlane-xyz/tsconfig": "workspace:^",
         "@hyperlane-xyz/utils": "workspace:*",
         "@matterlabs/hardhat-zksync-solc": "1.2.5",
@@ -19,7 +17,6 @@
         "chai": "catalog:",
         "eslint": "catalog:",
         "ethereum-waffle": "catalog:",
-        "ethers": "catalog:",
         "hardhat": "catalog:",
         "hardhat-gas-reporter": "catalog:",
         "hardhat-ignore-warnings": "^0.2.11",
@@ -103,8 +100,6 @@
         "test:interface": "pnpm tsx ./test/interface.test.ts"
     },
     "peerDependencies": {
-        "@ethersproject/abi": "*",
-        "@ethersproject/providers": "*",
         "@types/sinon-chai": "*"
     }
 }
