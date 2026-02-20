@@ -278,19 +278,19 @@ where
     /// - 7: `[signer]` Unique message / gas payment account.
     /// - 8: `[writeable]` Message storage PDA.
     ///   ---- If fee_config is set ----
-    /// - 9: `[executable]` The fee program.
-    /// - 10: `[]` The fee account.
-    /// - 11..11+N: `[]` Additional fee accounts (N = additional_fee_account_count).
-    /// - 11+N+1: `[writeable]` Fee recipient account.
+    /// - F:   `[executable]` The fee program.
+    /// - F+1: `[]` The fee account.
+    /// - F+2..F+1+N: `[]` Additional fee accounts (N = additional_fee_account_count).
+    /// - F+2+N: `[writeable]` Fee recipient account.
     ///   ---- End if ----
     ///   ---- If using an IGP ----
-    /// - next: `[executable]` The IGP program.
-    /// - next: `[writeable]` The IGP program data.
-    /// - next: `[writeable]` Gas payment PDA.
-    /// - next: `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-    /// - next: `[writeable]` The IGP account.
+    /// - G:   `[executable]` The IGP program.
+    /// - G+1: `[writeable]` The IGP program data.
+    /// - G+2: `[writeable]` Gas payment PDA.
+    /// - G+3: `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+    /// - G+3 or G+4: `[writeable]` The IGP account.
     ///   ---- End if ----
-    /// - remaining: `[??..??]` Plugin-specific accounts.
+    /// - P..P+K: `[??..??]` Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -359,7 +359,7 @@ where
 
         // ---- Fee section (only if fee_config is set) ----
         let (fee_amount, fee_recipient_account) = if let Some(ref fee_config) = token.fee_config {
-            let (fee_amount, fee_recipient_acct) = Self::process_fee_accounts(
+            let (fee_amount, fee_recipient_acct) = Self::verify_and_quote_fee(
                 fee_config,
                 accounts_iter,
                 xfer.destination_domain,
@@ -959,17 +959,22 @@ where
         Ok(())
     }
 
-    /// Process fee accounts from the accounts iterator.
-    /// Performs CPI to the fee program to quote the fee, then consumes the fee recipient account.
+    /// Verifies fee accounts against the FeeConfig and quotes the fee via CPI.
+    ///
+    /// Validates that the fee program and fee account passed in match the
+    /// stored FeeConfig, then invokes the fee program's QuoteFee instruction
+    /// via CPI to get the fee amount. Finally, consumes and verifies the
+    /// fee recipient account.
+    ///
     /// Returns (fee_amount, fee_recipient_account_info).
-    fn process_fee_accounts<'a, 'b>(
+    fn verify_and_quote_fee<'a, 'b>(
         fee_config: &FeeConfig,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         destination_domain: u32,
         amount_or_id: &hyperlane_core::U256,
         token: &HyperlaneToken<T>,
     ) -> Result<(u64, &'a AccountInfo<'b>), ProgramError> {
-        // Consume fee program account
+        // Account F: Fee program
         let fee_program_account = next_account_info(accounts_iter)?;
         if fee_program_account.key != &fee_config.fee_program {
             return Err(Error::FeeProgramMismatch.into());
@@ -978,13 +983,13 @@ where
             return Err(ProgramError::InvalidAccountData);
         }
 
-        // Consume fee account
+        // Account F+1: Fee account
         let fee_account_info = next_account_info(accounts_iter)?;
         if fee_account_info.key != &fee_config.fee_account {
             return Err(Error::FeeAccountMismatch.into());
         }
 
-        // Consume additional fee accounts
+        // Accounts F+2..F+1+N: Additional fee accounts
         let mut additional_accounts = Vec::new();
         let mut additional_account_infos = Vec::new();
         for _ in 0..fee_config.additional_fee_account_count {
@@ -998,46 +1003,36 @@ where
             .try_into()
             .map_err(|_| Error::IntegerOverflow)?;
 
-        // Build the QuoteFee CPI instruction
-        // QuoteFee instruction data: discriminator + borsh(QuoteFee { destination_domain, amount })
-        use account_utils::DiscriminatorEncode;
-        let quote_ixn_data = hyperlane_sealevel_fee::instruction::FeeInstruction::QuoteFee(
-            hyperlane_sealevel_fee::instruction::QuoteFee {
-                destination_domain,
-                amount: local_amount,
-            },
-        )
-        .encode()?;
-
-        let mut cpi_account_metas = vec![AccountMeta::new_readonly(*fee_account_info.key, false)];
-        cpi_account_metas.extend(additional_accounts);
+        // Build the QuoteFee CPI instruction using the helper
+        let cpi_instruction = hyperlane_sealevel_fee::instruction::quote_fee_instruction(
+            fee_config.fee_program,
+            *fee_account_info.key,
+            destination_domain,
+            local_amount,
+            additional_accounts,
+        )?;
 
         let mut cpi_account_infos = vec![fee_account_info.clone()];
         cpi_account_infos.extend(additional_account_infos);
 
-        let cpi_instruction = solana_program::instruction::Instruction {
-            program_id: fee_config.fee_program,
-            accounts: cpi_account_metas,
-            data: quote_ixn_data,
-        };
-
         invoke(&cpi_instruction, &cpi_account_infos).map_err(|_| Error::FeeProgramCpiError)?;
 
-        // Read return data from fee program
-        let fee_amount = get_return_data()
-            .and_then(|(returning_program, data)| {
-                if returning_program != fee_config.fee_program {
-                    return None;
-                }
-                if data.len() < 8 {
-                    return None;
-                }
-                let bytes: [u8; 8] = data[..8].try_into().ok()?;
-                Some(u64::from_le_bytes(bytes))
-            })
-            .unwrap_or(0);
+        // Read return data from fee program — error if missing or invalid
+        let (returning_program, data) =
+            get_return_data().ok_or(Error::FeeQuoteReturnDataInvalid)?;
+        if returning_program != fee_config.fee_program {
+            return Err(Error::FeeQuoteReturnDataInvalid.into());
+        }
+        if data.len() < 8 {
+            return Err(Error::FeeQuoteReturnDataInvalid.into());
+        }
+        let fee_amount = u64::from_le_bytes(
+            data[..8]
+                .try_into()
+                .map_err(|_| Error::FeeQuoteReturnDataInvalid)?,
+        );
 
-        // Consume fee recipient account
+        // Account F+2+N: Fee recipient account
         let fee_recipient_account = next_account_info(accounts_iter)?;
 
         // Verify the fee recipient account using the plugin's verification method

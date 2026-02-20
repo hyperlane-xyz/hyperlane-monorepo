@@ -3,9 +3,6 @@ use solana_program::program_error::ProgramError;
 #[derive(Copy, Clone, Debug, Eq, thiserror::Error, num_derive::FromPrimitive, PartialEq)]
 #[repr(u32)]
 pub enum Error {
-    #[error("Unauthorized: signer is not the owner")]
-    Unauthorized = 1,
-
     #[error("Fee account is not a Routing type")]
     NotRoutingFee = 2,
 

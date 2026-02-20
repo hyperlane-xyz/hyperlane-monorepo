@@ -247,8 +247,9 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
         // Transfer fee to recipient (if any)
         if fee_amount > 0 {
-            let recipient_ata = fee_recipient_account
-                .ok_or(ProgramError::from(hyperlane_sealevel_token_lib::error::Error::FeeRecipientRequired))?;
+            let recipient_ata = fee_recipient_account.ok_or(ProgramError::from(
+                hyperlane_sealevel_token_lib::error::Error::FeeRecipientRequired,
+            ))?;
             let transfer_ixn = spl_token_2022::instruction::transfer_checked(
                 &spl_token_2022::id(),
                 sender_ata.key,

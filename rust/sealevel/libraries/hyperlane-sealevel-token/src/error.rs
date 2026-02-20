@@ -37,6 +37,10 @@ pub enum Error {
     /// Fee account does not match config.
     #[error("Fee account mismatch")]
     FeeAccountMismatch = 8,
+
+    /// Fee quote CPI returned invalid or missing data.
+    #[error("Fee quote return data invalid")]
+    FeeQuoteReturnDataInvalid = 9,
 }
 
 impl From<Error> for ProgramError {

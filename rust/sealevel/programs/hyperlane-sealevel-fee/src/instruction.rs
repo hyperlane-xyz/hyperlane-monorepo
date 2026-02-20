@@ -11,19 +11,31 @@ use solana_system_interface::program as system_program;
 use crate::{accounts::FeeData, fee_pda_seeds, fee_route_pda_seeds};
 
 /// Instructions for the Hyperlane Sealevel Fee program.
+///
+/// The fee program manages fee accounts that define how transfer fees are
+/// computed for warp route transfers. Fee accounts are PDAs derived from a
+/// user-provided salt, enabling deterministic addresses.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub enum FeeInstruction {
-    /// Create a new fee account.
+    /// Create a new fee account PDA with the given salt and fee parameters.
+    /// The payer becomes the initial owner.
     InitFee(InitFee),
-    /// Set a per-domain route (Routing fee type only).
+    /// Set a per-domain route on a Routing fee account. Creates or overwrites
+    /// the route domain PDA. Only callable by the fee account owner.
     SetRoute(SetRoute),
-    /// Remove a per-domain route (Routing fee type only).
+    /// Remove a per-domain route, closing the route domain PDA and returning
+    /// rent to the specified recipient. Only callable by the fee account owner.
     RemoveRoute(u32),
-    /// Update fee parameters.
+    /// Update the fee parameters on an existing fee account. May trigger a
+    /// realloc if the new FeeData variant has a different serialized size.
+    /// Only callable by the fee account owner.
     UpdateFeeData(FeeData),
-    /// Transfer ownership.
+    /// Transfer ownership of a fee account. Pass `None` to renounce ownership
+    /// (makes the fee account immutable). Only callable by the current owner.
     TransferOwnership(Option<Pubkey>),
-    /// Quote a fee amount. Called by warp routes via CPI.
+    /// Quote a fee amount for a given destination domain and transfer amount.
+    /// Called by warp routes via CPI. Returns the fee as u64 LE bytes via
+    /// `set_return_data`.
     QuoteFee(QuoteFee),
 }
 
@@ -32,29 +44,41 @@ impl DiscriminatorData for FeeInstruction {
 }
 
 /// Data for InitFee instruction.
+///
+/// The fee account PDA is derived from `(fee_pda_seeds, salt)`. Using
+/// different salts allows multiple fee accounts under the same program.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct InitFee {
-    /// Salt used to derive the fee account PDA.
+    /// Salt used to derive the fee account PDA. Allows creating multiple
+    /// fee accounts with different configurations.
     pub salt: H256,
-    /// The fee configuration.
+    /// The fee configuration (Linear, Regressive, Progressive, or Routing).
     pub fee_data: FeeData,
 }
 
 /// Data for SetRoute instruction.
+///
+/// Creates or overwrites a route domain PDA that maps a destination domain
+/// to a delegated fee account. The delegated fee account must already exist
+/// and be owned by this program.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct SetRoute {
-    /// The destination domain.
+    /// The destination domain to route.
     pub domain: u32,
-    /// The fee account to delegate to for this domain.
+    /// The fee account pubkey to delegate to for this domain.
     pub fee_account: Pubkey,
 }
 
 /// Data for QuoteFee instruction.
+///
+/// Used by warp routes via CPI to determine the fee for a transfer.
+/// The fee program computes the fee based on the fee account's FeeData
+/// and returns it as u64 LE bytes via `set_return_data`.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
 pub struct QuoteFee {
-    /// The destination domain.
+    /// The destination domain for the transfer.
     pub destination_domain: u32,
-    /// The transfer amount.
+    /// The transfer amount in local token units.
     pub amount: u64,
 }
 

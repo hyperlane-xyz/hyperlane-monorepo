@@ -2,13 +2,7 @@
 #[macro_export]
 macro_rules! fee_pda_seeds {
     ($salt:expr) => {{
-        &[
-            b"hyperlane_fee",
-            b"-",
-            b"fee",
-            b"-",
-            $salt.as_ref(),
-        ]
+        &[b"hyperlane_fee", b"-", b"fee", b"-", $salt.as_ref()]
     }};
 
     ($salt:expr, $bump:expr) => {{

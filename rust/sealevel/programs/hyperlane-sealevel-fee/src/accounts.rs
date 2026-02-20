@@ -49,24 +49,54 @@ impl SizedData for RouteDomain {
 }
 
 /// Fee type discriminant + parameters.
+///
+/// Each variant implements a different fee curve mapping transfer amount to fee.
+/// All fee variants are capped at `max_fee` and use `half_amount` as a scaling
+/// parameter (the transfer amount at which the fee equals half of `max_fee`).
+///
+/// Fee is always rounded down due to integer division.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
 pub enum FeeData {
-    /// Linear fee: fee = min(max_fee, amount * max_fee / (2 * half_amount))
-    Linear {
-        max_fee: u64,
-        half_amount: u64,
-    },
-    /// Regressive fee: fee = max_fee * amount / (half_amount + amount)
-    Regressive {
-        max_fee: u64,
-        half_amount: u64,
-    },
-    /// Progressive fee: fee = max_fee * amount^2 / (half_amount^2 + amount^2)
-    Progressive {
-        max_fee: u64,
-        half_amount: u64,
-    },
+    /// Linear fee: fee increases linearly with transfer amount, capped at `max_fee`.
+    ///
+    /// Formula: `fee = min(max_fee, amount * max_fee / (2 * half_amount))`
+    ///
+    /// - `max_fee`: Maximum fee (in token units) that can be charged.
+    /// - `half_amount`: Transfer amount at which the fee equals half of `max_fee`.
+    ///
+    /// Example: max_fee=10, half_amount=1000
+    ///   amount=1000 -> fee=5, amount=2000 -> fee=10 (capped), amount=500 -> fee=2
+    Linear { max_fee: u64, half_amount: u64 },
+    /// Regressive fee: fee percentage decreases as transfer amount grows.
+    /// Approaches `max_fee` asymptotically but never reaches it.
+    ///
+    /// Formula: `fee = max_fee * amount / (half_amount + amount)`
+    ///
+    /// - `max_fee`: Asymptotic upper bound of the fee.
+    /// - `half_amount`: Transfer amount at which the fee equals half of `max_fee`.
+    ///
+    /// Example: max_fee=10, half_amount=1000
+    ///   amount=1000 -> fee=5, amount=9000 -> fee=9, amount=100 -> fee=0
+    Regressive { max_fee: u64, half_amount: u64 },
+    /// Progressive fee: fee percentage increases with transfer amount (S-curve).
+    /// Small transfers pay near-zero fees; large transfers approach `max_fee`.
+    ///
+    /// Formula: `fee = max_fee * amount^2 / (half_amount^2 + amount^2)`
+    ///
+    /// - `max_fee`: Asymptotic upper bound of the fee.
+    /// - `half_amount`: Transfer amount at which the fee equals half of `max_fee`.
+    ///
+    /// Example: max_fee=10, half_amount=1000
+    ///   amount=1000 -> fee=5, amount=100 -> fee=0, amount=10000 -> fee=9
+    Progressive { max_fee: u64, half_amount: u64 },
     /// Routing fee: delegates to per-domain fee accounts via PDAs.
+    ///
+    /// The routing fee account itself holds no fee parameters. Instead, it
+    /// maintains per-domain route PDAs that each point to a delegated fee
+    /// account (which can be any other FeeData variant, including another
+    /// Routing account for multi-level delegation).
+    ///
+    /// If no route is set for a domain, the fee is 0.
     Routing,
 }
 

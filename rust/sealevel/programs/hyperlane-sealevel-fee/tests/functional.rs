@@ -280,7 +280,7 @@ async fn test_set_route_errors_if_not_owner() {
         process_instruction_helper(&mut banks_client, ixn, &non_owner, &[&non_owner]).await;
     assert_transaction_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::Custom(1)), // Unauthorized
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
 
@@ -391,7 +391,7 @@ async fn test_update_fee_data_errors_if_not_owner() {
         process_instruction_helper(&mut banks_client, ixn, &non_owner, &[&non_owner]).await;
     assert_transaction_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::Custom(1)), // Unauthorized
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
 
@@ -483,7 +483,7 @@ async fn test_transfer_ownership_errors_if_not_owner() {
         process_instruction_helper(&mut banks_client, ixn, &non_owner, &[&non_owner]).await;
     assert_transaction_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::Custom(1)), // Unauthorized
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
 
@@ -516,7 +516,8 @@ async fn test_quote_linear_fee() {
             half_amount,
         },
         amount,
-    );
+    )
+    .unwrap();
 
     let ixn = quote_fee_instruction(program_id, fee_key, 0, amount, vec![]).unwrap();
 
@@ -571,7 +572,8 @@ async fn test_quote_regressive_fee() {
             half_amount,
         },
         amount,
-    );
+    )
+    .unwrap();
 
     let ixn = quote_fee_instruction(fee_program_id(), fee_key, 0, amount, vec![]).unwrap();
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
@@ -624,7 +626,8 @@ async fn test_quote_progressive_fee() {
             half_amount,
         },
         amount,
-    );
+    )
+    .unwrap();
 
     let ixn = quote_fee_instruction(fee_program_id(), fee_key, 0, amount, vec![]).unwrap();
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
@@ -775,7 +778,8 @@ async fn test_quote_routing_fee_with_delegated() {
             half_amount,
         },
         amount,
-    );
+    )
+    .unwrap();
     assert_eq!(fee, expected);
     assert!(fee > 0);
 }
@@ -904,4 +908,89 @@ async fn test_set_route_overwrites_existing() {
         .unwrap()
         .into_inner();
     assert_eq!(route.fee_account, second_delegated);
+}
+
+// ---- Remove then recreate route ----
+
+#[tokio::test]
+async fn test_remove_route_then_recreate() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    let routing_fee_key = init_fee(&mut banks_client, &payer, H256::zero(), FeeData::Routing)
+        .await
+        .unwrap();
+
+    let delegated_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::from_low_u64_be(1),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .await
+    .unwrap();
+
+    let domain = 42u32;
+
+    // Set route
+    let ixn = set_route_instruction(
+        program_id,
+        payer.pubkey(),
+        routing_fee_key,
+        domain,
+        delegated_key,
+    )
+    .unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Remove route
+    let ixn =
+        remove_route_instruction(program_id, payer.pubkey(), routing_fee_key, domain).unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Re-create route for the same domain with a different delegated account
+    let new_delegated_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::from_low_u64_be(2),
+        FeeData::Regressive {
+            max_fee: 200,
+            half_amount: 100,
+        },
+    )
+    .await
+    .unwrap();
+
+    let ixn = set_route_instruction(
+        program_id,
+        payer.pubkey(),
+        routing_fee_key,
+        domain,
+        new_delegated_key,
+    )
+    .unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Verify the re-created route points to the new delegated account
+    let (route_pda, _) =
+        Pubkey::find_program_address(fee_route_pda_seeds!(routing_fee_key, domain), &program_id);
+    let route_data = banks_client
+        .get_account(route_pda)
+        .await
+        .unwrap()
+        .unwrap()
+        .data;
+    let route = RouteDomainData::fetch(&mut &route_data[..])
+        .unwrap()
+        .into_inner();
+    assert_eq!(route.fee_account, new_delegated_key);
 }

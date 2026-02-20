@@ -42,31 +42,30 @@ pub fn process_instruction(
     }
 }
 
-/// Verify the fee account PDA matches the expected derivation.
+/// Verifies the fee account is owned by this program.
+///
+/// WARNING: This is a program-ownership check only, not a full PDA
+/// re-derivation. We cannot re-derive the PDA without the original salt.
+/// An attacker could create an account with arbitrary data and assign
+/// ownership to this program — this check alone does NOT prevent that.
+/// The security model relies on:
+/// 1. The fee account address being stored in the warp route's FeeConfig
+///    (set by the warp route owner), which pins the expected account.
+/// 2. For QuoteFee via CPI, the warp route validates fee_account matches
+///    FeeConfig before invoking, so a spoofed account can't be substituted.
+/// 3. For admin operations (SetRoute, UpdateFeeData, TransferOwnership),
+///    the owner signer check provides the authorization.
 fn verify_fee_account(
     program_id: &Pubkey,
     fee_account_info: &AccountInfo,
     fee_account: &FeeAccount,
 ) -> Result<(), ProgramError> {
-    // We can't re-derive without the salt, so verify via the stored bump.
-    // The caller is responsible for ensuring the account is owned by this program.
     if fee_account_info.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
     // Bump is stored in the account data; PDA derivation was verified at init time.
     let _ = fee_account.bump;
     Ok(())
-}
-
-/// Verify owner is a signer and matches the fee account owner.
-fn verify_owner(fee_account: &FeeAccount, owner_info: &AccountInfo) -> Result<(), ProgramError> {
-    if !owner_info.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-    match &fee_account.owner {
-        Some(owner) if owner == owner_info.key => Ok(()),
-        _ => Err(Error::Unauthorized.into()),
-    }
 }
 
 // ---- Handlers ----
@@ -119,7 +118,7 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], init: InitFee
 
     fee_account_data.store(fee_account_info, false)?;
 
-    msg!("Fee account initialized");
+    msg!("Fee account initialized: {}", fee_account_info.key);
     Ok(())
 }
 
@@ -160,7 +159,7 @@ fn process_set_route(
     }
 
     let owner_info = next_account_info(accounts_iter)?;
-    verify_owner(&fee_account, owner_info)?;
+    fee_account.ensure_owner_signer(owner_info)?;
 
     let route_domain = RouteDomain {
         bump: route_bump,
@@ -185,7 +184,11 @@ fn process_set_route(
     // Store (overwrite if existing)
     route_domain_data.store(route_pda_info, false)?;
 
-    msg!("Route set for domain {}", route.domain);
+    msg!(
+        "Route set for domain {} -> fee account {}",
+        route.domain,
+        route.fee_account,
+    );
     Ok(())
 }
 
@@ -221,7 +224,7 @@ fn process_remove_route(
     }
 
     let owner_info = next_account_info(accounts_iter)?;
-    verify_owner(&fee_account, owner_info)?;
+    fee_account.ensure_owner_signer(owner_info)?;
 
     let rent_recipient = next_account_info(accounts_iter)?;
 
@@ -235,10 +238,21 @@ fn process_remove_route(
 
     // Zero account data to mark as uninitialized
     route_pda_info.try_borrow_mut_data()?.fill(0);
+    // Resize to 0 so data_is_empty() returns true immediately.
+    // This is needed if set_route is called for the same domain in the same tx.
+    // resize() is only available on the SVM runtime (panics in program-test).
+    #[allow(unexpected_cfgs)]
+    if cfg!(target_os = "solana") {
+        route_pda_info.resize(0)?;
+    }
     // Assign back to system program
     route_pda_info.assign(&system_program::ID);
 
-    msg!("Route removed for domain {}", domain);
+    msg!(
+        "Route removed for domain {}, account {}",
+        domain,
+        route_pda_info.key,
+    );
     Ok(())
 }
 
@@ -266,7 +280,7 @@ fn process_update_fee_data(
     verify_fee_account(program_id, fee_account_info, &fee_account)?;
 
     let owner_info = next_account_info(accounts_iter)?;
-    verify_owner(&fee_account, owner_info)?;
+    fee_account.ensure_owner_signer(owner_info)?;
 
     fee_account.fee_data = fee_data;
     let fee_account_data = FeeAccountData::from(fee_account);
@@ -278,7 +292,7 @@ fn process_update_fee_data(
         system_program_account,
     )?;
 
-    msg!("Fee data updated");
+    msg!("Fee data updated for account {}", fee_account_info.key);
     Ok(())
 }
 
@@ -300,12 +314,15 @@ fn process_transfer_ownership(
     verify_fee_account(program_id, fee_account_info, &fee_account)?;
 
     let owner_info = next_account_info(accounts_iter)?;
-    verify_owner(&fee_account, owner_info)?;
+    fee_account.transfer_ownership(owner_info, new_owner)?;
 
-    fee_account.set_owner(new_owner)?;
     FeeAccountData::from(fee_account).store(fee_account_info, false)?;
 
-    msg!("Ownership transferred");
+    msg!(
+        "Ownership of {} transferred to {:?}",
+        fee_account_info.key,
+        new_owner,
+    );
     Ok(())
 }
 
@@ -359,10 +376,10 @@ fn process_quote_fee(
 
                 let delegated_fee =
                     FeeAccountData::fetch(&mut &delegated_fee_info.data.borrow()[..])?.into_inner();
-                compute_fee(&delegated_fee.fee_data, quote.amount)
+                compute_fee(&delegated_fee.fee_data, quote.amount)?
             }
         }
-        fee_data => compute_fee(fee_data, quote.amount),
+        fee_data => compute_fee(fee_data, quote.amount)?,
     };
 
     set_return_data(&fee_amount.to_le_bytes());
