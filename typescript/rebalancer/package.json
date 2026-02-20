@@ -55,10 +55,11 @@
         "pino-pretty": "catalog:",
         "prom-client": "catalog:",
         "uuid": "catalog:",
+        "viem": "catalog:",
         "yaml": "catalog:",
+        "zksync-ethers": "catalog:",
         "zod": "catalog:",
-        "zod-validation-error": "catalog:",
-        "zksync-ethers": "catalog:"
+        "zod-validation-error": "catalog:"
     },
     "devDependencies": {
         "@ethersproject/constants": "*",
