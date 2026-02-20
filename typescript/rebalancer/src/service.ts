@@ -21,14 +21,17 @@
  *   node dist/service.js
  *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_KEY=0x... node dist/service.js
  */
-import { Wallet } from 'zksync-ethers';
-
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  LocalAccountEvmSigner,
+  MultiProtocolProvider,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
+  ensure0x,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -116,7 +119,7 @@ async function main(): Promise<void> {
 
     // Create MultiProvider with signer
     const multiProvider = new MultiProvider(chainMetadata);
-    const signer = new Wallet(privateKey);
+    const signer = new LocalAccountEvmSigner(ensure0x(privateKey));
     multiProvider.setSharedSigner(signer);
     logger.info('✅ Initialized MultiProvider with signer');
 
