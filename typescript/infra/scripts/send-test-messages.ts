@@ -1,6 +1,5 @@
 import fs from 'fs';
 import yargs from 'yargs';
-import { Wallet } from 'zksync-ethers';
 
 import {
   InterchainGasPaymaster,
@@ -14,10 +13,11 @@ import {
   ChainName,
   HookType,
   HyperlaneCore,
+  LocalAccountEvmSigner,
   MultiProvider,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, sleep } from '@hyperlane-xyz/utils';
+import { addressToBytes32, ensure0x, sleep } from '@hyperlane-xyz/utils';
 
 const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
@@ -55,7 +55,7 @@ async function setMailboxHook(
 
 async function setIgpConfig(
   remoteId: number,
-  signer: Wallet,
+  signer: LocalAccountEvmSigner,
   provider: ReturnType<MultiProvider['getProvider']>,
   mailbox: Mailbox,
   addresses: any,
@@ -184,7 +184,7 @@ async function main() {
   ];
 
   // Create a multi-provider with a signer
-  const signer = new Wallet(ANVIL_KEY);
+  const signer = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY));
   const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
   // Get the provider for the first chain

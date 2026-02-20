@@ -1,5 +1,4 @@
 import { Hex, pad } from 'viem';
-import { Provider, Wallet } from 'zksync-ethers';
 
 import {
   ERC20__factory,
@@ -8,11 +7,13 @@ import {
 import {
   type ChainMetadata,
   HyperlaneCore,
+  HyperlaneSmartProvider,
+  LocalAccountEvmSigner,
   MultiProvider,
   TokenStandard,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import { KPICollector } from './KPICollector.js';
 import { MockInfrastructureController } from './MockInfrastructureController.js';
@@ -42,15 +43,14 @@ export const DEFAULT_TIMING: SimulationTiming = {
  * with rebalancer monitoring and KPI collection.
  */
 export class SimulationEngine {
-  private provider: Provider;
+  private provider: ReturnType<MultiProvider['getProvider']>;
   private isRunning = false;
 
   constructor(private readonly deployment: MultiDomainDeploymentResult) {
-    this.provider = new Provider(deployment.anvilRpc);
-    // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
-    this.provider.pollingInterval = 100;
-    // Disable automatic polling (event subscriptions) but keep pollingInterval for tx.wait()
-    this.provider.polling = false;
+    this.provider = HyperlaneSmartProvider.fromRpcUrl(
+      31337,
+      deployment.anvilRpc,
+    );
   }
 
   /**
@@ -150,9 +150,7 @@ export class SimulationEngine {
         }
       }
 
-      // Clean up provider to release connections
-      this.provider.removeAllListeners();
-      this.provider.polling = false;
+      // No additional provider cleanup required for HyperlaneSmartProvider.
     }
   }
 
@@ -164,7 +162,9 @@ export class SimulationEngine {
     timing: SimulationTiming,
     kpiCollector: KPICollector,
   ): Promise<void> {
-    const deployer = new Wallet(this.deployment.deployerKey, this.provider);
+    const deployer = new LocalAccountEvmSigner(
+      ensure0x(this.deployment.deployerKey),
+    ).connect(this.provider as any);
     const startTime = Date.now();
 
     for (let i = 0; i < scenario.transfers.length; i++) {
@@ -290,10 +290,9 @@ export class SimulationEngine {
     }
 
     const multiProvider = new MultiProvider(chainMetadata);
-    const processorWallet = new Wallet(
-      this.deployment.mailboxProcessorKey,
-      this.provider,
-    );
+    const processorWallet = new LocalAccountEvmSigner(
+      ensure0x(this.deployment.mailboxProcessorKey),
+    ).connect(this.provider as any);
     multiProvider.setSharedSigner(processorWallet);
 
     // Set fast polling on internal providers

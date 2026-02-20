@@ -1,6 +1,5 @@
-import { Provider } from 'zksync-ethers';
-
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
+import type { MultiProvider } from '@hyperlane-xyz/sdk';
 
 import type {
   ChainMetrics,
@@ -21,7 +20,7 @@ export class KPICollector {
   private initialBalances: Record<string, bigint> = {};
 
   constructor(
-    private readonly provider: Provider,
+    private readonly provider: ReturnType<MultiProvider['getProvider']>,
     private readonly domains: Record<string, DeployedDomain>,
   ) {}
 

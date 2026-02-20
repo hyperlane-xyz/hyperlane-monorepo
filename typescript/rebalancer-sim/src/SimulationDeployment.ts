@@ -1,5 +1,4 @@
 import { Hex, pad, zeroAddress } from 'viem';
-import { Provider, Wallet } from 'zksync-ethers';
 
 import {
   ERC20Test__factory,
@@ -7,7 +6,13 @@ import {
   MockMailbox__factory,
   MockValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
+import {
+  HyperlaneSmartProvider,
+  LocalAccountEvmSigner,
+  type MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 import {
   ANVIL_BRIDGE_CONTROLLER_KEY,
@@ -68,19 +73,23 @@ export async function deployMultiDomainSimulation(
     options.mailboxProcessorKey || ANVIL_MAILBOX_PROCESSOR_KEY;
 
   // Create fresh provider with no caching
-  const provider = new Provider(anvilRpc);
-  // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
-  provider.pollingInterval = 100;
-  // Disable automatic polling - we don't need event subscriptions during deployment
-  provider.polling = false;
+  const provider = HyperlaneSmartProvider.fromRpcUrl(31337, anvilRpc);
 
-  const deployer = new Wallet(deployerKey, provider);
+  const deployer = new LocalAccountEvmSigner(ensure0x(deployerKey)).connect(
+    provider as any,
+  );
   const deployerAddress = await deployer.getAddress();
-  const rebalancerWallet = new Wallet(rebalancerKey, provider);
+  const rebalancerWallet = new LocalAccountEvmSigner(
+    ensure0x(rebalancerKey),
+  ).connect(provider as any);
   const rebalancerAddress = await rebalancerWallet.getAddress();
-  const bridgeControllerWallet = new Wallet(bridgeControllerKey, provider);
+  const bridgeControllerWallet = new LocalAccountEvmSigner(
+    ensure0x(bridgeControllerKey),
+  ).connect(provider as any);
   const bridgeControllerAddress = await bridgeControllerWallet.getAddress();
-  const mailboxProcessorWallet = new Wallet(mailboxProcessorKey, provider);
+  const mailboxProcessorWallet = new LocalAccountEvmSigner(
+    ensure0x(mailboxProcessorKey),
+  ).connect(provider as any);
   const mailboxProcessorAddress = await mailboxProcessorWallet.getAddress();
 
   // Step 1: Deploy MockMailboxes for each domain
@@ -235,9 +244,6 @@ export async function deployMultiDomainSimulation(
   // CRITICAL: Clean up the deployment provider to prevent accumulation
   // Each deployment creates a provider with 100ms polling that was never cleaned up
   // After multiple test runs, these accumulate and overwhelm anvil
-  provider.removeAllListeners();
-  provider.polling = false;
-
   // Build result
   const domains: Record<string, DeployedDomain> = {};
   for (const chain of chains) {
@@ -297,7 +303,7 @@ export function createSimulationChainMetadata(
  * Gets the current collateral balance for a warp token
  */
 export async function getWarpTokenBalance(
-  provider: Provider,
+  provider: ReturnType<MultiProvider['getProvider']>,
   warpTokenAddress: Address,
   collateralTokenAddress: Address,
 ): Promise<bigint> {
