@@ -1,222 +1,223 @@
-import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import {expect} from "chai";
+import {Wallet} from "zksync-ethers";
 
-import { type ChainAddresses } from '@hyperlane-xyz/registry';
+import {type ChainAddresses} from "@hyperlane-xyz/registry";
 import {
-  type HypTokenRouterConfig,
-  TokenType,
-  type WarpRouteDeployConfig,
-  normalizeConfig,
-  randomAddress,
-} from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+    type HypTokenRouterConfig,
+    TokenType,
+    type WarpRouteDeployConfig,
+    normalizeConfig,
+    randomAddress,
+} from "@hyperlane-xyz/sdk";
+import {addressToBytes32} from "@hyperlane-xyz/utils";
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { deployOrUseExistingCore } from '../commands/core.js';
-import { getDomainId } from '../commands/helpers.js';
+import {readYamlOrJson, writeYamlOrJson} from "../../../utils/files.js";
+import {deployOrUseExistingCore} from "../commands/core.js";
+import {getDomainId} from "../commands/helpers.js";
 import {
-  extendWarpConfig,
-  hyperlaneWarpApply,
-  hyperlaneWarpDeploy,
-  readWarpConfig,
-} from '../commands/warp.js';
+    extendWarpConfig,
+    hyperlaneWarpApply,
+    hyperlaneWarpDeploy,
+    readWarpConfig,
+} from "../commands/warp.js";
 import {
-  ANVIL_KEY,
-  CHAIN_NAME_2,
-  CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
-  DEFAULT_E2E_TEST_TIMEOUT,
-  TEMP_PATH,
-  WARP_CONFIG_PATH_2,
-  WARP_CONFIG_PATH_EXAMPLE,
-  WARP_CORE_CONFIG_PATH_2,
-  WARP_DEPLOY_2_ID,
-} from '../consts.js';
+    ANVIL_KEY,
+    CHAIN_NAME_2,
+    CHAIN_NAME_3,
+    CORE_CONFIG_PATH,
+    DEFAULT_E2E_TEST_TIMEOUT,
+    TEMP_PATH,
+    WARP_CONFIG_PATH_2,
+    WARP_CONFIG_PATH_EXAMPLE,
+    WARP_CORE_CONFIG_PATH_2,
+    WARP_DEPLOY_2_ID,
+} from "../consts.js";
 
-describe('hyperlane warp apply config extension tests', async function () {
-  this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
+describe("hyperlane warp apply config extension tests", async function () {
+    this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let chain3Addresses: ChainAddresses = {};
+    let chain3Addresses: ChainAddresses = {};
 
-  before(async function () {
-    [, chain3Addresses] = await Promise.all([
-      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
-    ]);
+    before(async function () {
+        [, chain3Addresses] = await Promise.all([
+            deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
+            deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+        ]);
 
-    // Create a new warp config using the example
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
-      WARP_CONFIG_PATH_EXAMPLE,
-    );
-    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
-    writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
-  });
-
-  beforeEach(async function () {
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
-  });
-
-  it('should update destination gas configuration', async () => {
-    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-
-    // Extend with new config
-    const config: HypTokenRouterConfig = {
-      decimals: 18,
-      mailbox: chain3Addresses!.mailbox,
-      name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
-      symbol: 'ETH',
-      type: TokenType.native,
-    };
-
-    await extendWarpConfig({
-      chain: CHAIN_NAME_2,
-      chainToExtend: CHAIN_NAME_3,
-      extendedConfig: config,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
+        // Create a new warp config using the example
+        const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+            WARP_CONFIG_PATH_EXAMPLE,
+        );
+        const anvil2Config = {anvil2: {...warpConfig.anvil1}};
+        writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
     });
 
-    // First read the existing config
-    const warpDeployConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
-    );
-
-    // Get the domain ID for chain 3
-    const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
-
-    // Update with new destination gas values
-    warpDeployConfig[CHAIN_NAME_2].destinationGas = {
-      [chain3Id]: '500000', // Set a specific gas value for chain 3
-    };
-
-    // Write the updated config
-    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
-
-    // Apply the changes
-    await hyperlaneWarpApply(
-      warpDeployPath,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_DEPLOY_2_ID,
-    );
-
-    // Read back the config to verify changes
-    const updatedConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
-    );
-
-    // Verify the destination gas was updated correctly
-    expect(updatedConfig[CHAIN_NAME_2].destinationGas![chain3Id]).to.equal(
-      '500000',
-    );
-  });
-
-  it('should update remote routers configuration', async () => {
-    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-
-    // Extend with new config
-    const config: HypTokenRouterConfig = {
-      decimals: 18,
-      mailbox: chain3Addresses!.mailbox,
-      name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
-      symbol: 'ETH',
-      type: TokenType.native,
-    };
-
-    await extendWarpConfig({
-      chain: CHAIN_NAME_2,
-      chainToExtend: CHAIN_NAME_3,
-      extendedConfig: config,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
+    beforeEach(async function () {
+        await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2, WARP_DEPLOY_2_ID);
     });
 
-    // First read the existing config
-    const warpDeployConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
-    );
+    it("should update destination gas configuration", async () => {
+        const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
 
-    // Get the domain ID for chain 3
-    const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+        // Extend with new config
+        const config: HypTokenRouterConfig = {
+            decimals: 18,
+            mailbox: chain3Addresses!.mailbox,
+            name: "Ether",
+            owner: new Wallet(ANVIL_KEY).address,
+            symbol: "ETH",
+            type: TokenType.native,
+        };
 
-    // Generate a new router address to update
-    const newRouterAddress = randomAddress();
+        await extendWarpConfig({
+            chain: CHAIN_NAME_2,
+            chainToExtend: CHAIN_NAME_3,
+            extendedConfig: config,
+            warpCorePath: WARP_CORE_CONFIG_PATH_2,
+            warpDeployPath,
+        });
 
-    // Update with new remote router values
-    warpDeployConfig[CHAIN_NAME_2].remoteRouters = {
-      [chain3Id]: { address: newRouterAddress }, // Set a new router address for chain 3
-    };
+        // First read the existing config
+        const warpDeployConfig = await readWarpConfig(
+            CHAIN_NAME_2,
+            WARP_CORE_CONFIG_PATH_2,
+            warpDeployPath,
+        );
 
-    // Write the updated config
-    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+        // Get the domain ID for chain 3
+        const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
 
-    // Apply the changes
-    await hyperlaneWarpApply(
-      warpDeployPath,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_DEPLOY_2_ID,
-    );
+        // Update with new destination gas values
+        warpDeployConfig[CHAIN_NAME_2].destinationGas = {
+            [chain3Id]: "500000", // Set a specific gas value for chain 3
+        };
 
-    // Read back the config to verify changes
-    const updatedConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
-    );
+        // Write the updated config
+        await writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
-    // Verify the remote router was updated correctly
-    expect(
-      updatedConfig[CHAIN_NAME_2].remoteRouters![
-        chain3Id
-      ].address.toLowerCase(),
-    ).to.equal(addressToBytes32(newRouterAddress));
-  });
+        // Apply the changes
+        await hyperlaneWarpApply(
+            warpDeployPath,
+            WARP_CORE_CONFIG_PATH_2,
+            undefined,
+            WARP_DEPLOY_2_ID,
+        );
 
-  it('should preserve deploy config when extending warp route', async () => {
-    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+        // Read back the config to verify changes
+        const updatedConfig = await readWarpConfig(
+            CHAIN_NAME_2,
+            WARP_CORE_CONFIG_PATH_2,
+            warpDeployPath,
+        );
 
-    const warpDeployConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
-    );
+        // Verify the destination gas was updated correctly
+        expect(updatedConfig[CHAIN_NAME_2].destinationGas![chain3Id]).to.equal(
+            "500000",
+        );
+    });
 
-    // Extend with new config for chain 3
-    const extendedConfig: HypTokenRouterConfig = {
-      decimals: 18,
-      mailbox: chain3Addresses!.mailbox,
-      name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
-      symbol: 'ETH',
-      type: TokenType.native,
-    };
+    it("should update remote routers configuration", async () => {
+        const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
 
-    warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
-    // Remove remoteRouters and destinationGas as they are written in readWarpConfig
-    delete warpDeployConfig[CHAIN_NAME_2].remoteRouters;
-    delete warpDeployConfig[CHAIN_NAME_2].destinationGas;
-    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    await hyperlaneWarpApply(
-      warpDeployPath,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_DEPLOY_2_ID,
-    );
+        // Extend with new config
+        const config: HypTokenRouterConfig = {
+            decimals: 18,
+            mailbox: chain3Addresses!.mailbox,
+            name: "Ether",
+            owner: new Wallet(ANVIL_KEY).address,
+            symbol: "ETH",
+            type: TokenType.native,
+        };
 
-    const updatedConfig: WarpRouteDeployConfig = readYamlOrJson(warpDeployPath);
+        await extendWarpConfig({
+            chain: CHAIN_NAME_2,
+            chainToExtend: CHAIN_NAME_3,
+            extendedConfig: config,
+            warpCorePath: WARP_CORE_CONFIG_PATH_2,
+            warpDeployPath,
+        });
 
-    expect(normalizeConfig(warpDeployConfig)).to.deep.equal(
-      normalizeConfig(updatedConfig),
-      'warp deploy config should remain unchanged after extension',
-    );
-  });
+        // First read the existing config
+        const warpDeployConfig = await readWarpConfig(
+            CHAIN_NAME_2,
+            WARP_CORE_CONFIG_PATH_2,
+            warpDeployPath,
+        );
+
+        // Get the domain ID for chain 3
+        const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+
+        // Generate a new router address to update
+        const newRouterAddress = randomAddress();
+
+        // Update with new remote router values
+        warpDeployConfig[CHAIN_NAME_2].remoteRouters = {
+            [chain3Id]: {address: newRouterAddress}, // Set a new router address for chain 3
+        };
+
+        // Write the updated config
+        await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+
+        // Apply the changes
+        await hyperlaneWarpApply(
+            warpDeployPath,
+            WARP_CORE_CONFIG_PATH_2,
+            undefined,
+            WARP_DEPLOY_2_ID,
+        );
+
+        // Read back the config to verify changes
+        const updatedConfig = await readWarpConfig(
+            CHAIN_NAME_2,
+            WARP_CORE_CONFIG_PATH_2,
+            warpDeployPath,
+        );
+
+        // Verify the remote router was updated correctly
+        expect(
+            updatedConfig[CHAIN_NAME_2].remoteRouters![
+                chain3Id
+            ].address.toLowerCase(),
+        ).to.equal(addressToBytes32(newRouterAddress));
+    });
+
+    it("should preserve deploy config when extending warp route", async () => {
+        const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+        const warpDeployConfig = await readWarpConfig(
+            CHAIN_NAME_2,
+            WARP_CORE_CONFIG_PATH_2,
+            warpDeployPath,
+        );
+
+        // Extend with new config for chain 3
+        const extendedConfig: HypTokenRouterConfig = {
+            decimals: 18,
+            mailbox: chain3Addresses!.mailbox,
+            name: "Ether",
+            owner: new Wallet(ANVIL_KEY).address,
+            symbol: "ETH",
+            type: TokenType.native,
+        };
+
+        warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
+        // Remove remoteRouters and destinationGas as they are written in readWarpConfig
+        delete warpDeployConfig[CHAIN_NAME_2].remoteRouters;
+        delete warpDeployConfig[CHAIN_NAME_2].destinationGas;
+        await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+        await hyperlaneWarpApply(
+            warpDeployPath,
+            WARP_CORE_CONFIG_PATH_2,
+            undefined,
+            WARP_DEPLOY_2_ID,
+        );
+
+        const updatedConfig: WarpRouteDeployConfig =
+            readYamlOrJson(warpDeployPath);
+
+        expect(normalizeConfig(warpDeployConfig)).to.deep.equal(
+            normalizeConfig(updatedConfig),
+            "warp deploy config should remain unchanged after extension",
+        );
+    });
 });
