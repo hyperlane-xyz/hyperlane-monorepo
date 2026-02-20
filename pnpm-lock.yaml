@@ -2812,9 +2812,6 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
-      ethers:
-        specifier: 'catalog:'
-        version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       pino:
         specifier: 'catalog:'
         version: 8.21.0
