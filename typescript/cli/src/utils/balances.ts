@@ -1,6 +1,5 @@
 import { BigNumber as BN } from 'bignumber.js';
-import { BigNumber } from 'ethers';
-import { formatUnits } from 'ethers/lib/utils.js';
+import { formatUnits } from 'viem';
 
 import {
   type AltVM,
@@ -38,10 +37,10 @@ export async function nativeBalancesAreSufficient(
     assert(symbol, `no symbol found for native token on chain ${chain}`);
 
     let address: Address = '';
-    let requiredMinBalanceNativeDenom = BigNumber.from(0);
+    let requiredMinBalanceNativeDenom = 0n;
     let requiredMinBalance: string = '0';
 
-    let deployerBalanceNativeDenom = BigNumber.from(0);
+    let deployerBalanceNativeDenom = 0n;
     let deployerBalance: string = '0';
 
     switch (protocolType) {
@@ -51,15 +50,14 @@ export async function nativeBalancesAreSufficient(
         const provider = multiProvider.getProvider(chain);
         const gasPrice = await provider.getGasPrice();
 
-        requiredMinBalanceNativeDenom = gasPrice.mul(
-          ETHEREUM_MINIMUM_GAS[minGas],
-        );
-        requiredMinBalance = formatUnits(
-          requiredMinBalanceNativeDenom.toString(),
-        );
+        requiredMinBalanceNativeDenom =
+          toBigInt(gasPrice) * BigInt(ETHEREUM_MINIMUM_GAS[minGas]);
+        requiredMinBalance = formatUnits(requiredMinBalanceNativeDenom, 18);
 
-        deployerBalanceNativeDenom = await provider.getBalance(address);
-        deployerBalance = formatUnits(deployerBalanceNativeDenom.toString());
+        deployerBalanceNativeDenom = toBigInt(
+          await provider.getBalance(address),
+        );
+        deployerBalance = formatUnits(deployerBalanceNativeDenom, 18);
         break;
       }
       default: {
@@ -80,7 +78,7 @@ export async function nativeBalancesAreSufficient(
         }
 
         const ALT_VM_GAS = getProtocolProvider(protocol).getMinGas();
-        requiredMinBalanceNativeDenom = BigNumber.from(
+        requiredMinBalanceNativeDenom = BigInt(
           new BN(gasPrice.amount)
             .times(ALT_VM_GAS[minGas].toString())
             .toFixed(0),
@@ -90,7 +88,7 @@ export async function nativeBalancesAreSufficient(
           nativeToken.decimals,
         );
 
-        deployerBalanceNativeDenom = BigNumber.from(
+        deployerBalanceNativeDenom = toBigInt(
           await signer.getBalance({ address, denom: nativeToken.denom }),
         );
         deployerBalance = formatUnits(
@@ -100,7 +98,7 @@ export async function nativeBalancesAreSufficient(
       }
     }
 
-    if (deployerBalanceNativeDenom.lt(requiredMinBalanceNativeDenom)) {
+    if (deployerBalanceNativeDenom < requiredMinBalanceNativeDenom) {
       logRed(
         `WARNING: ${address} has low balance on ${chain}. At least ${requiredMinBalance} ${symbol} recommended but found ${deployerBalance} ${symbol}`,
       );
@@ -119,4 +117,8 @@ export async function nativeBalancesAreSufficient(
     );
     if (!isResume) throw new Error('Canceled deployment due to low balance');
   }
+}
+
+function toBigInt(value: bigint | number | string | { toString(): string }): bigint {
+  return typeof value === 'bigint' ? value : BigInt(value.toString());
 }
