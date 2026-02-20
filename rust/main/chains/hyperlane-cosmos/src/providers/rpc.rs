@@ -23,7 +23,7 @@ use cosmrs::{
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
     Any, Coin,
 };
-use protobuf2::Message as _; // v2 for injective-protobuf compatibility
+use protobuf::Message as _;
 use tonic::async_trait;
 use url::Url;
 

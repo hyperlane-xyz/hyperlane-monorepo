@@ -265,12 +265,13 @@ where
     /// - 6: `[signer]` The token sender and mailbox payer.
     /// - 7: `[signer]` Unique message / gas payment account.
     /// - 8: `[writeable]` Message storage PDA.
-    ///   - If using an IGP:
+    ///   ---- If using an IGP ----
     /// - 9: `[executable]` The IGP program.
     /// - 10: `[writeable]` The IGP program data.
     /// - 11: `[writeable]` Gas payment PDA.
     /// - 12: `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
     /// - 13: `[writeable]` The IGP account.
+    ///   ---- End if ----
     /// - 14..N: `[??..??]` Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,

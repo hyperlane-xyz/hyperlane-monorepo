@@ -35,7 +35,6 @@ use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_processed_message_pda_seeds,
     protocol_fee::ProtocolFee,
-    spl_noop,
 };
 
 use hyperlane_sealevel_token::{
