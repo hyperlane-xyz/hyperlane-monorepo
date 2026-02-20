@@ -1,4 +1,4 @@
-import { TransactionReceipt } from '@ethersproject/providers';
+import { type providers } from 'ethers';
 import { Logger } from 'pino';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -31,7 +31,7 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
 
   public async submit(
     ...txs: AnnotatedEV5Transaction[]
-  ): Promise<TransactionReceipt[]> {
+  ): Promise<providers.TransactionReceipt[]> {
     // It is assumed that this Submitter will be used by setting the registry url to the anvil endpoint
     const anvilEndpoint = this.multiProvider.getChainMetadata(this.props.chain)
       ?.rpcUrls[0].http;

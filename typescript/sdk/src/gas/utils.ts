@@ -1,6 +1,5 @@
-import { Provider } from '@ethersproject/providers';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber, ethers, providers } from 'ethers';
 
 import {
   ProtocolType,
@@ -45,7 +44,9 @@ export async function getGasPrice(
   switch (protocolType) {
     case ProtocolType.Ethereum: {
       const provider = mpp.getProvider(chain);
-      const gasPrice = await (provider.provider as Provider).getGasPrice();
+      const gasPrice = await (
+        provider.provider as providers.Provider
+      ).getGasPrice();
       return {
         amount: ethers.utils.formatUnits(gasPrice, 'gwei'),
         decimals: 9,

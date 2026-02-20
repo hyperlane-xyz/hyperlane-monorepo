@@ -1,5 +1,4 @@
-import { TransactionReceipt } from '@ethersproject/providers';
-import { ContractReceipt } from 'ethers';
+import { type providers } from 'ethers';
 import { Logger } from 'pino';
 
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -25,8 +24,8 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
 
   public async submit(
     ...txs: AnnotatedEV5Transaction[]
-  ): Promise<TransactionReceipt[]> {
-    const receipts: TransactionReceipt[] = [];
+  ): Promise<providers.TransactionReceipt[]> {
+    const receipts: providers.TransactionReceipt[] = [];
     const submitterChainId = this.multiProvider.getChainId(this.props.chain);
     for (const tx of txs) {
       assert(tx.chainId, 'Invalid PopulatedTransaction: Missing chainId field');
@@ -34,7 +33,8 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
         tx.chainId === submitterChainId,
         `Transaction chainId ${tx.chainId} does not match submitter chainId ${submitterChainId}`,
       );
-      const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
+      const receipt: providers.TransactionReceipt =
+        await this.multiProvider.sendTransaction(
         this.props.chain,
         tx,
       );
