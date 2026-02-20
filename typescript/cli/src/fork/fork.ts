@@ -1,358 +1,371 @@
-import {execa} from "execa";
-import {Provider, utils} from "zksync-ethers";
-
-import {HttpServer} from "@hyperlane-xyz/http-registry-server";
-import {MergedRegistry, PartialRegistry} from "@hyperlane-xyz/registry";
+import { execa } from 'execa';
 import {
-    type ChainMap,
-    type ChainMetadata,
-    type ChainName,
-    type EventAssertion,
-    EventAssertionType,
-    type ForkedChainConfig,
-    type ForkedChainTransactionConfig,
-    type MultiProvider,
-    type RawForkedChainConfigByChain,
-    type RevertAssertion,
-    TransactionDataType,
-    forkedChainConfigByChainFromRaw,
-} from "@hyperlane-xyz/sdk";
+  type Hex,
+  decodeEventLog,
+  encodeFunctionData,
+  parseAbiItem,
+} from 'viem';
+
+import { HttpServer } from '@hyperlane-xyz/http-registry-server';
+import { MergedRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
 import {
-    type Address,
-    ProtocolType,
-    assert,
-    deepEquals,
-    retryAsync,
-} from "@hyperlane-xyz/utils";
+  type ChainMap,
+  type ChainMetadata,
+  type ChainName,
+  type EventAssertion,
+  EventAssertionType,
+  type ForkedChainConfig,
+  type ForkedChainTransactionConfig,
+  HyperlaneSmartProvider,
+  type MultiProvider,
+  type RawForkedChainConfigByChain,
+  type RevertAssertion,
+  TransactionDataType,
+  forkedChainConfigByChainFromRaw,
+} from '@hyperlane-xyz/sdk';
+import {
+  type Address,
+  ProtocolType,
+  assert,
+  deepEquals,
+  retryAsync,
+} from '@hyperlane-xyz/utils';
 
-import {type CommandContext} from "../context/types.js";
-import {logGray, logRed} from "../logger.js";
-import {readYamlOrJson} from "../utils/files.js";
+import { type CommandContext } from '../context/types.js';
+import { logGray, logRed } from '../logger.js';
+import { readYamlOrJson } from '../utils/files.js';
 
-const LOCAL_HOST = "http://127.0.0.1";
+const LOCAL_HOST = 'http://127.0.0.1';
 
 type EndPoint = string;
-type EvmLog = {topics: string[]; data: string};
+type EvmLog = { topics: Hex[]; data: Hex };
 
 export async function runForkCommand({
-    context,
-    chainsToFork,
-    forkConfig,
-    kill,
-    basePort = 8545,
+  context,
+  chainsToFork,
+  forkConfig,
+  kill,
+  basePort = 8545,
 }: {
-    context: CommandContext;
-    chainsToFork: Set<ChainName>;
-    forkConfig: RawForkedChainConfigByChain;
-    kill: boolean;
-    basePort?: number;
+  context: CommandContext;
+  chainsToFork: Set<ChainName>;
+  forkConfig: RawForkedChainConfigByChain;
+  kill: boolean;
+  basePort?: number;
 }): Promise<void> {
-    const {registry} = context;
-    const filteredChainsToFork = Array.from(chainsToFork).filter(
-        (chain) =>
-            context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-    );
+  const { registry } = context;
+  const filteredChainsToFork = Array.from(chainsToFork).filter(
+    (chain) =>
+      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  );
 
-    let port = basePort;
-    const parsedForkConfig = forkedChainConfigByChainFromRaw(
-        forkConfig,
-        readYamlOrJson,
+  let port = basePort;
+  const parsedForkConfig = forkedChainConfigByChainFromRaw(
+    forkConfig,
+    readYamlOrJson,
+  );
+  const chainMetadataOverrides: ChainMap<{
+    blocks: ChainMetadata['blocks'];
+    rpcUrls: ChainMetadata['rpcUrls'];
+  }> = {};
+  for (const chainName of filteredChainsToFork) {
+    const endpoint = await forkChain(
+      context.multiProvider,
+      chainName,
+      port,
+      kill,
+      parsedForkConfig[chainName],
     );
-    const chainMetadataOverrides: ChainMap<{
-        blocks: ChainMetadata["blocks"];
-        rpcUrls: ChainMetadata["rpcUrls"];
-    }> = {};
-    for (const chainName of filteredChainsToFork) {
-        const endpoint = await forkChain(
-            context.multiProvider,
-            chainName,
-            port,
-            kill,
-            parsedForkConfig[chainName],
-        );
-        chainMetadataOverrides[chainName] = {
-            blocks: {confirmations: 1},
-            rpcUrls: [{http: endpoint}],
-        };
+    chainMetadataOverrides[chainName] = {
+      blocks: { confirmations: 1 },
+      rpcUrls: [{ http: endpoint }],
+    };
 
-        port++;
-    }
+    port++;
+  }
 
-    const mergedRegistry = new MergedRegistry({
-        registries: [
-            registry,
-            new PartialRegistry({chainMetadata: chainMetadataOverrides}),
-        ],
-    });
-    const httpServerPort = basePort - 10;
-    assert(
-        httpServerPort > 0,
-        "HTTP server port too low, consider increasing --port",
-    );
+  const mergedRegistry = new MergedRegistry({
+    registries: [
+      registry,
+      new PartialRegistry({ chainMetadata: chainMetadataOverrides }),
+    ],
+  });
+  const httpServerPort = basePort - 10;
+  assert(
+    httpServerPort > 0,
+    'HTTP server port too low, consider increasing --port',
+  );
 
-    const httpRegistryServer = await HttpServer.create(
-        async () => mergedRegistry,
-    );
-    await httpRegistryServer.start(httpServerPort.toString());
+  const httpRegistryServer = await HttpServer.create(
+    async () => mergedRegistry,
+  );
+  await httpRegistryServer.start(httpServerPort.toString());
 }
 
 async function forkChain(
-    multiProvider: MultiProvider<{}>,
-    chainName: ChainName,
-    forkPort: number,
-    kill: boolean,
-    forkConfig?: ForkedChainConfig,
+  multiProvider: MultiProvider<{}>,
+  chainName: ChainName,
+  forkPort: number,
+  kill: boolean,
+  forkConfig?: ForkedChainConfig,
 ): Promise<EndPoint> {
-    let killAnvilProcess: ((isPanicking: boolean) => Promise<void>) | undefined;
-    try {
-        const chainMetadata = await multiProvider.getChainMetadata(chainName);
+  let killAnvilProcess: ((isPanicking: boolean) => Promise<void>) | undefined;
+  try {
+    const chainMetadata = await multiProvider.getChainMetadata(chainName);
 
-        const rpcUrl = chainMetadata.rpcUrls[0];
-        if (!rpcUrl) {
-            logRed(`No rpc found for chain ${chainName}`);
-            process.exit(1);
-        }
-
-        const endpoint = `${LOCAL_HOST}:${forkPort}`;
-        logGray(
-            `Starting Anvil node for chain ${chainName} at port ${forkPort}`,
-        );
-        const anvilProcess = execa`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http} --disable-block-gas-limit`;
-
-        const provider = new Provider(endpoint);
-        await retryAsync(() => provider.getNetwork(), 10, 500);
-
-        logGray(
-            `Successfully started Anvil node for chain ${chainName} at ${endpoint}`,
-        );
-
-        killAnvilProcess = async (isPanicking: boolean) => {
-            anvilProcess.kill(isPanicking ? "SIGTERM" : "SIGINT");
-        };
-        process.once("exit", () => killAnvilProcess && killAnvilProcess(false));
-
-        if (!forkConfig) {
-            return endpoint;
-        }
-
-        await handleImpersonations(
-            provider,
-            chainName,
-            forkConfig.impersonateAccounts,
-        );
-
-        await handleTransactions(provider, chainName, forkConfig.transactions);
-
-        if (kill) {
-            await killAnvilProcess(false);
-        }
-
-        return endpoint;
-    } catch (error) {
-        // Kill any running anvil process otherwise the process will keep running
-        // in the background.
-        if (killAnvilProcess) {
-            await killAnvilProcess(true);
-        }
-
-        throw error;
+    const rpcUrl = chainMetadata.rpcUrls[0];
+    if (!rpcUrl) {
+      logRed(`No rpc found for chain ${chainName}`);
+      process.exit(1);
     }
+
+    const endpoint = `${LOCAL_HOST}:${forkPort}`;
+    logGray(`Starting Anvil node for chain ${chainName} at port ${forkPort}`);
+    const anvilProcess = execa`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http} --disable-block-gas-limit`;
+
+    const provider = HyperlaneSmartProvider.fromRpcUrl(
+      chainMetadata.chainId,
+      endpoint,
+    );
+    await retryAsync(() => provider.getNetwork(), 10, 500);
+
+    logGray(
+      `Successfully started Anvil node for chain ${chainName} at ${endpoint}`,
+    );
+
+    killAnvilProcess = async (isPanicking: boolean) => {
+      anvilProcess.kill(isPanicking ? 'SIGTERM' : 'SIGINT');
+    };
+    process.once('exit', () => killAnvilProcess && killAnvilProcess(false));
+
+    if (!forkConfig) {
+      return endpoint;
+    }
+
+    await handleImpersonations(
+      provider,
+      chainName,
+      forkConfig.impersonateAccounts,
+    );
+
+    await handleTransactions(provider, chainName, forkConfig.transactions);
+
+    if (kill) {
+      await killAnvilProcess(false);
+    }
+
+    return endpoint;
+  } catch (error) {
+    // Kill any running anvil process otherwise the process will keep running
+    // in the background.
+    if (killAnvilProcess) {
+      await killAnvilProcess(true);
+    }
+
+    throw error;
+  }
 }
 
 async function handleImpersonations(
-    provider: Provider,
-    chainName: ChainName,
-    accountsToImpersonate: Address[],
+  provider: HyperlaneSmartProvider,
+  chainName: ChainName,
+  accountsToImpersonate: Address[],
 ): Promise<void> {
-    if (accountsToImpersonate.length === 0) {
-        return;
-    }
+  if (accountsToImpersonate.length === 0) {
+    return;
+  }
 
-    logGray(
-        `Impersonating accounts ${accountsToImpersonate} on chain ${chainName}`,
-    );
-    await Promise.all(
-        accountsToImpersonate.map((address) =>
-            provider.send("anvil_impersonateAccount", [address]),
-        ),
-    );
+  logGray(
+    `Impersonating accounts ${accountsToImpersonate} on chain ${chainName}`,
+  );
+  await Promise.all(
+    accountsToImpersonate.map((address) =>
+      provider.send('anvil_impersonateAccount', [address]),
+    ),
+  );
 }
 
 async function handleTransactions(
-    provider: Provider,
-    chainName: ChainName,
-    transactions: ReadonlyArray<ForkedChainTransactionConfig>,
+  provider: HyperlaneSmartProvider,
+  chainName: ChainName,
+  transactions: ReadonlyArray<ForkedChainTransactionConfig>,
 ): Promise<void> {
-    if (transactions.length === 0) {
-        return;
+  if (transactions.length === 0) {
+    return;
+  }
+
+  logGray(`Executing transactions on chain ${chainName}`);
+  let txCounter = 0;
+  for (const transaction of transactions) {
+    const signer = provider.getSigner(transaction.from);
+
+    await provider.send('anvil_setBalance', [
+      transaction.from,
+      '10000000000000000000',
+    ]);
+
+    let calldata: string | undefined;
+    if (transaction.data?.type === TransactionDataType.RAW_CALLDATA) {
+      calldata = transaction.data.calldata;
+    } else if (transaction.data?.type === TransactionDataType.SIGNATURE) {
+      const signature = transaction.data.signature.startsWith('function ')
+        ? transaction.data.signature
+        : `function ${transaction.data.signature}`;
+      const functionAbi = parseAbiItem(signature);
+      calldata = encodeFunctionData({
+        abi: [functionAbi],
+        functionName: functionAbi.name,
+        args: transaction.data.args as any[],
+      });
     }
 
-    logGray(`Executing transactions on chain ${chainName}`);
-    let txCounter = 0;
-    for (const transaction of transactions) {
-        const signer = provider.getSigner(transaction.from);
+    const annotation = transaction.annotation ?? `#${txCounter}`;
+    logGray(`Executing transaction on chain ${chainName}: "${annotation}"`);
 
-        await provider.send("anvil_setBalance", [
-            transaction.from,
-            "10000000000000000000",
-        ]);
+    let pendingTx;
+    try {
+      pendingTx = await signer.sendTransaction({
+        to: transaction.to,
+        data: calldata,
+        value: transaction.value,
+      });
+    } catch (error: any) {
+      if (error.reason && transaction.revertAssertion) {
+        assertRevert(transaction.revertAssertion, error, {
+          chainName: chainName,
+          transactionAnnotation: annotation,
+        });
+        continue;
+      }
 
-        let calldata: string | undefined;
-        if (transaction.data?.type === TransactionDataType.RAW_CALLDATA) {
-            calldata = transaction.data.calldata;
-        } else if (transaction.data?.type === TransactionDataType.SIGNATURE) {
-            const functionInterface = new utils.Interface([
-                transaction.data.signature,
-            ]);
-
-            const [functionName] = Object.keys(functionInterface.functions);
-            calldata = functionInterface.encodeFunctionData(
-                functionName,
-                transaction.data.args,
-            );
-        }
-
-        const annotation = transaction.annotation ?? `#${txCounter}`;
-        logGray(`Executing transaction on chain ${chainName}: "${annotation}"`);
-
-        let pendingTx;
-        try {
-            pendingTx = await signer.sendTransaction({
-                to: transaction.to,
-                data: calldata,
-                value: transaction.value,
-            });
-        } catch (error: any) {
-            if (error.reason && transaction.revertAssertion) {
-                assertRevert(transaction.revertAssertion, error, {
-                    chainName: chainName,
-                    transactionAnnotation: annotation,
-                });
-                continue;
-            }
-
-            // New unhandled error
-            throw error;
-        }
-
-        const txReceipt = await pendingTx.wait();
-        if (txReceipt.status == 0) {
-            throw new Error(
-                `Transaction ${transaction} reverted on chain ${chainName}`,
-            );
-        }
-
-        transaction.eventAssertions.forEach((eventAssertion, idx) =>
-            assertEvent(eventAssertion, txReceipt.logs, {
-                chainName: chainName,
-                assertionIdx: idx,
-                transactionAnnotation: annotation,
-            }),
-        );
-
-        if (transaction.timeSkip) {
-            logGray(
-                `Forwarding time by "${transaction.timeSkip}" seconds on chain ${chainName}`,
-            );
-            await provider.send("evm_increaseTime", [transaction.timeSkip]);
-        }
-
-        txCounter++;
+      // New unhandled error
+      throw error;
     }
-    logGray(`Successfully executed all transactions on chain ${chainName}`);
+
+    const txReceipt = await pendingTx.wait();
+    if (txReceipt.status == 0) {
+      throw new Error(
+        `Transaction ${transaction} reverted on chain ${chainName}`,
+      );
+    }
+
+    transaction.eventAssertions.forEach((eventAssertion, idx) =>
+      assertEvent(eventAssertion, txReceipt.logs, {
+        chainName: chainName,
+        assertionIdx: idx,
+        transactionAnnotation: annotation,
+      }),
+    );
+
+    if (transaction.timeSkip) {
+      logGray(
+        `Forwarding time by "${transaction.timeSkip}" seconds on chain ${chainName}`,
+      );
+      await provider.send('evm_increaseTime', [transaction.timeSkip]);
+    }
+
+    txCounter++;
+  }
+  logGray(`Successfully executed all transactions on chain ${chainName}`);
 }
 
 function assertRevert(
-    revertAssertion: RevertAssertion,
-    error: any,
-    meta: {
-        chainName: string;
-        transactionAnnotation: string;
-    },
+  revertAssertion: RevertAssertion,
+  error: any,
+  meta: {
+    chainName: string;
+    transactionAnnotation: string;
+  },
 ) {
-    // If contract call reverts, then there should be a reason
-    // https://github.com/ethers-io/ethers.js/blob/v5.7/packages/providers/src.ts/json-rpc-provider.ts#L79
-    if (error.reason !== revertAssertion.reason) {
-        throw new Error(
-            `Expected revert: ${revertAssertion.reason} does not match ${error.reason}`,
-        );
-    }
-
-    const annotation = revertAssertion.annotation ?? revertAssertion.type;
-    logGray(
-        `Successfully completed revert assertion on chain "${meta.chainName}" and transaction "${meta.transactionAnnotation}": "${annotation}"`,
+  // If contract call reverts, then there should be a reason
+  // https://github.com/ethers-io/ethers.js/blob/v5.7/packages/providers/src.ts/json-rpc-provider.ts#L79
+  if (error.reason !== revertAssertion.reason) {
+    throw new Error(
+      `Expected revert: ${revertAssertion.reason} does not match ${error.reason}`,
     );
+  }
+
+  const annotation = revertAssertion.annotation ?? revertAssertion.type;
+  logGray(
+    `Successfully completed revert assertion on chain "${meta.chainName}" and transaction "${meta.transactionAnnotation}": "${annotation}"`,
+  );
 }
 
 function assertEvent(
-    eventAssertion: EventAssertion,
-    rawLogs: EvmLog[],
-    meta: {
-        chainName: string;
-        assertionIdx: number;
-        transactionAnnotation: string;
-    },
+  eventAssertion: EventAssertion,
+  rawLogs: EvmLog[],
+  meta: {
+    chainName: string;
+    assertionIdx: number;
+    transactionAnnotation: string;
+  },
 ): void {
-    const [rawLog] = rawLogs.filter((rawLog) =>
+  const [rawLog] = rawLogs.filter((rawLog) =>
+    eventAssertion.type === EventAssertionType.RAW_TOPIC
+      ? assertEventByTopic(eventAssertion, rawLog)
+      : assertEventBySignature(eventAssertion, rawLog),
+  );
+
+  if (!rawLog) {
+    throw new Error(
+      `Log ${
         eventAssertion.type === EventAssertionType.RAW_TOPIC
-            ? assertEventByTopic(eventAssertion, rawLog)
-            : assertEventBySignature(eventAssertion, rawLog),
+          ? eventAssertion.topic
+          : eventAssertion.signature
+      } not found in transaction!`,
     );
+  }
 
-    if (!rawLog) {
-        throw new Error(
-            `Log ${
-                eventAssertion.type === EventAssertionType.RAW_TOPIC
-                    ? eventAssertion.topic
-                    : eventAssertion.signature
-            } not found in transaction!`,
-        );
-    }
-
-    const annotation = eventAssertion.annotation ?? `#${meta.assertionIdx}`;
-    logGray(
-        `Successfully completed assertion on chain "${meta.chainName}" and transaction "${meta.transactionAnnotation}": "${annotation}"`,
-    );
+  const annotation = eventAssertion.annotation ?? `#${meta.assertionIdx}`;
+  logGray(
+    `Successfully completed assertion on chain "${meta.chainName}" and transaction "${meta.transactionAnnotation}": "${annotation}"`,
+  );
 }
 
 function assertEventByTopic(
-    eventAssertion: Extract<
-        EventAssertion,
-        {type: EventAssertionType.RAW_TOPIC}
-    >,
-    rawLog: EvmLog,
+  eventAssertion: Extract<
+    EventAssertion,
+    { type: EventAssertionType.RAW_TOPIC }
+  >,
+  rawLog: EvmLog,
 ): boolean {
-    return rawLog.topics[0] === eventAssertion.topic;
+  return rawLog.topics[0] === eventAssertion.topic;
 }
 
 function assertEventBySignature(
-    eventAssertion: Extract<
-        EventAssertion,
-        {type: EventAssertionType.TOPIC_SIGNATURE}
-    >,
-    rawLog: EvmLog,
+  eventAssertion: Extract<
+    EventAssertion,
+    { type: EventAssertionType.TOPIC_SIGNATURE }
+  >,
+  rawLog: EvmLog,
 ): boolean {
-    const eventInterface = new utils.Interface([eventAssertion.signature]);
+  const signature = eventAssertion.signature.startsWith('event ')
+    ? eventAssertion.signature
+    : `event ${eventAssertion.signature}`;
+  const eventAbi = parseAbiItem(signature);
 
-    let parsedLog;
-    // parseLog throws if the event cannot be decoded
-    try {
-        parsedLog = eventInterface.parseLog(rawLog);
+  let parsedLog;
+  try {
+    parsedLog = decodeEventLog({
+      abi: [eventAbi],
+      data: rawLog.data,
+      topics: rawLog.topics,
+      strict: false,
+    });
+  } catch {
+    return false;
+  }
 
-        if (!parsedLog) {
-            return false;
-        }
-    } catch {
-        return false;
-    }
+  if (!eventAssertion.args) {
+    return true;
+  }
 
-    if (!eventAssertion.args) {
-        return true;
-    }
+  const parsedArgs = Array.isArray(parsedLog.args)
+    ? parsedLog.args
+    : Object.values(parsedLog.args);
+  const logArgs = parsedArgs
+    .slice(0, eventAssertion.args.length)
+    .map((arg) => String(arg));
 
-    const logArgs = parsedLog.args
-        .slice(0, eventAssertion.args.length)
-        .map((arg) => String(arg));
-
-    return deepEquals(logArgs, eventAssertion.args);
+  return deepEquals(logArgs, eventAssertion.args);
 }
