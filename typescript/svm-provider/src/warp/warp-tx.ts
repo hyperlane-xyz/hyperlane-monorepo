@@ -12,7 +12,9 @@ import {
 } from '../generated/instructions/index.js';
 import type { SvmInstruction } from '../types.js';
 
-import { routerHexToBytes } from './warp-query.js';
+import { getHyperlaneTokenPda, routerHexToBytes } from './warp-query.js';
+
+const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111' as Address;
 
 /**
  * Program instruction discriminator used by all Hyperlane token instructions.
@@ -42,10 +44,11 @@ export interface DestinationGasConfig {
  * Builds EnrollRemoteRouters instruction.
  * Note: Generated instruction has no accounts, so we build manually.
  */
-export function getEnrollRemoteRoutersIx(
+export async function getEnrollRemoteRoutersIx(
   programId: Address,
+  payer: Address,
   enrollments: RouterEnrollment[],
-): SvmInstruction {
+): Promise<SvmInstruction> {
   const encoder = getEnrollRemoteRoutersInstructionDataEncoder();
   const enumData = encoder.encode({
     args: enrollments.map((e) => ({
@@ -59,9 +62,16 @@ export function getEnrollRemoteRoutersIx(
   data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
   data.set(enumData, 8);
 
+  // Derive token PDA
+  const [tokenPda] = await getHyperlaneTokenPda(programId);
+
   return {
     programAddress: programId,
-    accounts: [],
+    accounts: [
+      { address: SYSTEM_PROGRAM_ID, role: 0 }, // executable
+      { address: tokenPda, role: 1 }, // writable
+      { address: payer, role: 2 }, // signer (readonly signer)
+    ],
     data,
   };
 }
@@ -69,10 +79,11 @@ export function getEnrollRemoteRoutersIx(
 /**
  * Builds unenroll instruction (enrolls with null router).
  */
-export function getUnenrollRemoteRoutersIx(
+export async function getUnenrollRemoteRoutersIx(
   programId: Address,
+  payer: Address,
   domains: number[],
-): SvmInstruction {
+): Promise<SvmInstruction> {
   const encoder = getEnrollRemoteRoutersInstructionDataEncoder();
   const enumData = encoder.encode({
     args: domains.map((domain) => ({
@@ -86,9 +97,16 @@ export function getUnenrollRemoteRoutersIx(
   data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
   data.set(enumData, 8);
 
+  // Derive token PDA
+  const [tokenPda] = await getHyperlaneTokenPda(programId);
+
   return {
     programAddress: programId,
-    accounts: [],
+    accounts: [
+      { address: SYSTEM_PROGRAM_ID, role: 0 },
+      { address: tokenPda, role: 1 },
+      { address: payer, role: 2 },
+    ],
     data,
   };
 }
@@ -96,10 +114,11 @@ export function getUnenrollRemoteRoutersIx(
 /**
  * Builds SetDestinationGasConfigs instruction.
  */
-export function getSetDestinationGasConfigsIx(
+export async function getSetDestinationGasConfigsIx(
   programId: Address,
+  payer: Address,
   configs: DestinationGasConfig[],
-): SvmInstruction {
+): Promise<SvmInstruction> {
   const encoder = getSetDestinationGasConfigsInstructionDataEncoder();
   const enumData = encoder.encode({
     args: configs.map((c) => ({
@@ -113,9 +132,16 @@ export function getSetDestinationGasConfigsIx(
   data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
   data.set(enumData, 8);
 
+  // Derive token PDA
+  const [tokenPda] = await getHyperlaneTokenPda(programId);
+
   return {
     programAddress: programId,
-    accounts: [],
+    accounts: [
+      { address: SYSTEM_PROGRAM_ID, role: 0 },
+      { address: tokenPda, role: 1 },
+      { address: payer, role: 2 },
+    ],
     data,
   };
 }
@@ -123,10 +149,11 @@ export function getSetDestinationGasConfigsIx(
 /**
  * Builds SetInterchainSecurityModule instruction.
  */
-export function getSetIsmIx(
+export async function getSetIsmIx(
   programId: Address,
+  payer: Address,
   ism: Address | null,
-): SvmInstruction {
+): Promise<SvmInstruction> {
   const encoder = getSetInterchainSecurityModuleInstructionDataEncoder();
   const enumData = encoder.encode({ args: ism });
 
@@ -135,9 +162,16 @@ export function getSetIsmIx(
   data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
   data.set(enumData, 8);
 
+  // Derive token PDA
+  const [tokenPda] = await getHyperlaneTokenPda(programId);
+
   return {
     programAddress: programId,
-    accounts: [],
+    accounts: [
+      { address: SYSTEM_PROGRAM_ID, role: 0 },
+      { address: tokenPda, role: 1 },
+      { address: payer, role: 2 },
+    ],
     data,
   };
 }
@@ -145,10 +179,11 @@ export function getSetIsmIx(
 /**
  * Builds TransferOwnership instruction.
  */
-export function getTransferOwnershipIx(
+export async function getTransferOwnershipIx(
   programId: Address,
+  payer: Address,
   newOwner: Address | null,
-): SvmInstruction {
+): Promise<SvmInstruction> {
   const encoder = getTransferOwnershipInstructionDataEncoder();
   const enumData = encoder.encode({ args: newOwner });
 
@@ -157,9 +192,15 @@ export function getTransferOwnershipIx(
   data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
   data.set(enumData, 8);
 
+  // Derive token PDA
+  const [tokenPda] = await getHyperlaneTokenPda(programId);
+
   return {
     programAddress: programId,
-    accounts: [],
+    accounts: [
+      { address: tokenPda, role: 1 }, // writable
+      { address: payer, role: 2 }, // signer
+    ],
     data,
   };
 }
@@ -167,11 +208,12 @@ export function getTransferOwnershipIx(
 /**
  * Computes update instructions by diffing current and expected configs.
  */
-export function computeWarpTokenUpdateInstructions(
+export async function computeWarpTokenUpdateInstructions(
   current: RawWarpArtifactConfig,
   expected: RawWarpArtifactConfig,
   programId: Address,
-): SvmInstruction[] {
+  payer: Address,
+): Promise<SvmInstruction[]> {
   const instructions: SvmInstruction[] = [];
 
   // 1. Update ISM if changed
@@ -179,7 +221,9 @@ export function computeWarpTokenUpdateInstructions(
   const expectedIsm = expected.interchainSecurityModule?.deployed?.address;
 
   if (currentIsm !== expectedIsm) {
-    instructions.push(getSetIsmIx(programId, (expectedIsm as Address) ?? null));
+    instructions.push(
+      await getSetIsmIx(programId, payer, (expectedIsm as Address) ?? null),
+    );
   }
 
   // 2. Compute router diff
@@ -198,15 +242,16 @@ export function computeWarpTokenUpdateInstructions(
   // 3. Unenroll removed routers
   if (routerDiff.toUnenroll.length > 0) {
     instructions.push(
-      getUnenrollRemoteRoutersIx(programId, routerDiff.toUnenroll),
+      await getUnenrollRemoteRoutersIx(programId, payer, routerDiff.toUnenroll),
     );
   }
 
   // 4. Enroll new/updated routers with destination gas
   if (routerDiff.toEnroll.length > 0) {
     instructions.push(
-      getEnrollRemoteRoutersIx(
+      await getEnrollRemoteRoutersIx(
         programId,
+        payer,
         routerDiff.toEnroll.map((e) => ({
           domain: e.domainId,
           router: e.routerAddress,
@@ -220,13 +265,15 @@ export function computeWarpTokenUpdateInstructions(
       gas: BigInt(e.gas),
     }));
 
-    instructions.push(getSetDestinationGasConfigsIx(programId, gasConfigs));
+    instructions.push(
+      await getSetDestinationGasConfigsIx(programId, payer, gasConfigs),
+    );
   }
 
   // 5. Transfer ownership (always last)
   if (current.owner !== expected.owner) {
     instructions.push(
-      getTransferOwnershipIx(programId, expected.owner as Address),
+      await getTransferOwnershipIx(programId, payer, expected.owner as Address),
     );
   }
 

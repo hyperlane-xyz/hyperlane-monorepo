@@ -288,7 +288,11 @@ export class SvmNativeTokenWriter
         router: router.address,
       }));
 
-      const enrollIx = getEnrollRemoteRoutersIx(programId, enrollments);
+      const enrollIx = await getEnrollRemoteRoutersIx(
+        programId,
+        this.signer.address,
+        enrollments,
+      );
       const enrollReceipt = await this.signer.signAndSend(this.rpc, {
         instructions: [enrollIx],
       });
@@ -305,7 +309,11 @@ export class SvmNativeTokenWriter
         gas: BigInt(gas),
       }));
 
-      const setGasIx = getSetDestinationGasConfigsIx(programId, gasConfigs);
+      const setGasIx = await getSetDestinationGasConfigsIx(
+        programId,
+        this.signer.address,
+        gasConfigs,
+      );
       const setGasReceipt = await this.signer.signAndSend(this.rpc, {
         instructions: [setGasIx],
       });
@@ -315,8 +323,9 @@ export class SvmNativeTokenWriter
     // Step 6: Set ISM
     if (config.interchainSecurityModule?.deployed?.address) {
       console.log('Setting ISM...');
-      const setIsmIx = getSetIsmIx(
+      const setIsmIx = await getSetIsmIx(
         programId,
+        this.signer.address,
         config.interchainSecurityModule.deployed.address as Address,
       );
       const setIsmReceipt = await this.signer.signAndSend(this.rpc, {
@@ -355,10 +364,11 @@ export class SvmNativeTokenWriter
     const reader = new SvmNativeTokenReader(this.rpc);
     const current = await reader.read(programId);
 
-    const instructions = computeWarpTokenUpdateInstructions(
+    const instructions = await computeWarpTokenUpdateInstructions(
       current.config,
       artifact.config,
       programId,
+      this.signer.address,
     );
 
     if (instructions.length === 0) {

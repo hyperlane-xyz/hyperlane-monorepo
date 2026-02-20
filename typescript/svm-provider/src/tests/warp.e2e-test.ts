@@ -164,11 +164,16 @@ describe('SVM Native Warp Token E2E Tests', function () {
       for (const tx of updateTxs) {
         console.log(`Executing: ${tx.annotation}`);
         for (const ix of tx.instructions) {
-          await signer.signAndSend(rpc, { instructions: [ix] });
+          const sig = await signer.signAndSend(rpc, { instructions: [ix] });
+
+          console.log('UPDATE TX SIGNATURE', sig.signature);
         }
       }
 
       const updated = await reader.read(deployedProgramId);
+
+      console.log(JSON.stringify(updated, null, 2));
+
       expect(updated.config.remoteRouters[1]?.address).to.equal(
         '0x1111111111111111111111111111111111111111111111111111111111111111',
       );
@@ -182,6 +187,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
       const writer = new SvmNativeTokenWriter(rpc, signer, programBytes);
 
       const current = await reader.read(deployedProgramId);
+      console.log(JSON.stringify(current, null, 2));
 
       const updatedConfig = {
         ...current.config,
@@ -207,6 +213,8 @@ describe('SVM Native Warp Token E2E Tests', function () {
       }
 
       const updated = await reader.read(deployedProgramId);
+
+      console.log(JSON.stringify(updated, null, 2));
       expect(updated.config.remoteRouters[1]).to.exist;
       expect(updated.config.remoteRouters[2]).to.be.undefined;
     });
