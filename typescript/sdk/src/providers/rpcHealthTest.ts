@@ -1,152 +1,152 @@
-import { Mailbox__factory } from '@hyperlane-xyz/core';
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {Mailbox__factory} from "@hyperlane-xyz/core";
+import {Address, ProtocolType, rootLogger} from "@hyperlane-xyz/utils";
 
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import {ChainMetadata} from "../metadata/chainMetadataTypes.js";
 
 import {
-  AleoProvider,
-  CosmJsNativeProvider,
-  CosmJsProvider,
-  CosmJsWasmProvider,
-  EthersV5Provider,
-  KnownProtocolType,
-  ProviderType,
-  RadixProvider,
-  SolanaWeb3Provider,
-  StarknetJsProvider,
-} from './ProviderType.js';
-import { protocolToDefaultProviderBuilder } from './providerBuilders.js';
+    AleoProvider,
+    CosmJsNativeProvider,
+    CosmJsProvider,
+    CosmJsWasmProvider,
+    EvmProvider,
+    KnownProtocolType,
+    ProviderType,
+    RadixProvider,
+    SolanaWeb3Provider,
+    StarknetJsProvider,
+} from "./ProviderType.js";
+import {protocolToDefaultProviderBuilder} from "./providerBuilders.js";
 
 export async function isRpcHealthy(
-  metadata: ChainMetadata,
-  rpcIndex: number,
+    metadata: ChainMetadata,
+    rpcIndex: number,
 ): Promise<boolean> {
-  const rpc = metadata.rpcUrls[rpcIndex];
-  if (metadata.protocol === ProtocolType.Unknown) {
-    return false;
-  }
-  const protocol = metadata.protocol as KnownProtocolType;
-  const builder = protocolToDefaultProviderBuilder[protocol];
-  const provider = builder([rpc], metadata.chainId);
-  if (provider.type === ProviderType.EthersV5)
-    return isEthersV5ProviderHealthy(provider.provider, metadata);
-  else if (provider.type === ProviderType.SolanaWeb3)
-    return isSolanaWeb3ProviderHealthy(provider.provider, metadata);
-  else if (
-    provider.type === ProviderType.CosmJsWasm ||
-    provider.type === ProviderType.CosmJs ||
-    provider.type === ProviderType.CosmJsNative
-  )
-    return isCosmJsProviderHealthy(provider.provider, metadata);
-  else if (provider.type === ProviderType.Starknet)
-    return isStarknetJsProviderHealthy(provider.provider, metadata);
-  else if (provider.type === ProviderType.Radix)
-    return isRadixProviderHealthy(provider.provider, metadata);
-  else if (provider.type === ProviderType.Aleo)
-    return isAleoProviderHealthy(provider.provider, metadata);
-  else
-    throw new Error(
-      `Unsupported provider type ${provider.type}, new health check required`,
-    );
+    const rpc = metadata.rpcUrls[rpcIndex];
+    if (metadata.protocol === ProtocolType.Unknown) {
+        return false;
+    }
+    const protocol = metadata.protocol as KnownProtocolType;
+    const builder = protocolToDefaultProviderBuilder[protocol];
+    const provider = builder([rpc], metadata.chainId);
+    if (provider.type === ProviderType.Evm)
+        return isEvmProviderHealthy(provider.provider, metadata);
+    else if (provider.type === ProviderType.SolanaWeb3)
+        return isSolanaWeb3ProviderHealthy(provider.provider, metadata);
+    else if (
+        provider.type === ProviderType.CosmJsWasm ||
+        provider.type === ProviderType.CosmJs ||
+        provider.type === ProviderType.CosmJsNative
+    )
+        return isCosmJsProviderHealthy(provider.provider, metadata);
+    else if (provider.type === ProviderType.Starknet)
+        return isStarknetJsProviderHealthy(provider.provider, metadata);
+    else if (provider.type === ProviderType.Radix)
+        return isRadixProviderHealthy(provider.provider, metadata);
+    else if (provider.type === ProviderType.Aleo)
+        return isAleoProviderHealthy(provider.provider, metadata);
+    else
+        throw new Error(
+            `Unsupported provider type ${provider.type}, new health check required`,
+        );
 }
 
-export async function isEthersV5ProviderHealthy(
-  provider: EthersV5Provider['provider'],
-  metadata: ChainMetadata,
-  mailboxAddress?: Address,
+export async function isEvmProviderHealthy(
+    provider: EvmProvider["provider"],
+    metadata: ChainMetadata,
+    mailboxAddress?: Address,
 ): Promise<boolean> {
-  const chainName = metadata.name;
-  const blockNumber = await provider.getBlockNumber();
-  if (!blockNumber || blockNumber < 0) return false;
-  rootLogger.debug(`Block number is okay for ${chainName}`);
+    const chainName = metadata.name;
+    const blockNumber = await provider.getBlockNumber();
+    if (!blockNumber || blockNumber < 0) return false;
+    rootLogger.debug(`Block number is okay for ${chainName}`);
 
-  if (mailboxAddress) {
-    const mailbox = Mailbox__factory.createInterface();
-    const topics = mailbox.encodeFilterTopics(
-      mailbox.events['DispatchId(bytes32)'],
-      [],
-    );
-    rootLogger.debug(`Checking mailbox logs for ${chainName}`);
-    const mailboxLogs = await provider.getLogs({
-      address: mailboxAddress,
-      topics,
-      fromBlock: blockNumber - 99,
-      toBlock: blockNumber,
-    });
-    if (!mailboxLogs) return false;
-    rootLogger.debug(`Mailbox logs okay for ${chainName}`);
-  }
-  return true;
+    if (mailboxAddress) {
+        const mailbox = Mailbox__factory.createInterface();
+        const topics = mailbox.encodeFilterTopics(
+            mailbox.events["DispatchId(bytes32)"],
+            [],
+        );
+        rootLogger.debug(`Checking mailbox logs for ${chainName}`);
+        const mailboxLogs = await provider.getLogs({
+            address: mailboxAddress,
+            topics,
+            fromBlock: blockNumber - 99,
+            toBlock: blockNumber,
+        });
+        if (!mailboxLogs) return false;
+        rootLogger.debug(`Mailbox logs okay for ${chainName}`);
+    }
+    return true;
 }
 
 export async function isSolanaWeb3ProviderHealthy(
-  provider: SolanaWeb3Provider['provider'],
-  metadata: ChainMetadata,
+    provider: SolanaWeb3Provider["provider"],
+    metadata: ChainMetadata,
 ): Promise<boolean> {
-  const blockNumber = await provider.getBlockHeight();
-  if (!blockNumber || blockNumber < 0) return false;
-  rootLogger.debug(`Block number is okay for ${metadata.name}`);
-  return true;
+    const blockNumber = await provider.getBlockHeight();
+    if (!blockNumber || blockNumber < 0) return false;
+    rootLogger.debug(`Block number is okay for ${metadata.name}`);
+    return true;
 }
 
 export async function isCosmJsProviderHealthy(
-  provider:
-    | CosmJsProvider['provider']
-    | CosmJsWasmProvider['provider']
-    | CosmJsNativeProvider['provider'],
-  metadata: ChainMetadata,
+    provider:
+        | CosmJsProvider["provider"]
+        | CosmJsWasmProvider["provider"]
+        | CosmJsNativeProvider["provider"],
+    metadata: ChainMetadata,
 ): Promise<boolean> {
-  const readyProvider = await provider;
-  const blockNumber = await readyProvider.getHeight();
-  if (!blockNumber || blockNumber < 0) return false;
-  rootLogger.debug(`Block number is okay for ${metadata.name}`);
-  return true;
+    const readyProvider = await provider;
+    const blockNumber = await readyProvider.getHeight();
+    if (!blockNumber || blockNumber < 0) return false;
+    rootLogger.debug(`Block number is okay for ${metadata.name}`);
+    return true;
 }
 
 export async function isStarknetJsProviderHealthy(
-  provider: StarknetJsProvider['provider'],
-  metadata: ChainMetadata,
+    provider: StarknetJsProvider["provider"],
+    metadata: ChainMetadata,
 ): Promise<boolean> {
-  const blockNumber = await provider.getBlockNumber();
-  if (!blockNumber || blockNumber < 0) return false;
-  rootLogger.debug(`Block number is okay for ${metadata.name}`);
-  return true;
+    const blockNumber = await provider.getBlockNumber();
+    if (!blockNumber || blockNumber < 0) return false;
+    rootLogger.debug(`Block number is okay for ${metadata.name}`);
+    return true;
 }
 
 export async function isRadixProviderHealthy(
-  provider: RadixProvider['provider'],
-  metadata: ChainMetadata,
+    provider: RadixProvider["provider"],
+    metadata: ChainMetadata,
 ): Promise<boolean> {
-  try {
-    const healthy = await provider.isHealthy();
-    if (healthy) {
-      rootLogger.debug(`Gateway is healthy for ${metadata.name}`);
+    try {
+        const healthy = await provider.isHealthy();
+        if (healthy) {
+            rootLogger.debug(`Gateway is healthy for ${metadata.name}`);
+        }
+        return healthy;
+    } catch (err) {
+        rootLogger.warn(
+            `Radix gateway health check threw for ${metadata.name}`,
+            err as Error,
+        );
+        return false;
     }
-    return healthy;
-  } catch (err) {
-    rootLogger.warn(
-      `Radix gateway health check threw for ${metadata.name}`,
-      err as Error,
-    );
-    return false;
-  }
 }
 
 export async function isAleoProviderHealthy(
-  provider: AleoProvider['provider'],
-  metadata: ChainMetadata,
+    provider: AleoProvider["provider"],
+    metadata: ChainMetadata,
 ): Promise<boolean> {
-  try {
-    const healthy = await provider.isHealthy();
-    if (healthy) {
-      rootLogger.debug(`Rpc is healthy for ${metadata.name}`);
+    try {
+        const healthy = await provider.isHealthy();
+        if (healthy) {
+            rootLogger.debug(`Rpc is healthy for ${metadata.name}`);
+        }
+        return healthy;
+    } catch (err) {
+        rootLogger.warn(
+            `Aleo rpc health check threw for ${metadata.name}`,
+            err as Error,
+        );
+        return false;
     }
-    return healthy;
-  } catch (err) {
-    rootLogger.warn(
-      `Aleo rpc health check threw for ${metadata.name}`,
-      err as Error,
-    );
-    return false;
-  }
 }

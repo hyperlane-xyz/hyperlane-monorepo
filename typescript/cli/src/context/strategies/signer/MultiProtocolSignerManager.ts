@@ -235,10 +235,9 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
         switch (metadata.protocol) {
             case ProtocolType.Ethereum: {
                 try {
-                    const provider =
-                        this.multiProtocolProvider.getEthersV5Provider(
-                            params.chain,
-                        );
+                    const provider = this.multiProtocolProvider.getEvmProvider(
+                        params.chain,
+                    );
                     const balance = await provider.getBalance(params.address);
                     return balance;
                 } catch (err) {

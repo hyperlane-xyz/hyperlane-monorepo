@@ -5,7 +5,7 @@ import {Address, ProtocolType, assert} from "@hyperlane-xyz/utils";
 
 import {MultiProtocolProvider} from "../../providers/MultiProtocolProvider.js";
 import {MultiProvider} from "../../providers/MultiProvider.js";
-import {EthersV5Transaction} from "../../providers/ProviderType.js";
+import {EvmTransaction} from "../../providers/ProviderType.js";
 import {ChainName} from "../../types.js";
 import {IMultiProtocolSigner} from "../types.js";
 
@@ -33,7 +33,7 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
         return this.multiProvider.getSignerAddress(this.chainName);
     }
 
-    async sendAndConfirmTransaction(tx: EthersV5Transaction): Promise<string> {
+    async sendAndConfirmTransaction(tx: EvmTransaction): Promise<string> {
         const res = await this.multiProvider.sendTransaction(
             this.chainName,
             tx.transaction,

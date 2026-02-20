@@ -41,9 +41,9 @@ import {
 } from "@hyperlane-xyz/radix-sdk";
 import {Annotated, KnownProtocolType, ProtocolType} from "@hyperlane-xyz/utils";
 
-type EvmProvider = Record<string, unknown>;
-type EvmContract = {address?: string} & Record<string, unknown>;
-type EvmTransaction = {
+type EvmProviderLike = Record<string, unknown>;
+type EvmContractLike = {address?: string} & Record<string, unknown>;
+type EvmTransactionLike = {
     to?: string;
     data?: string;
     value?: unknown;
@@ -54,7 +54,7 @@ type EvmTransactionReceiptLike = {
 } & Record<string, unknown>;
 
 export enum ProviderType {
-    EthersV5 = "ethers-v5",
+    Evm = "evm",
     Viem = "viem",
     SolanaWeb3 = "solana-web3",
     CosmJs = "cosmjs",
@@ -73,7 +73,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
     KnownProtocolType,
     ProviderType
 > = {
-    [ProtocolType.Ethereum]: ProviderType.EthersV5,
+    [ProtocolType.Ethereum]: ProviderType.Evm,
     [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
     [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
     [ProtocolType.CosmosNative]: ProviderType.CosmJsNative,
@@ -86,10 +86,10 @@ export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
 
 type ProtocolTypesMapping = {
     [ProtocolType.Ethereum]: {
-        transaction: EthersV5Transaction;
-        provider: EthersV5Provider;
-        contract: EthersV5Contract;
-        receipt: EthersV5TransactionReceipt;
+        transaction: EvmTransaction;
+        provider: EvmProvider;
+        contract: EvmContract;
+        receipt: EvmTransactionReceipt;
     };
     [ProtocolType.Sealevel]: {
         transaction: SolanaWeb3Transaction;
@@ -178,9 +178,9 @@ interface TypedProviderBase<T> {
     provider: T;
 }
 
-export interface EthersV5Provider extends TypedProviderBase<EvmProvider> {
-    type: ProviderType.EthersV5;
-    provider: EvmProvider;
+export interface EvmProvider extends TypedProviderBase<EvmProviderLike> {
+    type: ProviderType.Evm;
+    provider: EvmProviderLike;
 }
 
 export interface ViemProvider extends TypedProviderBase<PublicClient> {
@@ -235,7 +235,7 @@ export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
 }
 
 export type TypedProvider =
-    | EthersV5Provider
+    | EvmProvider
     // | EthersV6Provider
     | ViemProvider
     | SolanaWeb3Provider
@@ -256,9 +256,9 @@ interface TypedContractBase<T> {
     contract: T;
 }
 
-export interface EthersV5Contract extends TypedContractBase<EvmContract> {
-    type: ProviderType.EthersV5;
-    contract: EvmContract;
+export interface EvmContract extends TypedContractBase<EvmContractLike> {
+    type: ProviderType.Evm;
+    contract: EvmContractLike;
 }
 
 export interface ViemContract extends TypedContractBase<GetContractReturnType> {
@@ -294,7 +294,7 @@ export interface ZKSyncContract extends TypedContractBase<ZKSyncBaseContract> {
 }
 
 export type TypedContract =
-    | EthersV5Contract
+    | EvmContract
     // | EthersV6Contract
     | ViemContract
     | SolanaWeb3Contract
@@ -312,9 +312,9 @@ interface TypedTransactionBase<T> {
     transaction: T;
 }
 
-export interface EthersV5Transaction extends TypedTransactionBase<EvmTransaction> {
-    type: ProviderType.EthersV5;
-    transaction: EvmTransaction;
+export interface EvmTransaction extends TypedTransactionBase<EvmTransactionLike> {
+    type: ProviderType.Evm;
+    transaction: EvmTransactionLike;
 }
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
@@ -363,7 +363,7 @@ export interface ZKSyncTransaction extends TypedTransactionBase<zkSyncTypes.Tran
 }
 
 export type TypedTransaction =
-    | EthersV5Transaction
+    | EvmTransaction
     // | EthersV6Transaction
     | ViemTransaction
     | SolanaWeb3Transaction
@@ -375,7 +375,7 @@ export type TypedTransaction =
     | RadixTransaction
     | AleoTransaction;
 
-export type AnnotatedEV5Transaction = Annotated<EvmTransaction>;
+export type AnnotatedEvmTransaction = Annotated<EvmTransactionLike>;
 
 export type AnnotatedViemTransaction = Annotated<VTransaction>;
 
@@ -395,7 +395,7 @@ export type AnnotatedZKSyncTransaction =
 export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
 export type TypedAnnotatedTransaction =
-    | AnnotatedEV5Transaction
+    | AnnotatedEvmTransaction
     | AnnotatedViemTransaction
     | AnnotatedSolanaWeb3Transaction
     | AnnotatedCosmJsTransaction
@@ -414,8 +414,8 @@ interface TypedTransactionReceiptBase<T> {
     receipt: T;
 }
 
-export interface EthersV5TransactionReceipt extends TypedTransactionReceiptBase<EvmTransactionReceiptLike> {
-    type: ProviderType.EthersV5;
+export interface EvmTransactionReceipt extends TypedTransactionReceiptBase<EvmTransactionReceiptLike> {
+    type: ProviderType.Evm;
     receipt: EvmTransactionReceiptLike;
 }
 
@@ -465,7 +465,7 @@ export interface AleoTransactionReceipt extends TypedTransactionReceiptBase<Aleo
 }
 
 export type TypedTransactionReceipt =
-    | EthersV5TransactionReceipt
+    | EvmTransactionReceipt
     | ViemTransactionReceipt
     | SolanaWeb3TransactionReceipt
     | CosmJsTransactionReceipt

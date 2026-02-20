@@ -2,7 +2,7 @@ import { toBytes } from 'viem';
 
 import {
   ChainName,
-  EthersV5Transaction,
+  EvmTransaction,
   EvmRouterAdapter,
   MultiProtocolProvider,
   ProviderType,
@@ -30,7 +30,7 @@ export class EvmHelloWorldAdapter
     message: string,
     value: string,
     sender: Address,
-  ): Promise<EthersV5Transaction> {
+  ): Promise<EvmTransaction> {
     const contract = this.getConnectedContract();
     const toDomain = this.multiProvider.getDomainId(destination);
     const { transactionOverrides } = this.multiProvider.getChainMetadata(
@@ -65,7 +65,7 @@ export class EvmHelloWorldAdapter
         value: totalValue,
       },
     );
-    return { transaction: tx, type: ProviderType.EthersV5 };
+    return { transaction: tx, type: ProviderType.Evm };
   }
 
   async sentStat(destination: ChainName): Promise<number> {
