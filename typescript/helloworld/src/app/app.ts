@@ -1,8 +1,7 @@
-import { BigNumber, ethers } from 'ethers';
-
 import {
   ChainMap,
   ChainName,
+  type HyperlaneCore as HyperlaneCoreType,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneCore,
@@ -15,6 +14,10 @@ import { HelloWorld } from '../types/index.js';
 
 import { HelloWorldFactories } from './contracts.js';
 import { StatCounts } from './types.js';
+
+type SourceReceipt = Parameters<
+  HyperlaneCoreType['waitForMessageProcessed']
+>[0];
 
 export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   constructor(
@@ -39,8 +42,8 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     from: ChainName,
     to: ChainName,
     message: string,
-    value: BigNumber,
-  ): Promise<ethers.ContractReceipt> {
+    value: bigint,
+  ): Promise<SourceReceipt> {
     const sender = this.getContracts(from).router;
     const toDomain = this.multiProvider.getDomainId(to);
     const { blocks, transactionOverrides } =
@@ -54,10 +57,11 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     );
 
     const quote = await sender.quoteDispatch(toDomain, message);
+    const totalValue = quote.add(value.toString());
     const tx = await sender.sendHelloWorld(toDomain, message, {
       gasLimit: addBufferToGasLimit(estimated),
       ...transactionOverrides,
-      value: value.add(quote),
+      value: totalValue,
     });
     this.logger.info('Sending hello message', {
       from,
@@ -69,13 +73,13 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   }
 
   async waitForMessageReceipt(
-    receipt: ethers.ContractReceipt,
-  ): Promise<ethers.ContractReceipt[]> {
+    receipt: SourceReceipt,
+  ): Promise<SourceReceipt[]> {
     return this.core.waitForMessageProcessing(receipt);
   }
 
   async waitForMessageProcessed(
-    receipt: ethers.ContractReceipt,
+    receipt: SourceReceipt,
   ): Promise<void> {
     return this.core.waitForMessageProcessed(receipt);
   }

@@ -39,7 +39,8 @@
     "@openzeppelin/contracts-upgradeable": "catalog:",
     "@solana/web3.js": "catalog:",
     "borsh": "catalog:",
-    "ethers": "catalog:"
+    "ethers": "catalog:",
+    "viem": "catalog:"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",

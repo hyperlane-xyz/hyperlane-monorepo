@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
 import { pino } from 'pino';
+import { zeroAddress } from 'viem';
 
 import { type ChainMap, Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
@@ -17,6 +17,7 @@ import { StrategyFactory } from './StrategyFactory.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
 
 const testLogger = pino({ level: 'silent' });
+const AddressZero = zeroAddress;
 
 describe('StrategyFactory', () => {
   const chain1 = 'chain1';
@@ -42,7 +43,7 @@ describe('StrategyFactory', () => {
             weight: 100n,
             tolerance: 0n,
           },
-          bridge: ethers.constants.AddressZero,
+          bridge: AddressZero,
           bridgeLockTime: 1,
         },
         [chain2]: {
@@ -50,7 +51,7 @@ describe('StrategyFactory', () => {
             weight: 100n,
             tolerance: 0n,
           },
-          bridge: ethers.constants.AddressZero,
+          bridge: AddressZero,
           bridgeLockTime: 1,
         },
       };
@@ -77,7 +78,7 @@ describe('StrategyFactory', () => {
             target: 10,
             type: RebalancerMinAmountType.Absolute,
           },
-          bridge: ethers.constants.AddressZero,
+          bridge: AddressZero,
           bridgeLockTime: 1,
         },
         [chain2]: {
@@ -86,7 +87,7 @@ describe('StrategyFactory', () => {
             target: 10,
             type: RebalancerMinAmountType.Absolute,
           },
-          bridge: ethers.constants.AddressZero,
+          bridge: AddressZero,
           bridgeLockTime: 1,
         },
       };

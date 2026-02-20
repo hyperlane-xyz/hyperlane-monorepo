@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
 import { pino } from 'pino';
+import { parseEther, zeroAddress } from 'viem';
 
 import type { ChainMap, ChainName, Token } from '@hyperlane-xyz/sdk';
 
@@ -10,6 +10,10 @@ import { extractBridgeConfigs } from '../test/helpers.js';
 import { WeightedStrategy } from './WeightedStrategy.js';
 
 const testLogger = pino({ level: 'silent' });
+const ethers = {
+  constants: { AddressZero: zeroAddress },
+  utils: { parseEther: (value: string) => ({ toBigInt: () => parseEther(value) }) },
+} as const;
 
 describe('WeightedStrategy', () => {
   let chain1: ChainName;
