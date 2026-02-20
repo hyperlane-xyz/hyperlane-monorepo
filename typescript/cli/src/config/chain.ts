@@ -1,5 +1,5 @@
 import { confirm, input, select } from '@inquirer/prompts';
-import { ethers } from 'ethers';
+import { createPublicClient, http } from 'viem';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -48,17 +48,21 @@ export async function createChainConfig({
   context: CommandContext;
 }) {
   logBlue('Creating a new chain config');
+  const defaultRpcUrl = 'http://127.0.0.1:8545';
 
   const rpcUrl = await detectAndConfirmOrPrompt(
     async () => {
-      await new ethers.providers.JsonRpcProvider().getNetwork();
-      return ethers.providers.JsonRpcProvider.defaultUrl();
+      const defaultRpcClient = createPublicClient({
+        transport: http(defaultRpcUrl),
+      });
+      await defaultRpcClient.getChainId();
+      return defaultRpcUrl;
     },
     'Enter http or https',
     'rpc url',
     'JSON RPC provider',
   );
-  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+  const rpcClient = createPublicClient({ transport: http(rpcUrl) });
 
   const name = await input({
     message: 'Enter chain name (one word, lower case)',
@@ -73,8 +77,7 @@ export async function createChainConfig({
   const chainId = parseInt(
     await detectAndConfirmOrPrompt(
       async () => {
-        const network = await provider.getNetwork();
-        return network.chainId.toString();
+        return (await rpcClient.getChainId()).toString();
       },
       'Enter a (number)',
       'chain id',
@@ -100,7 +103,7 @@ export async function createChainConfig({
   if (technicalStack === ChainTechnicalStack.ArbitrumNitro) {
     const indexFrom = await detectAndConfirmOrPrompt(
       async () => {
-        return (await provider.getBlockNumber()).toString();
+        return (await rpcClient.getBlockNumber()).toString();
       },
       `Enter`,
       'starting block number for indexing',
