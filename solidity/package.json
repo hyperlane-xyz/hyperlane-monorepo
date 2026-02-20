@@ -25,7 +25,6 @@
         "ts-generator": "^0.1.1",
         "ts-node": "catalog:",
         "tsx": "catalog:",
-        "typechain": "catalog:",
         "typescript": "catalog:",
         "viem": "catalog:",
         "zksync-ethers": "catalog:"

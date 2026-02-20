@@ -1,16 +1,12 @@
 import { promises as fs } from 'fs';
 import { basename, dirname, join } from 'path';
-import { glob } from 'typechain';
 import { fileURLToPath } from 'url';
 
 const CONFIG = {
   cwd: process.cwd(),
   outputDir: 'dist/zksync/',
   artifactsDir: 'artifacts',
-  artifactGlobs: [
-    `!./artifacts-zk/!(build-info)/**/*.dbg.json`,
-    `./artifacts-zk/!(build-info)/**/+([a-zA-Z0-9_]).json`,
-  ],
+  artifactsRootDir: './artifacts-zk',
   formatIdentifier: 'hh-zksolc-artifact-1',
 };
 
@@ -61,13 +57,39 @@ class ArtifactGenerator {
     this.processedFiles = new Set();
   }
 
+  async collectArtifactPaths(dirPath) {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    const artifactPaths = [];
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (entry.name === 'build-info') continue;
+        artifactPaths.push(
+          ...(await this.collectArtifactPaths(join(dirPath, entry.name))),
+        );
+        continue;
+      }
+
+      if (!entry.isFile()) continue;
+      if (!entry.name.endsWith('.json')) continue;
+      if (entry.name.endsWith('.dbg.json')) continue;
+
+      const contractName = basename(entry.name, '.json');
+      if (!/^[a-zA-Z0-9_]+$/.test(contractName)) continue;
+
+      artifactPaths.push(join(dirPath, entry.name));
+    }
+
+    return artifactPaths;
+  }
+
   /**
    * @notice Retrieves paths of all relevant artifact files
    * @dev Excludes debug files and build-info directory
    * @return {string[]} Array of file paths matching the glob pattern
    */
-  getArtifactPaths() {
-    return glob(CONFIG.cwd, CONFIG.artifactGlobs);
+  async getArtifactPaths() {
+    return this.collectArtifactPaths(join(CONFIG.cwd, CONFIG.artifactsRootDir));
   }
 
   /**
@@ -157,7 +179,7 @@ class ArtifactGenerator {
     try {
       await this.createOutputDirectory();
 
-      const artifactPaths = this.getArtifactPaths();
+      const artifactPaths = await this.getArtifactPaths();
 
       for (const filePath of artifactPaths) {
         await this.processArtifact(filePath);
