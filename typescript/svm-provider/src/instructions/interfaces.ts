@@ -9,6 +9,7 @@ import {
   type VerifyInstruction,
 } from '../codecs/shared.js';
 
+// Kept verbose for grep/disambiguation across similarly named interface discriminators.
 export const INTERCHAIN_SECURITY_MODULE_INTERFACE_DISCRIMINATORS = {
   type: new Uint8Array([105, 97, 97, 88, 63, 124, 106, 18]),
   verify: new Uint8Array([243, 53, 214, 0, 208, 18, 231, 67]),

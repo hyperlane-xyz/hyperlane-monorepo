@@ -12,6 +12,7 @@ export const RENT_SYSVAR_ADDRESS =
 
 export const CLOCK_SYSVAR_ADDRESS =
   'SysvarC1ock11111111111111111111111111111111' as Address;
+// Kept as literals to avoid adding a direct '@solana/sysvars' dependency here.
 
 export const SPL_NOOP_PROGRAM_ADDRESS =
   'noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV' as Address;

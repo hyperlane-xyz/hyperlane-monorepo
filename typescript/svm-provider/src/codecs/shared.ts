@@ -105,6 +105,7 @@ const VALIDATOR_ARRAY_ENCODER = getArrayEncoder(BYTES20_CODEC, {
 const VALIDATOR_ARRAY_DECODER = getArrayDecoder(BYTES20_CODEC, {
   size: U32_CODEC,
 });
+// Separate encoder/decoder forms are kept to support asymmetric composition when needed.
 const VERIFY_INSTRUCTION_ENCODER = getStructEncoder([
   ['metadata', VEC_BYTES_CODEC],
   ['message', VEC_BYTES_CODEC],

@@ -17,6 +17,7 @@ export interface DomainData {
   validatorsAndThreshold: ValidatorsAndThreshold;
 }
 
+// Could be migrated to struct codecs; left manual here to keep parity with adjacent account decoders.
 export function decodeMultisigIsmAccessControlAccount(
   raw: Uint8Array,
 ): AccessControlData | null {
