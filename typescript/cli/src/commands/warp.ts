@@ -335,6 +335,8 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
+      sourceToken?: string;
+      destinationToken?: string;
     }
 > = {
   command: 'send',
@@ -361,6 +363,15 @@ const send: CommandModuleWithWriteContext<
       description: 'Skip transfer validation (e.g., collateral checks)',
       default: false,
     },
+    'source-token': {
+      type: 'string',
+      description: 'Source token router address (for MultiCollateral routes)',
+    },
+    'destination-token': {
+      type: 'string',
+      description:
+        'Destination token router address (for MultiCollateral cross-stablecoin transfers)',
+    },
   },
   handler: async ({
     context,
@@ -376,6 +387,8 @@ const send: CommandModuleWithWriteContext<
     roundTrip,
     chains: chainsArg,
     skipValidation,
+    sourceToken,
+    destinationToken,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
@@ -427,6 +440,8 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
       skipValidation,
+      sourceToken,
+      destinationToken,
     });
     logGreen(
       `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,
