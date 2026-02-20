@@ -1,5 +1,3 @@
-import { type TransactionReceipt } from '@ethersproject/providers';
-
 import { type IRegistry } from '@hyperlane-xyz/registry';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import {
@@ -14,6 +12,12 @@ import { type ProtocolType } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
 import { type ExtendedSubmissionStrategy } from '../submitters/types.js';
+
+type EvmTxReceiptLike = {
+  cumulativeGasUsed: unknown;
+  transactionHash: string;
+  [key: string]: unknown;
+};
 
 /**
  * Workaround helper for bypassing bad hook derivation when self-relaying.
@@ -44,7 +48,7 @@ export function canSelfRelay(
   transactionReceipts: Awaited<
     ReturnType<TxSubmitterBuilder<ProtocolType>['submit']>
   >,
-): { relay: true; txReceipt: TransactionReceipt } | { relay: false } {
+): { relay: true; txReceipt: EvmTxReceiptLike } | { relay: false } {
   if (!transactionReceipts) {
     return { relay: false };
   }
@@ -72,10 +76,7 @@ export function canSelfRelay(
     return { relay: false };
   }
 
-  return {
-    relay: canRelay,
-    txReceipt,
-  };
+  return { relay: canRelay, txReceipt: txReceipt as EvmTxReceiptLike };
 }
 
 /**
@@ -97,7 +98,7 @@ export type RunSelfRelayOptions = {
   core?: HyperlaneCore;
   multiProvider: MultiProvider<{}>;
   registry: IRegistry;
-  txReceipt: TransactionReceipt;
+  txReceipt: EvmTxReceiptLike;
   successMessage?: string;
 };
 

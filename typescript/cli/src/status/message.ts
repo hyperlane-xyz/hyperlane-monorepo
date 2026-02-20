@@ -1,4 +1,3 @@
-import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
@@ -15,6 +14,8 @@ import {
 import { log, logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';
+
+type DispatchReceipt = Awaited<ReturnType<HyperlaneCore['getDispatchTx']>>;
 
 export async function checkMessageStatus({
   context,
@@ -42,7 +43,7 @@ export async function checkMessageStatus({
     context.multiProvider,
   );
 
-  let dispatchedReceipt: TransactionReceipt;
+  let dispatchedReceipt: DispatchReceipt;
 
   if (dispatchTx) {
     dispatchedReceipt = await context.multiProvider
