@@ -1,9 +1,8 @@
-import {input} from "@inquirer/prompts";
-import {isHex} from "viem";
-import {Wallet} from "zksync-ethers";
+import { input } from '@inquirer/prompts';
+import { isHex } from 'viem';
 
-import {impersonateAccount} from "@hyperlane-xyz/sdk";
-import {type Address, ensure0x} from "@hyperlane-xyz/utils";
+import { LocalAccountEvmSigner, impersonateAccount } from '@hyperlane-xyz/sdk';
+import { type Address, ensure0x } from '@hyperlane-xyz/utils';
 
 const ETHEREUM_ADDRESS_LENGTH = 42;
 
@@ -12,15 +11,15 @@ const ETHEREUM_ADDRESS_LENGTH = 42;
  * @returns the signer
  */
 export async function getSigner({
-    key,
-    skipConfirmation,
+  key,
+  skipConfirmation,
 }: {
-    key?: string;
-    skipConfirmation?: boolean;
+  key?: string;
+  skipConfirmation?: boolean;
 }) {
-    key ||= await retrieveKey(skipConfirmation);
-    const signer = privateKeyToSigner(key);
-    return {key, signer};
+  key ||= await retrieveKey(skipConfirmation);
+  const signer = privateKeyToSigner(key);
+  return { key, signer };
 }
 
 /**
@@ -28,22 +27,22 @@ export async function getSigner({
  * @returns the impersonated signer
  */
 export async function getImpersonatedSigner({
-    fromAddress,
-    key,
-    skipConfirmation,
+  fromAddress,
+  key,
+  skipConfirmation,
 }: {
-    fromAddress?: Address;
-    key?: string;
-    skipConfirmation?: boolean;
+  fromAddress?: Address;
+  key?: string;
+  skipConfirmation?: boolean;
 }) {
-    if (!fromAddress) {
-        const {signer} = await getSigner({key, skipConfirmation});
-        fromAddress = signer.address;
-    }
-    return {
-        impersonatedKey: fromAddress,
-        impersonatedSigner: await addressToImpersonatedSigner(fromAddress),
-    };
+  if (!fromAddress) {
+    const { signer } = await getSigner({ key, skipConfirmation });
+    fromAddress = signer.address;
+  }
+  return {
+    impersonatedKey: fromAddress,
+    impersonatedSigner: await addressToImpersonatedSigner(fromAddress),
+  };
 }
 
 /**
@@ -51,11 +50,11 @@ export async function getImpersonatedSigner({
  * @param signer the signer to verify
  */
 export function assertSigner(signer: unknown) {
-    if (
-        !signer ||
-        typeof (signer as {getAddress?: unknown}).getAddress !== "function"
-    )
-        throw new Error("Signer is invalid");
+  if (
+    !signer ||
+    typeof (signer as { getAddress?: unknown }).getAddress !== 'function'
+  )
+    throw new Error('Signer is invalid');
 }
 
 /**
@@ -64,15 +63,15 @@ export function assertSigner(signer: unknown) {
  * @returns a signer for the address
  */
 async function addressToImpersonatedSigner(
-    address: Address,
+  address: Address,
 ): Promise<Awaited<ReturnType<typeof impersonateAccount>>> {
-    if (!address) throw new Error("No address provided");
+  if (!address) throw new Error('No address provided');
 
-    const formattedKey = address.trim().toLowerCase();
-    if (address.length != ETHEREUM_ADDRESS_LENGTH)
-        throw new Error("Invalid address length.");
-    else if (isHex(ensure0x(formattedKey))) return impersonateAccount(address);
-    else throw new Error("Invalid address format");
+  const formattedKey = address.trim().toLowerCase();
+  if (address.length != ETHEREUM_ADDRESS_LENGTH)
+    throw new Error('Invalid address length.');
+  else if (isHex(ensure0x(formattedKey))) return impersonateAccount(address);
+  else throw new Error('Invalid address format');
 }
 
 /**
@@ -80,23 +79,22 @@ async function addressToImpersonatedSigner(
  * @param key a private key
  * @returns a signer for the private key
  */
-function privateKeyToSigner(key: string): Wallet {
-    if (!key) throw new Error("No private key provided");
+function privateKeyToSigner(key: string): LocalAccountEvmSigner {
+  if (!key) throw new Error('No private key provided');
 
-    const formattedKey = key.trim().toLowerCase();
-    if (isHex(ensure0x(formattedKey)))
-        return new Wallet(ensure0x(formattedKey));
-    else if (formattedKey.split(" ").length >= 6)
-        return Wallet.fromMnemonic(formattedKey);
-    else throw new Error("Invalid private key format");
+  const formattedKey = key.trim().toLowerCase();
+  if (isHex(ensure0x(formattedKey))) {
+    return new LocalAccountEvmSigner(ensure0x(formattedKey));
+  }
+  throw new Error('Invalid private key format');
 }
 
 async function retrieveKey(
-    skipConfirmation: boolean | undefined,
+  skipConfirmation: boolean | undefined,
 ): Promise<string> {
-    if (skipConfirmation) throw new Error(`No private key provided`);
-    else
-        return input({
-            message: `Please enter private key or use the HYP_KEY environment variable.`,
-        });
+  if (skipConfirmation) throw new Error(`No private key provided`);
+  else
+    return input({
+      message: `Please enter private key or use the HYP_KEY environment variable.`,
+    });
 }
