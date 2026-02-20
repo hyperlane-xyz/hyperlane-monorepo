@@ -52,6 +52,10 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     protected readonly rpcUrls: string[],
   ) {}
 
+  getRawProvider(): RpcProvider {
+    return this.provider;
+  }
+
   protected withContract(
     name: StarknetContractName,
     address: string,
@@ -605,7 +609,9 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       constructorArgs: [
         req.domainId,
         normalizeStarknetAddressSafe(req.signer),
-        normalizeStarknetAddressSafe(req.defaultIsmAddress ?? ZERO_ADDRESS_HEX_32),
+        normalizeStarknetAddressSafe(
+          req.defaultIsmAddress ?? ZERO_ADDRESS_HEX_32,
+        ),
         ZERO_ADDRESS_HEX_32,
         ZERO_ADDRESS_HEX_32,
       ],
