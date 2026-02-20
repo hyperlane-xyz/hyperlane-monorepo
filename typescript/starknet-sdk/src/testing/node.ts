@@ -12,9 +12,14 @@ import {
   TEST_STARKNET_CHAIN_METADATA,
 } from './constants.js';
 
+const RPC_READY_MAX_ATTEMPTS = 20;
+const RPC_READY_RETRY_MS = 1000;
+
 async function waitForRpcReady(rpcUrl: string): Promise<void> {
-  await retryAsync(
-    async () => {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= RPC_READY_MAX_ATTEMPTS; attempt += 1) {
+    try {
       const response = await fetch(rpcUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -34,12 +39,21 @@ async function waitForRpcReady(rpcUrl: string): Promise<void> {
       if (payload.error) {
         throw new Error(`rpc returned error: ${JSON.stringify(payload.error)}`);
       }
-    },
-    20,
-    1000,
-  );
+      await sleep(1000);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < RPC_READY_MAX_ATTEMPTS) {
+        await sleep(RPC_READY_RETRY_MS);
+      }
+    }
+  }
 
-  await sleep(1000);
+  throw new Error(
+    `starknet rpc did not become ready after ${RPC_READY_MAX_ATTEMPTS} attempts: ${String(
+      lastError,
+    )}`,
+  );
 }
 
 export async function runStarknetNode(
