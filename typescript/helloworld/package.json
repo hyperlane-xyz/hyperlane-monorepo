@@ -47,7 +47,6 @@
     "@ethereum-waffle/chai": "^4.0.10",
     "@nomiclabs/hardhat-ethers": "catalog:",
     "@nomiclabs/hardhat-waffle": "catalog:",
-    "@typechain/ethers-v5": "catalog:",
     "@typechain/ethers-v6": "catalog:",
     "@typechain/hardhat": "catalog:",
     "@types/chai": "catalog:",
