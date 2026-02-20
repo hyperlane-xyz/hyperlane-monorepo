@@ -1,4 +1,9 @@
-import type { Address, Instruction, TransactionSigner } from '@solana/kit';
+import type {
+  Address,
+  Instruction,
+  ReadonlyUint8Array,
+  TransactionSigner,
+} from '@solana/kit';
 
 import {
   PROGRAM_INSTRUCTION_DISCRIMINATOR,
@@ -42,7 +47,7 @@ export type MultisigIsmMessageIdProgramInstruction =
 
 export function encodeMultisigIsmMessageIdProgramInstruction(
   instruction: MultisigIsmMessageIdProgramInstruction,
-): Uint8Array {
+): ReadonlyUint8Array {
   switch (instruction.kind) {
     case 'initialize':
       return concatBytes(

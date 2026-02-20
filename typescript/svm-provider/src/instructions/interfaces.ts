@@ -8,6 +8,7 @@ import {
   type HandleInstruction,
   type VerifyInstruction,
 } from '../codecs/shared.js';
+import { ReadonlyUint8Array } from '@solana/kit';
 
 // Kept verbose for grep/disambiguation across similarly named interface discriminators.
 export const INTERCHAIN_SECURITY_MODULE_INTERFACE_DISCRIMINATORS = {
@@ -57,7 +58,7 @@ export function isProgramInstructionDiscriminator(data: Uint8Array): boolean {
 
 export function encodeInterchainSecurityModuleInterfaceInstruction(
   instruction: InterchainSecurityModuleInterfaceInstruction,
-): Uint8Array {
+): ReadonlyUint8Array {
   switch (instruction.type) {
     case 'type':
       return INTERCHAIN_SECURITY_MODULE_INTERFACE_DISCRIMINATORS.type;
@@ -113,7 +114,7 @@ export function decodeInterchainSecurityModuleInterfaceInstruction(
 
 export function encodeMessageRecipientInterfaceInstruction(
   instruction: MessageRecipientInterfaceInstruction,
-): Uint8Array {
+): ReadonlyUint8Array {
   switch (instruction.type) {
     case 'interchainSecurityModule':
       return MESSAGE_RECIPIENT_INTERFACE_DISCRIMINATORS.interchainSecurityModule;
@@ -176,7 +177,7 @@ export function decodeMessageRecipientInterfaceInstruction(
 
 export function encodeMultisigIsmInterfaceInstruction(
   instruction: MultisigIsmInterfaceInstruction,
-): Uint8Array {
+): ReadonlyUint8Array {
   switch (instruction.type) {
     case 'validatorsAndThreshold':
       return concatBytes(

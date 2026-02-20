@@ -1,4 +1,9 @@
-import type { Address, Instruction, TransactionSigner } from '@solana/kit';
+import type {
+  Address,
+  Instruction,
+  ReadonlyUint8Array,
+  TransactionSigner,
+} from '@solana/kit';
 
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { ByteCursor, concatBytes, u8 } from '../codecs/binary.js';
@@ -21,7 +26,7 @@ export type TestIsmProgramInstruction =
 
 export function encodeTestIsmProgramInstruction(
   instruction: TestIsmProgramInstruction,
-): Uint8Array {
+): ReadonlyUint8Array {
   switch (instruction.kind) {
     case 'init':
       return u8(TestIsmInstructionKind.Init);

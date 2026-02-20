@@ -109,7 +109,9 @@ export class ByteCursor {
   }
 }
 
-export function concatBytes(...parts: Uint8Array[]): Uint8Array {
+export function concatBytes(
+  ...parts: readonly ArrayLike<number>[]
+): ReadonlyUint8Array {
   const total = parts.reduce((acc, p) => acc + p.length, 0);
   const out = new Uint8Array(total);
   let offset = 0;
@@ -120,53 +122,53 @@ export function concatBytes(...parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
-export function u8(value: number): Uint8Array {
-  return toMutable(U8_CODEC.encode(value));
+export function u8(value: number): ReadonlyUint8Array {
+  return U8_CODEC.encode(value);
 }
 
-export function bool(value: boolean): Uint8Array {
-  return toMutable(BOOL_CODEC.encode(value));
+export function bool(value: boolean): ReadonlyUint8Array {
+  return BOOL_CODEC.encode(value);
 }
 
-export function u32le(value: number): Uint8Array {
-  return toMutable(U32_CODEC.encode(value));
+export function u32le(value: number): ReadonlyUint8Array {
+  return U32_CODEC.encode(value);
 }
 
-export function u64le(value: bigint): Uint8Array {
-  return toMutable(U64_CODEC.encode(value));
+export function u64le(value: bigint): ReadonlyUint8Array {
+  return U64_CODEC.encode(value);
 }
 
-export function u128le(value: bigint): Uint8Array {
-  return toMutable(U128_CODEC.encode(value));
+export function u128le(value: bigint): ReadonlyUint8Array {
+  return U128_CODEC.encode(value);
 }
 
-export function u256le(value: bigint): Uint8Array {
+export function u256le(value: bigint): ReadonlyUint8Array {
   return writeBigIntLE(value, 32);
 }
 
-export function vecBytes(bytes: Uint8Array): Uint8Array {
-  return toMutable(VEC_BYTES_CODEC.encode(bytes));
+export function vecBytes(bytes: ReadonlyUint8Array): ReadonlyUint8Array {
+  return VEC_BYTES_CODEC.encode(bytes);
 }
 
 export function vec<T>(
   items: readonly T[],
-  encodeItem: (item: T) => Uint8Array,
-): Uint8Array {
+  encodeItem: (item: T) => ArrayLike<number>,
+): ReadonlyUint8Array {
   return concatBytes(u32le(items.length), ...items.map(encodeItem));
 }
 
 export function option<T>(
   item: T | null | undefined,
-  encodeItem: (value: T) => Uint8Array,
-): Uint8Array {
+  encodeItem: (value: T) => ArrayLike<number>,
+): ReadonlyUint8Array {
   if (item == null) return u8(0);
   return concatBytes(u8(1), encodeItem(item));
 }
 
 export function mapU32<T>(
   entries: Iterable<[number, T]>,
-  encodeValue: (value: T) => Uint8Array,
-): Uint8Array {
+  encodeValue: (value: T) => ArrayLike<number>,
+): ReadonlyUint8Array {
   const materialized = Array.from(entries);
   return concatBytes(
     u32le(materialized.length),
@@ -174,10 +176,12 @@ export function mapU32<T>(
   );
 }
 
-export function addressBytes(input: string | Uint8Array): Uint8Array {
+export function addressBytes(
+  input: string | ReadonlyUint8Array,
+): ReadonlyUint8Array {
   if (input instanceof Uint8Array) return input;
-  if (input.startsWith('0x')) {
-    return toMutable(BASE16_CODEC.encode(input.slice(2).toLowerCase()));
+  if (typeof input === 'string' && input.startsWith('0x')) {
+    return BASE16_CODEC.encode(input.slice(2).toLowerCase());
   }
   throw new Error(
     `Expected raw bytes or 0x-prefixed hex string, got: ${input.slice(0, 12)}`,
@@ -185,10 +189,10 @@ export function addressBytes(input: string | Uint8Array): Uint8Array {
 }
 
 export function ensureLength(
-  bytes: Uint8Array,
+  bytes: ReadonlyUint8Array,
   length: number,
   label: string,
-): Uint8Array {
+): ReadonlyUint8Array {
   if (bytes.length !== length) {
     throw new Error(`${label} must be ${length} bytes, got ${bytes.length}`);
   }
@@ -215,8 +219,4 @@ export function writeBigIntLE(value: bigint, length: number): Uint8Array {
     throw new Error(`Integer does not fit in ${length} bytes`);
   }
   return out;
-}
-
-function toMutable(bytes: ReadonlyUint8Array): Uint8Array {
-  return Uint8Array.from(bytes);
 }

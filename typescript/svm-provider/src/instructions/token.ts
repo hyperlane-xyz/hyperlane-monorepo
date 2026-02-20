@@ -1,4 +1,9 @@
-import type { Address, Instruction, TransactionSigner } from '@solana/kit';
+import type {
+  Address,
+  Instruction,
+  ReadonlyUint8Array,
+  TransactionSigner,
+} from '@solana/kit';
 import {
   fixCodecSize,
   getBytesCodec,
@@ -132,7 +137,7 @@ const TOKEN_INIT_DECODER = getStructDecoder([
 
 export function encodeTokenProgramInstruction(
   instruction: TokenProgramInstructionData,
-): Uint8Array {
+): ReadonlyUint8Array {
   switch (instruction.kind) {
     case 'init':
       return concatBytes(
@@ -383,7 +388,7 @@ function decodeTokenInit(data: Uint8Array): TokenInitInstructionData {
 
 function encodeTransferRemote(
   value: TransferRemoteInstructionData,
-): Uint8Array {
+): ReadonlyUint8Array {
   return concatBytes(
     u32le(value.destinationDomain),
     encodeH256(value.recipient),
