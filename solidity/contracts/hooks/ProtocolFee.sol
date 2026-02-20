@@ -72,10 +72,7 @@ contract ProtocolFee is AbstractPostDispatchHook, Ownable {
     function supportsMetadata(
         bytes calldata metadata
     ) public view override returns (bool) {
-        if (
-            protocolFee > 0 &&
-            metadata.feeToken(address(0)) != address(0)
-        ) {
+        if (protocolFee > 0 && metadata.feeToken(address(0)) != address(0)) {
             return false;
         }
         return super.supportsMetadata(metadata);

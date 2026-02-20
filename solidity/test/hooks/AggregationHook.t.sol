@@ -154,9 +154,7 @@ contract AggregationHookTest is Test {
         );
     }
 
-    function test_postDispatch_feeToken_forwardsZeroValue(
-        uint8 _hooks
-    ) public {
+    function test_postDispatch_feeToken_forwardsZeroValue(uint8 _hooks) public {
         uint256 fee = PER_HOOK_GAS_AMOUNT;
         address[] memory hooksDeployed = deployHooks(_hooks, fee);
 

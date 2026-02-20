@@ -202,7 +202,10 @@ contract ProtocolFeeTest is Test {
         assertTrue(fees.supportsMetadata(metadata));
     }
 
-    function test_supportsMetadata_rejectsFeeToken_whenFeeNonZero() public view {
+    function test_supportsMetadata_rejectsFeeToken_whenFeeNonZero()
+        public
+        view
+    {
         bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
             0,
             100_000,

@@ -52,10 +52,7 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
         uint256 valueRemaining = msg.value;
         for (uint256 i = 0; i < count; i++) {
             uint256 quote = isNativeFee
-                ? IPostDispatchHook(_hooks[i]).quoteDispatch(
-                    metadata,
-                    message
-                )
+                ? IPostDispatchHook(_hooks[i]).quoteDispatch(metadata, message)
                 : 0;
             require(
                 valueRemaining >= quote,
