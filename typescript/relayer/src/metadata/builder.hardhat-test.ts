@@ -1,6 +1,4 @@
-import hre from 'hardhat';
 import sinon from 'sinon';
-import { Web3Provider } from 'zksync-ethers';
 
 import {
   MerkleTreeHook,
@@ -17,6 +15,7 @@ import {
   HyperlaneCore,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  HardhatSignerWithAddress,
   MerkleTreeHookConfig,
   MultiProvider,
   ProxyFactoryFactories,
@@ -24,6 +23,7 @@ import {
   TestRecipientDeployer,
   randomDeployableIsmConfig,
   testChains,
+  getHardhatSigners,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -46,20 +46,6 @@ import {
   isMetadataBuildable,
 } from './types.js';
 
-type SignerWithAddress = { address: string; [key: string]: any };
-
-async function getHardhatSigners(): Promise<SignerWithAddress[]> {
-  const wallets = await hre.viem.getWalletClients();
-  const provider = new Web3Provider(hre.network.provider as any);
-  return wallets.map((wallet) => {
-    const signer = provider.getSigner(
-      wallet.account.address,
-    ) as SignerWithAddress;
-    signer.address = wallet.account.address;
-    return signer;
-  });
-}
-
 const MAX_ISM_DEPTH = 5;
 const MAX_NUM_VALIDATORS = 10;
 const NUM_RUNS = 16;
@@ -71,8 +57,8 @@ describe('BaseMetadataBuilder', () => {
   let testRecipients: Record<ChainName, TestRecipient>;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
-  let relayer: SignerWithAddress;
-  let validators: SignerWithAddress[];
+  let relayer: HardhatSignerWithAddress;
+  let validators: HardhatSignerWithAddress[];
   let metadataBuilder: BaseMetadataBuilder;
 
   before(async () => {

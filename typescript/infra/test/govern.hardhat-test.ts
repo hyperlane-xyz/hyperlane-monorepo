@@ -1,6 +1,4 @@
 import { expect } from 'chai';
-import hre from 'hardhat';
-import { Web3Provider } from 'zksync-ethers';
 
 import {
   InterchainAccountRouter,
@@ -17,6 +15,7 @@ import {
   HyperlaneContractsMap,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  HardhatSignerWithAddress,
   IcaRouterConfig,
   InterchainAccount,
   InterchainAccountDeployer,
@@ -27,6 +26,7 @@ import {
   TestChainName,
   TestCoreApp,
   TestCoreDeployer,
+  getHardhatSigners,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, eqAddress, objMap } from '@hyperlane-xyz/utils';
@@ -35,20 +35,6 @@ import {
   AnnotatedCallData,
   HyperlaneAppGovernor,
 } from '../src/govern/HyperlaneAppGovernor.js';
-
-type SignerWithAddress = { address: string; [key: string]: any };
-
-async function getHardhatSigners(): Promise<SignerWithAddress[]> {
-  const wallets = await hre.viem.getWalletClients();
-  const provider = new Web3Provider(hre.network.provider as any);
-  return wallets.map((wallet) => {
-    const signer = provider.getSigner(
-      wallet.account.address,
-    ) as SignerWithAddress;
-    signer.address = wallet.account.address;
-    return signer;
-  });
-}
 
 // eslint-disable-next-line jest/no-export -- test fixture class
 export class TestApp extends HyperlaneApp<{}> {}
@@ -108,7 +94,7 @@ describe('ICA governance', async () => {
   const localChain = TestChainName.test1;
   const remoteChain = TestChainName.test2;
 
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let multiProvider: MultiProvider;
   let accountConfig: AccountConfig;
   let coreApp: TestCoreApp;

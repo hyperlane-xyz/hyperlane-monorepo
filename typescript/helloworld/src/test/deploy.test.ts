@@ -1,14 +1,13 @@
-import hre from 'hardhat';
-import { Web3Provider } from 'zksync-ethers';
-
 import {
   ChainMap,
+  HardhatSignerWithAddress,
   HyperlaneContractsMap,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
   TestCoreApp,
   TestCoreDeployer,
+  getHardhatSigners,
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldApp } from '../app/app.js';
@@ -16,20 +15,6 @@ import { HelloWorldFactories } from '../app/contracts.js';
 import { HelloWorldChecker } from '../deploy/check.js';
 import { HelloWorldConfig } from '../deploy/config.js';
 import { HelloWorldDeployer } from '../deploy/deploy.js';
-
-type SignerWithAddress = { address: string; [key: string]: any };
-
-async function getHardhatSigners(): Promise<SignerWithAddress[]> {
-  const wallets = await hre.viem.getWalletClients();
-  const provider = new Web3Provider(hre.network.provider as any);
-  return wallets.map((wallet) => {
-    const signer = provider.getSigner(
-      wallet.account.address,
-    ) as SignerWithAddress;
-    signer.address = wallet.account.address;
-    return signer;
-  });
-}
 
 describe('deploy', () => {
   let multiProvider: MultiProvider;
@@ -40,7 +25,7 @@ describe('deploy', () => {
   let app: HelloWorldApp;
 
   before(async () => {
-    const [signer] = await getHardhatSigners();
+    const [signer]: HardhatSignerWithAddress[] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(

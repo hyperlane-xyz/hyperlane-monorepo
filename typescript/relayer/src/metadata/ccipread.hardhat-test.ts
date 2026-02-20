@@ -1,12 +1,11 @@
 import { expect } from 'chai';
-import hre from 'hardhat';
 import sinon from 'sinon';
 import { type Hex, hexToBytes, recoverMessageAddress } from 'viem';
-import { Web3Provider } from 'zksync-ethers';
 
 import { TestCcipReadIsm, TestCcipReadIsm__factory } from '@hyperlane-xyz/core';
 import {
   EvmIsmReader,
+  HardhatSignerWithAddress,
   HyperlaneCore,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
@@ -14,6 +13,7 @@ import {
   OffchainLookupIsmConfig,
   TestCoreDeployer,
   TestRecipientDeployer,
+  getHardhatSigners,
   offchainLookupRequestMessageHash,
 } from '@hyperlane-xyz/sdk';
 import { WithAddress } from '@hyperlane-xyz/utils';
@@ -22,19 +22,6 @@ import { BaseMetadataBuilder } from './builder.js';
 import { MetadataContext, isMetadataBuildable } from './types.js';
 
 const OFFCHAIN_LOOKUP_SERVER_URL = 'http://example.com/namespace';
-type SignerWithAddress = { address: string; [key: string]: any };
-
-async function getHardhatSigners(): Promise<SignerWithAddress[]> {
-  const wallets = await hre.viem.getWalletClients();
-  const provider = new Web3Provider(hre.network.provider as any);
-  return wallets.map((wallet) => {
-    const signer = provider.getSigner(
-      wallet.account.address,
-    ) as SignerWithAddress;
-    signer.address = wallet.account.address;
-    return signer;
-  });
-}
 
 describe('Offchain Lookup ISM Integration', () => {
   let core: HyperlaneCore;
@@ -44,7 +31,7 @@ describe('Offchain Lookup ISM Integration', () => {
   let metadataBuilder: BaseMetadataBuilder;
   let ismFactory: HyperlaneIsmFactory;
   let fetchStub: sinon.SinonStub;
-  let signers: SignerWithAddress[];
+  let signers: HardhatSignerWithAddress[];
 
   beforeEach(async () => {
     // Set up a local test multi-provider and Hyperlane core
