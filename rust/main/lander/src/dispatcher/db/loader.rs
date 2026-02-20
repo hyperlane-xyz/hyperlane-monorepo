@@ -210,7 +210,6 @@ impl<T: LoadableFromDb + Debug> DirectionalIndexIterator<T> {
 mod tests {
     use std::collections::HashMap;
 
-    use solana_sdk::nonce::state;
     use tokio::sync::Mutex;
 
     use super::*;
