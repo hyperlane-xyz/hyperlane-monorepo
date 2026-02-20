@@ -5,9 +5,8 @@ import { createECDH } from 'crypto';
 import { Logger } from 'pino';
 import { bytesToHex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, LocalAccountEvmSigner } from '@hyperlane-xyz/sdk';
 import {
   HexString,
   ProtocolType,
@@ -288,16 +287,16 @@ export class AgentGCPKey extends CloudAgentKey {
     this.logger.debug('Key deleted successfully');
   }
 
-  async getSigner(
-    provider: EvmProvider | ZkProvider,
-  ): Promise<EvmSigner | ZkWallet> {
+  async getSigner(provider: EvmProvider): Promise<EvmSigner> {
     this.logger.debug('Getting signer');
     if (!this.remoteKey.fetched) {
       this.logger.debug('Key not fetched, fetching now');
       await this.fetch();
     }
 
-    return new ZkWallet(this.privateKey, provider as any);
+    return new LocalAccountEvmSigner(ensure0x(this.privateKey)).connect(
+      provider as any,
+    );
   }
 
   private requireFetched() {
