@@ -14,12 +14,37 @@ import {
     parseMessage,
 } from "@hyperlane-xyz/utils";
 
-import {
-    LegacyMultisigIsm,
-    TestMailbox,
-    TestMerkleTreeHook,
-} from "../../core-utils/typechain";
-import {DispatchEvent} from "../../core-utils/typechain/contracts/Mailbox";
+type DispatchEventLike = {
+    event?: string;
+    args?: {
+        message: string;
+    };
+};
+
+type MailboxLike = {
+    address: string;
+    nonce(): Promise<number>;
+    VERSION(): Promise<number>;
+    localDomain(): Promise<number>;
+    ["dispatch(uint32,bytes32,bytes)"](
+        destination: number,
+        recipient: string,
+        message: string | Uint8Array,
+    ): Promise<{
+        wait(): Promise<{
+            events?: DispatchEventLike[];
+        }>;
+    }>;
+};
+
+type MerkleTreeHookLike = {
+    proof(): Promise<string[]>;
+    root(): Promise<HexString>;
+};
+
+type LegacyMultisigIsmLike = {
+    validators(origin: number): Promise<Address[]>;
+};
 
 export type MessageAndProof = {
     proof: MerkleProof;
@@ -32,7 +57,7 @@ export type MessageAndMetadata = {
 };
 
 export const dispatchMessage = async (
-    mailbox: TestMailbox,
+    mailbox: MailboxLike,
     destination: number,
     recipient: string,
     messageStr: string,
@@ -44,14 +69,14 @@ export const dispatchMessage = async (
         utf8 ? toBytes(messageStr) : messageStr,
     );
     const receipt = await tx.wait();
-    const dispatch = receipt.events![0] as DispatchEvent;
+    const dispatch = receipt.events![0] as DispatchEventLike;
     expect(dispatch.event).to.equal("Dispatch");
     return dispatch.args!;
 };
 
 export const dispatchMessageAndReturnProof = async (
-    mailbox: TestMailbox,
-    merkleHook: TestMerkleTreeHook,
+    mailbox: MailboxLike,
+    merkleHook: MerkleTreeHookLike,
     destination: number,
     recipient: string,
     messageStr: string,
@@ -96,9 +121,9 @@ export async function signCheckpoint(
 }
 
 export async function dispatchMessageAndReturnMetadata(
-    mailbox: TestMailbox,
-    merkleHook: TestMerkleTreeHook,
-    multisigIsm: LegacyMultisigIsm,
+    mailbox: MailboxLike,
+    merkleHook: MerkleTreeHookLike,
+    multisigIsm: LegacyMultisigIsmLike,
     destination: number,
     recipient: string,
     messageStr: string,
@@ -148,7 +173,7 @@ export function getCommitment(
 }
 
 export const inferMessageValues = async (
-    mailbox: TestMailbox,
+    mailbox: MailboxLike,
     sender: string,
     destination: number,
     recipient: string,
