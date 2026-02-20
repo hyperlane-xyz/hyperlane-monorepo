@@ -91,7 +91,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
   describe('Native Token', () => {
     let deployedProgramId: string;
 
-    it.only('should deploy and initialize native token from scratch', async () => {
+    it('should deploy and initialize native token from scratch', async () => {
       const writer = new SvmNativeTokenWriter(rpc, signer, programBytes);
 
       const config = {
@@ -115,7 +115,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
       expect(receipts.length).to.be.greaterThan(0);
     });
 
-    it.only('should read deployed token config', async () => {
+    it('should read deployed token config', async () => {
       const reader = new SvmNativeTokenReader(rpc);
       const token = await reader.read(deployedProgramId);
 

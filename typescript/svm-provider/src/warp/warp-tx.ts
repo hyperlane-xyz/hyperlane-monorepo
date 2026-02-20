@@ -15,6 +15,14 @@ import type { SvmInstruction } from '../types.js';
 import { routerHexToBytes } from './warp-query.js';
 
 /**
+ * Program instruction discriminator used by all Hyperlane token instructions.
+ * From Rust: PROGRAM_INSTRUCTION_DISCRIMINATOR = [1,1,1,1,1,1,1,1]
+ */
+const PROGRAM_INSTRUCTION_DISCRIMINATOR = new Uint8Array([
+  1, 1, 1, 1, 1, 1, 1, 1,
+]);
+
+/**
  * Remote router enrollment configuration.
  */
 export interface RouterEnrollment {
@@ -39,16 +47,21 @@ export function getEnrollRemoteRoutersIx(
   enrollments: RouterEnrollment[],
 ): SvmInstruction {
   const encoder = getEnrollRemoteRoutersInstructionDataEncoder();
-  const data = encoder.encode({
+  const enumData = encoder.encode({
     args: enrollments.map((e) => ({
       domain: e.domain,
       router: e.router ? routerHexToBytes(e.router) : null,
     })),
   });
 
+  // Prepend 8-byte discriminator
+  const data = new Uint8Array(8 + enumData.length);
+  data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
+  data.set(enumData, 8);
+
   return {
     programAddress: programId,
-    accounts: [], // Accounts derived by program
+    accounts: [],
     data,
   };
 }
@@ -61,12 +74,17 @@ export function getUnenrollRemoteRoutersIx(
   domains: number[],
 ): SvmInstruction {
   const encoder = getEnrollRemoteRoutersInstructionDataEncoder();
-  const data = encoder.encode({
+  const enumData = encoder.encode({
     args: domains.map((domain) => ({
       domain,
       router: null,
     })),
   });
+
+  // Prepend 8-byte discriminator
+  const data = new Uint8Array(8 + enumData.length);
+  data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
+  data.set(enumData, 8);
 
   return {
     programAddress: programId,
@@ -83,12 +101,17 @@ export function getSetDestinationGasConfigsIx(
   configs: DestinationGasConfig[],
 ): SvmInstruction {
   const encoder = getSetDestinationGasConfigsInstructionDataEncoder();
-  const data = encoder.encode({
+  const enumData = encoder.encode({
     args: configs.map((c) => ({
       domain: c.domain,
       gas: c.gas,
     })),
   });
+
+  // Prepend 8-byte discriminator
+  const data = new Uint8Array(8 + enumData.length);
+  data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
+  data.set(enumData, 8);
 
   return {
     programAddress: programId,
@@ -100,9 +123,17 @@ export function getSetDestinationGasConfigsIx(
 /**
  * Builds SetInterchainSecurityModule instruction.
  */
-export function getSetIsmIx(programId: Address, ism: Address | null): SvmInstruction {
+export function getSetIsmIx(
+  programId: Address,
+  ism: Address | null,
+): SvmInstruction {
   const encoder = getSetInterchainSecurityModuleInstructionDataEncoder();
-  const data = encoder.encode({ args: ism });
+  const enumData = encoder.encode({ args: ism });
+
+  // Prepend 8-byte discriminator
+  const data = new Uint8Array(8 + enumData.length);
+  data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
+  data.set(enumData, 8);
 
   return {
     programAddress: programId,
@@ -119,7 +150,12 @@ export function getTransferOwnershipIx(
   newOwner: Address | null,
 ): SvmInstruction {
   const encoder = getTransferOwnershipInstructionDataEncoder();
-  const data = encoder.encode({ args: newOwner });
+  const enumData = encoder.encode({ args: newOwner });
+
+  // Prepend 8-byte discriminator
+  const data = new Uint8Array(8 + enumData.length);
+  data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
+  data.set(enumData, 8);
 
   return {
     programAddress: programId,
@@ -161,7 +197,9 @@ export function computeWarpTokenUpdateInstructions(
 
   // 3. Unenroll removed routers
   if (routerDiff.toUnenroll.length > 0) {
-    instructions.push(getUnenrollRemoteRoutersIx(programId, routerDiff.toUnenroll));
+    instructions.push(
+      getUnenrollRemoteRoutersIx(programId, routerDiff.toUnenroll),
+    );
   }
 
   // 4. Enroll new/updated routers with destination gas
@@ -187,7 +225,9 @@ export function computeWarpTokenUpdateInstructions(
 
   // 5. Transfer ownership (always last)
   if (current.owner !== expected.owner) {
-    instructions.push(getTransferOwnershipIx(programId, expected.owner as Address));
+    instructions.push(
+      getTransferOwnershipIx(programId, expected.owner as Address),
+    );
   }
 
   return instructions;
