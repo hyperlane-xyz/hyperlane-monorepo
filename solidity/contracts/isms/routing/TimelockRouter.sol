@@ -80,17 +80,21 @@ contract TimelockRouter is
         return true;
     }
 
-    /// @inheritdoc IPostDispatchHook
+    /**
+     * @inheritdoc IPostDispatchHook
+     * @dev Access is restricted by _isLatestDispatched which ensures only
+     * messages currently being dispatched through the Mailbox can be preverified.
+     * On the destination, _handle only accepts messages from enrolled routers
+     * via the Mailbox's sender verification, preventing arbitrary preverification.
+     */
     function postDispatch(
         bytes calldata /*metadata*/,
         bytes calldata message
     ) external payable {
+        bytes32 id = message.id();
+        require(_isLatestDispatched(id), "message not dispatching");
         // Send message ID to destination router for preverification
-        _Router_dispatch(
-            message.destination(),
-            msg.value,
-            abi.encode(message.id())
-        );
+        _Router_dispatch(message.destination(), msg.value, abi.encode(id));
     }
 
     /// @inheritdoc IPostDispatchHook
