@@ -12,6 +12,7 @@ import type { PdaWithBump } from './types.js';
 const utf8 = getUtf8Encoder();
 const u32 = getU32Encoder();
 const addressEncoder = getAddressEncoder();
+// Intentionally using @solana/kit re-exports for consistency with package-wide imports.
 
 async function derive(
   programAddress: Address,
