@@ -373,21 +373,21 @@ where
 
         let igp_payment_accounts =
             if let Some((igp_program_id, igp_account_type)) = token.interchain_gas_paymaster() {
-                // Account: The IGP program
+                // Account G: The IGP program.
                 let igp_program_account = next_account_info(accounts_iter)?;
                 if igp_program_account.key != igp_program_id {
                     return Err(ProgramError::InvalidArgument);
                 }
 
-                // Account: The IGP program data.
+                // Account G+1: The IGP program data.
                 // No verification is performed here, the IGP will do that.
                 let igp_program_data_account = next_account_info(accounts_iter)?;
 
-                // Account: The gas payment PDA.
+                // Account G+2: Gas payment PDA.
                 // No verification is performed here, the IGP will do that.
                 let igp_payment_pda_account = next_account_info(accounts_iter)?;
 
-                // Account: The configured IGP account.
+                // Account G+3 or G+4: The configured IGP account.
                 let configured_igp_account = next_account_info(accounts_iter)?;
                 if configured_igp_account.key != igp_account_type.key() {
                     return Err(ProgramError::InvalidArgument);
@@ -425,7 +425,7 @@ where
                         igp_payment_account_infos.push(configured_igp_account.clone());
                     }
                     InterchainGasPaymasterType::OverheadIgp(_) => {
-                        // Account: The inner IGP account.
+                        // Account G+3: The inner IGP account (G+4 is the Overhead IGP above).
                         let inner_igp_account = next_account_info(accounts_iter)?;
 
                         // The inner IGP is expected first, then the overhead IGP.

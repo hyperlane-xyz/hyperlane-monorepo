@@ -236,16 +236,12 @@ fn process_remove_route(
         .checked_add(lamports)
         .ok_or(ProgramError::ArithmeticOverflow)?;
 
-    // Zero account data to mark as uninitialized
+    // Zero account data to mark as uninitialized.
     route_pda_info.try_borrow_mut_data()?.fill(0);
-    // Resize to 0 so data_is_empty() returns true immediately.
-    // This is needed if set_route is called for the same domain in the same tx.
-    // resize() is only available on the SVM runtime (panics in program-test).
-    #[allow(unexpected_cfgs)]
-    if cfg!(target_os = "solana") {
-        route_pda_info.resize(0)?;
-    }
-    // Assign back to system program
+    // Note: data_len remains >0 until the runtime garbage-collects this
+    // 0-lamport account at end of transaction. set_route handles this
+    // because it overwrites in place when the PDA already has data.
+    // Same-tx remove+recreate is not supported (use set_route to overwrite).
     route_pda_info.assign(&system_program::ID);
 
     msg!(
