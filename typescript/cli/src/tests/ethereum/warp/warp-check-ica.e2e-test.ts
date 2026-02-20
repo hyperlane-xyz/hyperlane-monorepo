@@ -1,446 +1,432 @@
-import {expect} from "chai";
-import {zeroHash} from "viem";
-import {Provider, Wallet} from "zksync-ethers";
+import { expect } from 'chai';
+import { zeroHash } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
-    type ERC20Test,
-    InterchainAccountRouter__factory,
-} from "@hyperlane-xyz/core";
+  type ERC20Test,
+  InterchainAccountRouter__factory,
+} from '@hyperlane-xyz/core';
 import {
-    type ChainAddresses,
-    createWarpRouteConfigId,
-} from "@hyperlane-xyz/registry";
+  type ChainAddresses,
+  createWarpRouteConfigId,
+} from '@hyperlane-xyz/registry';
 import {
-    type AccountConfig,
-    type ChainMetadata,
-    InterchainAccount,
-    TokenType,
-    type WarpCoreConfig,
-    type WarpRouteDeployConfig,
-} from "@hyperlane-xyz/sdk";
+  type AccountConfig,
+  type ChainMetadata,
+  HyperlaneSmartProvider,
+  InterchainAccount,
+  LocalAccountEvmSigner,
+  TokenType,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
 import {
-    type Address,
-    addressToBytes32,
-    normalizeAddressEvm,
-} from "@hyperlane-xyz/utils";
+  type Address,
+  addressToBytes32,
+  ensure0x,
+  normalizeAddressEvm,
+} from '@hyperlane-xyz/utils';
 
-import {getContext} from "../../../context/context.js";
-import {readYamlOrJson, writeYamlOrJson} from "../../../utils/files.js";
-import {deployOrUseExistingCore} from "../commands/core.js";
-import {deployToken} from "../commands/helpers.js";
-import {hyperlaneWarpCheckRaw, hyperlaneWarpDeploy} from "../commands/warp.js";
+import { getContext } from '../../../context/context.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import { deployOrUseExistingCore } from '../commands/core.js';
+import { deployToken } from '../commands/helpers.js';
 import {
-    ANVIL_KEY,
-    CHAIN_2_METADATA_PATH,
-    CHAIN_3_METADATA_PATH,
-    CHAIN_NAME_2,
-    CHAIN_NAME_3,
-    CHAIN_NAME_4,
-    CORE_CONFIG_PATH,
-    DEFAULT_E2E_TEST_TIMEOUT,
-    REGISTRY_PATH,
-    getCombinedWarpRoutePath,
-} from "../consts.js";
+  hyperlaneWarpCheckRaw,
+  hyperlaneWarpDeploy,
+} from '../commands/warp.js';
+import {
+  ANVIL_KEY,
+  CHAIN_2_METADATA_PATH,
+  CHAIN_3_METADATA_PATH,
+  CHAIN_NAME_2,
+  CHAIN_NAME_3,
+  CHAIN_NAME_4,
+  CORE_CONFIG_PATH,
+  DEFAULT_E2E_TEST_TIMEOUT,
+  REGISTRY_PATH,
+  getCombinedWarpRoutePath,
+} from '../consts.js';
 
-describe("hyperlane warp check --ica e2e tests", async function () {
-    this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
+describe('hyperlane warp check --ica e2e tests', async function () {
+  this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-    let chain2Addresses: ChainAddresses = {};
-    let chain3Addresses: ChainAddresses = {};
-    let chain4Addresses: ChainAddresses = {};
-    let token: ERC20Test;
-    let combinedWarpCoreConfigPath: string;
-    let expectedIcaAddress: Address;
-    let icaOwnerAddress: Address;
-    let nonConfigOwner: Address;
-    let nonConfigOwnerIca: Address;
+  let chain2Addresses: ChainAddresses = {};
+  let chain3Addresses: ChainAddresses = {};
+  let chain4Addresses: ChainAddresses = {};
+  let token: ERC20Test;
+  let combinedWarpCoreConfigPath: string;
+  let expectedIcaAddress: Address;
+  let icaOwnerAddress: Address;
+  let nonConfigOwner: Address;
+  let nonConfigOwnerIca: Address;
 
-    before(async function () {
-        [chain2Addresses, chain3Addresses, chain4Addresses] = await Promise.all(
-            [
-                deployOrUseExistingCore(
-                    CHAIN_NAME_2,
-                    CORE_CONFIG_PATH,
-                    ANVIL_KEY,
-                ),
-                deployOrUseExistingCore(
-                    CHAIN_NAME_3,
-                    CORE_CONFIG_PATH,
-                    ANVIL_KEY,
-                ),
-                deployOrUseExistingCore(
-                    CHAIN_NAME_4,
-                    CORE_CONFIG_PATH,
-                    ANVIL_KEY,
-                ),
-            ],
-        );
+  before(async function () {
+    [chain2Addresses, chain3Addresses, chain4Addresses] = await Promise.all([
+      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, ANVIL_KEY),
+    ]);
 
-        token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+    token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
 
-        combinedWarpCoreConfigPath = getCombinedWarpRoutePath(
-            await token.symbol(),
-            [CHAIN_NAME_3],
-        );
+    combinedWarpCoreConfigPath = getCombinedWarpRoutePath(
+      await token.symbol(),
+      [CHAIN_NAME_3],
+    );
 
-        // ICA setup
-        icaOwnerAddress = new Wallet(ANVIL_KEY).address;
-        const chain2Metadata: ChainMetadata = readYamlOrJson(
-            CHAIN_2_METADATA_PATH,
-        );
-        const chain3Metadata: ChainMetadata = readYamlOrJson(
-            CHAIN_3_METADATA_PATH,
-        );
+    // ICA setup
+    icaOwnerAddress = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
+    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-        const providerChain2 = new Provider(chain2Metadata.rpcUrls[0].http);
-        const providerChain3 = new Provider(chain3Metadata.rpcUrls[0].http);
+    const providerChain2 = HyperlaneSmartProvider.fromRpcUrl(
+      chain2Metadata.chainId,
+      chain2Metadata.rpcUrls[0].http,
+    );
+    const providerChain3 = HyperlaneSmartProvider.fromRpcUrl(
+      chain3Metadata.chainId,
+      chain3Metadata.rpcUrls[0].http,
+    );
 
-        const walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
-        const walletChain3 = new Wallet(ANVIL_KEY).connect(providerChain3);
+    const walletChain2 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      providerChain2,
+    );
+    const walletChain3 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      providerChain3,
+    );
 
-        const {registry, multiProvider} = await getContext({
-            registryUris: [REGISTRY_PATH],
-            key: ANVIL_KEY,
-        });
-        const freshChain2Addresses =
-            await registry.getChainAddresses(CHAIN_NAME_2);
-        const freshChain3Addresses =
-            await registry.getChainAddresses(CHAIN_NAME_3);
-
-        expect(
-            freshChain2Addresses?.interchainAccountRouter,
-            `Missing ICA router for ${CHAIN_NAME_2}. Got: ${JSON.stringify(freshChain2Addresses)}`,
-        ).to.exist;
-        expect(
-            freshChain3Addresses?.interchainAccountRouter,
-            `Missing ICA router for ${CHAIN_NAME_3}. Got: ${JSON.stringify(freshChain3Addresses)}`,
-        ).to.exist;
-
-        const icaRouterChain2 = InterchainAccountRouter__factory.connect(
-            freshChain2Addresses!.interchainAccountRouter!,
-            walletChain2,
-        );
-        const icaRouterChain3 = InterchainAccountRouter__factory.connect(
-            freshChain3Addresses!.interchainAccountRouter!,
-            walletChain3,
-        );
-
-        // Enroll routers (catch errors in case they're already enrolled from previous runs)
-        try {
-            await icaRouterChain3
-                .enrollRemoteRouterAndIsm(
-                    chain2Metadata.domainId!,
-                    addressToBytes32(chain2Addresses.interchainAccountRouter!),
-                    zeroHash,
-                )
-                .then((tx) => tx.wait());
-        } catch {
-            // Already enrolled
-        }
-
-        try {
-            await icaRouterChain2
-                .enrollRemoteRouterAndIsm(
-                    chain3Metadata.domainId!,
-                    addressToBytes32(chain3Addresses.interchainAccountRouter!),
-                    zeroHash,
-                )
-                .then((tx) => tx.wait());
-        } catch {
-            // Already enrolled
-        }
-
-        const addressesMap: Record<string, Record<string, string>> = {
-            [CHAIN_NAME_2]: freshChain2Addresses as Record<string, string>,
-            [CHAIN_NAME_3]: freshChain3Addresses as Record<string, string>,
-        };
-
-        const ica = InterchainAccount.fromAddressesMap(
-            addressesMap,
-            multiProvider,
-        );
-
-        const ownerConfig: AccountConfig = {
-            origin: CHAIN_NAME_2,
-            owner: icaOwnerAddress,
-        };
-
-        expectedIcaAddress = await ica.getAccount(CHAIN_NAME_3, ownerConfig);
-
-        // Calculate ICA for an owner not in the warp config (for --originOwner tests)
-        nonConfigOwner = Wallet.createRandom().address;
-        nonConfigOwnerIca = await ica.getAccount(CHAIN_NAME_3, {
-            origin: CHAIN_NAME_2,
-            owner: nonConfigOwner,
-        });
+    const { registry, multiProvider } = await getContext({
+      registryUris: [REGISTRY_PATH],
+      key: ANVIL_KEY,
     });
+    const freshChain2Addresses = await registry.getChainAddresses(CHAIN_NAME_2);
+    const freshChain3Addresses = await registry.getChainAddresses(CHAIN_NAME_3);
 
-    function createIcaWarpConfig(
-        destinationOwner: Address,
-    ): WarpRouteDeployConfig {
-        return {
-            [CHAIN_NAME_2]: {
-                type: TokenType.collateral,
-                token: token.address,
-                mailbox: chain2Addresses.mailbox,
-                owner: icaOwnerAddress,
-            },
-            [CHAIN_NAME_3]: {
-                type: TokenType.synthetic,
-                mailbox: chain3Addresses.mailbox,
-                owner: destinationOwner,
-            },
-        };
+    expect(
+      freshChain2Addresses?.interchainAccountRouter,
+      `Missing ICA router for ${CHAIN_NAME_2}. Got: ${JSON.stringify(freshChain2Addresses)}`,
+    ).to.exist;
+    expect(
+      freshChain3Addresses?.interchainAccountRouter,
+      `Missing ICA router for ${CHAIN_NAME_3}. Got: ${JSON.stringify(freshChain3Addresses)}`,
+    ).to.exist;
+
+    const icaRouterChain2 = InterchainAccountRouter__factory.connect(
+      freshChain2Addresses!.interchainAccountRouter!,
+      walletChain2,
+    );
+    const icaRouterChain3 = InterchainAccountRouter__factory.connect(
+      freshChain3Addresses!.interchainAccountRouter!,
+      walletChain3,
+    );
+
+    // Enroll routers (catch errors in case they're already enrolled from previous runs)
+    try {
+      await icaRouterChain3
+        .enrollRemoteRouterAndIsm(
+          chain2Metadata.domainId!,
+          addressToBytes32(chain2Addresses.interchainAccountRouter!),
+          zeroHash,
+        )
+        .then((tx) => tx.wait());
+    } catch {
+      // Already enrolled
     }
 
-    async function deployIcaWarpRoute(
-        destinationOwner: Address,
-        suffix: string,
-    ): Promise<string> {
-        const icaWarpConfig = createIcaWarpConfig(destinationOwner);
-        const warpDeployPath = combinedWarpCoreConfigPath.replace(
-            "-config.yaml",
-            `-ica-${suffix}-deploy.yaml`,
-        );
-        writeYamlOrJson(warpDeployPath, icaWarpConfig);
-
-        const currentWarpId = createWarpRouteConfigId(
-            await token.symbol(),
-            `${CHAIN_NAME_3}-ica-${suffix}`,
-        );
-
-        await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
-        return currentWarpId;
+    try {
+      await icaRouterChain2
+        .enrollRemoteRouterAndIsm(
+          chain3Metadata.domainId!,
+          addressToBytes32(chain3Addresses.interchainAccountRouter!),
+          zeroHash,
+        )
+        .then((tx) => tx.wait());
+    } catch {
+      // Already enrolled
     }
 
-    it("should pass when destination owner matches calculated ICA address", async function () {
-        const currentWarpId = await deployIcaWarpRoute(
-            expectedIcaAddress,
-            "ok",
-        );
+    const addressesMap: Record<string, Record<string, string>> = {
+      [CHAIN_NAME_2]: freshChain2Addresses as Record<string, string>,
+      [CHAIN_NAME_3]: freshChain3Addresses as Record<string, string>,
+    };
 
-        const output = await hyperlaneWarpCheckRaw({
-            warpRouteId: currentWarpId,
-            ica: true,
-            origin: CHAIN_NAME_2,
-        }).nothrow();
+    const ica = InterchainAccount.fromAddressesMap(addressesMap, multiProvider);
 
-        expect(output.exitCode).to.equal(0);
-        expect(output.text()).to.include("No violations found");
+    const ownerConfig: AccountConfig = {
+      origin: CHAIN_NAME_2,
+      owner: icaOwnerAddress,
+    };
+
+    expectedIcaAddress = await ica.getAccount(CHAIN_NAME_3, ownerConfig);
+
+    // Calculate ICA for an owner not in the warp config (for --originOwner tests)
+    nonConfigOwner = Wallet.createRandom().address;
+    nonConfigOwnerIca = await ica.getAccount(CHAIN_NAME_3, {
+      origin: CHAIN_NAME_2,
+      owner: nonConfigOwner,
     });
+  });
 
-    it("should fail when destination owner does not match calculated ICA address", async function () {
-        const wrongOwner = "0x1234567890123456789012345678901234567890";
-        const currentWarpId = await deployIcaWarpRoute(wrongOwner, "wrong");
+  function createIcaWarpConfig(
+    destinationOwner: Address,
+  ): WarpRouteDeployConfig {
+    return {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateral,
+        token: token.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: icaOwnerAddress,
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.synthetic,
+        mailbox: chain3Addresses.mailbox,
+        owner: destinationOwner,
+      },
+    };
+  }
 
-        const output = await hyperlaneWarpCheckRaw({
-            warpRouteId: currentWarpId,
-            ica: true,
-            origin: CHAIN_NAME_2,
-        }).nothrow();
+  async function deployIcaWarpRoute(
+    destinationOwner: Address,
+    suffix: string,
+  ): Promise<string> {
+    const icaWarpConfig = createIcaWarpConfig(destinationOwner);
+    const warpDeployPath = combinedWarpCoreConfigPath.replace(
+      '-config.yaml',
+      `-ica-${suffix}-deploy.yaml`,
+    );
+    writeYamlOrJson(warpDeployPath, icaWarpConfig);
 
-        expect(output.exitCode).to.equal(1);
-        expect(output.text()).to.include("ACTUAL");
-        expect(output.text()).to.include("EXPECTED");
-        expect(output.text()).to.include(
-            normalizeAddressEvm(expectedIcaAddress),
-        );
-    });
+    const currentWarpId = createWarpRouteConfigId(
+      await token.symbol(),
+      `${CHAIN_NAME_3}-ica-${suffix}`,
+    );
 
-    it("should warn and skip when --chains contains chains not in the warp config", async function () {
-        const currentWarpId = await deployIcaWarpRoute(
-            expectedIcaAddress,
-            "invalid-dest",
-        );
+    await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
+    return currentWarpId;
+  }
 
-        const output = await hyperlaneWarpCheckRaw({
-            warpRouteId: currentWarpId,
-            ica: true,
-            origin: CHAIN_NAME_2,
-            chains: ["nonexistent"],
-        }).nothrow();
+  it('should pass when destination owner matches calculated ICA address', async function () {
+    const currentWarpId = await deployIcaWarpRoute(expectedIcaAddress, 'ok');
 
-        expect(output.exitCode).to.equal(1);
-        expect(output.text()).to.include("not part of the warp config");
-        expect(output.text()).to.include("No EVM destination chains to check");
-    });
+    const output = await hyperlaneWarpCheckRaw({
+      warpRouteId: currentWarpId,
+      ica: true,
+      origin: CHAIN_NAME_2,
+    }).nothrow();
 
-    it("should only check specified chains when --chains is provided", async function () {
-        const currentWarpId = await deployIcaWarpRoute(
-            expectedIcaAddress,
-            "filter-dest",
-        );
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
+  });
 
-        const output = await hyperlaneWarpCheckRaw({
-            warpRouteId: currentWarpId,
-            ica: true,
-            origin: CHAIN_NAME_2,
-            chains: [CHAIN_NAME_3],
-        }).nothrow();
+  it('should fail when destination owner does not match calculated ICA address', async function () {
+    const wrongOwner = '0x1234567890123456789012345678901234567890';
+    const currentWarpId = await deployIcaWarpRoute(wrongOwner, 'wrong');
 
-        expect(output.exitCode).to.equal(0);
-        expect(output.text()).to.include("No violations found");
-    });
+    const output = await hyperlaneWarpCheckRaw({
+      warpRouteId: currentWarpId,
+      ica: true,
+      origin: CHAIN_NAME_2,
+    }).nothrow();
 
-    it("should only check ICA ownership on specified chains when using --chains with mixed ICA/EOA owners", async function () {
-        // Create 3-chain warp config with mixed ownership:
-        // - anvil2 (origin): ICA owner
-        // - anvil3: correct ICA address (should pass)
-        // - anvil4: wrong EOA owner (would fail if checked)
-        const wrongOwner = "0x1234567890123456789012345678901234567890";
-        const mixedOwnerConfig: WarpRouteDeployConfig = {
-            [CHAIN_NAME_2]: {
-                type: TokenType.collateral,
-                token: token.address,
-                mailbox: chain2Addresses.mailbox,
-                owner: icaOwnerAddress,
-            },
-            [CHAIN_NAME_3]: {
-                type: TokenType.synthetic,
-                mailbox: chain3Addresses.mailbox,
-                owner: expectedIcaAddress,
-            },
-            [CHAIN_NAME_4]: {
-                type: TokenType.synthetic,
-                mailbox: chain4Addresses.mailbox,
-                owner: wrongOwner,
-            },
-        };
+    expect(output.exitCode).to.equal(1);
+    expect(output.text()).to.include('ACTUAL');
+    expect(output.text()).to.include('EXPECTED');
+    expect(output.text()).to.include(normalizeAddressEvm(expectedIcaAddress));
+  });
 
-        // Deploy the 3-chain warp route
-        const symbol = await token.symbol();
-        const configPath = `${CHAIN_NAME_3}-${CHAIN_NAME_4}-ica-mixed`;
-        const currentWarpId = createWarpRouteConfigId(symbol, configPath);
+  it('should warn and skip when --chains contains chains not in the warp config', async function () {
+    const currentWarpId = await deployIcaWarpRoute(
+      expectedIcaAddress,
+      'invalid-dest',
+    );
 
-        // Write deploy config to path matching the warpRouteId
-        const warpDeployPath = getCombinedWarpRoutePath(symbol, [
-            configPath,
-        ]).replace("-config.yaml", "-deploy.yaml");
-        writeYamlOrJson(warpDeployPath, mixedOwnerConfig);
+    const output = await hyperlaneWarpCheckRaw({
+      warpRouteId: currentWarpId,
+      ica: true,
+      origin: CHAIN_NAME_2,
+      chains: ['nonexistent'],
+    }).nothrow();
 
-        await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
+    expect(output.exitCode).to.equal(1);
+    expect(output.text()).to.include('not part of the warp config');
+    expect(output.text()).to.include('No EVM destination chains to check');
+  });
 
-        // Run check with --chains to only check anvil3 (ICA), skipping anvil4 (EOA)
-        const output = await hyperlaneWarpCheckRaw({
-            warpRouteId: currentWarpId,
-            ica: true,
-            origin: CHAIN_NAME_2,
-            chains: [CHAIN_NAME_3],
-        }).nothrow();
+  it('should only check specified chains when --chains is provided', async function () {
+    const currentWarpId = await deployIcaWarpRoute(
+      expectedIcaAddress,
+      'filter-dest',
+    );
 
-        // Should pass because we only checked anvil3 which has correct ICA owner
-        // anvil4 with wrong owner was skipped
-        expect(output.exitCode).to.equal(0);
-        expect(output.text()).to.include("No violations found");
-    });
+    const output = await hyperlaneWarpCheckRaw({
+      warpRouteId: currentWarpId,
+      ica: true,
+      origin: CHAIN_NAME_2,
+      chains: [CHAIN_NAME_3],
+    }).nothrow();
 
-    it("should pass when --originOwner override matches destination ICA owner", async function () {
-        // Deploy warp route with destination owner set to ICA derived from nonConfigOwner
-        const icaWarpConfig: WarpRouteDeployConfig = {
-            [CHAIN_NAME_2]: {
-                type: TokenType.collateral,
-                token: token.address,
-                mailbox: chain2Addresses.mailbox,
-                owner: icaOwnerAddress, // Config owner is the default
-            },
-            [CHAIN_NAME_3]: {
-                type: TokenType.synthetic,
-                mailbox: chain3Addresses.mailbox,
-                owner: nonConfigOwnerIca, // Destination owner is ICA of nonConfigOwner
-            },
-        };
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
+  });
 
-        const symbol = await token.symbol();
-        const warpDeployPath = combinedWarpCoreConfigPath.replace(
-            "-config.yaml",
-            "-ica-override-pass-deploy.yaml",
-        );
-        writeYamlOrJson(warpDeployPath, icaWarpConfig);
+  it('should only check ICA ownership on specified chains when using --chains with mixed ICA/EOA owners', async function () {
+    // Create 3-chain warp config with mixed ownership:
+    // - anvil2 (origin): ICA owner
+    // - anvil3: correct ICA address (should pass)
+    // - anvil4: wrong EOA owner (would fail if checked)
+    const wrongOwner = '0x1234567890123456789012345678901234567890';
+    const mixedOwnerConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateral,
+        token: token.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: icaOwnerAddress,
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.synthetic,
+        mailbox: chain3Addresses.mailbox,
+        owner: expectedIcaAddress,
+      },
+      [CHAIN_NAME_4]: {
+        type: TokenType.synthetic,
+        mailbox: chain4Addresses.mailbox,
+        owner: wrongOwner,
+      },
+    };
 
-        const currentWarpId = createWarpRouteConfigId(
-            symbol,
-            `${CHAIN_NAME_3}-ica-override-pass`,
-        );
-        await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
+    // Deploy the 3-chain warp route
+    const symbol = await token.symbol();
+    const configPath = `${CHAIN_NAME_3}-${CHAIN_NAME_4}-ica-mixed`;
+    const currentWarpId = createWarpRouteConfigId(symbol, configPath);
 
-        // Use --originOwner to override with nonConfigOwner
-        const output = await hyperlaneWarpCheckRaw({
-            warpRouteId: currentWarpId,
-            ica: true,
-            origin: CHAIN_NAME_2,
-            originOwner: nonConfigOwner,
-        }).nothrow();
+    // Write deploy config to path matching the warpRouteId
+    const warpDeployPath = getCombinedWarpRoutePath(symbol, [
+      configPath,
+    ]).replace('-config.yaml', '-deploy.yaml');
+    writeYamlOrJson(warpDeployPath, mixedOwnerConfig);
 
-        expect(output.exitCode).to.equal(0);
-        expect(output.text()).to.include("No violations found");
-    });
+    await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
 
-    it("should fail when --originOwner override causes ICA mismatch", async function () {
-        // Deploy warp route with destination owner set to ICA derived from icaOwnerAddress (config owner)
-        const currentWarpId = await deployIcaWarpRoute(
-            expectedIcaAddress,
-            "override-fail",
-        );
+    // Run check with --chains to only check anvil3 (ICA), skipping anvil4 (EOA)
+    const output = await hyperlaneWarpCheckRaw({
+      warpRouteId: currentWarpId,
+      ica: true,
+      origin: CHAIN_NAME_2,
+      chains: [CHAIN_NAME_3],
+    }).nothrow();
 
-        // Use --originOwner with nonConfigOwner, which will calculate a different expected ICA
-        const output = await hyperlaneWarpCheckRaw({
-            warpRouteId: currentWarpId,
-            ica: true,
-            origin: CHAIN_NAME_2,
-            originOwner: nonConfigOwner,
-        }).nothrow();
+    // Should pass because we only checked anvil3 which has correct ICA owner
+    // anvil4 with wrong owner was skipped
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
+  });
 
-        // Should fail because configured owner (expectedIcaAddress) doesn't match
-        // the ICA derived from nonConfigOwner (nonConfigOwnerIca)
-        expect(output.exitCode).to.equal(1);
-        expect(output.text()).to.include("ACTUAL");
-        expect(output.text()).to.include("EXPECTED");
-        expect(output.text()).to.include(
-            normalizeAddressEvm(nonConfigOwnerIca),
-        );
-    });
+  it('should pass when --originOwner override matches destination ICA owner', async function () {
+    // Deploy warp route with destination owner set to ICA derived from nonConfigOwner
+    const icaWarpConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateral,
+        token: token.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: icaOwnerAddress, // Config owner is the default
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.synthetic,
+        mailbox: chain3Addresses.mailbox,
+        owner: nonConfigOwnerIca, // Destination owner is ICA of nonConfigOwner
+      },
+    };
 
-    it("should work with non-deployed chains using deploy config and empty warpCoreConfig", async function () {
-        // Create a warp deploy config WITHOUT deploying it
-        // This tests that --ica works before warp apply/extension
-        const nonDeployedConfig: WarpRouteDeployConfig = {
-            [CHAIN_NAME_2]: {
-                type: TokenType.collateral,
-                token: token.address,
-                mailbox: chain2Addresses.mailbox,
-                owner: icaOwnerAddress,
-            },
-            [CHAIN_NAME_3]: {
-                type: TokenType.synthetic,
-                mailbox: chain3Addresses.mailbox,
-                owner: expectedIcaAddress,
-            },
-        };
+    const symbol = await token.symbol();
+    const warpDeployPath = combinedWarpCoreConfigPath.replace(
+      '-config.yaml',
+      '-ica-override-pass-deploy.yaml',
+    );
+    writeYamlOrJson(warpDeployPath, icaWarpConfig);
 
-        const warpDeployPath = combinedWarpCoreConfigPath.replace(
-            "-config.yaml",
-            "-ica-non-deployed-deploy.yaml",
-        );
-        writeYamlOrJson(warpDeployPath, nonDeployedConfig);
+    const currentWarpId = createWarpRouteConfigId(
+      symbol,
+      `${CHAIN_NAME_3}-ica-override-pass`,
+    );
+    await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
 
-        // Create an empty warpCoreConfig (no deployed tokens yet)
-        const emptyWarpCoreConfig: WarpCoreConfig = {tokens: []};
-        const warpCorePath = combinedWarpCoreConfigPath.replace(
-            "-config.yaml",
-            "-ica-non-deployed-core.yaml",
-        );
-        writeYamlOrJson(warpCorePath, emptyWarpCoreConfig);
+    // Use --originOwner to override with nonConfigOwner
+    const output = await hyperlaneWarpCheckRaw({
+      warpRouteId: currentWarpId,
+      ica: true,
+      origin: CHAIN_NAME_2,
+      originOwner: nonConfigOwner,
+    }).nothrow();
 
-        // Run ICA check with both configs - the deploy config has chains, warpCoreConfig is empty
-        // This simulates checking ICA ownership before warp apply/extension
-        const output = await hyperlaneWarpCheckRaw({
-            warpDeployPath,
-            warpCoreConfigPath: warpCorePath,
-            ica: true,
-            origin: CHAIN_NAME_2,
-        }).nothrow();
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
+  });
 
-        expect(output.exitCode).to.equal(0);
-        expect(output.text()).to.include("No violations found");
-    });
+  it('should fail when --originOwner override causes ICA mismatch', async function () {
+    // Deploy warp route with destination owner set to ICA derived from icaOwnerAddress (config owner)
+    const currentWarpId = await deployIcaWarpRoute(
+      expectedIcaAddress,
+      'override-fail',
+    );
+
+    // Use --originOwner with nonConfigOwner, which will calculate a different expected ICA
+    const output = await hyperlaneWarpCheckRaw({
+      warpRouteId: currentWarpId,
+      ica: true,
+      origin: CHAIN_NAME_2,
+      originOwner: nonConfigOwner,
+    }).nothrow();
+
+    // Should fail because configured owner (expectedIcaAddress) doesn't match
+    // the ICA derived from nonConfigOwner (nonConfigOwnerIca)
+    expect(output.exitCode).to.equal(1);
+    expect(output.text()).to.include('ACTUAL');
+    expect(output.text()).to.include('EXPECTED');
+    expect(output.text()).to.include(normalizeAddressEvm(nonConfigOwnerIca));
+  });
+
+  it('should work with non-deployed chains using deploy config and empty warpCoreConfig', async function () {
+    // Create a warp deploy config WITHOUT deploying it
+    // This tests that --ica works before warp apply/extension
+    const nonDeployedConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateral,
+        token: token.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: icaOwnerAddress,
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.synthetic,
+        mailbox: chain3Addresses.mailbox,
+        owner: expectedIcaAddress,
+      },
+    };
+
+    const warpDeployPath = combinedWarpCoreConfigPath.replace(
+      '-config.yaml',
+      '-ica-non-deployed-deploy.yaml',
+    );
+    writeYamlOrJson(warpDeployPath, nonDeployedConfig);
+
+    // Create an empty warpCoreConfig (no deployed tokens yet)
+    const emptyWarpCoreConfig: WarpCoreConfig = { tokens: [] };
+    const warpCorePath = combinedWarpCoreConfigPath.replace(
+      '-config.yaml',
+      '-ica-non-deployed-core.yaml',
+    );
+    writeYamlOrJson(warpCorePath, emptyWarpCoreConfig);
+
+    // Run ICA check with both configs - the deploy config has chains, warpCoreConfig is empty
+    // This simulates checking ICA ownership before warp apply/extension
+    const output = await hyperlaneWarpCheckRaw({
+      warpDeployPath,
+      warpCoreConfigPath: warpCorePath,
+      ica: true,
+      origin: CHAIN_NAME_2,
+    }).nothrow();
+
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
+  });
 });
