@@ -8,7 +8,6 @@ export default [
       '**/test/**/*',
       '**/dist/**/*',
       '**/lib/**/*',
-      '**/typechain/**/*',
       '**/dependencies/**/*',
       '.solcover.js',
       'generate-artifact-exports.mjs',
