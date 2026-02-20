@@ -1,7 +1,5 @@
-import { Wallet as ZKSyncWallet } from 'zksync-ethers';
-
 import {
-  ChainTechnicalStack,
+  LocalAccountEvmSigner,
   type MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -30,14 +28,6 @@ export class MultiProtocolSignerFactory {
 class EvmSignerStrategy extends BaseMultiProtocolSigner {
   async getSigner(config: SignerConfig): Promise<TypedSigner> {
     const { privateKey } = await this.getPrivateKey(config);
-
-    const { technicalStack } = this.multiProtocolProvider.getChainMetadata(
-      config.chain,
-    );
-    if (technicalStack === ChainTechnicalStack.ZkSync) {
-      return new ZKSyncWallet(privateKey);
-    }
-
-    return new ZKSyncWallet(privateKey);
+    return new LocalAccountEvmSigner(privateKey as `0x${string}`);
   }
 }

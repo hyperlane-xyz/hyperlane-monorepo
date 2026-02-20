@@ -1,5 +1,10 @@
 import { execa } from 'execa';
-import { Provider, utils } from 'zksync-ethers';
+import {
+  type Hex,
+  decodeEventLog,
+  encodeFunctionData,
+  parseAbiItem,
+} from 'viem';
 
 import { HttpServer } from '@hyperlane-xyz/http-registry-server';
 import { MergedRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
@@ -11,6 +16,7 @@ import {
   EventAssertionType,
   type ForkedChainConfig,
   type ForkedChainTransactionConfig,
+  HyperlaneSmartProvider,
   type MultiProvider,
   type RawForkedChainConfigByChain,
   type RevertAssertion,
@@ -32,7 +38,7 @@ import { readYamlOrJson } from '../utils/files.js';
 const LOCAL_HOST = 'http://127.0.0.1';
 
 type EndPoint = string;
-type EvmLog = { topics: string[]; data: string };
+type EvmLog = { topics: Hex[]; data: Hex };
 
 export async function runForkCommand({
   context,
@@ -117,7 +123,10 @@ async function forkChain(
     logGray(`Starting Anvil node for chain ${chainName} at port ${forkPort}`);
     const anvilProcess = execa`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http} --disable-block-gas-limit`;
 
-    const provider = new Provider(endpoint);
+    const provider = HyperlaneSmartProvider.fromRpcUrl(
+      chainMetadata.chainId,
+      endpoint,
+    );
     await retryAsync(() => provider.getNetwork(), 10, 500);
 
     logGray(
@@ -158,7 +167,7 @@ async function forkChain(
 }
 
 async function handleImpersonations(
-  provider: Provider,
+  provider: HyperlaneSmartProvider,
   chainName: ChainName,
   accountsToImpersonate: Address[],
 ): Promise<void> {
@@ -177,7 +186,7 @@ async function handleImpersonations(
 }
 
 async function handleTransactions(
-  provider: Provider,
+  provider: HyperlaneSmartProvider,
   chainName: ChainName,
   transactions: ReadonlyArray<ForkedChainTransactionConfig>,
 ): Promise<void> {
@@ -199,15 +208,15 @@ async function handleTransactions(
     if (transaction.data?.type === TransactionDataType.RAW_CALLDATA) {
       calldata = transaction.data.calldata;
     } else if (transaction.data?.type === TransactionDataType.SIGNATURE) {
-      const functionInterface = new utils.Interface([
-        transaction.data.signature,
-      ]);
-
-      const [functionName] = Object.keys(functionInterface.functions);
-      calldata = functionInterface.encodeFunctionData(
-        functionName,
-        transaction.data.args,
-      );
+      const signature = transaction.data.signature.startsWith('function ')
+        ? transaction.data.signature
+        : `function ${transaction.data.signature}`;
+      const functionAbi = parseAbiItem(signature);
+      calldata = encodeFunctionData({
+        abi: [functionAbi],
+        functionName: functionAbi.name,
+        args: transaction.data.args as any[],
+      });
     }
 
     const annotation = transaction.annotation ?? `#${txCounter}`;
@@ -330,16 +339,19 @@ function assertEventBySignature(
   >,
   rawLog: EvmLog,
 ): boolean {
-  const eventInterface = new utils.Interface([eventAssertion.signature]);
+  const signature = eventAssertion.signature.startsWith('event ')
+    ? eventAssertion.signature
+    : `event ${eventAssertion.signature}`;
+  const eventAbi = parseAbiItem(signature);
 
   let parsedLog;
-  // parseLog throws if the event cannot be decoded
   try {
-    parsedLog = eventInterface.parseLog(rawLog);
-
-    if (!parsedLog) {
-      return false;
-    }
+    parsedLog = decodeEventLog({
+      abi: [eventAbi],
+      data: rawLog.data,
+      topics: rawLog.topics,
+      strict: false,
+    });
   } catch {
     return false;
   }
@@ -348,7 +360,10 @@ function assertEventBySignature(
     return true;
   }
 
-  const logArgs = parsedLog.args
+  const parsedArgs = Array.isArray(parsedLog.args)
+    ? parsedLog.args
+    : Object.values(parsedLog.args);
+  const logArgs = parsedArgs
     .slice(0, eventAssertion.args.length)
     .map((arg) => String(arg));
 
