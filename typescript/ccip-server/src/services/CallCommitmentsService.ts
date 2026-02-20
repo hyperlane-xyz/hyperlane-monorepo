@@ -1,4 +1,3 @@
-import type { Log, TransactionReceipt } from '@ethersproject/providers';
 import { Request, Response, Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
@@ -47,6 +46,12 @@ const CommitmentRecordSchema = PostCallsSchema.extend({
   revealMessageId: z.string(),
   ica: z.string(),
 });
+
+type ReceiptLog = { topics: string[]; address: string; [key: string]: any };
+type TransactionReceiptLike = {
+  logs: ReceiptLog[];
+  transactionHash: string;
+};
 
 // TODO: Authenticate relayer
 export class CallCommitmentsService extends BaseService {
@@ -222,7 +227,7 @@ export class CallCommitmentsService extends BaseService {
    * Finds the second DispatchId event after the CommitRevealDispatched event.
    */
   private extractRevealMessageIdAndValidateDispatchedCommitment(
-    receipt: TransactionReceipt,
+    receipt: TransactionReceiptLike,
     commitment: string,
     logger: Logger,
   ): string {
@@ -233,7 +238,7 @@ export class CallCommitmentsService extends BaseService {
 
     // Find the index of the CommitRevealDispatched log with the given commitment
     const revealIndex = receipt.logs.findIndex(
-      (log: Log) =>
+      (log: ReceiptLog) =>
         log.topics[0] === revealDispatchedTopic &&
         iface.parseLog(log).args.commitment === commitment,
     );
@@ -248,7 +253,7 @@ export class CallCommitmentsService extends BaseService {
     // Find the next two DispatchId logs after the CommitRevealDispatched
     const dispatchLogsAfterReveal = receipt.logs
       .slice(revealIndex + 1)
-      .filter((log: Log) => log.topics[0] === dispatchIdTopic);
+      .filter((log: ReceiptLog) => log.topics[0] === dispatchIdTopic);
 
     if (dispatchLogsAfterReveal.length < 2) {
       logger.warn(
@@ -426,13 +431,15 @@ export class CallCommitmentsService extends BaseService {
    * Parse the RemoteCallDispatched event from the receipt and derive the ICA address.
    */
   private async deriveIcaFromRemoteCallDispatched(
-    receipt: TransactionReceipt,
+    receipt: TransactionReceiptLike,
     originDomain: number,
     logger: Logger,
   ): Promise<string> {
     const iface = InterchainAccountRouter__factory.createInterface();
     const callTopic = iface.getEventTopic('RemoteCallDispatched');
-    const callLog = receipt.logs.find((l: Log) => l.topics[0] === callTopic);
+    const callLog = receipt.logs.find(
+      (l: ReceiptLog) => l.topics[0] === callTopic,
+    );
     if (!callLog) {
       logger.warn(
         {
