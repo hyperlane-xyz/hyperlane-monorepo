@@ -26,6 +26,7 @@ import {
   getStarknetContract,
   normalizeStarknetAddressSafe,
   populateInvokeTx,
+  toBigInt,
 } from '../contracts.js';
 import { StarknetDeployTx } from '../types.js';
 
@@ -102,22 +103,16 @@ class StarknetMerkleTreeHookWriter
   }
 }
 
-class StarknetProtocolFeeAsIgpHookReader
+class StarknetProtocolFeeHookReader
   implements
-    ArtifactReader<
-      RawHookArtifactConfigs['interchainGasPaymaster'],
-      DeployedHookAddress
-    >
+    ArtifactReader<RawHookArtifactConfigs['protocolFee'], DeployedHookAddress>
 {
   constructor(protected readonly chainMetadata: ChainMetadataForAltVM) {}
 
   async read(
     address: string,
   ): Promise<
-    ArtifactDeployed<
-      RawHookArtifactConfigs['interchainGasPaymaster'],
-      DeployedHookAddress
-    >
+    ArtifactDeployed<RawHookArtifactConfigs['protocolFee'], DeployedHookAddress>
   > {
     const normalizedAddress = normalizeStarknetAddressSafe(address);
     const hook = getStarknetContract(
@@ -125,9 +120,10 @@ class StarknetProtocolFeeAsIgpHookReader
       normalizedAddress,
     );
 
-    const [owner, beneficiary] = await Promise.all([
+    const [owner, beneficiary, protocolFee] = await Promise.all([
       callContract(hook, 'owner'),
       callContract(hook, 'get_beneficiary'),
+      callContract(hook, 'get_protocol_fee'),
     ]);
 
     const ownerAddress = normalizeStarknetAddressSafe(owner);
@@ -136,25 +132,20 @@ class StarknetProtocolFeeAsIgpHookReader
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: {
-        type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+        type: AltVM.HookType.PROTOCOL_FEE,
         owner: ownerAddress,
         beneficiary: beneficiaryAddress,
-        oracleKey: ownerAddress,
-        overhead: {},
-        oracleConfig: {},
+        protocolFee: toBigInt(protocolFee).toString(),
       },
       deployed: { address: normalizedAddress },
     };
   }
 }
 
-class StarknetProtocolFeeAsIgpHookWriter
-  extends StarknetProtocolFeeAsIgpHookReader
+class StarknetProtocolFeeHookWriter
+  extends StarknetProtocolFeeHookReader
   implements
-    ArtifactWriter<
-      RawHookArtifactConfigs['interchainGasPaymaster'],
-      DeployedHookAddress
-    >
+    ArtifactWriter<RawHookArtifactConfigs['protocolFee'], DeployedHookAddress>
 {
   constructor(
     chainMetadata: ChainMetadataForAltVM,
@@ -163,36 +154,14 @@ class StarknetProtocolFeeAsIgpHookWriter
     super(chainMetadata);
   }
 
-  private assertSupportedIgpShape(
-    config: RawHookArtifactConfigs['interchainGasPaymaster'],
-  ) {
-    assert(
-      Object.keys(config.overhead).length === 0,
-      'Starknet protocol_fee hook does not support overhead gas config updates',
-    );
-    assert(
-      Object.keys(config.oracleConfig).length === 0,
-      'Starknet protocol_fee hook does not support oracle gas config updates',
-    );
-    assert(
-      eqAddressStarknet(config.oracleKey, config.owner),
-      'Starknet protocol_fee mapping requires oracleKey to equal owner',
-    );
-  }
-
   async create(
-    artifact: ArtifactNew<RawHookArtifactConfigs['interchainGasPaymaster']>,
+    artifact: ArtifactNew<RawHookArtifactConfigs['protocolFee']>,
   ): Promise<
     [
-      ArtifactDeployed<
-        RawHookArtifactConfigs['interchainGasPaymaster'],
-        DeployedHookAddress
-      >,
+      ArtifactDeployed<RawHookArtifactConfigs['protocolFee'], DeployedHookAddress>,
       TxReceipt[],
     ]
   > {
-    this.assertSupportedIgpShape(artifact.config);
-
     const tokenAddress = getFeeTokenAddress({
       chainName: this.chainMetadata.name,
       nativeDenom: this.chainMetadata.nativeToken?.denom,
@@ -202,8 +171,8 @@ class StarknetProtocolFeeAsIgpHookWriter
       kind: 'deploy',
       contractName: StarknetContractName.PROTOCOL_FEE,
       constructorArgs: [
-        0,
-        0,
+        artifact.config.protocolFee,
+        artifact.config.protocolFee,
         normalizeStarknetAddressSafe(artifact.config.beneficiary),
         normalizeStarknetAddressSafe(artifact.config.owner),
         tokenAddress,
@@ -224,13 +193,8 @@ class StarknetProtocolFeeAsIgpHookWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<
-      RawHookArtifactConfigs['interchainGasPaymaster'],
-      DeployedHookAddress
-    >,
+    artifact: ArtifactDeployed<RawHookArtifactConfigs['protocolFee'], DeployedHookAddress>,
   ): Promise<AnnotatedTx[]> {
-    this.assertSupportedIgpShape(artifact.config);
-
     const current = await this.read(artifact.deployed.address);
     const contractAddress = artifact.deployed.address;
     const contract = getStarknetContract(
@@ -249,6 +213,15 @@ class StarknetProtocolFeeAsIgpHookWriter
         annotation: `Updating protocol fee beneficiary for ${contractAddress}`,
         ...(await populateInvokeTx(contract, 'set_beneficiary', [
           normalizeStarknetAddressSafe(artifact.config.beneficiary),
+        ])),
+      });
+    }
+
+    if (current.config.protocolFee !== artifact.config.protocolFee) {
+      txs.push({
+        annotation: `Updating protocol fee amount for ${contractAddress}`,
+        ...(await populateInvokeTx(contract, 'set_protocol_fee', [
+          artifact.config.protocolFee,
         ])),
       });
     }
@@ -290,13 +263,8 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       return this.createReader(AltVM.HookType.MERKLE_TREE).read(address);
     }
 
-    if (
-      hookType === AltVM.HookType.PROTOCOL_FEE ||
-      hookType === AltVM.HookType.INTERCHAIN_GAS_PAYMASTER
-    ) {
-      return this.createReader(AltVM.HookType.INTERCHAIN_GAS_PAYMASTER).read(
-        address,
-      );
+    if (hookType === AltVM.HookType.PROTOCOL_FEE) {
+      return this.createReader(AltVM.HookType.PROTOCOL_FEE).read(address);
     }
 
     throw new Error(`Unsupported Starknet hook type: ${hookType}`);
@@ -312,8 +280,10 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       >;
     } = {
       merkleTreeHook: () => new StarknetMerkleTreeHookReader(),
-      interchainGasPaymaster: () =>
-        new StarknetProtocolFeeAsIgpHookReader(this.chainMetadata),
+      interchainGasPaymaster: () => {
+        throw new Error('interchainGasPaymaster hook type is unsupported on Starknet');
+      },
+      protocolFee: () => new StarknetProtocolFeeHookReader(this.chainMetadata),
     };
 
     const readerFactory = readers[type];
@@ -348,11 +318,11 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
           this.mailboxAddress,
         );
       },
-      interchainGasPaymaster: () =>
-        new StarknetProtocolFeeAsIgpHookWriter(
-          this.chainMetadata,
-          starknetSigner,
-        ),
+      interchainGasPaymaster: () => {
+        throw new Error('interchainGasPaymaster hook type is unsupported on Starknet');
+      },
+      protocolFee: () =>
+        new StarknetProtocolFeeHookWriter(this.chainMetadata, starknetSigner),
     };
 
     const writerFactory = writers[type];

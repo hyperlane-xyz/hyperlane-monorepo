@@ -39,4 +39,10 @@ describe('StarknetProtocolProvider', () => {
 
     expect(String(caughtError)).to.match(/accountAddress missing/i);
   });
+
+  it('creates Starknet hook manager with explicit protocolFee support', () => {
+    const manager = provider.createHookArtifactManager(metadata);
+    const reader = manager.createReader('protocolFee');
+    expect(reader).to.have.property('read');
+  });
 });
