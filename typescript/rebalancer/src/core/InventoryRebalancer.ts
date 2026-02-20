@@ -819,6 +819,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     // Get the hyperlane adapter for the token
     const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
 
+    // Use inventoryMultiProvider if available, otherwise fall back to multiProvider
+    const signingProvider =
+      this.config.inventoryMultiProvider ?? this.multiProvider;
+
+    // Get reorgPeriod for confirmation waiting
+    const reorgPeriod =
+      this.multiProvider.getChainMetadata(origin).blocks?.reorgPeriod ?? 32;
+
     this.logger.debug(
       {
         origin,
@@ -831,6 +839,86 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       },
       'Using pre-calculated gas quote for transferRemote',
     );
+
+    if (!isNativeTokenStandard(originToken.standard)) {
+      const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
+        adapter.isApproveRequired(
+          this.config.inventorySigner,
+          originToken.addressOrDenom,
+          amount,
+        ),
+        adapter.isRevokeApprovalRequired(
+          this.config.inventorySigner,
+          originToken.addressOrDenom,
+        ),
+      ]);
+
+      this.logger.debug(
+        {
+          origin,
+          destination,
+          amount: amount.toString(),
+          isApproveRequired,
+          isRevokeApprovalRequired,
+          spender: originToken.addressOrDenom,
+        },
+        'Checked transferRemote approval requirements',
+      );
+
+      if (isApproveRequired && isRevokeApprovalRequired) {
+        this.logger.debug(
+          {
+            origin,
+            destination,
+            amount: '0',
+            spender: originToken.addressOrDenom,
+          },
+          'Sending revoke approval transaction before transferRemote',
+        );
+
+        const revokeTx = await adapter.populateApproveTx({
+          weiAmountOrId: 0,
+          recipient: originToken.addressOrDenom,
+        });
+
+        await signingProvider.sendTransaction(
+          origin,
+          revokeTx as AnnotatedEV5Transaction,
+          {
+            waitConfirmations: reorgPeriod as
+              | number
+              | EthJsonRpcBlockParameterTag,
+          },
+        );
+      }
+
+      if (isApproveRequired) {
+        this.logger.debug(
+          {
+            origin,
+            destination,
+            amount: amount.toString(),
+            spender: originToken.addressOrDenom,
+          },
+          'Sending approval transaction before transferRemote',
+        );
+
+        const approveTx = await adapter.populateApproveTx({
+          weiAmountOrId: amount,
+          recipient: originToken.addressOrDenom,
+        });
+
+        await signingProvider.sendTransaction(
+          origin,
+          approveTx as AnnotatedEV5Transaction,
+          {
+            waitConfirmations: reorgPeriod as
+              | number
+              | EthJsonRpcBlockParameterTag,
+          },
+        );
+      }
+    }
 
     // Populate the transferRemote transaction
     const populatedTx = await adapter.populateTransferRemoteTx({
@@ -850,14 +938,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       },
       'Sending transferRemote transaction',
     );
-
-    // Use inventoryMultiProvider if available, otherwise fall back to multiProvider
-    const signingProvider =
-      this.config.inventoryMultiProvider ?? this.multiProvider;
-
-    // Get reorgPeriod for confirmation waiting
-    const reorgPeriod =
-      this.multiProvider.getChainMetadata(origin).blocks?.reorgPeriod ?? 32;
 
     // Wait for reorgPeriod confirmations via SDK to ensure Monitor sees balance changes
     const receipt = await signingProvider.sendTransaction(
