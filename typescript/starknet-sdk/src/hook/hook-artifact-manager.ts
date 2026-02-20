@@ -15,7 +15,7 @@ import {
   RawHookArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { eqAddressStarknet, assert } from '@hyperlane-xyz/utils';
+import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
@@ -120,11 +120,14 @@ class StarknetProtocolFeeHookReader
       normalizedAddress,
     );
 
-    const [owner, beneficiary, protocolFee] = await Promise.all([
-      callContract(hook, 'owner'),
-      callContract(hook, 'get_beneficiary'),
-      callContract(hook, 'get_protocol_fee'),
-    ]);
+    const [owner, beneficiary, maxProtocolFee, protocolFee] = await Promise.all(
+      [
+        callContract(hook, 'owner'),
+        callContract(hook, 'get_beneficiary'),
+        callContract(hook, 'get_max_protocol_fee'),
+        callContract(hook, 'get_protocol_fee'),
+      ],
+    );
 
     const ownerAddress = normalizeStarknetAddressSafe(owner);
     const beneficiaryAddress = normalizeStarknetAddressSafe(beneficiary);
@@ -135,6 +138,7 @@ class StarknetProtocolFeeHookReader
         type: AltVM.HookType.PROTOCOL_FEE,
         owner: ownerAddress,
         beneficiary: beneficiaryAddress,
+        maxProtocolFee: toBigInt(maxProtocolFee).toString(),
         protocolFee: toBigInt(protocolFee).toString(),
       },
       deployed: { address: normalizedAddress },
@@ -158,7 +162,10 @@ class StarknetProtocolFeeHookWriter
     artifact: ArtifactNew<RawHookArtifactConfigs['protocolFee']>,
   ): Promise<
     [
-      ArtifactDeployed<RawHookArtifactConfigs['protocolFee'], DeployedHookAddress>,
+      ArtifactDeployed<
+        RawHookArtifactConfigs['protocolFee'],
+        DeployedHookAddress
+      >,
       TxReceipt[],
     ]
   > {
@@ -171,7 +178,7 @@ class StarknetProtocolFeeHookWriter
       kind: 'deploy',
       contractName: StarknetContractName.PROTOCOL_FEE,
       constructorArgs: [
-        artifact.config.protocolFee,
+        artifact.config.maxProtocolFee,
         artifact.config.protocolFee,
         normalizeStarknetAddressSafe(artifact.config.beneficiary),
         normalizeStarknetAddressSafe(artifact.config.owner),
@@ -180,20 +187,28 @@ class StarknetProtocolFeeHookWriter
     } satisfies StarknetDeployTx;
 
     const receipt = await this.signer.sendAndConfirmTransaction(deployTx);
-    assert(receipt.contractAddress, 'failed to deploy Starknet protocol_fee hook');
+    assert(
+      receipt.contractAddress,
+      'failed to deploy Starknet protocol_fee hook',
+    );
 
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
         config: artifact.config,
-        deployed: { address: normalizeStarknetAddressSafe(receipt.contractAddress) },
+        deployed: {
+          address: normalizeStarknetAddressSafe(receipt.contractAddress),
+        },
       },
       [receipt],
     ];
   }
 
   async update(
-    artifact: ArtifactDeployed<RawHookArtifactConfigs['protocolFee'], DeployedHookAddress>,
+    artifact: ArtifactDeployed<
+      RawHookArtifactConfigs['protocolFee'],
+      DeployedHookAddress
+    >,
   ): Promise<AnnotatedTx[]> {
     const current = await this.read(artifact.deployed.address);
     const contractAddress = artifact.deployed.address;
@@ -281,7 +296,9 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
     } = {
       merkleTreeHook: () => new StarknetMerkleTreeHookReader(),
       interchainGasPaymaster: () => {
-        throw new Error('interchainGasPaymaster hook type is unsupported on Starknet');
+        throw new Error(
+          'interchainGasPaymaster hook type is unsupported on Starknet',
+        );
       },
       protocolFee: () => new StarknetProtocolFeeHookReader(this.chainMetadata),
     };
@@ -319,7 +336,9 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
         );
       },
       interchainGasPaymaster: () => {
-        throw new Error('interchainGasPaymaster hook type is unsupported on Starknet');
+        throw new Error(
+          'interchainGasPaymaster hook type is unsupported on Starknet',
+        );
       },
       protocolFee: () =>
         new StarknetProtocolFeeHookWriter(this.chainMetadata, starknetSigner),

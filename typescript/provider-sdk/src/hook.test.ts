@@ -19,6 +19,7 @@ describe('hook protocolFee support', () => {
       type: 'protocolFee',
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
+      maxProtocolFee: '100',
       protocolFee: '10',
     };
 
@@ -34,16 +35,34 @@ describe('hook protocolFee support', () => {
       type: 'protocolFee',
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
+      maxProtocolFee: '100',
       protocolFee: '10',
     } as const;
     const expected = {
       type: 'protocolFee',
       owner: '0xowner2',
       beneficiary: '0xbeneficiary2',
+      maxProtocolFee: '100',
       protocolFee: '20',
     } as const;
 
     expect(shouldDeployNewHook(actual, expected)).to.equal(false);
+  });
+
+  it('requires redeploy when protocol fee max changes', () => {
+    const actual = {
+      type: 'protocolFee',
+      owner: '0xowner',
+      beneficiary: '0xbeneficiary',
+      maxProtocolFee: '100',
+      protocolFee: '10',
+    } as const;
+    const expected = {
+      ...actual,
+      maxProtocolFee: '200',
+    } as const;
+
+    expect(shouldDeployNewHook(actual, expected)).to.equal(true);
   });
 
   it('derives protocolFee hook config with address', () => {
@@ -54,6 +73,7 @@ describe('hook protocolFee support', () => {
           type: 'protocolFee',
           owner: '0xowner',
           beneficiary: '0xbeneficiary',
+          maxProtocolFee: '100',
           protocolFee: '10',
         },
         deployed: { address: '0xabc' },
@@ -65,6 +85,7 @@ describe('hook protocolFee support', () => {
       type: 'protocolFee',
       owner: '0xowner',
       beneficiary: '0xbeneficiary',
+      maxProtocolFee: '100',
       protocolFee: '10',
       address: '0xabc',
     });

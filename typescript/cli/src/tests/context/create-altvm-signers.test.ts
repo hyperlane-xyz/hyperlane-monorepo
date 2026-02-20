@@ -10,8 +10,10 @@ import { createAltVMSigners } from '../../context/altvm.js';
 import { type SignerKeyProtocolMap } from '../../context/types.js';
 
 describe('createAltVMSigners', () => {
-  const capturedConfigs: Array<{ privateKey?: string; accountAddress?: string }> =
-    [];
+  const capturedConfigs: Array<{
+    privateKey?: string;
+    accountAddress?: string;
+  }> = [];
 
   before(function () {
     if (hasProtocol(ProtocolType.Starknet)) {
@@ -96,6 +98,55 @@ describe('createAltVMSigners', () => {
     expect(capturedConfigs[0]).to.deep.equal({
       privateKey: '0xstrategy',
       accountAddress: '0xstrategy-account',
+    });
+  });
+
+  it('respects per-chain strategy account addresses for the same protocol', async () => {
+    const strategy = {
+      starknetsepolia: {
+        submitter: {
+          type: 'jsonRpc',
+          chain: 'starknetsepolia',
+          userAddress: '0xstrategy-account-sepolia',
+        },
+      },
+      starknet: {
+        submitter: {
+          type: 'jsonRpc',
+          chain: 'starknet',
+          accountAddress: '0xstrategy-account-mainnet',
+        },
+      },
+    } as any;
+
+    const keys: SignerKeyProtocolMap = {
+      [ProtocolType.Starknet]: '0xkey',
+    };
+
+    await createAltVMSigners(
+      {
+        getChainMetadata: (chain: string) =>
+          ({
+            name: chain,
+            protocol: ProtocolType.Starknet,
+            chainId: chain.toUpperCase(),
+            domainId: 1,
+            rpcUrls: [{ http: 'http://localhost:9545' }],
+          }) as any,
+      } as any,
+      ['starknetsepolia', 'starknet'],
+      keys,
+      strategy,
+    );
+
+    expect(capturedConfigs).to.have.length(2);
+    expect(capturedConfigs[0]).to.deep.equal({
+      privateKey: '0xkey',
+      accountAddress: '0xstrategy-account-sepolia',
+    });
+    expect(capturedConfigs[1]).to.deep.equal({
+      privateKey: '0xkey',
+      accountAddress: '0xstrategy-account-mainnet',
     });
   });
 
