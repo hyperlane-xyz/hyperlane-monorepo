@@ -1,3 +1,5 @@
+import "@nomicfoundation/hardhat-viem";
+
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
