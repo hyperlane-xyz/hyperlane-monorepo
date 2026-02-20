@@ -182,6 +182,10 @@ pub(crate) struct WarpRouteDeploy {
     #[arg(long)]
     built_so_dir: PathBuf,
     #[arg(long)]
+    old_built_so_dir: Option<PathBuf>,
+    #[arg(long, value_delimiter = ',')]
+    chains_using_old_programs: Option<Vec<String>>,
+    #[arg(long)]
     warp_route_name: String,
     #[arg(long)]
     token_config_file: PathBuf,

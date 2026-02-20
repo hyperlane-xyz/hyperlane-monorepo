@@ -75,11 +75,14 @@ const SBF_OUT_PATH: &str = "target/dist";
 const OLD_CORE_PROGRAMS_RELEASE_URL: &str =
     "https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/download/sealevel-v1.0.0";
 
-const OLD_CORE_PROGRAM_FILES: &[&str] = &[
+const OLD_PROGRAM_FILES: &[&str] = &[
     "hyperlane_sealevel_mailbox.so",
     "hyperlane_sealevel_validator_announce.so",
     "hyperlane_sealevel_multisig_ism_message_id.so",
     "hyperlane_sealevel_igp.so",
+    "hyperlane_sealevel_token.so",
+    "hyperlane_sealevel_token_native.so",
+    "hyperlane_sealevel_token_collateral.so",
 ];
 
 // Domain IDs for sealevel test chains
@@ -219,14 +222,14 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     out_path
 }
 
-/// Download old core program .so files from the sealevel-v1.0.0 release.
+/// Download old program .so files from the sealevel-v1.0.0 release.
 /// Returns (path_to_dir, TempDir) — caller must hold TempDir to prevent cleanup.
 #[apply(as_task)]
-pub fn download_old_core_programs() -> (PathBuf, tempfile::TempDir) {
-    let dir = tempdir().expect("Failed to create temp dir for old core programs");
+pub fn download_old_programs() -> (PathBuf, tempfile::TempDir) {
+    let dir = tempdir().expect("Failed to create temp dir for old programs");
     let dir_path = dir.path().to_path_buf();
-    log!("Downloading old core programs from sealevel-v1.0.0 release");
-    for file in OLD_CORE_PROGRAM_FILES {
+    log!("Downloading old programs from sealevel-v1.0.0 release");
+    for file in OLD_PROGRAM_FILES {
         let url = format!("{OLD_CORE_PROGRAMS_RELEASE_URL}/{file}");
         Program::new("curl")
             .arg("output", *file)
@@ -238,7 +241,7 @@ pub fn download_old_core_programs() -> (PathBuf, tempfile::TempDir) {
             .run()
             .join();
     }
-    log!("Old core programs downloaded successfully");
+    log!("Old programs downloaded successfully");
     (dir_path, dir)
 }
 
@@ -391,6 +394,11 @@ pub fn start_solana_test_validator(
         .arg("environment", SOLANA_ENV_NAME)
         .arg("environments-dir", solana_env_dir_str.clone())
         .arg("built-so-dir", build_so_dir_str.clone())
+        .arg("old-built-so-dir", old_core_dir_str.clone())
+        .arg(
+            "chains-using-old-programs",
+            "sealeveltest1,sealeveltest3",
+        )
         .arg("warp-route-name", "testwarproute")
         .arg(
             "token-config-file",

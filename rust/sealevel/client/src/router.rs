@@ -1,7 +1,7 @@
 use hyperlane_core::{utils::hex_or_base58_or_bech32_to_h256, H256};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::File,
     path::{Path, PathBuf},
 };
@@ -290,6 +290,8 @@ pub(crate) fn deploy_routers<
     environments_dir_path: PathBuf,
     environment: &str,
     built_so_dir_path: PathBuf,
+    old_built_so_dir_path: Option<PathBuf>,
+    chains_using_old_programs: HashSet<String>,
 ) {
     // Load the app configs from the app config file.
     let app_config_file = File::open(app_config_file_path).unwrap();
@@ -355,13 +357,21 @@ pub(crate) fn deploy_routers<
 
         adjust_gas_price_if_needed(chain_name.as_str(), ctx);
 
+        let so_dir = if chains_using_old_programs.contains(chain_name.as_str()) {
+            old_built_so_dir_path
+                .as_deref()
+                .unwrap_or(&built_so_dir_path)
+        } else {
+            &built_so_dir_path
+        };
+
         // Deploy - this is idempotent.
         let program_id = deployer.deploy(
             ctx,
             &keys_dir,
             &environments_dir_path,
             environment,
-            &built_so_dir_path,
+            so_dir,
             chain_metadata,
             app_config,
             existing_program_ids.as_ref(),

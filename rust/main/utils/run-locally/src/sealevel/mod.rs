@@ -190,13 +190,13 @@ fn run_locally() {
         .join();
         state.data.push(Box::new(solana_path_tempdir));
 
-        // Build new programs and download old core programs in parallel
+        // Build new programs and download old programs in parallel
         let solana_program_builder = build_solana_programs(solana_bin_path.clone());
-        let old_core_downloader = download_old_core_programs();
+        let old_downloader = download_old_programs();
 
         let new_programs_path = solana_program_builder.join();
-        let (old_core_path, old_core_tempdir) = old_core_downloader.join();
-        state.data.push(Box::new(old_core_tempdir));
+        let (old_core_path, old_tempdir) = old_downloader.join();
+        state.data.push(Box::new(old_tempdir));
 
         (solana_bin_path, new_programs_path, old_core_path)
     };
