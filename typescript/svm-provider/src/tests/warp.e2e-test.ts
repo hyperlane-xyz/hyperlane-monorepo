@@ -1,34 +1,37 @@
+import type { Address } from '@solana/kit';
 import { expect } from 'chai';
 import { after, before, describe, it } from 'mocha';
-// eslint-disable-next-line import/no-nodejs-modules
-import * as fs from 'fs/promises';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
 import { createRpc } from '../rpc.js';
-import { createSigner, type SvmSigner } from '../signer.js';
+import { type SvmSigner, createSigner } from '../signer.js';
 import {
-  airdropSol,
   DEFAULT_PROGRAMS_PATH,
+  airdropSol,
   getPreloadedPrograms,
 } from '../testing/setup.js';
 import {
+  type SolanaTestValidator,
   startSolanaTestValidator,
   waitForRpcReady,
-  type SolanaTestValidator,
 } from '../testing/solana-container.js';
-import { SvmNativeTokenReader, SvmNativeTokenWriter } from '../warp/native-token.js';
-import type { Address } from '@solana/kit';
+import {
+  SvmNativeTokenReader,
+  SvmNativeTokenWriter,
+} from '../warp/native-token.js';
+// eslint-disable-next-line import/no-nodejs-modules
+import * as fs from 'fs/promises';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
 // Preload mailbox so we have a real mailbox address
-const PRELOADED_PROGRAMS: Array<keyof typeof import('../testing/setup.js').PROGRAM_BINARIES> = [
-  'mailbox',
-];
+const PRELOADED_PROGRAMS: Array<
+  keyof typeof import('../testing/setup.js').PROGRAM_BINARIES
+> = ['mailbox'];
 
 describe('SVM Native Warp Token E2E Tests', function () {
   this.timeout(300_000); // 5 minutes for program deployment
@@ -80,15 +83,15 @@ describe('SVM Native Warp Token E2E Tests', function () {
     console.log('=================================================\n');
 
     // Don't stop validator - keep it running for debugging
-    // if (solana) {
-    //   await solana.stop();
-    // }
+    if (solana) {
+      await solana.stop();
+    }
   });
 
   describe('Native Token', () => {
     let deployedProgramId: string;
 
-    it('should deploy and initialize native token from scratch', async () => {
+    it.only('should deploy and initialize native token from scratch', async () => {
       const writer = new SvmNativeTokenWriter(rpc, signer, programBytes);
 
       const config = {
@@ -112,9 +115,11 @@ describe('SVM Native Warp Token E2E Tests', function () {
       expect(receipts.length).to.be.greaterThan(0);
     });
 
-    it('should read deployed token config', async () => {
+    it.only('should read deployed token config', async () => {
       const reader = new SvmNativeTokenReader(rpc);
       const token = await reader.read(deployedProgramId);
+
+      console.log(JSON.stringify(token, null, 2));
 
       expect(token.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(token.config.type).to.equal('native');

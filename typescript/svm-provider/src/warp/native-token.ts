@@ -1,10 +1,10 @@
 import { type Address, type Rpc, type SolanaRpcApi } from '@solana/kit';
 
 import {
-  ArtifactState,
   type ArtifactDeployed,
   type ArtifactNew,
   type ArtifactReader,
+  ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
@@ -15,8 +15,8 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { deployProgram } from '../deploy/program-deployer.js';
 import {
-  getTokenInstructionProxyEncoder,
   type InitProxyArgs,
+  getTokenInstructionProxyEncoder,
 } from '../generated/types/index.js';
 import type { SvmSigner } from '../signer.js';
 import type {
@@ -26,26 +26,34 @@ import type {
 } from '../types.js';
 
 import {
-  computeWarpTokenUpdateInstructions,
-  type DestinationGasConfig,
-  type RouterEnrollment,
-  getEnrollRemoteRoutersIx,
-  getSetDestinationGasConfigsIx,
-  getSetIsmIx,
-} from './warp-tx.js';
-import {
   fetchNativeToken,
   getDispatchAuthorityPda,
   getHyperlaneTokenPda,
   getNativeCollateralPda,
   routerBytesToHex,
 } from './warp-query.js';
+import {
+  type DestinationGasConfig,
+  type RouterEnrollment,
+  computeWarpTokenUpdateInstructions,
+  getEnrollRemoteRoutersIx,
+  getSetDestinationGasConfigsIx,
+  getSetIsmIx,
+} from './warp-tx.js';
 
 const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111' as Address;
 
 /**
  * Builds Init instruction for native token.
  */
+/**
+ * Program instruction discriminator used by Hyperlane token programs.
+ * From Rust: PROGRAM_INSTRUCTION_DISCRIMINATOR = [1,1,1,1,1,1,1,1]
+ */
+const PROGRAM_INSTRUCTION_DISCRIMINATOR = new Uint8Array([
+  1, 1, 1, 1, 1, 1, 1, 1,
+]);
+
 function buildNativeTokenInitInstruction(
   programId: Address,
   payer: Address,
@@ -56,10 +64,15 @@ function buildNativeTokenInitInstruction(
 ): SvmInstruction {
   // Encode as TokenInstructionProxy enum
   const encoder = getTokenInstructionProxyEncoder();
-  const instructionData = encoder.encode({
+  const enumData = encoder.encode({
     __kind: 'Init',
     fields: [initArgs],
   });
+
+  // Prepend 8-byte discriminator
+  const data = new Uint8Array(8 + enumData.length);
+  data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
+  data.set(enumData, 8);
 
   return {
     programAddress: programId,
@@ -70,7 +83,7 @@ function buildNativeTokenInitInstruction(
       { address: payer, role: 3 },
       { address: nativeCollateralPda, role: 1 },
     ],
-    data: instructionData,
+    data,
   };
 }
 
@@ -84,7 +97,9 @@ export class SvmNativeTokenReader
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>> {
+  ): Promise<
+    ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>
+  > {
     const programId = address as Address;
     const token = await fetchNativeToken(this.rpc, programId);
     assert(token !== null, `Native token not initialized at ${programId}`);
@@ -137,7 +152,10 @@ export class SvmNativeTokenWriter
   async create(
     artifact: ArtifactNew<RawNativeWarpArtifactConfig>,
   ): Promise<
-    [ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>, SvmReceipt[]]
+    [
+      ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>,
+      SvmReceipt[],
+    ]
   > {
     const receipts: SvmReceipt[] = [];
     const config = artifact.config;
@@ -152,7 +170,9 @@ export class SvmNativeTokenWriter
 
     const programId = deployResult.programId;
     receipts.push(...deployResult.receipts);
-    console.log(`Program deployed: ${programId} (${deployResult.receipts.length} txs)`);
+    console.log(
+      `Program deployed: ${programId} (${deployResult.receipts.length} txs)`,
+    );
 
     // Step 2: Derive PDAs
     const [tokenPda] = await getHyperlaneTokenPda(programId);
@@ -162,7 +182,8 @@ export class SvmNativeTokenWriter
     // Step 3: Initialize
     const initArgs: InitProxyArgs = {
       mailbox: config.mailbox as Address,
-      interchainSecurityModule: config.interchainSecurityModule?.deployed?.address
+      interchainSecurityModule: config.interchainSecurityModule?.deployed
+        ?.address
         ? (config.interchainSecurityModule.deployed.address as Address)
         : null,
       interchainGasPaymaster: null,
@@ -173,9 +194,15 @@ export class SvmNativeTokenWriter
     // Check that accounts don't already exist
     console.log(`Checking if PDAs already exist...`);
     const tokenExists = await this.rpc.getAccountInfo(tokenPda).send();
-    const dispatchAuthExists = await this.rpc.getAccountInfo(dispatchAuthPda).send();
-    const nativeCollateralExists = await this.rpc.getAccountInfo(nativeCollateralPda).send();
-    console.log(`  Token PDA (${tokenPda}): ${tokenExists.value ? 'EXISTS' : 'NONE'}`);
+    const dispatchAuthExists = await this.rpc
+      .getAccountInfo(dispatchAuthPda)
+      .send();
+    const nativeCollateralExists = await this.rpc
+      .getAccountInfo(nativeCollateralPda)
+      .send();
+    console.log(
+      `  Token PDA (${tokenPda}): ${tokenExists.value ? 'EXISTS' : 'NONE'}`,
+    );
     console.log(
       `  Dispatch Auth (${dispatchAuthPda}): ${dispatchAuthExists.value ? 'EXISTS' : 'NONE'}`,
     );
@@ -195,7 +222,11 @@ export class SvmNativeTokenWriter
     console.log(`  Init instruction built for program ${programId}`);
 
     console.log('Sending Init transaction...');
-    console.log(`  Instruction data (hex): ${Buffer.from(initIx.data ?? []).toString('hex').slice(0, 100)}...`);
+    console.log(
+      `  Instruction data (hex): ${Buffer.from(initIx.data ?? [])
+        .toString('hex')
+        .slice(0, 100)}...`,
+    );
 
     const initReceipt = await this.signer.signAndSend(this.rpc, {
       instructions: [initIx],
@@ -204,14 +235,18 @@ export class SvmNativeTokenWriter
     receipts.push(initReceipt);
     console.log(`Init tx: ${initReceipt.signature}`);
     console.log(`\n>>> Query this transaction with:`);
-    console.log(`>>> solana confirm ${initReceipt.signature} --url http://127.0.0.1:8899 -v\n`);
+    console.log(
+      `>>> solana confirm ${initReceipt.signature} --url http://127.0.0.1:8899 -v\n`,
+    );
 
     // Wait for account creation
     await new Promise((r) => setTimeout(r, 2000));
 
     // Check raw account first
     console.log(`Checking token PDA: ${tokenPda}`);
-    const rawAccount = await this.rpc.getAccountInfo(tokenPda, { encoding: 'base64' }).send();
+    const rawAccount = await this.rpc
+      .getAccountInfo(tokenPda, { encoding: 'base64' })
+      .send();
 
     if (!rawAccount.value) {
       console.log(`ERROR: No account at token PDA!`);
@@ -221,29 +256,37 @@ export class SvmNativeTokenWriter
       console.log(`  - Wrong accounts passed`);
       console.log(`  - Instruction data malformed`);
       console.log(`Transaction signature: ${initReceipt.signature}`);
-      console.log(`Query it with: solana confirm ${initReceipt.signature} --url http://127.0.0.1:8899 -v`);
+      console.log(
+        `Query it with: solana confirm ${initReceipt.signature} --url http://127.0.0.1:8899 -v`,
+      );
       throw new Error(`Init failed - no account created at ${tokenPda}`);
     }
 
-    console.log(`Account exists! Owner: ${rawAccount.value.owner}, Data: ${rawAccount.value.data.length} bytes`);
+    console.log(
+      `Account exists! Owner: ${rawAccount.value.owner}, Data: ${rawAccount.value.data.length} bytes`,
+    );
 
     // Now try to deserialize
     const tokenCheck = await fetchNativeToken(this.rpc, programId);
     if (tokenCheck === null) {
-      console.log(`Account exists but deserialization failed - check AccountData wrapper`);
+      console.log(
+        `Account exists but deserialization failed - check AccountData wrapper`,
+      );
     } else {
       console.log(`Token deserialized successfully!`);
     }
 
     // Step 4: Configure routers
     if (Object.keys(config.remoteRouters).length > 0) {
-      console.log(`Enrolling ${Object.keys(config.remoteRouters).length} routers...`);
-      const enrollments: RouterEnrollment[] = Object.entries(config.remoteRouters).map(
-        ([domain, router]) => ({
-          domain: parseInt(domain),
-          router: router.address,
-        }),
+      console.log(
+        `Enrolling ${Object.keys(config.remoteRouters).length} routers...`,
       );
+      const enrollments: RouterEnrollment[] = Object.entries(
+        config.remoteRouters,
+      ).map(([domain, router]) => ({
+        domain: parseInt(domain),
+        router: router.address,
+      }));
 
       const enrollIx = getEnrollRemoteRoutersIx(programId, enrollments);
       const enrollReceipt = await this.signer.signAndSend(this.rpc, {
@@ -255,12 +298,12 @@ export class SvmNativeTokenWriter
     // Step 5: Set gas
     if (Object.keys(config.destinationGas).length > 0) {
       console.log('Setting destination gas...');
-      const gasConfigs: DestinationGasConfig[] = Object.entries(config.destinationGas).map(
-        ([domain, gas]) => ({
-          domain: parseInt(domain),
-          gas: BigInt(gas),
-        }),
-      );
+      const gasConfigs: DestinationGasConfig[] = Object.entries(
+        config.destinationGas,
+      ).map(([domain, gas]) => ({
+        domain: parseInt(domain),
+        gas: BigInt(gas),
+      }));
 
       const setGasIx = getSetDestinationGasConfigsIx(programId, gasConfigs);
       const setGasReceipt = await this.signer.signAndSend(this.rpc, {
@@ -295,13 +338,18 @@ export class SvmNativeTokenWriter
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>> {
+  ): Promise<
+    ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>
+  > {
     const reader = new SvmNativeTokenReader(this.rpc);
     return reader.read(address);
   }
 
   async update(
-    artifact: ArtifactDeployed<RawNativeWarpArtifactConfig, DeployedWarpAddress>,
+    artifact: ArtifactDeployed<
+      RawNativeWarpArtifactConfig,
+      DeployedWarpAddress
+    >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = artifact.deployed.address as Address;
     const reader = new SvmNativeTokenReader(this.rpc);
