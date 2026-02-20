@@ -1,3 +1,4 @@
+import '@nomicfoundation/hardhat-viem';
 import 'hardhat-gas-reporter';
 import 'solidity-coverage';
 
