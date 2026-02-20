@@ -75,14 +75,13 @@ export async function resolveChains(
 async function resolveWarpRouteConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const warpDeployConfig = await getWarpRouteDeployConfig({
+  const { config, resolvedWarpRouteId } = await getWarpRouteDeployConfig({
     context: argv.context,
-    warpRouteDeployConfigPath: argv.config,
     warpRouteId: argv.warpRouteId,
-    symbol: argv.symbol,
   });
-  argv.context.warpDeployConfig = warpDeployConfig;
-  argv.context.chains = Object.keys(warpDeployConfig);
+  argv.context.warpDeployConfig = config;
+  argv.context.resolvedWarpRouteId = resolvedWarpRouteId;
+  argv.context.chains = Object.keys(config);
   assert(
     argv.context.chains.length !== 0,
     'No chains found in warp route deployment config',
@@ -97,12 +96,12 @@ async function resolveWarpReadChains(
     argv.context.chains = await resolveChain(argv);
   }
 
-  if (argv.symbol || argv.warpRouteId) {
+  if (argv.warpRouteId) {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       context: argv.context,
-      symbol: argv.symbol,
       warpRouteId: argv.warpRouteId,
     });
+    argv.context.warpCoreConfig = warpCoreConfig;
     argv.context.chains = warpCoreConfig.tokens.map((token) => token.chainName);
   }
 
@@ -123,15 +122,14 @@ async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
 async function resolveWarpConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
-    context: argv.context,
-    warpRouteId: argv.warpRouteId,
-    symbol: argv.symbol,
-    warpDeployConfigPath: argv.config,
-    warpCoreConfigPath: argv.warp,
-  });
+  const { warpCoreConfig, warpDeployConfig, resolvedWarpRouteId } =
+    await getWarpConfigs({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+    });
   argv.context.warpCoreConfig = warpCoreConfig;
   argv.context.warpDeployConfig = warpDeployConfig;
+  argv.context.resolvedWarpRouteId = resolvedWarpRouteId;
   argv.context.chains = Object.keys(warpDeployConfig);
 
   assert(

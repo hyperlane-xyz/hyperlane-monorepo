@@ -14,13 +14,11 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
-  REGISTRY_PATH,
   TEMP_PATH,
 } from './consts.js';
 
 const SYMBOL = 'ETH';
 const WARP_ID = createWarpRouteConfigId(SYMBOL, CHAIN_NAME_3);
-const WARP_DEPLOY_OUTPUT = `${REGISTRY_PATH}/deployments/warp_routes/${SYMBOL}/${CHAIN_NAME_3}-config.yaml`;
 
 describe('hyperlane relayer e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -63,21 +61,18 @@ describe('hyperlane relayer e2e tests', async function () {
 
       await hyperlaneWarpDeploy(warpConfigPath, WARP_ID);
 
-      const process = hyperlaneRelayer(
-        [CHAIN_NAME_2, CHAIN_NAME_3],
-        WARP_DEPLOY_OUTPUT,
-      );
+      const process = hyperlaneRelayer([CHAIN_NAME_2, CHAIN_NAME_3], WARP_ID);
 
       await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpCorePath: WARP_DEPLOY_OUTPUT,
+        warpRouteId: WARP_ID,
         relay: false,
       });
       await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_3,
         destination: CHAIN_NAME_2,
-        warpCorePath: WARP_DEPLOY_OUTPUT,
+        warpRouteId: WARP_ID,
         relay: false,
       });
 

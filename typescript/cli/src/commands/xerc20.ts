@@ -34,31 +34,16 @@ import {
   chainTargetsCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
-  symbolCommandOption,
-  warpCoreConfigCommandOption,
-  warpDeploymentConfigCommandOption,
   warpRouteIdCommandOption,
 } from './options.js';
 
 const XERC20_WARP_ROUTE_BUILDER = {
-  config: warpDeploymentConfigCommandOption,
-  warpRouteId: {
-    ...warpRouteIdCommandOption,
-    demandOption: false,
-  },
-  warp: {
-    ...warpCoreConfigCommandOption,
-    demandOption: false,
-  },
-  symbol: {
-    ...symbolCommandOption,
-    demandOption: false,
-  },
+  'warp-route-id': warpRouteIdCommandOption,
 } as const;
 
-type XERC20WarpRouteBuilder = Partial<
-  Record<keyof typeof XERC20_WARP_ROUTE_BUILDER, string>
->;
+type XERC20WarpRouteBuilder = {
+  warpRouteId?: string;
+};
 
 export const xerc20Command: CommandModule = {
   command: 'xerc20',
@@ -92,24 +77,12 @@ const apply: CommandModuleWithWriteContext<
       'Output directory for transaction receipts',
     ),
   },
-  handler: async ({
-    context,
-    symbol,
-    warp,
-    warpRouteId,
-    config: configPath,
-    chains,
-    strategy,
-    receipts,
-  }) => {
+  handler: async ({ context, warpRouteId, chains, strategy, receipts }) => {
     logCommandHeader('Hyperlane XERC20 Apply');
 
     const { warpDeployConfig, warpCoreConfig } = await getWarpConfigs({
       context,
       warpRouteId,
-      symbol,
-      warpDeployConfigPath: configPath,
-      warpCoreConfigPath: warp,
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
@@ -175,22 +148,12 @@ const read: CommandModuleWithContext<
       description: 'Filter to specific chain(s)',
     },
   },
-  handler: async ({
-    context,
-    symbol,
-    warp,
-    warpRouteId,
-    config: configPath,
-    chains,
-  }) => {
+  handler: async ({ context, warpRouteId, chains }) => {
     logCommandHeader('Hyperlane XERC20 Read');
 
     const { warpDeployConfig, warpCoreConfig } = await getWarpConfigs({
       context,
       warpRouteId,
-      symbol,
-      warpDeployConfigPath: configPath,
-      warpCoreConfigPath: warp,
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);

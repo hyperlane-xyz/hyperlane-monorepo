@@ -35,26 +35,22 @@ export async function runWarpRouteRead({
   context,
   chain,
   address,
-  symbol,
   warpRouteId,
-  warpCoreConfigPath,
 }: {
   context: CommandContext;
   chain?: ChainName;
   address?: string;
-  symbol?: string;
   warpRouteId?: string;
-  warpCoreConfigPath?: string;
 }): Promise<ChainMap<HypTokenRouterConfig>> {
   let addresses: ChainMap<Address>;
   let warpCoreConfig: WarpCoreConfig | undefined;
-  if (symbol || warpCoreConfigPath || warpRouteId) {
-    warpCoreConfig = await getWarpCoreConfigOrExit({
-      context,
-      symbol,
-      warp: warpCoreConfigPath,
-      warpRouteId,
-    });
+  if (warpRouteId) {
+    warpCoreConfig =
+      context.warpCoreConfig ??
+      (await getWarpCoreConfigOrExit({
+        context,
+        warpRouteId,
+      }));
 
     addresses = Object.fromEntries(
       warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
@@ -65,7 +61,7 @@ export async function runWarpRouteRead({
     };
   } else {
     throw new Error(
-      'Invalid input parameters. Please provide either a token symbol, a warp route id or both chain name and token address',
+      'Invalid input parameters. Please provide either a warp route ID (-w) or both chain name and token address',
     );
   }
 

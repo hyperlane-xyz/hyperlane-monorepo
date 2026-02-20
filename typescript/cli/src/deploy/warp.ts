@@ -10,7 +10,6 @@ import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type AddWarpRouteConfigOptions,
-  BaseRegistry,
   type ChainAddresses,
 } from '@hyperlane-xyz/registry';
 import {
@@ -95,7 +94,6 @@ import {
   getBalances,
   runPreflightChecksForChains,
   validateWarpIsmCompatibility,
-  warpRouteIdFromFileName,
 } from './utils.js';
 
 interface DeployParams {
@@ -115,12 +113,10 @@ export async function runWarpRouteDeploy({
   context,
   warpDeployConfig,
   warpRouteId,
-  warpDeployConfigFileName,
 }: {
   context: WriteCommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpRouteId?: string;
-  warpDeployConfigFileName?: string;
 }) {
   const {
     skipConfirmation,
@@ -235,32 +231,10 @@ export async function runWarpRouteDeploy({
   );
 
   // Use warpRouteId if provided, otherwise if the user is deploying
-  // using a config file use the name of the file to generate the id
-  // or just fallback to use the warpCoreConfig symbol
+  // use addWarpRouteOptions derived from warp core config.
   let warpRouteIdOptions: AddWarpRouteConfigOptions;
   if (warpRouteId) {
     warpRouteIdOptions = { warpRouteId };
-  } else if (warpDeployConfigFileName && 'symbol' in addWarpRouteOptions) {
-    // validate that the id is correct
-    let isIdOk = true;
-    const maybeId = warpRouteIdFromFileName(
-      warpDeployConfigFileName,
-      addWarpRouteOptions.symbol,
-    );
-    try {
-      BaseRegistry.warpDeployConfigToId(warpDeployConfig, {
-        warpRouteId: maybeId,
-      });
-    } catch {
-      isIdOk = false;
-      warnYellow(
-        `Generated id "${maybeId}" from input config file would be invalid, falling back to default options`,
-      );
-    }
-
-    warpRouteIdOptions = isIdOk
-      ? { warpRouteId: maybeId }
-      : addWarpRouteOptions;
   } else {
     warpRouteIdOptions = addWarpRouteOptions;
   }

@@ -393,25 +393,27 @@ describe('hyperlane warp check --ica e2e tests', async function () {
       },
     };
 
-    const warpDeployPath = combinedWarpCoreConfigPath.replace(
-      '-config.yaml',
-      '-ica-non-deployed-deploy.yaml',
+    // Create a warpRouteId for this test case
+    const symbol = await token.symbol();
+    const currentWarpId = createWarpRouteConfigId(
+      symbol,
+      `${CHAIN_NAME_2}-${CHAIN_NAME_3}-ica-non-deployed`,
     );
+
+    // Write deploy config to registry path
+    const basePath = `${REGISTRY_PATH}/deployments/warp_routes/${currentWarpId}`;
+    const warpDeployPath = `${basePath}-deploy.yaml`;
     writeYamlOrJson(warpDeployPath, nonDeployedConfig);
 
     // Create an empty warpCoreConfig (no deployed tokens yet)
     const emptyWarpCoreConfig: WarpCoreConfig = { tokens: [] };
-    const warpCorePath = combinedWarpCoreConfigPath.replace(
-      '-config.yaml',
-      '-ica-non-deployed-core.yaml',
-    );
-    writeYamlOrJson(warpCorePath, emptyWarpCoreConfig);
+    const warpCoreConfigPath = `${basePath}-config.yaml`;
+    writeYamlOrJson(warpCoreConfigPath, emptyWarpCoreConfig);
 
-    // Run ICA check with both configs - the deploy config has chains, warpCoreConfig is empty
+    // Run ICA check with warpRouteId - it will read both configs from registry
     // This simulates checking ICA ownership before warp apply/extension
     const output = await hyperlaneWarpCheckRaw({
-      warpDeployPath,
-      warpCoreConfigPath: warpCorePath,
+      warpRouteId: currentWarpId,
       ica: true,
       origin: CHAIN_NAME_2,
     }).nothrow();

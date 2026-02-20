@@ -24,7 +24,9 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
   TEMP_PATH,
+  getCombinedWarpDeployPath,
   getCombinedWarpRoutePath,
+  getWarpRouteId,
 } from '../consts.js';
 
 import { deployOrUseExistingCore } from './core.js';
@@ -51,11 +53,18 @@ describe('xerc20 e2e tests', function () {
   let xERC20VS3: XERC20VSTest;
 
   const XERC20_LOCKBOX_DEPLOY_PATH = `${TEMP_PATH}/warp-xerc20-lockbox-deploy.yaml`;
-  const XERC20_LOCKBOX_CORE_PATH = getCombinedWarpRoutePath('XERC20', [
-    CHAIN_NAME_2,
-  ]);
   const XERC20_VS_DEPLOY_PATH = `${TEMP_PATH}/warp-xerc20-vs-deploy.yaml`;
   const XERC20_VS_CORE_PATH = getCombinedWarpRoutePath('XERC20VS', [
+    CHAIN_NAME_2,
+    CHAIN_NAME_3,
+  ]);
+
+  const XERC20_LOCKBOX_WARP_ROUTE_ID = getWarpRouteId('XERC20', [CHAIN_NAME_2]);
+  const XERC20_VS_WARP_ROUTE_ID = getWarpRouteId('XERC20VS', [
+    CHAIN_NAME_2,
+    CHAIN_NAME_3,
+  ]);
+  const XERC20_VS_REGISTRY_DEPLOY_PATH = getCombinedWarpDeployPath('XERC20VS', [
     CHAIN_NAME_2,
     CHAIN_NAME_3,
   ]);
@@ -183,6 +192,8 @@ describe('xerc20 e2e tests', function () {
       },
     };
     writeYamlOrJson(XERC20_VS_DEPLOY_PATH, xerc20VSConfigWithLimits);
+    // Also write to registry deploy path so --warp-route-id can resolve it
+    writeYamlOrJson(XERC20_VS_REGISTRY_DEPLOY_PATH, xerc20VSConfigWithLimits);
   }
 
   beforeEach(async function () {
@@ -193,8 +204,7 @@ describe('xerc20 e2e tests', function () {
     it('reports no updates when config matches on-chain state', async function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
         --registry ${REGISTRY_PATH} \
-        --config ${XERC20_VS_DEPLOY_PATH} \
-        --warp ${XERC20_VS_CORE_PATH} \
+        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
         --chains ${CHAIN_NAME_2} \
         --key ${ANVIL_KEY} \
         --verbosity debug`;
@@ -217,14 +227,25 @@ describe('xerc20 e2e tests', function () {
             },
           },
         },
+        [CHAIN_NAME_3]: {
+          type: TokenType.XERC20,
+          token: xERC20VS3.address,
+          mailbox: chain3Addresses.mailbox,
+          owner: ownerAddress,
+          xERC20: {
+            warpRouteLimits: {
+              type: XERC20Type.Velo,
+              bufferCap: '2000000000000000000000',
+              rateLimitPerSecond: '2000000000000000000',
+            },
+          },
+        },
       };
-      const configPath = `${TEMP_PATH}/xerc20-apply-test.yaml`;
-      writeYamlOrJson(configPath, configWithLimits);
+      writeYamlOrJson(XERC20_VS_REGISTRY_DEPLOY_PATH, configWithLimits);
 
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
         --registry ${REGISTRY_PATH} \
-        --config ${configPath} \
-        --warp ${XERC20_VS_CORE_PATH} \
+        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
         --chains ${CHAIN_NAME_2} \
         --key ${ANVIL_KEY} \
         --verbosity debug`;
@@ -235,8 +256,7 @@ describe('xerc20 e2e tests', function () {
     it('applies to all chains when --chains is not specified', async function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
         --registry ${REGISTRY_PATH} \
-        --config ${XERC20_VS_DEPLOY_PATH} \
-        --warp ${XERC20_VS_CORE_PATH} \
+        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
         --key ${ANVIL_KEY} \
         --verbosity debug`;
 
@@ -249,8 +269,7 @@ describe('xerc20 e2e tests', function () {
     it('displays current limits for Velodrome XERC20', async function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
         --registry ${REGISTRY_PATH} \
-        --config ${XERC20_VS_DEPLOY_PATH} \
-        --warp ${XERC20_VS_CORE_PATH} \
+        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
         --chains ${CHAIN_NAME_2} \
         --verbosity debug`;
 
@@ -261,8 +280,7 @@ describe('xerc20 e2e tests', function () {
     it('displays current limits for Standard XERC20', async function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
         --registry ${REGISTRY_PATH} \
-        --config ${XERC20_LOCKBOX_DEPLOY_PATH} \
-        --warp ${XERC20_LOCKBOX_CORE_PATH} \
+        --warp-route-id ${XERC20_LOCKBOX_WARP_ROUTE_ID} \
         --verbosity debug`;
 
       const output = result.stdout;
@@ -272,8 +290,7 @@ describe('xerc20 e2e tests', function () {
     it('filters by chain when --chains is specified', async function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
         --registry ${REGISTRY_PATH} \
-        --config ${XERC20_VS_DEPLOY_PATH} \
-        --warp ${XERC20_VS_CORE_PATH} \
+        --warp-route-id ${XERC20_VS_WARP_ROUTE_ID} \
         --chains ${CHAIN_NAME_2} \
         --verbosity debug`;
 

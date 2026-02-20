@@ -73,22 +73,16 @@ function getPlaceholderRecipient(
 
 export async function runWarpRouteFees({
   context,
-  symbol,
-  warpCoreConfigPath,
   warpRouteId,
   amount,
 }: {
   context: CommandContext;
-  symbol?: string;
-  warpCoreConfigPath?: string;
   warpRouteId?: string;
   amount: string;
 }): Promise<void> {
   // Load warp core config
   const warpCoreConfig: WarpCoreConfig = await getWarpCoreConfigOrExit({
     context,
-    symbol,
-    warp: warpCoreConfigPath,
     warpRouteId,
   });
 
@@ -99,7 +93,9 @@ export async function runWarpRouteFees({
   for (const token of warpCoreConfig.tokens) {
     const chainAddresses = registryAddresses[token.chainName];
     if (chainAddresses?.mailbox) {
-      mailboxMetadata[token.chainName] = { mailbox: chainAddresses.mailbox };
+      mailboxMetadata[token.chainName] = {
+        mailbox: chainAddresses.mailbox,
+      };
     }
   }
   const multiProviderWithMailbox =

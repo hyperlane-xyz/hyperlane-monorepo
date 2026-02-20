@@ -145,11 +145,7 @@ export async function runWarpBridgeTests(
       },
     });
 
-    await sendWarpRouteMessageRoundTrip(
-      startChain,
-      targetChain,
-      routeConfigPath,
-    );
+    await sendWarpRouteMessageRoundTrip(startChain, targetChain, warpRouteId);
 
     console.log(
       `Should deploy and be able to bridge in a ${warpConfig[CHAIN_NAME_2].type} -> ${warpConfig[CHAIN_NAME_3].type} warp route ✅`,

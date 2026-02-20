@@ -10,8 +10,7 @@ import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 import {
   DEFAULT_LOCAL_REGISTRY,
   agentTargetsCommandOption,
-  symbolCommandOption,
-  warpCoreConfigCommandOption,
+  warpRouteIdCommandOption,
 } from './options.js';
 import { type MessageOptionsArgTypes } from './send.js';
 
@@ -21,8 +20,7 @@ export const relayerCommand: CommandModuleWithContext<
   MessageOptionsArgTypes & {
     chains?: string[];
     cache: string;
-    symbol?: string;
-    warp?: string;
+    warpRouteId?: string;
   }
 > = {
   command: 'relayer',
@@ -34,10 +32,9 @@ export const relayerCommand: CommandModuleWithContext<
       type: 'string',
       default: DEFAULT_RELAYER_CACHE,
     },
-    symbol: symbolCommandOption,
-    warp: warpCoreConfigCommandOption,
+    'warp-route-id': warpRouteIdCommandOption,
   },
-  handler: async ({ context, cache, chains, symbol, warp }) => {
+  handler: async ({ context, cache, chains, warpRouteId }) => {
     const chainAddresses = await context.registry.getAddresses();
     const core = HyperlaneCore.fromAddressesMap(
       chainAddresses,
@@ -50,17 +47,16 @@ export const relayerCommand: CommandModuleWithContext<
       chainsArray.map((chain) => [chain, []]),
     );
 
-    // add warp route addresses to whitelist
-    if (symbol || warp) {
-      const warpRoute = await getWarpCoreConfigOrExit({
+    if (warpRouteId) {
+      const warpCoreConfig = await getWarpCoreConfigOrExit({
         context,
-        symbol,
-        warp,
+        warpRouteId,
       });
-      warpRoute.tokens.forEach(
-        ({ chainName, addressOrDenom }) =>
-          (whitelist[chainName] = [addressOrDenom!]),
-      );
+      for (const { chainName, addressOrDenom } of warpCoreConfig.tokens) {
+        if (addressOrDenom) {
+          whitelist[chainName] = [addressOrDenom];
+        }
+      }
     }
 
     const relayer = new HyperlaneRelayer({ core, whitelist });

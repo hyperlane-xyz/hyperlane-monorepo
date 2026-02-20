@@ -4,6 +4,7 @@ import { filterWarpRoutesIds } from '@hyperlane-xyz/registry';
 import {
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
+  filterWarpCoreConfigMapByChains,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
@@ -22,175 +23,201 @@ import {
 } from '../context/types.js';
 import { logRed } from '../logger.js';
 
-import { selectRegistryWarpRoute } from './tokens.js';
-
 /**
- * Gets a {@link WarpCoreConfig} based on the provided path or prompts the user to choose one:
- * - if `symbol` is provided the user will have to select one of the available warp routes.
- * - if `warp` is provided the config will be read by the provided file path.
- * - if none is provided the CLI will exit.
+ * Resolves a warp route ID and returns its WarpCoreConfig.
+ *
+ * Supports either:
+ * - full route IDs (e.g. `ETH/ethereum-arbitrum`)
+ * - symbol-only IDs (e.g. `ETH`) that auto-resolve when unique
+ *
+ * When `chains` is provided, symbol-only resolution is limited to routes
+ * that span all provided chains.
  */
 export async function getWarpCoreConfigOrExit({
   context,
-  symbol,
-  warp,
   warpRouteId,
+  chains,
 }: {
   context: CommandContext;
-  symbol?: string;
-  warp?: string;
   warpRouteId?: string;
+  chains?: string[];
 }): Promise<WarpCoreConfig> {
-  let warpCoreConfig: WarpCoreConfig;
-  if (symbol) {
-    warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
-  } else if (warp) {
-    warpCoreConfig = await readWarpCoreConfig({ filePath: warp });
-  } else if (warpRouteId) {
-    const maybeWarpRoute = await context.registry.getWarpRoute(warpRouteId);
-    assert(
-      maybeWarpRoute,
-      `No warp route found with the provided id "${warpRouteId}"`,
-    );
-
-    warpCoreConfig = maybeWarpRoute;
-  } else {
-    logRed(
-      `Invalid input parameters. Please provide either a token symbol, a warp route id or both chain name and token address`,
-    );
-    process.exit(1);
-  }
-
-  return warpCoreConfig;
+  const resolvedWarpRouteId = await resolveWarpRouteId({
+    context,
+    warpRouteId,
+    chains,
+  });
+  const config = await context.registry.getWarpRoute(resolvedWarpRouteId);
+  assert(config, `No warp route found with ID "${resolvedWarpRouteId}"`);
+  return config;
 }
 
 /**
- * Gets or prompts user selection for a warp route ID.
- * Uses provided ID or filters by symbol and prompts if multiple options exist.
+ * Resolves user input into a concrete warp route ID.
+ *
+ * Behavior:
+ * - Full route ID input (`SYMBOL/route`) is validated and returned as-is.
+ * - Symbol-only input (`SYMBOL`) resolves to matching IDs and prompts when
+ *   ambiguous (unless `skipConfirmation` is set).
+ * - Optional `chains` filtering narrows symbol matches to routes that span all
+ *   specified chains.
  */
-export async function useProvidedWarpRouteIdOrPrompt({
-  context,
-  warpRouteId,
-  symbol,
-  promptByDeploymentConfigs,
-}: {
+export async function resolveWarpRouteId(args: {
   context: CommandContext;
   warpRouteId?: string;
-  symbol?: string;
   promptByDeploymentConfigs?: boolean;
+  /** Filter routes to only those spanning all specified chains */
+  chains?: string[];
+  /** @deprecated use warpRouteId */
+  symbol?: string;
+  /** @deprecated use warpRouteId */
+  warp?: string;
 }): Promise<string> {
-  if (warpRouteId) return warpRouteId;
-  assert(!context.skipConfirmation, 'Warp route ID is required');
-
-  const { ids: routeIds } = filterWarpRoutesIds(
-    (await context.registry.listRegistryContent()).deployments[
-      promptByDeploymentConfigs ? 'warpDeployConfig' : 'warpRoutes'
-    ],
-    symbol ? { symbol } : undefined,
+  const {
+    context,
+    warpRouteId,
+    promptByDeploymentConfigs,
+    chains,
+    symbol: legacySymbol,
+    warp: legacyWarp,
+  } = args;
+  assert(
+    !(legacySymbol || legacyWarp),
+    'Legacy "symbol"/"warp" params are not supported. Use "warpRouteId".',
   );
 
-  assert(routeIds.length !== 0, 'No valid warp routes found in registry');
+  const deployments = (await context.registry.listRegistryContent())
+    .deployments;
+  const source = promptByDeploymentConfigs
+    ? deployments.warpDeployConfig
+    : deployments.warpRoutes;
 
-  return routeIds.length === 1
-    ? routeIds[0]
-    : ((await search({
-        message: 'Select a warp route:',
-        source: (term) => {
-          return routeIds.filter((id) =>
-            id.toLowerCase().includes(term?.toLowerCase() || ''),
-          );
-        },
-        pageSize: 20,
-      })) as string);
+  if (warpRouteId) {
+    if (warpRouteId.includes('/')) {
+      if (promptByDeploymentConfigs) {
+        assert(
+          Object.hasOwn(source, warpRouteId),
+          `No warp route found with ID "${warpRouteId}"`,
+        );
+      } else {
+        const config = await context.registry.getWarpRoute(warpRouteId);
+        assert(config, `No warp route found with ID "${warpRouteId}"`);
+      }
+      return warpRouteId;
+    }
+
+    const symbol = warpRouteId.toUpperCase();
+    const { ids: symbolMatchedIds } = filterWarpRoutesIds(source, { symbol });
+    let matchingIds = symbolMatchedIds;
+
+    if (chains && chains.length > 0) {
+      const warpConfigs = await context.registry.getWarpRoutes({ symbol });
+      const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
+      const chainFilteredIds = new Set(Object.keys(filtered));
+      matchingIds = matchingIds.filter((id) => chainFilteredIds.has(id));
+    }
+
+    if (matchingIds.length === 0) {
+      if (chains && chains.length > 0) {
+        throw new Error(
+          `No warp route found for symbol "${symbol}" spanning chains: ${chains.join(', ')}. ` +
+            `Try without --chains to see all available routes for this symbol.`,
+        );
+      }
+      const availableExamples = Object.keys(source).slice(0, 3).join(', ');
+      throw new Error(
+        `No warp route found for symbol "${symbol}". ` +
+          `Provide a full route ID (for example "${symbol}/<chain-or-chain-pair>").` +
+          (availableExamples.length > 0
+            ? ` Available route IDs include: ${availableExamples}.`
+            : ''),
+      );
+    }
+
+    if (matchingIds.length === 1) {
+      return matchingIds[0];
+    }
+
+    if (context.skipConfirmation) {
+      throw new Error(
+        `Multiple warp routes found for symbol "${symbol}". ` +
+          `Specify full route ID:\n${matchingIds.map((id) => `  - ${id}`).join('\n')}`,
+      );
+    }
+
+    return (await search({
+      message: `Multiple routes found for "${symbol}". Select one:`,
+      source: (term) =>
+        matchingIds.filter((id) =>
+          id.toLowerCase().includes(term?.toLowerCase() || ''),
+        ),
+      pageSize: 20,
+    })) as string;
+  }
+
+  assert(
+    !context.skipConfirmation,
+    'Warp route ID is required (use --warp-route-id)',
+  );
+
+  let routeIds: string[];
+
+  if (chains && chains.length > 0) {
+    const warpConfigs = await context.registry.getWarpRoutes();
+    const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
+    routeIds = Object.keys(filtered);
+  } else {
+    const result = filterWarpRoutesIds(source);
+    routeIds = result.ids;
+  }
+
+  assert(routeIds.length !== 0, 'No warp routes found in registry');
+
+  if (routeIds.length === 1) {
+    return routeIds[0];
+  }
+
+  return (await search({
+    message: 'Select a warp route:',
+    source: (term) =>
+      routeIds.filter((id) =>
+        id.toLowerCase().includes(term?.toLowerCase() || ''),
+      ),
+    pageSize: 20,
+  })) as string;
 }
 
-async function loadWarpConfigsFromFiles({
-  warpDeployConfigPath,
-  warpCoreConfigPath,
-  context,
-}: {
-  warpDeployConfigPath: string;
-  warpCoreConfigPath: string;
-  context: CommandContext;
-}): Promise<{
-  warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
-  warpCoreConfig: WarpCoreConfig;
-}> {
-  const warpDeployConfig = await readWarpRouteDeployConfig({
-    filePath: warpDeployConfigPath,
-    context,
-  });
-  const warpCoreConfig = await readWarpCoreConfig({
-    filePath: warpCoreConfigPath,
-  });
-  return { warpDeployConfig, warpCoreConfig };
-}
-
-/**
- * Gets both warp configs based on the provided inputs. Handles all cases:
- * - warpRouteId: gets configs directly from registry
- * - warpDeployConfigPath & warpCoreConfigPath: reads from files
- * - symbol: prompts user to select from matching routes
- * - no inputs: prompts user to search and select from all routes
- */
 export async function getWarpConfigs({
   context,
   warpRouteId,
-  warpDeployConfigPath,
-  warpCoreConfigPath,
-  symbol,
+  chains,
 }: {
   context: CommandContext | WriteCommandContext;
   warpRouteId?: string;
-  warpDeployConfigPath?: string;
-  warpCoreConfigPath?: string;
-  symbol?: string;
+  chains?: string[];
 }): Promise<{
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig: WarpCoreConfig;
+  resolvedWarpRouteId: string;
 }> {
-  const hasDeployConfigFilePath = !!warpDeployConfigPath;
-  const hasCoreConfigFilePath = !!warpCoreConfigPath;
-  assert(
-    hasDeployConfigFilePath === hasCoreConfigFilePath,
-    'Both --config/-wd and --warp/-wc must be provided together when using individual file paths',
-  );
-  if (hasDeployConfigFilePath && hasCoreConfigFilePath) {
-    return loadWarpConfigsFromFiles({
-      warpDeployConfigPath,
-      warpCoreConfigPath,
-      context,
-    });
-  }
-
-  const selectedId = await useProvidedWarpRouteIdOrPrompt({
+  const resolvedWarpRouteId = await resolveWarpRouteId({
     context,
     warpRouteId,
-    symbol,
+    chains,
   });
 
   const warpCoreConfig = await readWarpCoreConfig({
     context,
-    warpRouteId: selectedId,
+    warpRouteId: resolvedWarpRouteId,
   });
   const warpDeployConfig = await readWarpRouteDeployConfig({
-    warpRouteId: selectedId,
+    warpRouteId: resolvedWarpRouteId,
     context,
   });
 
-  return {
-    warpDeployConfig,
-    warpCoreConfig,
-  };
+  return { warpDeployConfig, warpCoreConfig, resolvedWarpRouteId };
 }
 
-/**
- * Compares chains between warp deploy and core configs, filters them to only include matching chains,
- * and logs warnings if there are mismatches.
- * @param warpDeployConfig The warp deployment configuration
- * @param warpCoreConfig The warp core configuration
- * @returns The filtered warp deploy and core configs containing only matching chains
- */
 export function filterWarpConfigsToMatchingChains(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   warpCoreConfig: WarpCoreConfig,
@@ -228,7 +255,6 @@ export function filterWarpConfigsToMatchingChains(
       ).join(', ')}\n`,
     );
 
-    // Filter configs to only include matching chains
     const filteredWarpDeployConfig = objFilter(
       warpDeployConfig,
       (chain: string, _v): _v is any => matchingChains.has(chain),
