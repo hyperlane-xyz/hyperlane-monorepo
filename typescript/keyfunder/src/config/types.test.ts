@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 
 import { calculateMultipliedBalance } from '../core/KeyFunder.js';
 
@@ -217,7 +216,7 @@ describe('KeyFunderConfig Schemas', () => {
   });
 
   describe('Multiplier precision (calculateMultipliedBalance)', () => {
-    const oneEther = BigNumber.from('1000000000000000000');
+    const oneEther = 1_000_000_000_000_000_000n;
 
     it('should calculate 1.5x correctly (1 ETH * 1.5 = 1.5 ETH)', () => {
       const result = calculateMultipliedBalance(oneEther, 1.5);
