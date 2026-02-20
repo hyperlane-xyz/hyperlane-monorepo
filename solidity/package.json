@@ -35,7 +35,6 @@
     "type": "module",
     "exports": {
         ".": "./dist/index.js",
-        "./mailbox": "./dist/typechain/contracts/Mailbox.js",
         "./buildArtifact.js": "./dist/buildArtifact.js",
         "./buildArtifact.json": "./dist/buildArtifact.json",
         "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
