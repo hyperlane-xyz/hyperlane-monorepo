@@ -107,7 +107,10 @@ class StarknetProtocolFeeHookReader
   implements
     ArtifactReader<RawHookArtifactConfigs['protocolFee'], DeployedHookAddress>
 {
-  constructor(protected readonly chainMetadata: ChainMetadataForAltVM) {}
+  constructor(
+    protected readonly chainMetadata: ChainMetadataForAltVM,
+    protected readonly provider: StarknetProvider,
+  ) {}
 
   async read(
     address: string,
@@ -118,6 +121,7 @@ class StarknetProtocolFeeHookReader
     const hook = getStarknetContract(
       StarknetContractName.PROTOCOL_FEE,
       normalizedAddress,
+      this.provider.getRawProvider(),
     );
 
     const [owner, beneficiary, maxProtocolFee, protocolFee] = await Promise.all(
@@ -153,9 +157,10 @@ class StarknetProtocolFeeHookWriter
 {
   constructor(
     chainMetadata: ChainMetadataForAltVM,
+    provider: StarknetProvider,
     private readonly signer: StarknetSigner,
   ) {
-    super(chainMetadata);
+    super(chainMetadata, provider);
   }
 
   async create(
@@ -215,6 +220,7 @@ class StarknetProtocolFeeHookWriter
     const contract = getStarknetContract(
       StarknetContractName.PROTOCOL_FEE,
       contractAddress,
+      this.provider.getRawProvider(),
     );
     const txs: AnnotatedTx[] = [];
 
@@ -300,7 +306,8 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
           'interchainGasPaymaster hook type is unsupported on Starknet',
         );
       },
-      protocolFee: () => new StarknetProtocolFeeHookReader(this.chainMetadata),
+      protocolFee: () =>
+        new StarknetProtocolFeeHookReader(this.chainMetadata, this.provider),
     };
 
     const readerFactory = readers[type];
@@ -341,7 +348,11 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
         );
       },
       protocolFee: () =>
-        new StarknetProtocolFeeHookWriter(this.chainMetadata, starknetSigner),
+        new StarknetProtocolFeeHookWriter(
+          this.chainMetadata,
+          this.provider,
+          starknetSigner,
+        ),
     };
 
     const writerFactory = writers[type];

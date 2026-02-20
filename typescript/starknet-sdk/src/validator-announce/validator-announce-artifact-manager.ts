@@ -16,6 +16,7 @@ import {
   ValidatorAnnounceType,
 } from '@hyperlane-xyz/provider-sdk/validator-announce';
 
+import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import {
   StarknetContractName,
@@ -31,6 +32,8 @@ class StarknetValidatorAnnounceReader
       DeployedValidatorAnnounceAddress
     >
 {
+  constructor(private readonly provider: StarknetProvider) {}
+
   async read(
     address: string,
   ): Promise<
@@ -43,11 +46,13 @@ class StarknetValidatorAnnounceReader
     const validatorAnnounce = getStarknetContract(
       StarknetContractName.VALIDATOR_ANNOUNCE,
       normalizedAddress,
+      this.provider.getRawProvider(),
     );
 
-    const mailboxAddress = await callContract(validatorAnnounce, 'mailbox').catch(
-      () => '',
-    );
+    const mailboxAddress = await callContract(
+      validatorAnnounce,
+      'mailbox',
+    ).catch(() => '');
 
     return {
       artifactState: ArtifactState.DEPLOYED,
@@ -71,12 +76,17 @@ class StarknetValidatorAnnounceWriter
       DeployedValidatorAnnounceAddress
     >
 {
-  constructor(private readonly signer: StarknetSigner) {
-    super();
+  constructor(
+    provider: StarknetProvider,
+    private readonly signer: StarknetSigner,
+  ) {
+    super(provider);
   }
 
   async create(
-    artifact: ArtifactNew<RawValidatorAnnounceArtifactConfigs['validatorAnnounce']>,
+    artifact: ArtifactNew<
+      RawValidatorAnnounceArtifactConfigs['validatorAnnounce']
+    >,
   ): Promise<
     [
       ArtifactDeployed<
@@ -115,9 +125,19 @@ class StarknetValidatorAnnounceWriter
 export class StarknetValidatorAnnounceArtifactManager
   implements IRawValidatorAnnounceArtifactManager
 {
-  constructor(_chainMetadata: ChainMetadataForAltVM) {}
+  private readonly provider: StarknetProvider;
 
-  readValidatorAnnounce(address: string): Promise<DeployedRawValidatorAnnounceArtifact> {
+  constructor(chainMetadata: ChainMetadataForAltVM) {
+    this.provider = StarknetProvider.connect(
+      (chainMetadata.rpcUrls ?? []).map(({ http }) => http),
+      chainMetadata.chainId,
+      { metadata: chainMetadata },
+    );
+  }
+
+  readValidatorAnnounce(
+    address: string,
+  ): Promise<DeployedRawValidatorAnnounceArtifact> {
     return this.createReader('validatorAnnounce').read(
       address,
     ) as Promise<DeployedRawValidatorAnnounceArtifact>;
@@ -132,7 +152,7 @@ export class StarknetValidatorAnnounceArtifactManager
     if (type !== 'validatorAnnounce') {
       throw new Error(`Unsupported Starknet validator announce type: ${type}`);
     }
-    return new StarknetValidatorAnnounceReader() as ArtifactReader<
+    return new StarknetValidatorAnnounceReader(this.provider) as ArtifactReader<
       RawValidatorAnnounceArtifactConfigs[T],
       DeployedValidatorAnnounceAddress
     >;
@@ -149,6 +169,7 @@ export class StarknetValidatorAnnounceArtifactManager
       throw new Error(`Unsupported Starknet validator announce type: ${type}`);
     }
     return new StarknetValidatorAnnounceWriter(
+      this.provider,
       signer as StarknetSigner,
     ) as ArtifactWriter<
       RawValidatorAnnounceArtifactConfigs[T],
