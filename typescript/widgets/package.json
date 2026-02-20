@@ -57,7 +57,6 @@
     "@starknet-react/core": "^3.7.2",
     "@wagmi/core": "^2.12.26",
     "clsx": "^2.1.1",
-    "ethers": "catalog:",
     "pino": "catalog:",
     "react-tooltip": "^5.28.0",
     "starknet": "catalog:",
