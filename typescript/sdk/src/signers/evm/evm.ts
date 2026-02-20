@@ -1,44 +1,110 @@
-import { isHex } from 'viem';
-import { Wallet as ZkSyncWallet } from 'zksync-ethers';
+import {
+  Chain,
+  Hex,
+  PublicClient,
+  WalletClient,
+  createPublicClient,
+  createWalletClient,
+  http,
+  isHex,
+  privateKeyToAccount,
+} from 'viem';
 
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
 import { EvmTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
 
 export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.Ethereum> {
-  private readonly multiProvider: MultiProvider;
+  private readonly account: ReturnType<typeof privateKeyToAccount>;
+  private readonly walletClient: WalletClient;
+  private readonly publicClient: PublicClient;
 
   constructor(
-    private readonly chainName: ChainName,
+    chainName: ChainName,
     privateKey: string,
     multiProtocolProvider: MultiProtocolProvider,
   ) {
-    const multiProvider = multiProtocolProvider.toMultiProvider();
-
     assert(
       isHex(privateKey),
       `Private key for chain ${chainName} should be a hex string`,
     );
 
-    const wallet = new ZkSyncWallet(privateKey);
-    multiProvider.setSigner(this.chainName, wallet);
-    this.multiProvider = multiProvider;
+    this.account = privateKeyToAccount(privateKey);
+
+    const chainMetadata = multiProtocolProvider.getChainMetadata(chainName);
+    const rpcUrl = chainMetadata.rpcUrls[0]?.http;
+    assert(rpcUrl, `Missing RPC URL for chain ${chainName}`);
+
+    const chain: Chain = {
+      id: chainMetadata.chainId,
+      name: chainMetadata.name,
+      network: chainMetadata.name,
+      nativeCurrency: {
+        name: chainMetadata.nativeToken?.name || 'Ether',
+        symbol: chainMetadata.nativeToken?.symbol || 'ETH',
+        decimals: chainMetadata.nativeToken?.decimals || 18,
+      },
+      rpcUrls: {
+        default: { http: [rpcUrl] },
+        public: { http: [rpcUrl] },
+      },
+    };
+    const transport = http(rpcUrl);
+    this.walletClient = createWalletClient({
+      account: this.account,
+      chain,
+      transport,
+    });
+    this.publicClient = createPublicClient({
+      chain,
+      transport,
+    });
   }
 
   async address(): Promise<Address> {
-    return this.multiProvider.getSignerAddress(this.chainName);
+    return this.account.address;
   }
 
   async sendAndConfirmTransaction(tx: EvmTransaction): Promise<string> {
-    const res = await this.multiProvider.sendTransaction(
-      this.chainName,
-      tx.transaction,
-    );
+    const request = tx.transaction as Record<string, unknown>;
+    const hash = await this.walletClient.sendTransaction({
+      account: this.account,
+      to: request.to as Address | undefined,
+      data: request.data as Hex | undefined,
+      value: toBigInt(request.value),
+      nonce: toNumber(request.nonce),
+      gas: toBigInt(request.gas ?? request.gasLimit),
+      gasPrice: toBigInt(request.gasPrice),
+      maxFeePerGas: toBigInt(request.maxFeePerGas),
+      maxPriorityFeePerGas: toBigInt(request.maxPriorityFeePerGas),
+    });
 
-    return res.transactionHash;
+    await this.publicClient.waitForTransactionReceipt({ hash });
+    return hash;
   }
+}
+
+function toBigInt(value: unknown): bigint | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (typeof value === 'object' && 'toString' in value) {
+    return BigInt(value.toString());
+  }
+  return undefined;
+}
+
+function toNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') return Number(value);
+  if (typeof value === 'object' && 'toString' in value) {
+    return Number(value.toString());
+  }
+  return undefined;
 }
