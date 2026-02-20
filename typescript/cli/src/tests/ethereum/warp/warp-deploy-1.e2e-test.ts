@@ -282,7 +282,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
-          { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
+          {
+            decimals: expectedTokenDecimals,
+            symbol: expectedTokenSymbol,
+          },
         );
       }
     });
@@ -556,7 +559,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
-          { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
+          {
+            decimals: expectedTokenDecimals,
+            symbol: expectedTokenSymbol,
+          },
         );
       }
     });
