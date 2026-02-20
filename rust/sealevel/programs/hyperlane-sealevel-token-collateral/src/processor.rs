@@ -9,6 +9,7 @@ use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token_lib::{
+    accounts::FeeConfig,
     instruction::{Init, Instruction as TokenIxn, TransferRemote},
     processor::HyperlaneSealevelToken,
 };
@@ -79,6 +80,7 @@ pub fn process_instruction(
         TokenIxn::SetInterchainGasPaymaster(new_igp) => {
             set_interchain_gas_paymaster(program_id, accounts, new_igp)
         }
+        TokenIxn::SetFeeConfig(fee_config) => set_fee_config(program_id, accounts, fee_config),
     }
     .map_err(|err| {
         msg!("{}", err);
@@ -269,4 +271,12 @@ fn set_interchain_gas_paymaster(
     HyperlaneSealevelToken::<CollateralPlugin>::set_interchain_gas_paymaster(
         program_id, accounts, new_igp,
     )
+}
+
+fn set_fee_config(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    fee_config: Option<FeeConfig>,
+) -> ProgramResult {
+    HyperlaneSealevelToken::<CollateralPlugin>::set_fee_config(program_id, accounts, fee_config)
 }

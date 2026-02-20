@@ -13,6 +13,7 @@ members = [
     "libraries/serializable-account-meta",
     "libraries/test-transaction-utils",
     "libraries/test-utils",
+    "programs/hyperlane-sealevel-fee",
     "programs/hyperlane-sealevel-igp",
     "programs/hyperlane-sealevel-igp-test",
     "programs/hyperlane-sealevel-token",
@@ -192,6 +193,9 @@ overflow-checks = true
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-mailbox]
+overflow-checks = true
+
+[profile.release.package.hyperlane-sealevel-fee]
 overflow-checks = true
 
 [profile.release.package.hyperlane-sealevel-igp]

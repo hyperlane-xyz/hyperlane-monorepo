@@ -231,7 +231,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     }
 
     /// Transfers tokens to the escrow account so they can be sent to a remote chain.
-    /// Burns the tokens from the sender's associated token account.
+    /// If fees are configured, transfers fee_amount to the fee recipient's ATA.
     ///
     /// Accounts:
     /// 0. `[executable]` The SPL token program for the mint.
@@ -244,6 +244,8 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         sender_wallet_account_info: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
+        fee_amount: u64,
+        fee_recipient_account: Option<&'a AccountInfo<'b>>,
     ) -> Result<(), ProgramError> {
         // Account 0: SPL token program.
         let spl_token_account_info = next_account_info(accounts_iter)?;
@@ -280,6 +282,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
             return Err(ProgramError::IncorrectProgramId);
         }
 
+        // Lock transfer amount in escrow
         let transfer_instruction = transfer_checked(
             spl_token_account_info.key,
             sender_ata_account_info.key,
@@ -302,6 +305,32 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
                 sender_wallet_account_info.clone(),
             ],
         )?;
+
+        // Transfer fee to recipient (if any)
+        if fee_amount > 0 {
+            let recipient_ata = fee_recipient_account.ok_or(ProgramError::from(
+                hyperlane_sealevel_token_lib::error::Error::FeeRecipientRequired,
+            ))?;
+            let fee_transfer_instruction = transfer_checked(
+                spl_token_account_info.key,
+                sender_ata_account_info.key,
+                mint_account_info.key,
+                recipient_ata.key,
+                sender_wallet_account_info.key,
+                &[],
+                fee_amount,
+                token.decimals,
+            )?;
+            invoke(
+                &fee_transfer_instruction,
+                &[
+                    sender_ata_account_info.clone(),
+                    mint_account_info.clone(),
+                    recipient_ata.clone(),
+                    sender_wallet_account_info.clone(),
+                ],
+            )?;
+        }
 
         Ok(())
     }
@@ -422,6 +451,24 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
             )],
         )?;
 
+        Ok(())
+    }
+
+    fn verify_fee_recipient_account(
+        token: &HyperlaneToken<Self>,
+        fee_recipient: &Pubkey,
+        fee_recipient_account: &AccountInfo,
+    ) -> Result<(), ProgramError> {
+        let expected_ata = get_associated_token_address_with_program_id(
+            fee_recipient,
+            &token.plugin_data.mint,
+            &token.plugin_data.spl_token_program,
+        );
+        if fee_recipient_account.key != &expected_ata {
+            return Err(ProgramError::from(
+                hyperlane_sealevel_token_lib::error::Error::InvalidFeeRecipientAccount,
+            ));
+        }
         Ok(())
     }
 

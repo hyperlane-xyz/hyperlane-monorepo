@@ -16,12 +16,29 @@ use std::{cmp::Ordering, collections::HashMap, fmt::Debug};
 
 use crate::hyperlane_token_pda_seeds;
 
+/// Fee configuration for a warp route.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
+pub struct FeeConfig {
+    /// The fee program ID.
+    pub fee_program: Pubkey,
+    /// The top-level fee account PDA (owned by fee_program).
+    pub fee_account: Pubkey,
+    /// The wallet address that receives collected fees.
+    pub fee_recipient: Pubkey,
+    /// Number of additional accounts the fee program needs for QuoteFee
+    /// beyond the fee_account itself (e.g. 2 for Routing: route PDA + delegated fee account).
+    pub additional_fee_account_count: u8,
+}
+
 /// HyperlaneToken account data.
 pub type HyperlaneTokenAccount<T> = AccountData<HyperlaneToken<T>>;
 
 /// A PDA account containing the data for a Hyperlane token
 /// and any plugin-specific data.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
+///
+/// Manual BorshDeserialize is implemented for backward compatibility:
+/// existing accounts without fee_config will deserialize with fee_config = None.
+#[derive(BorshSerialize, Debug, PartialEq, Default)]
 pub struct HyperlaneToken<T> {
     /// The bump seed for this PDA.
     pub bump: u8,
@@ -47,6 +64,59 @@ pub struct HyperlaneToken<T> {
     pub remote_routers: HashMap<u32, H256>,
     /// Plugin-specific data.
     pub plugin_data: T,
+    /// Fee configuration. None for legacy accounts or when fees are not configured.
+    pub fee_config: Option<FeeConfig>,
+}
+
+impl<T: BorshDeserialize> BorshDeserialize for HyperlaneToken<T> {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let bump = u8::deserialize_reader(reader)?;
+        let mailbox = Pubkey::deserialize_reader(reader)?;
+        let mailbox_process_authority = Pubkey::deserialize_reader(reader)?;
+        let dispatch_authority_bump = u8::deserialize_reader(reader)?;
+        let decimals = u8::deserialize_reader(reader)?;
+        let remote_decimals = u8::deserialize_reader(reader)?;
+        let owner = Option::<Pubkey>::deserialize_reader(reader)?;
+        let interchain_security_module = Option::<Pubkey>::deserialize_reader(reader)?;
+        let interchain_gas_paymaster =
+            Option::<(Pubkey, InterchainGasPaymasterType)>::deserialize_reader(reader)?;
+        let destination_gas = HashMap::<u32, u64>::deserialize_reader(reader)?;
+        let remote_routers = HashMap::<u32, H256>::deserialize_reader(reader)?;
+        let plugin_data = T::deserialize_reader(reader)?;
+
+        // Backward compatibility: if no more data, fee_config is None.
+        // Peek to check if there's remaining data.
+        let mut peek_buf = [0u8; 1];
+        let fee_config = match reader.read(&mut peek_buf) {
+            Ok(0) => None, // EOF — legacy account
+            Ok(_) => {
+                // We read one byte. If it's 0, that's Option::None.
+                // If it's 1, that's Option::Some — read the FeeConfig.
+                if peek_buf[0] == 0 {
+                    None
+                } else {
+                    Some(FeeConfig::deserialize_reader(reader)?)
+                }
+            }
+            Err(_) => None,
+        };
+
+        Ok(Self {
+            bump,
+            mailbox,
+            mailbox_process_authority,
+            dispatch_authority_bump,
+            decimals,
+            remote_decimals,
+            owner,
+            interchain_security_module,
+            interchain_gas_paymaster,
+            destination_gas,
+            remote_routers,
+            plugin_data,
+            fee_config,
+        })
+    }
 }
 
 impl<T> HyperlaneToken<T>
@@ -124,7 +194,10 @@ where
         // remote_routers keys & values
         (self.remote_routers.len() * (std::mem::size_of::<u32>() + 32)) +
         // plugin_data
-        self.plugin_data.size()
+        self.plugin_data.size() +
+        // fee_config: Option<FeeConfig>
+        // 1 byte for Option discriminant + if Some: 32 + 32 + 32 + 1 = 97
+        1 + if self.fee_config.is_some() { 32 + 32 + 32 + 1 } else { 0 }
     }
 }
 
@@ -343,9 +416,76 @@ mod test {
             destination_gas: HashMap::from([(1000, 200000), (200, 400000)]),
             remote_routers: HashMap::from([(1000, H256::random()), (200, H256::random())]),
             plugin_data: Foo { bar: 69 },
+            fee_config: None,
         };
         let serialized = borsh::to_vec(&hyperlane_token_foo).unwrap();
 
         assert_eq!(serialized.len(), hyperlane_token_foo.size());
+
+        // Also test with fee_config = Some
+        let hyperlane_token_with_fee = HyperlaneToken::<Foo> {
+            fee_config: Some(FeeConfig {
+                fee_program: Pubkey::new_unique(),
+                fee_account: Pubkey::new_unique(),
+                fee_recipient: Pubkey::new_unique(),
+                additional_fee_account_count: 2,
+            }),
+            ..hyperlane_token_foo
+        };
+        let serialized = borsh::to_vec(&hyperlane_token_with_fee).unwrap();
+        assert_eq!(serialized.len(), hyperlane_token_with_fee.size());
+    }
+
+    #[test]
+    fn test_backward_compat_deserialization() {
+        // Simulate a legacy account without fee_config
+        let legacy_token = HyperlaneToken::<()> {
+            bump: 1,
+            mailbox: Pubkey::new_unique(),
+            mailbox_process_authority: Pubkey::new_unique(),
+            dispatch_authority_bump: 2,
+            decimals: 9,
+            remote_decimals: 18,
+            owner: None,
+            interchain_security_module: None,
+            interchain_gas_paymaster: None,
+            destination_gas: HashMap::new(),
+            remote_routers: HashMap::new(),
+            plugin_data: (),
+            fee_config: None,
+        };
+
+        // Serialize without fee_config (simulate legacy format by serializing
+        // all fields except fee_config manually)
+        let mut legacy_bytes = Vec::new();
+        borsh::BorshSerialize::serialize(&legacy_token.bump, &mut legacy_bytes).unwrap();
+        borsh::BorshSerialize::serialize(&legacy_token.mailbox, &mut legacy_bytes).unwrap();
+        borsh::BorshSerialize::serialize(
+            &legacy_token.mailbox_process_authority,
+            &mut legacy_bytes,
+        )
+        .unwrap();
+        borsh::BorshSerialize::serialize(&legacy_token.dispatch_authority_bump, &mut legacy_bytes)
+            .unwrap();
+        borsh::BorshSerialize::serialize(&legacy_token.decimals, &mut legacy_bytes).unwrap();
+        borsh::BorshSerialize::serialize(&legacy_token.remote_decimals, &mut legacy_bytes).unwrap();
+        borsh::BorshSerialize::serialize(&legacy_token.owner, &mut legacy_bytes).unwrap();
+        borsh::BorshSerialize::serialize(
+            &legacy_token.interchain_security_module,
+            &mut legacy_bytes,
+        )
+        .unwrap();
+        borsh::BorshSerialize::serialize(&legacy_token.interchain_gas_paymaster, &mut legacy_bytes)
+            .unwrap();
+        borsh::BorshSerialize::serialize(&legacy_token.destination_gas, &mut legacy_bytes).unwrap();
+        borsh::BorshSerialize::serialize(&legacy_token.remote_routers, &mut legacy_bytes).unwrap();
+        borsh::BorshSerialize::serialize(&legacy_token.plugin_data, &mut legacy_bytes).unwrap();
+        // No fee_config serialized — simulates legacy account
+
+        let deserialized: HyperlaneToken<()> =
+            BorshDeserialize::try_from_slice(&legacy_bytes).unwrap();
+        assert_eq!(deserialized.fee_config, None);
+        assert_eq!(deserialized.bump, 1);
+        assert_eq!(deserialized.decimals, 9);
     }
 }

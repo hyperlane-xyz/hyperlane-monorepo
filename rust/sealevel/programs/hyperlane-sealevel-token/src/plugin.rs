@@ -189,6 +189,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
     /// Transfers tokens into the program so they can be sent to a remote chain.
     /// Burns the tokens from the sender's associated token account.
+    /// If fees are configured, transfers fee_amount to the fee recipient's ATA.
     ///
     /// Accounts:
     /// 0. `[executable]` The spl_token_2022 program.
@@ -200,6 +201,8 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         sender_wallet: &'a AccountInfo<'b>,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
+        fee_amount: u64,
+        fee_recipient_account: Option<&'a AccountInfo<'b>>,
     ) -> Result<(), ProgramError> {
         // 0. SPL token 2022 program
         let spl_token_2022 = next_account_info(accounts_iter)?;
@@ -222,6 +225,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             return Err(ProgramError::InvalidArgument);
         }
 
+        // Burn the transfer amount
         let burn_ixn = burn_checked(
             &spl_token_2022::id(),
             sender_ata.key,
@@ -240,6 +244,31 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
                 sender_wallet.clone(),
             ],
         )?;
+
+        // Transfer fee to recipient (if any)
+        if fee_amount > 0 {
+            let recipient_ata = fee_recipient_account
+                .ok_or(ProgramError::from(hyperlane_sealevel_token_lib::error::Error::FeeRecipientRequired))?;
+            let transfer_ixn = spl_token_2022::instruction::transfer_checked(
+                &spl_token_2022::id(),
+                sender_ata.key,
+                mint_account.key,
+                recipient_ata.key,
+                sender_wallet.key,
+                &[],
+                fee_amount,
+                token.decimals,
+            )?;
+            invoke(
+                &transfer_ixn,
+                &[
+                    sender_ata.clone(),
+                    mint_account.clone(),
+                    recipient_ata.clone(),
+                    sender_wallet.clone(),
+                ],
+            )?;
+        }
 
         Ok(())
     }
@@ -336,6 +365,24 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             &[hyperlane_token_mint_pda_seeds!(token.plugin_data.mint_bump)],
         )?;
 
+        Ok(())
+    }
+
+    fn verify_fee_recipient_account(
+        token: &HyperlaneToken<Self>,
+        fee_recipient: &Pubkey,
+        fee_recipient_account: &AccountInfo,
+    ) -> Result<(), ProgramError> {
+        let expected_ata = get_associated_token_address_with_program_id(
+            fee_recipient,
+            &token.plugin_data.mint,
+            &spl_token_2022::id(),
+        );
+        if fee_recipient_account.key != &expected_ata {
+            return Err(ProgramError::from(
+                hyperlane_sealevel_token_lib::error::Error::InvalidFeeRecipientAccount,
+            ));
+        }
         Ok(())
     }
 
