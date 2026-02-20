@@ -1,8 +1,7 @@
 import { input } from '@inquirer/prompts';
 import { isHex } from 'viem';
-import { Wallet } from 'zksync-ethers';
 
-import { impersonateAccount } from '@hyperlane-xyz/sdk';
+import { LocalAccountEvmSigner, impersonateAccount } from '@hyperlane-xyz/sdk';
 import { type Address, ensure0x } from '@hyperlane-xyz/utils';
 
 const ETHEREUM_ADDRESS_LENGTH = 42;
@@ -80,14 +79,14 @@ async function addressToImpersonatedSigner(
  * @param key a private key
  * @returns a signer for the private key
  */
-function privateKeyToSigner(key: string): Wallet {
+function privateKeyToSigner(key: string): LocalAccountEvmSigner {
   if (!key) throw new Error('No private key provided');
 
   const formattedKey = key.trim().toLowerCase();
-  if (isHex(ensure0x(formattedKey))) return new Wallet(ensure0x(formattedKey));
-  else if (formattedKey.split(' ').length >= 6)
-    return Wallet.fromMnemonic(formattedKey);
-  else throw new Error('Invalid private key format');
+  if (isHex(ensure0x(formattedKey))) {
+    return new LocalAccountEvmSigner(ensure0x(formattedKey));
+  }
+  throw new Error('Invalid private key format');
 }
 
 async function retrieveKey(
