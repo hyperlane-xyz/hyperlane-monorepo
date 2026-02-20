@@ -1890,9 +1890,6 @@ importers:
       decimal.js:
         specifier: ^10.4.3
         version: 10.6.0
-      ethers:
-        specifier: 'catalog:'
-        version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     devDependencies:
       '@eslint/js':
         specifier: 'catalog:'
@@ -2688,9 +2685,6 @@ importers:
       '@hyperlane-xyz/utils':
         specifier: workspace:*
         version: link:../utils
-      ethers:
-        specifier: 'catalog:'
-        version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       pino:
         specifier: 'catalog:'
         version: 8.21.0
