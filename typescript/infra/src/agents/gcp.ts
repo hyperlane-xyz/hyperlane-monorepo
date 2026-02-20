@@ -1,13 +1,17 @@
 import {encodeSecp256k1Pubkey, pubkeyToAddress} from "@cosmjs/amino";
 import {Keypair} from "@solana/web3.js";
-import {Wallet, ethers} from "ethers";
+import bs58 from "bs58";
+import {createECDH} from "crypto";
 import {Logger} from "pino";
+import {bytesToHex} from "viem";
+import {generatePrivateKey, privateKeyToAccount} from "viem/accounts";
 import {Provider as ZkProvider, Wallet as ZkWallet} from "zksync-ethers";
 
 import {ChainName} from "@hyperlane-xyz/sdk";
 import {
     HexString,
     ProtocolType,
+    ensure0x,
     rootLogger,
     strip0x,
 } from "@hyperlane-xyz/utils";
@@ -164,19 +168,19 @@ export class AgentGCPKey extends CloudAgentKey {
                 ).publicKey.toBase58();
             case ProtocolType.Starknet:
                 // Assumes that the address is base58 encoded in secrets manager
-                return ethers.utils.hexlify(
-                    ethers.utils.base58.decode(this.address),
-                );
+                return bytesToHex(bs58.decode(this.address));
             case ProtocolType.Cosmos:
             case ProtocolType.CosmosNative: {
-                const compressedPubkey = ethers.utils.computePublicKey(
-                    this.privateKey,
-                    true,
+                const ecdh = createECDH("secp256k1");
+                ecdh.setPrivateKey(
+                    Buffer.from(strip0x(ensure0x(this.privateKey)), "hex"),
+                );
+                const compressedPubkey = ecdh.getPublicKey(
+                    undefined,
+                    "compressed",
                 );
                 const encodedPubkey = encodeSecp256k1Pubkey(
-                    new Uint8Array(
-                        Buffer.from(strip0x(compressedPubkey), "hex"),
-                    ),
+                    new Uint8Array(compressedPubkey),
                 );
                 if (!bech32Prefix) {
                     throw new Error(
@@ -219,9 +223,7 @@ export class AgentGCPKey extends CloudAgentKey {
                 Buffer.from(strip0x(this.privateKey), "hex"),
             ).secretKey;
         } else if (protocol === ProtocolType.Starknet) {
-            return ethers.utils.hexlify(
-                ethers.utils.base58.decode(this.privateKey),
-            );
+            return bytesToHex(bs58.decode(this.privateKey));
         } else {
             return this.privateKey;
         }
@@ -308,10 +310,7 @@ export class AgentGCPKey extends CloudAgentKey {
             await this.fetch();
         }
 
-        if (provider instanceof ZkProvider) {
-            return new ZkWallet(this.privateKey, provider);
-        }
-        return new Wallet(this.privateKey, provider);
+        return new ZkWallet(this.privateKey, provider as any);
     }
 
     private requireFetched() {
@@ -324,8 +323,8 @@ export class AgentGCPKey extends CloudAgentKey {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     private async _create(rotate: boolean) {
         this.logger.debug(`Creating key with rotation: ${rotate}`);
-        const wallet = Wallet.createRandom();
-        const address = await wallet.getAddress();
+        const privateKey = generatePrivateKey();
+        const address = privateKeyToAccount(privateKey).address;
         const identifier = this.identifier;
 
         await setGCPSecret(
@@ -334,7 +333,7 @@ export class AgentGCPKey extends CloudAgentKey {
                 role: this.role,
                 environment: this.environment,
                 context: this.context,
-                privateKey: wallet.privateKey,
+                privateKey,
                 address,
                 ...include(this.isValidatorKey, {chainName: this.chainName}),
             }),
@@ -352,7 +351,7 @@ export class AgentGCPKey extends CloudAgentKey {
 
         return {
             fetched: true,
-            privateKey: wallet.privateKey,
+            privateKey,
             address,
         };
     }
