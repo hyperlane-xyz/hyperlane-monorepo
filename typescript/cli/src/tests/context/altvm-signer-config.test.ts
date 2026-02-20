@@ -1,5 +1,7 @@
 import { expect } from 'chai';
 
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 import {
   resolveAltVmAccountAddress,
   resolveStarknetAccountAddress,
@@ -48,7 +50,7 @@ describe('altvm signer config helpers', () => {
 
   it('returns undefined for non-Starknet protocol', () => {
     expect(
-      resolveAltVmAccountAddress({}, 'cosmosnative', 'osmosis'),
+      resolveAltVmAccountAddress({}, ProtocolType.CosmosNative, 'osmosis'),
     ).to.equal(undefined);
   });
 });
