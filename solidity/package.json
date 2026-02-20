@@ -9,8 +9,6 @@
         "@matterlabs/hardhat-zksync-verify": "1.7.1",
         "@nomicfoundation/hardhat-foundry": "1.2.0",
         "@nomiclabs/hardhat-ethers": "catalog:",
-        "@typechain/ethers-v6": "catalog:",
-        "@typechain/hardhat": "catalog:",
         "@types/node": "catalog:",
         "chai": "catalog:",
         "eslint": "catalog:",
