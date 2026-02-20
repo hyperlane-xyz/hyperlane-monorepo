@@ -137,7 +137,6 @@ catalog:
 
     # Hardhat
     hardhat: ^2.22.2
-    "@nomiclabs/hardhat-ethers": ^2.2.3
     hardhat-gas-reporter: ^1.0.9
     solidity-coverage: ^0.8.3
 
