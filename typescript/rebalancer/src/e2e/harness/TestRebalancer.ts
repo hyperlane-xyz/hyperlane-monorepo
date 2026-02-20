@@ -1,14 +1,16 @@
-import { BigNumber, ethers } from 'ethers';
+import { pad, toHex } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { type Logger, pino } from 'pino';
 
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
 import {
   HyperlaneCore,
+  LocalAccountEvmSigner,
   MultiProtocolProvider,
   type MultiProvider,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
@@ -57,17 +59,17 @@ import { MockExternalBridge } from './MockExternalBridge.js';
 
 function encodeWarpRouteMessageBody(
   recipient: string,
-  amount: BigNumber,
+  amount: bigint,
 ): string {
   const recipientBytes32 = addressToBytes32(recipient);
-  const amountHex = ethers.utils.hexZeroPad(amount.toHexString(), 32);
+  const amountHex = pad(toHex(amount), { size: 32 });
   return recipientBytes32 + amountHex.slice(2);
 }
 
 export interface PendingTransferParams {
   from: TestChain;
   to: TestChain;
-  amount: BigNumber;
+  amount: bigint;
   warpRecipient?: string;
 }
 
@@ -86,12 +88,12 @@ export interface TestRebalancerContext {
 }
 
 type BalancePreset = keyof typeof BALANCE_PRESETS;
-type BalanceConfig = BalancePreset | Record<string, BigNumber>;
+type BalanceConfig = BalancePreset | Record<string, bigint>;
 type ExecutionMode = 'propose' | 'execute';
 type InventorySignerPreset = keyof typeof INVENTORY_SIGNER_PRESETS;
 type InventorySignerBalanceConfig =
   | InventorySignerPreset
-  | Partial<Record<string, BigNumber>>;
+  | Partial<Record<string, bigint>>;
 
 type TestInventoryConfig = {
   inventorySignerKey: string;
@@ -131,7 +133,7 @@ export class TestRebalancerBuilder {
     return this;
   }
 
-  withBalances(preset: BalancePreset | Record<string, BigNumber>): this {
+  withBalances(preset: BalancePreset | Record<string, bigint>): this {
     this.balanceConfig = preset;
     return this;
   }
@@ -264,8 +266,10 @@ export class TestRebalancerBuilder {
       this.multiProvider,
     );
 
-    const deployerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
-    const rebalancerAddresses = [deployerWallet.address];
+    const deployerWallet = new LocalAccountEvmSigner(
+      ensure0x(ANVIL_TEST_PRIVATE_KEY),
+    );
+    const rebalancerAddresses = [await deployerWallet.getAddress()];
 
     const workingMultiProvider = await this.getWorkingMultiProvider();
 
@@ -294,8 +298,8 @@ export class TestRebalancerBuilder {
     if (isErc20InventoryMode) {
       inventoryMultiProvider =
         await this.getInventoryMultiProvider(localProviders);
-      const inventorySignerAddress = new ethers.Wallet(
-        erc20InventoryModeConfig.inventorySignerKey,
+      const inventorySignerAddress = privateKeyToAccount(
+        ensure0x(erc20InventoryModeConfig.inventorySignerKey),
       ).address;
       rebalancerAddresses.push(inventorySignerAddress);
       rebalancerConfig = new RebalancerConfig(
@@ -311,8 +315,8 @@ export class TestRebalancerBuilder {
     } else if (isInventoryMode) {
       inventoryMultiProvider =
         await this.getInventoryMultiProvider(localProviders);
-      const inventorySignerAddress = new ethers.Wallet(
-        inventoryModeConfig.inventorySignerKey,
+      const inventorySignerAddress = privateKeyToAccount(
+        ensure0x(inventoryModeConfig.inventorySignerKey),
       ).address;
       rebalancerAddresses.push(inventorySignerAddress);
       rebalancerConfig = new RebalancerConfig(
@@ -410,15 +414,12 @@ export class TestRebalancerBuilder {
     return Object.keys(this.balanceConfig);
   }
 
-  private getBalances(): Record<string, BigNumber> {
+  private getBalances(): Record<string, bigint> {
     if (typeof this.balanceConfig === 'string') {
       const preset = BALANCE_PRESETS[this.balanceConfig];
       return Object.fromEntries(
-        Object.entries(preset).map(([chain, value]) => [
-          chain,
-          BigNumber.from(value),
-        ]),
-      ) as Record<string, BigNumber>;
+        Object.entries(preset).map(([chain, value]) => [chain, BigInt(value)]),
+      ) as Record<string, bigint>;
     }
     return this.balanceConfig;
   }
@@ -448,7 +449,7 @@ export class TestRebalancerBuilder {
 
         await provider.send('anvil_setBalance', [
           monitoredRouteAddress,
-          ethers.utils.hexValue(balance),
+          toHex(balance),
         ]);
       }
 
@@ -488,10 +489,9 @@ export class TestRebalancerBuilder {
           `setupBalances: missing monitored route address for chain ${chain}`,
         );
 
-        const deployerSigner = new ethers.Wallet(
-          ANVIL_TEST_PRIVATE_KEY,
-          provider,
-        );
+        const deployerSigner = new LocalAccountEvmSigner(
+          ensure0x(ANVIL_TEST_PRIVATE_KEY),
+        ).connect(provider as any);
         const token = ERC20Test__factory.connect(tokenAddress, deployerSigner);
         await token.transfer(monitoredRouteAddress, balance);
       }
@@ -540,11 +540,11 @@ export class TestRebalancerBuilder {
   private getInventorySignerAddress(): string {
     const config = this.inventoryConfig ?? this.erc20InventoryConfig;
     assert(config, 'Expected inventoryConfig or erc20InventoryConfig');
-    return new ethers.Wallet(config.inventorySignerKey).address;
+    return privateKeyToAccount(ensure0x(config.inventorySignerKey)).address;
   }
 
   private async setupInventorySignerBalances(
-    localProviders: Map<string, ethers.providers.JsonRpcProvider>,
+    localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>,
   ): Promise<void> {
     if (
       !this.inventorySignerBalanceConfig ||
@@ -561,16 +561,14 @@ export class TestRebalancerBuilder {
     } else {
       balances = Object.fromEntries(
         Object.entries(this.inventorySignerBalanceConfig)
-          .filter(
-            (entry): entry is [string, BigNumber] => entry[1] !== undefined,
-          )
+          .filter((entry): entry is [string, bigint] => entry[1] !== undefined)
           .map(([chain, val]) => [chain, val.toString()]),
       );
     }
 
     if (this.erc20InventoryConfig) {
-      const signerWallet = new ethers.Wallet(
-        this.erc20InventoryConfig.inventorySignerKey,
+      const signerWallet = new LocalAccountEvmSigner(
+        ensure0x(this.erc20InventoryConfig.inventorySignerKey),
       );
       const deployerKey = ANVIL_TEST_PRIVATE_KEY;
       const tokens = this.erc20InventoryConfig.erc20DeployedAddresses.tokens;
@@ -592,8 +590,11 @@ export class TestRebalancerBuilder {
           `setupInventorySignerBalances: missing token address for chain ${chain}`,
         );
 
-        const connectedSigner = signerWallet.connect(provider);
-        const deployerSigner = new ethers.Wallet(deployerKey, provider);
+        const connectedSigner = signerWallet.connect(provider as any);
+        const deployerSigner = new LocalAccountEvmSigner(
+          ensure0x(deployerKey),
+        ).connect(provider as any);
+        const deployerAddress = await deployerSigner.getAddress();
         const tokenAsSigner = ERC20Test__factory.connect(
           tokenAddress,
           connectedSigner,
@@ -604,20 +605,17 @@ export class TestRebalancerBuilder {
         );
 
         const current = await tokenAsSigner.balanceOf(signerAddress);
-        if (current.gt(0)) {
-          await tokenAsSigner.transfer(deployerSigner.address, current);
+        if (current > 0n) {
+          await tokenAsSigner.transfer(deployerAddress, current);
         }
 
-        if (BigNumber.from(balance).gt(0)) {
-          await tokenAsDeployer.transfer(
-            signerAddress,
-            BigNumber.from(balance),
-          );
+        if (BigInt(balance) > 0n) {
+          await tokenAsDeployer.transfer(signerAddress, BigInt(balance));
         }
       }
 
       this.logger.info(
-        { balances, signer: signerWallet.address },
+        { balances, signer: await signerWallet.getAddress() },
         'ERC20 inventory signer balances configured',
       );
       return;
@@ -636,7 +634,7 @@ export class TestRebalancerBuilder {
 
       await provider.send('anvil_setBalance', [
         signerAddress,
-        ethers.utils.hexValue(BigNumber.from(balance)),
+        toHex(BigInt(balance)),
       ]);
     }
 
@@ -708,7 +706,7 @@ export class TestRebalancerBuilder {
   }
 
   private async getInventoryMultiProvider(
-    localProviders: Map<string, ethers.providers.JsonRpcProvider>,
+    localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>,
   ): Promise<MultiProvider> {
     const inventoryMultiProvider = this.multiProvider.extendChainMetadata({});
     const config = this.inventoryConfig ?? this.erc20InventoryConfig;
@@ -716,7 +714,9 @@ export class TestRebalancerBuilder {
       config,
       'getInventoryMultiProvider requires inventoryConfig or erc20InventoryConfig',
     );
-    const inventoryWallet = new ethers.Wallet(config.inventorySignerKey);
+    const inventoryWallet = new LocalAccountEvmSigner(
+      ensure0x(config.inventorySignerKey),
+    );
 
     for (const chain of TEST_CHAINS) {
       const provider = localProviders.get(chain);
@@ -727,7 +727,7 @@ export class TestRebalancerBuilder {
       }
       inventoryMultiProvider.setSigner(
         chain,
-        inventoryWallet.connect(provider),
+        inventoryWallet.connect(provider as any),
       );
     }
 
@@ -746,11 +746,11 @@ export class TestRebalancerBuilder {
     const ctx = this.deploymentManager.getContext();
     const rebalancerMultiProvider = this.multiProvider.extendChainMetadata({});
 
-    const wallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
+    const wallet = new LocalAccountEvmSigner(ensure0x(ANVIL_TEST_PRIVATE_KEY));
     for (const chain of TEST_CHAINS) {
       const provider = ctx.providers.get(chain);
       if (provider) {
-        rebalancerMultiProvider.setSigner(chain, wallet.connect(provider));
+        rebalancerMultiProvider.setSigner(chain, wallet.connect(provider as any));
       }
     }
 

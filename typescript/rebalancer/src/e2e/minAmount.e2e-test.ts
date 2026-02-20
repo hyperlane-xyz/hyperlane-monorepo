@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { BigNumber, providers } from 'ethers';
 
 import {
   HyperlaneCore,
@@ -20,8 +19,10 @@ import {
   TEST_CHAINS,
 } from './fixtures/routes.js';
 import { getAllCollateralBalances } from './harness/BridgeSetup.js';
-import { type LocalDeploymentContext } from './harness/BaseLocalDeploymentManager.js';
-import { Erc20LocalDeploymentManager } from './harness/Erc20LocalDeploymentManager.js';
+import {
+  type LocalDeploymentContext,
+  LocalDeploymentManager,
+} from './harness/LocalDeploymentManager.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import { tryRelayMessage } from './harness/TransferHelper.js';
@@ -29,18 +30,17 @@ import { tryRelayMessage } from './harness/TransferHelper.js';
 describe('MinAmountStrategy E2E', function () {
   this.timeout(300_000);
 
-  let deploymentManager: Erc20LocalDeploymentManager;
+  let deploymentManager: LocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
   let deployedAddresses: DeployedAddresses;
   let minAmountStrategyConfig: StrategyConfig[];
 
   before(async function () {
-    deploymentManager = new Erc20LocalDeploymentManager();
-    const ctx: LocalDeploymentContext<DeployedAddresses> =
-      await deploymentManager.start();
+    deploymentManager = new LocalDeploymentManager();
+    const ctx: LocalDeploymentContext = await deploymentManager.start();
     multiProvider = ctx.multiProvider;
     localProviders = ctx.providers;
     deployedAddresses = ctx.deployedAddresses;
@@ -196,10 +196,10 @@ describe('MinAmountStrategy E2E', function () {
     );
 
     // Assert: ethereum balance decreased by 70 USDC
-    const expectedDecrease = BigNumber.from(70000000);
-    expect(
-      initialCollateralBalances.anvil1.sub(expectedDecrease).toString(),
-    ).to.equal(balancesAfterRebalance.anvil1.toString());
+    const expectedDecrease = 70000000n;
+    expect(initialCollateralBalances.anvil1 - expectedDecrease).to.equal(
+      balancesAfterRebalance.anvil1,
+    );
 
     // Relay the rebalance message to destination
     const ethProvider = localProviders.get('anvil1')!;
@@ -290,9 +290,7 @@ describe('MinAmountStrategy E2E', function () {
 
     if (newActionsToArb.length > 0) {
       // If route was proposed, should be much smaller than original ~70 USDC
-      const proposedAmount = BigNumber.from(
-        newActionsToArb[0].amount,
-      ).toBigInt();
+      const proposedAmount = BigInt(newActionsToArb[0].amount);
       expect(
         proposedAmount < 50000000n,
         `Amount to arb (${proposedAmount}) should be reduced accounting for inflight`,
