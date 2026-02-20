@@ -1,6 +1,10 @@
 import { compareVersions } from 'compare-versions';
-import { Contract } from 'zksync-ethers';
-import { zeroAddress } from 'viem';
+import {
+  decodeFunctionResult,
+  encodeFunctionData,
+  parseAbi,
+  zeroAddress,
+} from 'viem';
 
 import {
   EverclearTokenBridge,
@@ -630,11 +634,28 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     warpRouteAddress: Address,
   ): Promise<XERC20TokenMetadata> {
     // fetch the limits if possible
-    const rateLimitsABI = [
+    const rateLimitsABI = parseAbi([
       'function rateLimitPerSecond(address) external view returns (uint128)',
       'function bufferCap(address) external view returns (uint112)',
-    ];
-    const xERC20 = new Contract(xERC20Address, rateLimitsABI, this.provider);
+    ]);
+
+    const readXerc20Limit = async (
+      functionName: 'rateLimitPerSecond' | 'bufferCap',
+    ): Promise<bigint> => {
+      const result = await this.provider.call({
+        to: xERC20Address,
+        data: encodeFunctionData({
+          abi: rateLimitsABI,
+          functionName,
+          args: [warpRouteAddress],
+        }),
+      });
+      return decodeFunctionResult({
+        abi: rateLimitsABI,
+        functionName,
+        data: result,
+      }) as bigint;
+    };
 
     try {
       const extraBridgesLimits = await getExtraLockBoxConfigs({
@@ -650,9 +671,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           warpRouteLimits: {
             type: XERC20Type.Velo,
             rateLimitPerSecond: (
-              await xERC20.rateLimitPerSecond(warpRouteAddress)
+              await readXerc20Limit('rateLimitPerSecond')
             ).toString(),
-            bufferCap: (await xERC20.bufferCap(warpRouteAddress)).toString(),
+            bufferCap: (await readXerc20Limit('bufferCap')).toString(),
           },
           extraBridges:
             extraBridgesLimits.length > 0 ? extraBridgesLimits : undefined,

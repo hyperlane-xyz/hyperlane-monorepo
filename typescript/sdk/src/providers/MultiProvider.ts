@@ -1,11 +1,4 @@
 import { Logger } from 'pino';
-import {
-  Contract,
-  ContractFactory,
-  ContractFactory as ZKSyncContractFactory,
-  Provider as ZKSyncProvider,
-  Wallet as ZKSyncWallet,
-} from 'zksync-ethers';
 
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
@@ -33,7 +26,7 @@ import {
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = ZKSyncProvider;
+type Provider = ReturnType<typeof defaultProviderBuilder>;
 type EvmSigner = {
   provider?: Provider;
   connect(provider: Provider): EvmSigner;
@@ -49,6 +42,17 @@ type ContractReceipt = Awaited<ReturnType<ContractTransaction['wait']>>;
 type PopulatedTransaction = Record<string, unknown>;
 type TransactionOverrides = Record<string, unknown>;
 type GasAmount = Awaited<ReturnType<Provider['estimateGas']>>;
+type DeployableContract = {
+  address: string;
+  deployTransaction: ContractTransaction;
+} & Record<string, unknown>;
+type DeployableFactory = {
+  connect(signer: EvmSigner): {
+    getDeployTransaction(...params: unknown[]): unknown;
+    deploy(...params: unknown[]): Promise<DeployableContract>;
+  };
+  deploy(...params: unknown[]): Promise<DeployableContract>;
+};
 
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
@@ -131,13 +135,20 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (this.providers[name]) return this.providers[name];
 
     if (testChains.includes(name)) {
+      const rpcUrls = [
+        {
+          http:
+            technicalStack === ChainTechnicalStack.ZkSync
+              ? 'http://127.0.0.1:8011'
+              : 'http://127.0.0.1:8545',
+        },
+      ];
+      const chainId =
+        technicalStack === ChainTechnicalStack.ZkSync ? 260 : 31337;
       if (technicalStack === ChainTechnicalStack.ZkSync) {
-        this.providers[name] = new ZKSyncProvider('http://127.0.0.1:8011', 260);
+        this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
       } else {
-        this.providers[name] = new ZKSyncProvider(
-          'http://127.0.0.1:8545',
-          31337,
-        );
+        this.providers[name] = this.providerBuilder(rpcUrls, chainId);
       }
     } else if (rpcUrls.length) {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
@@ -356,9 +367,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Wait for deploy tx to be confirmed
    * @throws if chain's metadata or signer has not been set or tx fails
    */
-  async handleDeploy<
-    F extends ZKSyncContractFactory | ContractFactory<any[], Contract>,
-  >(
+  async handleDeploy<F extends DeployableFactory>(
     chainNameOrId: ChainNameOrId,
     factory: F,
     params: Parameters<F['deploy']>,
@@ -369,7 +378,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const metadata = this.getChainMetadata(chainNameOrId);
     const { technicalStack } = metadata;
 
-    let contract: Contract;
+    let contract: DeployableContract;
     let estimatedGas: GasAmount;
 
     // estimate gas for deploy
@@ -377,12 +386,12 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
 
-      const deployer = new ZKSyncDeployer(signer as ZKSyncWallet);
+      const deployer = new ZKSyncDeployer(signer);
       estimatedGas = await deployer.estimateDeployGas(artifact, params);
-      contract = await deployer.deploy(artifact, params, {
+      contract = (await deployer.deploy(artifact, params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
-      });
+      })) as DeployableContract;
       // no need to `handleTx` for zkSync as the zksync deployer itself
       // will wait for the deploy tx to be confirmed before returning
     } else {

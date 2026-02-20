@@ -22,11 +22,6 @@ import type {
   Transaction as VTransaction,
   TransactionReceipt as VTransactionReceipt,
 } from 'viem';
-import {
-  Contract as ZKSyncBaseContract,
-  Provider as ZKSyncBaseProvider,
-  types as zkSyncTypes,
-} from 'zksync-ethers';
 
 import {
   AleoProvider as AleoSDKProvider,
@@ -56,6 +51,10 @@ type EvmTransactionReceiptLike = {
   transactionHash?: string;
   logs?: unknown[];
 } & Record<string, unknown>;
+type ZkSyncProviderLike = EvmProviderLike;
+type ZkSyncContractLike = EvmContractLike;
+type ZkSyncTransactionLike = EvmTransactionLike;
+type ZkSyncTransactionReceiptLike = EvmTransactionReceiptLike;
 
 export enum ProviderType {
   Evm = 'evm',
@@ -233,9 +232,9 @@ export interface AleoProvider extends TypedProviderBase<AleoSDKProvider> {
   provider: AleoSDKProvider;
 }
 
-export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
+export interface ZKSyncProvider extends TypedProviderBase<ZkSyncProviderLike> {
   type: ProviderType.ZkSync;
-  provider: ZKSyncBaseProvider;
+  provider: ZkSyncProviderLike;
 }
 
 export type TypedProvider =
@@ -292,9 +291,9 @@ export interface StarknetJsContract extends TypedContractBase<StarknetContract> 
   contract: StarknetContract;
 }
 
-export interface ZKSyncContract extends TypedContractBase<ZKSyncBaseContract> {
+export interface ZKSyncContract extends TypedContractBase<ZkSyncContractLike> {
   type: ProviderType.ZkSync;
-  contract: ZKSyncBaseContract;
+  contract: ZkSyncContractLike;
 }
 
 export type TypedContract =
@@ -305,7 +304,7 @@ export type TypedContract =
   | CosmJsContract
   | CosmJsWasmContract
   | StarknetJsContract
-  | ZKSyncBaseContract;
+  | ZKSyncContract;
 
 /**
  * Transactions with discriminated union of provider type
@@ -361,9 +360,9 @@ export interface AleoTransaction extends TypedTransactionBase<AleoSDKTransaction
   transaction: AleoSDKTransaction;
 }
 
-export interface ZKSyncTransaction extends TypedTransactionBase<zkSyncTypes.TransactionRequest> {
+export interface ZKSyncTransaction extends TypedTransactionBase<ZkSyncTransactionLike> {
   type: ProviderType.ZkSync;
-  transaction: zkSyncTypes.TransactionRequest;
+  transaction: ZkSyncTransactionLike;
 }
 
 export type TypedTransaction =
@@ -393,8 +392,7 @@ export type AnnotatedCosmJsNativeTransaction = Annotated<CmTransaction>;
 
 export type AnnotatedStarknetJsTransaction = Annotated<StarknetInvocation>;
 
-export type AnnotatedZKSyncTransaction =
-  Annotated<zkSyncTypes.TransactionRequest>;
+export type AnnotatedZKSyncTransaction = Annotated<ZkSyncTransactionLike>;
 
 export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
@@ -453,9 +451,9 @@ export interface StarknetJsTransactionReceipt extends TypedTransactionReceiptBas
   receipt: StarknetTxReceipt;
 }
 
-export interface ZKSyncTransactionReceipt extends TypedTransactionReceiptBase<zkSyncTypes.TransactionReceipt> {
+export interface ZKSyncTransactionReceipt extends TypedTransactionReceiptBase<ZkSyncTransactionReceiptLike> {
   type: ProviderType.ZkSync;
-  receipt: zkSyncTypes.TransactionReceipt;
+  receipt: ZkSyncTransactionReceiptLike;
 }
 
 export interface RadixTransactionReceipt extends TypedTransactionReceiptBase<RadixSDKReceipt> {

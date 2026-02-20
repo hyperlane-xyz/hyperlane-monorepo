@@ -3,7 +3,6 @@ import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
 import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
-import { Provider as ZKProvider } from 'zksync-ethers';
 
 import { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk';
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
@@ -149,10 +148,15 @@ export function defaultStarknetJsProviderBuilder(
 export function defaultZKSyncProviderBuilder(
   rpcUrls: RpcUrl[],
   network: number | string,
+  retryOverride?: ProviderRetryOptions,
 ): ZKSyncProvider {
   assert(rpcUrls.length, 'No RPC URLs provided');
-  const url = rpcUrls[0].http;
-  const provider = new ZKProvider(url, network);
+  const provider = new HyperlaneSmartProvider(
+    network,
+    rpcUrls,
+    undefined,
+    retryOverride || DEFAULT_RETRY_OPTIONS,
+  );
   return { type: ProviderType.ZkSync, provider };
 }
 
@@ -191,8 +195,10 @@ export function defaultProviderBuilder(
 export function defaultZKProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
-): ZKProvider {
-  return defaultZKSyncProviderBuilder(rpcUrls, _network).provider;
+  retryOverride?: ProviderRetryOptions,
+): HyperlaneSmartProvider {
+  return defaultZKSyncProviderBuilder(rpcUrls, _network, retryOverride)
+    .provider;
 }
 
 export type ProviderBuilderMap = Record<
