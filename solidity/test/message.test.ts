@@ -45,13 +45,21 @@ describe("Message", async () => {
             body,
         );
 
-        expect(await messageLib.version(message)).to.equal(version);
-        expect(await messageLib.nonce(message)).to.equal(nonce);
-        expect(await messageLib.origin(message)).to.equal(remoteDomain);
+        expect(BigInt((await messageLib.version(message)).toString())).to.equal(
+            BigInt(version),
+        );
+        expect(BigInt((await messageLib.nonce(message)).toString())).to.equal(
+            BigInt(nonce),
+        );
+        expect(BigInt((await messageLib.origin(message)).toString())).to.equal(
+            BigInt(remoteDomain),
+        );
         expect(await messageLib.sender(message)).to.equal(
             addressToBytes32(sender.address),
         );
-        expect(await messageLib.destination(message)).to.equal(localDomain);
+        expect(
+            BigInt((await messageLib.destination(message)).toString()),
+        ).to.equal(BigInt(localDomain));
         expect(await messageLib.recipient(message)).to.equal(
             addressToBytes32(recipient.address),
         );
@@ -78,11 +86,15 @@ describe("Message", async () => {
                 hexBody,
             );
 
-            expect(await messageLib.origin(hyperlaneMessage)).to.equal(origin);
+            expect(
+                BigInt((await messageLib.origin(hyperlaneMessage)).toString()),
+            ).to.equal(BigInt(origin));
             expect(await messageLib.sender(hyperlaneMessage)).to.equal(sender);
-            expect(await messageLib.destination(hyperlaneMessage)).to.equal(
-                destination,
-            );
+            expect(
+                BigInt(
+                    (await messageLib.destination(hyperlaneMessage)).toString(),
+                ),
+            ).to.equal(BigInt(destination));
             expect(await messageLib.recipient(hyperlaneMessage)).to.equal(
                 recipient,
             );
