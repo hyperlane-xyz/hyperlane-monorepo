@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { zeroAddress } from 'viem';
-import { Provider, type Signer, Wallet } from 'zksync-ethers';
 
 import {
   InterchainAccountRouter__factory,
@@ -14,6 +13,8 @@ import {
   type ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
   type DerivedCoreConfig,
+  HyperlaneSmartProvider,
+  LocalAccountEvmSigner,
   type SubmissionStrategy,
   TokenType,
   TxSubmitterType,
@@ -24,6 +25,7 @@ import {
   type Domain,
   ProtocolType,
   assert,
+  ensure0x,
 } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../../utils/files.js';
@@ -58,8 +60,8 @@ describe('hyperlane warp apply with submitters', async function () {
     coreConfigPath: DEFAULT_EVM_WARP_CORE_PATH,
   });
 
-  let chain2Signer: Signer;
-  let chain3Signer: Signer;
+  let chain2Signer: ReturnType<LocalAccountEvmSigner['connect']>;
+  let chain3Signer: ReturnType<LocalAccountEvmSigner['connect']>;
   let chain3Addresses: ChainAddresses = {};
   let chain2Addresses: ChainAddresses = {};
   let initialOwnerAddress: Address;
@@ -150,11 +152,19 @@ describe('hyperlane warp apply with submitters', async function () {
     const chain3Metadata =
       TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
 
-    const chain2Provider = new Provider(chain2Metadata.rpcUrl);
-    const chain3Provider = new Provider(chain3Metadata.rpcUrl);
+    const chain2Provider = HyperlaneSmartProvider.fromRpcUrl(
+      chain2Metadata.chainId,
+      chain2Metadata.rpcUrl,
+    );
+    const chain3Provider = HyperlaneSmartProvider.fromRpcUrl(
+      chain3Metadata.chainId,
+      chain3Metadata.rpcUrl,
+    );
     chain2DomainId = chain2Metadata.domainId;
     chain3DomainId = chain3Metadata.domainId;
-    const wallet = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum);
+    const wallet = new LocalAccountEvmSigner(
+      ensure0x(HYP_KEY_BY_PROTOCOL.ethereum),
+    );
     chain2Signer = wallet.connect(chain2Provider);
 
     chain3Signer = wallet.connect(chain3Provider);

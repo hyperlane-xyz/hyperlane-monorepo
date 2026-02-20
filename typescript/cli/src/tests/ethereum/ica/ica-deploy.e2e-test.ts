@@ -1,18 +1,20 @@
 import { expect } from 'chai';
 import { parseEther, zeroAddress, zeroHash } from 'viem';
-import { Provider, Wallet } from 'zksync-ethers';
 
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type AccountConfig,
   type ChainMetadata,
+  HyperlaneSmartProvider,
   InterchainAccount,
+  LocalAccountEvmSigner,
   isContractAddress,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
   addressToBytes32,
+  ensure0x,
   eqAddress,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
@@ -43,9 +45,9 @@ describe('hyperlane ica deploy e2e tests', async function () {
   let chain4Addresses: ChainAddresses;
 
   let ownerAddress: Address;
-  let walletChain2: Wallet;
-  let walletChain3: Wallet;
-  let walletChain4: Wallet;
+  let walletChain2: ReturnType<LocalAccountEvmSigner['connect']>;
+  let walletChain3: ReturnType<LocalAccountEvmSigner['connect']>;
+  let walletChain4: ReturnType<LocalAccountEvmSigner['connect']>;
 
   let chain2DomainId: number;
   let chain3DomainId: number;
@@ -67,13 +69,28 @@ describe('hyperlane ica deploy e2e tests', async function () {
     chain3DomainId = chain3Metadata.domainId!;
     chain4DomainId = chain4Metadata.domainId!;
 
-    const providerChain2 = new Provider(chain2Metadata.rpcUrls[0].http);
-    const providerChain3 = new Provider(chain3Metadata.rpcUrls[0].http);
-    const providerChain4 = new Provider(chain4Metadata.rpcUrls[0].http);
+    const providerChain2 = HyperlaneSmartProvider.fromRpcUrl(
+      chain2Metadata.chainId,
+      chain2Metadata.rpcUrls[0].http,
+    );
+    const providerChain3 = HyperlaneSmartProvider.fromRpcUrl(
+      chain3Metadata.chainId,
+      chain3Metadata.rpcUrls[0].http,
+    );
+    const providerChain4 = HyperlaneSmartProvider.fromRpcUrl(
+      chain4Metadata.chainId,
+      chain4Metadata.rpcUrls[0].http,
+    );
 
-    walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
-    walletChain3 = new Wallet(ANVIL_KEY).connect(providerChain3);
-    walletChain4 = new Wallet(ANVIL_KEY).connect(providerChain4);
+    walletChain2 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      providerChain2,
+    );
+    walletChain3 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      providerChain3,
+    );
+    walletChain4 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      providerChain4,
+    );
     ownerAddress = walletChain2.address;
 
     // Enroll ICA routers with each other so they can communicate

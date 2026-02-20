@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { zeroHash } from 'viem';
-import { Provider, Wallet } from 'zksync-ethers';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import {
   type ERC20Test,
@@ -13,7 +13,9 @@ import {
 import {
   type AccountConfig,
   type ChainMetadata,
+  HyperlaneSmartProvider,
   InterchainAccount,
+  LocalAccountEvmSigner,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
@@ -21,6 +23,7 @@ import {
 import {
   type Address,
   addressToBytes32,
+  ensure0x,
   normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
 
@@ -73,15 +76,25 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     );
 
     // ICA setup
-    icaOwnerAddress = new Wallet(ANVIL_KEY).address;
+    icaOwnerAddress = privateKeyToAccount(ensure0x(ANVIL_KEY)).address;
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-    const providerChain2 = new Provider(chain2Metadata.rpcUrls[0].http);
-    const providerChain3 = new Provider(chain3Metadata.rpcUrls[0].http);
+    const providerChain2 = HyperlaneSmartProvider.fromRpcUrl(
+      chain2Metadata.chainId,
+      chain2Metadata.rpcUrls[0].http,
+    );
+    const providerChain3 = HyperlaneSmartProvider.fromRpcUrl(
+      chain3Metadata.chainId,
+      chain3Metadata.rpcUrls[0].http,
+    );
 
-    const walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
-    const walletChain3 = new Wallet(ANVIL_KEY).connect(providerChain3);
+    const walletChain2 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      providerChain2,
+    );
+    const walletChain3 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      providerChain3,
+    );
 
     const { registry, multiProvider } = await getContext({
       registryUris: [REGISTRY_PATH],
