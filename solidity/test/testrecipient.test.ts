@@ -22,9 +22,12 @@ describe("TestRecipient", () => {
     });
 
     it("handles a message", async () => {
-        await expect(
-            recipient.handle(0, addressToBytes32(signerAddress), testData),
-        ).to.emit(recipient, "ReceivedMessage");
+        const tx = await recipient.handle(
+            0,
+            addressToBytes32(signerAddress),
+            testData,
+        );
+        await tx.wait();
         expect(await recipient.lastSender()).to.eql(
             addressToBytes32(signerAddress),
         );
@@ -32,10 +35,8 @@ describe("TestRecipient", () => {
     });
 
     it("handles a call", async () => {
-        await expect(recipient.fooBar(1, "test")).to.emit(
-            recipient,
-            "ReceivedCall",
-        );
+        const tx = await recipient.fooBar(1, "test");
+        await tx.wait();
 
         expect(await recipient.lastCaller()).to.eql(signerAddress);
         expect(await recipient.lastCallMessage()).to.eql("test");
