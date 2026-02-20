@@ -2600,10 +2600,10 @@ async fn test_transfer_remote_with_wrong_fee_beneficiary_ata() {
     let result = banks_client.process_transaction(transaction).await;
 
     // With sentinel-based fee beneficiary detection, a wrong ATA means the
-    // sentinel is never found and accounts are exhausted → MissingAccount.
+    // sentinel is never found and accounts are exhausted → NotEnoughAccountKeys.
     assert_transaction_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::MissingAccount),
+        TransactionError::InstructionError(0, InstructionError::NotEnoughAccountKeys),
     );
 }
 

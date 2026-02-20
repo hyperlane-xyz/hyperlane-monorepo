@@ -11,6 +11,15 @@ The system has two components:
 
 The fee is additive: the sender pays `amount + fee`. The message encodes `amount` only — the remote chain never sees the fee.
 
+## Fee-on-Top Semantics
+
+The fee is additive ("fee-on-top"): the sender pays `amount + fee(amount)`. The cross-chain message encodes the full transfer `amount` — the fee is never subtracted from it and never crosses chains. This means:
+
+- The recipient receives exactly `amount` (modulo decimal conversions).
+- The fee beneficiary receives `fee(amount)` on the source chain in the same transaction.
+- SDK/CLI integrators must ensure the sender has sufficient balance for `amount + fee(amount)`. A `QuoteFee` CPI (or off-chain simulation) should be used to determine the total required.
+- Setting fee to 0 (via `max_fee=0`, `half_amount=0`, or no route for the domain) makes the transfer behave identically to a fee-less warp route.
+
 ## Design Goals
 
 1. **Fee program changes require zero warp route config or program changes.** The warp route stores only `(fee_program, fee_account)` in its `FeeConfig`. Adding new fee types, changing routing structures, or adjusting parameters is entirely within the fee program's domain.
@@ -29,7 +38,7 @@ All fee types share two parameters: `max_fee` (ceiling) and `half_amount` (the t
 | **Progressive** | `max_fee * amount² / (half_amount² + amount²)` | S-curve — small transfers nearly free, large ones approach `max_fee` |
 | **Routing** | Per-domain lookup → delegate to leaf fee data | Domain-specific fee curves |
 
-Edge cases: `half_amount == 0` or `max_fee == 0` → fee is 0. The Progressive formula handles potential `u128` overflow via a complement-based fallback (`fee = max_fee - max_fee * half_sq / denominator`).
+Edge cases: `half_amount == 0` or `max_fee == 0` → fee is 0. The Progressive formula handles potential `u128` overflow via a complement path (`fee = max_fee - max_fee * half_sq / denominator`). If both products overflow (extreme parameters), it returns `IntegerOverflow`.
 
 These are the same fee curves as the EVM implementation in `solidity/contracts/token/fees/`.
 
@@ -43,9 +52,7 @@ PDA seeds: [b"hyperlane_fee", b"-", b"fee", b"-", salt]
 
 ```rust
 struct FeeAccount {
-    bump: u8,
-    owner: Option<Pubkey>,    // None = immutable
-    beneficiary: Pubkey,      // wallet that receives collected fees
+    header: FeeAccountHeader, // bump, owner, beneficiary
     fee_data: FeeData,        // Linear | Regressive | Progressive | Routing
 }
 ```
@@ -54,7 +61,9 @@ The `salt` is a user-provided `H256`, enabling multiple fee accounts per program
 
 ### FeeAccountHeader
 
-A partial-deserialization struct that reads only `(bump, owner, beneficiary)` from the fee account's raw bytes. The warp route uses this to discover the beneficiary without knowing or deserializing the `FeeData` variant. This is the primary decoupling mechanism: the warp route program never imports `FeeData` and doesn't need to understand fee types.
+`FeeAccountHeader` holds the `(bump, owner, beneficiary)` fields and is embedded as `FeeAccount.header`. Borsh serializes nested structs field-by-field, so the on-chain byte layout is identical to a flat struct.
+
+The warp route uses `AccountData<FeeAccountHeader>::fetch` to partially deserialize only the header from the fee account's raw bytes, discovering the beneficiary without knowing or deserializing the `FeeData` variant. This works because Borsh reads only the bytes needed for the type and ignores trailing data. This is the primary decoupling mechanism: the warp route program never imports `FeeData` and doesn't need to understand fee types.
 
 The header layout `(bump, owner, beneficiary)` is a stable prefix. New fields added after `fee_data` in `FeeAccount` will not break header reads.
 

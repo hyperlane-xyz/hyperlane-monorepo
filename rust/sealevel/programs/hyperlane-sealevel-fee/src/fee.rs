@@ -64,21 +64,12 @@ pub fn compute_fee(fee_data: &FeeData, amount: u64) -> Result<u64, ProgramError>
                     // max_fee * half_sq could also overflow, so use checked_mul again.
                     let complement = match (*max_fee as u128).checked_mul(half_sq) {
                         Some(num) => try_u128_to_u64(num / denominator)?,
-                        // Both overflow: amount and half_amount are both huge,
-                        // ratio ≈ 0.5, so fee ≈ max_fee / 2.
-                        // Fall back to: amount_sq / denominator ≈ ratio, compute with scaling.
+                        // Both max_fee*amount_sq and max_fee*half_sq overflow u128.
+                        // This requires extreme parameters (e.g. max_fee=u64::MAX
+                        // and both amount,half_amount >= 2^33). Reject rather than
+                        // approximate.
                         None => {
-                            // Scale down: divide both squares by a common factor.
-                            // ratio = amount_sq / (half_sq + amount_sq)
-                            // Use the fact that amount_sq / denominator < 1:
-                            // Multiply max_fee by (amount_sq >> 64) / (denominator >> 64)
-                            let shift_amt = (amount_sq >> 64) as u64;
-                            let shift_den = (denominator >> 64) as u64;
-                            if shift_den == 0 {
-                                *max_fee
-                            } else {
-                                (*max_fee as u128 * shift_amt as u128 / shift_den as u128) as u64
-                            }
+                            return Err(ProgramError::from(Error::IntegerOverflow));
                         }
                     };
                     max_fee.saturating_sub(complement)
@@ -314,6 +305,17 @@ mod tests {
             half_amount: 5000,
         };
         assert_eq!(compute_fee(&fee_data, 5000).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_progressive_double_overflow_returns_error() {
+        // Both max_fee*amount_sq and max_fee*half_sq overflow u128.
+        // half_sq + amount_sq fits in u128 but both numerator products don't.
+        let fee_data = FeeData::Progressive {
+            max_fee: u64::MAX,
+            half_amount: 1u64 << 33,
+        };
+        assert!(compute_fee(&fee_data, 1u64 << 33).is_err());
     }
 
     #[test]

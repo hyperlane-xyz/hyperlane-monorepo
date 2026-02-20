@@ -99,8 +99,8 @@ async fn test_init_linear_fee() {
     .unwrap();
 
     let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
-    assert_eq!(fee_account.owner, Some(payer.pubkey()));
-    assert_eq!(fee_account.beneficiary, payer.pubkey());
+    assert_eq!(fee_account.header.owner, Some(payer.pubkey()));
+    assert_eq!(fee_account.header.beneficiary, payer.pubkey());
     assert_eq!(fee_account.fee_data, fee_data);
 }
 
@@ -195,7 +195,7 @@ async fn test_init_errors_if_called_twice() {
     .await;
     assert_transaction_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::Custom(8)), // AlreadyInitialized
+        TransactionError::InstructionError(0, InstructionError::Custom(6)), // AlreadyInitialized
     );
 }
 
@@ -313,7 +313,7 @@ async fn test_set_route_errors_if_not_routing_type() {
     let result = process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer]).await;
     assert_transaction_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::Custom(2)), // NotRoutingFee
+        TransactionError::InstructionError(0, InstructionError::Custom(0)), // NotRoutingFee
     );
 }
 
@@ -509,7 +509,7 @@ async fn test_transfer_ownership() {
         .unwrap();
 
     let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
-    assert_eq!(fee_account.owner, Some(new_owner));
+    assert_eq!(fee_account.header.owner, Some(new_owner));
 }
 
 #[tokio::test]
@@ -537,7 +537,7 @@ async fn test_transfer_ownership_to_none() {
         .unwrap();
 
     let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
-    assert_eq!(fee_account.owner, None);
+    assert_eq!(fee_account.header.owner, None);
 }
 
 #[tokio::test]
@@ -1131,7 +1131,7 @@ async fn test_remove_route_errors_if_not_routing_type() {
     let result = process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer]).await;
     assert_transaction_error(
         result,
-        TransactionError::InstructionError(0, InstructionError::Custom(2)), // NotRoutingFee
+        TransactionError::InstructionError(0, InstructionError::Custom(0)), // NotRoutingFee
     );
 }
 
@@ -1376,7 +1376,7 @@ async fn test_quote_routing_fee_wrong_route_pda() {
         .await
         .unwrap();
 
-    // Should fail with InvalidRouteDomainPda (Custom(7))
+    // Should fail with InvalidRouteDomainPda (Custom(5))
     let result = simulation.result.unwrap();
     assert!(result.is_err());
 }
@@ -1404,7 +1404,7 @@ async fn test_set_beneficiary() {
 
     // Verify initial beneficiary
     let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
-    assert_eq!(fee_account.beneficiary, payer.pubkey());
+    assert_eq!(fee_account.header.beneficiary, payer.pubkey());
 
     // Set new beneficiary
     let new_beneficiary = Pubkey::new_unique();
@@ -1416,7 +1416,7 @@ async fn test_set_beneficiary() {
 
     // Verify updated beneficiary
     let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
-    assert_eq!(fee_account.beneficiary, new_beneficiary);
+    assert_eq!(fee_account.header.beneficiary, new_beneficiary);
 }
 
 #[tokio::test]

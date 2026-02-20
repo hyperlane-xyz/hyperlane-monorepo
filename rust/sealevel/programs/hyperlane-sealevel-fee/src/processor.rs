@@ -13,7 +13,9 @@ use solana_program::{
 use solana_system_interface::program as system_program;
 
 use crate::{
-    accounts::{FeeAccount, FeeAccountData, FeeData, RouteDomain, RouteDomainData},
+    accounts::{
+        FeeAccount, FeeAccountData, FeeAccountHeader, FeeData, RouteDomain, RouteDomainData,
+    },
     error::Error,
     fee::compute_fee,
     fee_pda_seeds, fee_route_pda_seeds,
@@ -67,7 +69,7 @@ fn verify_fee_account(
         return Err(ProgramError::IncorrectProgramId);
     }
     // Bump is stored in the account data; PDA derivation was verified at init time.
-    let _ = fee_account.bump;
+    let _ = fee_account.header.bump;
     Ok(())
 }
 
@@ -102,9 +104,11 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], init: InitFee
     }
 
     let fee_account = FeeAccount {
-        bump,
-        owner: Some(*payer.key),
-        beneficiary: init.beneficiary,
+        header: FeeAccountHeader {
+            bump,
+            owner: Some(*payer.key),
+            beneficiary: init.beneficiary,
+        },
         fee_data: init.fee_data,
     };
     let fee_account_data = FeeAccountData::from(fee_account);
@@ -317,7 +321,7 @@ fn process_set_beneficiary(
     let owner_info = next_account_info(accounts_iter)?;
     fee_account.ensure_owner_signer(owner_info)?;
 
-    fee_account.beneficiary = new_beneficiary;
+    fee_account.header.beneficiary = new_beneficiary;
 
     FeeAccountData::from(fee_account).store(fee_account_info, false)?;
 
@@ -409,11 +413,11 @@ fn process_quote_fee(
 
 impl AccessControl for FeeAccount {
     fn owner(&self) -> Option<&Pubkey> {
-        self.owner.as_ref()
+        self.header.owner.as_ref()
     }
 
     fn set_owner(&mut self, new_owner: Option<Pubkey>) -> Result<(), ProgramError> {
-        self.owner = new_owner;
+        self.header.owner = new_owner;
         Ok(())
     }
 }

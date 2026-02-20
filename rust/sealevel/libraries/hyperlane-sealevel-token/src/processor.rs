@@ -447,7 +447,10 @@ where
         // by the remote routers as the number of decimals used by the message amount.
         let remote_amount = token.local_amount_to_remote_amount(local_amount)?;
 
-        // Transfer `local_amount` of tokens in, plus `fee_amount` to fee beneficiary...
+        // Fee-on-top: the sender pays `local_amount + fee_amount`. The message
+        // carries only `remote_amount` (derived from `local_amount`); the fee
+        // never crosses chains. The plugin burns/locks `local_amount` and
+        // transfers `fee_amount` directly to the fee beneficiary.
         T::transfer_in(
             program_id,
             &*token,
@@ -985,10 +988,11 @@ where
             return Err(Error::FeeAccountMismatch.into());
         }
 
-        // Read the beneficiary from the fee account header.
-        let fee_header = hyperlane_sealevel_fee::accounts::FeeAccountHeader::from_account_data(
-            &fee_account_info.data.borrow(),
-        )?;
+        // Read the beneficiary from the fee account header (trailing fee_data bytes ignored).
+        let fee_header = hyperlane_sealevel_fee::accounts::FeeAccountHeaderData::fetch(
+            &mut &fee_account_info.data.borrow()[..],
+        )?
+        .into_inner();
 
         // Accounts F+2..F+1+N: Additional fee accounts, terminated by fee beneficiary sentinel.
         // Loop until we find the account whose key matches the expected fee beneficiary key.
