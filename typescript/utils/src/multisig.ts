@@ -1,5 +1,5 @@
 import { BigNumber } from 'bignumber.js';
-import { utils } from 'ethers';
+import { Hex, concat, encodePacked, hexToBytes, toHex } from 'viem';
 
 import { addressToBytes32 } from './addresses.js';
 import { ParsedLegacyMultisigIsmMetadata } from './types.js';
@@ -15,24 +15,24 @@ export const parseLegacyMultisigIsmMetadata = (
   const SIGNATURES_OFFSET = 1093;
   const SIGNATURE_LENGTH = 65;
 
-  const buf = Buffer.from(utils.arrayify(metadata));
-  const checkpointRoot = utils.hexlify(
+  const buf = Buffer.from(hexToBytes(metadata as Hex));
+  const checkpointRoot = toHex(
     buf.slice(MERKLE_ROOT_OFFSET, MERKLE_INDEX_OFFSET),
   );
   const checkpointIndex = BigNumber(
-    utils.hexlify(buf.slice(MERKLE_INDEX_OFFSET, ORIGIN_MAILBOX_OFFSET)),
+    toHex(buf.slice(MERKLE_INDEX_OFFSET, ORIGIN_MAILBOX_OFFSET)),
   ).toNumber();
-  const originMailbox = utils.hexlify(
+  const originMailbox = toHex(
     buf.slice(ORIGIN_MAILBOX_OFFSET, MERKLE_PROOF_OFFSET),
   );
   const parseBytesArray = (start: number, count: number, size: number) => {
     return [...Array(count).keys()].map((i) =>
-      utils.hexlify(buf.slice(start + size * i, start + size * (i + 1))),
+      toHex(buf.slice(start + size * i, start + size * (i + 1))),
     );
   };
   const proof = parseBytesArray(MERKLE_PROOF_OFFSET, 32, 32);
   const threshold = BigNumber(
-    utils.hexlify(buf.slice(THRESHOLD_OFFSET, SIGNATURES_OFFSET)),
+    toHex(buf.slice(THRESHOLD_OFFSET, SIGNATURES_OFFSET)),
   ).toNumber();
   const signatures = parseBytesArray(
     SIGNATURES_OFFSET,
@@ -55,24 +55,16 @@ export const parseLegacyMultisigIsmMetadata = (
 export const formatLegacyMultisigIsmMetadata = (
   metadata: ParsedLegacyMultisigIsmMetadata,
 ): string => {
-  return utils.solidityPack(
+  return encodePacked(
+    ['bytes32', 'uint32', 'bytes32', 'bytes32[32]', 'uint8', 'bytes', 'address[]'] as any,
     [
-      'bytes32',
-      'uint32',
-      'bytes32',
-      'bytes32[32]',
-      'uint8',
-      'bytes',
-      'address[]',
-    ],
-    [
-      metadata.checkpointRoot,
+      metadata.checkpointRoot as Hex,
       metadata.checkpointIndex,
-      addressToBytes32(metadata.originMailbox),
-      metadata.proof,
+      addressToBytes32(metadata.originMailbox) as Hex,
+      metadata.proof as readonly Hex[],
       metadata.signatures.length,
-      utils.hexConcat(metadata.signatures),
-      metadata.validators,
-    ],
+      concat(metadata.signatures as readonly Hex[]),
+      metadata.validators as readonly `0x${string}`[],
+    ] as any,
   );
 };

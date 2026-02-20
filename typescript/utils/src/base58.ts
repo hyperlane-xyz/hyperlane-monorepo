@@ -1,11 +1,12 @@
-import { utils } from 'ethers';
+import bs58 from 'bs58';
+import { bytesToHex } from 'viem';
 
 export function base58ToBuffer(value: string) {
-  return Buffer.from(utils.base58.decode(value));
+  return Buffer.from(bs58.decode(value));
 }
 
 export function bufferToBase58(value: Buffer) {
-  return utils.base58.encode(value);
+  return bs58.encode(value);
 }
 
 // If the value is already hex (checked by 0x prefix), return it as is.
@@ -13,5 +14,5 @@ export function bufferToBase58(value: Buffer) {
 export function hexOrBase58ToHex(value: string) {
   if (value.startsWith('0x')) return value;
 
-  return utils.hexlify(base58ToBuffer(value));
+  return bytesToHex(base58ToBuffer(value));
 }

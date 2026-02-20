@@ -1,4 +1,13 @@
-import { BigNumber, ethers, utils } from 'ethers';
+import {
+  Hex,
+  encodePacked,
+  getAddress,
+  hexToBytes,
+  isHex,
+  keccak256,
+  toHex,
+  zeroAddress,
+} from 'viem';
 
 import { addressToBytes32 } from './addresses.js';
 import { fromHexString, toHexString } from './strings.js';
@@ -6,6 +15,7 @@ import {
   Address,
   Domain,
   HexString,
+  Numberish,
   ParsedMessage,
   ParsedWarpRouteMessage,
 } from './types.js';
@@ -15,8 +25,8 @@ import {
  * @returns Hex string of the packed message
  */
 export const formatMessage = (
-  version: number | BigNumber,
-  nonce: number | BigNumber,
+  version: Numberish,
+  nonce: Numberish,
   originDomain: Domain,
   senderAddr: Address,
   destinationDomain: Domain,
@@ -26,16 +36,16 @@ export const formatMessage = (
   senderAddr = addressToBytes32(senderAddr);
   recipientAddr = addressToBytes32(recipientAddr);
 
-  return ethers.utils.solidityPack(
+  return encodePacked(
     ['uint8', 'uint32', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
     [
-      version,
-      nonce,
+      Number(version),
+      Number(nonce),
       originDomain,
-      senderAddr,
+      senderAddr as Hex,
       destinationDomain,
-      recipientAddr,
-      body,
+      recipientAddr as Hex,
+      body as Hex,
     ],
   );
 };
@@ -46,7 +56,7 @@ export const formatMessage = (
  * @returns Hex string of message id
  */
 export function messageId(message: HexString): HexString {
-  return ethers.utils.solidityKeccak256(['bytes'], [message]);
+  return keccak256(message as Hex);
 }
 
 /**
@@ -64,14 +74,15 @@ export function parseMessage(message: string): ParsedMessage {
   const RECIPIENT_OFFSET = 45;
   const BODY_OFFSET = 77;
 
-  const buf = Buffer.from(utils.arrayify(message));
+  if (!isHex(message)) throw new Error('Message must be hex');
+  const buf = Buffer.from(hexToBytes(message));
   const version = buf.readUint8(VERSION_OFFSET);
   const nonce = buf.readUInt32BE(NONCE_OFFSET);
   const origin = buf.readUInt32BE(ORIGIN_OFFSET);
-  const sender = utils.hexlify(buf.subarray(SENDER_OFFSET, DESTINATION_OFFSET));
+  const sender = toHex(buf.subarray(SENDER_OFFSET, DESTINATION_OFFSET));
   const destination = buf.readUInt32BE(DESTINATION_OFFSET);
-  const recipient = utils.hexlify(buf.subarray(RECIPIENT_OFFSET, BODY_OFFSET));
-  const body = utils.hexlify(buf.subarray(BODY_OFFSET));
+  const recipient = toHex(buf.subarray(RECIPIENT_OFFSET, BODY_OFFSET));
+  const body = toHex(buf.subarray(BODY_OFFSET));
   return { version, nonce, origin, sender, destination, recipient, body };
 }
 
@@ -107,13 +118,13 @@ export type StandardHookMetadataParams = {
  * @returns Hex string of the packed hook metadata
  */
 export function formatStandardHookMetadata({
-  refundAddress = ethers.constants.AddressZero,
+  refundAddress = zeroAddress,
   msgValue = 0n,
   gasLimit = DEFAULT_GAS_LIMIT,
 }: StandardHookMetadataParams): HexString {
-  return ethers.utils.solidityPack(
+  return encodePacked(
     ['uint16', 'uint256', 'uint256', 'address'],
-    [1, msgValue, gasLimit, refundAddress],
+    [1, msgValue, gasLimit, refundAddress as Hex],
   );
 }
 
@@ -147,8 +158,8 @@ export function parseStandardHookMetadata(
     const gasLimit = BigInt(
       '0x' + metadata.slice(GAS_LIMIT_START, REFUND_START),
     );
-    const refundAddress = ethers.utils.getAddress(
-      '0x' + metadata.slice(REFUND_START, REFUND_END),
+    const refundAddress = getAddress(
+      ('0x' + metadata.slice(REFUND_START, REFUND_END)) as Hex,
     );
     return { msgValue, gasLimit, refundAddress };
   } catch {
@@ -166,6 +177,6 @@ export function hasValidRefundAddress(metadata?: HexString): boolean {
   const refundAddress = extractRefundAddressFromMetadata(metadata);
   return (
     refundAddress !== null &&
-    refundAddress.toLowerCase() !== ethers.constants.AddressZero
+    refundAddress.toLowerCase() !== zeroAddress
   );
 }

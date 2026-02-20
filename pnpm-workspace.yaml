@@ -28,6 +28,7 @@ catalog:
 
   # Utilities
   bignumber.js: ^9.1.1
+  bs58: ^6.0.0
   yaml: 2.4.5
   lodash-es: ^4.17.21
   borsh: ^0.7.0

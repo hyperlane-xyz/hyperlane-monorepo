@@ -1,6 +1,5 @@
 import { BigNumber } from 'bignumber.js';
 import { expect } from 'chai';
-import { FixedNumber } from 'ethers';
 
 import {
   BigNumberMax,
@@ -59,24 +58,24 @@ describe('isZeroish', () => {
 });
 
 describe('bigToFixed', () => {
-  it('converts a BigNumber to a FixedNumber', () => {
+  it('converts a BigNumber to a fixed-point BigNumber', () => {
     const big = BigNumber('7.5e-10');
     const fixed = bigToFixed(big);
 
-    expect(fixed.toUnsafeFloat()).to.equal(7.5e-10);
+    expect(fixed.toNumber()).to.equal(7.5e-10);
   });
 });
 
 describe('fixedToBig', () => {
-  it('converts a FixedNumber to a floored BigNumber', () => {
-    const fixed = FixedNumber.from('12.34');
+  it('converts a fixed-point value to a floored BigNumber', () => {
+    const fixed = BigNumber('12.34');
     const big = fixedToBig(fixed);
 
     expect(big.toNumber()).to.equal(12);
   });
 
-  it('converts a FixedNumber to a ceilinged BigNumber', () => {
-    const fixed = FixedNumber.from('12.34');
+  it('converts a fixed-point value to a ceilinged BigNumber', () => {
+    const fixed = BigNumber('12.34');
     const big = fixedToBig(fixed, true);
 
     expect(big.toNumber()).to.equal(13);
@@ -84,17 +83,17 @@ describe('fixedToBig', () => {
 });
 
 describe('mulBigAndFixed', () => {
-  it('gets the floored product of a BigNumber and FixedNumber', () => {
+  it('gets the floored product of a BigNumber and fixed-point value', () => {
     const big = BigNumber('1000');
-    const fixed = FixedNumber.from('1.2345');
+    const fixed = BigNumber('1.2345');
     const product = mulBigAndFixed(big, fixed);
 
     expect(product).to.equal((1234).toString());
   });
 
-  it('gets the ceilinged product of a BigNumber and FixedNumber', () => {
+  it('gets the ceilinged product of a BigNumber and fixed-point value', () => {
     const big = BigNumber('1000');
-    const fixed = FixedNumber.from('1.2345');
+    const fixed = BigNumber('1.2345');
     const product = mulBigAndFixed(big, fixed, true);
 
     expect(product).to.equal((1235).toString());
