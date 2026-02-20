@@ -17,12 +17,12 @@ use crate::utils::{
 
 pub const SOLANA_AGENT_BIN_PATH: &str = "target/debug";
 
-/// Solana CLI version for compiling programs
-pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "1.14.20";
-pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/solana-labs/solana";
+/// Agave CLI version for compiling programs (v3.x supports Rust 2024 edition)
+pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "3.0.14";
+pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
 
 /// Solana version used by mainnet validators
-pub const SOLANA_NETWORK_CLI_VERSION: &str = "2.0.24";
+pub const SOLANA_NETWORK_CLI_VERSION: &str = "3.0.14";
 pub const SOLANA_NETWORK_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
 
 const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
@@ -71,6 +71,19 @@ const SOLANA_ENVS_DIR: &str = "environments";
 const SOLANA_ENV_NAME: &str = "local-e2e";
 
 const SBF_OUT_PATH: &str = "target/dist";
+
+const OLD_CORE_PROGRAMS_RELEASE_URL: &str =
+    "https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/download/sealevel-v1.0.0";
+
+const OLD_PROGRAM_FILES: &[&str] = &[
+    "hyperlane_sealevel_mailbox.so",
+    "hyperlane_sealevel_validator_announce.so",
+    "hyperlane_sealevel_multisig_ism_message_id.so",
+    "hyperlane_sealevel_igp.so",
+    "hyperlane_sealevel_token.so",
+    "hyperlane_sealevel_token_native.so",
+    "hyperlane_sealevel_token_collateral.so",
+];
 
 // Domain IDs for sealevel test chains
 const SEALEVELTEST1_DOMAIN_ID: &str = "13375";
@@ -209,6 +222,29 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     out_path
 }
 
+/// Download old program .so files from the sealevel-v1.0.0 release.
+/// Returns (path_to_dir, TempDir) — caller must hold TempDir to prevent cleanup.
+#[apply(as_task)]
+pub fn download_old_programs() -> (PathBuf, tempfile::TempDir) {
+    let dir = tempdir().expect("Failed to create temp dir for old programs");
+    let dir_path = dir.path().to_path_buf();
+    log!("Downloading old programs from sealevel-v1.0.0 release");
+    for file in OLD_PROGRAM_FILES {
+        let url = format!("{OLD_CORE_PROGRAMS_RELEASE_URL}/{file}");
+        Program::new("curl")
+            .arg("output", *file)
+            .flag("location")
+            .flag("silent")
+            .flag("fail")
+            .cmd(&url)
+            .working_dir(&dir_path)
+            .run()
+            .join();
+    }
+    log!("Old programs downloaded successfully");
+    (dir_path, dir)
+}
+
 /// Result from starting the solana test validator
 pub struct SolanaTestValidatorResult {
     pub config_path: PathBuf,
@@ -222,6 +258,7 @@ pub fn start_solana_test_validator(
     solana_cli_tools_path: PathBuf,
     solana_programs_path: PathBuf,
     ledger_dir: PathBuf,
+    old_core_programs_path: PathBuf,
 ) -> SolanaTestValidatorResult {
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
@@ -280,33 +317,37 @@ pub fn start_solana_test_validator(
     log!("Deploying the hyperlane programs to solana");
 
     let sealevel_client = sealevel_client(&solana_cli_tools_path, &solana_config_path);
-    let sealevel_client_deploy_core = sealevel_client
+    let sealevel_client_deploy_core_base = sealevel_client
         .clone()
         .arg("compute-budget", "200000")
         .cmd("core")
         .cmd("deploy")
         .arg("environment", SOLANA_ENV_NAME)
-        .arg("environments-dir", solana_env_dir_str.clone())
-        .arg("built-so-dir", build_so_dir_str.clone());
+        .arg("environments-dir", solana_env_dir_str.clone());
 
-    // Deploy sealeveltest1 core
-    sealevel_client_deploy_core
+    let old_core_dir_str = old_core_programs_path.to_string_lossy();
+
+    // Deploy sealeveltest1 core with NEW programs (origin chain)
+    sealevel_client_deploy_core_base
         .clone()
+        .arg("built-so-dir", build_so_dir_str.clone())
         .arg("local-domain", SEALEVELTEST1_DOMAIN_ID)
         .arg("chain", "sealeveltest1")
         .run()
         .join();
 
-    // Deploy sealeveltest2 core
-    sealevel_client_deploy_core
+    // Deploy sealeveltest2 core with OLD programs (backward compat test)
+    sealevel_client_deploy_core_base
         .clone()
+        .arg("built-so-dir", old_core_dir_str.clone())
         .arg("local-domain", SEALEVELTEST2_DOMAIN_ID)
         .arg("chain", "sealeveltest2")
         .run()
         .join();
 
-    // Deploy sealeveltest3 core (NO ALT - will use legacy transactions)
-    sealevel_client_deploy_core
+    // Deploy sealeveltest3 core with NEW programs (NO ALT - will use legacy transactions)
+    sealevel_client_deploy_core_base
+        .arg("built-so-dir", build_so_dir_str.clone())
         .arg("local-domain", SEALEVELTEST3_DOMAIN_ID)
         .arg("chain", "sealeveltest3")
         .run()
@@ -353,6 +394,11 @@ pub fn start_solana_test_validator(
         .arg("environment", SOLANA_ENV_NAME)
         .arg("environments-dir", solana_env_dir_str.clone())
         .arg("built-so-dir", build_so_dir_str.clone())
+        .arg("old-built-so-dir", old_core_dir_str.clone())
+        .arg(
+            "chains-using-old-programs",
+            "sealeveltest1,sealeveltest3",
+        )
         .arg("warp-route-name", "testwarproute")
         .arg(
             "token-config-file",
@@ -385,6 +431,17 @@ pub fn start_solana_test_validator(
         .arg("validators", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
         .arg("threshold", "1")
         .arg("program-id", SEALEVELTEST3_MULTISIG_ISM_PROGRAM_ID)
+        .run()
+        .join();
+
+    // Set sealeveltest2's default ISM to sealeveltest3's NEW multisig ISM
+    // This tests old mailbox + new ISM backward compatibility
+    sealevel_client
+        .clone()
+        .cmd("mailbox")
+        .cmd("set-default-ism")
+        .arg("program-id", SEALEVELTEST2_MAILBOX_PROGRAM_ID)
+        .arg("default-ism", SEALEVELTEST3_MULTISIG_ISM_PROGRAM_ID)
         .run()
         .join();
 

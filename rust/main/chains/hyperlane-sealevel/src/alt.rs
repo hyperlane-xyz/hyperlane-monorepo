@@ -15,8 +15,8 @@
 //! indefinitely.
 
 use hyperlane_core::{ChainCommunicationError, ChainResult};
-use solana_address_lookup_table_program::state::AddressLookupTable;
-use solana_program::address_lookup_table_account::AddressLookupTableAccount;
+use solana_address_lookup_table_interface::state::AddressLookupTable;
+use solana_sdk::message::AddressLookupTableAccount;
 use solana_sdk::pubkey::Pubkey;
 
 use crate::rpc::fallback::SealevelFallbackRpcClient;

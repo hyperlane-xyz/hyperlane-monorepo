@@ -1,18 +1,20 @@
 use hyperlane_core::{utils::hex_or_base58_or_bech32_to_h256, H256};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::File,
     path::{Path, PathBuf},
 };
 
 use solana_client::rpc_client::RpcClient;
-use solana_program::instruction::Instruction;
-use solana_sdk::{
-    account_utils::StateMut,
-    bpf_loader_upgradeable::{self, UpgradeableLoaderState},
-    pubkey::Pubkey,
+use solana_loader_v3_interface::{
+    instruction::set_upgrade_authority, state::UpgradeableLoaderState,
 };
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+
+/// Well-known BPF Loader Upgradeable program ID.
+const BPF_LOADER_UPGRADEABLE_ID: Pubkey =
+    solana_sdk::pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
 
 use account_utils::DiscriminatorData;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -288,6 +290,8 @@ pub(crate) fn deploy_routers<
     environments_dir_path: PathBuf,
     environment: &str,
     built_so_dir_path: PathBuf,
+    old_built_so_dir_path: Option<PathBuf>,
+    chains_using_old_programs: HashSet<String>,
 ) {
     // Load the app configs from the app config file.
     let app_config_file = File::open(app_config_file_path).unwrap();
@@ -353,13 +357,21 @@ pub(crate) fn deploy_routers<
 
         adjust_gas_price_if_needed(chain_name.as_str(), ctx);
 
+        let so_dir = if chains_using_old_programs.contains(chain_name.as_str()) {
+            old_built_so_dir_path
+                .as_deref()
+                .unwrap_or(&built_so_dir_path)
+        } else {
+            &built_so_dir_path
+        };
+
         // Deploy - this is idempotent.
         let program_id = deployer.deploy(
             ctx,
             &keys_dir,
             &environments_dir_path,
             environment,
-            &built_so_dir_path,
+            so_dir,
             chain_metadata,
             app_config,
             existing_program_ids.as_ref(),
@@ -578,7 +590,7 @@ fn configure_upgrade_authority(
             let tx_result = ctx
                 .new_txn()
                 .add_with_description(
-                    bpf_loader_upgradeable::set_upgrade_authority(
+                    set_upgrade_authority(
                         program_id,
                         &actual_upgrade_authority,
                         expected_upgrade_authority.as_ref(),
@@ -627,31 +639,33 @@ fn get_program_upgrade_authority(
 ) -> Result<Option<Pubkey>, &'static str> {
     let program_account = client.get_account(program_id).unwrap();
     // If the program isn't upgradeable, exit
-    if program_account.owner != bpf_loader_upgradeable::id() {
+    if program_account.owner != BPF_LOADER_UPGRADEABLE_ID {
         return Err("Program is not upgradeable");
     }
 
     // The program id must actually be a program
-    let programdata_address = if let Ok(UpgradeableLoaderState::Program {
-        programdata_address,
-    }) = program_account.state()
-    {
-        programdata_address
-    } else {
-        return Err("Unable to deserialize program account");
+    // Note: UpgradeableLoaderState uses solana_pubkey::Pubkey which we convert to solana_sdk::pubkey::Pubkey
+    let programdata_address: UpgradeableLoaderState =
+        bincode::deserialize(&program_account.data)
+            .map_err(|_| "Unable to deserialize program account")?;
+    let programdata_address = match programdata_address {
+        UpgradeableLoaderState::Program {
+            programdata_address,
+        } => Pubkey::new_from_array(programdata_address.to_bytes()),
+        _ => return Err("Unable to deserialize program account"),
     };
 
     let program_data_account = client.get_account(&programdata_address).unwrap();
 
     // If the program data account somehow isn't deserializable, exit
-    let actual_upgrade_authority = if let Ok(UpgradeableLoaderState::ProgramData {
-        upgrade_authority_address,
-        slot: _,
-    }) = program_data_account.state()
-    {
-        upgrade_authority_address
-    } else {
-        return Err("Unable to deserialize program data account");
+    let program_data: UpgradeableLoaderState = bincode::deserialize(&program_data_account.data)
+        .map_err(|_| "Unable to deserialize program data account")?;
+    let actual_upgrade_authority = match program_data {
+        UpgradeableLoaderState::ProgramData {
+            upgrade_authority_address,
+            slot: _,
+        } => upgrade_authority_address.map(|p| Pubkey::new_from_array(p.to_bytes())),
+        _ => return Err("Unable to deserialize program data account"),
     };
 
     Ok(actual_upgrade_authority)

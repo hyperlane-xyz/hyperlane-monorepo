@@ -180,7 +180,7 @@ fn run_locally() {
     // Ready to run...
     //
 
-    let (solana_programs_path, hyperlane_solana_programs_path) = {
+    let (solana_programs_path, hyperlane_solana_programs_path, old_core_programs_path) = {
         let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
         let solana_bin_path = install_solana_cli_tools(
             SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
@@ -190,8 +190,15 @@ fn run_locally() {
         .join();
         state.data.push(Box::new(solana_path_tempdir));
 
+        // Build new programs and download old programs in parallel
         let solana_program_builder = build_solana_programs(solana_bin_path.clone());
-        (solana_bin_path, solana_program_builder.join())
+        let old_downloader = download_old_programs();
+
+        let new_programs_path = solana_program_builder.join();
+        let (old_core_path, old_tempdir) = old_downloader.join();
+        state.data.push(Box::new(old_tempdir));
+
+        (solana_bin_path, new_programs_path, old_core_path)
     };
 
     // this task takes a long time in the CI so run it in parallel
@@ -245,6 +252,7 @@ fn run_locally() {
             solana_bin_path.clone(),
             hyperlane_solana_programs_path.clone(),
             solana_ledger_dir.as_ref().to_path_buf(),
+            old_core_programs_path.clone(),
         );
 
         let result = start_solana_validator.join();
