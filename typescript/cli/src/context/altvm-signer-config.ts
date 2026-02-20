@@ -1,7 +1,8 @@
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
 import type { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
 const JSON_RPC_SUBMITTER_TYPE = 'jsonRpc';
-const STARKNET_PROTOCOL = 'starknet';
 
 export function resolveStarknetAccountAddress(
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
@@ -28,10 +29,10 @@ export function resolveStarknetAccountAddress(
 
 export function resolveAltVmAccountAddress(
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
-  protocol: string,
+  protocol: ProtocolType,
   chain: string,
 ): string | undefined {
-  if (protocol === STARKNET_PROTOCOL) {
+  if (protocol === ProtocolType.Starknet) {
     return resolveStarknetAccountAddress(strategyConfig, chain);
   }
   return undefined;
