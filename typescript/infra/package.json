@@ -91,7 +91,6 @@
     "devDependencies": {
         "@hyperlane-xyz/tsconfig": "workspace:^",
         "@nomiclabs/hardhat-ethers": "catalog:",
-        "@nomiclabs/hardhat-waffle": "catalog:",
         "@sqds/multisig": "2.1.4",
         "@types/bs58": "^5.0.0",
         "@types/chai": "catalog:",
@@ -107,7 +106,6 @@
         "chai": "catalog:",
         "chai-as-promised": "catalog:",
         "cli-table3": "0.6.5",
-        "ethereum-waffle": "catalog:",
         "hardhat": "catalog:",
         "mocha": "catalog:",
         "sinon": "catalog:",
