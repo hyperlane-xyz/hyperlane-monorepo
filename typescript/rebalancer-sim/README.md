@@ -163,7 +163,22 @@ Creates JSON files in `scenarios/` with various traffic patterns.
 pnpm test
 ```
 
-Tests automatically detect if Anvil is available. If not installed, integration tests are skipped.
+Integration tests start Anvil with this order:
+
+1. **Docker/testcontainers** (`ghcr.io/foundry-rs/foundry`)
+2. **Local `anvil` binary** fallback (dynamic local port)
+
+So tests run if **either** docker runtime **or** local `anvil` is available.
+
+Runtime-unavailable detection is hardened for common daemon/connectivity failures
+across Linux/macOS (`docker.sock`) and Windows named pipes (`docker_engine`,
+`dockerDesktopEngine`, `dockerDesktopLinuxEngine`, including URL-encoded
+forward/backslash pipe signatures), including Podman socket failures and
+nested/wrapped error payloads from container tooling.
+Unknown Windows pipe engine names are intentionally ignored to avoid
+false-positive fallback activation.
+Nested error traversal is intentionally bounded for safety; very deep or
+unbounded wrapper payloads beyond traversal caps are treated as non-matches.
 
 ### 3. Select Rebalancers
 
@@ -195,11 +210,15 @@ cat results/extreme-drain-chain1.json
 open results/extreme-drain-chain1-HyperlaneRebalancer.html
 ```
 
-**Note:** If Anvil is not installed, integration tests will be skipped. Install Foundry with:
+**Note:** If docker is unavailable, install Foundry to provide local `anvil`:
 
 ```bash
 curl -L https://foundry.paradigm.xyz | bash && foundryup
 ```
+
+If both Docker and local `anvil` are unavailable, tests fail fast with a clear
+message explaining that `anvil` was not found in `PATH` and suggesting
+`foundryup`.
 
 ## Visualization
 

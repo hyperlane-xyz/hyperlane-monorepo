@@ -17,7 +17,7 @@
     "bundle": "rm -rf ./bundle && ncc build ./dist/server.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "start": "tsx src/server.ts",
     "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/server.ts",
-    "test": "jest",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "lint": "eslint -c ./eslint.config.mjs",
     "format": "oxfmt --write ./src ./tests"
   },
@@ -50,6 +50,7 @@
     "@jest/globals": "^29.7.0",
     "@types/cors": "^2",
     "@types/express": "^4.17.1",
+    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "^8.16.0",
     "@types/pino-http": "^5.8.4",

@@ -52,6 +52,7 @@ export const typescriptRules = ts.config({
     '@typescript-eslint/no-unsafe-enum-comparison': 'off', // Recommended rule, but we have many violations
     '@typescript-eslint/no-unsafe-member-access': 'off', // Recommended rule, but we have many violations
     '@typescript-eslint/no-unsafe-return': 'off', // Recommended rule, but we have many violations
+    '@typescript-eslint/only-throw-error': 'off', // False positives with TS6 beta support gap
     '@typescript-eslint/no-unused-expressions': 'off',
     '@typescript-eslint/no-unused-vars': [
       'error',

@@ -10,7 +10,7 @@
     "clean": "turbo run clean",
     "format": "turbo run format",
     "format:check": "oxfmt --check . && prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol'",
-    "lint": "oxlint -c oxlint.json && turbo run lint",
+    "lint": "oxlint -c oxlint.json && (turbo run lint || (ec=$?; if [ \"$ec\" -eq 137 ]; then echo \"Retrying lint serially due to resource limits\"; turbo run lint --concurrency=1; else exit \"$ec\"; fi))",
     "lint:catalog": "tsx scripts/lint-catalog-usage.ts",
     "test": "turbo run test --continue",
     "test:ci": "turbo run test:ci",

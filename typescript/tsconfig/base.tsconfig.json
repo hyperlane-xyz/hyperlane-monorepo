@@ -37,7 +37,8 @@
     "declaration": true,
     "declarationMap": true,
     "noEmitOnError": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "types": ["node", "mocha"]
   },
   "ts-node": {
     "experimentalResolver": true,

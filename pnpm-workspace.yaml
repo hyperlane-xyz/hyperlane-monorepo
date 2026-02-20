@@ -92,7 +92,7 @@ catalog:
   # === Development dependencies ===
 
   # Build tools
-  typescript: 5.8.3
+  typescript: 6.0.0-beta
   tsx: ^4.19.1
   ts-node: ^10.9.2
   '@vercel/ncc': ^0.38.3

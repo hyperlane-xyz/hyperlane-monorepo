@@ -83,6 +83,7 @@
     "@storybook/react-vite": "^7.6.14",
     "@storybook/test": "^7.6.14",
     "@tanstack/react-query": "^5.59.20",
+    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "^18.0.27",
     "@types/react-dom": "^18.0.10",
