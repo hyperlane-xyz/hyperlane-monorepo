@@ -1,6 +1,7 @@
 import { Logger } from 'pino';
 
 import {
+  Address,
   EvmChainId,
   ProtocolType,
   assert,
@@ -26,7 +27,12 @@ import {
   getDomainId,
 } from './chainMetadataTypes.js';
 
+export type ChainAddressesMap = ChainMap<
+  Record<string, Address> & { batchContractAddress?: Address }
+>;
+
 export interface ChainMetadataManagerOptions {
+  chainAddresses?: ChainAddressesMap;
   logger?: Logger;
 }
 
@@ -36,9 +42,12 @@ export interface ChainMetadataManagerOptions {
  * for interacting with the data
  */
 export class ChainMetadataManager<MetaExt = {}> {
+  public readonly chainAddresses: ChainAddressesMap;
   public readonly metadata: ChainMap<ChainMetadata<MetaExt>> = {};
   public readonly logger: Logger;
   static readonly DEFAULT_MAX_BLOCK_RANGE = 1000;
+  static readonly DEFAULT_EVM_BATCH_CONTRACT_ADDRESS: Address =
+    '0xcA11bde05977b3631167028862bE2a173976CA11';
 
   /**
    * Create a new ChainMetadataManager with the given chainMetadata,
@@ -48,6 +57,7 @@ export class ChainMetadataManager<MetaExt = {}> {
     chainMetadata: ChainMap<ChainMetadata<MetaExt>>,
     options: ChainMetadataManagerOptions = {},
   ) {
+    this.chainAddresses = options.chainAddresses ?? {};
     Object.entries(chainMetadata).forEach(([key, cm]) => {
       if (key !== cm.name)
         throw new Error(
@@ -289,6 +299,55 @@ export class ChainMetadataManager<MetaExt = {}> {
   }
 
   /**
+   * Get a chain batch contract address for a given chain name or domain id.
+   * Returns null for unknown chains or if no batch contract is configured.
+   */
+  tryGetBatchContractAddress(chainNameOrId: ChainNameOrId): Address | null {
+    const chainName = this.tryGetChainName(chainNameOrId);
+    if (!chainName) return null;
+    return this.chainAddresses[chainName]?.batchContractAddress ?? null;
+  }
+
+  /**
+   * Get a chain batch contract address for a given chain name or domain id.
+   * @throws if chain metadata has not been set or no batch contract is configured
+   */
+  getBatchContractAddress(chainNameOrId: ChainNameOrId): Address {
+    const batchContractAddress = this.tryGetBatchContractAddress(chainNameOrId);
+    if (!batchContractAddress) {
+      throw new Error(`No batch contract configured for ${chainNameOrId}`);
+    }
+    return batchContractAddress;
+  }
+
+  /**
+   * Get an EVM batch contract address for a given chain name or domain id.
+   * Returns null for unknown chains or non-EVM chains.
+   * Falls back to the canonical Multicall3 address when not explicitly set.
+   */
+  tryGetEvmBatchContractAddress(chainNameOrId: ChainNameOrId): Address | null {
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
+    if (!metadata || metadata.protocol !== ProtocolType.Ethereum) return null;
+    return (
+      this.tryGetBatchContractAddress(chainNameOrId) ??
+      ChainMetadataManager.DEFAULT_EVM_BATCH_CONTRACT_ADDRESS
+    );
+  }
+
+  /**
+   * Get an EVM batch contract address for a given chain name or domain id.
+   * @throws if chain metadata has not been set or chain is not EVM
+   */
+  getEvmBatchContractAddress(chainNameOrId: ChainNameOrId): Address {
+    const batchContractAddress =
+      this.tryGetEvmBatchContractAddress(chainNameOrId);
+    if (!batchContractAddress) {
+      throw new Error(`No EVM batch contract configured for ${chainNameOrId}`);
+    }
+    return batchContractAddress;
+  }
+
+  /**
    * Get an RPC concurrency level for a given chain name or domain id
    */
   tryGetRpcConcurrency(chainNameOrId: ChainNameOrId, index = 0): number | null {
@@ -486,7 +545,10 @@ export class ChainMetadataManager<MetaExt = {}> {
     for (const [name, meta] of Object.entries(this.metadata)) {
       newMetadata[name] = { ...meta, ...additionalMetadata[name] };
     }
-    return new ChainMetadataManager(newMetadata);
+    return new ChainMetadataManager(newMetadata, {
+      chainAddresses: this.chainAddresses,
+      logger: this.logger,
+    });
   }
 
   /**
@@ -516,7 +578,10 @@ export class ChainMetadataManager<MetaExt = {}> {
     }
 
     const intersectionMetadata = pick(this.metadata, intersection);
-    const result = new ChainMetadataManager(intersectionMetadata);
+    const result = new ChainMetadataManager(intersectionMetadata, {
+      chainAddresses: pick(this.chainAddresses, intersection),
+      logger: this.logger,
+    });
 
     return { intersection, result };
   }

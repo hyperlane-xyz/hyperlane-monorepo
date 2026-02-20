@@ -12,6 +12,7 @@ import {
 
 import { multiProtocolTestChainMetadata } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import type { ChainAddressesMap } from '../metadata/ChainMetadataManager.js';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import type { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
@@ -42,6 +43,7 @@ import {
 } from './transactionFeeEstimators.js';
 
 export interface MultiProtocolProviderOptions {
+  chainAddresses?: ChainAddressesMap;
   logger?: Logger;
   providers?: ChainMap<ProviderMap<TypedProvider>>;
   providerBuilders?: Partial<ProviderBuilderMap>;
@@ -98,7 +100,10 @@ export class MultiProtocolProvider<
   }
 
   toMultiProvider(options?: MultiProviderOptions): MultiProvider<MetaExt> {
-    const newMp = new MultiProvider<MetaExt>(this.metadata, options);
+    const newMp = new MultiProvider<MetaExt>(this.metadata, {
+      chainAddresses: this.options.chainAddresses,
+      ...options,
+    });
 
     const providers = objMap(
       this.providers,
