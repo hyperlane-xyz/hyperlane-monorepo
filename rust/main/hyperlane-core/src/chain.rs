@@ -370,6 +370,8 @@ pub enum HyperlaneDomainProtocol {
     Radix,
     /// Aleo chain
     Aleo,
+    /// A Sovereign-based chain type which uses hyperlane-sovereign.
+    Sovereign,
     /// Tron chain
     Tron,
 }
@@ -695,7 +697,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         match protocol {
-            Ethereum | Cosmos | CosmosNative | Starknet | Tron => IndexMode::Block,
+            Ethereum | Cosmos | CosmosNative | Starknet | Sovereign | Tron => IndexMode::Block,
             Fuel | Sealevel | Radix | Aleo => IndexMode::Sequence,
         }
     }
@@ -866,6 +868,7 @@ mod tests {
             ("cosmosnative", HyperlaneDomainProtocol::CosmosNative) => {}
             ("ethereum", HyperlaneDomainProtocol::Ethereum) => {}
             ("sealevel", HyperlaneDomainProtocol::Sealevel) => {}
+            ("sovereign", HyperlaneDomainProtocol::Sovereign) => {}
             ("starknet", HyperlaneDomainProtocol::Starknet) => {}
             _ => {
                 panic!(

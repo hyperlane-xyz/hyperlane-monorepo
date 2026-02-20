@@ -297,6 +297,7 @@ fn parse_chain(
             | HyperlaneDomainProtocol::Aleo
             | HyperlaneDomainProtocol::Radix
             | HyperlaneDomainProtocol::Sealevel
+            | HyperlaneDomainProtocol::Sovereign
             | HyperlaneDomainProtocol::Tron => SubmitterType::Lander,
             _ => Default::default(),
         },
@@ -470,6 +471,39 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 suffix: suffix.to_owned(),
             })
         }};
+        (sovereignKey) => {{
+            let key = signer
+                .chain(&mut err)
+                .get_key("key")
+                .parse_private_key()
+                .unwrap_or_default();
+            let account_type = signer
+                .chain(&mut err)
+                .get_key("accountType")
+                .parse_string()
+                .unwrap_or("ethereum");
+            let parsed_hrp = signer
+                .chain(&mut err)
+                .get_opt_key("hrp")
+                .parse_string()
+                .unwrap_or_default();
+            let hrp = if parsed_hrp.is_empty() {
+                None
+            } else {
+                Some(parsed_hrp.to_owned())
+            };
+            if account_type == "sovereign" && hrp.is_none() {
+                err.push(
+                    (&signer.cwp).add("hrp"),
+                    eyre!("HRP must be supplied for 'sovereign' accountType"),
+                );
+            }
+            err.into_result(SignerConf::SovereignKey {
+                key,
+                account_type: account_type.to_string(),
+                hrp,
+            })
+        }};
     }
 
     match signer_type {
@@ -478,6 +512,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
         Some("cosmosKey") => parse_signer!(cosmosKey),
         Some("starkKey") => parse_signer!(starkKey),
         Some("radixKey") => parse_signer!(radixKey),
+        Some("sovereignKey") => parse_signer!(sovereignKey),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| (&signer.cwp).add("type"))
         }
