@@ -1,4 +1,4 @@
-import { Wallet } from 'ethers';
+import { Wallet } from 'zksync-ethers';
 
 import { chainAddresses } from '@hyperlane-xyz/registry';
 import {
