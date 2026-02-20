@@ -39,15 +39,12 @@
     "@openzeppelin/contracts-upgradeable": "catalog:",
     "@solana/web3.js": "catalog:",
     "borsh": "catalog:",
-    "ethers": "catalog:",
     "viem": "catalog:",
     "zksync-ethers": "catalog:"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
     "@ethereum-waffle/chai": "^4.0.10",
-    "@ethersproject/abi": "*",
-    "@ethersproject/providers": "*",
     "@nomiclabs/hardhat-ethers": "catalog:",
     "@nomiclabs/hardhat-waffle": "catalog:",
     "@typechain/ethers-v5": "catalog:",
@@ -78,8 +75,6 @@
     "typescript": "catalog:"
   },
   "peerDependencies": {
-    "@ethersproject/abi": "*",
-    "@ethersproject/providers": "*",
     "@types/node": "*",
     "@types/sinon-chai": "*"
   }
