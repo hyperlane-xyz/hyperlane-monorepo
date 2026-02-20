@@ -1,8 +1,6 @@
 import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-
 import { StarknetHookArtifactManager } from './hook-artifact-manager.js';
 
 describe('StarknetHookArtifactManager', () => {
@@ -21,30 +19,26 @@ describe('StarknetHookArtifactManager', () => {
     },
   } as any;
 
-  it('rejects unsupported IGP shape for Starknet protocol_fee mapping', async () => {
+  it('rejects interchainGasPaymaster hook type on Starknet', async () => {
     const manager = new StarknetHookArtifactManager(chainMetadata);
-    const writer = manager.createWriter('interchainGasPaymaster', {
+    expect(() =>
+      manager.createWriter('interchainGasPaymaster', {
+        getSignerAddress: () => '0x1',
+      } as any),
+    ).to.throw(/unsupported on Starknet/i);
+  });
+
+  it('creates protocolFee writer on Starknet', () => {
+    const manager = new StarknetHookArtifactManager(chainMetadata);
+    const writer = manager.createWriter('protocolFee', {
       getSignerAddress: () => '0x1',
-      sendAndConfirmTransaction: async () => ({ transactionHash: '0x123' }),
+      sendAndConfirmTransaction: async () => ({
+        transactionHash: '0x123',
+        contractAddress: '0xabc',
+      }),
     } as any);
 
-    let caughtError: unknown;
-    try {
-      await writer.create({
-        artifactState: ArtifactState.NEW,
-        config: {
-          type: 'interchainGasPaymaster',
-          owner: '0x1',
-          beneficiary: '0x2',
-          oracleKey: '0x1',
-          overhead: { 1000: 2000 },
-          oracleConfig: {},
-        },
-      });
-    } catch (error) {
-      caughtError = error;
-    }
-
-    expect(String(caughtError)).to.match(/does not support overhead gas config/i);
+    expect(writer).to.have.property('create');
+    expect(writer).to.have.property('update');
   });
 });

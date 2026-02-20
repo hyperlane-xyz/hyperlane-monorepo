@@ -55,6 +55,16 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
+    const unsupportedProtocolFeeReader = () =>
+      ({
+        read: async () => {
+          throw new Error('protocolFee hook type is unsupported on Aleo');
+        },
+      }) as ArtifactReader<
+        RawHookArtifactConfigs['protocolFee'],
+        DeployedHookAddress
+      >;
+
     const readers: {
       [K in HookType]: () => ArtifactReader<
         RawHookArtifactConfigs[K],
@@ -65,6 +75,7 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
         new AleoMerkleTreeHookReader(this.aleoClient),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new AleoIgpHookReader(this.aleoClient),
+      [AltVM.HookType.PROTOCOL_FEE]: unsupportedProtocolFeeReader,
     };
 
     assert(readers[type], `Hook reader for ${type} not found`);
@@ -78,6 +89,22 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
     const mailboxAddress = this.mailboxAddress;
     assert(mailboxAddress, 'mailbox address required for hook deployment');
 
+    const unsupportedProtocolFeeWriter = () =>
+      ({
+        read: async () => {
+          throw new Error('protocolFee hook type is unsupported on Aleo');
+        },
+        create: async () => {
+          throw new Error('protocolFee hook type is unsupported on Aleo');
+        },
+        update: async () => {
+          throw new Error('protocolFee hook type is unsupported on Aleo');
+        },
+      }) as ArtifactWriter<
+        RawHookArtifactConfigs['protocolFee'],
+        DeployedHookAddress
+      >;
+
     const writers: {
       [K in HookType]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
@@ -88,6 +115,7 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
         new AleoMerkleTreeHookWriter(this.aleoClient, signer, mailboxAddress),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new AleoIgpHookWriter(this.aleoClient, signer, mailboxAddress),
+      [AltVM.HookType.PROTOCOL_FEE]: unsupportedProtocolFeeWriter,
     };
 
     assert(writers[type], `Hook writer for ${type} not found`);

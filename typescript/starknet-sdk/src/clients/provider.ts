@@ -412,22 +412,11 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   }
 
   async getInterchainGasPaymasterHook(
-    req: AltVM.ReqGetInterchainGasPaymasterHook,
+    _req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    const hook = this.withContract(
-      StarknetContractName.PROTOCOL_FEE,
-      req.hookAddress,
+    throw new Error(
+      'interchainGasPaymaster hook type is unsupported on Starknet; use protocolFee hook type',
     );
-
-    const owner = await callContract(hook, 'owner');
-
-    return {
-      address: normalizeStarknetAddressSafe(req.hookAddress),
-      owner: normalizeStarknetAddressSafe(owner),
-      destinationGasConfigs: {
-        // Starknet protocol fee hook does not expose per-domain gas settings.
-      },
-    };
   }
 
   async getMerkleTreeHook(
@@ -768,38 +757,26 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   }
 
   async getCreateInterchainGasPaymasterHookTransaction(
-    req: AltVM.ReqCreateInterchainGasPaymasterHook,
+    _req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<StarknetAnnotatedTx> {
-    return {
-      kind: 'deploy',
-      contractName: StarknetContractName.PROTOCOL_FEE,
-      constructorArgs: [
-        0,
-        0,
-        normalizeStarknetAddressSafe(req.signer),
-        normalizeStarknetAddressSafe(req.signer),
-        normalizeStarknetAddressSafe(req.denom ?? this.feeTokenAddress),
-      ],
-    };
+    throw new Error(
+      'interchainGasPaymaster hook type is unsupported on Starknet; use protocolFee hook type',
+    );
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
-    req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
+    _req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<StarknetAnnotatedTx> {
-    const hook = this.withContract(
-      StarknetContractName.PROTOCOL_FEE,
-      req.hookAddress,
+    throw new Error(
+      'interchainGasPaymaster hook type is unsupported on Starknet; use protocolFee hook type',
     );
-    return populateInvokeTx(hook, 'transfer_ownership', [
-      normalizeStarknetAddressSafe(req.newOwner),
-    ]);
   }
 
   async getSetDestinationGasConfigTransaction(
     _req: AltVM.ReqSetDestinationGasConfig,
   ): Promise<StarknetAnnotatedTx> {
     throw new Error(
-      'Interchain gas paymaster destination gas config unsupported on Starknet protocol_fee hook',
+      'interchainGasPaymaster hook type is unsupported on Starknet',
     );
   }
 
@@ -807,7 +784,7 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     _req: AltVM.ReqRemoveDestinationGasConfig,
   ): Promise<StarknetAnnotatedTx> {
     throw new Error(
-      'Interchain gas paymaster destination gas config unsupported on Starknet protocol_fee hook',
+      'interchainGasPaymaster hook type is unsupported on Starknet',
     );
   }
 
