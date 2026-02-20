@@ -1,4 +1,3 @@
-import { type PopulatedTransaction, type providers } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
@@ -22,6 +21,9 @@ import type {
   RebalanceRoute,
 } from '../interfaces/IRebalancer.js';
 import { type Metrics } from '../metrics/Metrics.js';
+
+type RebalanceTx = PreparedTransaction['populatedTx'];
+type TxReceipt = Awaited<ReturnType<MultiProvider['sendTransaction']>>;
 
 export class Rebalancer implements IRebalancer {
   private readonly logger: Logger;
@@ -184,7 +186,7 @@ export class Rebalancer implements IRebalancer {
     }
 
     // 3. Populate transaction
-    let populatedTx: PopulatedTransaction;
+    let populatedTx: RebalanceTx;
     try {
       populatedTx = await originHypAdapter.populateRebalanceTx(
         destinationChainMeta.domainId,
@@ -400,7 +402,7 @@ export class Rebalancer implements IRebalancer {
     // 5. Collect successful sends and record send failures
     const successfulSends: Array<{
       transaction: PreparedTransaction;
-      receipt: providers.TransactionReceipt;
+      receipt: TxReceipt;
     }> = [];
 
     chainSendResults.forEach((chainResult) => {
@@ -453,7 +455,7 @@ export class Rebalancer implements IRebalancer {
     Array<
       | {
           transaction: PreparedTransaction;
-          receipt: providers.TransactionReceipt;
+          receipt: TxReceipt;
         }
       | { transaction: PreparedTransaction; error: string }
     >
@@ -461,7 +463,7 @@ export class Rebalancer implements IRebalancer {
     const results: Array<
       | {
           transaction: PreparedTransaction;
-          receipt: providers.TransactionReceipt;
+          receipt: TxReceipt;
         }
       | { transaction: PreparedTransaction; error: string }
     > = [];
@@ -532,7 +534,7 @@ export class Rebalancer implements IRebalancer {
    */
   private buildResult(
     transaction: PreparedTransaction,
-    receipt: providers.TransactionReceipt,
+    receipt: TxReceipt,
   ): RebalanceExecutionResult {
     const { origin, destination } = transaction.route;
     const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
