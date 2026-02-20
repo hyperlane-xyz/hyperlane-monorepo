@@ -1,5 +1,4 @@
 import "@nomicfoundation/hardhat-foundry";
-import "@nomiclabs/hardhat-ethers";
 import "hardhat-gas-reporter";
 import "hardhat-ignore-warnings";
 import "solidity-coverage";
