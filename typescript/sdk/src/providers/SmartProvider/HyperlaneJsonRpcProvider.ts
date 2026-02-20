@@ -1,5 +1,4 @@
 import { toHex } from 'viem';
-import { Provider as ZkProvider } from 'zksync-ethers';
 
 import {
   chunk,
@@ -18,30 +17,109 @@ import { RpcConfigWithConnectionInfo } from './types.js';
 const NUM_LOG_BLOCK_RANGES_TO_QUERY = 10;
 const NUM_PARALLEL_LOG_QUERIES = 5;
 
-export class HyperlaneJsonRpcProvider
-  extends ZkProvider
-  implements IProviderMethods
-{
+export class HyperlaneJsonRpcProvider implements IProviderMethods {
   protected readonly logger = rootLogger.child({ module: 'JsonRpcProvider' });
   public readonly supportedMethods = AllProviderMethods;
+  private requestId = 0;
+  public readonly connection: RpcConfigWithConnectionInfo['connection'];
 
   constructor(
     public readonly rpcConfig: RpcConfigWithConnectionInfo,
-    network: number | string | { chainId: number; name: string },
+    public readonly network:
+      | number
+      | string
+      | { chainId: number; name: string },
     public readonly options?: { debug?: boolean },
     connectionOverride?: RpcConfigWithConnectionInfo['connection'],
   ) {
-    super(
-      connectionOverride ?? rpcConfig.connection ?? rpcConfig.http,
-      network,
-    );
+    this.connection = connectionOverride ??
+      rpcConfig.connection ?? {
+        url: rpcConfig.http,
+      };
   }
 
   prepareRequest(method: string, params: any): [string, any[]] {
     if (method === ProviderMethod.MaxPriorityFeePerGas) {
       return ['eth_maxPriorityFeePerGas', []];
     }
-    return super.prepareRequest(method, params);
+    switch (method as ProviderMethod) {
+      case ProviderMethod.Call:
+        return ['eth_call', [params.transaction, params.blockTag ?? 'latest']];
+      case ProviderMethod.EstimateGas:
+        return ['eth_estimateGas', [params.transaction]];
+      case ProviderMethod.GetBalance:
+        return [
+          'eth_getBalance',
+          [params.address, params.blockTag ?? 'latest'],
+        ];
+      case ProviderMethod.GetBlock:
+        return [
+          'eth_getBlockByNumber',
+          [toBlockTag(params.blockTag), params.includeTransactions ?? false],
+        ];
+      case ProviderMethod.GetBlockNumber:
+        return ['eth_blockNumber', []];
+      case ProviderMethod.GetCode:
+        return ['eth_getCode', [params.address, params.blockTag ?? 'latest']];
+      case ProviderMethod.GetGasPrice:
+        return ['eth_gasPrice', []];
+      case ProviderMethod.GetStorageAt:
+        return [
+          'eth_getStorageAt',
+          [params.address, params.position, params.blockTag ?? 'latest'],
+        ];
+      case ProviderMethod.GetTransaction:
+        return ['eth_getTransactionByHash', [params.transactionHash]];
+      case ProviderMethod.GetTransactionCount:
+        return [
+          'eth_getTransactionCount',
+          [params.address, params.blockTag ?? 'latest'],
+        ];
+      case ProviderMethod.GetTransactionReceipt:
+        return ['eth_getTransactionReceipt', [params.transactionHash]];
+      case ProviderMethod.GetLogs:
+        return ['eth_getLogs', [params.filter]];
+      case ProviderMethod.SendTransaction:
+        return ['eth_sendRawTransaction', [params.signedTransaction]];
+      default:
+        throw new Error(`Unsupported method ${method}`);
+    }
+  }
+
+  protected async request(method: string, params: unknown[]): Promise<any> {
+    const requestBody = {
+      jsonrpc: '2.0',
+      id: ++this.requestId,
+      method,
+      params,
+    };
+    const response = await fetch(this.connection?.url || this.rpcConfig.http, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.connection?.headers || {}),
+      },
+      body: JSON.stringify(requestBody),
+    });
+    const json = (await response.json()) as {
+      result?: unknown;
+      error?: { message?: string; code?: number; data?: unknown };
+    };
+    if (json.error) {
+      const error = new Error(
+        json.error.message || 'RPC request failed',
+      ) as Error & {
+        code?: string;
+        error?: { code?: number; data?: unknown };
+      };
+      error.code = 'SERVER_ERROR';
+      error.error = {
+        code: json.error.code,
+        data: json.error.data,
+      };
+      throw error;
+    }
+    return json.result;
   }
 
   async perform(method: string, params: any, reqId?: number): Promise<any> {
@@ -53,7 +131,8 @@ export class HyperlaneJsonRpcProvider
       return this.performGetLogs(params);
     }
 
-    const result = await super.perform(method, params);
+    const [rpcMethod, rpcParams] = this.prepareRequest(method, params);
+    const result = await this.request(rpcMethod, rpcParams);
     if (
       result === '0x' &&
       [
@@ -79,7 +158,13 @@ export class HyperlaneJsonRpcProvider
       topics?: Array<string | Array<string> | null>;
     };
   }): Promise<any> {
-    const superPerform = () => super.perform(ProviderMethod.GetLogs, params);
+    const superPerform = async () => {
+      const [rpcMethod, rpcParams] = this.prepareRequest(
+        ProviderMethod.GetLogs,
+        params,
+      );
+      return this.request(rpcMethod, rpcParams);
+    };
 
     const paginationOptions = this.rpcConfig.pagination;
     if (!paginationOptions || !params.filter) return superPerform();
@@ -90,9 +175,12 @@ export class HyperlaneJsonRpcProvider
     if (!maxBlockRange && !maxBlockAge && isNullish(minBlockNumber))
       return superPerform();
 
-    const currentBlockNumber = await super.perform(
+    const [blockNumberMethod, blockNumberParams] = this.prepareRequest(
       ProviderMethod.GetBlockNumber,
       null,
+    );
+    const currentBlockNumber = parseBlockNumber(
+      await this.request(blockNumberMethod, blockNumberParams),
     );
 
     let endBlock: number;
@@ -162,17 +250,22 @@ export class HyperlaneJsonRpcProvider
     }> = [];
     const requestChunks = chunk(blockChunks, NUM_PARALLEL_LOG_QUERIES);
     for (const reqChunk of requestChunks) {
-      const resultPromises = reqChunk.map(
-        (blockChunk) =>
-          super.perform(ProviderMethod.GetLogs, {
+      const resultPromises = reqChunk.map(async (blockChunk) => {
+        const [rpcMethod, rpcParams] = this.prepareRequest(
+          ProviderMethod.GetLogs,
+          {
             filter: {
               address,
               topics,
               fromBlock: toHex(blockChunk[0]),
               toBlock: toHex(blockChunk[1]),
             },
-          }) as Promise<typeof combinedResults>,
-      );
+          },
+        );
+        return this.request(rpcMethod, rpcParams) as Promise<
+          typeof combinedResults
+        >;
+      });
       const results = await Promise.all(resultPromises);
       combinedResults = [...combinedResults, ...results.flat()];
     }
@@ -181,6 +274,22 @@ export class HyperlaneJsonRpcProvider
   }
 
   getBaseUrl(): string {
-    return this.connection.url;
+    return this.connection?.url || this.rpcConfig.http;
   }
+}
+
+function toBlockTag(blockTag?: string | number): string {
+  if (blockTag === undefined || blockTag === null) return 'latest';
+  if (typeof blockTag === 'number') return toHex(blockTag);
+  return blockTag;
+}
+
+function parseBlockNumber(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') {
+    if (value.startsWith('0x')) return Number(BigInt(value));
+    return Number(value);
+  }
+  return 0;
 }
