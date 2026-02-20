@@ -40,7 +40,8 @@
     "@solana/web3.js": "catalog:",
     "borsh": "catalog:",
     "ethers": "catalog:",
-    "viem": "catalog:"
+    "viem": "catalog:",
+    "zksync-ethers": "catalog:"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",

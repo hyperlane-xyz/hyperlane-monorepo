@@ -21,141 +21,143 @@
  *   node dist/service.js
  *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_KEY=0x... node dist/service.js
  */
-import { Wallet } from 'ethers';
+import {Wallet} from "zksync-ethers";
 
-import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
-import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
+import {DEFAULT_GITHUB_REGISTRY} from "@hyperlane-xyz/registry";
+import {getRegistry} from "@hyperlane-xyz/registry/fs";
+import {MultiProtocolProvider, MultiProvider} from "@hyperlane-xyz/sdk";
 import {
-  applyRpcUrlOverridesFromEnv,
-  createServiceLogger,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+    applyRpcUrlOverridesFromEnv,
+    createServiceLogger,
+    rootLogger,
+} from "@hyperlane-xyz/utils";
 
-import { RebalancerConfig } from './config/RebalancerConfig.js';
-import { RebalancerService } from './core/RebalancerService.js';
+import {RebalancerConfig} from "./config/RebalancerConfig.js";
+import {RebalancerService} from "./core/RebalancerService.js";
 
 async function main(): Promise<void> {
-  const VERSION = process.env.SERVICE_VERSION || 'dev';
-  // Validate required environment variables
-  const configFile = process.env.REBALANCER_CONFIG_FILE;
-  if (!configFile) {
-    rootLogger.error('REBALANCER_CONFIG_FILE environment variable is required');
-    process.exit(1);
-  }
-
-  const privateKey = process.env.HYP_KEY;
-  if (!privateKey) {
-    rootLogger.error('HYP_KEY environment variable is required');
-    process.exit(1);
-  }
-
-  // Parse optional environment variables
-  let checkFrequency = 60_000;
-  if (process.env.CHECK_FREQUENCY) {
-    const parsed = parseInt(process.env.CHECK_FREQUENCY, 10);
-    if (isNaN(parsed) || parsed <= 0) {
-      rootLogger.error(
-        'CHECK_FREQUENCY must be a positive number (milliseconds)',
-      );
-      process.exit(1);
-    }
-    checkFrequency = parsed;
-  }
-
-  const withMetrics = process.env.WITH_METRICS !== 'false';
-  const monitorOnly = process.env.MONITOR_ONLY === 'true';
-  const coingeckoApiKey = process.env.COINGECKO_API_KEY;
-
-  // Create logger (uses LOG_LEVEL environment variable for level configuration)
-  const logger = await createServiceLogger({
-    service: 'rebalancer',
-    version: VERSION,
-  });
-
-  logger.info(
-    {
-      version: VERSION,
-      configFile,
-      checkFrequency,
-      withMetrics,
-      monitorOnly,
-    },
-    'Starting Hyperlane Rebalancer Service',
-  );
-
-  try {
-    // Load rebalancer configuration
-    const rebalancerConfig = RebalancerConfig.load(configFile);
-    logger.info('✅ Loaded rebalancer configuration');
-
-    // Initialize registry (uses env var or defaults to GitHub registry)
-    // For GitHub registries, REGISTRY_URI can include /tree/{commit} to pin to a specific version
-    const registryUri = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
-    const registry = getRegistry({
-      registryUris: [registryUri],
-      enableProxy: true,
-      logger: rootLogger,
-    });
-    logger.info({ registryUri }, '✅ Initialized registry');
-
-    // Get chain metadata from registry
-    const chainMetadata = await registry.getMetadata();
-    logger.info(
-      `✅ Loaded metadata for ${Object.keys(chainMetadata).length} chains`,
-    );
-
-    // Apply RPC URL overrides from environment variables
-    const overriddenChains = applyRpcUrlOverridesFromEnv(chainMetadata);
-    if (overriddenChains.length > 0) {
-      logger.info(
-        { chains: overriddenChains, count: overriddenChains.length },
-        'Applied RPC overrides from environment variables',
-      );
+    const VERSION = process.env.SERVICE_VERSION || "dev";
+    // Validate required environment variables
+    const configFile = process.env.REBALANCER_CONFIG_FILE;
+    if (!configFile) {
+        rootLogger.error(
+            "REBALANCER_CONFIG_FILE environment variable is required",
+        );
+        process.exit(1);
     }
 
-    // Create MultiProvider with signer
-    const multiProvider = new MultiProvider(chainMetadata);
-    const signer = new Wallet(privateKey);
-    multiProvider.setSharedSigner(signer);
-    logger.info('✅ Initialized MultiProvider with signer');
+    const privateKey = process.env.HYP_KEY;
+    if (!privateKey) {
+        rootLogger.error("HYP_KEY environment variable is required");
+        process.exit(1);
+    }
 
-    // Create MultiProtocolProvider
-    const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
-    logger.info('✅ Initialized MultiProtocolProvider');
+    // Parse optional environment variables
+    let checkFrequency = 60_000;
+    if (process.env.CHECK_FREQUENCY) {
+        const parsed = parseInt(process.env.CHECK_FREQUENCY, 10);
+        if (isNaN(parsed) || parsed <= 0) {
+            rootLogger.error(
+                "CHECK_FREQUENCY must be a positive number (milliseconds)",
+            );
+            process.exit(1);
+        }
+        checkFrequency = parsed;
+    }
 
-    // Create the rebalancer service
-    const service = new RebalancerService(
-      multiProvider,
-      multiProtocolProvider,
-      registry,
-      rebalancerConfig,
-      {
-        mode: 'daemon',
-        checkFrequency,
-        monitorOnly,
-        withMetrics,
-        coingeckoApiKey,
-        logger,
+    const withMetrics = process.env.WITH_METRICS !== "false";
+    const monitorOnly = process.env.MONITOR_ONLY === "true";
+    const coingeckoApiKey = process.env.COINGECKO_API_KEY;
+
+    // Create logger (uses LOG_LEVEL environment variable for level configuration)
+    const logger = await createServiceLogger({
+        service: "rebalancer",
         version: VERSION,
-      },
+    });
+
+    logger.info(
+        {
+            version: VERSION,
+            configFile,
+            checkFrequency,
+            withMetrics,
+            monitorOnly,
+        },
+        "Starting Hyperlane Rebalancer Service",
     );
 
-    // Start the service
-    await service.start();
-  } catch (error) {
-    const err = error as Error;
-    logger.error(
-      { error: err.message, stack: err.stack },
-      'Failed to start rebalancer service',
-    );
-    process.exit(1);
-  }
+    try {
+        // Load rebalancer configuration
+        const rebalancerConfig = RebalancerConfig.load(configFile);
+        logger.info("✅ Loaded rebalancer configuration");
+
+        // Initialize registry (uses env var or defaults to GitHub registry)
+        // For GitHub registries, REGISTRY_URI can include /tree/{commit} to pin to a specific version
+        const registryUri = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
+        const registry = getRegistry({
+            registryUris: [registryUri],
+            enableProxy: true,
+            logger: rootLogger,
+        });
+        logger.info({registryUri}, "✅ Initialized registry");
+
+        // Get chain metadata from registry
+        const chainMetadata = await registry.getMetadata();
+        logger.info(
+            `✅ Loaded metadata for ${Object.keys(chainMetadata).length} chains`,
+        );
+
+        // Apply RPC URL overrides from environment variables
+        const overriddenChains = applyRpcUrlOverridesFromEnv(chainMetadata);
+        if (overriddenChains.length > 0) {
+            logger.info(
+                {chains: overriddenChains, count: overriddenChains.length},
+                "Applied RPC overrides from environment variables",
+            );
+        }
+
+        // Create MultiProvider with signer
+        const multiProvider = new MultiProvider(chainMetadata);
+        const signer = new Wallet(privateKey);
+        multiProvider.setSharedSigner(signer);
+        logger.info("✅ Initialized MultiProvider with signer");
+
+        // Create MultiProtocolProvider
+        const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
+        logger.info("✅ Initialized MultiProtocolProvider");
+
+        // Create the rebalancer service
+        const service = new RebalancerService(
+            multiProvider,
+            multiProtocolProvider,
+            registry,
+            rebalancerConfig,
+            {
+                mode: "daemon",
+                checkFrequency,
+                monitorOnly,
+                withMetrics,
+                coingeckoApiKey,
+                logger,
+                version: VERSION,
+            },
+        );
+
+        // Start the service
+        await service.start();
+    } catch (error) {
+        const err = error as Error;
+        logger.error(
+            {error: err.message, stack: err.stack},
+            "Failed to start rebalancer service",
+        );
+        process.exit(1);
+    }
 }
 
 // Run the service
 main().catch((error) => {
-  const err = error as Error;
-  rootLogger.error({ error: err.message, stack: err.stack }, 'Fatal error');
-  process.exit(1);
+    const err = error as Error;
+    rootLogger.error({error: err.message, stack: err.stack}, "Fatal error");
+    process.exit(1);
 });
