@@ -999,10 +999,15 @@ where
             return Err(Error::FeeAccountMismatch.into());
         }
 
+        // Read the beneficiary from the fee account header.
+        let fee_header = hyperlane_sealevel_fee::accounts::FeeAccountHeader::from_account_data(
+            &fee_account_info.data.borrow(),
+        )?;
+
         // Accounts F+2..F+1+N: Additional fee accounts, terminated by fee recipient sentinel.
         // Loop until we find the account whose key matches the expected fee recipient key.
         let expected_fee_recipient_key =
-            T::fee_recipient_account_key(token, &fee_config.fee_recipient);
+            T::fee_recipient_account_key(token, &fee_header.beneficiary);
         let mut additional_accounts = Vec::new();
         let mut additional_account_infos = Vec::new();
         let fee_recipient_account = loop {

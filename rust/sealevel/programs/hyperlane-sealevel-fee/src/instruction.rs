@@ -30,6 +30,9 @@ pub enum FeeInstruction {
     /// realloc if the new FeeData variant has a different serialized size.
     /// Only callable by the fee account owner.
     UpdateFeeData(FeeData),
+    /// Update the beneficiary address on an existing fee account.
+    /// Only callable by the fee account owner.
+    SetBeneficiary(Pubkey),
     /// Transfer ownership of a fee account. Pass `None` to renounce ownership
     /// (makes the fee account immutable). Only callable by the current owner.
     TransferOwnership(Option<Pubkey>),
@@ -52,6 +55,8 @@ pub struct InitFee {
     /// Salt used to derive the fee account PDA. Allows creating multiple
     /// fee accounts with different configurations.
     pub salt: H256,
+    /// The wallet address that receives collected fees.
+    pub beneficiary: Pubkey,
     /// The fee configuration (Linear, Regressive, Progressive, or Routing).
     pub fee_data: FeeData,
 }
@@ -89,12 +94,17 @@ pub fn init_fee_instruction(
     program_id: Pubkey,
     payer: Pubkey,
     salt: H256,
+    beneficiary: Pubkey,
     fee_data: FeeData,
 ) -> Result<SolanaInstruction, ProgramError> {
     let (fee_key, _) = Pubkey::try_find_program_address(fee_pda_seeds!(salt), &program_id)
         .ok_or(ProgramError::InvalidSeeds)?;
 
-    let ixn = FeeInstruction::InitFee(InitFee { salt, fee_data });
+    let ixn = FeeInstruction::InitFee(InitFee {
+        salt,
+        beneficiary,
+        fee_data,
+    });
 
     // Accounts:
     // 0. `[executable]` System program
@@ -219,6 +229,30 @@ pub fn transfer_ownership_instruction(
     // Accounts:
     // 0. `[writable]` Fee account PDA
     // 1. `[signer]` Current owner
+    let accounts = vec![
+        AccountMeta::new(fee_account, false),
+        AccountMeta::new_readonly(owner, true),
+    ];
+
+    Ok(SolanaInstruction {
+        program_id,
+        data: ixn.encode()?,
+        accounts,
+    })
+}
+
+/// Creates a SetBeneficiary instruction.
+pub fn set_beneficiary_instruction(
+    program_id: Pubkey,
+    owner: Pubkey,
+    fee_account: Pubkey,
+    new_beneficiary: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let ixn = FeeInstruction::SetBeneficiary(new_beneficiary);
+
+    // Accounts:
+    // 0. `[writable]` Fee account PDA
+    // 1. `[signer]` Owner
     let accounts = vec![
         AccountMeta::new(fee_account, false),
         AccountMeta::new_readonly(owner, true),

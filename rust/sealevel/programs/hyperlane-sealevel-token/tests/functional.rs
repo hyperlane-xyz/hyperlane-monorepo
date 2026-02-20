@@ -1399,9 +1399,17 @@ async fn init_fee_account(
     banks_client: &mut BanksClient,
     payer: &Keypair,
     salt: H256,
+    beneficiary: Pubkey,
     fee_data: FeeData,
 ) -> Pubkey {
-    let ixn = init_fee_instruction(fee_program_id(), payer.pubkey(), salt, fee_data).unwrap();
+    let ixn = init_fee_instruction(
+        fee_program_id(),
+        payer.pubkey(),
+        salt,
+        beneficiary,
+        fee_data,
+    )
+    .unwrap();
     let fee_key = ixn.accounts[1].pubkey;
     process_instruction_helper(banks_client, ixn, payer, &[payer])
         .await
@@ -1438,13 +1446,18 @@ async fn test_set_fee_config() {
         max_fee: 1_000_000,
         half_amount: 500_000,
     };
-    let fee_key = init_fee_account(&mut banks_client, &payer, salt, fee_data).await;
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        salt,
+        Pubkey::new_unique(),
+        fee_data,
+    )
+    .await;
 
-    let fee_recipient = Pubkey::new_unique();
     let fee_config = FeeConfig {
         fee_program: fee_program_id(),
         fee_account: fee_key,
-        fee_recipient,
     };
 
     // Set fee config
@@ -1486,12 +1499,18 @@ async fn test_set_fee_config_clear() {
         max_fee: 1_000_000,
         half_amount: 500_000,
     };
-    let fee_key = init_fee_account(&mut banks_client, &payer, salt, fee_data).await;
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        salt,
+        Pubkey::new_unique(),
+        fee_data,
+    )
+    .await;
 
     let fee_config = FeeConfig {
         fee_program: fee_program_id(),
         fee_account: fee_key,
-        fee_recipient: Pubkey::new_unique(),
     };
 
     // Set fee config, then clear it
@@ -1527,7 +1546,6 @@ async fn test_set_fee_config_errors_if_not_owner() {
     let fee_config = FeeConfig {
         fee_program: fee_program_id(),
         fee_account: Pubkey::new_unique(),
-        fee_recipient: Pubkey::new_unique(),
     };
 
     // Build the instruction manually with non_owner
@@ -1602,10 +1620,17 @@ async fn test_transfer_remote_with_linear_fee() {
         max_fee,
         half_amount,
     };
-    let fee_key = init_fee_account(&mut banks_client, &payer, salt, fee_data).await;
-
     // Set up fee recipient: use payer as fee_recipient for simplicity.
     let fee_recipient_wallet = payer.pubkey();
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        salt,
+        fee_recipient_wallet,
+        fee_data,
+    )
+    .await;
+
     let fee_recipient_ata =
         spl_associated_token_account::get_associated_token_address_with_program_id(
             &fee_recipient_wallet,
@@ -1639,7 +1664,6 @@ async fn test_transfer_remote_with_linear_fee() {
     let fee_config = FeeConfig {
         fee_program: fee_program_id(),
         fee_account: fee_key,
-        fee_recipient: fee_recipient_wallet,
     };
     set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
 
@@ -1798,9 +1822,16 @@ async fn test_transfer_remote_with_zero_fee() {
         max_fee: 1_000_000,
         half_amount: 0,
     };
-    let fee_key = init_fee_account(&mut banks_client, &payer, H256::zero(), fee_data).await;
-
     let fee_recipient_wallet = payer.pubkey();
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        fee_recipient_wallet,
+        fee_data,
+    )
+    .await;
+
     let fee_recipient_ata =
         spl_associated_token_account::get_associated_token_address_with_program_id(
             &fee_recipient_wallet,
@@ -1830,7 +1861,6 @@ async fn test_transfer_remote_with_zero_fee() {
     let fee_config = FeeConfig {
         fee_program: fee_program_id(),
         fee_account: fee_key,
-        fee_recipient: fee_recipient_wallet,
     };
     set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
 
@@ -1956,13 +1986,19 @@ async fn test_transfer_remote_with_wrong_fee_recipient_ata() {
         max_fee: 2_000_000,
         half_amount: 50 * 10u64.pow(LOCAL_DECIMALS_U32),
     };
-    let fee_key = init_fee_account(&mut banks_client, &payer, H256::zero(), fee_data).await;
-
     let fee_recipient_wallet = payer.pubkey();
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        fee_recipient_wallet,
+        fee_data,
+    )
+    .await;
+
     let fee_config = FeeConfig {
         fee_program: fee_program_id(),
         fee_account: fee_key,
-        fee_recipient: fee_recipient_wallet,
     };
     set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
 

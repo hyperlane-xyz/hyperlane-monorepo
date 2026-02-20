@@ -35,6 +35,9 @@ pub fn process_instruction(
         FeeInstruction::UpdateFeeData(fee_data) => {
             process_update_fee_data(program_id, accounts, fee_data)
         }
+        FeeInstruction::SetBeneficiary(new_beneficiary) => {
+            process_set_beneficiary(program_id, accounts, new_beneficiary)
+        }
         FeeInstruction::TransferOwnership(new_owner) => {
             process_transfer_ownership(program_id, accounts, new_owner)
         }
@@ -101,6 +104,7 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], init: InitFee
     let fee_account = FeeAccount {
         bump,
         owner: Some(*payer.key),
+        beneficiary: init.beneficiary,
         fee_data: init.fee_data,
     };
     let fee_account_data = FeeAccountData::from(fee_account);
@@ -289,6 +293,38 @@ fn process_update_fee_data(
     )?;
 
     msg!("Fee data updated for account {}", fee_account_info.key);
+    Ok(())
+}
+
+/// Update the beneficiary on an existing fee account.
+///
+/// Accounts:
+/// 0. `[writable]` Fee account PDA
+/// 1. `[signer]` Owner
+fn process_set_beneficiary(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    new_beneficiary: Pubkey,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    let fee_account_info = next_account_info(accounts_iter)?;
+    let mut fee_account =
+        FeeAccountData::fetch(&mut &fee_account_info.data.borrow()[..])?.into_inner();
+    verify_fee_account(program_id, fee_account_info, &fee_account)?;
+
+    let owner_info = next_account_info(accounts_iter)?;
+    fee_account.ensure_owner_signer(owner_info)?;
+
+    fee_account.beneficiary = new_beneficiary;
+
+    FeeAccountData::from(fee_account).store(fee_account_info, false)?;
+
+    msg!(
+        "Beneficiary of {} set to {}",
+        fee_account_info.key,
+        new_beneficiary,
+    );
     Ok(())
 }
 

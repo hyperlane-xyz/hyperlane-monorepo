@@ -8,7 +8,8 @@ use hyperlane_sealevel_fee::{
     fee_route_pda_seeds,
     instruction::{
         init_fee_instruction, quote_fee_instruction, remove_route_instruction,
-        set_route_instruction, transfer_ownership_instruction, update_fee_data_instruction,
+        set_beneficiary_instruction, set_route_instruction, transfer_ownership_instruction,
+        update_fee_data_instruction,
     },
     processor::process_instruction as fee_process_instruction,
 };
@@ -50,9 +51,17 @@ async fn init_fee(
     banks_client: &mut BanksClient,
     payer: &Keypair,
     salt: H256,
+    beneficiary: Pubkey,
     fee_data: FeeData,
 ) -> Result<Pubkey, BanksClientError> {
-    let ixn = init_fee_instruction(fee_program_id(), payer.pubkey(), salt, fee_data).unwrap();
+    let ixn = init_fee_instruction(
+        fee_program_id(),
+        payer.pubkey(),
+        salt,
+        beneficiary,
+        fee_data,
+    )
+    .unwrap();
     let fee_key = ixn.accounts[1].pubkey;
     process_instruction_helper(banks_client, ixn, payer, &[payer]).await?;
     Ok(fee_key)
@@ -79,12 +88,19 @@ async fn test_init_linear_fee() {
         max_fee: 1_000_000,
         half_amount: 500_000,
     };
-    let fee_key = init_fee(&mut banks_client, &payer, salt, fee_data.clone())
-        .await
-        .unwrap();
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        salt,
+        payer.pubkey(),
+        fee_data.clone(),
+    )
+    .await
+    .unwrap();
 
     let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
     assert_eq!(fee_account.owner, Some(payer.pubkey()));
+    assert_eq!(fee_account.beneficiary, payer.pubkey());
     assert_eq!(fee_account.fee_data, fee_data);
 }
 
@@ -96,9 +112,15 @@ async fn test_init_regressive_fee() {
         max_fee: 2_000_000,
         half_amount: 1_000_000,
     };
-    let fee_key = init_fee(&mut banks_client, &payer, salt, fee_data.clone())
-        .await
-        .unwrap();
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        salt,
+        payer.pubkey(),
+        fee_data.clone(),
+    )
+    .await
+    .unwrap();
 
     let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
     assert_eq!(fee_account.fee_data, fee_data);
@@ -112,9 +134,15 @@ async fn test_init_progressive_fee() {
         max_fee: 5_000_000,
         half_amount: 2_500_000,
     };
-    let fee_key = init_fee(&mut banks_client, &payer, salt, fee_data.clone())
-        .await
-        .unwrap();
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        salt,
+        payer.pubkey(),
+        fee_data.clone(),
+    )
+    .await
+    .unwrap();
 
     let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
     assert_eq!(fee_account.fee_data, fee_data);
@@ -124,9 +152,15 @@ async fn test_init_progressive_fee() {
 async fn test_init_routing_fee() {
     let (mut banks_client, payer) = setup_client().await;
     let salt = H256::from_low_u64_be(3);
-    let fee_key = init_fee(&mut banks_client, &payer, salt, FeeData::Routing)
-        .await
-        .unwrap();
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        salt,
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
 
     let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
     assert_eq!(fee_account.fee_data, FeeData::Routing);
@@ -140,12 +174,25 @@ async fn test_init_errors_if_called_twice() {
         max_fee: 100,
         half_amount: 50,
     };
-    init_fee(&mut banks_client, &payer, salt, fee_data.clone())
-        .await
-        .unwrap();
+    init_fee(
+        &mut banks_client,
+        &payer,
+        salt,
+        payer.pubkey(),
+        fee_data.clone(),
+    )
+    .await
+    .unwrap();
 
     let new_payer = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
-    let result = init_fee(&mut banks_client, &new_payer, salt, fee_data).await;
+    let result = init_fee(
+        &mut banks_client,
+        &new_payer,
+        salt,
+        new_payer.pubkey(),
+        fee_data,
+    )
+    .await;
     assert_transaction_error(
         result,
         TransactionError::InstructionError(0, InstructionError::Custom(8)), // AlreadyInitialized
@@ -159,13 +206,20 @@ async fn test_different_salts_create_different_accounts() {
         max_fee: 100,
         half_amount: 50,
     };
-    let key1 = init_fee(&mut banks_client, &payer, H256::zero(), fee_data.clone())
-        .await
-        .unwrap();
+    let key1 = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        payer.pubkey(),
+        fee_data.clone(),
+    )
+    .await
+    .unwrap();
     let key2 = init_fee(
         &mut banks_client,
         &payer,
         H256::from_low_u64_be(1),
+        payer.pubkey(),
         fee_data,
     )
     .await
@@ -182,9 +236,15 @@ async fn test_set_route() {
     let salt = H256::zero();
 
     // Init a routing fee account
-    let fee_key = init_fee(&mut banks_client, &payer, salt, FeeData::Routing)
-        .await
-        .unwrap();
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        salt,
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
 
     // Init a delegated linear fee account
     let delegated_salt = H256::from_low_u64_be(1);
@@ -192,6 +252,7 @@ async fn test_set_route() {
         &mut banks_client,
         &payer,
         delegated_salt,
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 1_000_000,
             half_amount: 500_000,
@@ -234,6 +295,7 @@ async fn test_set_route_errors_if_not_routing_type() {
         &mut banks_client,
         &payer,
         salt,
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -263,9 +325,15 @@ async fn test_set_route_errors_if_not_owner() {
     let program_id = fee_program_id();
     let salt = H256::zero();
 
-    let fee_key = init_fee(&mut banks_client, &payer, salt, FeeData::Routing)
-        .await
-        .unwrap();
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        salt,
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
 
     let non_owner = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
     let ixn = set_route_instruction(
@@ -290,9 +358,15 @@ async fn test_remove_route() {
     let program_id = fee_program_id();
     let salt = H256::zero();
 
-    let fee_key = init_fee(&mut banks_client, &payer, salt, FeeData::Routing)
-        .await
-        .unwrap();
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        salt,
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
 
     let domain = 42u32;
     let delegated_key = Pubkey::new_unique();
@@ -335,6 +409,7 @@ async fn test_update_fee_data() {
         &mut banks_client,
         &payer,
         salt,
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -368,6 +443,7 @@ async fn test_update_fee_data_errors_if_not_owner() {
         &mut banks_client,
         &payer,
         salt,
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -407,6 +483,7 @@ async fn test_transfer_ownership() {
         &mut banks_client,
         &payer,
         salt,
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -436,6 +513,7 @@ async fn test_transfer_ownership_to_none() {
         &mut banks_client,
         &payer,
         salt,
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -463,6 +541,7 @@ async fn test_transfer_ownership_errors_if_not_owner() {
         &mut banks_client,
         &payer,
         salt,
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -501,6 +580,7 @@ async fn test_quote_linear_fee() {
         &mut banks_client,
         &payer,
         salt,
+        payer.pubkey(),
         FeeData::Linear {
             max_fee,
             half_amount,
@@ -557,6 +637,7 @@ async fn test_quote_regressive_fee() {
         &mut banks_client,
         &payer,
         salt,
+        payer.pubkey(),
         FeeData::Regressive {
             max_fee,
             half_amount,
@@ -611,6 +692,7 @@ async fn test_quote_progressive_fee() {
         &mut banks_client,
         &payer,
         salt,
+        payer.pubkey(),
         FeeData::Progressive {
             max_fee,
             half_amount,
@@ -663,6 +745,7 @@ async fn test_quote_zero_amount_returns_zero_fee() {
         &mut banks_client,
         &payer,
         salt,
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 1_000_000,
             half_amount: 500_000,
@@ -701,9 +784,15 @@ async fn test_quote_routing_fee_with_delegated() {
 
     // Create routing fee account
     let routing_salt = H256::zero();
-    let routing_fee_key = init_fee(&mut banks_client, &payer, routing_salt, FeeData::Routing)
-        .await
-        .unwrap();
+    let routing_fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        routing_salt,
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
 
     // Create delegated linear fee account
     let delegated_salt = H256::from_low_u64_be(1);
@@ -713,6 +802,7 @@ async fn test_quote_routing_fee_with_delegated() {
         &mut banks_client,
         &payer,
         delegated_salt,
+        payer.pubkey(),
         FeeData::Linear {
             max_fee,
             half_amount,
@@ -790,9 +880,15 @@ async fn test_quote_routing_fee_unset_domain_returns_zero() {
     let program_id = fee_program_id();
 
     let routing_salt = H256::zero();
-    let routing_fee_key = init_fee(&mut banks_client, &payer, routing_salt, FeeData::Routing)
-        .await
-        .unwrap();
+    let routing_fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        routing_salt,
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
 
     // Query for domain 99 which has no route set.
     // The route PDA will be uninitialized.
@@ -839,14 +935,21 @@ async fn test_set_route_overwrites_existing() {
     let (mut banks_client, payer) = setup_client().await;
     let program_id = fee_program_id();
 
-    let routing_fee_key = init_fee(&mut banks_client, &payer, H256::zero(), FeeData::Routing)
-        .await
-        .unwrap();
+    let routing_fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
 
     let first_delegated = init_fee(
         &mut banks_client,
         &payer,
         H256::from_low_u64_be(1),
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -859,6 +962,7 @@ async fn test_set_route_overwrites_existing() {
         &mut banks_client,
         &payer,
         H256::from_low_u64_be(2),
+        payer.pubkey(),
         FeeData::Regressive {
             max_fee: 200,
             half_amount: 100,
@@ -917,14 +1021,21 @@ async fn test_remove_route_then_recreate() {
     let (mut banks_client, payer) = setup_client().await;
     let program_id = fee_program_id();
 
-    let routing_fee_key = init_fee(&mut banks_client, &payer, H256::zero(), FeeData::Routing)
-        .await
-        .unwrap();
+    let routing_fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
 
     let delegated_key = init_fee(
         &mut banks_client,
         &payer,
         H256::from_low_u64_be(1),
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -960,6 +1071,7 @@ async fn test_remove_route_then_recreate() {
         &mut banks_client,
         &payer,
         H256::from_low_u64_be(2),
+        payer.pubkey(),
         FeeData::Regressive {
             max_fee: 200,
             half_amount: 100,
@@ -1002,9 +1114,15 @@ async fn test_remove_route_errors_if_not_owner() {
     let (mut banks_client, payer) = setup_client().await;
     let program_id = fee_program_id();
 
-    let fee_key = init_fee(&mut banks_client, &payer, H256::zero(), FeeData::Routing)
-        .await
-        .unwrap();
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
 
     let domain = 42u32;
     let ixn = set_route_instruction(
@@ -1040,6 +1158,7 @@ async fn test_remove_route_errors_if_not_routing_type() {
         &mut banks_client,
         &payer,
         H256::zero(),
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -1067,6 +1186,7 @@ async fn test_old_owner_locked_out_after_transfer() {
         &mut banks_client,
         &payer,
         H256::zero(),
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -1139,6 +1259,7 @@ async fn test_renounced_ownership_is_immutable() {
         &mut banks_client,
         &payer,
         H256::zero(),
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -1193,6 +1314,7 @@ async fn test_update_fee_data_with_size_change() {
         &mut banks_client,
         &payer,
         H256::zero(),
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 100,
             half_amount: 50,
@@ -1243,15 +1365,22 @@ async fn test_quote_routing_fee_wrong_route_pda() {
     let (mut banks_client, payer) = setup_client().await;
     let program_id = fee_program_id();
 
-    let routing_fee_key = init_fee(&mut banks_client, &payer, H256::zero(), FeeData::Routing)
-        .await
-        .unwrap();
+    let routing_fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
 
     // Set route for domain 42
     let delegated_key = init_fee(
         &mut banks_client,
         &payer,
         H256::from_low_u64_be(1),
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 1000,
             half_amount: 500,
@@ -1307,15 +1436,22 @@ async fn test_quote_routing_fee_wrong_delegated_account() {
     let (mut banks_client, payer) = setup_client().await;
     let program_id = fee_program_id();
 
-    let routing_fee_key = init_fee(&mut banks_client, &payer, H256::zero(), FeeData::Routing)
-        .await
-        .unwrap();
+    let routing_fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
 
     // Create two delegated fee accounts
     let correct_delegated = init_fee(
         &mut banks_client,
         &payer,
         H256::from_low_u64_be(1),
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 1000,
             half_amount: 500,
@@ -1328,6 +1464,7 @@ async fn test_quote_routing_fee_wrong_delegated_account() {
         &mut banks_client,
         &payer,
         H256::from_low_u64_be(2),
+        payer.pubkey(),
         FeeData::Linear {
             max_fee: 9999,
             half_amount: 1,
@@ -1381,4 +1518,73 @@ async fn test_quote_routing_fee_wrong_delegated_account() {
     // Should fail — delegated account doesn't match route
     let result = simulation.result.unwrap();
     assert!(result.is_err());
+}
+
+// ---- SetBeneficiary tests ----
+
+#[tokio::test]
+async fn test_set_beneficiary() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+    let salt = H256::zero();
+
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        salt,
+        payer.pubkey(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Verify initial beneficiary
+    let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
+    assert_eq!(fee_account.beneficiary, payer.pubkey());
+
+    // Set new beneficiary
+    let new_beneficiary = Pubkey::new_unique();
+    let ixn =
+        set_beneficiary_instruction(program_id, payer.pubkey(), fee_key, new_beneficiary).unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Verify updated beneficiary
+    let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
+    assert_eq!(fee_account.beneficiary, new_beneficiary);
+}
+
+#[tokio::test]
+async fn test_set_beneficiary_errors_if_not_owner() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+    let salt = H256::zero();
+
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        salt,
+        payer.pubkey(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .await
+    .unwrap();
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let new_beneficiary = Pubkey::new_unique();
+    let ixn = set_beneficiary_instruction(program_id, non_owner.pubkey(), fee_key, new_beneficiary)
+        .unwrap();
+    let result =
+        process_instruction_helper(&mut banks_client, ixn, &non_owner, &[&non_owner]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
 }

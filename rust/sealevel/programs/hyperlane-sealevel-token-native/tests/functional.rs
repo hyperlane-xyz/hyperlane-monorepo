@@ -1362,9 +1362,17 @@ async fn init_fee_account(
     banks_client: &mut BanksClient,
     payer: &Keypair,
     salt: H256,
+    beneficiary: Pubkey,
     fee_data: FeeData,
 ) -> Pubkey {
-    let ixn = init_fee_instruction(fee_program_id(), payer.pubkey(), salt, fee_data).unwrap();
+    let ixn = init_fee_instruction(
+        fee_program_id(),
+        payer.pubkey(),
+        salt,
+        beneficiary,
+        fee_data,
+    )
+    .unwrap();
     let fee_key = ixn.accounts[1].pubkey;
     process_instruction_helper(banks_client, ixn, payer, &[payer])
         .await
@@ -1400,13 +1408,12 @@ async fn test_set_fee_config() {
         max_fee: 1_000_000,
         half_amount: 500_000,
     };
-    let fee_key = init_fee_account(&mut banks_client, &payer, salt, fee_data).await;
-
     let fee_recipient = Pubkey::new_unique();
+    let fee_key = init_fee_account(&mut banks_client, &payer, salt, fee_recipient, fee_data).await;
+
     let fee_config = FeeConfig {
         fee_program: fee_program_id(),
         fee_account: fee_key,
-        fee_recipient,
     };
 
     set_fee_config(
@@ -1472,7 +1479,10 @@ async fn test_transfer_remote_with_linear_fee() {
     .await
     .unwrap();
 
-    // Initialize fee account with Linear fee
+    // For native tokens, fee_recipient is a direct wallet address (not an ATA).
+    let fee_recipient_wallet = Pubkey::new_unique();
+
+    // Initialize fee account with Linear fee, beneficiary = fee_recipient_wallet
     let salt = H256::zero();
     let max_fee: u64 = 200_000_000; // 0.2 SOL
     let half_amount: u64 = 50 * ONE_SOL_IN_LAMPORTS; // 50 SOL
@@ -1480,10 +1490,14 @@ async fn test_transfer_remote_with_linear_fee() {
         max_fee,
         half_amount,
     };
-    let fee_key = init_fee_account(&mut banks_client, &payer, salt, fee_data).await;
-
-    // For native tokens, fee_recipient is a direct wallet address (not an ATA).
-    let fee_recipient_wallet = Pubkey::new_unique();
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        salt,
+        fee_recipient_wallet,
+        fee_data,
+    )
+    .await;
 
     // Fund the fee recipient to make it rent-exempt (system accounts need some lamports to exist)
     transfer_lamports(
@@ -1502,7 +1516,6 @@ async fn test_transfer_remote_with_linear_fee() {
     let fee_config = FeeConfig {
         fee_program: fee_program_id(),
         fee_account: fee_key,
-        fee_recipient: fee_recipient_wallet,
     };
     set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
 
@@ -1663,13 +1676,19 @@ async fn test_transfer_remote_with_wrong_fee_recipient() {
         max_fee: 200_000_000,
         half_amount: 50 * ONE_SOL_IN_LAMPORTS,
     };
-    let fee_key = init_fee_account(&mut banks_client, &payer, H256::zero(), fee_data).await;
-
     let fee_recipient_wallet = Pubkey::new_unique();
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        fee_recipient_wallet,
+        fee_data,
+    )
+    .await;
+
     let fee_config = FeeConfig {
         fee_program: fee_program_id(),
         fee_account: fee_key,
-        fee_recipient: fee_recipient_wallet,
     };
     set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
 

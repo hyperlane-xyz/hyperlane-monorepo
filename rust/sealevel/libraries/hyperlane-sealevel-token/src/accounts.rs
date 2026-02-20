@@ -23,8 +23,6 @@ pub struct FeeConfig {
     pub fee_program: Pubkey,
     /// The top-level fee account PDA (owned by fee_program).
     pub fee_account: Pubkey,
-    /// The wallet address that receives collected fees.
-    pub fee_recipient: Pubkey,
 }
 
 /// HyperlaneToken account data.
@@ -193,8 +191,8 @@ where
         // plugin_data
         self.plugin_data.size() +
         // fee_config: Option<FeeConfig>
-        // 1 byte for Option discriminant + if Some: 32 + 32 + 32 = 96
-        1 + if self.fee_config.is_some() { 32 + 32 + 32 } else { 0 }
+        // 1 byte for Option discriminant + if Some: 32 + 32 = 64
+        1 + if self.fee_config.is_some() { 32 + 32 } else { 0 }
     }
 }
 
@@ -424,7 +422,6 @@ mod test {
             fee_config: Some(FeeConfig {
                 fee_program: Pubkey::new_unique(),
                 fee_account: Pubkey::new_unique(),
-                fee_recipient: Pubkey::new_unique(),
             }),
             ..hyperlane_token_foo
         };

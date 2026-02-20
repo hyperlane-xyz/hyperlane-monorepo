@@ -12,6 +12,8 @@ pub struct FeeAccount {
     pub bump: u8,
     /// Access control owner. None = immutable.
     pub owner: Option<Pubkey>,
+    /// The wallet address that receives collected fees.
+    pub beneficiary: Pubkey,
     /// The fee configuration data.
     pub fee_data: FeeData,
 }
@@ -22,8 +24,44 @@ impl SizedData for FeeAccount {
         std::mem::size_of::<u8>()
         // owner: Option<Pubkey>
         + 1 + 32
+        // beneficiary: Pubkey
+        + 32
         // fee_data
         + self.fee_data.size()
+    }
+}
+
+/// Partial header of a FeeAccount for cross-program reads.
+///
+/// The warp route reads only the header (bump, owner, beneficiary) from
+/// the fee account to determine where to send fees, without needing to
+/// know or deserialize the FeeData variant.
+#[derive(BorshDeserialize, Debug)]
+pub struct FeeAccountHeader {
+    /// PDA bump seed.
+    pub bump: u8,
+    /// Access control owner. None = immutable.
+    pub owner: Option<Pubkey>,
+    /// The wallet address that receives collected fees.
+    pub beneficiary: Pubkey,
+}
+
+impl FeeAccountHeader {
+    /// Deserialize just the header from raw account data.
+    ///
+    /// Skips the 1-byte `AccountData` initialized flag, then Borsh-
+    /// deserializes bump + owner + beneficiary. Remaining bytes (fee_data)
+    /// are ignored.
+    pub fn from_account_data(
+        data: &[u8],
+    ) -> Result<Self, solana_program::program_error::ProgramError> {
+        // AccountData wraps the inner struct with a 1-byte initialized flag.
+        if data.is_empty() {
+            return Err(solana_program::program_error::ProgramError::UninitializedAccount);
+        }
+        let inner = &mut &data[1..];
+        Self::deserialize(inner)
+            .map_err(|_| solana_program::program_error::ProgramError::InvalidAccountData)
     }
 }
 
