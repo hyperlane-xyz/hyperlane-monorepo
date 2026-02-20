@@ -4,6 +4,7 @@ import type {
   AccountSignerMeta,
   Address,
   Instruction,
+  ReadonlyUint8Array,
   TransactionSigner,
 } from '@solana/kit';
 
@@ -32,7 +33,7 @@ export function writableSigner(
 export function buildInstruction(
   programAddress: Address,
   accounts: InstructionAccountMeta[],
-  data: Uint8Array,
+  data: ReadonlyUint8Array,
 ): Instruction {
   return {
     programAddress,

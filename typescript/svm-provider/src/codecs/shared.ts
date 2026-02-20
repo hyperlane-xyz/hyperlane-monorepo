@@ -1,3 +1,5 @@
+import type { ReadonlyUint8Array } from '@solana/kit';
+
 import {
   addCodecSizePrefix,
   fixCodecSize,
@@ -180,11 +182,15 @@ const GAS_ORACLE_CONFIG_ENCODER = getStructEncoder([
   ['gasOracle', OPTIONAL_GAS_ORACLE_ENCODER],
 ]);
 
-export function encodeH160(value: string | Uint8Array): Uint8Array {
+export function encodeH160(
+  value: string | ReadonlyUint8Array,
+): ReadonlyUint8Array {
   return ensureLength(addressBytes(value), 20, 'H160');
 }
 
-export function encodeH256(value: string | Uint8Array): Uint8Array {
+export function encodeH256(
+  value: string | ReadonlyUint8Array,
+): ReadonlyUint8Array {
   return ensureLength(addressBytes(value), 32, 'H256');
 }
 
@@ -366,10 +372,14 @@ export function decodeMapU32GasOracle(
   return entries;
 }
 
-export function encodeMapU32H256(entries: Map<number, H256>): Uint8Array {
+export function encodeMapU32H256(
+  entries: Map<number, H256>,
+): ReadonlyUint8Array {
   return mapU32(entries, (v) => ensureLength(v, 32, 'H256'));
 }
 
-export function encodeMapU32U64(entries: Map<number, bigint>): Uint8Array {
+export function encodeMapU32U64(
+  entries: Map<number, bigint>,
+): ReadonlyUint8Array {
   return mapU32(entries, u64le);
 }

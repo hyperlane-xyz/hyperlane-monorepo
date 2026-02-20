@@ -1,4 +1,9 @@
-import type { Address, Instruction, TransactionSigner } from '@solana/kit';
+import type {
+  Address,
+  Instruction,
+  ReadonlyUint8Array,
+  TransactionSigner,
+} from '@solana/kit';
 import {
   fixCodecSize,
   getBytesCodec,
@@ -110,7 +115,7 @@ const QUOTE_GAS_PAYMENT_DECODER = getStructDecoder([
 
 export function encodeIgpProgramInstruction(
   instruction: IgpProgramInstructionData,
-): Uint8Array {
+): ReadonlyUint8Array {
   switch (instruction.kind) {
     case 'init':
       return u8(IgpInstructionKind.Init);
