@@ -25,6 +25,9 @@ hyperlane-sealevel-connection-client = { path = "../hyperlane-sealevel-connectio
 hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = [
     "no-entrypoint",
 ] }
+hyperlane-sealevel-fee = { path = "../../programs/hyperlane-sealevel-fee", features = [
+    "no-entrypoint",
+] }
 hyperlane-sealevel-igp = { path = "../../programs/hyperlane-sealevel-igp", features = [
     "no-entrypoint",
 ] }

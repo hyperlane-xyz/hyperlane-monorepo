@@ -43,6 +43,9 @@ hyperlane-test-utils = { path = "../../libraries/test-utils" }
 hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = [
     "no-entrypoint",
 ] }
+hyperlane-sealevel-fee = { path = "../hyperlane-sealevel-fee", features = [
+    "no-entrypoint",
+] }
 # Unfortunately required for some functions in `solana-program-test`, and is not
 # re-exported
 tarpc = "~0.29"
