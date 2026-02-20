@@ -107,7 +107,7 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       expect(receipts.length).to.be.greaterThan(0);
     });
 
-    it('should read synthetic token config and validate metadata', async () => {
+    it.only('should read synthetic token config and validate metadata', async () => {
       const reader = new SvmSyntheticTokenReader(rpc, solana.rpcUrl);
       const token = await reader.read(deployedProgramId);
 

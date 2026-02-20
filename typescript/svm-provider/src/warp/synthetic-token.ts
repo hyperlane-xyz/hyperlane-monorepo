@@ -6,7 +6,12 @@ import {
   getProgramDerivedAddress,
   getUtf8Encoder,
 } from '@solana/kit';
-import { TOKEN_2022_PROGRAM_ID, getTokenMetadata } from '@solana/spl-token';
+import {
+  TOKEN_2022_PROGRAM_ID,
+  getMetadataPointerState,
+  getMint,
+  getTokenMetadata,
+} from '@solana/spl-token';
 import { Connection, PublicKey } from '@solana/web3.js';
 
 import {
@@ -149,55 +154,7 @@ function createInitializeMint2Instruction(
   };
 }
 
-/**
- * Builds InitializeMetadata instruction (Token-2022 metadata extension).
- * Discriminator: [40, 0]
- */
-function createInitializeMetadataInstruction(
-  mint: Address,
-  updateAuthority: Address,
-  mintAuthority: Address,
-  name: string,
-  symbol: string,
-  uri: string,
-): SvmInstruction {
-  const nameBytes = new TextEncoder().encode(name);
-  const symbolBytes = new TextEncoder().encode(symbol);
-  const uriBytes = new TextEncoder().encode(uri);
-
-  // [discriminator(2), name_len(4), name, symbol_len(4), symbol, uri_len(4), uri]
-  const dataLen =
-    2 + 4 + nameBytes.length + 4 + symbolBytes.length + 4 + uriBytes.length;
-  const data = new Uint8Array(dataLen);
-  data[0] = 40; // MetadataExtension
-  data[1] = 0; // Initialize
-
-  let offset = 2;
-  new DataView(data.buffer).setUint32(offset, nameBytes.length, true);
-  offset += 4;
-  data.set(nameBytes, offset);
-  offset += nameBytes.length;
-
-  new DataView(data.buffer).setUint32(offset, symbolBytes.length, true);
-  offset += 4;
-  data.set(symbolBytes, offset);
-  offset += symbolBytes.length;
-
-  new DataView(data.buffer).setUint32(offset, uriBytes.length, true);
-  offset += 4;
-  data.set(uriBytes, offset);
-
-  return {
-    programAddress: TOKEN_2022_PROGRAM_ID.toBase58() as Address,
-    accounts: [
-      { address: mint, role: 1 }, // writable
-      { address: updateAuthority, role: 2 }, // update authority signer
-      { address: mint, role: 0 }, // mint (readonly)
-      { address: mintAuthority, role: 2 }, // mint authority signer
-    ],
-    data,
-  };
-}
+// Removed - using @solana/spl-token-metadata createInitializeInstruction instead
 
 /**
  * Builds SetAuthority instruction to transfer mint authority.
@@ -223,6 +180,58 @@ function createSetAuthorityInstruction(
     accounts: [
       { address: mint, role: 1 }, // writable
       { address: currentAuthority, role: 2 }, // current authority signer
+    ],
+    data,
+  };
+}
+
+/**
+ * 8-byte discriminator from spl_token_metadata_interface:initialize_account
+ */
+const METADATA_INITIALIZE_DISCRIMINATOR = new Uint8Array([
+  210, 225, 30, 162, 88, 184, 77, 141,
+]);
+
+function createInitializeMetadataInstruction(
+  mint: Address,
+  updateAuthority: Address,
+  mintAuthority: Address,
+  name: string,
+  symbol: string,
+  uri: string,
+): SvmInstruction {
+  const nameBytes = new TextEncoder().encode(name);
+  const symbolBytes = new TextEncoder().encode(symbol);
+  const uriBytes = new TextEncoder().encode(uri);
+
+  const dataLen =
+    8 + 4 + nameBytes.length + 4 + symbolBytes.length + 4 + uriBytes.length;
+  const data = new Uint8Array(dataLen);
+
+  data.set(METADATA_INITIALIZE_DISCRIMINATOR, 0);
+
+  let offset = 8;
+  new DataView(data.buffer).setUint32(offset, nameBytes.length, true);
+  offset += 4;
+  data.set(nameBytes, offset);
+  offset += nameBytes.length;
+
+  new DataView(data.buffer).setUint32(offset, symbolBytes.length, true);
+  offset += 4;
+  data.set(symbolBytes, offset);
+  offset += symbolBytes.length;
+
+  new DataView(data.buffer).setUint32(offset, uriBytes.length, true);
+  offset += 4;
+  data.set(uriBytes, offset);
+
+  return {
+    programAddress: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' as Address,
+    accounts: [
+      { address: mint, role: 1 },
+      { address: updateAuthority, role: 0 },
+      { address: mint, role: 0 },
+      { address: mintAuthority, role: 2 },
     ],
     data,
   };
@@ -271,23 +280,37 @@ async function fetchTokenMetadata(
   const [mintPda] = await getSyntheticMintPda(programId);
 
   try {
-    const connection = new Connection(rpcUrl);
+    const connection = new Connection(rpcUrl, 'confirmed');
     const mintPubkey = new PublicKey(mintPda);
 
-    const metadata = await getTokenMetadata(
+    // Step 1: Get mint info with TOKEN_2022_PROGRAM_ID
+    const mintInfo = await getMint(
       connection,
       mintPubkey,
       'confirmed',
       TOKEN_2022_PROGRAM_ID,
     );
 
-    console.log('METADATA IS', metadata);
+    // Step 2: Extract metadata pointer from mint extensions
+    const metadataPointer = getMetadataPointerState(mintInfo);
+    if (!metadataPointer?.metadataAddress) {
+      console.log('No metadata pointer in mint');
+      return null;
+    }
+
+    // Step 3: Fetch metadata from pointer address
+    const metadata = await getTokenMetadata(
+      connection,
+      metadataPointer.metadataAddress,
+      'confirmed',
+      TOKEN_2022_PROGRAM_ID,
+    );
 
     return metadata
       ? { name: metadata.name, symbol: metadata.symbol, uri: metadata.uri }
       : null;
   } catch (error) {
-    console.error('Error fetching metadata:', error);
+    console.error('Error fetching Token-2022 metadata:', error);
     return null;
   }
 }
@@ -455,23 +478,39 @@ export class SvmSyntheticTokenWriter
     }
     console.log('Synthetic token created!');
 
-    // Step 7: Initialize metadata (name, symbol, URI)
+    // Step 7: Fund mint for metadata + initialize
     if (config.name && config.symbol) {
       console.log('Initializing metadata...');
+
+      // Fund mint account for metadata extension (~1M lamports for safety)
+      const fundMintData = new Uint8Array(12);
+      fundMintData[0] = 2; // Transfer instruction
+      new DataView(fundMintData.buffer).setBigUint64(4, BigInt(1_000_000), true);
+
+      const fundMintIx: SvmInstruction = {
+        programAddress: SYSTEM_PROGRAM_ID,
+        accounts: [
+          { address: this.signer.address, role: 3 }, // from (writable + signer)
+          { address: mintPda, role: 1 }, // to (writable)
+        ],
+        data: fundMintData,
+      };
+
       const initMetadataIx = createInitializeMetadataInstruction(
         mintPda,
-        this.signer.address, // Update authority
-        this.signer.address, // Mint authority (still payer at this point)
+        this.signer.address,
+        this.signer.address,
         config.name,
         config.symbol,
-        '', // URI (optional)
+        '',
       );
 
+      // Send funding + metadata init in same transaction
       const metadataReceipt = await this.signer.signAndSend(this.rpc, {
-        instructions: [initMetadataIx],
+        instructions: [fundMintIx, initMetadataIx],
       });
       receipts.push(metadataReceipt);
-      console.log('Metadata initialized', metadataReceipt.signature);
+      console.log(`Metadata tx: ${metadataReceipt.signature}`);
     }
 
     // Step 8: Transfer mint authority to mint PDA (self-authority for minting)
