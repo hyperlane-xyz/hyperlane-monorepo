@@ -93,7 +93,7 @@ impl<T: BorshDeserialize> BorshDeserialize for HyperlaneToken<T> {
                     Some(FeeConfig::deserialize_reader(reader)?)
                 }
             }
-            Err(_) => None,
+            Err(e) => return Err(e),
         };
 
         Ok(Self {

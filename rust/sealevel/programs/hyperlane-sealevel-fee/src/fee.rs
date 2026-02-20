@@ -295,7 +295,7 @@ mod tests {
         // amount=10_000 >> half_amount=100, so fee should be very close to max_fee
         // fee = 1000 * 10000^2 / (100^2 + 10000^2) = 1000 * 1e8 / (1e4 + 1e8) ≈ 999
         let fee = compute_fee(&fee_data, 10_000).unwrap();
-        assert!(fee >= 999 && fee <= 1000);
+        assert!((999..=1000).contains(&fee));
     }
 
     #[test]

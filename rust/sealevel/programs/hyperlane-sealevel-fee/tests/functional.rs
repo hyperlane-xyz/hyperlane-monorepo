@@ -1449,3 +1449,241 @@ async fn test_set_beneficiary_errors_if_not_owner() {
         TransactionError::InstructionError(0, InstructionError::InvalidArgument),
     );
 }
+
+// ---- Owner-not-signer tests ----
+// These verify that passing the correct owner pubkey but NOT as a signer fails
+// with MissingRequiredSignature (as opposed to InvalidArgument for wrong owner).
+
+/// Helper: build an instruction with the owner account as non-signer.
+/// Uses the instruction builder, then flips `is_signer` to false on the owner account.
+fn make_owner_non_signer(
+    mut ixn: solana_program::instruction::Instruction,
+    owner: &Pubkey,
+) -> solana_program::instruction::Instruction {
+    for meta in ixn.accounts.iter_mut() {
+        if &meta.pubkey == owner {
+            meta.is_signer = false;
+        }
+    }
+    ixn
+}
+
+#[tokio::test]
+async fn test_set_route_errors_if_owner_not_signer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
+
+    let other = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+
+    // Build instruction with correct owner but flip is_signer to false
+    let ixn = set_route_instruction(
+        program_id,
+        payer.pubkey(),
+        fee_key,
+        42,
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .unwrap();
+    let ixn = make_owner_non_signer(ixn, &payer.pubkey());
+
+    // Sign with `other` as payer only
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[ixn],
+        Some(&other.pubkey()),
+        &[&other],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}
+
+#[tokio::test]
+async fn test_remove_route_errors_if_owner_not_signer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
+
+    // Set a route first
+    let ixn = set_route_instruction(
+        program_id,
+        payer.pubkey(),
+        fee_key,
+        42,
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let other = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+
+    let ixn = remove_route_instruction(program_id, payer.pubkey(), fee_key, 42).unwrap();
+    let ixn = make_owner_non_signer(ixn, &payer.pubkey());
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[ixn],
+        Some(&other.pubkey()),
+        &[&other],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}
+
+#[tokio::test]
+async fn test_update_fee_data_errors_if_owner_not_signer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        payer.pubkey(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .await
+    .unwrap();
+
+    let other = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+
+    let ixn = update_fee_data_instruction(
+        program_id,
+        payer.pubkey(),
+        fee_key,
+        FeeData::Regressive {
+            max_fee: 999,
+            half_amount: 1,
+        },
+    )
+    .unwrap();
+    let ixn = make_owner_non_signer(ixn, &payer.pubkey());
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[ixn],
+        Some(&other.pubkey()),
+        &[&other],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}
+
+#[tokio::test]
+async fn test_set_beneficiary_errors_if_owner_not_signer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        payer.pubkey(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .await
+    .unwrap();
+
+    let other = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+
+    let ixn =
+        set_beneficiary_instruction(program_id, payer.pubkey(), fee_key, Pubkey::new_unique())
+            .unwrap();
+    let ixn = make_owner_non_signer(ixn, &payer.pubkey());
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[ixn],
+        Some(&other.pubkey()),
+        &[&other],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_ownership_errors_if_owner_not_signer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        payer.pubkey(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .await
+    .unwrap();
+
+    let other = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+
+    let ixn =
+        transfer_ownership_instruction(program_id, payer.pubkey(), fee_key, Some(other.pubkey()))
+            .unwrap();
+    let ixn = make_owner_non_signer(ixn, &payer.pubkey());
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[ixn],
+        Some(&other.pubkey()),
+        &[&other],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::MissingRequiredSignature),
+    );
+}

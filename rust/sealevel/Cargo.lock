@@ -3712,6 +3712,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hyperlane-core",
  "hyperlane-sealevel-connection-client",
+ "hyperlane-sealevel-fee",
  "hyperlane-sealevel-igp",
  "hyperlane-sealevel-mailbox",
  "hyperlane-sealevel-message-recipient-interface",
