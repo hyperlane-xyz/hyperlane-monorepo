@@ -1,0 +1,60 @@
+{
+  "name": "@hyperlane-xyz/svm-provider",
+  "version": "0.1.0",
+  "description": "Hand-crafted Solana/SVM client for Hyperlane Sealevel programs",
+  "keywords": [
+    "hyperlane",
+    "sealevel",
+    "solana",
+    "svm"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf ./dist && tsc",
+    "format": "oxfmt --write ./src",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "clean": "rm -rf ./dist ./cache",
+    "dev": "tsc --watch",
+    "test": "echo \"no tests in svm-provider yet\""
+  },
+  "dependencies": {
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "@solana-program/loader-v3": "^0.3.0",
+    "@solana-program/system": "^0.12.0",
+    "@solana/kit": "^6.1.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/node": "catalog:",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "oxfmt": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+}
