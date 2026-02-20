@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { maxUint256, pad } from 'viem';
 
 import {
   IERC20__factory,
@@ -18,8 +18,11 @@ import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
-import { DerivedIcaRouterConfig, FeeTokenApproval } from '../ica/types.js';
-import { InterchainAccountConfig } from '../index.js';
+import {
+  type FeeTokenApproval,
+  type DerivedIcaRouterConfig,
+  type IcaRouterConfig as InterchainAccountConfig,
+} from '../ica/types.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -113,10 +116,12 @@ export class EvmIcaModule extends HyperlaneModule<
         routerAddress,
         approval.hook,
       );
+      const allowance =
+        typeof currentAllowance === 'bigint'
+          ? currentAllowance
+          : BigInt(currentAllowance.toString());
 
-      if (
-        currentAllowance.toBigInt() !== ethers.constants.MaxUint256.toBigInt()
-      ) {
+      if (allowance !== maxUint256) {
         this.logger.debug(
           `Generating approval tx for fee token ${approval.feeToken} to hook ${approval.hook}`,
         );
@@ -163,7 +168,7 @@ export class EvmIcaModule extends HyperlaneModule<
     for (const domainId of routesToEnroll) {
       domainsToEnroll.push(domainId);
       remoteDomainIca.push(addressToBytes32(expectedConfig[domainId].address));
-      remoteIsm.push(ethers.utils.hexZeroPad('0x', 32));
+      remoteIsm.push(pad('0x', { size: 32 }));
     }
 
     const remoteTransactions: AnnotatedEV5Transaction[] = domainsToEnroll.map(
