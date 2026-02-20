@@ -1,708 +1,736 @@
-import { ethers } from 'ethers';
+import {zeroAddress} from "viem";
 
 import {
-  AmountRoutingHook__factory,
-  ArbL2ToL1Hook__factory,
-  CCIPHook__factory,
-  DefaultHook__factory,
-  DomainRoutingHook,
-  DomainRoutingHook__factory,
-  FallbackDomainRoutingHook,
-  FallbackDomainRoutingHook__factory,
-  IPostDispatchHook__factory,
-  InterchainGasPaymaster__factory,
-  MerkleTreeHook__factory,
-  OPStackHook__factory,
-  PausableHook__factory,
-  ProtocolFee__factory,
-  StaticAggregationHook__factory,
-  StorageGasOracle__factory,
-} from '@hyperlane-xyz/core';
+    AmountRoutingHook__factory,
+    ArbL2ToL1Hook__factory,
+    CCIPHook__factory,
+    DefaultHook__factory,
+    DomainRoutingHook,
+    DomainRoutingHook__factory,
+    FallbackDomainRoutingHook,
+    FallbackDomainRoutingHook__factory,
+    IPostDispatchHook__factory,
+    InterchainGasPaymaster__factory,
+    MerkleTreeHook__factory,
+    OPStackHook__factory,
+    PausableHook__factory,
+    ProtocolFee__factory,
+    StaticAggregationHook__factory,
+    StorageGasOracle__factory,
+} from "@hyperlane-xyz/core";
 import {
-  Address,
-  WithAddress,
-  assert,
-  concurrentMap,
-  eqAddress,
-  getLogLevel,
-  objMap,
-  promiseObjAll,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+    Address,
+    WithAddress,
+    assert,
+    concurrentMap,
+    eqAddress,
+    getLogLevel,
+    objMap,
+    promiseObjAll,
+    rootLogger,
+} from "@hyperlane-xyz/utils";
 
-import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
-import { DispatchedMessage } from '../core/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId } from '../types.js';
-import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import {DEFAULT_CONTRACT_READ_CONCURRENCY} from "../consts/concurrency.js";
+import {DispatchedMessage} from "../core/types.js";
+import {MultiProvider} from "../providers/MultiProvider.js";
+import {ChainNameOrId} from "../types.js";
+import {HyperlaneReader} from "../utils/HyperlaneReader.js";
 
 import {
-  AggregationHookConfig,
-  AmountRoutingHookConfig,
-  ArbL2ToL1HookConfig,
-  CCIPHookConfig,
-  DerivedHookConfig,
-  DomainRoutingHookConfig,
-  FallbackRoutingHookConfig,
-  HookConfig,
-  HookType,
-  IgpHookConfig,
-  MailboxDefaultHookConfig,
-  MerkleTreeHookConfig,
-  OnchainHookType,
-  OpStackHookConfig,
-  PausableHookConfig,
-  ProtocolFeeHookConfig,
-  RoutingHookConfig,
-} from './types.js';
+    AggregationHookConfig,
+    AmountRoutingHookConfig,
+    ArbL2ToL1HookConfig,
+    CCIPHookConfig,
+    DerivedHookConfig,
+    DomainRoutingHookConfig,
+    FallbackRoutingHookConfig,
+    HookConfig,
+    HookType,
+    IgpHookConfig,
+    MailboxDefaultHookConfig,
+    MerkleTreeHookConfig,
+    OnchainHookType,
+    OpStackHookConfig,
+    PausableHookConfig,
+    ProtocolFeeHookConfig,
+    RoutingHookConfig,
+} from "./types.js";
 
 export interface HookReader {
-  deriveHookConfig(address: HookConfig): Promise<WithAddress<HookConfig>>;
-  deriveMerkleTreeConfig(
-    address: Address,
-  ): Promise<WithAddress<MerkleTreeHookConfig>>;
-  deriveAggregationConfig(
-    address: Address,
-  ): Promise<WithAddress<AggregationHookConfig>>;
-  deriveIgpConfig(address: Address): Promise<WithAddress<IgpHookConfig>>;
-  deriveProtocolFeeConfig(
-    address: Address,
-  ): Promise<WithAddress<ProtocolFeeHookConfig>>;
-  deriveOpStackConfig(
-    address: Address,
-  ): Promise<WithAddress<OpStackHookConfig>>;
-  deriveArbL2ToL1Config(
-    address: Address,
-  ): Promise<WithAddress<ArbL2ToL1HookConfig>>;
-  deriveDomainRoutingConfig(
-    address: Address,
-  ): Promise<WithAddress<DomainRoutingHookConfig>>;
-  deriveFallbackRoutingConfig(
-    address: Address,
-  ): Promise<WithAddress<FallbackRoutingHookConfig>>;
-  derivePausableConfig(
-    address: Address,
-  ): Promise<WithAddress<PausableHookConfig>>;
-  deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig>;
-  deriveCcipConfig(address: Address): Promise<WithAddress<CCIPHookConfig>>;
-  assertHookType(
-    hookType: OnchainHookType,
-    expectedType: OnchainHookType,
-  ): void;
+    deriveHookConfig(address: HookConfig): Promise<WithAddress<HookConfig>>;
+    deriveMerkleTreeConfig(
+        address: Address,
+    ): Promise<WithAddress<MerkleTreeHookConfig>>;
+    deriveAggregationConfig(
+        address: Address,
+    ): Promise<WithAddress<AggregationHookConfig>>;
+    deriveIgpConfig(address: Address): Promise<WithAddress<IgpHookConfig>>;
+    deriveProtocolFeeConfig(
+        address: Address,
+    ): Promise<WithAddress<ProtocolFeeHookConfig>>;
+    deriveOpStackConfig(
+        address: Address,
+    ): Promise<WithAddress<OpStackHookConfig>>;
+    deriveArbL2ToL1Config(
+        address: Address,
+    ): Promise<WithAddress<ArbL2ToL1HookConfig>>;
+    deriveDomainRoutingConfig(
+        address: Address,
+    ): Promise<WithAddress<DomainRoutingHookConfig>>;
+    deriveFallbackRoutingConfig(
+        address: Address,
+    ): Promise<WithAddress<FallbackRoutingHookConfig>>;
+    derivePausableConfig(
+        address: Address,
+    ): Promise<WithAddress<PausableHookConfig>>;
+    deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig>;
+    deriveCcipConfig(address: Address): Promise<WithAddress<CCIPHookConfig>>;
+    assertHookType(
+        hookType: OnchainHookType,
+        expectedType: OnchainHookType,
+    ): void;
 }
 
 export class EvmHookReader extends HyperlaneReader implements HookReader {
-  protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
-  /**
-   * HookConfig cache for already retrieved configs. Useful to avoid recomputing configs
-   * when they have already been retrieved in previous calls where `deriveHookConfig` was called by
-   * the specific hook methods.
-   */
-  private _cache: Map<Address, any> = new Map();
+    protected readonly logger = rootLogger.child({module: "EvmHookReader"});
+    /**
+     * HookConfig cache for already retrieved configs. Useful to avoid recomputing configs
+     * when they have already been retrieved in previous calls where `deriveHookConfig` was called by
+     * the specific hook methods.
+     */
+    private _cache: Map<Address, any> = new Map();
 
-  constructor(
-    protected readonly multiProvider: MultiProvider,
-    protected readonly chain: ChainNameOrId,
-    protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
-      chain,
-    ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
-    protected readonly messageContext?: DispatchedMessage,
-  ) {
-    super(multiProvider, chain);
-  }
-
-  async deriveHookConfigFromAddress(
-    address: Address,
-  ): Promise<DerivedHookConfig> {
-    this.logger.debug('Deriving HookConfig:', { address });
-
-    const cachedValue = this._cache.get(address);
-    if (cachedValue) {
-      this.logger.debug(
-        `Cache hit for HookConfig on chain ${this.chain} at: ${address}`,
-      );
-      return cachedValue;
+    constructor(
+        protected readonly multiProvider: MultiProvider,
+        protected readonly chain: ChainNameOrId,
+        protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
+            chain,
+        ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
+        protected readonly messageContext?: DispatchedMessage,
+    ) {
+        super(multiProvider, chain);
     }
 
-    this.logger.debug(
-      `Cache miss for HookConfig on chain ${this.chain} at: ${address}`,
-    );
+    async deriveHookConfigFromAddress(
+        address: Address,
+    ): Promise<DerivedHookConfig> {
+        this.logger.debug("Deriving HookConfig:", {address});
 
-    let onchainHookType: OnchainHookType | undefined = undefined;
-    let derivedHookConfig: DerivedHookConfig;
+        const cachedValue = this._cache.get(address);
+        if (cachedValue) {
+            this.logger.debug(
+                `Cache hit for HookConfig on chain ${this.chain} at: ${address}`,
+            );
+            return cachedValue;
+        }
 
-    try {
-      const hook = IPostDispatchHook__factory.connect(address, this.provider);
-      this.logger.debug('Deriving HookConfig:', { address });
-
-      // Temporarily turn off SmartProvider logging
-      // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
-      this.setSmartProviderLogLevel('silent');
-      onchainHookType = await hook.hookType();
-
-      switch (onchainHookType) {
-        case OnchainHookType.ROUTING:
-          derivedHookConfig = await this.deriveDomainRoutingConfig(address);
-          break;
-        case OnchainHookType.AGGREGATION:
-          derivedHookConfig = await this.deriveAggregationConfig(address);
-          break;
-        case OnchainHookType.MERKLE_TREE:
-          derivedHookConfig = await this.deriveMerkleTreeConfig(address);
-          break;
-        case OnchainHookType.INTERCHAIN_GAS_PAYMASTER:
-          derivedHookConfig = await this.deriveIgpConfig(address);
-          break;
-        case OnchainHookType.FALLBACK_ROUTING:
-          derivedHookConfig = await this.deriveFallbackRoutingConfig(address);
-          break;
-        case OnchainHookType.PAUSABLE:
-          derivedHookConfig = await this.derivePausableConfig(address);
-          break;
-        case OnchainHookType.PROTOCOL_FEE:
-          derivedHookConfig = await this.deriveProtocolFeeConfig(address);
-          break;
-        case OnchainHookType.ID_AUTH_ISM:
-          derivedHookConfig = await this.deriveIdAuthIsmConfig(address);
-          break;
-        case OnchainHookType.ARB_L2_TO_L1:
-          derivedHookConfig = await this.deriveArbL2ToL1Config(address);
-          break;
-        case OnchainHookType.AMOUNT_ROUTING:
-          derivedHookConfig = await this.deriveAmountRoutingHookConfig(address);
-          break;
-        case OnchainHookType.MAILBOX_DEFAULT_HOOK:
-          derivedHookConfig =
-            await this.deriveMailboxDefaultHookConfig(address);
-          break;
-        default:
-          throw new Error(
-            `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
-          );
-      }
-    } catch (e: any) {
-      let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
-      if (
-        !onchainHookType &&
-        e.message.includes('Invalid response from provider')
-      ) {
-        customMessage = customMessage.concat(
-          ` [The provided hook contract might be outdated and not support hookType()]`,
-        );
-        this.logger.info(`${customMessage}:\n\t${e}`);
-      } else {
-        this.logger.debug(`${customMessage}:\n\t${e}`);
-      }
-      throw new Error(`${customMessage}:\n\t${e}`);
-    } finally {
-      this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
-    }
-
-    return derivedHookConfig;
-  }
-
-  /**
-   *  Recursively resolves the HookConfigs as addresses, e.g.
-   *  hook:
-   *     type: aggregationHook
-   *     hooks:
-   *       - "0x7937CB2886f01F38210506491A69B0D107Ea0ad9"
-   *       - beneficiary: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
-   *         maxProtocolFee: "100000000000000000000"
-   *         owner: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
-   *         protocolFee: "50000000000000000"
-   *         type: protocolFee
-   *
-   * This may throw if the Hook address is not a derivable hook (e.g. Custom Hook)
-   */
-  public async deriveHookConfig(
-    config: HookConfig,
-  ): Promise<DerivedHookConfig> {
-    if (typeof config === 'string')
-      return this.deriveHookConfigFromAddress(config);
-
-    // Extend the inner hooks
-    switch (config.type) {
-      case HookType.FALLBACK_ROUTING:
-      case HookType.ROUTING:
-        config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, hook) =>
-            this.deriveHookConfig(hook),
-          ),
+        this.logger.debug(
+            `Cache miss for HookConfig on chain ${this.chain} at: ${address}`,
         );
 
-        if (config.type === HookType.FALLBACK_ROUTING)
-          config.fallback = await this.deriveHookConfig(config.fallback);
-        break;
-      case HookType.AGGREGATION:
-        config.hooks = await Promise.all(
-          config.hooks.map(async (hook) => this.deriveHookConfig(hook)),
-        );
-        break;
-      case HookType.AMOUNT_ROUTING:
-        [config.lowerHook, config.upperHook] = await Promise.all([
-          this.deriveHookConfig(config.lowerHook),
-          this.deriveHookConfig(config.upperHook),
-        ]);
-        break;
-    }
-    return config as DerivedHookConfig;
-  }
+        let onchainHookType: OnchainHookType | undefined = undefined;
+        let derivedHookConfig: DerivedHookConfig;
 
-  async deriveMailboxDefaultHookConfig(
-    address: Address,
-  ): Promise<WithAddress<MailboxDefaultHookConfig>> {
-    const hook = DefaultHook__factory.connect(address, this.provider);
-    this.assertHookType(
-      await hook.hookType(),
-      OnchainHookType.MAILBOX_DEFAULT_HOOK,
-    );
-
-    const config: WithAddress<MailboxDefaultHookConfig> = {
-      address,
-      type: HookType.MAILBOX_DEFAULT,
-    };
-
-    this._cache.set(address, config);
-
-    return config;
-  }
-
-  async deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig> {
-    // First check if it's a CCIP hook
-    try {
-      const ccipHook = CCIPHook__factory.connect(address, this.provider);
-      // This method only exists on CCIPHook
-      await ccipHook.ccipDestination();
-      return this.deriveCcipConfig(address);
-    } catch {
-      // Not a CCIP hook, try OPStack
-      try {
-        const opStackHook = OPStackHook__factory.connect(
-          address,
-          this.provider,
-        );
-        // This method only exists on OPStackHook
-        await opStackHook.l1Messenger();
-        return this.deriveOpStackConfig(address);
-      } catch {
-        throw new Error(
-          `Could not determine hook type - neither CCIP nor OPStack methods found`,
-        );
-      }
-    }
-  }
-
-  async deriveCcipConfig(
-    address: Address,
-  ): Promise<WithAddress<CCIPHookConfig>> {
-    const ccipHook = CCIPHook__factory.connect(address, this.provider);
-    const destinationDomain = await ccipHook.destinationDomain();
-    const destinationChain = this.multiProvider.getChainName(destinationDomain);
-
-    const config: WithAddress<CCIPHookConfig> = {
-      address,
-      type: HookType.CCIP,
-      destinationChain,
-    };
-
-    this._cache.set(address, config);
-
-    return config;
-  }
-
-  async deriveMerkleTreeConfig(
-    address: Address,
-  ): Promise<WithAddress<MerkleTreeHookConfig>> {
-    const hook = MerkleTreeHook__factory.connect(address, this.provider);
-    this.assertHookType(await hook.hookType(), OnchainHookType.MERKLE_TREE);
-
-    const config: WithAddress<MerkleTreeHookConfig> = {
-      address,
-      type: HookType.MERKLE_TREE,
-    };
-
-    this._cache.set(address, config);
-
-    return config;
-  }
-
-  async deriveAggregationConfig(
-    address: Address,
-  ): Promise<WithAddress<AggregationHookConfig>> {
-    const hook = StaticAggregationHook__factory.connect(address, this.provider);
-
-    // Parallelize hookType and hooks list fetching
-    const [hookType, hooks] = await Promise.all([
-      hook.hookType(),
-      hook.hooks(ethers.constants.AddressZero),
-    ]);
-
-    this.assertHookType(hookType, OnchainHookType.AGGREGATION);
-
-    const hookConfigs: DerivedHookConfig[] = await concurrentMap(
-      this.concurrency,
-      hooks,
-      (hook) => this.deriveHookConfig(hook),
-    );
-
-    const config: WithAddress<AggregationHookConfig> = {
-      address,
-      type: HookType.AGGREGATION,
-      hooks: hookConfigs,
-    };
-
-    this._cache.set(address, config);
-
-    return config;
-  }
-
-  possibleDomainIds(): number[] {
-    const isTestnet = !!this.multiProvider.getChainMetadata(this.chain)
-      .isTestnet;
-
-    return this.messageContext
-      ? [this.messageContext.parsed.destination]
-      : // filter to only domains that are the same testnet/mainnet
-        this.multiProvider
-          .getKnownChainNames()
-          .filter(
-            (chainName) =>
-              !!this.multiProvider.getChainMetadata(chainName).isTestnet ===
-              isTestnet,
-          )
-          .map((chainName) => this.multiProvider.getDomainId(chainName));
-  }
-
-  async deriveIgpConfig(address: Address): Promise<WithAddress<IgpHookConfig>> {
-    const hook = InterchainGasPaymaster__factory.connect(
-      address,
-      this.provider,
-    );
-
-    // Parallelize initial RPC calls
-    const [hookType, owner, beneficiary] = await Promise.all([
-      hook.hookType(),
-      hook.owner(),
-      hook.beneficiary(),
-    ]);
-
-    this.assertHookType(hookType, OnchainHookType.INTERCHAIN_GAS_PAYMASTER);
-
-    const overhead: IgpHookConfig['overhead'] = {};
-    const oracleConfig: IgpHookConfig['oracleConfig'] = {};
-
-    let oracleKey: string | undefined;
-
-    const allKeys = await concurrentMap(
-      this.concurrency,
-      this.possibleDomainIds(),
-      async (domainId) => {
-        const { name: chainName, nativeToken } =
-          this.multiProvider.getChainMetadata(domainId);
         try {
-          const { tokenExchangeRate, gasPrice } =
-            await hook.getExchangeRateAndGasPrice(domainId);
-          const domainGasOverhead = await hook.destinationGasLimit(domainId, 0);
+            const hook = IPostDispatchHook__factory.connect(
+                address,
+                this.provider,
+            );
+            this.logger.debug("Deriving HookConfig:", {address});
 
-          overhead[chainName] = domainGasOverhead.toNumber();
-          oracleConfig[chainName] = {
-            tokenExchangeRate: tokenExchangeRate.toString(),
-            gasPrice: gasPrice.toString(),
-            tokenDecimals: nativeToken?.decimals,
-          };
+            // Temporarily turn off SmartProvider logging
+            // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
+            this.setSmartProviderLogLevel("silent");
+            onchainHookType = await hook.hookType();
 
-          const { gasOracle } = await hook.destinationGasConfigs(domainId);
-          const oracle = StorageGasOracle__factory.connect(
-            gasOracle,
+            switch (onchainHookType) {
+                case OnchainHookType.ROUTING:
+                    derivedHookConfig =
+                        await this.deriveDomainRoutingConfig(address);
+                    break;
+                case OnchainHookType.AGGREGATION:
+                    derivedHookConfig =
+                        await this.deriveAggregationConfig(address);
+                    break;
+                case OnchainHookType.MERKLE_TREE:
+                    derivedHookConfig =
+                        await this.deriveMerkleTreeConfig(address);
+                    break;
+                case OnchainHookType.INTERCHAIN_GAS_PAYMASTER:
+                    derivedHookConfig = await this.deriveIgpConfig(address);
+                    break;
+                case OnchainHookType.FALLBACK_ROUTING:
+                    derivedHookConfig =
+                        await this.deriveFallbackRoutingConfig(address);
+                    break;
+                case OnchainHookType.PAUSABLE:
+                    derivedHookConfig =
+                        await this.derivePausableConfig(address);
+                    break;
+                case OnchainHookType.PROTOCOL_FEE:
+                    derivedHookConfig =
+                        await this.deriveProtocolFeeConfig(address);
+                    break;
+                case OnchainHookType.ID_AUTH_ISM:
+                    derivedHookConfig =
+                        await this.deriveIdAuthIsmConfig(address);
+                    break;
+                case OnchainHookType.ARB_L2_TO_L1:
+                    derivedHookConfig =
+                        await this.deriveArbL2ToL1Config(address);
+                    break;
+                case OnchainHookType.AMOUNT_ROUTING:
+                    derivedHookConfig =
+                        await this.deriveAmountRoutingHookConfig(address);
+                    break;
+                case OnchainHookType.MAILBOX_DEFAULT_HOOK:
+                    derivedHookConfig =
+                        await this.deriveMailboxDefaultHookConfig(address);
+                    break;
+                default:
+                    throw new Error(
+                        `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
+                    );
+            }
+        } catch (e: any) {
+            let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
+            if (
+                !onchainHookType &&
+                e.message.includes("Invalid response from provider")
+            ) {
+                customMessage = customMessage.concat(
+                    ` [The provided hook contract might be outdated and not support hookType()]`,
+                );
+                this.logger.info(`${customMessage}:\n\t${e}`);
+            } else {
+                this.logger.debug(`${customMessage}:\n\t${e}`);
+            }
+            throw new Error(`${customMessage}:\n\t${e}`);
+        } finally {
+            this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
+        }
+
+        return derivedHookConfig;
+    }
+
+    /**
+     *  Recursively resolves the HookConfigs as addresses, e.g.
+     *  hook:
+     *     type: aggregationHook
+     *     hooks:
+     *       - "0x7937CB2886f01F38210506491A69B0D107Ea0ad9"
+     *       - beneficiary: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+     *         maxProtocolFee: "100000000000000000000"
+     *         owner: "0x865BA5789D82F2D4C5595a3968dad729A8C3daE6"
+     *         protocolFee: "50000000000000000"
+     *         type: protocolFee
+     *
+     * This may throw if the Hook address is not a derivable hook (e.g. Custom Hook)
+     */
+    public async deriveHookConfig(
+        config: HookConfig,
+    ): Promise<DerivedHookConfig> {
+        if (typeof config === "string")
+            return this.deriveHookConfigFromAddress(config);
+
+        // Extend the inner hooks
+        switch (config.type) {
+            case HookType.FALLBACK_ROUTING:
+            case HookType.ROUTING:
+                config.domains = await promiseObjAll(
+                    objMap(config.domains, async (_, hook) =>
+                        this.deriveHookConfig(hook),
+                    ),
+                );
+
+                if (config.type === HookType.FALLBACK_ROUTING)
+                    config.fallback = await this.deriveHookConfig(
+                        config.fallback,
+                    );
+                break;
+            case HookType.AGGREGATION:
+                config.hooks = await Promise.all(
+                    config.hooks.map(async (hook) =>
+                        this.deriveHookConfig(hook),
+                    ),
+                );
+                break;
+            case HookType.AMOUNT_ROUTING:
+                [config.lowerHook, config.upperHook] = await Promise.all([
+                    this.deriveHookConfig(config.lowerHook),
+                    this.deriveHookConfig(config.upperHook),
+                ]);
+                break;
+        }
+        return config as DerivedHookConfig;
+    }
+
+    async deriveMailboxDefaultHookConfig(
+        address: Address,
+    ): Promise<WithAddress<MailboxDefaultHookConfig>> {
+        const hook = DefaultHook__factory.connect(address, this.provider);
+        this.assertHookType(
+            await hook.hookType(),
+            OnchainHookType.MAILBOX_DEFAULT_HOOK,
+        );
+
+        const config: WithAddress<MailboxDefaultHookConfig> = {
+            address,
+            type: HookType.MAILBOX_DEFAULT,
+        };
+
+        this._cache.set(address, config);
+
+        return config;
+    }
+
+    async deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig> {
+        // First check if it's a CCIP hook
+        try {
+            const ccipHook = CCIPHook__factory.connect(address, this.provider);
+            // This method only exists on CCIPHook
+            await ccipHook.ccipDestination();
+            return this.deriveCcipConfig(address);
+        } catch {
+            // Not a CCIP hook, try OPStack
+            try {
+                const opStackHook = OPStackHook__factory.connect(
+                    address,
+                    this.provider,
+                );
+                // This method only exists on OPStackHook
+                await opStackHook.l1Messenger();
+                return this.deriveOpStackConfig(address);
+            } catch {
+                throw new Error(
+                    `Could not determine hook type - neither CCIP nor OPStack methods found`,
+                );
+            }
+        }
+    }
+
+    async deriveCcipConfig(
+        address: Address,
+    ): Promise<WithAddress<CCIPHookConfig>> {
+        const ccipHook = CCIPHook__factory.connect(address, this.provider);
+        const destinationDomain = await ccipHook.destinationDomain();
+        const destinationChain =
+            this.multiProvider.getChainName(destinationDomain);
+
+        const config: WithAddress<CCIPHookConfig> = {
+            address,
+            type: HookType.CCIP,
+            destinationChain,
+        };
+
+        this._cache.set(address, config);
+
+        return config;
+    }
+
+    async deriveMerkleTreeConfig(
+        address: Address,
+    ): Promise<WithAddress<MerkleTreeHookConfig>> {
+        const hook = MerkleTreeHook__factory.connect(address, this.provider);
+        this.assertHookType(await hook.hookType(), OnchainHookType.MERKLE_TREE);
+
+        const config: WithAddress<MerkleTreeHookConfig> = {
+            address,
+            type: HookType.MERKLE_TREE,
+        };
+
+        this._cache.set(address, config);
+
+        return config;
+    }
+
+    async deriveAggregationConfig(
+        address: Address,
+    ): Promise<WithAddress<AggregationHookConfig>> {
+        const hook = StaticAggregationHook__factory.connect(
+            address,
             this.provider,
-          );
-          return oracle.owner();
-        } catch {
-          this.logger.debug(
-            'Domain not configured on IGP Hook',
-            domainId,
-            chainName,
-          );
-          return null;
-        }
-      },
-    );
+        );
 
-    const resolvedOracleKeys = allKeys.filter(
-      (key): key is string => key !== null,
-    );
+        // Parallelize hookType and hooks list fetching
+        const [hookType, hooks] = await Promise.all([
+            hook.hookType(),
+            hook.hooks(zeroAddress),
+        ]);
 
-    if (resolvedOracleKeys.length > 0) {
-      const allKeysMatch = resolvedOracleKeys.every((key) =>
-        eqAddress(resolvedOracleKeys[0], key),
-      );
-      assert(allKeysMatch, 'Not all oracle keys match');
-      oracleKey = resolvedOracleKeys[0];
+        this.assertHookType(hookType, OnchainHookType.AGGREGATION);
+
+        const hookConfigs: DerivedHookConfig[] = await concurrentMap(
+            this.concurrency,
+            hooks,
+            (hook) => this.deriveHookConfig(hook),
+        );
+
+        const config: WithAddress<AggregationHookConfig> = {
+            address,
+            type: HookType.AGGREGATION,
+            hooks: hookConfigs,
+        };
+
+        this._cache.set(address, config);
+
+        return config;
     }
 
-    const config: WithAddress<IgpHookConfig> = {
-      owner,
-      address,
-      type: HookType.INTERCHAIN_GAS_PAYMASTER,
-      beneficiary,
-      oracleKey: oracleKey ?? owner,
-      overhead,
-      oracleConfig,
-    };
+    possibleDomainIds(): number[] {
+        const isTestnet = !!this.multiProvider.getChainMetadata(this.chain)
+            .isTestnet;
 
-    this._cache.set(address, config);
+        return this.messageContext
+            ? [this.messageContext.parsed.destination]
+            : // filter to only domains that are the same testnet/mainnet
+              this.multiProvider
+                  .getKnownChainNames()
+                  .filter(
+                      (chainName) =>
+                          !!this.multiProvider.getChainMetadata(chainName)
+                              .isTestnet === isTestnet,
+                  )
+                  .map((chainName) =>
+                      this.multiProvider.getDomainId(chainName),
+                  );
+    }
 
-    return config;
-  }
+    async deriveIgpConfig(
+        address: Address,
+    ): Promise<WithAddress<IgpHookConfig>> {
+        const hook = InterchainGasPaymaster__factory.connect(
+            address,
+            this.provider,
+        );
 
-  async deriveProtocolFeeConfig(
-    address: Address,
-  ): Promise<WithAddress<ProtocolFeeHookConfig>> {
-    const hook = ProtocolFee__factory.connect(address, this.provider);
+        // Parallelize initial RPC calls
+        const [hookType, owner, beneficiary] = await Promise.all([
+            hook.hookType(),
+            hook.owner(),
+            hook.beneficiary(),
+        ]);
 
-    // Parallelize all RPC calls
-    const [hookType, owner, maxProtocolFee, protocolFee, beneficiary] =
-      await Promise.all([
-        hook.hookType(),
-        hook.owner(),
-        hook.MAX_PROTOCOL_FEE(),
-        hook.protocolFee(),
-        hook.beneficiary(),
-      ]);
+        this.assertHookType(hookType, OnchainHookType.INTERCHAIN_GAS_PAYMASTER);
 
-    this.assertHookType(hookType, OnchainHookType.PROTOCOL_FEE);
+        const overhead: IgpHookConfig["overhead"] = {};
+        const oracleConfig: IgpHookConfig["oracleConfig"] = {};
 
-    const config: WithAddress<ProtocolFeeHookConfig> = {
-      owner,
-      address,
-      type: HookType.PROTOCOL_FEE,
-      maxProtocolFee: maxProtocolFee.toString(),
-      protocolFee: protocolFee.toString(),
-      beneficiary,
-    };
+        let oracleKey: string | undefined;
 
-    this._cache.set(address, config);
+        const allKeys = await concurrentMap(
+            this.concurrency,
+            this.possibleDomainIds(),
+            async (domainId) => {
+                const {name: chainName, nativeToken} =
+                    this.multiProvider.getChainMetadata(domainId);
+                try {
+                    const {tokenExchangeRate, gasPrice} =
+                        await hook.getExchangeRateAndGasPrice(domainId);
+                    const domainGasOverhead = await hook.destinationGasLimit(
+                        domainId,
+                        0,
+                    );
 
-    return config;
-  }
+                    overhead[chainName] = domainGasOverhead.toNumber();
+                    oracleConfig[chainName] = {
+                        tokenExchangeRate: tokenExchangeRate.toString(),
+                        gasPrice: gasPrice.toString(),
+                        tokenDecimals: nativeToken?.decimals,
+                    };
 
-  async deriveOpStackConfig(
-    address: Address,
-  ): Promise<WithAddress<OpStackHookConfig>> {
-    const hook = OPStackHook__factory.connect(address, this.provider);
+                    const {gasOracle} =
+                        await hook.destinationGasConfigs(domainId);
+                    const oracle = StorageGasOracle__factory.connect(
+                        gasOracle,
+                        this.provider,
+                    );
+                    return oracle.owner();
+                } catch {
+                    this.logger.debug(
+                        "Domain not configured on IGP Hook",
+                        domainId,
+                        chainName,
+                    );
+                    return null;
+                }
+            },
+        );
 
-    // Parallelize all RPC calls
-    const [hookType, owner, messengerContract, destinationDomain] =
-      await Promise.all([
-        hook.hookType(),
-        hook.owner(),
-        hook.l1Messenger(),
-        hook.destinationDomain(),
-      ]);
+        const resolvedOracleKeys = allKeys.filter(
+            (key): key is string => key !== null,
+        );
 
-    this.assertHookType(hookType, OnchainHookType.ID_AUTH_ISM);
-
-    const destinationChainName =
-      this.multiProvider.getChainName(destinationDomain);
-
-    const config: WithAddress<OpStackHookConfig> = {
-      owner,
-      address,
-      type: HookType.OP_STACK,
-      nativeBridge: messengerContract,
-      destinationChain: destinationChainName,
-    };
-
-    this._cache.set(address, config);
-
-    return config;
-  }
-
-  async deriveArbL2ToL1Config(
-    address: Address,
-  ): Promise<WithAddress<ArbL2ToL1HookConfig>> {
-    const hook = ArbL2ToL1Hook__factory.connect(address, this.provider);
-
-    // Parallelize initial RPC calls
-    const [arbSys, destinationDomain, childHookAddress] = await Promise.all([
-      hook.arbSys(),
-      hook.destinationDomain(),
-      hook.childHook(),
-    ]);
-
-    const destinationChainName =
-      this.multiProvider.getChainName(destinationDomain);
-
-    const childHookConfig = await this.deriveHookConfig(childHookAddress);
-    const config: WithAddress<ArbL2ToL1HookConfig> = {
-      address,
-      type: HookType.ARB_L2_TO_L1,
-      destinationChain: destinationChainName,
-      arbSys,
-      childHook: childHookConfig,
-    };
-
-    this._cache.set(address, config);
-
-    return config;
-  }
-
-  async deriveDomainRoutingConfig(
-    address: Address,
-  ): Promise<WithAddress<DomainRoutingHookConfig>> {
-    const hook = DomainRoutingHook__factory.connect(address, this.provider);
-
-    // Parallelize hookType, owner, and domain hooks fetching
-    const [hookType, owner, domainHooks] = await Promise.all([
-      hook.hookType(),
-      hook.owner(),
-      this.fetchDomainHooks(hook),
-    ]);
-
-    this.assertHookType(hookType, OnchainHookType.ROUTING);
-
-    const config: WithAddress<DomainRoutingHookConfig> = {
-      owner,
-      address,
-      type: HookType.ROUTING,
-      domains: domainHooks,
-    };
-
-    this._cache.set(address, config);
-
-    return config;
-  }
-
-  async deriveFallbackRoutingConfig(
-    address: Address,
-  ): Promise<WithAddress<FallbackRoutingHookConfig>> {
-    const hook = FallbackDomainRoutingHook__factory.connect(
-      address,
-      this.provider,
-    );
-
-    // Parallelize hookType, owner, fallback hook address, and domain hooks fetching
-    const [hookType, owner, fallbackHookAddress, domainHooks] =
-      await Promise.all([
-        hook.hookType(),
-        hook.owner(),
-        hook.fallbackHook(),
-        this.fetchDomainHooks(hook),
-      ]);
-
-    this.assertHookType(hookType, OnchainHookType.FALLBACK_ROUTING);
-
-    const fallbackHookConfig = await this.deriveHookConfig(fallbackHookAddress);
-
-    const config: WithAddress<FallbackRoutingHookConfig> = {
-      owner,
-      address,
-      type: HookType.FALLBACK_ROUTING,
-      domains: domainHooks,
-      fallback: fallbackHookConfig,
-    };
-
-    this._cache.set(address, config);
-
-    return config;
-  }
-
-  private async fetchDomainHooks(
-    hook: DomainRoutingHook | FallbackDomainRoutingHook,
-  ): Promise<RoutingHookConfig['domains']> {
-    const domainHooks: RoutingHookConfig['domains'] = {};
-    await concurrentMap(
-      this.concurrency,
-      this.possibleDomainIds(),
-      async (domainId) => {
-        const chainName = this.multiProvider.getChainName(domainId);
-        try {
-          const domainHook = await hook.hooks(domainId);
-          if (domainHook !== ethers.constants.AddressZero) {
-            domainHooks[chainName] = await this.deriveHookConfig(domainHook);
-          }
-        } catch {
-          this.logger.debug(
-            `Domain not configured on ${hook.constructor.name}`,
-            domainId,
-            chainName,
-          );
+        if (resolvedOracleKeys.length > 0) {
+            const allKeysMatch = resolvedOracleKeys.every((key) =>
+                eqAddress(resolvedOracleKeys[0], key),
+            );
+            assert(allKeysMatch, "Not all oracle keys match");
+            oracleKey = resolvedOracleKeys[0];
         }
-      },
-    );
 
-    return domainHooks;
-  }
+        const config: WithAddress<IgpHookConfig> = {
+            owner,
+            address,
+            type: HookType.INTERCHAIN_GAS_PAYMASTER,
+            beneficiary,
+            oracleKey: oracleKey ?? owner,
+            overhead,
+            oracleConfig,
+        };
 
-  async derivePausableConfig(
-    address: Address,
-  ): Promise<WithAddress<PausableHookConfig>> {
-    const hook = PausableHook__factory.connect(address, this.provider);
+        this._cache.set(address, config);
 
-    // Parallelize all RPC calls
-    const [hookType, owner, paused] = await Promise.all([
-      hook.hookType(),
-      hook.owner(),
-      hook.paused(),
-    ]);
+        return config;
+    }
 
-    this.assertHookType(hookType, OnchainHookType.PAUSABLE);
+    async deriveProtocolFeeConfig(
+        address: Address,
+    ): Promise<WithAddress<ProtocolFeeHookConfig>> {
+        const hook = ProtocolFee__factory.connect(address, this.provider);
 
-    const config: WithAddress<PausableHookConfig> = {
-      owner,
-      address,
-      paused,
-      type: HookType.PAUSABLE,
-    };
+        // Parallelize all RPC calls
+        const [hookType, owner, maxProtocolFee, protocolFee, beneficiary] =
+            await Promise.all([
+                hook.hookType(),
+                hook.owner(),
+                hook.MAX_PROTOCOL_FEE(),
+                hook.protocolFee(),
+                hook.beneficiary(),
+            ]);
 
-    this._cache.set(address, config);
+        this.assertHookType(hookType, OnchainHookType.PROTOCOL_FEE);
 
-    return config;
-  }
+        const config: WithAddress<ProtocolFeeHookConfig> = {
+            owner,
+            address,
+            type: HookType.PROTOCOL_FEE,
+            maxProtocolFee: maxProtocolFee.toString(),
+            protocolFee: protocolFee.toString(),
+            beneficiary,
+        };
 
-  private async deriveAmountRoutingHookConfig(
-    address: Address,
-  ): Promise<WithAddress<AmountRoutingHookConfig>> {
-    const hook = AmountRoutingHook__factory.connect(address, this.provider);
+        this._cache.set(address, config);
 
-    // Parallelize initial RPC calls including hookType
-    const [hookType, threshold, lowerHookAddress, upperHookAddress] =
-      await Promise.all([
-        hook.hookType(),
-        hook.threshold(),
-        hook.lower(),
-        hook.upper(),
-      ]);
+        return config;
+    }
 
-    this.assertHookType(hookType, OnchainHookType.AMOUNT_ROUTING);
+    async deriveOpStackConfig(
+        address: Address,
+    ): Promise<WithAddress<OpStackHookConfig>> {
+        const hook = OPStackHook__factory.connect(address, this.provider);
 
-    // Parallelize hook config derivation
-    const [lowerHookConfig, upperHookConfig] = await Promise.all([
-      this.deriveHookConfig(lowerHookAddress),
-      this.deriveHookConfig(upperHookAddress),
-    ]);
+        // Parallelize all RPC calls
+        const [hookType, owner, messengerContract, destinationDomain] =
+            await Promise.all([
+                hook.hookType(),
+                hook.owner(),
+                hook.l1Messenger(),
+                hook.destinationDomain(),
+            ]);
 
-    const config: WithAddress<AmountRoutingHookConfig> = {
-      address,
-      type: HookType.AMOUNT_ROUTING,
-      threshold: threshold.toNumber(),
-      lowerHook: lowerHookConfig,
-      upperHook: upperHookConfig,
-    };
+        this.assertHookType(hookType, OnchainHookType.ID_AUTH_ISM);
 
-    this._cache.set(address, config);
+        const destinationChainName =
+            this.multiProvider.getChainName(destinationDomain);
 
-    return config;
-  }
+        const config: WithAddress<OpStackHookConfig> = {
+            owner,
+            address,
+            type: HookType.OP_STACK,
+            nativeBridge: messengerContract,
+            destinationChain: destinationChainName,
+        };
 
-  assertHookType(
-    hookType: OnchainHookType,
-    expectedType: OnchainHookType,
-  ): void {
-    assert(
-      hookType === expectedType,
-      `expected hook type to be ${expectedType}, got ${hookType}`,
-    );
-  }
+        this._cache.set(address, config);
+
+        return config;
+    }
+
+    async deriveArbL2ToL1Config(
+        address: Address,
+    ): Promise<WithAddress<ArbL2ToL1HookConfig>> {
+        const hook = ArbL2ToL1Hook__factory.connect(address, this.provider);
+
+        // Parallelize initial RPC calls
+        const [arbSys, destinationDomain, childHookAddress] = await Promise.all(
+            [hook.arbSys(), hook.destinationDomain(), hook.childHook()],
+        );
+
+        const destinationChainName =
+            this.multiProvider.getChainName(destinationDomain);
+
+        const childHookConfig = await this.deriveHookConfig(childHookAddress);
+        const config: WithAddress<ArbL2ToL1HookConfig> = {
+            address,
+            type: HookType.ARB_L2_TO_L1,
+            destinationChain: destinationChainName,
+            arbSys,
+            childHook: childHookConfig,
+        };
+
+        this._cache.set(address, config);
+
+        return config;
+    }
+
+    async deriveDomainRoutingConfig(
+        address: Address,
+    ): Promise<WithAddress<DomainRoutingHookConfig>> {
+        const hook = DomainRoutingHook__factory.connect(address, this.provider);
+
+        // Parallelize hookType, owner, and domain hooks fetching
+        const [hookType, owner, domainHooks] = await Promise.all([
+            hook.hookType(),
+            hook.owner(),
+            this.fetchDomainHooks(hook),
+        ]);
+
+        this.assertHookType(hookType, OnchainHookType.ROUTING);
+
+        const config: WithAddress<DomainRoutingHookConfig> = {
+            owner,
+            address,
+            type: HookType.ROUTING,
+            domains: domainHooks,
+        };
+
+        this._cache.set(address, config);
+
+        return config;
+    }
+
+    async deriveFallbackRoutingConfig(
+        address: Address,
+    ): Promise<WithAddress<FallbackRoutingHookConfig>> {
+        const hook = FallbackDomainRoutingHook__factory.connect(
+            address,
+            this.provider,
+        );
+
+        // Parallelize hookType, owner, fallback hook address, and domain hooks fetching
+        const [hookType, owner, fallbackHookAddress, domainHooks] =
+            await Promise.all([
+                hook.hookType(),
+                hook.owner(),
+                hook.fallbackHook(),
+                this.fetchDomainHooks(hook),
+            ]);
+
+        this.assertHookType(hookType, OnchainHookType.FALLBACK_ROUTING);
+
+        const fallbackHookConfig =
+            await this.deriveHookConfig(fallbackHookAddress);
+
+        const config: WithAddress<FallbackRoutingHookConfig> = {
+            owner,
+            address,
+            type: HookType.FALLBACK_ROUTING,
+            domains: domainHooks,
+            fallback: fallbackHookConfig,
+        };
+
+        this._cache.set(address, config);
+
+        return config;
+    }
+
+    private async fetchDomainHooks(
+        hook: DomainRoutingHook | FallbackDomainRoutingHook,
+    ): Promise<RoutingHookConfig["domains"]> {
+        const domainHooks: RoutingHookConfig["domains"] = {};
+        await concurrentMap(
+            this.concurrency,
+            this.possibleDomainIds(),
+            async (domainId) => {
+                const chainName = this.multiProvider.getChainName(domainId);
+                try {
+                    const domainHook = await hook.hooks(domainId);
+                    if (domainHook !== zeroAddress) {
+                        domainHooks[chainName] =
+                            await this.deriveHookConfig(domainHook);
+                    }
+                } catch {
+                    this.logger.debug(
+                        `Domain not configured on ${hook.constructor.name}`,
+                        domainId,
+                        chainName,
+                    );
+                }
+            },
+        );
+
+        return domainHooks;
+    }
+
+    async derivePausableConfig(
+        address: Address,
+    ): Promise<WithAddress<PausableHookConfig>> {
+        const hook = PausableHook__factory.connect(address, this.provider);
+
+        // Parallelize all RPC calls
+        const [hookType, owner, paused] = await Promise.all([
+            hook.hookType(),
+            hook.owner(),
+            hook.paused(),
+        ]);
+
+        this.assertHookType(hookType, OnchainHookType.PAUSABLE);
+
+        const config: WithAddress<PausableHookConfig> = {
+            owner,
+            address,
+            paused,
+            type: HookType.PAUSABLE,
+        };
+
+        this._cache.set(address, config);
+
+        return config;
+    }
+
+    private async deriveAmountRoutingHookConfig(
+        address: Address,
+    ): Promise<WithAddress<AmountRoutingHookConfig>> {
+        const hook = AmountRoutingHook__factory.connect(address, this.provider);
+
+        // Parallelize initial RPC calls including hookType
+        const [hookType, threshold, lowerHookAddress, upperHookAddress] =
+            await Promise.all([
+                hook.hookType(),
+                hook.threshold(),
+                hook.lower(),
+                hook.upper(),
+            ]);
+
+        this.assertHookType(hookType, OnchainHookType.AMOUNT_ROUTING);
+
+        // Parallelize hook config derivation
+        const [lowerHookConfig, upperHookConfig] = await Promise.all([
+            this.deriveHookConfig(lowerHookAddress),
+            this.deriveHookConfig(upperHookAddress),
+        ]);
+
+        const config: WithAddress<AmountRoutingHookConfig> = {
+            address,
+            type: HookType.AMOUNT_ROUTING,
+            threshold: threshold.toNumber(),
+            lowerHook: lowerHookConfig,
+            upperHook: upperHookConfig,
+        };
+
+        this._cache.set(address, config);
+
+        return config;
+    }
+
+    assertHookType(
+        hookType: OnchainHookType,
+        expectedType: OnchainHookType,
+    ): void {
+        assert(
+            hookType === expectedType,
+            `expected hook type to be ${expectedType}, got ${hookType}`,
+        );
+    }
 }
