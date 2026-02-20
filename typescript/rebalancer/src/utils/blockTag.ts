@@ -29,9 +29,9 @@ export async function getConfirmedBlockTag(
       return reorgPeriod as EthJsonRpcBlockParameterTag;
     }
 
-    const provider = multiProvider.getEthersV5Provider(chainName);
+    const provider = multiProvider.getViemProvider(chainName);
     const latestBlock = await provider.getBlockNumber();
-    return Math.max(0, latestBlock - reorgPeriod);
+    return Math.max(0, Number(latestBlock) - reorgPeriod);
   } catch (error) {
     logger?.warn(
       { chain: chainName, error: (error as Error).message },
