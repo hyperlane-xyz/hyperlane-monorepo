@@ -1,3 +1,8 @@
+# Sealevel-specific dockerignore (replaces root .dockerignore for this Dockerfile)
+# Adds .git exclusion to save ~3GB context transfer
+
+.git
+
 # Rust build artifacts
 **/target
 
