@@ -1,8 +1,6 @@
-import "./plugins/hardhat-tron-solc.cjs";
-import "@nomicfoundation/hardhat-foundry";
-import "@nomiclabs/hardhat-ethers";
-import "@typechain/hardhat";
-import "hardhat-ignore-warnings";
+import './plugins/hardhat-tron-solc.cjs';
+import '@nomicfoundation/hardhat-foundry';
+import 'hardhat-ignore-warnings';
 
 import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
 

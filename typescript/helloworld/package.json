@@ -44,7 +44,6 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
-    "@nomiclabs/hardhat-ethers": "catalog:",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
