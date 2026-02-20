@@ -37,3 +37,9 @@ export {
   SvmCollateralTokenReader,
   SvmCollateralTokenWriter,
 } from './collateral-token.js';
+
+// Artifact manager
+export { SvmWarpArtifactManager } from './warp-artifact-manager.js';
+
+// Generated program bytes
+export { PROGRAM_BYTES, type ProgramType } from './program-bytes.js';
