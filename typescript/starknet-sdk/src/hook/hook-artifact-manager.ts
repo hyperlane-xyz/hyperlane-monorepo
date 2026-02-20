@@ -13,6 +13,8 @@ import {
   HookType,
   IRawHookArtifactManager,
   RawHookArtifactConfigs,
+  createUnsupportedHookReader,
+  createUnsupportedHookWriter,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert, eqAddressStarknet } from '@hyperlane-xyz/utils';
@@ -301,11 +303,11 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       >;
     } = {
       merkleTreeHook: () => new StarknetMerkleTreeHookReader(),
-      interchainGasPaymaster: () => {
-        throw new Error(
-          'interchainGasPaymaster hook type is unsupported on Starknet',
-        );
-      },
+      interchainGasPaymaster: () =>
+        createUnsupportedHookReader(
+          AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+          'Starknet',
+        ),
       protocolFee: () =>
         new StarknetProtocolFeeHookReader(this.chainMetadata, this.provider),
     };
@@ -342,11 +344,11 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
           this.mailboxAddress,
         );
       },
-      interchainGasPaymaster: () => {
-        throw new Error(
-          'interchainGasPaymaster hook type is unsupported on Starknet',
-        );
-      },
+      interchainGasPaymaster: () =>
+        createUnsupportedHookWriter(
+          AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+          'Starknet',
+        ),
       protocolFee: () =>
         new StarknetProtocolFeeHookWriter(
           this.chainMetadata,

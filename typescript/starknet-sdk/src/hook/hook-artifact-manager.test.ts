@@ -20,13 +20,28 @@ describe('StarknetHookArtifactManager', () => {
     },
   } as any;
 
-  it('rejects interchainGasPaymaster hook type on Starknet', async () => {
+  it('rejects interchainGasPaymaster hook operations on Starknet', async () => {
     const manager = new StarknetHookArtifactManager(chainMetadata);
-    expect(() =>
-      manager.createWriter('interchainGasPaymaster', {
-        getSignerAddress: () => '0x1',
-      } as any),
-    ).to.throw(/unsupported on Starknet/i);
+    const reader = manager.createReader('interchainGasPaymaster');
+    const writer = manager.createWriter('interchainGasPaymaster', {
+      getSignerAddress: () => '0x1',
+    } as any);
+
+    let readerError: unknown;
+    try {
+      await reader.read('0x1');
+    } catch (error) {
+      readerError = error;
+    }
+    expect(String(readerError)).to.match(/unsupported on Starknet/i);
+
+    let writerError: unknown;
+    try {
+      await writer.create({} as any);
+    } catch (error) {
+      writerError = error;
+    }
+    expect(String(writerError)).to.match(/unsupported on Starknet/i);
   });
 
   it('deploys protocolFee hook with maxProtocolFee and protocolFee args', async () => {
