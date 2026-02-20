@@ -1,6 +1,5 @@
-import { Provider } from '@ethersproject/providers';
-import { ethers } from 'ethers';
 import path from 'path';
+import { formatUnits } from 'viem';
 
 import {
   ChainMap,
@@ -118,9 +117,15 @@ async function getGasPrice(
   switch (protocolType) {
     case ProtocolType.Ethereum: {
       const provider = mpp.getProvider(chain);
-      const gasPrice = await (provider.provider as Provider).getGasPrice();
+      const gasPrice = await (
+        provider.provider as {
+          getGasPrice: () => Promise<bigint | { toString(): string }>;
+        }
+      ).getGasPrice();
+      const gasPriceBigInt =
+        typeof gasPrice === 'bigint' ? gasPrice : BigInt(gasPrice.toString());
       return {
-        amount: ethers.utils.formatUnits(gasPrice, 'gwei'),
+        amount: formatUnits(gasPriceBigInt, 9),
         decimals: 9,
       };
     }
