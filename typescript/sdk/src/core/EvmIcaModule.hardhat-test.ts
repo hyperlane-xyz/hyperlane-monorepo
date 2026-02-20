@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import { zeroAddress } from 'viem';
@@ -11,6 +10,8 @@ import { IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
 import { EvmIcaModule } from './EvmIcaModule.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 describe('EvmIcaModule', async () => {
   const LOCAL_DOMAIN = 1;

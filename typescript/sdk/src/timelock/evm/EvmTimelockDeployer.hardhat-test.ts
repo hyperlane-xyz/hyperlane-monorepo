@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
@@ -18,6 +17,8 @@ import {
   EXECUTOR_ROLE,
   PROPOSER_ROLE,
 } from './constants.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 chai.use(chaiAsPromised);
 

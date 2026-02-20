@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { assert, expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
@@ -26,6 +25,8 @@ import { HyperlaneCoreChecker } from './HyperlaneCoreChecker.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
 import { CoreConfig } from './types.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 describe('core', async () => {
   let multiProvider: MultiProvider;

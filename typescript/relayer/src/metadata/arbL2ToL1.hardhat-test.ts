@@ -1,5 +1,4 @@
 import { ChildToParentMessageStatus } from '@arbitrum/sdk';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
@@ -46,6 +45,8 @@ import {
   MetadataContext,
   isMetadataBuildable,
 } from './types.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 describe('ArbL2ToL1MetadataBuilder', () => {
   const origin: ChainName = 'test4';

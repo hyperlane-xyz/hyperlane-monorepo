@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 
@@ -23,6 +22,8 @@ import { InterchainQuery } from './InterchainQuery.js';
 import { InterchainQueryChecker } from './InterchainQueryChecker.js';
 import { InterchainQueryDeployer } from './InterchainQueryDeployer.js';
 import { InterchainQueryFactories } from './contracts.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 // FIXME: migrate to mocha rules: eslint-disable-next-line jest/no-disabled-tests
 describe.skip('InterchainQueryRouter', async () => {

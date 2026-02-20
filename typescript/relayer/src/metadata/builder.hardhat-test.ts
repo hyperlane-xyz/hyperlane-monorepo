@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
@@ -45,6 +44,8 @@ import {
   MetadataContext,
   isMetadataBuildable,
 } from './types.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 const MAX_ISM_DEPTH = 5;
 const MAX_NUM_VALIDATORS = 10;

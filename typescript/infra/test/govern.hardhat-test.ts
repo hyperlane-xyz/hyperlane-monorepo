@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 
@@ -35,6 +34,8 @@ import {
   AnnotatedCallData,
   HyperlaneAppGovernor,
 } from '../src/govern/HyperlaneAppGovernor.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 // eslint-disable-next-line jest/no-export -- test fixture class
 export class TestApp extends HyperlaneApp<{}> {}

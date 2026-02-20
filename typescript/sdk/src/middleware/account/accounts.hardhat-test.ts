@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { zeroAddress } from 'viem';
 import hre from 'hardhat';
@@ -25,6 +24,8 @@ import { InterchainAccountChecker } from './InterchainAccountChecker.js';
 import { InterchainAccountDeployer } from './InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from './contracts.js';
 import { AccountConfig } from './types.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 describe('InterchainAccounts', async () => {
   const localChain = TestChainName.test1;

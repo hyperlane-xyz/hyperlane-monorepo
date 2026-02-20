@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import assert from 'assert';
 import { expect } from 'chai';
 import hre from 'hardhat';
@@ -30,6 +29,8 @@ import {
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;

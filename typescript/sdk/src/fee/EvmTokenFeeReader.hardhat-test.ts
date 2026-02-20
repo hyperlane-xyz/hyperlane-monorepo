@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { maxUint256 } from 'viem';
 import hre from 'hardhat';
@@ -14,6 +13,8 @@ import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
 import { ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY, convertToBps } from './utils.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 // eslint-disable-next-line jest/no-export -- test fixtures shared across test files
 export const MAX_FEE = 115792089237316195423570985008687907853269n;

@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { maxUint256 } from 'viem';
 import hre from 'hardhat';
@@ -23,6 +22,8 @@ import {
   TokenFeeType,
 } from './types.js';
 import { convertToBps } from './utils.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 describe('EvmTokenFeeModule', () => {
   const test4Chain = TestChainName.test4;

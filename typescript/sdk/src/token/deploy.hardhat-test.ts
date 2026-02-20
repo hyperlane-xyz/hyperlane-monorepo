@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
@@ -40,6 +39,8 @@ import {
   SyntheticTokenConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 const chain = TestChainName.test1;
 

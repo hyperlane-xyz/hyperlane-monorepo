@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
@@ -12,6 +11,8 @@ import { MultiProvider } from '../../providers/MultiProvider.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
 
 import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 chai.use(chaiAsPromised);
 

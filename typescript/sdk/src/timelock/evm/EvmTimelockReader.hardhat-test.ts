@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
@@ -22,6 +21,8 @@ import { TimelockConfig, TimelockTx } from '../types.js';
 import { EvmTimelockDeployer } from './EvmTimelockDeployer.js';
 import { EvmTimelockReader } from './EvmTimelockReader.js';
 import { EMPTY_BYTES_32 } from './constants.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 chai.use(chaiAsPromised);
 

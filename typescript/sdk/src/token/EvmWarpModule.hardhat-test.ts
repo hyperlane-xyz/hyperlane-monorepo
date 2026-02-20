@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
@@ -48,6 +47,8 @@ import {
   objMap,
   randomInt,
 } from '@hyperlane-xyz/utils';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';

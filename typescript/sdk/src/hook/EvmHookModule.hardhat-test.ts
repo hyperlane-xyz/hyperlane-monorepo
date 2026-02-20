@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import { parseEther } from 'viem';
@@ -43,6 +42,8 @@ import {
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './types.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 const hookTypes = Object.values(HookType);
 

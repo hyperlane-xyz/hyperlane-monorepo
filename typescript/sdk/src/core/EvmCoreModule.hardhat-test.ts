@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { zeroAddress } from 'viem';
 import hre from 'hardhat';
@@ -22,6 +21,8 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
 import { CoreConfig, CoreConfigHookFieldKey } from './types.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 describe('EvmCoreModule', async () => {
   const CHAIN = TestChainName.test4;

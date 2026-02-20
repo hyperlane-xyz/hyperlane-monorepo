@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 
@@ -19,6 +18,8 @@ import {
   TokenFeeType,
 } from './types.js';
 import { convertToBps } from './utils.js';
+
+type SignerWithAddress = { address: string; [key: string]: any };
 
 type DistributiveOmit<T, K extends keyof T> = T extends any
   ? Omit<T, K>
