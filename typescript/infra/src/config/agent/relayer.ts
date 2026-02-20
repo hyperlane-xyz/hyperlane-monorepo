@@ -1,4 +1,3 @@
-import { BigNumberish } from 'ethers';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
@@ -68,7 +67,7 @@ export interface BaseRelayerConfig {
   whitelist?: MatchingList;
   blacklist?: MatchingList;
   addressBlacklist?: string;
-  transactionGasLimit?: BigNumberish;
+  transactionGasLimit?: string | number | bigint;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
   ismCacheConfigs?: Array<IsmCacheConfig>;
