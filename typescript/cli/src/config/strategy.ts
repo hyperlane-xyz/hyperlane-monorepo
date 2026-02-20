@@ -1,160 +1,166 @@
-import { confirm, input, password, select } from '@inquirer/prompts';
-import { Wallet } from 'ethers';
-import { stringify as yamlStringify } from 'yaml';
+import {confirm, input, password, select} from "@inquirer/prompts";
+import {privateKeyToAccount} from "viem/accounts";
+import {stringify as yamlStringify} from "yaml";
 
-import { TxSubmitterType } from '@hyperlane-xyz/sdk';
+import {TxSubmitterType} from "@hyperlane-xyz/sdk";
 import {
-  ProtocolType,
-  assert,
-  isAddress,
-  isPrivateKeyEvm,
-} from '@hyperlane-xyz/utils';
+    ProtocolType,
+    assert,
+    ensure0x,
+    isAddress,
+    isPrivateKeyEvm,
+} from "@hyperlane-xyz/utils";
 
-import { type CommandContext } from '../context/types.js';
-import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import {type CommandContext} from "../context/types.js";
+import {errorRed, log, logBlue, logGreen} from "../logger.js";
 import {
-  type ExtendedChainSubmissionStrategy,
-  ExtendedChainSubmissionStrategySchema,
-} from '../submitters/types.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
+    type ExtendedChainSubmissionStrategy,
+    ExtendedChainSubmissionStrategySchema,
+} from "../submitters/types.js";
+import {runSingleChainSelectionStep} from "../utils/chains.js";
 import {
-  indentYamlOrJson,
-  readYamlOrJson,
-  writeYamlOrJson,
-} from '../utils/files.js';
-import { maskSensitiveData } from '../utils/output.js';
+    indentYamlOrJson,
+    readYamlOrJson,
+    writeYamlOrJson,
+} from "../utils/files.js";
+import {maskSensitiveData} from "../utils/output.js";
 
 /**
  * Reads and validates a chain submission strategy configuration from a file
  */
 export async function readChainSubmissionStrategyConfig(
-  filePath: string,
+    filePath: string,
 ): Promise<ExtendedChainSubmissionStrategy> {
-  log(`Reading submission strategy in ${filePath}`);
-  const strategyConfig =
-    readYamlOrJson<ExtendedChainSubmissionStrategy>(filePath);
-  const parseResult =
-    ExtendedChainSubmissionStrategySchema.parse(strategyConfig);
-  return parseResult;
+    log(`Reading submission strategy in ${filePath}`);
+    const strategyConfig =
+        readYamlOrJson<ExtendedChainSubmissionStrategy>(filePath);
+    const parseResult =
+        ExtendedChainSubmissionStrategySchema.parse(strategyConfig);
+    return parseResult;
 }
 
 export async function createStrategyConfig({
-  context,
-  outPath,
+    context,
+    outPath,
 }: {
-  context: CommandContext;
-  outPath: string;
+    context: CommandContext;
+    outPath: string;
 }) {
-  let strategy: ExtendedChainSubmissionStrategy;
-  try {
-    const strategyObj = await readYamlOrJson(outPath);
-    strategy = ExtendedChainSubmissionStrategySchema.parse(strategyObj);
-  } catch {
-    writeYamlOrJson(outPath, {}, 'yaml');
-    strategy = {};
-  }
+    let strategy: ExtendedChainSubmissionStrategy;
+    try {
+        const strategyObj = await readYamlOrJson(outPath);
+        strategy = ExtendedChainSubmissionStrategySchema.parse(strategyObj);
+    } catch {
+        writeYamlOrJson(outPath, {}, "yaml");
+        strategy = {};
+    }
 
-  const chain = await runSingleChainSelectionStep(context.chainMetadata);
-  const chainProtocol = context.chainMetadata[chain].protocol;
+    const chain = await runSingleChainSelectionStep(context.chainMetadata);
+    const chainProtocol = context.chainMetadata[chain].protocol;
 
-  if (
-    !context.skipConfirmation &&
-    strategy &&
-    Object.prototype.hasOwnProperty.call(strategy, chain)
-  ) {
-    const isConfirmed = await confirm({
-      message: `Default strategy for chain ${chain} already exists. Are you sure you want to overwrite existing strategy config?`,
-      default: false,
-    });
-
-    assert(isConfirmed, 'Strategy initialization cancelled by user.');
-  }
-
-  const isEthereum = chainProtocol === ProtocolType.Ethereum;
-  const submitterType = isEthereum
-    ? await select({
-        message: 'Select the submitter type',
-        choices: Object.values(TxSubmitterType).map((value) => ({
-          name: value,
-          value: value,
-        })),
-      })
-    : TxSubmitterType.JSON_RPC; // Do other non-evm chains support gnosis and account impersonation?
-
-  const submitter: Record<string, any> = { type: submitterType };
-
-  switch (submitterType) {
-    case TxSubmitterType.JSON_RPC:
-      submitter.privateKey = await password({
-        message: 'Enter the private key for JSON-RPC submission:',
-        validate: (pk) => (isEthereum ? isPrivateKeyEvm(pk) : true),
-      });
-
-      submitter.userAddress = isEthereum
-        ? await new Wallet(submitter.privateKey).getAddress()
-        : await input({
-            message: 'Enter the user address for JSON-RPC submission:',
-          });
-
-      submitter.chain = chain;
-      break;
-
-    case TxSubmitterType.IMPERSONATED_ACCOUNT:
-      submitter.userAddress = await input({
-        message: 'Enter the user address to impersonate',
-        validate: (address) =>
-          isAddress(address) ? true : 'Invalid Ethereum address',
-      });
-      assert(
-        submitter.userAddress,
-        'User address is required for impersonated account',
-      );
-      break;
-
-    case TxSubmitterType.GNOSIS_SAFE:
-    case TxSubmitterType.GNOSIS_TX_BUILDER:
-      submitter.safeAddress = await input({
-        message: 'Enter the Safe address',
-        validate: (address) =>
-          isAddress(address) ? true : 'Invalid Safe address',
-      });
-
-      submitter.chain = chain;
-
-      if (submitterType === TxSubmitterType.GNOSIS_TX_BUILDER) {
-        submitter.version = await input({
-          message: 'Enter the Safe version (default: 1.0)',
-          default: '1.0',
+    if (
+        !context.skipConfirmation &&
+        strategy &&
+        Object.prototype.hasOwnProperty.call(strategy, chain)
+    ) {
+        const isConfirmed = await confirm({
+            message: `Default strategy for chain ${chain} already exists. Are you sure you want to overwrite existing strategy config?`,
+            default: false,
         });
-      }
-      break;
 
-    default:
-      throw new Error(`Unsupported submitter type: ${submitterType}`);
-  }
+        assert(isConfirmed, "Strategy initialization cancelled by user.");
+    }
 
-  const strategyResult: ExtendedChainSubmissionStrategy = {
-    ...strategy,
-    [chain]: {
-      submitter:
-        submitter as ExtendedChainSubmissionStrategy[string]['submitter'],
-    },
-  };
+    const isEthereum = chainProtocol === ProtocolType.Ethereum;
+    const submitterType = isEthereum
+        ? await select({
+              message: "Select the submitter type",
+              choices: Object.values(TxSubmitterType).map((value) => ({
+                  name: value,
+                  value: value,
+              })),
+          })
+        : TxSubmitterType.JSON_RPC; // Do other non-evm chains support gnosis and account impersonation?
 
-  try {
-    const strategyConfig =
-      ExtendedChainSubmissionStrategySchema.parse(strategyResult);
-    logBlue(`Strategy configuration is valid. Writing to file ${outPath}:\n`);
+    const submitter: Record<string, any> = {type: submitterType};
 
-    const maskedConfig = maskSensitiveData(strategyConfig);
-    log(indentYamlOrJson(yamlStringify(maskedConfig, null, 2), 4));
+    switch (submitterType) {
+        case TxSubmitterType.JSON_RPC:
+            submitter.privateKey = await password({
+                message: "Enter the private key for JSON-RPC submission:",
+                validate: (pk) => (isEthereum ? isPrivateKeyEvm(pk) : true),
+            });
 
-    writeYamlOrJson(outPath, strategyConfig);
-    logGreen('✅ Successfully created a new strategy configuration.');
-  } catch {
-    // don't log error since it may contain sensitive data
-    errorRed(
-      `The strategy configuration is invalid. Please review the submitter settings.`,
-    );
-  }
+            submitter.userAddress = isEthereum
+                ? privateKeyToAccount(
+                      ensure0x(submitter.privateKey) as `0x${string}`,
+                  ).address
+                : await input({
+                      message:
+                          "Enter the user address for JSON-RPC submission:",
+                  });
+
+            submitter.chain = chain;
+            break;
+
+        case TxSubmitterType.IMPERSONATED_ACCOUNT:
+            submitter.userAddress = await input({
+                message: "Enter the user address to impersonate",
+                validate: (address) =>
+                    isAddress(address) ? true : "Invalid Ethereum address",
+            });
+            assert(
+                submitter.userAddress,
+                "User address is required for impersonated account",
+            );
+            break;
+
+        case TxSubmitterType.GNOSIS_SAFE:
+        case TxSubmitterType.GNOSIS_TX_BUILDER:
+            submitter.safeAddress = await input({
+                message: "Enter the Safe address",
+                validate: (address) =>
+                    isAddress(address) ? true : "Invalid Safe address",
+            });
+
+            submitter.chain = chain;
+
+            if (submitterType === TxSubmitterType.GNOSIS_TX_BUILDER) {
+                submitter.version = await input({
+                    message: "Enter the Safe version (default: 1.0)",
+                    default: "1.0",
+                });
+            }
+            break;
+
+        default:
+            throw new Error(`Unsupported submitter type: ${submitterType}`);
+    }
+
+    const strategyResult: ExtendedChainSubmissionStrategy = {
+        ...strategy,
+        [chain]: {
+            submitter:
+                submitter as ExtendedChainSubmissionStrategy[string]["submitter"],
+        },
+    };
+
+    try {
+        const strategyConfig =
+            ExtendedChainSubmissionStrategySchema.parse(strategyResult);
+        logBlue(
+            `Strategy configuration is valid. Writing to file ${outPath}:\n`,
+        );
+
+        const maskedConfig = maskSensitiveData(strategyConfig);
+        log(indentYamlOrJson(yamlStringify(maskedConfig, null, 2), 4));
+
+        writeYamlOrJson(outPath, strategyConfig);
+        logGreen("✅ Successfully created a new strategy configuration.");
+    } catch {
+        // don't log error since it may contain sensitive data
+        errorRed(
+            `The strategy configuration is invalid. Please review the submitter settings.`,
+        );
+    }
 }
