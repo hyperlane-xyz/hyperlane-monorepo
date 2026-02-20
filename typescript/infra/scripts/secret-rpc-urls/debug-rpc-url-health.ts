@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { createPublicClient, http } from 'viem';
 
 import { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, timeout } from '@hyperlane-xyz/utils';
@@ -71,23 +71,23 @@ async function probeUrl(
   url: string,
   expectedChainId: number,
 ): Promise<ProbeResult> {
-  const provider = new ethers.providers.StaticJsonRpcProvider(url);
+  const provider = createPublicClient({ transport: http(url) });
   const start = Date.now();
   try {
-    const [block, network] = await timeout(
-      Promise.all([provider.getBlock('latest'), provider.getNetwork()]),
+    const [block, chainId] = await timeout(
+      Promise.all([provider.getBlock(), provider.getChainId()]),
       TIMEOUT_MS,
       `Timeout after ${TIMEOUT_MS}ms`,
     );
     const latencyMs = Date.now() - start;
     const chainIdMismatch =
-      network.chainId !== expectedChainId
-        ? `expected ${expectedChainId}, got ${network.chainId}`
+      chainId !== expectedChainId
+        ? `expected ${expectedChainId}, got ${chainId}`
         : undefined;
     return {
       url,
-      blockNumber: block.number,
-      blockTimestamp: block.timestamp,
+      blockNumber: Number(block.number),
+      blockTimestamp: Number(block.timestamp),
       latencyMs,
       chainIdMismatch,
     };

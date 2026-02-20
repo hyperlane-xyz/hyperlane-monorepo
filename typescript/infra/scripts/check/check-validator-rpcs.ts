@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { keccak256, toBytes } from 'viem';
 
 import {
   defaultMultisigConfigs,
@@ -36,13 +36,13 @@ async function main() {
     }
     publicRpcs.push(
       ...chainMetadata.rpcUrls.map((rpc) =>
-        ethers.utils.solidityKeccak256(['string'], [rpc.http]),
+        keccak256(toBytes(rpc.http)),
       ),
     );
     if (chainMetadata.grpcUrls)
       publicRpcs.push(
         ...chainMetadata.grpcUrls.map((rpc) =>
-          ethers.utils.solidityKeccak256(['string'], [rpc.http]),
+          keccak256(toBytes(rpc.http)),
         ),
       );
   }
