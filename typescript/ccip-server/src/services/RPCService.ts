@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { type PublicClient, createPublicClient, http } from 'viem';
 
 type ProofResultStorageProof = {
   key: string;
@@ -17,9 +17,11 @@ type ProofResult = {
 };
 
 class RPCService {
-  provider: ethers.providers.JsonRpcProvider;
+  private readonly client: PublicClient;
   constructor(private readonly providerAddress: string) {
-    this.provider = new ethers.providers.JsonRpcProvider(this.providerAddress);
+    this.client = createPublicClient({
+      transport: http(this.providerAddress),
+    });
   }
 
   /**
@@ -34,13 +36,12 @@ class RPCService {
     storageKeys: string[],
     block: string,
   ): Promise<ProofResult> {
-    const results = await this.provider.send('eth_getProof', [
-      address,
-      storageKeys,
-      block,
-    ]);
+    const results = await this.client.request({
+      method: 'eth_getProof',
+      params: [address, storageKeys, block] as any,
+    });
 
-    return results;
+    return results as ProofResult;
   }
 }
 
