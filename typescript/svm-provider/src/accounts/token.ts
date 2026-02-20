@@ -12,6 +12,10 @@ import {
   type InterchainGasPaymasterType,
 } from '../codecs/shared.js';
 
+const IGP_PROGRAM_DATA_DISCRIMINATOR = ascii8('PRGMDATA');
+const IGP_ACCOUNT_DISCRIMINATOR = ascii8('IGP_____');
+const OVERHEAD_IGP_ACCOUNT_DISCRIMINATOR = ascii8('OVRHDIGP');
+
 export interface HyperlaneTokenAccountData {
   bump: number;
   mailbox: Uint8Array;
@@ -64,7 +68,7 @@ export function decodeIgpProgramDataAccount(
   const wrapped = decodeAccountData(raw, (cursor) =>
     decodeDiscriminatorPrefixed(
       cursor,
-      new Uint8Array([80, 82, 71, 77, 68, 65, 84, 65]),
+      IGP_PROGRAM_DATA_DISCRIMINATOR,
       (c) => ({
         bumpSeed: c.readU8(),
         paymentCount: c.readU64LE(),
@@ -76,17 +80,13 @@ export function decodeIgpProgramDataAccount(
 
 export function decodeIgpAccount(raw: Uint8Array): IgpAccountData | null {
   const wrapped = decodeAccountData(raw, (cursor) =>
-    decodeDiscriminatorPrefixed(
-      cursor,
-      new Uint8Array([73, 71, 80, 95, 95, 95, 95, 95]),
-      (c) => ({
-        bumpSeed: c.readU8(),
-        salt: c.readBytes(32),
-        owner: readOptionBytes32(c),
-        beneficiary: c.readBytes(32),
-        gasOracles: decodeMapU32GasOracle(c),
-      }),
-    ),
+    decodeDiscriminatorPrefixed(cursor, IGP_ACCOUNT_DISCRIMINATOR, (c) => ({
+      bumpSeed: c.readU8(),
+      salt: c.readBytes(32),
+      owner: readOptionBytes32(c),
+      beneficiary: c.readBytes(32),
+      gasOracles: decodeMapU32GasOracle(c),
+    })),
   );
   return wrapped.data;
 }
@@ -97,7 +97,7 @@ export function decodeOverheadIgpAccount(
   const wrapped = decodeAccountData(raw, (cursor) =>
     decodeDiscriminatorPrefixed(
       cursor,
-      new Uint8Array([79, 86, 82, 72, 68, 73, 71, 80]),
+      OVERHEAD_IGP_ACCOUNT_DISCRIMINATOR,
       (c) => ({
         bumpSeed: c.readU8(),
         salt: c.readBytes(32),
@@ -113,6 +113,7 @@ export function decodeOverheadIgpAccount(
 function decodeHyperlaneTokenInner(
   cursor: ByteCursor,
 ): HyperlaneTokenAccountData {
+  // Kept manual because payload ends with trailing pluginData (remainder bytes).
   const bump = cursor.readU8();
   const mailbox = cursor.readBytes(32);
   const mailboxProcessAuthority = cursor.readBytes(32);
@@ -140,6 +141,12 @@ function decodeHyperlaneTokenInner(
     remoteRouters,
     pluginData,
   };
+}
+
+function ascii8(value: string): Uint8Array {
+  if (value.length !== 8)
+    throw new Error(`Expected 8-char discriminator, got ${value}`);
+  return Uint8Array.from(value, (char) => char.charCodeAt(0));
 }
 
 function readOptionBytes32(cursor: ByteCursor): Uint8Array | null {
