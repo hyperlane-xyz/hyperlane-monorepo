@@ -49,7 +49,6 @@
         "@inquirer/prompts": "catalog:",
         "@inquirer/select": "catalog:",
         "bignumber.js": "catalog:",
-        "ethers": "catalog:",
         "express": "^5.1.0",
         "pino": "catalog:",
         "pino-pretty": "catalog:",
@@ -62,7 +61,6 @@
         "zod-validation-error": "catalog:"
     },
     "devDependencies": {
-        "@ethersproject/constants": "*",
         "@hyperlane-xyz/relayer": "workspace:*",
         "@hyperlane-xyz/tsconfig": "workspace:^",
         "@types/chai-as-promised": "catalog:",
