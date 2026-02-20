@@ -1,5 +1,4 @@
-import { JsonRpcProvider, type Log } from '@ethersproject/providers';
-import { ethers } from 'ethers';
+import { ethers, providers } from 'ethers';
 import { execa } from 'execa';
 
 import { HttpServer } from '@hyperlane-xyz/http-registry-server';
@@ -117,7 +116,7 @@ async function forkChain(
     logGray(`Starting Anvil node for chain ${chainName} at port ${forkPort}`);
     const anvilProcess = execa`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http} --disable-block-gas-limit`;
 
-    const provider = new JsonRpcProvider(endpoint);
+    const provider = new providers.JsonRpcProvider(endpoint);
     await retryAsync(() => provider.getNetwork(), 10, 500);
 
     logGray(
@@ -158,7 +157,7 @@ async function forkChain(
 }
 
 async function handleImpersonations(
-  provider: JsonRpcProvider,
+  provider: providers.JsonRpcProvider,
   chainName: ChainName,
   accountsToImpersonate: Address[],
 ): Promise<void> {
@@ -177,7 +176,7 @@ async function handleImpersonations(
 }
 
 async function handleTransactions(
-  provider: JsonRpcProvider,
+  provider: providers.JsonRpcProvider,
   chainName: ChainName,
   transactions: ReadonlyArray<ForkedChainTransactionConfig>,
 ): Promise<void> {
@@ -318,7 +317,7 @@ function assertEventByTopic(
     EventAssertion,
     { type: EventAssertionType.RAW_TOPIC }
   >,
-  rawLog: ethers.providers.Log,
+  rawLog: providers.Log,
 ): boolean {
   return rawLog.topics[0] === eventAssertion.topic;
 }
@@ -328,7 +327,7 @@ function assertEventBySignature(
     EventAssertion,
     { type: EventAssertionType.TOPIC_SIGNATURE }
   >,
-  rawLog: ethers.providers.Log,
+  rawLog: providers.Log,
 ): boolean {
   const eventInterface = new ethers.utils.Interface([eventAssertion.signature]);
 
