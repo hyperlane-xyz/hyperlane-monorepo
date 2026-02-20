@@ -35,8 +35,8 @@ export function SelectField({
       value={value}
       onChange={onChangeSelect}
     >
-      {options.map((o, i) => (
-        <option key={`option-${i}`} value={o.value}>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
           {o.display}
         </option>
       ))}

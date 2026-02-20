@@ -1,6 +1,10 @@
 import { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
 
+import { Circle } from '../icons/Circle.js';
+import { EllipsisIcon } from '../icons/Ellipsis.js';
+import { ColorPalette } from '../color.js';
+// Barrel import retained for dynamic icon discovery via Object.entries
 import * as Hyperlane from '../index';
 
 interface StoryIconProps {
@@ -46,6 +50,7 @@ function IconList({
           flexWrap: 'wrap',
         }}
       >
+        {/* Index key is acceptable: iconList is static and items lack stable ids */}
         {iconList.map((Icon, index) => (
           <IconContainer key={index}>
             <span>{Icon.displayName}</span>
@@ -60,7 +65,7 @@ function IconList({
         ))}
         <IconContainer>
           <span>EllipsisIcon</span>
-          <Hyperlane.EllipsisIcon
+          <EllipsisIcon
             width={width}
             height={height}
             direction={ellipsisDirection}
@@ -69,7 +74,7 @@ function IconList({
         </IconContainer>
         <IconContainer>
           <span>Circle</span>
-          <Hyperlane.Circle size={width} bgColorSeed={bgColorSeed} />
+          <Circle size={width} bgColorSeed={bgColorSeed} />
         </IconContainer>
       </div>
     </>
@@ -113,7 +118,7 @@ export const DefaultIconList = {
   args: {
     width: 24,
     height: 24,
-    color: Hyperlane.ColorPalette.Black,
+    color: ColorPalette.Black,
     direction: 's',
     bgColorSeed: 0,
     roundedWideChevron: false,

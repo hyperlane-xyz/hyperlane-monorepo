@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 
 import {
   ChainMap,
@@ -86,6 +86,13 @@ export function ChainSearchMenu({
   const [drilldownChain, setDrilldownChain] = useState<ChainName | undefined>(
     showChainDetails,
   );
+
+  // Keep drilldownChain in sync when showChainDetails prop changes
+  const prevShowChainDetails = useRef(showChainDetails);
+  if (prevShowChainDetails.current !== showChainDetails) {
+    prevShowChainDetails.current = showChainDetails;
+    setDrilldownChain(showChainDetails);
+  }
 
   const [addChain, setAddChain] = useState(showAddChainMenu || false);
 
@@ -215,7 +222,7 @@ function ChainFilters({
   return (
     <div className="htw-py-3 htw-px-2.5 htw-space-y-4">
       <div className="htw-flex htw-flex-col htw-items-start htw-gap-2">
-        <label className="htw-text-sm htw-text-gray-600 htw-pl-px">Type</label>
+        <span className="htw-text-sm htw-text-gray-600 htw-pl-px">Type</span>
         <SegmentedControl
           options={Object.values(FilterTestnetOption)}
           onChange={(selected) => onChange({ ...value, type: selected })}
@@ -223,9 +230,9 @@ function ChainFilters({
         />
       </div>
       <div className="htw-flex htw-flex-col htw-items-start htw-gap-2">
-        <label className="htw-text-sm htw-text-gray-600 htw-pl-px">
+        <span className="htw-text-sm htw-text-gray-600 htw-pl-px">
           Protocol
-        </label>
+        </span>
         <SegmentedControl
           options={Object.values(ProtocolType)}
           onChange={(selected) => onChange({ ...value, protocol: selected })}

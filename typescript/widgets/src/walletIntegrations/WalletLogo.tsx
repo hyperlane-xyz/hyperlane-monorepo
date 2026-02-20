@@ -17,7 +17,14 @@ export function WalletLogo({
   const name = walletDetails.name?.toLowerCase();
 
   if (src) {
-    return <img src={src} width={size} height={size} />;
+    return (
+      <img
+        src={src}
+        width={size}
+        height={size}
+        alt={`${walletDetails.name || 'Wallet'} logo`}
+      />
+    );
   } else if (name === 'walletconnect') {
     return <WalletConnectLogo width={size} height={size} />;
   } else if (name === 'binance wallet') {
