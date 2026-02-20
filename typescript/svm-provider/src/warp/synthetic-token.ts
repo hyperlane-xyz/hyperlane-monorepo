@@ -260,6 +260,34 @@ function buildSyntheticTokenInitInstruction(
   };
 }
 
+/**
+ * Fetches token metadata from SPL Token-2022 mint account.
+ */
+async function fetchTokenMetadata(
+  rpc: Rpc<SolanaRpcApi>,
+  programId: Address,
+): Promise<{ name: string; symbol: string; uri: string } | null> {
+  const [mintPda] = await getSyntheticMintPda(programId);
+
+  try {
+    const account = await rpc
+      .getAccountInfo(mintPda, { encoding: 'base64' })
+      .send();
+    if (!account.value) return null;
+
+    // Metadata is stored in the mint account with Token-2022
+    // For now, return placeholder values
+    // TODO: Parse metadata from mint account data
+    return {
+      name: 'Synthetic Token',
+      symbol: 'SYN',
+      uri: '',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export class SvmSyntheticTokenReader
   implements ArtifactReader<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
 {
@@ -284,6 +312,9 @@ export class SvmSyntheticTokenReader
       destinationGas[domain] = gas.toString();
     }
 
+    // Fetch metadata from mint account
+    const metadata = await fetchTokenMetadata(this.rpc, programId);
+
     const config: RawSyntheticWarpArtifactConfig = {
       type: 'synthetic',
       owner: token.owner ?? '',
@@ -296,8 +327,8 @@ export class SvmSyntheticTokenReader
         : undefined,
       remoteRouters,
       destinationGas,
-      name: 'Synthetic',
-      symbol: 'SYN',
+      name: metadata?.name ?? 'Unknown',
+      symbol: metadata?.symbol ?? 'UNK',
       decimals: token.decimals,
     };
 

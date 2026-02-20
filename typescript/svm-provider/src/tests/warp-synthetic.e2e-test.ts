@@ -102,7 +102,7 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       expect(receipts.length).to.be.greaterThan(0);
     });
 
-    it('should read synthetic token config', async () => {
+    it('should read synthetic token config and validate metadata', async () => {
       const reader = new SvmSyntheticTokenReader(rpc);
       const token = await reader.read(deployedProgramId);
 
@@ -110,6 +110,14 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       expect(token.config.type).to.equal('synthetic');
       expect(token.config.decimals).to.equal(6);
       expect(token.config.mailbox).to.equal(mailboxAddress);
+
+      // Validate metadata is set correctly
+      console.log('Metadata:', {
+        name: token.config.name,
+        symbol: token.config.symbol,
+      });
+      expect(token.config.name).to.equal('Test Token');
+      expect(token.config.symbol).to.equal('TEST');
     });
 
     it('should enroll remote routers', async () => {
