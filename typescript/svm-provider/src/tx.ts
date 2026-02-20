@@ -1,0 +1,2 @@
+export const DEFAULT_COMPUTE_UNITS = 400_000;
+export const DEFAULT_WRITE_CHUNK_SIZE = 880;
