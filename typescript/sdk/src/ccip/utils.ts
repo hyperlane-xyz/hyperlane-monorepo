@@ -1,12 +1,12 @@
-import { ethers } from 'ethers';
+import {decodeFunctionResult, encodeFunctionData} from "viem";
 
-import { CCIPHook, CCIPIsm } from '@hyperlane-xyz/core';
+import {CCIPHook, CCIPIsm} from "@hyperlane-xyz/core";
 
-import { HyperlaneAddressesMap } from '../contracts/types.js';
-import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import {HyperlaneAddressesMap} from "../contracts/types.js";
+import {MultiProvider} from "../providers/MultiProvider.js";
+import {ChainName} from "../types.js";
 
-import { CCIP_NETWORKS, CCIP_ROUTER_CLIENT_ABI } from './consts.js';
+import {CCIP_NETWORKS, CCIP_ROUTER_CLIENT_ABI} from "./consts.js";
 
 /**
  * Gets the chain name from a CCIP chain selector value
@@ -14,14 +14,14 @@ import { CCIP_NETWORKS, CCIP_ROUTER_CLIENT_ABI } from './consts.js';
  * @returns The chain name if found, undefined otherwise
  */
 export function getChainNameFromCCIPSelector(
-  chainSelector: string,
+    chainSelector: string,
 ): string | undefined {
-  for (const [chainName, networkInfo] of Object.entries(CCIP_NETWORKS)) {
-    if (networkInfo.chainSelector === chainSelector) {
-      return chainName;
+    for (const [chainName, networkInfo] of Object.entries(CCIP_NETWORKS)) {
+        if (networkInfo.chainSelector === chainSelector) {
+            return chainName;
+        }
     }
-  }
-  return undefined;
+    return undefined;
 }
 
 /**
@@ -30,7 +30,7 @@ export function getChainNameFromCCIPSelector(
  * @returns The CCIP chain selector if found, undefined otherwise
  */
 export function getCCIPChainSelector(chainName: string): string | undefined {
-  return CCIP_NETWORKS[chainName]?.chainSelector;
+    return CCIP_NETWORKS[chainName]?.chainSelector;
 }
 
 /**
@@ -39,7 +39,7 @@ export function getCCIPChainSelector(chainName: string): string | undefined {
  * @returns The CCIP router address if found, undefined otherwise
  */
 export function getCCIPRouterAddress(chainName: string): string | undefined {
-  return CCIP_NETWORKS[chainName]?.router?.address;
+    return CCIP_NETWORKS[chainName]?.router?.address;
 }
 
 /**
@@ -47,90 +47,104 @@ export function getCCIPRouterAddress(chainName: string): string | undefined {
  * @returns The list of chain names
  */
 export function getCCIPChains(): string[] {
-  return Object.keys(CCIP_NETWORKS);
+    return Object.keys(CCIP_NETWORKS);
 }
 
-export const CCIP_HOOK_KEY_PREFIX = 'ccipHook';
-export const CCIP_ISM_KEY_PREFIX = 'ccipIsm';
+export const CCIP_HOOK_KEY_PREFIX = "ccipHook";
+export const CCIP_ISM_KEY_PREFIX = "ccipIsm";
 
 export class CCIPContractCache {
-  private cachedAddresses: HyperlaneAddressesMap<any> = {};
+    private cachedAddresses: HyperlaneAddressesMap<any> = {};
 
-  constructor(addressesMap?: HyperlaneAddressesMap<any>) {
-    if (addressesMap) {
-      this.cacheAddressesMap(addressesMap);
+    constructor(addressesMap?: HyperlaneAddressesMap<any>) {
+        if (addressesMap) {
+            this.cacheAddressesMap(addressesMap);
+        }
     }
-  }
 
-  cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
-    this.cachedAddresses = addressesMap;
-  }
-
-  getAddressesMap(): HyperlaneAddressesMap<any> {
-    return this.cachedAddresses;
-  }
-
-  writeBack(cachedAddresses: HyperlaneAddressesMap<any>): void {
-    for (const [origin, destinations] of Object.entries(this.cachedAddresses)) {
-      if (!cachedAddresses[origin]) {
-        cachedAddresses[origin] = {};
-      }
-      for (const [key, address] of Object.entries(destinations)) {
-        cachedAddresses[origin][key] = address;
-      }
+    cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
+        this.cachedAddresses = addressesMap;
     }
-  }
 
-  setHook(origin: ChainName, destination: ChainName, ccipHook: CCIPHook): void {
-    if (!this.cachedAddresses[origin]) {
-      this.cachedAddresses[origin] = {};
+    getAddressesMap(): HyperlaneAddressesMap<any> {
+        return this.cachedAddresses;
     }
-    this.cachedAddresses[origin][`${CCIP_HOOK_KEY_PREFIX}_${destination}`] =
-      ccipHook.address;
-  }
 
-  setIsm(origin: ChainName, destination: ChainName, ccipIsm: CCIPIsm): void {
-    if (!this.cachedAddresses[destination]) {
-      this.cachedAddresses[destination] = {};
+    writeBack(cachedAddresses: HyperlaneAddressesMap<any>): void {
+        for (const [origin, destinations] of Object.entries(
+            this.cachedAddresses,
+        )) {
+            if (!cachedAddresses[origin]) {
+                cachedAddresses[origin] = {};
+            }
+            for (const [key, address] of Object.entries(destinations)) {
+                cachedAddresses[origin][key] = address;
+            }
+        }
     }
-    this.cachedAddresses[destination][`${CCIP_ISM_KEY_PREFIX}_${origin}`] =
-      ccipIsm.address;
-  }
 
-  getHook(origin: ChainName, destination: ChainName): string | undefined {
-    return this.cachedAddresses[origin]?.[
-      `${CCIP_HOOK_KEY_PREFIX}_${destination}`
-    ];
-  }
+    setHook(
+        origin: ChainName,
+        destination: ChainName,
+        ccipHook: CCIPHook,
+    ): void {
+        if (!this.cachedAddresses[origin]) {
+            this.cachedAddresses[origin] = {};
+        }
+        this.cachedAddresses[origin][`${CCIP_HOOK_KEY_PREFIX}_${destination}`] =
+            ccipHook.address;
+    }
 
-  getIsm(origin: ChainName, destination: ChainName): string | undefined {
-    return this.cachedAddresses[destination]?.[
-      `${CCIP_ISM_KEY_PREFIX}_${origin}`
-    ];
-  }
+    setIsm(origin: ChainName, destination: ChainName, ccipIsm: CCIPIsm): void {
+        if (!this.cachedAddresses[destination]) {
+            this.cachedAddresses[destination] = {};
+        }
+        this.cachedAddresses[destination][`${CCIP_ISM_KEY_PREFIX}_${origin}`] =
+            ccipIsm.address;
+    }
+
+    getHook(origin: ChainName, destination: ChainName): string | undefined {
+        return this.cachedAddresses[origin]?.[
+            `${CCIP_HOOK_KEY_PREFIX}_${destination}`
+        ];
+    }
+
+    getIsm(origin: ChainName, destination: ChainName): string | undefined {
+        return this.cachedAddresses[destination]?.[
+            `${CCIP_ISM_KEY_PREFIX}_${origin}`
+        ];
+    }
 }
 
 export async function isSupportedCCIPLane({
-  origin,
-  destination,
-  multiProvider,
+    origin,
+    destination,
+    multiProvider,
 }: {
-  origin: ChainName;
-  destination: ChainName;
-  multiProvider: MultiProvider;
+    origin: ChainName;
+    destination: ChainName;
+    multiProvider: MultiProvider;
 }): Promise<boolean> {
-  const originRouter = getCCIPRouterAddress(origin);
-  const destinationSelector = getCCIPChainSelector(destination);
+    const originRouter = getCCIPRouterAddress(origin);
+    const destinationSelector = getCCIPChainSelector(destination);
 
-  if (!originRouter || !destinationSelector) {
-    return false;
-  }
-  const signer = multiProvider.getSigner(origin);
-  const ccipRouter = new ethers.Contract(
-    originRouter,
-    CCIP_ROUTER_CLIENT_ABI,
-    signer,
-  );
+    if (!originRouter || !destinationSelector) {
+        return false;
+    }
+    const provider = multiProvider.getProvider(origin);
+    const data = encodeFunctionData({
+        abi: CCIP_ROUTER_CLIENT_ABI,
+        functionName: "isChainSupported",
+        args: [BigInt(destinationSelector)],
+    });
+    const result = await provider.call({
+        to: originRouter,
+        data,
+    });
 
-  return ccipRouter.isChainSupported(destinationSelector);
+    return decodeFunctionResult({
+        abi: CCIP_ROUTER_CLIENT_ABI,
+        functionName: "isChainSupported",
+        data: result,
+    });
 }
