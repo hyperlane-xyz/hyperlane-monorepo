@@ -1,15 +1,12 @@
-import { providers } from 'ethers';
 import type { Logger } from 'pino';
 
-import { HyperlaneCore } from '@hyperlane-xyz/sdk';
-import {
-  bytes32ToAddress,
-  messageId,
-  parseMessage,
-} from '@hyperlane-xyz/utils';
+import { HyperlaneCore, type MultiProvider } from '@hyperlane-xyz/sdk';
+import { bytes32ToAddress, messageId, parseMessage } from '@hyperlane-xyz/utils';
 
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
+
+type EvmProvider = ReturnType<MultiProvider['getProvider']>;
 
 export class ForkIndexer {
   private lastScannedBlock: Map<string, number> = new Map();
@@ -19,7 +16,7 @@ export class ForkIndexer {
   private rebalanceActions: ExplorerMessage[] = [];
 
   constructor(
-    private readonly providers: Map<string, providers.JsonRpcProvider>,
+    private readonly providers: Map<string, EvmProvider>,
     private readonly core: HyperlaneCore,
     private readonly rebalancerAddresses: string[],
     private readonly logger: Logger,
