@@ -61,9 +61,19 @@ get_current_solana_cli_version () {
 
 set_solana_cli_version () {
     NEW_VERSION=$1
+    MAJOR_VERSION=$(echo $NEW_VERSION | cut -d. -f1)
 
-    # Use agave-install for v2+ (Agave CLI), fall back to anza release for older versions
-    sh -c "$(curl -sSfL https://release.anza.xyz/v$NEW_VERSION/install)"
+    if [ "$MAJOR_VERSION" -ge 2 ] 2>/dev/null; then
+        # Agave CLI v2+: use agave-install if available, otherwise curl install
+        if command -v agave-install &> /dev/null; then
+            agave-install init $NEW_VERSION
+        else
+            sh -c "$(curl -sSfL https://release.anza.xyz/v$NEW_VERSION/install)"
+        fi
+    else
+        # Pre-Agave (v1.x): use Solana Labs release
+        sh -c "$(curl -sSfL https://release.solana.com/v$NEW_VERSION/install)"
+    fi
 }
 
 log () {
