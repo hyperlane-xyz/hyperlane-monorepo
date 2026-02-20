@@ -1,8 +1,6 @@
 import { ChildToParentMessageStatus } from '@arbitrum/sdk';
 import { expect } from 'chai';
-import hre from 'hardhat';
 import sinon from 'sinon';
-import { Web3Provider } from 'zksync-ethers';
 
 import {
   ArbL2ToL1Hook,
@@ -27,10 +25,12 @@ import {
   HyperlaneCore,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
+  HardhatSignerWithAddress,
   MultiProvider,
   ProxyFactoryFactories,
   TestCoreDeployer,
   TestRecipientDeployer,
+  getHardhatSigners,
   testChains,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -47,20 +47,6 @@ import {
   isMetadataBuildable,
 } from './types.js';
 
-type SignerWithAddress = { address: string; [key: string]: any };
-
-async function getHardhatSigners(): Promise<SignerWithAddress[]> {
-  const wallets = await hre.viem.getWalletClients();
-  const provider = new Web3Provider(hre.network.provider as any);
-  return wallets.map((wallet) => {
-    const signer = provider.getSigner(
-      wallet.account.address,
-    ) as SignerWithAddress;
-    signer.address = wallet.account.address;
-    return signer;
-  });
-}
-
 describe('ArbL2ToL1MetadataBuilder', () => {
   const origin: ChainName = 'test4';
   const destination: ChainName = 'test2';
@@ -73,7 +59,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
   let testRecipients: Record<ChainName, TestRecipient>;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
-  let relayer: SignerWithAddress;
+  let relayer: HardhatSignerWithAddress;
   let metadataBuilder: ArbL2ToL1MetadataBuilder;
   let context: MetadataContext<
     WithAddress<ArbL2ToL1IsmConfig>,
