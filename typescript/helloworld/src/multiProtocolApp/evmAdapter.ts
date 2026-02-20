@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { toBytes } from 'viem';
 
 import {
   ChainName,
@@ -39,8 +39,9 @@ export class EvmHelloWorldAdapter
 
     const quote = await contract.callStatic.quoteDispatch(
       toDomain,
-      ethers.utils.toUtf8Bytes(message),
+      toBytes(message),
     );
+    const totalValue = BigInt(value) + quote.toBigInt();
     // apply gas buffer due to https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/634
     const estimated = await contract.estimateGas.sendHelloWorld(
       toDomain,
@@ -51,7 +52,7 @@ export class EvmHelloWorldAdapter
         // with funds to be specified when estimating gas for a transaction
         // that provides non-zero `value`.
         from: sender,
-        value: BigNumber.from(value).add(quote),
+        value: totalValue,
       },
     );
 
@@ -61,7 +62,7 @@ export class EvmHelloWorldAdapter
       {
         gasLimit: addBufferToGasLimit(estimated),
         ...transactionOverrides,
-        value: BigNumber.from(value).add(quote),
+        value: totalValue,
       },
     );
     return { transaction: tx, type: ProviderType.EthersV5 };
