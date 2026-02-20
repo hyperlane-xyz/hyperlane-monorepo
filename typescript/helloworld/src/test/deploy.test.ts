@@ -1,4 +1,3 @@
-import '@nomiclabs/hardhat-waffle';
 import hre from 'hardhat';
 
 import {
