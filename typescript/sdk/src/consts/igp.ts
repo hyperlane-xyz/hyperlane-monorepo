@@ -1,26 +1,26 @@
-import {parseUnits} from "viem";
+import { parseUnits } from 'viem';
 
-import {ProtocolType} from "@hyperlane-xyz/utils";
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export const TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM = 10;
 
 export const TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM = parseUnits(
-    "1",
-    TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
+  '1',
+  TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
 );
 
 export const TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL = 19;
 
 export const TOKEN_EXCHANGE_RATE_SCALE_SEALEVEL = parseUnits(
-    "1",
-    TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL,
+  '1',
+  TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL,
 );
 
 export const TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS = 10;
 
 export const TOKEN_EXCHANGE_RATE_SCALE_COSMOS = parseUnits(
-    "1",
-    TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS,
+  '1',
+  TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS,
 );
 
 export const TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM = 10;
@@ -28,33 +28,33 @@ export const TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM = 10;
 // Gets the number of decimals for the exchange rate on a particular origin protocol.
 // Different smart contract implementations require different levels of precision.
 export function getProtocolExchangeRateDecimals(
-    protocolType: ProtocolType,
+  protocolType: ProtocolType,
 ): number {
-    switch (protocolType) {
-        case ProtocolType.Ethereum:
-            return TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM;
-        case ProtocolType.Sealevel:
-            return TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL;
-        case ProtocolType.Cosmos:
-            return TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS;
-        case ProtocolType.CosmosNative:
-            return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
-        case ProtocolType.Aleo:
-            return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
-        case ProtocolType.Radix:
-            return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
-        case ProtocolType.Starknet:
-            return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
-        // Forward-compatibility: Unknown protocols use ALTVM decimals as a safe default.
-        // This allows IGP calculations to proceed when registry contains new protocol types
-        // not yet known to this SDK version. The ALTVM value (10) is a reasonable middle-ground.
-        case ProtocolType.Unknown:
-            return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
-    }
+  switch (protocolType) {
+    case ProtocolType.Ethereum:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM;
+    case ProtocolType.Sealevel:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL;
+    case ProtocolType.Cosmos:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS;
+    case ProtocolType.CosmosNative:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
+    case ProtocolType.Aleo:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
+    case ProtocolType.Radix:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
+    case ProtocolType.Starknet:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
+    // Forward-compatibility: Unknown protocols use ALTVM decimals as a safe default.
+    // This allows IGP calculations to proceed when registry contains new protocol types
+    // not yet known to this SDK version. The ALTVM value (10) is a reasonable middle-ground.
+    case ProtocolType.Unknown:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
+  }
 }
 
 export function getProtocolExchangeRateScale(
-    protocolType: ProtocolType,
+  protocolType: ProtocolType,
 ): bigint {
-    return 10n ** BigInt(getProtocolExchangeRateDecimals(protocolType));
+  return 10n ** BigInt(getProtocolExchangeRateDecimals(protocolType));
 }

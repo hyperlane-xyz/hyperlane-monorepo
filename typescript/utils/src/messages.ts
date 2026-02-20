@@ -175,8 +175,5 @@ export function extractRefundAddressFromMetadata(
 
 export function hasValidRefundAddress(metadata?: HexString): boolean {
   const refundAddress = extractRefundAddressFromMetadata(metadata);
-  return (
-    refundAddress !== null &&
-    refundAddress.toLowerCase() !== zeroAddress
-  );
+  return refundAddress !== null && refundAddress.toLowerCase() !== zeroAddress;
 }

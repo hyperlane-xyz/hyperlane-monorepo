@@ -1,60 +1,56 @@
-import {Account as StarknetAccount} from "starknet";
-import {isHex} from "viem";
+import { Account as StarknetAccount } from 'starknet';
+import { isHex } from 'viem';
 
-import {ProtocolType, assert} from "@hyperlane-xyz/utils";
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import {MultiProtocolProvider} from "../../providers/MultiProtocolProvider.js";
-import {StarknetJsTransaction} from "../../providers/ProviderType.js";
-import {ChainName} from "../../types.js";
-import {IMultiProtocolSigner} from "../types.js";
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { StarknetJsTransaction } from '../../providers/ProviderType.js';
+import { ChainName } from '../../types.js';
+import { IMultiProtocolSigner } from '../types.js';
 
 export class StarknetMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.Starknet> {
-    private readonly signer: StarknetAccount;
+  private readonly signer: StarknetAccount;
 
-    constructor(
-        private readonly chainName: ChainName,
-        privateKey: string,
-        address: string,
-        multiProtocolProvider: MultiProtocolProvider,
-    ) {
-        const provider = multiProtocolProvider.getStarknetProvider(
-            this.chainName,
-        );
+  constructor(
+    private readonly chainName: ChainName,
+    privateKey: string,
+    address: string,
+    multiProtocolProvider: MultiProtocolProvider,
+  ) {
+    const provider = multiProtocolProvider.getStarknetProvider(this.chainName);
 
-        assert(isHex(address), "Starknet address must be a hex string");
-        assert(isHex(privateKey), "Starknet private key must be a hex string");
+    assert(isHex(address), 'Starknet address must be a hex string');
+    assert(isHex(privateKey), 'Starknet private key must be a hex string');
 
-        this.signer = new StarknetAccount(provider, address, privateKey);
+    this.signer = new StarknetAccount(provider, address, privateKey);
+  }
+
+  async address(): Promise<string> {
+    return this.signer.address;
+  }
+
+  async sendAndConfirmTransaction(tx: StarknetJsTransaction): Promise<string> {
+    const { entrypoint, calldata, contractAddress } = tx.transaction;
+    assert(entrypoint, 'entrypoint is required for starknet transactions');
+
+    const transaction = await this.signer.execute([
+      {
+        contractAddress,
+        entrypoint,
+        calldata,
+      },
+    ]);
+
+    const transactionReceipt = await this.signer.waitForTransaction(
+      transaction.transaction_hash,
+    );
+
+    if (transactionReceipt.isReverted()) {
+      throw new Error(
+        `Transaction ${transaction.transaction_hash} failed on chain ${this.chainName}`,
+      );
     }
 
-    async address(): Promise<string> {
-        return this.signer.address;
-    }
-
-    async sendAndConfirmTransaction(
-        tx: StarknetJsTransaction,
-    ): Promise<string> {
-        const {entrypoint, calldata, contractAddress} = tx.transaction;
-        assert(entrypoint, "entrypoint is required for starknet transactions");
-
-        const transaction = await this.signer.execute([
-            {
-                contractAddress,
-                entrypoint,
-                calldata,
-            },
-        ]);
-
-        const transactionReceipt = await this.signer.waitForTransaction(
-            transaction.transaction_hash,
-        );
-
-        if (transactionReceipt.isReverted()) {
-            throw new Error(
-                `Transaction ${transaction.transaction_hash} failed on chain ${this.chainName}`,
-            );
-        }
-
-        return transaction.transaction_hash;
-    }
+    return transaction.transaction_hash;
+  }
 }

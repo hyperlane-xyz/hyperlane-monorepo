@@ -78,9 +78,7 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     return this.core.waitForMessageProcessing(receipt);
   }
 
-  async waitForMessageProcessed(
-    receipt: SourceReceipt,
-  ): Promise<void> {
+  async waitForMessageProcessed(receipt: SourceReceipt): Promise<void> {
     return this.core.waitForMessageProcessed(receipt);
   }
 

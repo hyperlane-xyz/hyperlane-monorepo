@@ -377,7 +377,9 @@ export function calculateMultipliedBalance(
   return (base * BigInt(Math.floor(multiplier * 100))) / 100n;
 }
 
-function toBigInt(value: bigint | number | string | { toString(): string }): bigint {
+function toBigInt(
+  value: bigint | number | string | { toString(): string },
+): bigint {
   return typeof value === 'bigint' ? value : BigInt(value.toString());
 }
 

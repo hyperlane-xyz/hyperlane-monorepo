@@ -16,7 +16,11 @@ async function main() {
     rootLogger.debug(`Building providers for ${chain}`);
     const rpcData = await getSecretRpcEndpoints(environment, chain);
     for (const url of rpcData)
-      providers.push([chain, url, createPublicClient({ transport: http(url) })]);
+      providers.push([
+        chain,
+        url,
+        createPublicClient({ transport: http(url) }),
+      ]);
   }
   for (const [chain, url, provider] of providers) {
     rootLogger.debug(`Testing provider for ${chain}: ${url}`);

@@ -56,7 +56,15 @@ export const formatLegacyMultisigIsmMetadata = (
   metadata: ParsedLegacyMultisigIsmMetadata,
 ): string => {
   return encodePacked(
-    ['bytes32', 'uint32', 'bytes32', 'bytes32[32]', 'uint8', 'bytes', 'address[]'] as any,
+    [
+      'bytes32',
+      'uint32',
+      'bytes32',
+      'bytes32[32]',
+      'uint8',
+      'bytes',
+      'address[]',
+    ] as any,
     [
       metadata.checkpointRoot as Hex,
       metadata.checkpointIndex,

@@ -1,203 +1,191 @@
-import {BigNumber, Provider, constants, utils} from "zksync-ethers";
+import { BigNumber, Provider, constants, utils } from 'zksync-ethers';
 
 import {
-    ERC20__factory,
-    HypERC20Collateral__factory,
-    MovableCollateralRouter__factory,
-} from "@hyperlane-xyz/core";
-import {HyperlaneRelayer} from "@hyperlane-xyz/relayer";
+  ERC20__factory,
+  HypERC20Collateral__factory,
+  MovableCollateralRouter__factory,
+} from '@hyperlane-xyz/core';
+import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import {
-    HyperlaneCore,
-    type MultiProvider,
-    impersonateAccounts,
-    setBalance,
-} from "@hyperlane-xyz/sdk";
-import {addressToBytes32, retryAsync} from "@hyperlane-xyz/utils";
+  HyperlaneCore,
+  type MultiProvider,
+  impersonateAccounts,
+  setBalance,
+} from '@hyperlane-xyz/sdk';
+import { addressToBytes32, retryAsync } from '@hyperlane-xyz/utils';
 
 type DispatchReceipt = Awaited<
-    ReturnType<
-        ReturnType<MultiProvider["getProvider"]>["getTransactionReceipt"]
-    >
+  ReturnType<ReturnType<MultiProvider['getProvider']>['getTransactionReceipt']>
 >;
-type DeliveryReceipt = Awaited<ReturnType<HyperlaneCore["deliver"]>>;
-type ProviderSigner = ReturnType<Provider["getSigner"]>;
+type DeliveryReceipt = Awaited<ReturnType<HyperlaneCore['deliver']>>;
+type ProviderSigner = ReturnType<Provider['getSigner']>;
 
 export interface WarpTransferParams {
-    originChain: string;
-    destinationChain: string;
-    routerAddress: string;
-    tokenAddress: string;
-    amount: BigNumber;
-    recipient: string;
-    senderAddress?: string;
+  originChain: string;
+  destinationChain: string;
+  routerAddress: string;
+  tokenAddress: string;
+  amount: BigNumber;
+  recipient: string;
+  senderAddress?: string;
 }
 
 export interface WarpTransferResult {
-    dispatchTx: DispatchReceipt;
-    messageId: string;
-    origin: string;
-    destination: string;
+  dispatchTx: DispatchReceipt;
+  messageId: string;
+  origin: string;
+  destination: string;
 }
 
 export async function executeWarpTransfer(
-    multiProvider: MultiProvider,
-    params: WarpTransferParams,
-    forkedProvider?: Provider,
+  multiProvider: MultiProvider,
+  params: WarpTransferParams,
+  forkedProvider?: Provider,
 ): Promise<WarpTransferResult> {
-    const {
-        originChain,
-        destinationChain,
-        routerAddress,
-        tokenAddress,
-        amount,
-        recipient,
-        senderAddress,
-    } = params;
+  const {
+    originChain,
+    destinationChain,
+    routerAddress,
+    tokenAddress,
+    amount,
+    recipient,
+    senderAddress,
+  } = params;
 
-    const provider =
-        forkedProvider ?? (multiProvider.getProvider(originChain) as Provider);
-    const destinationDomain = multiProvider.getDomainId(destinationChain);
+  const provider =
+    forkedProvider ?? (multiProvider.getProvider(originChain) as Provider);
+  const destinationDomain = multiProvider.getDomainId(destinationChain);
 
-    let sender: string;
-    if (senderAddress) {
-        sender = senderAddress;
-        await provider.send("anvil_impersonateAccount", [sender]);
-    } else {
-        sender = await multiProvider.getSigner(originChain).getAddress();
-    }
+  let sender: string;
+  if (senderAddress) {
+    sender = senderAddress;
+    await provider.send('anvil_impersonateAccount', [sender]);
+  } else {
+    sender = await multiProvider.getSigner(originChain).getAddress();
+  }
 
-    await provider.send("anvil_setBalance", [
-        sender,
-        utils.parseEther("100").toHexString(),
-    ]);
+  await provider.send('anvil_setBalance', [
+    sender,
+    utils.parseEther('100').toHexString(),
+  ]);
 
-    const signer = provider.getSigner(sender);
+  const signer = provider.getSigner(sender);
 
-    const token = ERC20__factory.connect(tokenAddress, signer);
-    const router = HypERC20Collateral__factory.connect(routerAddress, signer);
+  const token = ERC20__factory.connect(tokenAddress, signer);
+  const router = HypERC20Collateral__factory.connect(routerAddress, signer);
 
-    const currentAllowance = await token.allowance(sender, routerAddress);
-    if (currentAllowance.lt(amount)) {
-        const approveTx = await token.approve(
-            routerAddress,
-            constants.MaxUint256,
-            {gasLimit: 100000},
-        );
-        await approveTx.wait();
-    }
+  const currentAllowance = await token.allowance(sender, routerAddress);
+  if (currentAllowance.lt(amount)) {
+    const approveTx = await token.approve(routerAddress, constants.MaxUint256, {
+      gasLimit: 100000,
+    });
+    await approveTx.wait();
+  }
 
-    const recipientBytes32 = addressToBytes32(recipient);
+  const recipientBytes32 = addressToBytes32(recipient);
 
-    const gasQuote = await router.quoteGasPayment(destinationDomain);
+  const gasQuote = await router.quoteGasPayment(destinationDomain);
 
-    const tx = await router.transferRemote(
-        destinationDomain,
-        recipientBytes32,
-        amount,
-        {gasLimit: 500000, value: gasQuote},
-    );
-    const receipt = await tx.wait();
+  const tx = await router.transferRemote(
+    destinationDomain,
+    recipientBytes32,
+    amount,
+    { gasLimit: 500000, value: gasQuote },
+  );
+  const receipt = await tx.wait();
 
-    if (senderAddress) {
-        await provider.send("anvil_stopImpersonatingAccount", [senderAddress]);
-    }
+  if (senderAddress) {
+    await provider.send('anvil_stopImpersonatingAccount', [senderAddress]);
+  }
 
-    const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
-    if (dispatchedMessages.length === 0) {
-        throw new Error("No messages dispatched");
-    }
+  const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
+  if (dispatchedMessages.length === 0) {
+    throw new Error('No messages dispatched');
+  }
 
-    return {
-        dispatchTx: receipt,
-        messageId: dispatchedMessages[0].id,
-        origin: originChain,
-        destination: destinationChain,
-    };
+  return {
+    dispatchTx: receipt,
+    messageId: dispatchedMessages[0].id,
+    origin: originChain,
+    destination: destinationChain,
+  };
 }
 
 export async function relayMessage(
-    multiProvider: MultiProvider,
-    core: HyperlaneCore,
-    transferResult: WarpTransferResult,
+  multiProvider: MultiProvider,
+  core: HyperlaneCore,
+  transferResult: WarpTransferResult,
 ): Promise<DeliveryReceipt> {
-    return retryAsync(
-        async () => {
-            const relayer = new HyperlaneRelayer({core});
-            const receipts = await relayer.relayAll(transferResult.dispatchTx);
-            // relayAll keys receipts by domain ID, so look up by domain ID or chain name
-            const destinationDomain = core.multiProvider.getDomainId(
-                transferResult.destination,
-            );
-            const destinationReceipts =
-                receipts[transferResult.destination] ??
-                receipts[destinationDomain];
-            if (!destinationReceipts || destinationReceipts.length === 0) {
-                throw new Error("Message relay failed");
-            }
-            return destinationReceipts[0];
-        },
-        3,
-        1000,
-    );
+  return retryAsync(
+    async () => {
+      const relayer = new HyperlaneRelayer({ core });
+      const receipts = await relayer.relayAll(transferResult.dispatchTx);
+      // relayAll keys receipts by domain ID, so look up by domain ID or chain name
+      const destinationDomain = core.multiProvider.getDomainId(
+        transferResult.destination,
+      );
+      const destinationReceipts =
+        receipts[transferResult.destination] ?? receipts[destinationDomain];
+      if (!destinationReceipts || destinationReceipts.length === 0) {
+        throw new Error('Message relay failed');
+      }
+      return destinationReceipts[0];
+    },
+    3,
+    1000,
+  );
 }
 
 export async function executeWarpTransferAndRelay(
-    multiProvider: MultiProvider,
-    core: HyperlaneCore,
-    params: WarpTransferParams,
+  multiProvider: MultiProvider,
+  core: HyperlaneCore,
+  params: WarpTransferParams,
 ): Promise<{
-    transferResult: WarpTransferResult;
-    relayReceipt: DeliveryReceipt;
+  transferResult: WarpTransferResult;
+  relayReceipt: DeliveryReceipt;
 }> {
-    const transferResult = await executeWarpTransfer(multiProvider, params);
-    const relayReceipt = await relayMessage(
-        multiProvider,
-        core,
-        transferResult,
-    );
-    return {transferResult, relayReceipt};
+  const transferResult = await executeWarpTransfer(multiProvider, params);
+  const relayReceipt = await relayMessage(multiProvider, core, transferResult);
+  return { transferResult, relayReceipt };
 }
 
 export async function getRebalancerAddress(
-    provider: Provider,
-    routerAddress: string,
+  provider: Provider,
+  routerAddress: string,
 ): Promise<string> {
-    const movable = MovableCollateralRouter__factory.connect(
-        routerAddress,
-        provider,
-    );
-    const rebalancers = await movable.allowedRebalancers();
-    if (rebalancers.length === 0) {
-        throw new Error(`No rebalancers found for router ${routerAddress}`);
-    }
-    return rebalancers[0];
+  const movable = MovableCollateralRouter__factory.connect(
+    routerAddress,
+    provider,
+  );
+  const rebalancers = await movable.allowedRebalancers();
+  if (rebalancers.length === 0) {
+    throw new Error(`No rebalancers found for router ${routerAddress}`);
+  }
+  return rebalancers[0];
 }
 
 export async function impersonateRebalancer(
-    provider: Provider,
-    routerAddress: string,
-): Promise<{rebalancerAddress: string; signer: ProviderSigner}> {
-    const rebalancerAddress = await getRebalancerAddress(
-        provider,
-        routerAddress,
-    );
-    await impersonateAccounts(provider, [rebalancerAddress]);
-    await setBalance(provider, rebalancerAddress, "0x56BC75E2D63100000");
-    return {
-        rebalancerAddress,
-        signer: provider.getSigner(rebalancerAddress),
-    };
+  provider: Provider,
+  routerAddress: string,
+): Promise<{ rebalancerAddress: string; signer: ProviderSigner }> {
+  const rebalancerAddress = await getRebalancerAddress(provider, routerAddress);
+  await impersonateAccounts(provider, [rebalancerAddress]);
+  await setBalance(provider, rebalancerAddress, '0x56BC75E2D63100000');
+  return {
+    rebalancerAddress,
+    signer: provider.getSigner(rebalancerAddress),
+  };
 }
 
 export async function tryRelayMessage(
-    multiProvider: MultiProvider,
-    core: HyperlaneCore,
-    transferResult: WarpTransferResult,
-): Promise<{success: boolean; receipt?: DeliveryReceipt; error?: string}> {
-    try {
-        const receipt = await relayMessage(multiProvider, core, transferResult);
-        return {success: true, receipt};
-    } catch (error) {
-        return {success: false, error: String(error)};
-    }
+  multiProvider: MultiProvider,
+  core: HyperlaneCore,
+  transferResult: WarpTransferResult,
+): Promise<{ success: boolean; receipt?: DeliveryReceipt; error?: string }> {
+  try {
+    const receipt = await relayMessage(multiProvider, core, transferResult);
+    return { success: true, receipt };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
 }

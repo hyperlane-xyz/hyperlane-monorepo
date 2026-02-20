@@ -1,20 +1,20 @@
-import SafeApiKit from "@safe-global/api-kit";
-import Safe from "@safe-global/protocol-kit";
-import {SafeTransactionData} from "@safe-global/safe-core-sdk-types";
+import SafeApiKit from '@safe-global/api-kit';
+import Safe from '@safe-global/protocol-kit';
+import { SafeTransactionData } from '@safe-global/safe-core-sdk-types';
 
-import {MultiProvider} from "../../../MultiProvider.js";
-import {AnnotatedEvmTransaction} from "../../../ProviderType.js";
-import {TxSubmitterType} from "../TxSubmitterTypes.js";
+import { MultiProvider } from '../../../MultiProvider.js';
+import { AnnotatedEvmTransaction } from '../../../ProviderType.js';
+import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
-import {EV5GnosisSafeTxSubmitter} from "./EV5GnosisSafeTxSubmitter.js";
-import {EV5GnosisSafeTxBuilderProps} from "./types.js";
+import { EV5GnosisSafeTxSubmitter } from './EV5GnosisSafeTxSubmitter.js';
+import { EV5GnosisSafeTxBuilderProps } from './types.js';
 
 // TODO: Use this return type in submit()
 export interface GnosisTransactionBuilderPayload {
-    version: string;
-    chainId: string;
-    meta: {};
-    transactions: SafeTransactionData[];
+  version: string;
+  chainId: string;
+  meta: {};
+  transactions: SafeTransactionData[];
 }
 
 /**
@@ -22,62 +22,57 @@ export interface GnosisTransactionBuilderPayload {
  * It is not a true Submitter because it does not submits any transactions.
  */
 export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
-    public readonly txSubmitterType: TxSubmitterType =
-        TxSubmitterType.GNOSIS_TX_BUILDER;
+  public readonly txSubmitterType: TxSubmitterType =
+    TxSubmitterType.GNOSIS_TX_BUILDER;
 
-    constructor(
-        public readonly multiProvider: MultiProvider,
-        public readonly props: EV5GnosisSafeTxBuilderProps,
-        safe: Safe.default,
-        safeService: SafeApiKit.default,
-    ) {
-        super(multiProvider, props, safe, safeService);
-    }
+  constructor(
+    public readonly multiProvider: MultiProvider,
+    public readonly props: EV5GnosisSafeTxBuilderProps,
+    safe: Safe.default,
+    safeService: SafeApiKit.default,
+  ) {
+    super(multiProvider, props, safe, safeService);
+  }
 
-    static async create(
-        multiProvider: MultiProvider,
-        props: EV5GnosisSafeTxBuilderProps,
-    ): Promise<EV5GnosisSafeTxBuilder> {
-        const {chain, safeAddress} = props;
-        const {safe, safeService} =
-            await EV5GnosisSafeTxSubmitter.initSafeAndService(
-                chain,
-                multiProvider,
-                safeAddress,
-            );
-        return new EV5GnosisSafeTxBuilder(
-            multiProvider,
-            props,
-            safe,
-            safeService,
-        );
-    }
+  static async create(
+    multiProvider: MultiProvider,
+    props: EV5GnosisSafeTxBuilderProps,
+  ): Promise<EV5GnosisSafeTxBuilder> {
+    const { chain, safeAddress } = props;
+    const { safe, safeService } =
+      await EV5GnosisSafeTxSubmitter.initSafeAndService(
+        chain,
+        multiProvider,
+        safeAddress,
+      );
+    return new EV5GnosisSafeTxBuilder(multiProvider, props, safe, safeService);
+  }
 
-    // No requirement to get the next nonce from the Safe service.
-    // When proposing the JSON file, the Safe UI will automatically update the nonce.
-    // So we just return 0 and save ourselves from the unreliability of Safe APIs.
-    protected async getNextNonce(): Promise<number> {
-        return 0;
-    }
+  // No requirement to get the next nonce from the Safe service.
+  // When proposing the JSON file, the Safe UI will automatically update the nonce.
+  // So we just return 0 and save ourselves from the unreliability of Safe APIs.
+  protected async getNextNonce(): Promise<number> {
+    return 0;
+  }
 
-    /**
-     * Creates a Gnosis Safe transaction builder object using the PopulatedTransactions
-     *
-     * @param txs - An array of populated transactions
-     */
-    public async submit(...txs: AnnotatedEvmTransaction[]): Promise<any> {
-        const chainId = this.multiProvider.getChainId(this.props.chain);
-        const transactions: SafeTransactionData[] = await Promise.all(
-            txs.map(
-                async (tx: AnnotatedEvmTransaction) =>
-                    (await this.createSafeTransaction(tx)).data,
-            ),
-        );
-        return {
-            version: this.props.version,
-            chainId: chainId.toString(),
-            meta: {},
-            transactions,
-        };
-    }
+  /**
+   * Creates a Gnosis Safe transaction builder object using the PopulatedTransactions
+   *
+   * @param txs - An array of populated transactions
+   */
+  public async submit(...txs: AnnotatedEvmTransaction[]): Promise<any> {
+    const chainId = this.multiProvider.getChainId(this.props.chain);
+    const transactions: SafeTransactionData[] = await Promise.all(
+      txs.map(
+        async (tx: AnnotatedEvmTransaction) =>
+          (await this.createSafeTransaction(tx)).data,
+      ),
+    );
+    return {
+      version: this.props.version,
+      chainId: chainId.toString(),
+      meta: {},
+      transactions,
+    };
+  }
 }

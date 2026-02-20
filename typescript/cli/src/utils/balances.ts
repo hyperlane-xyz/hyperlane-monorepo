@@ -119,6 +119,8 @@ export async function nativeBalancesAreSufficient(
   }
 }
 
-function toBigInt(value: bigint | number | string | { toString(): string }): bigint {
+function toBigInt(
+  value: bigint | number | string | { toString(): string },
+): bigint {
   return typeof value === 'bigint' ? value : BigInt(value.toString());
 }

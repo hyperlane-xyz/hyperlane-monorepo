@@ -26,7 +26,11 @@ export function ethers5TxToWagmiTx(
     data: tx.data as `0x{string}` | undefined,
     nonce: tx.nonce,
     chainId: tx.chainId,
-    gas: tx.gasLimit ? toBigInt(tx.gasLimit) : tx.gas ? toBigInt(tx.gas) : undefined,
+    gas: tx.gasLimit
+      ? toBigInt(tx.gasLimit)
+      : tx.gas
+        ? toBigInt(tx.gas)
+        : undefined,
     gasPrice: tx.gasPrice ? toBigInt(tx.gasPrice) : undefined,
     maxFeePerGas: tx.maxFeePerGas ? toBigInt(tx.maxFeePerGas) : undefined,
     maxPriorityFeePerGas: tx.maxPriorityFeePerGas
