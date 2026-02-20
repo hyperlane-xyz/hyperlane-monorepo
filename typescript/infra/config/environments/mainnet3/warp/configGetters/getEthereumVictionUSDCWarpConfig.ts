@@ -1,45 +1,45 @@
-import { ethers } from 'ethers';
+import {zeroAddress} from "viem";
 
 import {
-  ChainMap,
-  HypTokenRouterConfig,
-  OwnableConfig,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
+    ChainMap,
+    HypTokenRouterConfig,
+    OwnableConfig,
+    TokenType,
+} from "@hyperlane-xyz/sdk";
 
 import {
-  RouterConfigWithoutOwner,
-  tokens,
-} from '../../../../../src/config/warp.js';
+    RouterConfigWithoutOwner,
+    tokens,
+} from "../../../../../src/config/warp.js";
 
 export const getEthereumVictionUSDCWarpConfig = async (
-  routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+    routerConfig: ChainMap<RouterConfigWithoutOwner>,
+    abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const viction: HypTokenRouterConfig = {
-    ...routerConfig.viction,
-    ...abacusWorksEnvOwnerConfig.viction,
-    type: TokenType.synthetic,
-    name: 'USDC',
-    symbol: 'USDC',
-    decimals: 6,
-    gas: 75_000,
-    interchainSecurityModule: ethers.constants.AddressZero,
-  };
+    const viction: HypTokenRouterConfig = {
+        ...routerConfig.viction,
+        ...abacusWorksEnvOwnerConfig.viction,
+        type: TokenType.synthetic,
+        name: "USDC",
+        symbol: "USDC",
+        decimals: 6,
+        gas: 75_000,
+        interchainSecurityModule: zeroAddress,
+    };
 
-  const ethereum: HypTokenRouterConfig = {
-    ...routerConfig.ethereum,
-    ...abacusWorksEnvOwnerConfig.ethereum,
-    type: TokenType.collateral,
-    token: tokens.ethereum.USDC,
-    decimals: 6,
-    gas: 65_000,
-    interchainSecurityModule: ethers.constants.AddressZero,
-    hook: '0xb87ac8ea4533ae017604e44470f7c1e550ac6f10',
-  };
+    const ethereum: HypTokenRouterConfig = {
+        ...routerConfig.ethereum,
+        ...abacusWorksEnvOwnerConfig.ethereum,
+        type: TokenType.collateral,
+        token: tokens.ethereum.USDC,
+        decimals: 6,
+        gas: 65_000,
+        interchainSecurityModule: zeroAddress,
+        hook: "0xb87ac8ea4533ae017604e44470f7c1e550ac6f10",
+    };
 
-  return {
-    viction,
-    ethereum,
-  };
+    return {
+        viction,
+        ethereum,
+    };
 };
