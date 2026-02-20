@@ -8,6 +8,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { IcaRouterConfig } from '../ica/types.js';
 import { IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
 
 import { EvmIcaModule } from './EvmIcaModule.js';
 
@@ -20,7 +21,7 @@ describe('EvmIcaModule', async () => {
   let mailbox: Mailbox;
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const Mailbox = new Mailbox__factory(signer);
     mailbox = await Mailbox.deploy(LOCAL_DOMAIN);

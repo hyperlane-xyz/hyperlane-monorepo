@@ -6,6 +6,7 @@ import { addressToBytes32, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
@@ -39,7 +40,7 @@ describe('EvmTokenFeeDeployer', () => {
   };
 
   beforeEach(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     deployer = new EvmTokenFeeDeployer(multiProvider, TestChainName.test2);
     const factory = new ERC20Test__factory(signer);
@@ -198,7 +199,7 @@ describe('EvmTokenFeeDeployer', () => {
   });
 
   it('should deploy RoutingFee with fee contracts when owner differs from signer', async () => {
-    const [, otherSigner] = await hre.ethers.getSigners();
+    const [, otherSigner] = await getHardhatSigners();
 
     const config = RoutingFeeConfigSchema.parse({
       type: TokenFeeType.RoutingFee,
@@ -235,7 +236,7 @@ describe('EvmTokenFeeDeployer', () => {
   });
 
   it('should deploy RoutingFee and transfer ownership when owner differs from signer (no fee contracts)', async () => {
-    const [, otherSigner] = await hre.ethers.getSigners();
+    const [, otherSigner] = await getHardhatSigners();
 
     const config = TokenFeeConfigSchema.parse({
       type: TokenFeeType.RoutingFee,

@@ -12,6 +12,7 @@ import {
   baseTestChain,
 } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
 
 import {
@@ -41,7 +42,7 @@ describe('EvmEventLogsReader', () => {
 
   beforeEach(async () => {
     [contractOwner, tokenRecipient1, tokenRecipient2] =
-      await hre.ethers.getSigners();
+      await getHardhatSigners();
 
     assert(contractOwner.provider, 'Provider should be available');
 

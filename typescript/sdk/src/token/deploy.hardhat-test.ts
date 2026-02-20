@@ -29,6 +29,7 @@ import { ViolationType } from '../deploy/types.js';
 import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { HypERC20App } from './app.js';
@@ -73,7 +74,7 @@ describe('TokenDeployer', async () => {
   const totalSupply = '100000';
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const factories = await ismFactoryDeployer.deploy(

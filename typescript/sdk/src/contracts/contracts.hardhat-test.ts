@@ -6,15 +6,19 @@ import { ERC20Test__factory } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import {
+  HardhatSignerWithAddress,
+  getHardhatSigners,
+} from '../test/hardhatViem.js';
 
 import { isAddressActive } from './contracts.js';
 
 describe('Contracts', () => {
-  let signer: Awaited<ReturnType<typeof hre.ethers.getSigners>>[number];
+  let signer: HardhatSignerWithAddress;
   let contract: Awaited<ReturnType<ERC20Test__factory['deploy']>>;
   let multiProvider: MultiProvider;
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    [signer] = await getHardhatSigners();
 
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const factory = new ERC20Test__factory(signer);

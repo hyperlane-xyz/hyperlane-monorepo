@@ -1,12 +1,14 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import hre from 'hardhat';
+import { zeroAddress } from 'viem';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
 import { randomAddress } from '../../test/testUtils.js';
 import { TimelockConfig } from '../types.js';
 
@@ -36,7 +38,7 @@ describe('EvmTimelockDeployer', async () => {
   };
 
   beforeEach(async () => {
-    [signer, otherSigner] = await hre.ethers.getSigners();
+    [signer, otherSigner] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     deployer = new EvmTimelockDeployer(multiProvider);
 
@@ -168,9 +170,7 @@ describe('EvmTimelockDeployer', async () => {
     );
 
     // If the 0 address has the executor role anyone can execute
-    expect(
-      await timelock.hasRole(EXECUTOR_ROLE, hre.ethers.constants.AddressZero),
-    ).to.be.true;
+    expect(await timelock.hasRole(EXECUTOR_ROLE, zeroAddress)).to.be.true;
 
     // Test that someone who does not have the executor role can execute proposed transactions
     expect(await timelock.hasRole(EXECUTOR_ROLE, otherSignerAddress)).to.be

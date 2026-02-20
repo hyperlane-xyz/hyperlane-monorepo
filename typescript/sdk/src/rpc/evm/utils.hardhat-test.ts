@@ -8,6 +8,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
 
 import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';
@@ -33,7 +34,7 @@ describe('RPC Utils', () => {
 
   beforeEach(async () => {
     [contractOwner, tokenRecipient1, tokenRecipient2] =
-      await hre.ethers.getSigners();
+      await getHardhatSigners();
 
     assert(
       contractOwner.provider,

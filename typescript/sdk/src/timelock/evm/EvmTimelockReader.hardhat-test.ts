@@ -15,6 +15,7 @@ import {
 import { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 import { ZBytes32String } from '../../metadata/customZodTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { getHardhatSigners } from '../../test/hardhatViem.js';
 import { randomAddress } from '../../test/testUtils.js';
 import { TimelockConfig, TimelockTx } from '../types.js';
 
@@ -41,7 +42,7 @@ describe(EvmTimelockReader.name, () => {
   let timelockAddress: string;
 
   beforeEach(async () => {
-    [contractOwner, proposer, executor] = await hre.ethers.getSigners();
+    [contractOwner, proposer, executor] = await getHardhatSigners();
 
     assert(contractOwner.provider, 'Provider should be available');
     providerChainTest1 = contractOwner.provider as EvmProvider;
