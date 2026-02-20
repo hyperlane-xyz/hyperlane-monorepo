@@ -56,7 +56,8 @@
     "viem": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:",
-    "zod-validation-error": "catalog:"
+    "zod-validation-error": "catalog:",
+    "zksync-ethers": "catalog:"
   },
   "devDependencies": {
     "@ethersproject/constants": "*",

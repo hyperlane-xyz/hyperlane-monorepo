@@ -23,7 +23,7 @@
  *   node dist/service.js
  *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_REBALANCER_KEY=0x... HYP_INVENTORY_KEY=0x... node dist/service.js
  */
-import { Wallet } from 'ethers';
+import { Wallet } from 'zksync-ethers';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
