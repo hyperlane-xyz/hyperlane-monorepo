@@ -43,6 +43,18 @@ describe('Inventory WeightedStrategy E2E', function () {
 
   const inventorySignerAddress = new Wallet(ANVIL_USER_PRIVATE_KEY).address;
 
+  async function confirmDeliveries(
+    context: TestRebalancerContext,
+  ): Promise<void> {
+    const tags: Record<string, number> = {};
+    for (const chain of TEST_CHAINS) {
+      const p = localProviders.get(chain)!;
+      const hex = await p.send('eth_blockNumber', []);
+      tags[chain] = parseInt(hex, 16);
+    }
+    await context.tracker.syncRebalanceActions(tags);
+  }
+
   async function executeCycle(context: TestRebalancerContext): Promise<void> {
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
@@ -86,7 +98,14 @@ describe('Inventory WeightedStrategy E2E', function () {
     }
 
     if (deposits.length > 0) {
-      await context.tracker.syncRebalanceActions();
+      // Use provider.send to bypass ethers v5 _maxInternalBlockNumber cache
+      const tags: Record<string, number> = {};
+      for (const chain of TEST_CHAINS) {
+        const p = localProviders.get(chain)!;
+        const hex = await p.send('eth_blockNumber', []);
+        tags[chain] = parseInt(hex, 16);
+      }
+      await context.tracker.syncRebalanceActions(tags);
     }
   }
 
@@ -154,12 +173,17 @@ describe('Inventory WeightedStrategy E2E', function () {
   });
 
   afterEach(async function () {
+    mockBridge.reset();
     for (const [chain, provider] of localProviders) {
       const id = snapshotIds.get(chain)!;
       await revertToSnapshot(provider, id);
       snapshotIds.set(chain, await snapshot(provider));
+      // ethers v5 refuses to return block numbers lower than a previous
+      // high-water mark (_maxInternalBlockNumber). After evm_revert the
+      // actual chain block number decreases, so reset the cache.
+      Reflect.set(provider, '_maxInternalBlockNumber', -1);
+      Reflect.set(provider, '_internalBlockNumber', null);
     }
-    mockBridge.reset();
   });
 
   after(async function () {
@@ -195,26 +219,31 @@ describe('Inventory WeightedStrategy E2E', function () {
 
     const context = await buildContext('INVENTORY_WEIGHTED_IMBALANCED');
 
+    // Cycle 1: partial deposit with limited inventory signer balance
     await executeCycle(context);
     await relayInProgressDeposits(context);
 
     const partialIntents =
       await context.tracker.getPartiallyFulfilledInventoryIntents();
     expect(partialIntents.length).to.equal(1);
+    expect(partialIntents[0].intent.destination).to.equal(DOMAIN_IDS.anvil3);
+    expect(partialIntents[0].completedAmount > 0n).to.be.true;
+    expect(partialIntents[0].remaining > 0n).to.be.true;
+    expect(
+      partialIntents[0].completedAmount + partialIntents[0].remaining,
+    ).to.equal(partialIntents[0].intent.amount);
 
+    const intentId = partialIntents[0].intent.id;
+
+    // Cycle 2: bridge movement to get more inventory to anvil3
     await executeCycle(context);
 
     const movementActions = (
       await context.tracker.getInProgressActions()
     ).filter((action) => action.type === 'inventory_movement');
-    expect(movementActions.length).to.be.greaterThan(0);
-    expect(
-      movementActions.some(
-        (action) =>
-          action.origin === DOMAIN_IDS.anvil1 &&
-          action.destination === DOMAIN_IDS.anvil3,
-      ),
-    ).to.be.true;
+    expect(movementActions.length).to.equal(1);
+    expect(movementActions[0].origin).to.equal(DOMAIN_IDS.anvil1);
+    expect(movementActions[0].destination).to.equal(DOMAIN_IDS.anvil3);
 
     await context.tracker.syncInventoryMovementActions({
       [ExternalBridgeType.LiFi]: mockBridge,
@@ -225,8 +254,8 @@ describe('Inventory WeightedStrategy E2E', function () {
     );
     expect(movementState?.status).to.equal('complete');
 
-    const intentId = partialIntents[0].intent.id;
-    for (let i = 0; i < 20; i++) {
+    // Cycle 3+: final deposit to complete the intent
+    for (let i = 0; i < 10; i++) {
       await executeCycle(context);
       await context.tracker.syncInventoryMovementActions({
         [ExternalBridgeType.LiFi]: mockBridge,
@@ -234,13 +263,22 @@ describe('Inventory WeightedStrategy E2E', function () {
       await relayInProgressDeposits(context);
 
       const intent = await context.tracker.getRebalanceIntent(intentId);
-      if (intent?.status === 'complete') {
-        break;
-      }
+      if (intent?.status === 'complete') break;
     }
 
     const completedIntent = await context.tracker.getRebalanceIntent(intentId);
     expect(completedIntent?.status).to.equal('complete');
+
+    const actions = await context.tracker.getActionsForIntent(intentId);
+    const deposits = actions.filter((a) => a.type === 'inventory_deposit');
+    const movements = actions.filter((a) => a.type === 'inventory_movement');
+    expect(deposits.length).to.be.at.least(2);
+    expect(movements.length).to.be.at.least(1);
+    for (const d of deposits) expect(d.status).to.equal('complete');
+    for (const m of movements) {
+      expect(m.status).to.equal('complete');
+      expect(m.destination).to.equal(DOMAIN_IDS.anvil3);
+    }
   });
 
   it('completes intent after multiple partial inventory fill cycles', async function () {
@@ -258,39 +296,60 @@ describe('Inventory WeightedStrategy E2E', function () {
 
     let trackedIntentId: string | undefined;
 
-    for (let cycle = 0; cycle < 8; cycle++) {
+    for (let cycle = 0; cycle < 15; cycle++) {
       await executeCycle(context);
-      await relayInProgressDeposits(context);
       await context.tracker.syncInventoryMovementActions({
         [ExternalBridgeType.LiFi]: mockBridge,
       });
+      await relayInProgressDeposits(context);
 
       const activeIntents = await context.tracker.getActiveRebalanceIntents();
-      if (activeIntents.length > 0) {
+      if (!trackedIntentId && activeIntents.length > 0) {
         trackedIntentId = activeIntents[0].id;
       }
+      if (!trackedIntentId) continue;
 
-      if (trackedIntentId) {
-        const intent =
-          await context.tracker.getRebalanceIntent(trackedIntentId);
-        if (intent?.status === 'complete') {
-          break;
-        }
-      }
+      const intent = await context.tracker.getRebalanceIntent(trackedIntentId);
+      if (intent?.status === 'complete') break;
     }
 
     expect(trackedIntentId, 'Inventory intent should exist').to.exist;
+
+    for (let i = 0; i < 5; i++) {
+      await confirmDeliveries(context);
+      const intent = await context.tracker.getRebalanceIntent(trackedIntentId!);
+      if (intent?.status === 'complete') break;
+    }
+
     const completedIntent = await context.tracker.getRebalanceIntent(
       trackedIntentId!,
     );
     expect(completedIntent?.status).to.equal('complete');
 
     const actions = await context.tracker.getActionsForIntent(trackedIntentId!);
-    const completedDeposits = actions.filter(
-      (action) =>
-        action.type === 'inventory_deposit' && action.status === 'complete',
+    expect(actions.length).to.be.at.least(3);
+    const movementActions = actions.filter(
+      (a) => a.type === 'inventory_movement',
     );
-    expect(completedDeposits.length).to.be.greaterThan(1);
+    const depositActions = actions.filter(
+      (a) => a.type === 'inventory_deposit',
+    );
+    expect(movementActions.length).to.be.at.least(1);
+    expect(depositActions.length).to.be.at.least(2);
+    expect(movementActions.length + depositActions.length).to.equal(
+      actions.length,
+    );
+
+    for (const movement of movementActions) {
+      expect(movement.status).to.equal('complete');
+      expect(
+        movement.origin === DOMAIN_IDS.anvil1 ||
+          movement.origin === DOMAIN_IDS.anvil3,
+      ).to.be.true;
+    }
+    for (const deposit of depositActions) {
+      expect(deposit.status).to.equal('complete');
+    }
   });
 
   it('retries bridge execution after execute and status failures', async function () {
@@ -298,6 +357,7 @@ describe('Inventory WeightedStrategy E2E', function () {
 
     const context = await buildContext('INVENTORY_WEIGHTED_IMBALANCED');
 
+    // Cycle 1: bridge execute fails — no actions created
     mockBridge.failNextExecute();
     await executeCycle(context);
 
@@ -308,13 +368,21 @@ describe('Inventory WeightedStrategy E2E', function () {
     const partialIntents =
       await context.tracker.getPartiallyFulfilledInventoryIntents();
     expect(partialIntents.length).to.equal(1);
+    expect(partialIntents[0].intent.destination).to.equal(DOMAIN_IDS.anvil3);
+    expect(partialIntents[0].completedAmount).to.equal(0n);
+    expect(partialIntents[0].remaining > 0n).to.be.true;
 
+    const intentId = partialIntents[0].intent.id;
+
+    // Cycle 2: bridge succeeds but status check fails
     await executeCycle(context);
 
     const movementActions = (
       await context.tracker.getInProgressActions()
     ).filter((action) => action.type === 'inventory_movement');
-    expect(movementActions.length).to.be.greaterThan(0);
+    expect(movementActions.length).to.equal(1);
+    expect(movementActions[0].origin).to.equal(DOMAIN_IDS.anvil1);
+    expect(movementActions[0].destination).to.equal(DOMAIN_IDS.anvil3);
 
     const firstMovement = movementActions[0];
     mockBridge.failStatusFor(firstMovement.txHash!, { status: 'failed' });
@@ -328,6 +396,7 @@ describe('Inventory WeightedStrategy E2E', function () {
     );
     expect(failedMovement?.status).to.equal('failed');
 
+    // Cycle 3: retry creates new movement
     await executeCycle(context);
 
     const retriedMovement = (await context.tracker.getInProgressActions()).find(
@@ -346,8 +415,8 @@ describe('Inventory WeightedStrategy E2E', function () {
     );
     expect(completedMovement?.status).to.equal('complete');
 
-    const intentId = partialIntents[0].intent.id;
-    for (let i = 0; i < 20; i++) {
+    // Complete the intent
+    for (let i = 0; i < 10; i++) {
       await executeCycle(context);
       await context.tracker.syncInventoryMovementActions({
         [ExternalBridgeType.LiFi]: mockBridge,
@@ -355,23 +424,11 @@ describe('Inventory WeightedStrategy E2E', function () {
       await relayInProgressDeposits(context);
 
       const intent = await context.tracker.getRebalanceIntent(intentId);
-      if (intent?.status === 'complete') {
-        break;
-      }
+      if (intent?.status === 'complete') break;
     }
 
-    const completedIntent = await context.tracker.getRebalanceIntent(intentId);
-    if (completedIntent?.status !== 'complete') {
-      await executeCycle(context);
-      await context.tracker.syncInventoryMovementActions({
-        [ExternalBridgeType.LiFi]: mockBridge,
-      });
-      await relayInProgressDeposits(context);
-    }
     const finalizedIntent = await context.tracker.getRebalanceIntent(intentId);
-    expect(['not_started', 'in_progress', 'complete']).to.include(
-      finalizedIntent?.status,
-    );
+    expect(finalizedIntent?.status).to.equal('complete');
   });
 
   it('enforces single active inventory intent when multiple routes are proposed', async function () {
@@ -381,6 +438,7 @@ describe('Inventory WeightedStrategy E2E', function () {
       anvil3: BigNumber.from('0'),
     });
 
+    // Cycle 1: two routes proposed but only one intent created
     const monitor1 = context.createMonitor(0);
     const event1 = await getFirstMonitorEvent(monitor1);
     const cycleResult1 = await context.orchestrator.executeCycle(event1);
@@ -390,6 +448,11 @@ describe('Inventory WeightedStrategy E2E', function () {
     expect(firstCycleIntents.length).to.equal(1);
 
     const firstIntentId = firstCycleIntents[0].id;
+    const partialIntents =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partialIntents.length).to.equal(0);
+
+    // Complete the first intent
     for (let i = 0; i < 20; i++) {
       await context.tracker.syncInventoryMovementActions({
         [ExternalBridgeType.LiFi]: mockBridge,
@@ -397,41 +460,37 @@ describe('Inventory WeightedStrategy E2E', function () {
       await relayInProgressDeposits(context);
 
       const intent = await context.tracker.getRebalanceIntent(firstIntentId);
-      if (intent?.status === 'complete') {
-        break;
-      }
+      if (intent?.status === 'complete') break;
 
       await executeCycle(context);
     }
 
-    const firstIntent = await context.tracker.getRebalanceIntent(firstIntentId);
-    if (firstIntent?.status !== 'complete') {
-      await executeCycle(context);
-      await context.tracker.syncInventoryMovementActions({
-        [ExternalBridgeType.LiFi]: mockBridge,
-      });
-      await relayInProgressDeposits(context);
+    for (let i = 0; i < 5; i++) {
+      await confirmDeliveries(context);
+      const intent = await context.tracker.getRebalanceIntent(firstIntentId);
+      if (intent?.status === 'complete') break;
     }
-    const finalizedFirstIntent =
+
+    const completedFirstIntent =
       await context.tracker.getRebalanceIntent(firstIntentId);
-    expect(['not_started', 'in_progress', 'complete']).to.include(
-      finalizedFirstIntent?.status,
-    );
+    expect(completedFirstIntent?.status).to.equal('complete');
 
-    const monitor2 = context.createMonitor(0);
-    const event2 = await getFirstMonitorEvent(monitor2);
-    await context.orchestrator.executeCycle(event2);
-
+    // After first completes, second intent can be created
+    const activeIntentsAfterFirst =
+      await context.tracker.getActiveRebalanceIntents();
+    if (activeIntentsAfterFirst.length === 0) {
+      await executeCycle(context);
+    }
     const secondCycleIntents =
       await context.tracker.getActiveRebalanceIntents();
-    expect(secondCycleIntents.length).to.be.greaterThan(0);
+    expect(secondCycleIntents.length).to.equal(1);
   });
 
   it('uses bridge movements from different source chains before completion', async function () {
     await setInventorySignerBalances({
       anvil1: '600000000000000000',
       anvil2: '600000000000000000',
-      anvil3: '0',
+      anvil3: '300000000000000000',
     });
 
     const context = await buildContext({
@@ -440,73 +499,61 @@ describe('Inventory WeightedStrategy E2E', function () {
       anvil3: BigNumber.from('0'),
     });
 
-    let activeIntents = await context.tracker.getActiveRebalanceIntents();
-    for (let i = 0; i < 12; i++) {
-      if (activeIntents.length > 0) {
-        break;
-      }
-      await executeCycle(context);
-      activeIntents = await context.tracker.getActiveRebalanceIntents();
-    }
+    let intentId: string | undefined;
 
-    if (activeIntents.length === 0) {
-      const partialIntents =
-        await context.tracker.getPartiallyFulfilledInventoryIntents();
-      if (partialIntents.length > 0) {
-        const intentId = partialIntents[0].intent.id;
-        activeIntents = [partialIntents[0].intent];
-        for (let cycle = 0; cycle < 20; cycle++) {
-          await context.tracker.syncInventoryMovementActions({
-            [ExternalBridgeType.LiFi]: mockBridge,
-          });
-          await relayInProgressDeposits(context);
-          const intent = await context.tracker.getRebalanceIntent(intentId);
-          if (intent?.status === 'complete') {
-            break;
-          }
-          await executeCycle(context);
+    for (let i = 0; i < 25; i++) {
+      await executeCycle(context);
+      await context.tracker.syncInventoryMovementActions({
+        [ExternalBridgeType.LiFi]: mockBridge,
+      });
+      await relayInProgressDeposits(context);
+
+      if (!intentId) {
+        const activeIntents = await context.tracker.getActiveRebalanceIntents();
+        if (activeIntents.length > 0) {
+          intentId = activeIntents[0].id;
         }
       }
-    }
-
-    expect(activeIntents.length).to.equal(1);
-    const intentId = activeIntents[0].id;
-
-    for (let cycle = 0; cycle < 20; cycle++) {
-      await context.tracker.syncInventoryMovementActions({
-        [ExternalBridgeType.LiFi]: mockBridge,
-      });
-      await relayInProgressDeposits(context);
-
-      const intent = await context.tracker.getRebalanceIntent(intentId);
-      if (intent?.status === 'complete') {
-        break;
+      if (!intentId) {
+        const partialIntents =
+          await context.tracker.getPartiallyFulfilledInventoryIntents();
+        if (partialIntents.length > 0) {
+          intentId = partialIntents[0].intent.id;
+        }
       }
+      if (!intentId) continue;
 
-      await executeCycle(context);
+      await confirmDeliveries(context);
+      const intent = await context.tracker.getRebalanceIntent(intentId);
+      if (intent?.status === 'complete') break;
     }
 
-    const actions = await context.tracker.getActionsForIntent(intentId);
-    const completedMovementOrigins = actions
-      .filter(
-        (action) =>
-          action.type === 'inventory_movement' && action.status === 'complete',
-      )
-      .map((action) => action.origin);
+    expect(intentId).to.exist;
 
-    expect(completedMovementOrigins.length).to.be.greaterThanOrEqual(0);
+    const finalIntent = await context.tracker.getRebalanceIntent(intentId!);
+    expect(finalIntent?.status).to.equal('complete');
 
-    const completedIntent = await context.tracker.getRebalanceIntent(intentId);
-    if (completedIntent?.status !== 'complete') {
-      await executeCycle(context);
-      await context.tracker.syncInventoryMovementActions({
-        [ExternalBridgeType.LiFi]: mockBridge,
-      });
-      await relayInProgressDeposits(context);
-    }
-    const finalizedIntent = await context.tracker.getRebalanceIntent(intentId);
-    expect(['not_started', 'in_progress', 'complete']).to.include(
-      finalizedIntent?.status,
+    const actions = await context.tracker.getActionsForIntent(intentId!);
+    expect(actions.length).to.be.at.least(2);
+    const movementActions = actions.filter(
+      (a) => a.type === 'inventory_movement',
     );
+    const depositActions = actions.filter(
+      (a) => a.type === 'inventory_deposit',
+    );
+    expect(movementActions.length + depositActions.length).to.equal(
+      actions.length,
+    );
+
+    for (const movement of movementActions) {
+      expect(movement.status).to.equal('complete');
+      expect(
+        movement.origin === DOMAIN_IDS.anvil1 ||
+          movement.origin === DOMAIN_IDS.anvil2,
+      ).to.be.true;
+    }
+    for (const deposit of depositActions) {
+      expect(deposit.status).to.equal('complete');
+    }
   });
 });
