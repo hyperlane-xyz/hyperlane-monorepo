@@ -78,6 +78,7 @@ export interface ProtocolFeeHookModuleConfig {
   type: 'protocolFee';
   owner: string;
   beneficiary: string;
+  maxProtocolFee: string;
   protocolFee: string;
 }
 
@@ -156,6 +157,7 @@ export interface ProtocolFeeHookConfig {
   type: 'protocolFee';
   owner: string;
   beneficiary: string;
+  maxProtocolFee: string;
   protocolFee: string;
 }
 
@@ -293,6 +295,7 @@ export function hookConfigToArtifact(
           type: AltVM.HookType.PROTOCOL_FEE,
           owner: config.owner,
           beneficiary: config.beneficiary,
+          maxProtocolFee: config.maxProtocolFee,
           protocolFee: config.protocolFee,
         },
       };
@@ -336,8 +339,11 @@ export function shouldDeployNewHook(
       // IGP hooks are mutable - can be updated
       return false;
     case AltVM.HookType.PROTOCOL_FEE:
-      // Protocol fee hooks are mutable - can be updated
-      return false;
+      // maxProtocolFee is immutable (constructor-only) and requires redeploy.
+      return (
+        (normalizedActual as ProtocolFeeHookConfig).maxProtocolFee !==
+        (normalizedExpected as ProtocolFeeHookConfig).maxProtocolFee
+      );
 
     default: {
       throw new Error(`Unhandled hook type: ${(expected as any).type}`);
@@ -459,6 +465,7 @@ export function hookArtifactToDerivedConfig(
         type: 'protocolFee',
         owner: config.owner,
         beneficiary: config.beneficiary,
+        maxProtocolFee: config.maxProtocolFee,
         protocolFee: config.protocolFee,
         address,
       };

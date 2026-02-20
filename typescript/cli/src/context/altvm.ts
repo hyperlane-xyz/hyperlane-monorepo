@@ -14,8 +14,8 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
-import { type SignerKeyProtocolMap } from './types.js';
 import { resolveAltVmAccountAddress } from './altvm-signer-config.js';
+import { type SignerKeyProtocolMap } from './types.js';
 
 type ChainMetadataManagerLike = {
   getChainMetadata: (chain: string) => ChainMetadataForAltVM;
@@ -90,6 +90,11 @@ export async function createAltVMSigners(
       continue;
     }
 
+    const accountAddressFromConfig = resolveAltVmAccountAddress(
+      strategyConfig,
+      metadata.protocol,
+      chain,
+    );
     const signerConfig = {
       privateKey: await loadPrivateKey(
         keyByProtocol,
@@ -98,15 +103,12 @@ export async function createAltVMSigners(
         chain,
       ),
       accountAddress:
-        accountAddressByProtocol[metadata.protocol] ||
-        (await loadAccountAddress(
-          strategyConfig,
-          metadata.protocol,
-          chain,
-        )),
+        accountAddressFromConfig ??
+        accountAddressByProtocol[metadata.protocol] ??
+        (await loadAccountAddress(strategyConfig, metadata.protocol, chain)),
     };
 
-    if (signerConfig.accountAddress) {
+    if (!accountAddressFromConfig && signerConfig.accountAddress) {
       accountAddressByProtocol[metadata.protocol] = signerConfig.accountAddress;
     }
 
