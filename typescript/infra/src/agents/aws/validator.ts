@@ -96,13 +96,13 @@ export class InfraS3Validator extends S3Validator {
       if (actual) {
         metric.status = CheckpointStatus.VALID;
         if (
-          !this.matchesSigner(
+          !(await this.matchesSigner(
             actual.data.checkpoint,
             actual.data.signature,
             actual.data.messageId,
-          )
+          ))
         ) {
-          const signerAddress = InfraS3Validator.recoverAddressFromCheckpoint(
+          const signerAddress = await InfraS3Validator.recoverAddressFromCheckpoint(
             actual.data.checkpoint,
             actual.data.signature,
             actual.data.messageId,

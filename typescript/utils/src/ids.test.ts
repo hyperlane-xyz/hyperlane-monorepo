@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { utils } from 'ethers';
+import { bytesToHex } from 'viem';
 
 import { canonizeId, evmId } from './ids.js';
 
@@ -10,7 +10,7 @@ describe('ID Utilities', () => {
       const result = canonizeId(id);
       expect(result).to.be.instanceOf(Uint8Array);
       expect(result.length).to.equal(32);
-      expect(utils.hexlify(result)).to.equal(
+      expect(bytesToHex(result)).to.equal(
         '0x0000000000000000000000001234567890123456789012345678901234567890',
       );
     });
