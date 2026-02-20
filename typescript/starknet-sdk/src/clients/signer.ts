@@ -354,7 +354,10 @@ export class StarknetSigner
       ...req,
     });
     const receipt = await this.sendAndConfirmTransaction(tx);
-    assert(receipt.contractAddress, 'failed to get Starknet protocol_fee hook');
+    assert(
+      receipt.contractAddress,
+      'failed to get Starknet interchainGasPaymaster hook',
+    );
     return { hookAddress: receipt.contractAddress };
   }
 
