@@ -5,6 +5,15 @@ import {
   getProgramDerivedAddress,
   getUtf8Encoder,
 } from '@solana/kit';
+import { Connection, PublicKey } from '@solana/web3.js';
+import {
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+  getMint,
+  getMetadataPointerState,
+  getTokenMetadata,
+} from '@solana/spl-token';
+import { deserializeUnchecked } from 'borsh';
 
 import {
   type ArtifactDeployed,
@@ -51,6 +60,172 @@ const RENT_SYSVAR = 'SysvarRent111111111111111111111111111111111' as Address;
 const PROGRAM_INSTRUCTION_DISCRIMINATOR = new Uint8Array([
   1, 1, 1, 1, 1, 1, 1, 1,
 ]);
+
+// Borsh schema for Metaplex metadata
+class MetadataData {
+  name: string;
+  symbol: string;
+  uri: string;
+  sellerFeeBasisPoints: number;
+  creators: any[] | null;
+
+  constructor(fields: {
+    name: string;
+    symbol: string;
+    uri: string;
+    sellerFeeBasisPoints: number;
+    creators: any[] | null;
+  }) {
+    this.name = fields.name;
+    this.symbol = fields.symbol;
+    this.uri = fields.uri;
+    this.sellerFeeBasisPoints = fields.sellerFeeBasisPoints;
+    this.creators = fields.creators;
+  }
+}
+
+class Metadata {
+  key: number;
+  updateAuthority: Uint8Array;
+  mint: Uint8Array;
+  data: MetadataData;
+  primarySaleHappened: boolean;
+  isMutable: boolean;
+
+  constructor(fields: {
+    key: number;
+    updateAuthority: Uint8Array;
+    mint: Uint8Array;
+    data: MetadataData;
+    primarySaleHappened: boolean;
+    isMutable: boolean;
+  }) {
+    this.key = fields.key;
+    this.updateAuthority = fields.updateAuthority;
+    this.mint = fields.mint;
+    this.data = fields.data;
+    this.primarySaleHappened = fields.primarySaleHappened;
+    this.isMutable = fields.isMutable;
+  }
+}
+
+const SPL_TOKEN_METADATA_SCHEMA = new Map<any, any>([
+  [
+    MetadataData,
+    {
+      kind: 'struct',
+      fields: [
+        ['name', 'string'],
+        ['symbol', 'string'],
+        ['uri', 'string'],
+        ['sellerFeeBasisPoints', 'u16'],
+        ['creators', { kind: 'option', type: [{ kind: 'vec', type: 'u8' }] }],
+      ],
+    },
+  ],
+  [
+    Metadata,
+    {
+      kind: 'struct',
+      fields: [
+        ['key', 'u8'],
+        ['updateAuthority', [32]],
+        ['mint', [32]],
+        ['data', MetadataData],
+        ['primarySaleHappened', 'u8'],
+        ['isMutable', 'u8'],
+      ],
+    },
+  ],
+]);
+
+/**
+ * Fetches collateral token metadata (name, symbol, decimals).
+ * Tries Token-2022 metadata extension first, falls back to Metaplex.
+ */
+async function fetchCollateralMetadata(
+  rpcUrl: string,
+  mintAddress: string,
+): Promise<{ name: string; symbol: string; decimals: number }> {
+  const connection = new Connection(rpcUrl, 'confirmed');
+  const mintPubkey = new PublicKey(mintAddress);
+
+  // Get mint info
+  const mintInfo = await getMint(
+    connection,
+    mintPubkey,
+    'confirmed',
+    TOKEN_2022_PROGRAM_ID,
+  ).catch(() =>
+    getMint(connection, mintPubkey, 'confirmed', TOKEN_PROGRAM_ID),
+  );
+
+  const decimals = mintInfo.decimals;
+
+  // Try Token-2022 metadata extension
+  try {
+    const metadataPointer = getMetadataPointerState(mintInfo);
+    if (metadataPointer?.metadataAddress) {
+      const metadata = await getTokenMetadata(
+        connection,
+        mintPubkey,
+        'confirmed',
+        TOKEN_2022_PROGRAM_ID,
+      );
+      if (metadata?.name && metadata?.symbol) {
+        return {
+          name: metadata.name,
+          symbol: metadata.symbol,
+          decimals,
+        };
+      }
+    }
+  } catch {
+    // Fall through to Metaplex
+  }
+
+  // Fallback to Metaplex
+  try {
+    const METAPLEX_PROGRAM_ID = new PublicKey(
+      'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s',
+    );
+    const [metadataPDA] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('metadata'),
+        METAPLEX_PROGRAM_ID.toBuffer(),
+        mintPubkey.toBuffer(),
+      ],
+      METAPLEX_PROGRAM_ID,
+    );
+
+    const accountInfo = await connection.getAccountInfo(metadataPDA);
+    if (!accountInfo) {
+      throw new Error('Metaplex metadata account not found');
+    }
+
+    const metadata = deserializeUnchecked(
+      SPL_TOKEN_METADATA_SCHEMA,
+      Metadata,
+      accountInfo.data,
+    ) as Metadata;
+
+    return {
+      name: metadata.data.name.replace(/\0/g, '').trim(),
+      symbol: metadata.data.symbol.replace(/\0/g, '').trim(),
+      decimals,
+    };
+  } catch (error) {
+    console.warn(
+      `Failed to fetch metadata for ${mintAddress}, using defaults:`,
+      error,
+    );
+    return {
+      name: 'Unknown Token',
+      symbol: 'UNKNOWN',
+      decimals,
+    };
+  }
+}
 
 /**
  * Derives the escrow token account PDA.
@@ -143,7 +318,10 @@ function buildCollateralTokenInitInstruction(
 export class SvmCollateralTokenReader
   implements ArtifactReader<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
 {
-  constructor(private readonly rpc: Rpc<SolanaRpcApi>) {}
+  constructor(
+    private readonly rpc: Rpc<SolanaRpcApi>,
+    private readonly rpcUrl: string,
+  ) {}
 
   async read(
     address: string,
@@ -164,11 +342,20 @@ export class SvmCollateralTokenReader
       destinationGas[domain] = gas.toString();
     }
 
+    // Fetch metadata
+    const metadata = await fetchCollateralMetadata(
+      this.rpcUrl,
+      token.pluginData.mint,
+    );
+
     const config: RawCollateralWarpArtifactConfig = {
       type: 'collateral',
       owner: token.owner ?? '',
       mailbox: token.mailbox,
       token: token.pluginData.mint, // The collateral mint address
+      name: metadata.name,
+      symbol: metadata.symbol,
+      decimals: metadata.decimals,
       interchainSecurityModule: token.interchainSecurityModule
         ? {
             artifactState: ArtifactState.UNDERIVED,
@@ -194,6 +381,7 @@ export class SvmCollateralTokenWriter
     private readonly rpc: Rpc<SolanaRpcApi>,
     private readonly signer: SvmSigner,
     private readonly programBytes: Uint8Array,
+    private readonly rpcUrl: string,
   ) {}
 
   async create(
@@ -349,7 +537,7 @@ export class SvmCollateralTokenWriter
   ): Promise<
     ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
   > {
-    const reader = new SvmCollateralTokenReader(this.rpc);
+    const reader = new SvmCollateralTokenReader(this.rpc, this.rpcUrl);
     return reader.read(address);
   }
 
@@ -360,7 +548,7 @@ export class SvmCollateralTokenWriter
     >,
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = artifact.deployed.address as Address;
-    const reader = new SvmCollateralTokenReader(this.rpc);
+    const reader = new SvmCollateralTokenReader(this.rpc, this.rpcUrl);
     const current = await reader.read(programId);
 
     const instructions = await computeWarpTokenUpdateInstructions(

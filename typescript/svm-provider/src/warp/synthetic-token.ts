@@ -94,7 +94,7 @@ async function getAtaPayerPda(
  * From Rust reference: discriminator is [39, 0] (2 bytes)
  * Fields use OptionalNonZeroPubkey (32 bytes, all zeros = None)
  */
-function createInitializeMetadataPointerInstruction(
+export function createInitializeMetadataPointerInstruction(
   mint: Address,
   authority: Address | null,
   metadataAddress: Address | null,
@@ -129,7 +129,7 @@ function createInitializeMetadataPointerInstruction(
  * Discriminator: 20
  * Args: decimals(u8), mint_authority(Pubkey), freeze_authority(COption<Pubkey>)
  */
-function createInitializeMint2Instruction(
+export function createInitializeMint2Instruction(
   mint: Address,
   decimals: number,
   mintAuthority: Address,
@@ -188,11 +188,11 @@ function createSetAuthorityInstruction(
 /**
  * 8-byte discriminator from spl_token_metadata_interface:initialize_account
  */
-const METADATA_INITIALIZE_DISCRIMINATOR = new Uint8Array([
+export const METADATA_INITIALIZE_DISCRIMINATOR = new Uint8Array([
   210, 225, 30, 162, 88, 184, 77, 141,
 ]);
 
-function createInitializeMetadataInstruction(
+export function createInitializeMetadataInstruction(
   mint: Address,
   updateAuthority: Address,
   mintAuthority: Address,

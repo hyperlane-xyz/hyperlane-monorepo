@@ -57,7 +57,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
     } = {
       native: () => new SvmNativeTokenReader(this.rpc),
       synthetic: () => new SvmSyntheticTokenReader(this.rpc, this.rpcUrl),
-      collateral: () => new SvmCollateralTokenReader(this.rpc),
+      collateral: () => new SvmCollateralTokenReader(this.rpc, this.rpcUrl),
     };
 
     return readers[type]();
@@ -88,6 +88,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
           this.rpc,
           signer,
           PROGRAM_BYTES.collateralToken,
+          this.rpcUrl,
         ),
     };
 

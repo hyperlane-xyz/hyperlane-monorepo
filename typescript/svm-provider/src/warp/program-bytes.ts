@@ -2,7 +2,7 @@
  * Auto-generated program bytes from .so files.
  * DO NOT EDIT - regenerated on build.
  *
- * Generated: 2026-02-20T19:45:37.301Z
+ * Generated: 2026-02-20T20:44:17.862Z
  */
 
 export const PROGRAM_BYTES = {

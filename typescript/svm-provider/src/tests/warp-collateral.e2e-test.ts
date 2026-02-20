@@ -95,7 +95,12 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
     let deployedProgramId: string;
 
     it('should deploy and initialize collateral token', async () => {
-      const writer = new SvmCollateralTokenWriter(rpc, signer, programBytes);
+      const writer = new SvmCollateralTokenWriter(
+        rpc,
+        signer,
+        programBytes,
+        solana.rpcUrl,
+      );
 
       const config = {
         type: 'collateral' as const,
@@ -120,7 +125,7 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
     });
 
     it('should read collateral token config', async () => {
-      const reader = new SvmCollateralTokenReader(rpc);
+      const reader = new SvmCollateralTokenReader(rpc, solana.rpcUrl);
       const token = await reader.read(deployedProgramId);
 
       expect(token.artifactState).to.equal(ArtifactState.DEPLOYED);
@@ -130,8 +135,13 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
     });
 
     it('should enroll remote routers', async () => {
-      const reader = new SvmCollateralTokenReader(rpc);
-      const writer = new SvmCollateralTokenWriter(rpc, signer, programBytes);
+      const reader = new SvmCollateralTokenReader(rpc, solana.rpcUrl);
+      const writer = new SvmCollateralTokenWriter(
+        rpc,
+        signer,
+        programBytes,
+        solana.rpcUrl,
+      );
 
       const current = await reader.read(deployedProgramId);
 
