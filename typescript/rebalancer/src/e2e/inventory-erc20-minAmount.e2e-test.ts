@@ -229,7 +229,7 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
     await executeCycle(context);
     await relayInProgressInventoryDeposits(context);
 
-    let partialIntents =
+    const partialIntents =
       await context.tracker.getPartiallyFulfilledInventoryIntents();
     expect(partialIntents.length).to.equal(1);
     expect(partialIntents[0].completedAmount > 0n).to.be.true;
