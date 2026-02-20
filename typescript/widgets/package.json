@@ -62,6 +62,7 @@
     "react-tooltip": "^5.28.0",
     "starknet": "catalog:",
     "starknetkit": "2.6.1",
+    "torph": "catalog:",
     "viem": "catalog:",
     "wagmi": "^2.12.26",
     "yaml": "catalog:"

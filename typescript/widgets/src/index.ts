@@ -16,6 +16,7 @@ export { DatetimeField } from './components/DatetimeField.js';
 export { ErrorBoundary } from './components/ErrorBoundary.js';
 export { IconButton } from './components/IconButton.js';
 export { LinkButton } from './components/LinkButton.js';
+export { SafeTextMorph } from './components/SafeTextMorph.js';
 export { SegmentedControl } from './components/SegmentedControl.js';
 export { SelectField, type SelectOption } from './components/SelectField.js';
 export { TextInput } from './components/TextInput.js';

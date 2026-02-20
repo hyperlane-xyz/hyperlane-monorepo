@@ -20,6 +20,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { ColorPalette } from '../color.js';
+import { SafeTextMorph } from '../components/SafeTextMorph.js';
 import { CopyButton } from '../components/CopyButton.js';
 import { IconButton } from '../components/IconButton.js';
 import { LinkButton } from '../components/LinkButton.js';
@@ -92,7 +93,10 @@ function ChainHeader({
           logoUri={chainMetadata.logoURI}
           size={30}
         />
-        <h2 className="htw-text-lg htw-font-medium">{`${chainMetadata.displayName} Metadata`}</h2>
+        <SafeTextMorph
+          as="h2"
+          className="htw-text-lg htw-font-medium"
+        >{`${chainMetadata.displayName} Metadata`}</SafeTextMorph>
       </div>
     </div>
   );
