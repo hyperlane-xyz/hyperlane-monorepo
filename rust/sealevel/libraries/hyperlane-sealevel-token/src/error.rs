@@ -18,29 +18,25 @@ pub enum Error {
     #[error("Message decoding error")]
     MessageDecodeError = 3,
 
-    /// Fee recipient account is required when fees are configured.
-    #[error("Fee recipient account required")]
-    FeeRecipientRequired = 4,
-
-    /// Fee recipient account does not match expected address.
-    #[error("Invalid fee recipient account")]
-    InvalidFeeRecipientAccount = 5,
+    /// Fee beneficiary account is required when fees are configured.
+    #[error("Fee beneficiary account required")]
+    FeeBeneficiaryRequired = 4,
 
     /// CPI to fee program failed.
     #[error("Fee program CPI error")]
-    FeeProgramCpiError = 6,
+    FeeProgramCpiError = 5,
 
     /// Fee program account does not match config.
     #[error("Fee program mismatch")]
-    FeeProgramMismatch = 7,
+    FeeProgramMismatch = 6,
 
     /// Fee account does not match config.
     #[error("Fee account mismatch")]
-    FeeAccountMismatch = 8,
+    FeeAccountMismatch = 7,
 
     /// Fee quote CPI returned invalid or missing data.
     #[error("Fee quote return data invalid")]
-    FeeQuoteReturnDataInvalid = 9,
+    FeeQuoteReturnDataInvalid = 8,
 }
 
 impl From<Error> for ProgramError {

@@ -1620,31 +1620,31 @@ async fn test_transfer_remote_with_linear_fee() {
         max_fee,
         half_amount,
     };
-    // Set up fee recipient: use payer as fee_recipient for simplicity.
-    let fee_recipient_wallet = payer.pubkey();
+    // Set up fee beneficiary: use payer as beneficiary for simplicity.
+    let fee_beneficiary_wallet = payer.pubkey();
     let fee_key = init_fee_account(
         &mut banks_client,
         &payer,
         salt,
-        fee_recipient_wallet,
+        fee_beneficiary_wallet,
         fee_data,
     )
     .await;
 
-    let fee_recipient_ata =
+    let fee_beneficiary_ata =
         spl_associated_token_account::get_associated_token_address_with_program_id(
-            &fee_recipient_wallet,
+            &fee_beneficiary_wallet,
             &hyperlane_token_accounts.mint,
             &spl_token_2022::id(),
         );
 
-    // Create the fee recipient's ATA
+    // Create the fee beneficiary's ATA
     {
         let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
         let create_ata_ixn =
             spl_associated_token_account::instruction::create_associated_token_account_idempotent(
                 &payer.pubkey(),
-                &fee_recipient_wallet,
+                &fee_beneficiary_wallet,
                 &hyperlane_token_accounts.mint,
                 &spl_token_2022::id(),
             );
@@ -1657,8 +1657,8 @@ async fn test_transfer_remote_with_linear_fee() {
         banks_client.process_transaction(transaction).await.unwrap();
     }
 
-    // Verify initial fee recipient ATA balance is 0
-    assert_token_balance(&mut banks_client, &fee_recipient_ata, 0).await;
+    // Verify initial fee beneficiary ATA balance is 0
+    assert_token_balance(&mut banks_client, &fee_beneficiary_ata, 0).await;
 
     // Set fee config on the warp route
     let fee_config = FeeConfig {
@@ -1716,7 +1716,7 @@ async fn test_transfer_remote_with_linear_fee() {
                 // Fee accounts (Linear: 0 additional accounts)
                 AccountMeta::new_readonly(fee_program_id(), false),
                 AccountMeta::new_readonly(fee_key, false),
-                AccountMeta::new(fee_recipient_ata, false),
+                AccountMeta::new(fee_beneficiary_ata, false),
                 // IGP accounts
                 AccountMeta::new_readonly(igp_accounts.program, false),
                 AccountMeta::new(igp_accounts.program_data, false),
@@ -1743,8 +1743,8 @@ async fn test_transfer_remote_with_linear_fee() {
     )
     .await;
 
-    // Verify fee recipient ATA got the fee
-    assert_token_balance(&mut banks_client, &fee_recipient_ata, expected_fee).await;
+    // Verify fee beneficiary ATA got the fee
+    assert_token_balance(&mut banks_client, &fee_beneficiary_ata, expected_fee).await;
 
     // Verify the dispatched message encodes only transfer_amount (not amount + fee)
     let dispatched_message_account_data = banks_client
@@ -1822,30 +1822,30 @@ async fn test_transfer_remote_with_zero_fee() {
         max_fee: 1_000_000,
         half_amount: 0,
     };
-    let fee_recipient_wallet = payer.pubkey();
+    let fee_beneficiary_wallet = payer.pubkey();
     let fee_key = init_fee_account(
         &mut banks_client,
         &payer,
         H256::zero(),
-        fee_recipient_wallet,
+        fee_beneficiary_wallet,
         fee_data,
     )
     .await;
 
-    let fee_recipient_ata =
+    let fee_beneficiary_ata =
         spl_associated_token_account::get_associated_token_address_with_program_id(
-            &fee_recipient_wallet,
+            &fee_beneficiary_wallet,
             &hyperlane_token_accounts.mint,
             &spl_token_2022::id(),
         );
 
-    // Create fee recipient ATA
+    // Create fee beneficiary ATA
     {
         let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
         let create_ata_ixn =
             spl_associated_token_account::instruction::create_associated_token_account_idempotent(
                 &payer.pubkey(),
-                &fee_recipient_wallet,
+                &fee_beneficiary_wallet,
                 &hyperlane_token_accounts.mint,
                 &spl_token_2022::id(),
             );
@@ -1900,7 +1900,7 @@ async fn test_transfer_remote_with_zero_fee() {
                 // Fee accounts
                 AccountMeta::new_readonly(fee_program_id(), false),
                 AccountMeta::new_readonly(fee_key, false),
-                AccountMeta::new(fee_recipient_ata, false),
+                AccountMeta::new(fee_beneficiary_ata, false),
                 // IGP accounts
                 AccountMeta::new_readonly(igp_accounts.program, false),
                 AccountMeta::new(igp_accounts.program_data, false),
@@ -1927,13 +1927,13 @@ async fn test_transfer_remote_with_zero_fee() {
     )
     .await;
 
-    // Fee recipient ATA still 0
-    assert_token_balance(&mut banks_client, &fee_recipient_ata, 0).await;
+    // Fee beneficiary ATA still 0
+    assert_token_balance(&mut banks_client, &fee_beneficiary_ata, 0).await;
 }
 
 #[tokio::test]
-async fn test_transfer_remote_with_wrong_fee_recipient_ata() {
-    // When fee > 0 but the fee_recipient_account is wrong, it should fail.
+async fn test_transfer_remote_with_wrong_fee_beneficiary_ata() {
+    // When fee > 0 but the fee_beneficiary_account is wrong, it should fail.
     let program_id = hyperlane_sealevel_token_id();
     let mailbox_program_id = mailbox_id();
 
@@ -1986,12 +1986,12 @@ async fn test_transfer_remote_with_wrong_fee_recipient_ata() {
         max_fee: 2_000_000,
         half_amount: 50 * 10u64.pow(LOCAL_DECIMALS_U32),
     };
-    let fee_recipient_wallet = payer.pubkey();
+    let fee_beneficiary_wallet = payer.pubkey();
     let fee_key = init_fee_account(
         &mut banks_client,
         &payer,
         H256::zero(),
-        fee_recipient_wallet,
+        fee_beneficiary_wallet,
         fee_data,
     )
     .await;
@@ -2002,8 +2002,8 @@ async fn test_transfer_remote_with_wrong_fee_recipient_ata() {
     };
     set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
 
-    // Use WRONG fee recipient ATA (the sender's ATA instead of the fee recipient's ATA)
-    let wrong_fee_recipient_ata = token_sender_ata;
+    // Use WRONG fee beneficiary ATA (the sender's ATA instead of the beneficiary's ATA)
+    let wrong_fee_beneficiary_ata = token_sender_ata;
 
     let unique_message_account_keypair = Keypair::new();
     let (dispatched_message_key, _) = Pubkey::find_program_address(
@@ -2038,10 +2038,10 @@ async fn test_transfer_remote_with_wrong_fee_recipient_ata() {
                 AccountMeta::new_readonly(token_sender_pubkey, true),
                 AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
                 AccountMeta::new(dispatched_message_key, false),
-                // Fee accounts — with WRONG recipient ATA
+                // Fee accounts — with WRONG beneficiary ATA
                 AccountMeta::new_readonly(fee_program_id(), false),
                 AccountMeta::new_readonly(fee_key, false),
-                AccountMeta::new(wrong_fee_recipient_ata, false),
+                AccountMeta::new(wrong_fee_beneficiary_ata, false),
                 // IGP accounts
                 AccountMeta::new_readonly(igp_accounts.program, false),
                 AccountMeta::new(igp_accounts.program_data, false),
@@ -2060,7 +2060,7 @@ async fn test_transfer_remote_with_wrong_fee_recipient_ata() {
     );
     let result = banks_client.process_transaction(transaction).await;
 
-    // With sentinel-based fee recipient detection, a wrong ATA means the
+    // With sentinel-based fee beneficiary detection, a wrong ATA means the
     // sentinel is never found and accounts are exhausted → NotEnoughAccountKeys.
     assert_transaction_error(
         result,

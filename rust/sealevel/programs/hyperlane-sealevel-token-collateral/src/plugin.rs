@@ -231,7 +231,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
     }
 
     /// Transfers tokens to the escrow account so they can be sent to a remote chain.
-    /// If fees are configured, transfers fee_amount to the fee recipient's ATA.
+    /// If fees are configured, transfers fee_amount to the fee beneficiary's ATA.
     ///
     /// Accounts:
     /// 0. `[executable]` The SPL token program for the mint.
@@ -245,7 +245,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
         fee_amount: u64,
-        fee_recipient_account: Option<&'a AccountInfo<'b>>,
+        fee_beneficiary_account: Option<&'a AccountInfo<'b>>,
     ) -> Result<(), ProgramError> {
         // Account 0: SPL token program.
         let spl_token_account_info = next_account_info(accounts_iter)?;
@@ -308,8 +308,8 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
 
         // Transfer fee to recipient (if any)
         if fee_amount > 0 {
-            let recipient_ata = fee_recipient_account.ok_or(ProgramError::from(
-                hyperlane_sealevel_token_lib::error::Error::FeeRecipientRequired,
+            let recipient_ata = fee_beneficiary_account.ok_or(ProgramError::from(
+                hyperlane_sealevel_token_lib::error::Error::FeeBeneficiaryRequired,
             ))?;
             let fee_transfer_instruction = transfer_checked(
                 spl_token_account_info.key,
@@ -454,9 +454,9 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
         Ok(())
     }
 
-    fn fee_recipient_account_key(token: &HyperlaneToken<Self>, fee_recipient: &Pubkey) -> Pubkey {
+    fn fee_beneficiary_account_key(token: &HyperlaneToken<Self>, beneficiary: &Pubkey) -> Pubkey {
         get_associated_token_address_with_program_id(
-            fee_recipient,
+            beneficiary,
             &token.plugin_data.mint,
             &token.plugin_data.spl_token_program,
         )

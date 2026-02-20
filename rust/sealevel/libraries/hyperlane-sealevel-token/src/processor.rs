@@ -87,7 +87,7 @@ where
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
     ) -> Result<Self, ProgramError>;
 
-    /// Transfers tokens into the program and optionally transfers fees to the fee recipient.
+    /// Transfers tokens into the program and optionally transfers fees to the fee beneficiary.
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -95,7 +95,7 @@ where
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
         fee_amount: u64,
-        fee_recipient_account: Option<&'a AccountInfo<'b>>,
+        fee_beneficiary_account: Option<&'a AccountInfo<'b>>,
     ) -> Result<(), ProgramError>;
 
     /// Transfers tokens out of the program.
@@ -116,23 +116,9 @@ where
         token_message: &TokenMessage,
     ) -> Result<(Vec<SerializableAccountMeta>, bool), ProgramError>;
 
-    /// Computes the expected public key of the fee recipient account.
-    /// Native: fee_recipient directly. SPL: ATA(fee_recipient, mint, token_program).
-    fn fee_recipient_account_key(token: &HyperlaneToken<Self>, fee_recipient: &Pubkey) -> Pubkey;
-
-    /// Verifies the fee recipient account key matches the expected key.
-    fn verify_fee_recipient_account(
-        token: &HyperlaneToken<Self>,
-        fee_recipient: &Pubkey,
-        fee_recipient_account: &AccountInfo,
-    ) -> Result<(), ProgramError> {
-        if fee_recipient_account.key != &Self::fee_recipient_account_key(token, fee_recipient) {
-            return Err(ProgramError::from(
-                crate::error::Error::InvalidFeeRecipientAccount,
-            ));
-        }
-        Ok(())
-    }
+    /// Computes the expected public key of the fee beneficiary account.
+    /// Native: beneficiary directly. SPL: ATA(beneficiary, mint, token_program).
+    fn fee_beneficiary_account_key(token: &HyperlaneToken<Self>, beneficiary: &Pubkey) -> Pubkey;
 }
 
 /// Core functionality of a Hyperlane Sealevel Token program that uses
@@ -290,7 +276,7 @@ where
     /// - F:   `[executable]` The fee program.
     /// - F+1: `[]` The fee account.
     /// - F+2..F+1+N: `[]` Additional fee accounts (variable, terminated by sentinel).
-    /// - F+2+N: `[writeable]` Fee recipient account (sentinel — key matches expected fee recipient).
+    /// - F+2+N: `[writeable]` Fee beneficiary account (sentinel — key matches expected fee beneficiary).
     ///   ---- End if ----
     ///   ---- If using an IGP ----
     /// - G:   `[executable]` The IGP program.
@@ -367,15 +353,15 @@ where
         let dispatched_message_pda = next_account_info(accounts_iter)?;
 
         // ---- Fee section (only if fee_config is set) ----
-        let (fee_amount, fee_recipient_account) = if let Some(ref fee_config) = token.fee_config {
-            let (fee_amount, fee_recipient_acct) = Self::verify_and_quote_fee(
+        let (fee_amount, fee_beneficiary_account) = if let Some(ref fee_config) = token.fee_config {
+            let (fee_amount, fee_beneficiary_acct) = Self::verify_and_quote_fee(
                 fee_config,
                 accounts_iter,
                 xfer.destination_domain,
                 &xfer.amount_or_id,
                 &*token,
             )?;
-            (fee_amount, Some(fee_recipient_acct))
+            (fee_amount, Some(fee_beneficiary_acct))
         } else {
             (0u64, None)
         };
@@ -461,7 +447,7 @@ where
         // by the remote routers as the number of decimals used by the message amount.
         let remote_amount = token.local_amount_to_remote_amount(local_amount)?;
 
-        // Transfer `local_amount` of tokens in, plus `fee_amount` to fee recipient...
+        // Transfer `local_amount` of tokens in, plus `fee_amount` to fee beneficiary...
         T::transfer_in(
             program_id,
             &*token,
@@ -469,7 +455,7 @@ where
             accounts_iter,
             local_amount,
             fee_amount,
-            fee_recipient_account,
+            fee_beneficiary_account,
         )?;
 
         if accounts_iter.next().is_some() {
@@ -972,11 +958,11 @@ where
     ///
     /// Validates that the fee program and fee account passed in match the
     /// stored FeeConfig, then collects additional fee accounts using the
-    /// fee recipient account as a sentinel (its expected key is computed via
-    /// `T::fee_recipient_account_key`). Invokes the fee program's QuoteFee
+    /// fee beneficiary account as a sentinel (its expected key is computed via
+    /// `T::fee_beneficiary_account_key`). Invokes the fee program's QuoteFee
     /// instruction via CPI to get the fee amount.
     ///
-    /// Returns (fee_amount, fee_recipient_account_info).
+    /// Returns (fee_amount, fee_beneficiary_account_info).
     fn verify_and_quote_fee<'a, 'b>(
         fee_config: &FeeConfig,
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
@@ -1004,15 +990,15 @@ where
             &fee_account_info.data.borrow(),
         )?;
 
-        // Accounts F+2..F+1+N: Additional fee accounts, terminated by fee recipient sentinel.
-        // Loop until we find the account whose key matches the expected fee recipient key.
-        let expected_fee_recipient_key =
-            T::fee_recipient_account_key(token, &fee_header.beneficiary);
+        // Accounts F+2..F+1+N: Additional fee accounts, terminated by fee beneficiary sentinel.
+        // Loop until we find the account whose key matches the expected fee beneficiary key.
+        let expected_fee_beneficiary_key =
+            T::fee_beneficiary_account_key(token, &fee_header.beneficiary);
         let mut additional_accounts = Vec::new();
         let mut additional_account_infos = Vec::new();
-        let fee_recipient_account = loop {
+        let fee_beneficiary_account = loop {
             let acct = next_account_info(accounts_iter)?;
-            if acct.key == &expected_fee_recipient_key {
+            if acct.key == &expected_fee_beneficiary_key {
                 break acct;
             }
             additional_accounts.push(AccountMeta::new_readonly(*acct.key, false));
@@ -1053,6 +1039,6 @@ where
                 .map_err(|_| Error::FeeQuoteReturnDataInvalid)?,
         );
 
-        Ok((fee_amount, fee_recipient_account))
+        Ok((fee_amount, fee_beneficiary_account))
     }
 }

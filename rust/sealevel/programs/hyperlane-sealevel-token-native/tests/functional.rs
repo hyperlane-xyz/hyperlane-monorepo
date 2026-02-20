@@ -1408,8 +1408,9 @@ async fn test_set_fee_config() {
         max_fee: 1_000_000,
         half_amount: 500_000,
     };
-    let fee_recipient = Pubkey::new_unique();
-    let fee_key = init_fee_account(&mut banks_client, &payer, salt, fee_recipient, fee_data).await;
+    let fee_beneficiary = Pubkey::new_unique();
+    let fee_key =
+        init_fee_account(&mut banks_client, &payer, salt, fee_beneficiary, fee_data).await;
 
     let fee_config = FeeConfig {
         fee_program: fee_program_id(),
@@ -1479,10 +1480,10 @@ async fn test_transfer_remote_with_linear_fee() {
     .await
     .unwrap();
 
-    // For native tokens, fee_recipient is a direct wallet address (not an ATA).
-    let fee_recipient_wallet = Pubkey::new_unique();
+    // For native tokens, fee beneficiary is a direct wallet address (not an ATA).
+    let fee_beneficiary_wallet = Pubkey::new_unique();
 
-    // Initialize fee account with Linear fee, beneficiary = fee_recipient_wallet
+    // Initialize fee account with Linear fee
     let salt = H256::zero();
     let max_fee: u64 = 200_000_000; // 0.2 SOL
     let half_amount: u64 = 50 * ONE_SOL_IN_LAMPORTS; // 50 SOL
@@ -1494,21 +1495,21 @@ async fn test_transfer_remote_with_linear_fee() {
         &mut banks_client,
         &payer,
         salt,
-        fee_recipient_wallet,
+        fee_beneficiary_wallet,
         fee_data,
     )
     .await;
 
-    // Fund the fee recipient to make it rent-exempt (system accounts need some lamports to exist)
+    // Fund the fee beneficiary to make it rent-exempt (system accounts need some lamports to exist)
     transfer_lamports(
         &mut banks_client,
         &payer,
-        &fee_recipient_wallet,
+        &fee_beneficiary_wallet,
         ONE_SOL_IN_LAMPORTS / 100, // small amount
     )
     .await;
-    let fee_recipient_balance_before = banks_client
-        .get_balance(fee_recipient_wallet)
+    let fee_beneficiary_balance_before = banks_client
+        .get_balance(fee_beneficiary_wallet)
         .await
         .unwrap();
 
@@ -1578,7 +1579,7 @@ async fn test_transfer_remote_with_linear_fee() {
                 // Fee accounts (Linear: 0 additional accounts)
                 AccountMeta::new_readonly(fee_program_id(), false),
                 AccountMeta::new_readonly(fee_key, false),
-                AccountMeta::new(fee_recipient_wallet, false),
+                AccountMeta::new(fee_beneficiary_wallet, false),
                 // IGP accounts
                 AccountMeta::new_readonly(igp_accounts.program, false),
                 AccountMeta::new(igp_accounts.program_data, false),
@@ -1615,11 +1616,11 @@ async fn test_transfer_remote_with_linear_fee() {
     )
     .await;
 
-    // Verify fee recipient received fee lamports
+    // Verify fee beneficiary received fee lamports
     assert_lamports(
         &mut banks_client,
-        &fee_recipient_wallet,
-        fee_recipient_balance_before + expected_fee,
+        &fee_beneficiary_wallet,
+        fee_beneficiary_balance_before + expected_fee,
     )
     .await;
 
@@ -1633,7 +1634,7 @@ async fn test_transfer_remote_with_linear_fee() {
 }
 
 #[tokio::test]
-async fn test_transfer_remote_with_wrong_fee_recipient() {
+async fn test_transfer_remote_with_wrong_fee_beneficiary() {
     let program_id = hyperlane_sealevel_token_native_id();
     let mailbox_program_id = mailbox_id();
 
@@ -1676,12 +1677,12 @@ async fn test_transfer_remote_with_wrong_fee_recipient() {
         max_fee: 200_000_000,
         half_amount: 50 * ONE_SOL_IN_LAMPORTS,
     };
-    let fee_recipient_wallet = Pubkey::new_unique();
+    let fee_beneficiary_wallet = Pubkey::new_unique();
     let fee_key = init_fee_account(
         &mut banks_client,
         &payer,
         H256::zero(),
-        fee_recipient_wallet,
+        fee_beneficiary_wallet,
         fee_data,
     )
     .await;
@@ -1692,12 +1693,12 @@ async fn test_transfer_remote_with_wrong_fee_recipient() {
     };
     set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
 
-    // Use a WRONG fee recipient
-    let wrong_fee_recipient = Pubkey::new_unique();
+    // Use a WRONG fee beneficiary
+    let wrong_fee_beneficiary = Pubkey::new_unique();
     transfer_lamports(
         &mut banks_client,
         &payer,
-        &wrong_fee_recipient,
+        &wrong_fee_beneficiary,
         ONE_SOL_IN_LAMPORTS / 100,
     )
     .await;
@@ -1739,10 +1740,10 @@ async fn test_transfer_remote_with_wrong_fee_recipient() {
                 AccountMeta::new_readonly(token_sender_pubkey, true),
                 AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
                 AccountMeta::new(dispatched_message_key, false),
-                // Fee accounts — wrong recipient
+                // Fee accounts — wrong beneficiary
                 AccountMeta::new_readonly(fee_program_id(), false),
                 AccountMeta::new_readonly(fee_key, false),
-                AccountMeta::new(wrong_fee_recipient, false),
+                AccountMeta::new(wrong_fee_beneficiary, false),
                 // IGP accounts
                 AccountMeta::new_readonly(igp_accounts.program, false),
                 AccountMeta::new(igp_accounts.program_data, false),
@@ -1760,7 +1761,7 @@ async fn test_transfer_remote_with_wrong_fee_recipient() {
     );
     let result = banks_client.process_transaction(transaction).await;
 
-    // With sentinel-based fee recipient detection, a wrong recipient means the
+    // With sentinel-based fee beneficiary detection, a wrong beneficiary means the
     // sentinel is never found and accounts are exhausted → NotEnoughAccountKeys.
     assert_transaction_error(
         result,

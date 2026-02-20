@@ -189,7 +189,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
     /// Transfers tokens into the program so they can be sent to a remote chain.
     /// Burns the tokens from the sender's associated token account.
-    /// If fees are configured, transfers fee_amount to the fee recipient's ATA.
+    /// If fees are configured, transfers fee_amount to the fee beneficiary's ATA.
     ///
     /// Accounts:
     /// 0. `[executable]` The spl_token_2022 program.
@@ -202,7 +202,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
         fee_amount: u64,
-        fee_recipient_account: Option<&'a AccountInfo<'b>>,
+        fee_beneficiary_account: Option<&'a AccountInfo<'b>>,
     ) -> Result<(), ProgramError> {
         // 0. SPL token 2022 program
         let spl_token_2022 = next_account_info(accounts_iter)?;
@@ -247,8 +247,8 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
 
         // Transfer fee to recipient (if any)
         if fee_amount > 0 {
-            let recipient_ata = fee_recipient_account.ok_or(ProgramError::from(
-                hyperlane_sealevel_token_lib::error::Error::FeeRecipientRequired,
+            let recipient_ata = fee_beneficiary_account.ok_or(ProgramError::from(
+                hyperlane_sealevel_token_lib::error::Error::FeeBeneficiaryRequired,
             ))?;
             let transfer_ixn = spl_token_2022::instruction::transfer_checked(
                 &spl_token_2022::id(),
@@ -369,9 +369,9 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
         Ok(())
     }
 
-    fn fee_recipient_account_key(token: &HyperlaneToken<Self>, fee_recipient: &Pubkey) -> Pubkey {
+    fn fee_beneficiary_account_key(token: &HyperlaneToken<Self>, beneficiary: &Pubkey) -> Pubkey {
         get_associated_token_address_with_program_id(
-            fee_recipient,
+            beneficiary,
             &token.plugin_data.mint,
             &spl_token_2022::id(),
         )

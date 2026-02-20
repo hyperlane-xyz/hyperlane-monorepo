@@ -114,7 +114,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
 
     /// Transfers tokens into the program so they can be sent to a remote chain.
     /// Locks lamports in the native collateral PDA.
-    /// If fees are configured, transfers fee lamports to the fee recipient.
+    /// If fees are configured, transfers fee lamports to the fee beneficiary.
     ///
     /// Accounts:
     /// 0. `[executable]` The system program.
@@ -126,7 +126,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         accounts_iter: &mut std::slice::Iter<'a, AccountInfo<'b>>,
         amount: u64,
         fee_amount: u64,
-        fee_recipient_account: Option<&'a AccountInfo<'b>>,
+        fee_beneficiary_account: Option<&'a AccountInfo<'b>>,
     ) -> Result<(), ProgramError> {
         // Account 0: System program.
         let system_program = next_account_info(accounts_iter)?;
@@ -146,8 +146,8 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
 
         // Transfer fee lamports to recipient (if any)
         if fee_amount > 0 {
-            let recipient = fee_recipient_account.ok_or(ProgramError::from(
-                hyperlane_sealevel_token_lib::error::Error::FeeRecipientRequired,
+            let recipient = fee_beneficiary_account.ok_or(ProgramError::from(
+                hyperlane_sealevel_token_lib::error::Error::FeeBeneficiaryRequired,
             ))?;
             invoke(
                 &system_instruction::transfer(sender_wallet.key, recipient.key, fee_amount),
@@ -200,8 +200,8 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
         Ok(())
     }
 
-    fn fee_recipient_account_key(_token: &HyperlaneToken<Self>, fee_recipient: &Pubkey) -> Pubkey {
-        *fee_recipient
+    fn fee_beneficiary_account_key(_token: &HyperlaneToken<Self>, beneficiary: &Pubkey) -> Pubkey {
+        *beneficiary
     }
 
     /// Returns the accounts required for `transfer_out`.
