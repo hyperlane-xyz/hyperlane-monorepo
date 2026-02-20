@@ -14,7 +14,6 @@ catalog:
   # === Production dependencies ===
 
   # Ethereum/EVM
-  ethers: ^5.8.0
   viem: ^2.21.45
   zksync-ethers: ^5.10.0
 
