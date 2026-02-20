@@ -1,18 +1,19 @@
+use hyperlane_core::U256;
 use solana_program::program_error::ProgramError;
 
 use crate::{accounts::FeeData, error::Error};
 
-/// Safely convert u128 to u64, returning IntegerOverflow on failure.
-fn try_u128_to_u64(val: u128) -> Result<u64, ProgramError> {
-    u64::try_from(val).map_err(|_| ProgramError::from(Error::IntegerOverflow))
+/// Convert a U256 to u64, returning IntegerOverflow on failure.
+fn try_u256_to_u64(val: U256) -> Result<u64, ProgramError> {
+    val.try_into()
+        .map_err(|_| ProgramError::from(Error::IntegerOverflow))
 }
 
 /// Compute the fee for a given amount based on the fee data.
 ///
-/// All intermediate math uses u128 to avoid overflow. Final results are
-/// safely converted back to u64 via `try_from`. Returns an error if the
-/// intermediate result overflows u64 (should not happen when max_fee is
-/// a reasonable u64 value, but guarded defensively).
+/// All intermediate math uses U256 to avoid overflow. Since all inputs are
+/// u64, no intermediate computation can exceed 256 bits. Final results are
+/// safely converted back to u64 via `try_from` as defense-in-depth.
 pub fn compute_fee(fee_data: &FeeData, amount: u64) -> Result<u64, ProgramError> {
     match fee_data {
         FeeData::Linear {
@@ -23,10 +24,9 @@ pub fn compute_fee(fee_data: &FeeData, amount: u64) -> Result<u64, ProgramError>
                 return Ok(0);
             }
             // fee = min(max_fee, amount * max_fee / (2 * half_amount))
-            let numerator = (amount as u128) * (*max_fee as u128);
-            let denominator = 2u128 * (*half_amount as u128);
-            let fee = try_u128_to_u64(numerator / denominator)?;
-            Ok(std::cmp::min(*max_fee, fee))
+            let fee = U256::from(amount) * U256::from(*max_fee)
+                / (U256::from(2) * U256::from(*half_amount));
+            Ok(std::cmp::min(*max_fee, try_u256_to_u64(fee)?))
         }
         FeeData::Regressive {
             max_fee,
@@ -36,10 +36,9 @@ pub fn compute_fee(fee_data: &FeeData, amount: u64) -> Result<u64, ProgramError>
                 return Ok(0);
             }
             // fee = max_fee * amount / (half_amount + amount)
-            let numerator = (*max_fee as u128) * (amount as u128);
-            let denominator = (*half_amount as u128) + (amount as u128);
-            let fee = try_u128_to_u64(numerator / denominator)?;
-            Ok(std::cmp::min(*max_fee, fee))
+            let fee = U256::from(*max_fee) * U256::from(amount)
+                / (U256::from(*half_amount) + U256::from(amount));
+            Ok(std::cmp::min(*max_fee, try_u256_to_u64(fee)?))
         }
         FeeData::Progressive {
             max_fee,
@@ -49,33 +48,10 @@ pub fn compute_fee(fee_data: &FeeData, amount: u64) -> Result<u64, ProgramError>
                 return Ok(0);
             }
             // fee = max_fee * amount^2 / (half_amount^2 + amount^2)
-            let amount_sq = (amount as u128) * (amount as u128);
-            let half_sq = (*half_amount as u128) * (*half_amount as u128);
-            let denominator = half_sq
-                .checked_add(amount_sq)
-                .ok_or(ProgramError::from(Error::IntegerOverflow))?;
-            // max_fee * amount_sq can overflow u128 for extreme values.
-            // Use checked_mul; on overflow, compute via the complement:
-            //   fee = max_fee - max_fee * half_sq / denominator
-            let fee = match (*max_fee as u128).checked_mul(amount_sq) {
-                Some(numerator) => try_u128_to_u64(numerator / denominator)?,
-                None => {
-                    // Complement: fee = max_fee - max_fee * half_sq / denominator
-                    // max_fee * half_sq could also overflow, so use checked_mul again.
-                    let complement = match (*max_fee as u128).checked_mul(half_sq) {
-                        Some(num) => try_u128_to_u64(num / denominator)?,
-                        // Both max_fee*amount_sq and max_fee*half_sq overflow u128.
-                        // This requires extreme parameters (e.g. max_fee=u64::MAX
-                        // and both amount,half_amount >= 2^33). Reject rather than
-                        // approximate.
-                        None => {
-                            return Err(ProgramError::from(Error::IntegerOverflow));
-                        }
-                    };
-                    max_fee.saturating_sub(complement)
-                }
-            };
-            Ok(std::cmp::min(*max_fee, fee))
+            let amount_sq = U256::from(amount) * U256::from(amount);
+            let half_sq = U256::from(*half_amount) * U256::from(*half_amount);
+            let fee = U256::from(*max_fee) * amount_sq / (half_sq + amount_sq);
+            Ok(std::cmp::min(*max_fee, try_u256_to_u64(fee)?))
         }
         FeeData::Routing => {
             // Routing delegates to per-domain fee accounts; should never be called directly.
@@ -232,9 +208,8 @@ mod tests {
             max_fee: 1_000_000,
             half_amount: 500_000,
         };
-        // fee approaches max_fee for large amounts
-        let fee = compute_fee(&fee_data, u64::MAX).unwrap();
-        assert!(fee > 999_999 && fee <= 1_000_000);
+        // fee approaches max_fee for large amounts; U256 gives exact truncation
+        assert_eq!(compute_fee(&fee_data, u64::MAX).unwrap(), 999_999);
     }
 
     #[test]
@@ -243,8 +218,8 @@ mod tests {
             max_fee: u64::MAX,
             half_amount: u64::MAX,
         };
-        // half_sq + amount_sq overflows u128, so this returns IntegerOverflow
-        assert!(compute_fee(&fee_data, u64::MAX).is_err());
+        // fee = MAX * MAX^2 / (MAX^2 + MAX^2) = MAX/2
+        assert_eq!(compute_fee(&fee_data, u64::MAX).unwrap(), u64::MAX / 2);
     }
 
     #[test]
@@ -308,14 +283,14 @@ mod tests {
     }
 
     #[test]
-    fn test_progressive_double_overflow_returns_error() {
-        // Both max_fee*amount_sq and max_fee*half_sq overflow u128.
-        // half_sq + amount_sq fits in u128 but both numerator products don't.
+    fn test_progressive_former_double_overflow() {
+        // Previously overflowed u128; U256 handles it correctly.
+        // amount == half_amount, so fee = max_fee * a^2 / (a^2 + a^2) = max_fee / 2
         let fee_data = FeeData::Progressive {
             max_fee: u64::MAX,
             half_amount: 1u64 << 33,
         };
-        assert!(compute_fee(&fee_data, 1u64 << 33).is_err());
+        assert_eq!(compute_fee(&fee_data, 1u64 << 33).unwrap(), u64::MAX / 2);
     }
 
     #[test]
