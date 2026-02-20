@@ -1,4 +1,3 @@
-import { TransactionReceipt } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import type { TransactionReceipt as ViemTxReceipt } from 'viem';
 
@@ -48,6 +47,7 @@ import { DispatchedMessage } from './types.js';
 // If no metadata is provided, ensure we provide a default of 0x0001.
 // We set to 0x0001 instead of 0x0 to ensure it does not break on zksync.
 const DEFAULT_METADATA = '0x0001';
+type EvmTxReceipt = ethers.providers.TransactionReceipt;
 
 export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   static fromAddressesMap(
@@ -149,7 +149,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     body: string,
     hook?: Address,
     metadata?: string,
-  ): Promise<{ dispatchTx: TransactionReceipt; message: DispatchedMessage }> {
+  ): Promise<{ dispatchTx: EvmTxReceipt; message: DispatchedMessage }> {
     const mailbox = this.getContracts(origin).mailbox;
     const destinationDomain = this.multiProvider.getDomainId(destination);
     const recipientBytes32 = addressToBytes32(recipient);
@@ -458,7 +458,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
   // Redundant with static method but keeping for backwards compatibility
   getDispatchedMessages(
-    sourceTx: TransactionReceipt | ViemTxReceipt,
+    sourceTx: EvmTxReceipt | ViemTxReceipt,
   ): DispatchedMessage[] {
     const messages = HyperlaneCore.getDispatchedMessages(sourceTx);
     return messages.map(({ parsed, ...other }) => {
@@ -474,7 +474,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     originChain: ChainName,
     messageId: string,
     blockNumber?: number,
-  ): Promise<TransactionReceipt> {
+  ): Promise<EvmTxReceipt> {
     const mailbox = this.contractsMap[originChain].mailbox;
     const filter = mailbox.filters.DispatchId(messageId);
 
@@ -499,7 +499,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   static getDispatchedMessages(
-    sourceTx: TransactionReceipt | ViemTxReceipt,
+    sourceTx: EvmTxReceipt | ViemTxReceipt,
   ): DispatchedMessage[] {
     const mailbox = Mailbox__factory.createInterface();
     const dispatchLogs = findMatchingLogEvents(
