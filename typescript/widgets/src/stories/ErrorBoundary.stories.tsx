@@ -17,7 +17,7 @@ function ComponentThatThrows() {
 }
 
 function SupportLink() {
-  return <a>MyLink</a>;
+  return <a href="#">MyLink</a>;
 }
 
 const meta = {
