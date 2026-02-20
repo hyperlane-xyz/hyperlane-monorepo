@@ -273,4 +273,55 @@ mod tests {
         };
         assert_eq!(compute_fee(&fee_data, 5000).unwrap(), 0);
     }
+
+    // ---- Rounding / edge behavior tests ----
+
+    #[test]
+    fn test_linear_tiny_amount_rounds_to_zero() {
+        let fee_data = FeeData::Linear {
+            max_fee: 1000,
+            half_amount: 5000,
+        };
+        // fee = 1 * 1000 / 10000 = 0 (integer division rounds down)
+        assert_eq!(compute_fee(&fee_data, 1).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_progressive_large_ratio_approaches_max() {
+        let fee_data = FeeData::Progressive {
+            max_fee: 1000,
+            half_amount: 100,
+        };
+        // amount=10_000 >> half_amount=100, so fee should be very close to max_fee
+        // fee = 1000 * 10000^2 / (100^2 + 10000^2) = 1000 * 1e8 / (1e4 + 1e8) ≈ 999
+        let fee = compute_fee(&fee_data, 10_000).unwrap();
+        assert!(fee >= 999 && fee <= 1000);
+    }
+
+    #[test]
+    fn test_linear_max_fee_zero() {
+        let fee_data = FeeData::Linear {
+            max_fee: 0,
+            half_amount: 5000,
+        };
+        assert_eq!(compute_fee(&fee_data, 5000).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_regressive_max_fee_zero() {
+        let fee_data = FeeData::Regressive {
+            max_fee: 0,
+            half_amount: 5000,
+        };
+        assert_eq!(compute_fee(&fee_data, 5000).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_progressive_max_fee_zero() {
+        let fee_data = FeeData::Progressive {
+            max_fee: 0,
+            half_amount: 5000,
+        };
+        assert_eq!(compute_fee(&fee_data, 5000).unwrap(), 0);
+    }
 }

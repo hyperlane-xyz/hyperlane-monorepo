@@ -994,3 +994,391 @@ async fn test_remove_route_then_recreate() {
         .into_inner();
     assert_eq!(route.fee_account, new_delegated_key);
 }
+
+// ---- RemoveRoute error cases ----
+
+#[tokio::test]
+async fn test_remove_route_errors_if_not_owner() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    let fee_key = init_fee(&mut banks_client, &payer, H256::zero(), FeeData::Routing)
+        .await
+        .unwrap();
+
+    let domain = 42u32;
+    let ixn = set_route_instruction(
+        program_id,
+        payer.pubkey(),
+        fee_key,
+        domain,
+        Pubkey::new_unique(),
+    )
+    .unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let non_owner = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    // Build remove instruction manually with non_owner as signer
+    let ixn = remove_route_instruction(program_id, non_owner.pubkey(), fee_key, domain).unwrap();
+    let result =
+        process_instruction_helper(&mut banks_client, ixn, &non_owner, &[&non_owner]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+#[tokio::test]
+async fn test_remove_route_errors_if_not_routing_type() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    // Init a linear fee account (not routing)
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .await
+    .unwrap();
+
+    let ixn = remove_route_instruction(program_id, payer.pubkey(), fee_key, 42).unwrap();
+    let result = process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::Custom(2)), // NotRoutingFee
+    );
+}
+
+// ---- Ownership lockout tests ----
+
+#[tokio::test]
+async fn test_old_owner_locked_out_after_transfer() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Transfer to a new owner
+    let new_owner = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let ixn = transfer_ownership_instruction(
+        program_id,
+        payer.pubkey(),
+        fee_key,
+        Some(new_owner.pubkey()),
+    )
+    .unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Old owner tries to update fee data — should fail
+    let ixn = update_fee_data_instruction(
+        program_id,
+        payer.pubkey(),
+        fee_key,
+        FeeData::Regressive {
+            max_fee: 999,
+            half_amount: 1,
+        },
+    )
+    .unwrap();
+    let result = process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+
+    // New owner can update fee data
+    let ixn = update_fee_data_instruction(
+        program_id,
+        new_owner.pubkey(),
+        fee_key,
+        FeeData::Regressive {
+            max_fee: 999,
+            half_amount: 1,
+        },
+    )
+    .unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &new_owner, &[&new_owner])
+        .await
+        .unwrap();
+
+    let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
+    assert_eq!(
+        fee_account.fee_data,
+        FeeData::Regressive {
+            max_fee: 999,
+            half_amount: 1,
+        }
+    );
+}
+
+#[tokio::test]
+async fn test_renounced_ownership_is_immutable() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Renounce ownership
+    let ixn = transfer_ownership_instruction(program_id, payer.pubkey(), fee_key, None).unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Try to update fee data — should fail (no owner)
+    let ixn = update_fee_data_instruction(
+        program_id,
+        payer.pubkey(),
+        fee_key,
+        FeeData::Regressive {
+            max_fee: 999,
+            half_amount: 1,
+        },
+    )
+    .unwrap();
+    let result = process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+
+    // Try to transfer ownership back — should also fail
+    let ixn =
+        transfer_ownership_instruction(program_id, payer.pubkey(), fee_key, Some(payer.pubkey()))
+            .unwrap();
+    let result = process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
+    );
+}
+
+// ---- UpdateFeeData with realloc ----
+
+#[tokio::test]
+async fn test_update_fee_data_with_size_change() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    // Init as Linear (has max_fee + half_amount = 16 bytes of variant data)
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        FeeData::Linear {
+            max_fee: 100,
+            half_amount: 50,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Update to Routing (0 bytes of variant data — smaller)
+    let ixn =
+        update_fee_data_instruction(program_id, payer.pubkey(), fee_key, FeeData::Routing).unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
+    assert_eq!(fee_account.fee_data, FeeData::Routing);
+
+    // Update from Routing back to Progressive (larger)
+    let ixn = update_fee_data_instruction(
+        program_id,
+        payer.pubkey(),
+        fee_key,
+        FeeData::Progressive {
+            max_fee: 500,
+            half_amount: 250,
+        },
+    )
+    .unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    let fee_account = fetch_fee_account(&mut banks_client, &fee_key).await;
+    assert_eq!(
+        fee_account.fee_data,
+        FeeData::Progressive {
+            max_fee: 500,
+            half_amount: 250,
+        }
+    );
+}
+
+// ---- QuoteFee routing error cases ----
+
+#[tokio::test]
+async fn test_quote_routing_fee_wrong_route_pda() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    let routing_fee_key = init_fee(&mut banks_client, &payer, H256::zero(), FeeData::Routing)
+        .await
+        .unwrap();
+
+    // Set route for domain 42
+    let delegated_key = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::from_low_u64_be(1),
+        FeeData::Linear {
+            max_fee: 1000,
+            half_amount: 500,
+        },
+    )
+    .await
+    .unwrap();
+
+    let ixn = set_route_instruction(
+        program_id,
+        payer.pubkey(),
+        routing_fee_key,
+        42,
+        delegated_key,
+    )
+    .unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Quote with wrong route PDA (derive for domain 99 instead of 42)
+    let (wrong_route_pda, _) =
+        Pubkey::find_program_address(fee_route_pda_seeds!(routing_fee_key, 99u32), &program_id);
+
+    let ixn = quote_fee_instruction(
+        program_id,
+        routing_fee_key,
+        42, // asking for domain 42 but passing domain 99's PDA
+        500_000,
+        vec![AccountMeta::new_readonly(wrong_route_pda, false)],
+    )
+    .unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let simulation = banks_client
+        .simulate_transaction(Transaction::new_unsigned(
+            solana_sdk::message::Message::new_with_blockhash(
+                &[ixn],
+                Some(&payer.pubkey()),
+                &recent_blockhash,
+            ),
+        ))
+        .await
+        .unwrap();
+
+    // Should fail with InvalidRouteDomainPda (Custom(7))
+    let result = simulation.result.unwrap();
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_quote_routing_fee_wrong_delegated_account() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+
+    let routing_fee_key = init_fee(&mut banks_client, &payer, H256::zero(), FeeData::Routing)
+        .await
+        .unwrap();
+
+    // Create two delegated fee accounts
+    let correct_delegated = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::from_low_u64_be(1),
+        FeeData::Linear {
+            max_fee: 1000,
+            half_amount: 500,
+        },
+    )
+    .await
+    .unwrap();
+
+    let wrong_delegated = init_fee(
+        &mut banks_client,
+        &payer,
+        H256::from_low_u64_be(2),
+        FeeData::Linear {
+            max_fee: 9999,
+            half_amount: 1,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Set route for domain 42 pointing to correct_delegated
+    let domain = 42u32;
+    let ixn = set_route_instruction(
+        program_id,
+        payer.pubkey(),
+        routing_fee_key,
+        domain,
+        correct_delegated,
+    )
+    .unwrap();
+    process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Quote but pass wrong_delegated instead of correct_delegated
+    let (route_pda, _) =
+        Pubkey::find_program_address(fee_route_pda_seeds!(routing_fee_key, domain), &program_id);
+
+    let ixn = quote_fee_instruction(
+        program_id,
+        routing_fee_key,
+        domain,
+        500_000,
+        vec![
+            AccountMeta::new_readonly(route_pda, false),
+            AccountMeta::new_readonly(wrong_delegated, false), // wrong!
+        ],
+    )
+    .unwrap();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let simulation = banks_client
+        .simulate_transaction(Transaction::new_unsigned(
+            solana_sdk::message::Message::new_with_blockhash(
+                &[ixn],
+                Some(&payer.pubkey()),
+                &recent_blockhash,
+            ),
+        ))
+        .await
+        .unwrap();
+
+    // Should fail — delegated account doesn't match route
+    let result = simulation.result.unwrap();
+    assert!(result.is_err());
+}
