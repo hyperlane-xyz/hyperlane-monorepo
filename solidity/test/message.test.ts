@@ -6,7 +6,7 @@ import {addressToBytes32, formatMessage, messageId} from "@hyperlane-xyz/utils";
 
 import testCases from "../../vectors/message.json" with {type: "json"};
 
-import {getSigner, getSigners} from "./signer.js";
+import {getSigners} from "./signer.js";
 
 const remoteDomain = 1000;
 const localDomain = 2000;
@@ -17,56 +17,48 @@ describe("Message", async () => {
     let version: number;
 
     before(async () => {
-        const signer = await getSigner();
-
-        const Message = await hre.ethers.getContractFactory(
-            "TestMessage",
-            signer,
-        );
-        messageLib = await Message.deploy();
-
-        // For consistency with the Mailbox version
-        const Mailbox = await hre.ethers.getContractFactory("Mailbox", signer);
-        const mailbox = await Mailbox.deploy(localDomain);
-        version = await mailbox.VERSION();
+        messageLib = await hre.viem.deployContract("TestMessage");
+        const mailbox = await hre.viem.deployContract("Mailbox", [localDomain]);
+        version = Number(await mailbox.read.VERSION());
     });
 
     it("Returns fields from a message", async () => {
         const [sender, recipient] = await getSigners();
+        if (!sender?.account || !recipient?.account) {
+            throw new Error("Expected configured hardhat wallet accounts");
+        }
         const body = pad(stringToHex("message"), {size: 32});
 
         const message = formatMessage(
             version,
             nonce,
             remoteDomain,
-            sender.address,
+            sender.account.address,
             localDomain,
-            recipient.address,
+            recipient.account.address,
             body,
         );
 
-        expect(BigInt((await messageLib.version(message)).toString())).to.equal(
-            BigInt(version),
+        expect(Number(await messageLib.read.version([message]))).to.equal(
+            version,
         );
-        expect(BigInt((await messageLib.nonce(message)).toString())).to.equal(
-            BigInt(nonce),
+        expect(Number(await messageLib.read.nonce([message]))).to.equal(nonce);
+        expect(Number(await messageLib.read.origin([message]))).to.equal(
+            remoteDomain,
         );
-        expect(BigInt((await messageLib.origin(message)).toString())).to.equal(
-            BigInt(remoteDomain),
+        expect(await messageLib.read.sender([message])).to.equal(
+            addressToBytes32(sender.account.address),
         );
-        expect(await messageLib.sender(message)).to.equal(
-            addressToBytes32(sender.address),
+        expect(Number(await messageLib.read.destination([message]))).to.equal(
+            localDomain,
+        );
+        expect(await messageLib.read.recipient([message])).to.equal(
+            addressToBytes32(recipient.account.address),
         );
         expect(
-            BigInt((await messageLib.destination(message)).toString()),
-        ).to.equal(BigInt(localDomain));
-        expect(await messageLib.recipient(message)).to.equal(
-            addressToBytes32(recipient.address),
-        );
-        expect(await messageLib.recipientAddress(message)).to.equal(
-            recipient.address,
-        );
-        expect(await messageLib.body(message)).to.equal(body);
+            (await messageLib.read.recipientAddress([message])).toLowerCase(),
+        ).to.equal(recipient.account.address.toLowerCase());
+        expect(await messageLib.read.body([message])).to.equal(body);
     });
 
     it("Matches Rust-output HyperlaneMessage and leaf", async () => {
@@ -87,18 +79,20 @@ describe("Message", async () => {
             );
 
             expect(
-                BigInt((await messageLib.origin(hyperlaneMessage)).toString()),
-            ).to.equal(BigInt(origin));
-            expect(await messageLib.sender(hyperlaneMessage)).to.equal(sender);
-            expect(
-                BigInt(
-                    (await messageLib.destination(hyperlaneMessage)).toString(),
-                ),
-            ).to.equal(BigInt(destination));
-            expect(await messageLib.recipient(hyperlaneMessage)).to.equal(
-                recipient,
+                Number(await messageLib.read.origin([hyperlaneMessage])),
+            ).to.equal(origin);
+            expect(await messageLib.read.sender([hyperlaneMessage])).to.equal(
+                sender,
             );
-            expect(await messageLib.body(hyperlaneMessage)).to.equal(hexBody);
+            expect(
+                Number(await messageLib.read.destination([hyperlaneMessage])),
+            ).to.equal(destination);
+            expect(
+                await messageLib.read.recipient([hyperlaneMessage]),
+            ).to.equal(recipient);
+            expect(await messageLib.read.body([hyperlaneMessage])).to.equal(
+                hexBody,
+            );
             expect(messageId(hyperlaneMessage)).to.equal(id);
         }
     });
