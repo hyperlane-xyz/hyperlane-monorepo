@@ -1,4 +1,4 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
+import { providers } from 'ethers';
 
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 
@@ -28,7 +28,7 @@ export const environment: EnvironmentConfig = {
   // NOTE: Does not work from hardhat.config.ts
   getMultiProvider: async () => {
     const mp = MultiProvider.createTestMultiProvider();
-    const provider = mp.getProvider('test1') as JsonRpcProvider;
+    const provider = mp.getProvider('test1') as providers.JsonRpcProvider;
     const signer = provider.getSigner(0);
     mp.setSharedSigner(signer);
     return mp;

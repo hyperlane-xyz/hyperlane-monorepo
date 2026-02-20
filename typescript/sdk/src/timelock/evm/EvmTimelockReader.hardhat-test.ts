@@ -1,8 +1,7 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { ethers } from 'ethers';
+import { ethers, providers } from 'ethers';
 import hre from 'hardhat';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
@@ -30,7 +29,7 @@ describe(EvmTimelockReader.name, () => {
   let contractOwner: SignerWithAddress;
   let proposer: SignerWithAddress;
   let executor: SignerWithAddress;
-  let providerChainTest1: JsonRpcProvider;
+  let providerChainTest1: providers.JsonRpcProvider;
   let multiProvider: MultiProvider;
   let timelockDeployer: EvmTimelockDeployer;
   let timelockReader: EvmTimelockReader;
@@ -40,7 +39,7 @@ describe(EvmTimelockReader.name, () => {
     [contractOwner, proposer, executor] = await hre.ethers.getSigners();
 
     assert(contractOwner.provider, 'Provider should be available');
-    providerChainTest1 = contractOwner.provider as JsonRpcProvider;
+    providerChainTest1 = contractOwner.provider as providers.JsonRpcProvider;
 
     // Initialize MultiProvider with test chain
     const testChain1Clone: ChainMetadata = deepCopy(test1);

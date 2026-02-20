@@ -1,4 +1,3 @@
-import { Result } from '@ethersproject/abi';
 import {
   MetaTransactionData,
   OperationType,
@@ -2123,7 +2122,7 @@ export class GovernTransactionReader {
     chain: ChainName,
     decoded: {
       functionFragment: ethers.utils.FunctionFragment;
-      args: Result;
+      args: ethers.utils.Result;
       signature: string;
     },
     args: Record<string, any>,
@@ -2213,7 +2212,7 @@ function metaTransactionDataToEV5Transaction(
 }
 
 function formatFunctionFragmentArgs(
-  args: Result,
+  args: ethers.utils.Result,
   fragment: ethers.utils.FunctionFragment,
 ): Record<string, any> {
   const accumulator: Record<string, any> = {};

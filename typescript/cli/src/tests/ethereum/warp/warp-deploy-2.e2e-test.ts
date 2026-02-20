@@ -1,7 +1,6 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Wallet } from 'ethers';
+import { Wallet, providers } from 'ethers';
 
 import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk';
 
@@ -97,13 +96,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   let ownerAddress: Address;
   let walletChain2: Wallet;
-  let providerChain2: JsonRpcProvider;
+  let providerChain2: providers.JsonRpcProvider;
 
   before(async function () {
     chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    providerChain2 = IS_TRON_TEST
-      ? new TronJsonRpcProvider(chain2Metadata.rpcUrls[0].http)
-      : new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
+    providerChain2 = new providers.JsonRpcProvider(
+      chain2Metadata.rpcUrls[0].http,
+    );
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     ownerAddress = walletChain2.address;
 
