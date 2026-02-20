@@ -4,6 +4,7 @@ import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   Address,
   addBufferToGasLimit,
+  assert,
   pick,
   rootLogger,
   timeout,
@@ -17,7 +18,7 @@ import {
   EthJsonRpcBlockParameterTag,
 } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
-import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
+import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
@@ -385,15 +386,26 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     // deploy with buffer on gas limit
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
-
-      const deployer = new ZKSyncDeployer(signer);
-      estimatedGas = await deployer.estimateDeployGas(artifact, params);
-      contract = (await deployer.deploy(artifact, params, {
+      const contractFactory = factory.connect(signer);
+      const factoryDeps = await extractFactoryDepsFromArtifact(artifact);
+      const { customData, ...txOverrides } = overrides;
+      const deploymentOverrides = {
+        ...txOverrides,
+        customData: {
+          ...(customData as Record<string, unknown> | undefined),
+          factoryDeps,
+        },
+      };
+      const deployTx = contractFactory.getDeployTransaction(
+        ...params,
+        deploymentOverrides,
+      );
+      estimatedGas = await signer.estimateGas(deployTx);
+      contract = await contractFactory.deploy(...params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
-        ...overrides,
-      })) as DeployableContract;
-      // no need to `handleTx` for zkSync as the zksync deployer itself
-      // will wait for the deploy tx to be confirmed before returning
+        ...deploymentOverrides,
+      });
+      await this.handleTx(chainNameOrId, contract.deployTransaction);
     } else {
       const contractFactory = factory.connect(signer);
       const deployTx = contractFactory.getDeployTransaction(...params);
@@ -630,4 +642,42 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     }
     return mp;
   }
+}
+
+async function extractFactoryDepsFromArtifact(
+  artifact: ZKSyncArtifact,
+): Promise<string[]> {
+  const visited = new Set<string>();
+  visited.add(`${artifact.sourceName}:${artifact.contractName}`);
+  return extractFactoryDepsRecursive(artifact, visited);
+}
+
+async function extractFactoryDepsRecursive(
+  artifact: ZKSyncArtifact,
+  visited: Set<string>,
+): Promise<string[]> {
+  const factoryDeps: string[] = [];
+  for (const dependencyHash in artifact.factoryDeps) {
+    if (
+      Object.prototype.hasOwnProperty.call(artifact.factoryDeps, dependencyHash)
+    ) {
+      const dependencyContract = artifact.factoryDeps[dependencyHash];
+      if (!visited.has(dependencyContract)) {
+        const dependencyArtifact =
+          await getZKSyncArtifactByContractName(dependencyContract);
+        assert(
+          dependencyArtifact,
+          `No ZkSync artifact for contract ${dependencyContract} found!`,
+        );
+        factoryDeps.push(dependencyArtifact.bytecode);
+        visited.add(dependencyContract);
+        const transitiveDeps = await extractFactoryDepsRecursive(
+          dependencyArtifact,
+          visited,
+        );
+        factoryDeps.push(...transitiveDeps);
+      }
+    }
+  }
+  return factoryDeps;
 }
