@@ -41,6 +41,10 @@ export interface SvmProgramAddresses {
   multisigIsm: Address;
   testIsm: Address;
   validatorAnnounce?: Address;
+  // Warp tokens
+  nativeToken?: Address;
+  syntheticToken?: Address;
+  collateralToken?: Address;
 }
 
 /**
