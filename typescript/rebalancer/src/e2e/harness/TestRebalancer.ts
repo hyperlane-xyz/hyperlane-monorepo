@@ -43,7 +43,6 @@ import {
 import { setupCollateralBalances } from './BridgeSetup.js';
 import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
 import { ForkIndexer } from './ForkIndexer.js';
-import { type LocalDeploymentContext } from './LocalDeploymentManager.js';
 import {
   MockExplorerClient,
   type MockExplorerConfig,
@@ -200,7 +199,7 @@ export class TestRebalancerBuilder {
     const inventoryModeConfig = this.inventoryConfig;
     const isInventoryMode = inventoryModeConfig !== undefined;
     const ctx = this.deploymentManager.getContext();
-    const { providers: localProviders }: LocalDeploymentContext = ctx;
+    const { providers: localProviders } = ctx;
     const deployedAddresses = ctx.deployedAddresses;
 
     const coreAddresses: Record<string, Record<string, string>> = {};

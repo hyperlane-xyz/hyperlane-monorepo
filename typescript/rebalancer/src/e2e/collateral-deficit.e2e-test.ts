@@ -22,10 +22,8 @@ import {
   TEST_CHAINS,
 } from './fixtures/routes.js';
 import { getAllCollateralBalances } from './harness/BridgeSetup.js';
-import {
-  type LocalDeploymentContext,
-  LocalDeploymentManager,
-} from './harness/LocalDeploymentManager.js';
+import { type LocalDeploymentContext } from './harness/BaseLocalDeploymentManager.js';
+import { Erc20LocalDeploymentManager } from './harness/Erc20LocalDeploymentManager.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import {
@@ -38,7 +36,7 @@ const USDC_DECIMALS = 6;
 describe('Collateral Deficit E2E', function () {
   this.timeout(300_000);
 
-  let deploymentManager: LocalDeploymentManager;
+  let deploymentManager: Erc20LocalDeploymentManager;
   let multiProvider: MultiProvider;
   let localProviders: Map<string, providers.JsonRpcProvider>;
   let userAddress: string;
@@ -51,8 +49,9 @@ describe('Collateral Deficit E2E', function () {
     const wallet = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
     userAddress = wallet.address;
 
-    deploymentManager = new LocalDeploymentManager();
-    const ctx: LocalDeploymentContext = await deploymentManager.start();
+    deploymentManager = new Erc20LocalDeploymentManager();
+    const ctx: LocalDeploymentContext<DeployedAddresses> =
+      await deploymentManager.start();
     multiProvider = ctx.multiProvider;
     localProviders = ctx.providers;
     deployedAddresses = ctx.deployedAddresses;
