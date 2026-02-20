@@ -365,6 +365,7 @@ export class WarpCore {
     recipient,
     interchainFee,
     tokenFeeQuote,
+    destinationToken,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
@@ -372,6 +373,7 @@ export class WarpCore {
     recipient: Address;
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
+    destinationToken?: Token;
   }): Promise<Array<WarpTypedTransaction>> {
     // Check if this is a MultiCollateral transfer
     if (
@@ -647,12 +649,14 @@ export class WarpCore {
     recipient,
     sender,
     senderPubKey,
+    destinationToken,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
+    destinationToken?: Token;
   }): Promise<WarpCoreFeeEstimate> {
     this.logger.debug('Fetching remote transfer fee estimates');
 
