@@ -5,7 +5,9 @@
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
 use hyperlane_sealevel_fee::{
-    accounts::FeeData, instruction::init_fee_instruction,
+    accounts::FeeData,
+    fee_route_pda_seeds,
+    instruction::{init_fee_instruction, set_route_instruction},
     processor::process_instruction as fee_process_instruction,
 };
 use solana_program::{
@@ -2876,4 +2878,567 @@ async fn test_transfer_remote_fee_after_beneficiary_change() {
 
     // Verify beneficiary B got fees from second transfer
     assert_token_balance(&mut banks_client, &beneficiary_b_ata, expected_fee).await;
+}
+
+#[tokio::test]
+async fn test_transfer_remote_with_routing_fee() {
+    let program_id = hyperlane_sealevel_token_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
+    let (mint, mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let hyperlane_token_accounts = initialize_hyperlane_token(
+        &program_id,
+        &mut banks_client,
+        &payer,
+        Some(&igp_accounts),
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        remote_router,
+    )
+    .await
+    .unwrap();
+
+    // Mint tokens to sender
+    let token_sender = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let sender_initial_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let token_sender_ata = create_and_mint_to_ata(
+        &mut banks_client,
+        &spl_token_program_id,
+        &mint,
+        &mint_authority,
+        &payer,
+        &token_sender_pubkey,
+        sender_initial_balance,
+    )
+    .await;
+
+    // Init a Routing fee account (no inline fee data — routes are per-domain)
+    let fee_beneficiary_wallet = payer.pubkey();
+    let routing_fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        fee_beneficiary_wallet,
+        FeeData::Routing,
+    )
+    .await;
+
+    // Set a route for REMOTE_DOMAIN with Linear fee params
+    let max_fee: u64 = 2_000_000;
+    let half_amount: u64 = 50 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let set_route_ixn = set_route_instruction(
+        fee_program_id(),
+        payer.pubkey(),
+        routing_fee_key,
+        REMOTE_DOMAIN,
+        FeeData::Linear {
+            max_fee,
+            half_amount,
+        },
+    )
+    .unwrap();
+    process_instruction_helper(&mut banks_client, set_route_ixn, &payer, &[&payer])
+        .await
+        .unwrap();
+
+    // Derive the route PDA
+    let (route_pda, _) = Pubkey::find_program_address(
+        fee_route_pda_seeds!(routing_fee_key, REMOTE_DOMAIN),
+        &fee_program_id(),
+    );
+
+    let fee_beneficiary_ata =
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &fee_beneficiary_wallet,
+            &mint,
+            &spl_token_program_id,
+        );
+    // Create fee beneficiary ATA
+    {
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        let create_ata_ixn = create_associated_token_account_idempotent(
+            &payer.pubkey(),
+            &fee_beneficiary_wallet,
+            &mint,
+            &spl_token_program_id,
+        );
+        let transaction = Transaction::new_signed_with_payer(
+            &[create_ata_ixn],
+            Some(&payer.pubkey()),
+            &[&payer],
+            recent_blockhash,
+        );
+        banks_client.process_transaction(transaction).await.unwrap();
+    }
+
+    let fee_config = FeeConfig {
+        fee_program: fee_program_id(),
+        fee_account: routing_fee_key,
+    };
+    set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
+
+    let unique_message_account_keypair = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &igp_program_id(),
+    );
+
+    let transfer_amount = 69 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let expected_fee: u64 = {
+        let a = transfer_amount as u128;
+        let m = max_fee as u128;
+        let h = half_amount as u128;
+        std::cmp::min(max_fee as u128, (a * m) / (2 * h)) as u64
+    };
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                destination_domain: REMOTE_DOMAIN,
+                recipient: H256::random(),
+                amount_or_id: transfer_amount.into(),
+            })
+            .encode()
+            .unwrap(),
+            vec![
+                // 0-8: standard accounts
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(mailbox_accounts.program, false),
+                AccountMeta::new(mailbox_accounts.outbox, false),
+                AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                AccountMeta::new_readonly(token_sender_pubkey, true),
+                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                AccountMeta::new(dispatched_message_key, false),
+                // Fee accounts (Routing: route_pda is additional account before sentinel)
+                AccountMeta::new_readonly(fee_program_id(), false),
+                AccountMeta::new_readonly(routing_fee_key, false),
+                AccountMeta::new_readonly(route_pda, false),
+                AccountMeta::new(fee_beneficiary_ata, false),
+                // IGP accounts
+                AccountMeta::new_readonly(igp_accounts.program, false),
+                AccountMeta::new(igp_accounts.program_data, false),
+                AccountMeta::new(gas_payment_pda_key, false),
+                AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
+                AccountMeta::new(igp_accounts.igp, false),
+                // Plugin accounts (collateral): spl_token_2022, mint, sender_ata, escrow
+                AccountMeta::new_readonly(spl_token_program_id, false),
+                AccountMeta::new(mint, false),
+                AccountMeta::new(token_sender_ata, false),
+                AccountMeta::new(hyperlane_token_accounts.escrow, false),
+            ],
+        )],
+        Some(&token_sender_pubkey),
+        &[&token_sender, &unique_message_account_keypair],
+        recent_blockhash,
+    );
+    banks_client.process_transaction(transaction).await.unwrap();
+
+    // Verify sender balance: initial - transfer_amount - fee
+    assert_token_balance(
+        &mut banks_client,
+        &token_sender_ata,
+        sender_initial_balance - transfer_amount - expected_fee,
+    )
+    .await;
+
+    // Verify fee beneficiary ATA got the fee
+    assert_token_balance(&mut banks_client, &fee_beneficiary_ata, expected_fee).await;
+}
+
+#[tokio::test]
+async fn test_transfer_remote_errors_if_fee_program_mismatch() {
+    let program_id = hyperlane_sealevel_token_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
+    let (mint, mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let hyperlane_token_accounts = initialize_hyperlane_token(
+        &program_id,
+        &mut banks_client,
+        &payer,
+        Some(&igp_accounts),
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        remote_router,
+    )
+    .await
+    .unwrap();
+
+    let token_sender = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let sender_initial_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let token_sender_ata = create_and_mint_to_ata(
+        &mut banks_client,
+        &spl_token_program_id,
+        &mint,
+        &mint_authority,
+        &payer,
+        &token_sender_pubkey,
+        sender_initial_balance,
+    )
+    .await;
+
+    let fee_data = FeeData::Linear {
+        max_fee: 2_000_000,
+        half_amount: 50 * 10u64.pow(LOCAL_DECIMALS_U32),
+    };
+    let fee_beneficiary_wallet = payer.pubkey();
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        fee_beneficiary_wallet,
+        fee_data,
+    )
+    .await;
+
+    let fee_beneficiary_ata =
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &fee_beneficiary_wallet,
+            &mint,
+            &spl_token_program_id,
+        );
+    {
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        let transaction = Transaction::new_signed_with_payer(
+            &[create_associated_token_account_idempotent(
+                &payer.pubkey(),
+                &fee_beneficiary_wallet,
+                &mint,
+                &spl_token_program_id,
+            )],
+            Some(&payer.pubkey()),
+            &[&payer],
+            recent_blockhash,
+        );
+        banks_client.process_transaction(transaction).await.unwrap();
+    }
+
+    let fee_config = FeeConfig {
+        fee_program: fee_program_id(),
+        fee_account: fee_key,
+    };
+    set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
+
+    let unique_message_account_keypair = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &igp_program_id(),
+    );
+
+    let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+
+    // Pass WRONG fee program in accounts
+    let wrong_fee_program = Pubkey::new_unique();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                destination_domain: REMOTE_DOMAIN,
+                recipient: H256::random(),
+                amount_or_id: transfer_amount.into(),
+            })
+            .encode()
+            .unwrap(),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(mailbox_accounts.program, false),
+                AccountMeta::new(mailbox_accounts.outbox, false),
+                AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                AccountMeta::new_readonly(token_sender_pubkey, true),
+                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                AccountMeta::new(dispatched_message_key, false),
+                // WRONG fee program
+                AccountMeta::new_readonly(wrong_fee_program, false),
+                AccountMeta::new_readonly(fee_key, false),
+                AccountMeta::new(fee_beneficiary_ata, false),
+                // IGP accounts
+                AccountMeta::new_readonly(igp_accounts.program, false),
+                AccountMeta::new(igp_accounts.program_data, false),
+                AccountMeta::new(gas_payment_pda_key, false),
+                AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
+                AccountMeta::new(igp_accounts.igp, false),
+                // Plugin accounts (collateral)
+                AccountMeta::new_readonly(spl_token_program_id, false),
+                AccountMeta::new(mint, false),
+                AccountMeta::new(token_sender_ata, false),
+                AccountMeta::new(hyperlane_token_accounts.escrow, false),
+            ],
+        )],
+        Some(&token_sender_pubkey),
+        &[&token_sender, &unique_message_account_keypair],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::Custom(6)),
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_remote_errors_if_fee_account_mismatch() {
+    let program_id = hyperlane_sealevel_token_collateral_id();
+    let mailbox_program_id = mailbox_id();
+    let spl_token_program_id = spl_token_2022::id();
+
+    let (mut banks_client, payer) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
+
+    let igp_accounts =
+        initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
+            .await
+            .unwrap();
+
+    let (mint, mint_authority) = initialize_mint(
+        &mut banks_client,
+        &payer,
+        LOCAL_DECIMALS,
+        &spl_token_program_id,
+    )
+    .await;
+
+    let hyperlane_token_accounts = initialize_hyperlane_token(
+        &program_id,
+        &mut banks_client,
+        &payer,
+        Some(&igp_accounts),
+        &mint,
+        &spl_token_program_id,
+    )
+    .await
+    .unwrap();
+
+    let remote_router = H256::random();
+    enroll_remote_router(
+        &mut banks_client,
+        &program_id,
+        &payer,
+        &hyperlane_token_accounts.token,
+        REMOTE_DOMAIN,
+        remote_router,
+    )
+    .await
+    .unwrap();
+
+    let token_sender = new_funded_keypair(&mut banks_client, &payer, ONE_SOL_IN_LAMPORTS).await;
+    let token_sender_pubkey = token_sender.pubkey();
+    let sender_initial_balance = 100 * 10u64.pow(LOCAL_DECIMALS_U32);
+    let token_sender_ata = create_and_mint_to_ata(
+        &mut banks_client,
+        &spl_token_program_id,
+        &mint,
+        &mint_authority,
+        &payer,
+        &token_sender_pubkey,
+        sender_initial_balance,
+    )
+    .await;
+
+    let fee_data = FeeData::Linear {
+        max_fee: 2_000_000,
+        half_amount: 50 * 10u64.pow(LOCAL_DECIMALS_U32),
+    };
+    let fee_beneficiary_wallet = payer.pubkey();
+    let fee_key = init_fee_account(
+        &mut banks_client,
+        &payer,
+        H256::zero(),
+        fee_beneficiary_wallet,
+        fee_data,
+    )
+    .await;
+
+    let fee_beneficiary_ata =
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &fee_beneficiary_wallet,
+            &mint,
+            &spl_token_program_id,
+        );
+    {
+        let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        let transaction = Transaction::new_signed_with_payer(
+            &[create_associated_token_account_idempotent(
+                &payer.pubkey(),
+                &fee_beneficiary_wallet,
+                &mint,
+                &spl_token_program_id,
+            )],
+            Some(&payer.pubkey()),
+            &[&payer],
+            recent_blockhash,
+        );
+        banks_client.process_transaction(transaction).await.unwrap();
+    }
+
+    let fee_config = FeeConfig {
+        fee_program: fee_program_id(),
+        fee_account: fee_key,
+    };
+    set_fee_config(&mut banks_client, &program_id, &payer, Some(fee_config)).await;
+
+    let unique_message_account_keypair = Keypair::new();
+    let (dispatched_message_key, _) = Pubkey::find_program_address(
+        mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &mailbox_program_id,
+    );
+    let (gas_payment_pda_key, _) = Pubkey::find_program_address(
+        igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+        &igp_program_id(),
+    );
+
+    let transfer_amount = 10 * 10u64.pow(LOCAL_DECIMALS_U32);
+
+    // Pass correct fee program but WRONG fee account
+    let wrong_fee_account = Pubkey::new_unique();
+
+    let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            program_id,
+            &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
+                destination_domain: REMOTE_DOMAIN,
+                recipient: H256::random(),
+                amount_or_id: transfer_amount.into(),
+            })
+            .encode()
+            .unwrap(),
+            vec![
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
+                AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
+                AccountMeta::new_readonly(mailbox_accounts.program, false),
+                AccountMeta::new(mailbox_accounts.outbox, false),
+                AccountMeta::new_readonly(hyperlane_token_accounts.dispatch_authority, false),
+                AccountMeta::new_readonly(token_sender_pubkey, true),
+                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                AccountMeta::new(dispatched_message_key, false),
+                // Correct fee program, WRONG fee account
+                AccountMeta::new_readonly(fee_program_id(), false),
+                AccountMeta::new_readonly(wrong_fee_account, false),
+                AccountMeta::new(fee_beneficiary_ata, false),
+                // IGP accounts
+                AccountMeta::new_readonly(igp_accounts.program, false),
+                AccountMeta::new(igp_accounts.program_data, false),
+                AccountMeta::new(gas_payment_pda_key, false),
+                AccountMeta::new_readonly(igp_accounts.overhead_igp, false),
+                AccountMeta::new(igp_accounts.igp, false),
+                // Plugin accounts (collateral)
+                AccountMeta::new_readonly(spl_token_program_id, false),
+                AccountMeta::new(mint, false),
+                AccountMeta::new(token_sender_ata, false),
+                AccountMeta::new(hyperlane_token_accounts.escrow, false),
+            ],
+        )],
+        Some(&token_sender_pubkey),
+        &[&token_sender, &unique_message_account_keypair],
+        recent_blockhash,
+    );
+    let result = banks_client.process_transaction(transaction).await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::Custom(7)),
+    );
 }
