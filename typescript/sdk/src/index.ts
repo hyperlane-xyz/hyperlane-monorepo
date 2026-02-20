@@ -478,6 +478,12 @@ export {
   randomIsmConfig,
   randomDeployableIsmConfig,
 } from './test/testUtils.js';
+export type { HardhatSignerWithAddress } from './test/hardhatViem.js';
+export {
+  getHardhatProvider,
+  getHardhatSigners,
+  getImpersonatedHardhatSigner,
+} from './test/hardhatViem.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
