@@ -7,6 +7,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { EvmCoreModule } from '../core/EvmCoreModule.js';
 import { CoreConfig } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { getHardhatSigners } from '../test/hardhatViem.js';
 import { testCoreConfig } from '../test/testUtils.js';
 
 import { EvmIcaRouterReader } from './EvmIcaReader.js';
@@ -18,7 +19,7 @@ describe(EvmIcaRouterReader.name, async () => {
   let signerAddress: Address;
 
   before(async () => {
-    const [signer] = await hre.ethers.getSigners();
+    const [signer] = await getHardhatSigners();
     const multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const config: CoreConfig = {
       ...testCoreConfig([CHAIN])[CHAIN],
