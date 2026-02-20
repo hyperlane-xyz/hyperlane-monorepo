@@ -1,8 +1,7 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { ethers } from 'ethers';
+import { ethers, providers } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
@@ -28,7 +27,7 @@ describe('EvmEventLogsReader', () => {
   let contractOwner: SignerWithAddress;
   let tokenRecipient1: SignerWithAddress;
   let tokenRecipient2: SignerWithAddress;
-  let providerChainTest1: JsonRpcProvider;
+  let providerChainTest1: providers.JsonRpcProvider;
   let multiProvider: MultiProvider;
   let testContract: ERC20Test;
   let erc20Factory: ERC20Test__factory;
@@ -47,7 +46,7 @@ describe('EvmEventLogsReader', () => {
       signer: contractOwner,
       provider: contractOwner.provider,
     });
-    providerChainTest1 = contractOwner.provider as JsonRpcProvider;
+    providerChainTest1 = contractOwner.provider as providers.JsonRpcProvider;
 
     // Get contract factory for ERC20Test
     erc20Factory = new ERC20Test__factory(contractOwner);

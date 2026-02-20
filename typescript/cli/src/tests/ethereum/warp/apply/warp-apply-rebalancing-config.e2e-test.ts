@@ -1,5 +1,5 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
 import { expect } from 'chai';
+import { providers } from 'ethers';
 
 import {
   type ERC20Test,
@@ -65,7 +65,7 @@ describe('hyperlane warp apply owner update tests', async function () {
   let tokenChain2: ERC20Test;
   let everclearBridgeAdapterMock: MockEverclearAdapter;
 
-  let providerChain2: JsonRpcProvider;
+  let providerChain2: providers.JsonRpcProvider;
 
   const evmChain2Core = new HyperlaneE2ECoreTestCommands(
     ProtocolType.Ethereum,
@@ -92,7 +92,7 @@ describe('hyperlane warp apply owner update tests', async function () {
   before(async function () {
     const chain2Metadata =
       TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
-    providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrl);
+    providerChain2 = new providers.JsonRpcProvider(chain2Metadata.rpcUrl);
 
     tokenChain2 = await deployToken(
       HYP_KEY_BY_PROTOCOL.ethereum,

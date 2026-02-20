@@ -1,5 +1,4 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
-import { Wallet } from 'ethers';
+import { Wallet, providers } from 'ethers';
 import { parseUnits } from 'ethers/lib/utils.js';
 
 import {
@@ -161,8 +160,12 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
   const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
   const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-  const providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
-  const providerChain3 = new JsonRpcProvider(chain3Metadata.rpcUrls[0].http);
+  const providerChain2 = new providers.JsonRpcProvider(
+    chain2Metadata.rpcUrls[0].http,
+  );
+  const providerChain3 = new providers.JsonRpcProvider(
+    chain3Metadata.rpcUrls[0].http,
+  );
 
   const walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
   const walletChain3 = new Wallet(ANVIL_KEY).connect(providerChain3);

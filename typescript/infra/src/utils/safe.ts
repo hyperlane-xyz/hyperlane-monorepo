@@ -1,4 +1,3 @@
-import { JsonRpcSigner } from '@ethersproject/providers';
 import SafeApiKit, {
   SafeMultisigTransactionListResponse,
 } from '@safe-global/api-kit';
@@ -387,7 +386,7 @@ export async function deleteSafeTx(
       },
     };
 
-    const signature = await (signer as JsonRpcSigner)._signTypedData(
+    const signature = await (signer as ethers.providers.JsonRpcSigner)._signTypedData(
       typedData.domain,
       { DeleteRequest: typedData.types.DeleteRequest },
       typedData.message,
