@@ -26,7 +26,7 @@ async function main() {
   const strategy = strategyConfigGetterMap[warpRouteId]();
   assert(strategy, `Strategy not found by warpId ${strategy}`);
 
-  logger.info(`Strategy Created`, strategy);
+  logger.info(`Strategy Created`, JSON.stringify(strategy, null, 2));
 
   if (outFile) {
     // JSON strategies may contain private keys
