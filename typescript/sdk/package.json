@@ -71,7 +71,6 @@
     "pino": "catalog:",
     "starknet": "catalog:",
     "viem": "catalog:",
-    "zksync-ethers": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
