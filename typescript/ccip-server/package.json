@@ -43,6 +43,7 @@
     "pino-http": "^8.6.1",
     "prisma": "^7.3.0",
     "prom-client": "catalog:",
+    "viem": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

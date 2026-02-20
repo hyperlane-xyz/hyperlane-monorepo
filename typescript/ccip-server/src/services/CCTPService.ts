@@ -1,6 +1,6 @@
-import { ethers } from 'ethers';
 import { Router } from 'express';
 import { Logger } from 'pino';
+import { keccak256 } from 'viem';
 import { z } from 'zod';
 
 import {
@@ -85,7 +85,7 @@ class CCTPService extends BaseService {
   }
 
   async getCCTPMessageFromReceipt(
-    receipt: ethers.providers.TransactionReceipt,
+    receipt: { transactionHash: string; logs: Array<any> },
     messageId: string,
     logger: Logger,
   ) {
@@ -138,7 +138,7 @@ class CCTPService extends BaseService {
       'Processing CCTP attestation request',
     );
 
-    const messageId: string = ethers.utils.keccak256(message);
+    const messageId: string = keccak256(message as `0x${string}`);
     log.info({ messageId, hyperlaneMessage: message }, 'Generated message ID');
 
     const txHash =
