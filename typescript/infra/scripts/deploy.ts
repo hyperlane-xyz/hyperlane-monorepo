@@ -1,347 +1,358 @@
-import { ethers } from 'ethers';
-import fs from 'fs';
-import path from 'path';
-import prompts from 'prompts';
+import fs from "fs";
+import path from "path";
+import prompts from "prompts";
+import {zeroAddress} from "viem";
 
-import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import {buildArtifact as coreBuildArtifact} from "@hyperlane-xyz/core/buildArtifact.js";
 import {
-  ChainMap,
-  ContractVerifier,
-  ExplorerLicenseType,
-  HypERC20Deployer,
-  HyperlaneCCIPDeployer,
-  HyperlaneCoreDeployer,
-  HyperlaneDeployer,
-  HyperlaneHookDeployer,
-  HyperlaneIgpDeployer,
-  HyperlaneIsmFactory,
-  HyperlaneProxyFactoryDeployer,
-  InterchainAccount,
-  InterchainAccountConfig,
-  InterchainAccountDeployer,
-  InterchainQueryDeployer,
-  IsmType,
-  RouterConfig,
-  TestRecipientDeployer,
-} from '@hyperlane-xyz/sdk';
-import { inCIMode, objFilter, objMap } from '@hyperlane-xyz/utils';
-import { writeYaml } from '@hyperlane-xyz/utils/fs';
+    ChainMap,
+    ContractVerifier,
+    ExplorerLicenseType,
+    HypERC20Deployer,
+    HyperlaneCCIPDeployer,
+    HyperlaneCoreDeployer,
+    HyperlaneDeployer,
+    HyperlaneHookDeployer,
+    HyperlaneIgpDeployer,
+    HyperlaneIsmFactory,
+    HyperlaneProxyFactoryDeployer,
+    InterchainAccount,
+    InterchainAccountConfig,
+    InterchainAccountDeployer,
+    InterchainQueryDeployer,
+    IsmType,
+    RouterConfig,
+    TestRecipientDeployer,
+} from "@hyperlane-xyz/sdk";
+import {inCIMode, objFilter, objMap} from "@hyperlane-xyz/utils";
+import {writeYaml} from "@hyperlane-xyz/utils/fs";
 
-import { Contexts } from '../config/contexts.js';
-import { core as coreConfig } from '../config/environments/mainnet3/core.js';
-import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../config/environments/utils.js';
-import { getEnvAddresses } from '../config/registry.js';
-import { getWarpConfig } from '../config/warp.js';
-import { chainsToSkip } from '../src/config/chain.js';
-import { DeployCache, deployWithArtifacts } from '../src/deployment/deploy.js';
-import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';
+import {Contexts} from "../config/contexts.js";
+import {core as coreConfig} from "../config/environments/mainnet3/core.js";
+import {DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS} from "../config/environments/utils.js";
+import {getEnvAddresses} from "../config/registry.js";
+import {getWarpConfig} from "../config/warp.js";
+import {chainsToSkip} from "../src/config/chain.js";
+import {DeployCache, deployWithArtifacts} from "../src/deployment/deploy.js";
+import {TestQuerySenderDeployer} from "../src/deployment/testcontracts/testquerysender.js";
 import {
-  extractBuildArtifact,
-  fetchExplorerApiKeys,
-} from '../src/deployment/verify.js';
-import { DEPLOYERS } from '../src/governance.js';
-import { Role } from '../src/roles.js';
-import { impersonateAccount, useLocalProvider } from '../src/utils/fork.js';
+    extractBuildArtifact,
+    fetchExplorerApiKeys,
+} from "../src/deployment/verify.js";
+import {DEPLOYERS} from "../src/governance.js";
+import {Role} from "../src/roles.js";
+import {impersonateAccount, useLocalProvider} from "../src/utils/fork.js";
 
 import {
-  Modules,
-  getAddresses,
-  getArgs,
-  getModuleDirectory,
-  withBuildArtifactPath,
-  withChains,
-  withConcurrentDeploy,
-  withContext,
-  withFork,
-  withKnownWarpRouteId,
-  withModule,
-  withWritePlan,
-} from './agent-utils.js';
-import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
+    Modules,
+    getAddresses,
+    getArgs,
+    getModuleDirectory,
+    withBuildArtifactPath,
+    withChains,
+    withConcurrentDeploy,
+    withContext,
+    withFork,
+    withKnownWarpRouteId,
+    withModule,
+    withWritePlan,
+} from "./agent-utils.js";
+import {getEnvironmentConfig, getHyperlaneCore} from "./core-utils.js";
 
 async function main() {
-  const {
-    context = Contexts.Hyperlane,
-    module,
-    fork,
-    environment,
-    buildArtifactPath,
-    chains,
-    concurrentDeploy,
-    warpRouteId,
-    writePlan,
-  } = await withContext(
-    withConcurrentDeploy(
-      withWritePlan(
-        withChains(
-          withModule(
-            withFork(withKnownWarpRouteId(withBuildArtifactPath(getArgs()))),
-          ),
+    const {
+        context = Contexts.Hyperlane,
+        module,
+        fork,
+        environment,
+        buildArtifactPath,
+        chains,
+        concurrentDeploy,
+        warpRouteId,
+        writePlan,
+    } = await withContext(
+        withConcurrentDeploy(
+            withWritePlan(
+                withChains(
+                    withModule(
+                        withFork(
+                            withKnownWarpRouteId(
+                                withBuildArtifactPath(getArgs()),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
         ),
-      ),
-    ),
-  ).argv;
-  const envConfig = getEnvironmentConfig(environment);
+    ).argv;
+    const envConfig = getEnvironmentConfig(environment);
 
-  const providerChains = chains?.length
-    ? chains.filter((chain) => !chainsToSkip.includes(chain))
-    : envConfig.supportedChainNames.filter(
+    const providerChains = chains?.length
+        ? chains.filter((chain) => !chainsToSkip.includes(chain))
+        : envConfig.supportedChainNames.filter(
+              (chain) => !chainsToSkip.includes(chain),
+          );
+
+    let multiProvider = await envConfig.getMultiProvider(
+        context,
+        Role.Deployer,
+        true,
+        providerChains,
+    );
+
+    const targetNetworks =
+        chains && chains.length > 0 ? chains : !fork ? [] : [fork];
+
+    const filteredTargetNetworks = targetNetworks.filter(
         (chain) => !chainsToSkip.includes(chain),
-      );
-
-  let multiProvider = await envConfig.getMultiProvider(
-    context,
-    Role.Deployer,
-    true,
-    providerChains,
-  );
-
-  const targetNetworks =
-    chains && chains.length > 0 ? chains : !fork ? [] : [fork];
-
-  const filteredTargetNetworks = targetNetworks.filter(
-    (chain) => !chainsToSkip.includes(chain),
-  );
-
-  if (fork) {
-    multiProvider = multiProvider.extendChainMetadata({
-      [fork]: { blocks: { confirmations: 0 } },
-    });
-    await useLocalProvider(multiProvider, fork);
-
-    const deployer = DEPLOYERS[environment];
-    const signer = await impersonateAccount(deployer);
-
-    multiProvider.setSharedSigner(signer);
-  }
-
-  // if none provided, instantiate a default verifier with the default core contract build artifact
-  // fetch explorer API keys from GCP
-  const contractVerifier = new ContractVerifier(
-    multiProvider,
-    inCIMode() ? {} : await fetchExplorerApiKeys(),
-    buildArtifactPath
-      ? extractBuildArtifact(buildArtifactPath)
-      : coreBuildArtifact,
-    ExplorerLicenseType.MIT,
-  );
-
-  let config: ChainMap<unknown> = {};
-  let deployer: HyperlaneDeployer<any, any>;
-  if (module === Modules.PROXY_FACTORY) {
-    config = objMap(envConfig.core, (_chain) => true);
-    deployer = new HyperlaneProxyFactoryDeployer(
-      multiProvider,
-      contractVerifier,
-      concurrentDeploy,
     );
-  } else if (module === Modules.CORE) {
-    config = envConfig.core;
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
-      multiProvider,
-    );
-    deployer = new HyperlaneCoreDeployer(
-      multiProvider,
-      ismFactory,
-      contractVerifier,
-      concurrentDeploy,
-      60 * 60 * 1000, // 60 minutes
-    );
-  } else if (module === Modules.WARP) {
-    if (!warpRouteId) {
-      throw new Error('Warp route ID is required for WARP module');
+
+    if (fork) {
+        multiProvider = multiProvider.extendChainMetadata({
+            [fork]: {blocks: {confirmations: 0}},
+        });
+        await useLocalProvider(multiProvider, fork);
+
+        const deployer = DEPLOYERS[environment];
+        const signer = await impersonateAccount(deployer);
+
+        multiProvider.setSharedSigner(signer);
     }
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(envConfig.environment, Modules.PROXY_FACTORY),
-      multiProvider,
+
+    // if none provided, instantiate a default verifier with the default core contract build artifact
+    // fetch explorer API keys from GCP
+    const contractVerifier = new ContractVerifier(
+        multiProvider,
+        inCIMode() ? {} : await fetchExplorerApiKeys(),
+        buildArtifactPath
+            ? extractBuildArtifact(buildArtifactPath)
+            : coreBuildArtifact,
+        ExplorerLicenseType.MIT,
     );
-    config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
-    deployer = new HypERC20Deployer(
-      multiProvider,
-      ismFactory,
-      contractVerifier,
-      concurrentDeploy,
-    );
-  } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
-    config = envConfig.igp;
-    deployer = new HyperlaneIgpDeployer(
-      multiProvider,
-      contractVerifier,
-      concurrentDeploy,
-    );
-  } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
-    const { core } = await getHyperlaneCore(environment, multiProvider);
-    config = objMap(
-      core.getRouterConfig(envConfig.owners) as ChainMap<RouterConfig>,
-      (_, routerConfig): InterchainAccountConfig => {
-        return {
-          ...routerConfig,
-          commitmentIsm: {
-            type: IsmType.OFFCHAIN_LOOKUP,
-            owner: routerConfig.owner,
-            ownerOverrides: routerConfig.ownerOverrides,
-            urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
-          },
+
+    let config: ChainMap<unknown> = {};
+    let deployer: HyperlaneDeployer<any, any>;
+    if (module === Modules.PROXY_FACTORY) {
+        config = objMap(envConfig.core, (_chain) => true);
+        deployer = new HyperlaneProxyFactoryDeployer(
+            multiProvider,
+            contractVerifier,
+            concurrentDeploy,
+        );
+    } else if (module === Modules.CORE) {
+        config = envConfig.core;
+        const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+            getAddresses(environment, Modules.PROXY_FACTORY),
+            multiProvider,
+        );
+        deployer = new HyperlaneCoreDeployer(
+            multiProvider,
+            ismFactory,
+            contractVerifier,
+            concurrentDeploy,
+            60 * 60 * 1000, // 60 minutes
+        );
+    } else if (module === Modules.WARP) {
+        if (!warpRouteId) {
+            throw new Error("Warp route ID is required for WARP module");
+        }
+        const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+            getAddresses(envConfig.environment, Modules.PROXY_FACTORY),
+            multiProvider,
+        );
+        config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
+        deployer = new HypERC20Deployer(
+            multiProvider,
+            ismFactory,
+            contractVerifier,
+            concurrentDeploy,
+        );
+    } else if (module === Modules.INTERCHAIN_GAS_PAYMASTER) {
+        config = envConfig.igp;
+        deployer = new HyperlaneIgpDeployer(
+            multiProvider,
+            contractVerifier,
+            concurrentDeploy,
+        );
+    } else if (module === Modules.INTERCHAIN_ACCOUNTS) {
+        const {core} = await getHyperlaneCore(environment, multiProvider);
+        config = objMap(
+            core.getRouterConfig(envConfig.owners) as ChainMap<RouterConfig>,
+            (_, routerConfig): InterchainAccountConfig => {
+                return {
+                    ...routerConfig,
+                    commitmentIsm: {
+                        type: IsmType.OFFCHAIN_LOOKUP,
+                        owner: routerConfig.owner,
+                        ownerOverrides: routerConfig.ownerOverrides,
+                        urls: DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS,
+                    },
+                };
+            },
+        );
+        deployer = new InterchainAccountDeployer(
+            multiProvider,
+            contractVerifier,
+            concurrentDeploy,
+        );
+        const addresses = getAddresses(
+            environment,
+            Modules.INTERCHAIN_ACCOUNTS,
+        );
+        InterchainAccount.fromAddressesMap(addresses, multiProvider);
+    } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
+        const {core} = await getHyperlaneCore(environment, multiProvider);
+        config = core.getRouterConfig(envConfig.owners);
+        deployer = new InterchainQueryDeployer(
+            multiProvider,
+            contractVerifier,
+            concurrentDeploy,
+        );
+    } else if (module === Modules.TEST_RECIPIENT) {
+        const addresses = getAddresses(environment, Modules.CORE);
+
+        for (const chain of Object.keys(addresses)) {
+            config[chain] = {
+                interchainSecurityModule:
+                    addresses[chain].interchainSecurityModule ?? zeroAddress, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
+            };
+        }
+        deployer = new TestRecipientDeployer(
+            multiProvider,
+            contractVerifier,
+            concurrentDeploy,
+        );
+    } else if (module === Modules.TEST_QUERY_SENDER) {
+        // Get query router addresses
+        const queryAddresses = getAddresses(
+            environment,
+            Modules.INTERCHAIN_QUERY_SYSTEM,
+        );
+        config = objMap(queryAddresses, (_c, conf) => ({
+            queryRouterAddress: conf.router,
+        }));
+        deployer = new TestQuerySenderDeployer(
+            multiProvider,
+            contractVerifier,
+            concurrentDeploy,
+        );
+    } else if (module === Modules.HOOK) {
+        const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+            getAddresses(environment, Modules.PROXY_FACTORY),
+            multiProvider,
+        );
+        deployer = new HyperlaneHookDeployer(
+            multiProvider,
+            getEnvAddresses(environment),
+            ismFactory,
+            contractVerifier,
+            concurrentDeploy,
+        );
+        // Config is intended to be changed for ad-hoc use cases:
+        config = {
+            ethereum: coreConfig.ethereum.defaultHook,
         };
-      },
-    );
-    deployer = new InterchainAccountDeployer(
-      multiProvider,
-      contractVerifier,
-      concurrentDeploy,
-    );
-    const addresses = getAddresses(environment, Modules.INTERCHAIN_ACCOUNTS);
-    InterchainAccount.fromAddressesMap(addresses, multiProvider);
-  } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
-    const { core } = await getHyperlaneCore(environment, multiProvider);
-    config = core.getRouterConfig(envConfig.owners);
-    deployer = new InterchainQueryDeployer(
-      multiProvider,
-      contractVerifier,
-      concurrentDeploy,
-    );
-  } else if (module === Modules.TEST_RECIPIENT) {
-    const addresses = getAddresses(environment, Modules.CORE);
-
-    for (const chain of Object.keys(addresses)) {
-      config[chain] = {
-        interchainSecurityModule:
-          addresses[chain].interchainSecurityModule ??
-          ethers.constants.AddressZero, // ISM is required for the TestRecipientDeployer but onchain if the ISM is zero address, then it uses the mailbox's defaultISM
-      };
+    } else if (module === Modules.CCIP) {
+        if (environment !== "mainnet3") {
+            throw new Error("CCIP is only supported on mainnet3");
+        }
+        config = Object.fromEntries(
+            filteredTargetNetworks.map((origin) => [
+                origin,
+                new Set(
+                    filteredTargetNetworks.filter((chain) => chain !== origin),
+                ),
+            ]),
+        );
+        deployer = new HyperlaneCCIPDeployer(
+            multiProvider,
+            getEnvAddresses(environment),
+            contractVerifier,
+        );
+    } else {
+        console.log(`Skipping ${module}, deployer unimplemented`);
+        return;
     }
-    deployer = new TestRecipientDeployer(
-      multiProvider,
-      contractVerifier,
-      concurrentDeploy,
-    );
-  } else if (module === Modules.TEST_QUERY_SENDER) {
-    // Get query router addresses
-    const queryAddresses = getAddresses(
-      environment,
-      Modules.INTERCHAIN_QUERY_SYSTEM,
-    );
-    config = objMap(queryAddresses, (_c, conf) => ({
-      queryRouterAddress: conf.router,
-    }));
-    deployer = new TestQuerySenderDeployer(
-      multiProvider,
-      contractVerifier,
-      concurrentDeploy,
-    );
-  } else if (module === Modules.HOOK) {
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      getAddresses(environment, Modules.PROXY_FACTORY),
-      multiProvider,
-    );
-    deployer = new HyperlaneHookDeployer(
-      multiProvider,
-      getEnvAddresses(environment),
-      ismFactory,
-      contractVerifier,
-      concurrentDeploy,
-    );
-    // Config is intended to be changed for ad-hoc use cases:
-    config = {
-      ethereum: coreConfig.ethereum.defaultHook,
+
+    const modulePath = getModuleDirectory(environment, module, context);
+
+    console.log(`Deploying to ${modulePath}`);
+
+    const verification = path.join(modulePath, "verification.json");
+
+    const cache: DeployCache = {
+        verification,
+        read: environment !== "test",
+        write: !fork,
+        environment,
+        module,
     };
-  } else if (module === Modules.CCIP) {
-    if (environment !== 'mainnet3') {
-      throw new Error('CCIP is only supported on mainnet3');
-    }
-    config = Object.fromEntries(
-      filteredTargetNetworks.map((origin) => [
-        origin,
-        new Set(filteredTargetNetworks.filter((chain) => chain !== origin)),
-      ]),
-    );
-    deployer = new HyperlaneCCIPDeployer(
-      multiProvider,
-      getEnvAddresses(environment),
-      contractVerifier,
-    );
-  } else {
-    console.log(`Skipping ${module}, deployer unimplemented`);
-    return;
-  }
 
-  const modulePath = getModuleDirectory(environment, module, context);
+    // prompt for confirmation in production environments
+    if (environment !== "test" && !fork) {
+        if (writePlan) {
+            const confirmConfig =
+                chains && chains.length > 0
+                    ? objFilter(config, (chain, _): _ is unknown =>
+                          (chains ?? []).includes(chain),
+                      )
+                    : config;
 
-  console.log(`Deploying to ${modulePath}`);
+            // Have to print plan per chain because full plan is too big
+            const deploymentPlansDir = path.join(
+                modulePath,
+                "deployment-plans",
+            );
+            if (!fs.existsSync(deploymentPlansDir)) {
+                fs.mkdirSync(deploymentPlansDir, {recursive: true});
+            }
 
-  const verification = path.join(modulePath, 'verification.json');
+            Object.entries(confirmConfig).forEach(([chain, chainConfig]) => {
+                const chainDeployPlanPath = path.join(
+                    deploymentPlansDir,
+                    `${chain}.yaml`,
+                );
+                writeYaml(chainDeployPlanPath, chainConfig);
+                console.log(
+                    `Deployment Plan for ${chain} written to ${chainDeployPlanPath}`,
+                );
+            });
+        }
 
-  const cache: DeployCache = {
-    verification,
-    read: environment !== 'test',
-    write: !fork,
-    environment,
-    module,
-  };
+        const confirmChainCount =
+            chains && chains.length > 0
+                ? chains.filter((chain) => !chainsToSkip.includes(chain)).length
+                : Object.keys(config).length;
 
-  // prompt for confirmation in production environments
-  if (environment !== 'test' && !fork) {
-    if (writePlan) {
-      const confirmConfig =
-        chains && chains.length > 0
-          ? objFilter(config, (chain, _): _ is unknown =>
-              (chains ?? []).includes(chain),
-            )
-          : config;
-
-      // Have to print plan per chain because full plan is too big
-      const deploymentPlansDir = path.join(modulePath, 'deployment-plans');
-      if (!fs.existsSync(deploymentPlansDir)) {
-        fs.mkdirSync(deploymentPlansDir, { recursive: true });
-      }
-
-      Object.entries(confirmConfig).forEach(([chain, chainConfig]) => {
-        const chainDeployPlanPath = path.join(
-          deploymentPlansDir,
-          `${chain}.yaml`,
-        );
-        writeYaml(chainDeployPlanPath, chainConfig);
-        console.log(
-          `Deployment Plan for ${chain} written to ${chainDeployPlanPath}`,
-        );
-      });
+        const {value: confirmed} = await prompts({
+            type: "confirm",
+            name: "value",
+            message: `Confirm you want to deploy this ${module} configuration to ${environment}? (${confirmChainCount} chains)`,
+            initial: false,
+        });
+        if (!confirmed) {
+            process.exit(0);
+        }
     }
 
-    const confirmChainCount =
-      chains && chains.length > 0
-        ? chains.filter((chain) => !chainsToSkip.includes(chain)).length
-        : Object.keys(config).length;
+    chainsToSkip.forEach((chain) => delete config[chain]);
 
-    const { value: confirmed } = await prompts({
-      type: 'confirm',
-      name: 'value',
-      message: `Confirm you want to deploy this ${module} configuration to ${environment}? (${confirmChainCount} chains)`,
-      initial: false,
+    await deployWithArtifacts({
+        configMap: config as ChainMap<unknown>, // TODO: fix this typing
+        deployer,
+        cache,
+        // Use chains if provided, otherwise deploy to all chains
+        // If fork is provided, deploy to fork only
+        targetNetworks: filteredTargetNetworks,
+        module,
+        multiProvider,
+        concurrentDeploy,
     });
-    if (!confirmed) {
-      process.exit(0);
-    }
-  }
-
-  chainsToSkip.forEach((chain) => delete config[chain]);
-
-  await deployWithArtifacts({
-    configMap: config as ChainMap<unknown>, // TODO: fix this typing
-    deployer,
-    cache,
-    // Use chains if provided, otherwise deploy to all chains
-    // If fork is provided, deploy to fork only
-    targetNetworks: filteredTargetNetworks,
-    module,
-    multiProvider,
-    concurrentDeploy,
-  });
 }
 
 main()
-  .then()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+    .then()
+    .catch((e) => {
+        console.error(e);
+        process.exit(1);
+    });
