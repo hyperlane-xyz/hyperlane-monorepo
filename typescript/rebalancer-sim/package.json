@@ -40,8 +40,7 @@
     "pino": "catalog:",
     "pino-pretty": "catalog:",
     "viem": "catalog:",
-    "zod": "catalog:",
-    "zksync-ethers": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",
