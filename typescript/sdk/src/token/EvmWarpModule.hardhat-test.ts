@@ -213,6 +213,12 @@ describe('EvmWarpModule', async () => {
         type: TokenType.nativeScaled,
         allowedRebalancers,
       },
+      [TokenType.multiCollateral]: {
+        ...baseConfig,
+        type: TokenType.multiCollateral,
+        token: token.address,
+        allowedRebalancers,
+      },
     };
   };
 

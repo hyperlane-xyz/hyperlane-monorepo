@@ -16,6 +16,7 @@ import {
   HypNative__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
+  MultiCollateral__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   TokenBridgeCctpV1__factory,
@@ -43,6 +44,7 @@ export const hypERC20contracts = {
   [TokenType.nativeScaled]: 'HypNative',
   [TokenType.ethEverclear]: 'EverclearEthBridge',
   [TokenType.collateralEverclear]: 'EverclearTokenBridge',
+  [TokenType.multiCollateral]: 'MultiCollateral',
 } as const satisfies Record<DeployableTokenType, string>;
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -70,6 +72,7 @@ export const hypERC20factories = {
 
   [TokenType.ethEverclear]: new EverclearEthBridge__factory(),
   [TokenType.collateralEverclear]: new EverclearTokenBridge__factory(),
+  [TokenType.multiCollateral]: new MultiCollateral__factory(),
 } as const satisfies Record<HypERC20TokenType, ContractFactory>;
 export type HypERC20Factories = typeof hypERC20factories;
 

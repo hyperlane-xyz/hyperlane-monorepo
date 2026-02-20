@@ -30,6 +30,7 @@ import {
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
 } from '../token/TokenStandard.js';
+import { EvmHypMultiCollateralAdapter } from '../token/adapters/EvmMultiCollateralAdapter.js';
 import {
   EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
   EvmHypCollateralFiatAdapter,
@@ -372,6 +373,21 @@ export class WarpCore {
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
   }): Promise<Array<WarpTypedTransaction>> {
+    // Check if this is a MultiCollateral transfer
+    if (
+      destinationToken &&
+      this.isMultiCollateralTransfer(originTokenAmount.token, destinationToken)
+    ) {
+      return this.getMultiCollateralTransferTxs({
+        originTokenAmount,
+        destination,
+        sender,
+        recipient,
+        destinationToken,
+      });
+    }
+
+    // Standard warp route transfer
     const transactions: Array<WarpTypedTransaction> = [];
 
     const { token, amount } = originTokenAmount;
@@ -510,6 +526,119 @@ export class WarpCore {
   }
 
   /**
+   * Check if this is a MultiCollateral transfer.
+   * Returns true if both tokens are MultiCollateral tokens.
+   */
+  protected isMultiCollateralTransfer(
+    originToken: IToken,
+    destinationToken?: IToken,
+  ): boolean {
+    if (!destinationToken) return false;
+    return (
+      originToken.isMultiCollateralToken() &&
+      destinationToken.isMultiCollateralToken()
+    );
+  }
+
+  /**
+   * Executes a MultiCollateral transfer between different collateral routers.
+   *
+   * For cross-chain: calls transferRemoteTo with the destination router address.
+   * For same-chain: calls localTransferTo with the destination router address.
+   */
+  protected async getMultiCollateralTransferTxs({
+    originTokenAmount,
+    destination,
+    sender,
+    recipient,
+    destinationToken,
+  }: {
+    originTokenAmount: TokenAmount;
+    destination: ChainNameOrId;
+    sender: Address;
+    recipient: Address;
+    destinationToken: IToken;
+  }): Promise<Array<WarpTypedTransaction>> {
+    const transactions: Array<WarpTypedTransaction> = [];
+    const { token: originToken, amount } = originTokenAmount;
+    const destinationName = this.multiProvider.getChainName(destination);
+
+    assert(
+      originToken.collateralAddressOrDenom,
+      'Origin token missing collateralAddressOrDenom',
+    );
+    assert(
+      destinationToken.addressOrDenom,
+      'Destination token missing addressOrDenom',
+    );
+
+    const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[originToken.standard];
+
+    const adapter = originToken.getHypAdapter(
+      this.multiProvider,
+      destinationName,
+    ) as EvmHypMultiCollateralAdapter;
+
+    // Check approval
+    const isApproveRequired = await adapter.isApproveRequired(
+      sender,
+      originToken.addressOrDenom!,
+      amount,
+    );
+
+    if (isApproveRequired) {
+      const approveTxReq = await adapter.populateApproveTx({
+        weiAmountOrId: amount,
+        recipient: originToken.addressOrDenom!,
+      });
+      transactions.push({
+        category: WarpTxCategory.Approval,
+        type: providerType,
+        transaction: approveTxReq,
+      } as WarpTypedTransaction);
+    }
+
+    const isSameChain = originToken.chainName === destinationName;
+
+    if (isSameChain) {
+      // Same-chain swap via localTransferTo
+      this.logger.debug(
+        `MultiCollateral: same-chain swap ${originToken.symbol} -> ${destinationToken.symbol}`,
+      );
+      const txReq = await adapter.populateLocalTransferToTx({
+        targetRouter: destinationToken.addressOrDenom!,
+        recipient,
+        amount,
+      });
+      transactions.push({
+        category: WarpTxCategory.Transfer,
+        type: providerType,
+        transaction: txReq,
+      } as WarpTypedTransaction);
+    } else {
+      // Cross-chain transfer via transferRemoteTo
+      this.logger.debug(
+        `MultiCollateral: cross-chain ${originToken.symbol} (${originToken.chainName}) -> ${destinationToken.symbol} (${destinationName})`,
+      );
+      const destinationDomainId = this.multiProvider.getDomainId(destination);
+
+      const txReq = await adapter.populateTransferRemoteToTx({
+        destination: destinationDomainId,
+        recipient,
+        amount,
+        targetRouter: destinationToken.addressOrDenom!,
+      });
+      transactions.push({
+        category: WarpTxCategory.Transfer,
+        type: providerType,
+        transaction: txReq,
+      } as WarpTypedTransaction);
+    }
+
+    return transactions;
+  }
+
+  /**
    * Fetch local and interchain fee estimates for a remote transfer
    */
   async estimateTransferRemoteFees({
@@ -526,6 +655,18 @@ export class WarpCore {
     senderPubKey?: HexString;
   }): Promise<WarpCoreFeeEstimate> {
     this.logger.debug('Fetching remote transfer fee estimates');
+
+    const { token: originToken } = originTokenAmount;
+
+    // Handle MultiCollateral fee estimation
+    if (this.isMultiCollateralTransfer(originToken, destinationToken)) {
+      return this.estimateMultiCollateralFees({
+        originTokenAmount,
+        destination,
+        destinationToken: destinationToken!,
+        recipient,
+      });
+    }
 
     // First get interchain gas quote (aka IGP quote)
     // Start with this because it's used in the local fee estimation
@@ -550,6 +691,67 @@ export class WarpCore {
       interchainQuote: igpQuote,
       localQuote,
       tokenFeeQuote,
+    };
+  }
+
+  /**
+   * Estimate fees for a MultiCollateral transfer.
+   */
+  protected async estimateMultiCollateralFees({
+    originTokenAmount,
+    destination,
+    destinationToken,
+    recipient,
+  }: {
+    originTokenAmount: TokenAmount;
+    destination: ChainNameOrId;
+    destinationToken: IToken;
+    recipient: Address;
+  }): Promise<WarpCoreFeeEstimate> {
+    const { token: originToken } = originTokenAmount;
+    const destinationName = this.multiProvider.getChainName(destination);
+    const isSameChain = originToken.chainName === destinationName;
+
+    const originMetadata = this.multiProvider.getChainMetadata(
+      originToken.chainName,
+    );
+    const localGasToken = Token.FromChainMetadataNativeToken(originMetadata);
+
+    if (isSameChain) {
+      return {
+        interchainQuote: localGasToken.amount(0n),
+        localQuote: localGasToken.amount(0n),
+        tokenFeeQuote: undefined,
+      };
+    }
+
+    // Cross-chain: quote from contract
+    assert(
+      originToken.collateralAddressOrDenom,
+      'Origin token missing collateralAddressOrDenom',
+    );
+    assert(
+      destinationToken.addressOrDenom,
+      'Destination token missing addressOrDenom',
+    );
+
+    const adapter = originToken.getHypAdapter(
+      this.multiProvider,
+      destinationName,
+    ) as EvmHypMultiCollateralAdapter;
+
+    const destinationDomainId = this.multiProvider.getDomainId(destination);
+    const { igpQuote } = await adapter.quoteTransferRemoteToGas({
+      destination: destinationDomainId,
+      recipient,
+      amount: originTokenAmount.amount,
+      targetRouter: destinationToken.addressOrDenom!,
+    });
+
+    return {
+      interchainQuote: localGasToken.amount(igpQuote.amount),
+      localQuote: localGasToken.amount(0n),
+      tokenFeeQuote: undefined,
     };
   }
 

@@ -17,6 +17,7 @@ import {
   IWETH__factory,
   IXERC20__factory,
   MovableCollateralRouter__factory,
+  MultiCollateral__factory,
   OpL1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   Ownable__factory,
@@ -138,6 +139,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveEverclearEthTokenBridgeConfig.bind(this),
       [TokenType.collateralEverclear]:
         this.deriveEverclearCollateralTokenBridgeConfig.bind(this),
+      [TokenType.multiCollateral]:
+        this.deriveMultiCollateralTokenConfig.bind(this),
     };
 
     this.contractVerifier =
@@ -515,6 +518,21 @@ export class EvmWarpRouteReader extends EvmRouterReader {
             } catch (error) {
               this.logger.debug(
                 `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralEverclear}`,
+                error,
+              );
+            }
+
+            try {
+              const mc = MultiCollateral__factory.connect(
+                warpRouteAddress,
+                this.provider,
+              );
+              // getEnrolledRouters(uint32) is unique to MultiCollateral
+              await mc.getEnrolledRouters(0);
+              return TokenType.multiCollateral;
+            } catch (error) {
+              this.logger.debug(
+                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.multiCollateral}`,
                 error,
               );
             }
@@ -1058,6 +1076,51 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       everclearBridgeAddress,
       everclearFeeParams,
       outputAssets,
+    };
+  }
+
+  /**
+   * Derives the configuration for a MultiCollateral router.
+   */
+  private async deriveMultiCollateralTokenConfig(
+    hypTokenAddress: Address,
+  ): Promise<HypTokenConfig> {
+    const mc = MultiCollateral__factory.connect(hypTokenAddress, this.provider);
+    const tokenRouter = TokenRouter__factory.connect(
+      hypTokenAddress,
+      this.provider,
+    );
+
+    const [collateralTokenAddress, remoteDomains, localDomain] =
+      await Promise.all([
+        mc.wrappedToken(),
+        tokenRouter.domains(),
+        mc.localDomain(),
+      ]);
+
+    const erc20TokenMetadata = await this.fetchERC20Metadata(
+      collateralTokenAddress,
+    );
+
+    // Build enrolledRouters: domain → bytes32[] for all domains (remote + local)
+    const allDomains = [...remoteDomains.map(Number), localDomain];
+    const enrolledRouters: Record<string, string[]> = {};
+
+    await Promise.all(
+      allDomains.map(async (domain) => {
+        const routers = await mc.getEnrolledRouters(domain);
+        if (routers.length > 0) {
+          enrolledRouters[domain.toString()] = [...routers];
+        }
+      }),
+    );
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.multiCollateral,
+      token: collateralTokenAddress,
+      enrolledRouters:
+        Object.keys(enrolledRouters).length > 0 ? enrolledRouters : undefined,
     };
   }
 

@@ -790,6 +790,8 @@ export {
   EverclearCollateralTokenConfig,
   EverclearEthBridgeTokenConfig,
   isXERC20TokenConfig,
+  isMultiCollateralTokenConfig,
+  MultiCollateralTokenConfig,
   NativeTokenConfig,
   NativeTokenConfigSchema,
   SyntheticRebaseTokenConfig,
