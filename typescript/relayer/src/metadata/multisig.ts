@@ -110,7 +110,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       // Some validators may not have announced storage locations or may have invalid ones
       const { fulfilled, rejected } = await mapAllSettled(
         storageLocations,
-        async (locations, index) => {
+        async (locations: any, index) => {
           const latestLocation = locations.slice(-1)[0];
           if (!latestLocation) {
             throw new Error(
@@ -342,9 +342,9 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
     // Find the merkle tree insertion event for this message
     const matchingInsertion = context.dispatchTx.logs
-      .filter((log) => eqAddressEvm(log.address, merkleTree))
-      .map((log) => MerkleTreeInterface.parseLog(log))
-      .find((event) => event.args.messageId === context.message.id);
+      .filter((log: any) => eqAddressEvm(log.address, merkleTree))
+      .map((log: any) => MerkleTreeInterface.parseLog(log))
+      .find((event: any) => event.args.messageId === context.message.id);
 
     assert(
       matchingInsertion,
@@ -479,7 +479,9 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     const messageIndex = buf.readUint32BE(32);
     const signedMessageId = toHexString(buf.subarray(36, 68));
     const branchEncoded = buf.subarray(68, 1092).toString('hex');
-    const branch = chunk(branchEncoded, 32 * 2).map((v) => ensure0x(v));
+    const branch = chunk(branchEncoded, 32 * 2).map(
+      (v) => ensure0x(v) as `0x${string}`,
+    );
     const signedIndex = buf.readUint32BE(1092);
     const checkpoint = {
       root: '',
@@ -488,7 +490,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     };
     const proof: MerkleProof = {
       branch,
-      leaf: signedMessageId,
+      leaf: signedMessageId as `0x${string}`,
       index: signedIndex,
     };
     return {
@@ -550,7 +552,9 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
     const signatures: SignatureLike[] = [];
     for (let i = 0; this.signatureAt(metadata, offset, i); i++) {
-      const parsed = parseSignature(this.signatureAt(metadata, offset, i)!);
+      const parsed = parseSignature(
+        this.signatureAt(metadata, offset, i)! as `0x${string}`,
+      );
       const v =
         (parsed as any).v ??
         ((parsed as any).yParity !== undefined

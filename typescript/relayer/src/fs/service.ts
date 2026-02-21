@@ -61,7 +61,9 @@ async function main(): Promise<void> {
     version: VERSION,
   });
 
-  const signer = new LocalAccountEvmSigner(ensure0x(privateKey));
+  const signer = new LocalAccountEvmSigner(
+    ensure0x(privateKey) as `0x${string}`,
+  );
   const enableMetrics = env.PROMETHEUS_ENABLED !== 'false';
 
   logger.info(
