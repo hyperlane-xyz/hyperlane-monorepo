@@ -32,11 +32,14 @@
     "lint": "eslint -c ./eslint.config.mjs",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
-    "test": "echo \"no tests in svm-provider yet\""
+    "test": "mocha --require tsx --timeout 300000 'src/tests/**/*.e2e-test.ts'",
+    "test:ism": "mocha --require tsx --timeout 300000 'src/tests/ism.e2e-test.ts'",
+    "test:hook": "mocha --require tsx --timeout 300000 'src/tests/hook.e2e-test.ts'"
   },
   "dependencies": {
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
+    "@noble/hashes": "^1.7.1",
     "@solana-program/loader-v3": "^0.3.0",
     "@solana-program/system": "^0.12.0",
     "@solana/kit": "^6.1.0"
@@ -45,14 +48,19 @@
     "@eslint/js": "catalog:",
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "^4.3.14",
+    "@types/mocha": "^10.0.6",
     "@types/node": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
+    "chai": "^4.4.1",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
+    "mocha": "^10.4.0",
     "oxfmt": "catalog:",
+    "testcontainers": "^10.13.2",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"

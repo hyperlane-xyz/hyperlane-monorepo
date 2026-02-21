@@ -4,6 +4,8 @@ export {
   getInitIgpProgramInstruction,
   getInitIgpInstruction,
   getInitOverheadIgpInstruction,
+  getSetGasOracleConfigsInstruction,
+  getSetDestinationGasOverheadsInstruction,
   type IgpProgramInstructionData,
   type InitIgpData,
   type InitOverheadIgpData,
