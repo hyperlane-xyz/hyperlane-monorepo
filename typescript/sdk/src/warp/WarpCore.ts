@@ -544,9 +544,8 @@ export class WarpCore {
 
   /**
    * Executes a MultiCollateral transfer between different collateral routers.
-   *
-   * For cross-chain: calls transferRemoteTo with the destination router address.
-   * For same-chain: calls localTransferTo with the destination router address.
+   * Uses transferRemoteTo for both same-chain and cross-chain transfers.
+   * Same-chain: calls handle() directly on target router (atomic, no relay needed).
    */
   protected async getMultiCollateralTransferTxs({
     originTokenAmount,
@@ -600,42 +599,21 @@ export class WarpCore {
       } as WarpTypedTransaction);
     }
 
-    const isSameChain = originToken.chainName === destinationName;
+    // transferRemoteTo works for both same-chain and cross-chain.
+    // Same-chain: calls handle() directly on target router (atomic, no relay needed).
+    const destinationDomainId = this.multiProvider.getDomainId(destination);
 
-    if (isSameChain) {
-      // Same-chain swap via localTransferTo
-      this.logger.debug(
-        `MultiCollateral: same-chain swap ${originToken.symbol} -> ${destinationToken.symbol}`,
-      );
-      const txReq = await adapter.populateLocalTransferToTx({
-        targetRouter: destinationToken.addressOrDenom!,
-        recipient,
-        amount,
-      });
-      transactions.push({
-        category: WarpTxCategory.Transfer,
-        type: providerType,
-        transaction: txReq,
-      } as WarpTypedTransaction);
-    } else {
-      // Cross-chain transfer via transferRemoteTo
-      this.logger.debug(
-        `MultiCollateral: cross-chain ${originToken.symbol} (${originToken.chainName}) -> ${destinationToken.symbol} (${destinationName})`,
-      );
-      const destinationDomainId = this.multiProvider.getDomainId(destination);
-
-      const txReq = await adapter.populateTransferRemoteToTx({
-        destination: destinationDomainId,
-        recipient,
-        amount,
-        targetRouter: destinationToken.addressOrDenom!,
-      });
-      transactions.push({
-        category: WarpTxCategory.Transfer,
-        type: providerType,
-        transaction: txReq,
-      } as WarpTypedTransaction);
-    }
+    const txReq = await adapter.populateTransferRemoteToTx({
+      destination: destinationDomainId,
+      recipient,
+      amount,
+      targetRouter: destinationToken.addressOrDenom!,
+    });
+    transactions.push({
+      category: WarpTxCategory.Transfer,
+      type: providerType,
+      transaction: txReq,
+    } as WarpTypedTransaction);
 
     return transactions;
   }
@@ -714,22 +692,13 @@ export class WarpCore {
   }): Promise<WarpCoreFeeEstimate> {
     const { token: originToken } = originTokenAmount;
     const destinationName = this.multiProvider.getChainName(destination);
-    const isSameChain = originToken.chainName === destinationName;
 
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
     );
     const localGasToken = Token.FromChainMetadataNativeToken(originMetadata);
 
-    if (isSameChain) {
-      return {
-        interchainQuote: localGasToken.amount(0n),
-        localQuote: localGasToken.amount(0n),
-        tokenFeeQuote: undefined,
-      };
-    }
-
-    // Cross-chain: quote from contract
+    // Quote from contract (works for both same-chain and cross-chain)
     assert(
       originToken.collateralAddressOrDenom,
       'Origin token missing collateralAddressOrDenom',

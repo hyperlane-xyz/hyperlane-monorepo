@@ -75,6 +75,16 @@ contract MockITokenBridge is ITokenBridge {
         quotes[1] = Quote(address(token), amountOut + collateralFee);
         return quotes;
     }
+
+    function quoteTransferRemote(
+        uint32 destinationDomain,
+        bytes32 recipient,
+        uint256 amountOut,
+        bytes32 /*targetRouter*/
+    ) external view override returns (Quote[] memory) {
+        return
+            this.quoteTransferRemote(destinationDomain, recipient, amountOut);
+    }
 }
 
 contract MovableCollateralRouterTest is Test {

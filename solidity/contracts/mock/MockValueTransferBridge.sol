@@ -46,6 +46,20 @@ contract MockValueTransferBridge is Router, ITokenBridge {
         return quotes;
     }
 
+    function quoteTransferRemote(
+        uint32 _destinationDomain,
+        bytes32 _recipient,
+        uint256 _amountOut,
+        bytes32 /*_targetRouter*/
+    ) external view virtual override returns (Quote[] memory) {
+        return
+            this.quoteTransferRemote(
+                _destinationDomain,
+                _recipient,
+                _amountOut
+            );
+    }
+
     function transferRemote(
         uint32 _destinationDomain,
         bytes32 _recipient,

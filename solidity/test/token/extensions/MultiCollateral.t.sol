@@ -24,6 +24,8 @@ import {ITokenFee, Quote} from "../../../contracts/interfaces/ITokenBridge.sol";
 
 import {MultiCollateral} from "../../../contracts/token/extensions/MultiCollateral.sol";
 import {HypERC20Collateral} from "../../../contracts/token/HypERC20Collateral.sol";
+import {LinearFee} from "../../../contracts/token/fees/LinearFee.sol";
+import {RoutingFee} from "../../../contracts/token/fees/RoutingFee.sol";
 
 /// @notice Mock fee contract: fixed percentage fee (same as CollateralAdapter.t.sol).
 contract MockDepositFee is ITokenFee {
@@ -42,6 +44,15 @@ contract MockDepositFee is ITokenFee {
     ) external view override returns (Quote[] memory quotes) {
         quotes = new Quote[](1);
         quotes[0] = Quote(token, (_amount * feeBps) / 10000);
+    }
+
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes32 /*_targetRouter*/
+    ) external view override returns (Quote[] memory) {
+        return this.quoteTransferRemote(_destination, _recipient, _amount);
     }
 }
 
@@ -277,7 +288,13 @@ contract MultiCollateralTest is Test {
         uint256 aliceUSDTBefore = originUSDT.balanceOf(ALICE);
 
         vm.prank(ALICE);
-        usdcRouterA.localTransferTo(address(usdtRouterA), ALICE, amount);
+        usdcRouterA.transferRemoteTo(
+            ORIGIN,
+            ALICE.addressToBytes32(),
+            amount,
+            address(usdtRouterA).addressToBytes32()
+        );
+        // No relay needed: handle() called directly on target router
 
         assertEq(originUSDT.balanceOf(ALICE), aliceUSDTBefore + expectedUSDT);
     }
@@ -299,16 +316,21 @@ contract MultiCollateralTest is Test {
         );
     }
 
-    // ============ 5. Fees on local transfer ============
+    // ============ 5. Fees on same-chain transfer ============
 
-    function test_fees_localTransfer() public {
+    function test_fees_sameChainTransfer() public {
         uint256 amount = 10000e6;
         uint256 expectedFee = (amount * DEFAULT_FEE_BPS) / 10000;
 
         uint256 feeBalBefore = originUSDC.balanceOf(address(originUsdcFee));
 
         vm.prank(ALICE);
-        usdcRouterA.localTransferTo(address(usdtRouterA), ALICE, amount);
+        usdcRouterA.transferRemoteTo(
+            ORIGIN,
+            ALICE.addressToBytes32(),
+            amount,
+            address(usdtRouterA).addressToBytes32()
+        );
 
         assertEq(
             originUSDC.balanceOf(address(originUsdcFee)),
@@ -331,7 +353,12 @@ contract MultiCollateralTest is Test {
         uint256 before = originUSDT.balanceOf(ALICE);
 
         vm.prank(ALICE);
-        usdcRouterA.localTransferTo(address(usdtRouterA), ALICE, amount);
+        usdcRouterA.transferRemoteTo(
+            ORIGIN,
+            ALICE.addressToBytes32(),
+            amount,
+            address(usdtRouterA).addressToBytes32()
+        );
 
         assertEq(originUSDT.balanceOf(ALICE), before + expectedUSDT);
     }
@@ -349,7 +376,12 @@ contract MultiCollateralTest is Test {
         uint256 before = originUSDC.balanceOf(ALICE);
 
         vm.prank(ALICE);
-        usdtRouterA.localTransferTo(address(usdcRouterA), ALICE, amount);
+        usdtRouterA.transferRemoteTo(
+            ORIGIN,
+            ALICE.addressToBytes32(),
+            amount,
+            address(usdcRouterA).addressToBytes32()
+        );
 
         assertEq(originUSDC.balanceOf(ALICE), before + expectedUSDC);
     }
@@ -421,12 +453,17 @@ contract MultiCollateralTest is Test {
         );
     }
 
-    // ============ 8. Reject unauthorized in localTransferTo ============
+    // ============ 8. Direct-call handle security ============
 
-    function test_revert_localTransferTo_unauthorizedRouter() public {
-        vm.prank(ALICE);
-        vm.expectRevert("MC: not local router");
-        usdcRouterA.localTransferTo(UNAUTHORIZED, ALICE, 1000e6);
+    function test_revert_handle_directCall_unenrolledCaller() public {
+        // An unenrolled address tries to call handle directly → reverts
+        bytes memory tokenMsg = abi.encodePacked(
+            BOB.addressToBytes32(),
+            uint256(100e18)
+        );
+        vm.prank(UNAUTHORIZED);
+        vm.expectRevert("MC: unauthorized router");
+        usdcRouterA.handle(ORIGIN, UNAUTHORIZED.addressToBytes32(), tokenMsg);
     }
 
     // ============ 9. Reject unauthorized in transferRemoteTo ============
@@ -506,14 +543,6 @@ contract MultiCollateralTest is Test {
         emit MultiCollateral.RouterUnenrolled(DESTINATION, router);
         usdcRouterA.unenrollRouters(domains, routers);
         assertFalse(usdcRouterA.enrolledRouters(DESTINATION, router));
-    }
-
-    // ============ receiveLocalSwap unauthorized ============
-
-    function test_revert_receiveLocalSwap_unauthorized() public {
-        vm.prank(UNAUTHORIZED);
-        vm.expectRevert("MC: not local router");
-        usdcRouterA.receiveLocalSwap(1000e18, ALICE);
     }
 
     // ============ Quoting ============
@@ -688,6 +717,156 @@ contract MultiCollateralTest is Test {
         bytes32[] memory list = fresh.getEnrolledRouters(10);
         assertEq(list.length, 1);
         assertEq(list[0], r1);
+    }
+
+    // ============ Per-Router Fee Tests ============
+
+    function test_perRouterFee_differentFeesPerRouter() public {
+        // Deploy LinearFee: 5bps for USDT router, 10bps for USDC router on dest
+        // LinearFee(token, maxFee, halfAmount, owner)
+        // For 5bps: fee = amount * maxFee / (2 * halfAmount)
+        //   5bps = 0.05%, so for amount=10000e6, fee=5e6
+        //   maxFee = 10e6, halfAmount = 10000e6 → fee = 10000e6 * 10e6 / (2 * 10000e6) = 5e6 ✓
+        LinearFee linearFee5bps = new LinearFee(
+            address(originUSDC),
+            10e6, // maxFee
+            10000e6, // halfAmount
+            address(this)
+        );
+        // For 10bps: fee = amount * maxFee / (2 * halfAmount)
+        //   10bps = 0.1%, so for amount=10000e6, fee=10e6
+        //   maxFee = 20e6, halfAmount = 10000e6 → fee = 10000e6 * 20e6 / (2 * 10000e6) = 10e6 ✓
+        LinearFee linearFee10bps = new LinearFee(
+            address(originUSDC),
+            20e6, // maxFee
+            10000e6, // halfAmount
+            address(this)
+        );
+
+        // Deploy RoutingFee with per-router config
+        RoutingFee routingFee = new RoutingFee(
+            address(originUSDC),
+            address(this)
+        );
+        routingFee.setRouterFeeContract(
+            DESTINATION,
+            address(usdtRouterB).addressToBytes32(),
+            address(linearFee5bps)
+        );
+        routingFee.setRouterFeeContract(
+            DESTINATION,
+            address(usdcRouterB).addressToBytes32(),
+            address(linearFee10bps)
+        );
+
+        // Set RoutingFee as fee recipient on source router
+        usdcRouterA.setFeeRecipient(address(routingFee));
+
+        uint256 amount = 10000e6;
+
+        // Transfer to USDT router → 5bps fee
+        uint256 feeBalBefore = originUSDC.balanceOf(address(routingFee));
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            address(usdtRouterB).addressToBytes32()
+        );
+        uint256 fee5bps = originUSDC.balanceOf(address(routingFee)) -
+            feeBalBefore;
+        assertEq(fee5bps, 5e6, "5bps fee for USDT router");
+
+        // Transfer to USDC router → 10bps fee
+        feeBalBefore = originUSDC.balanceOf(address(routingFee));
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            address(usdcRouterB).addressToBytes32()
+        );
+        uint256 fee10bps = originUSDC.balanceOf(address(routingFee)) -
+            feeBalBefore;
+        assertEq(fee10bps, 10e6, "10bps fee for USDC router");
+    }
+
+    function test_perRouterFee_fallbackToDestinationFee() public {
+        // Deploy RoutingFee with per-destination fee only (no per-router)
+        LinearFee destFee = new LinearFee(
+            address(originUSDC),
+            10e6, // maxFee
+            10000e6, // halfAmount
+            address(this)
+        );
+        RoutingFee routingFee = new RoutingFee(
+            address(originUSDC),
+            address(this)
+        );
+        routingFee.setFeeContract(DESTINATION, address(destFee));
+
+        usdcRouterA.setFeeRecipient(address(routingFee));
+
+        uint256 amount = 10000e6;
+
+        // No per-router fee set → falls back to destination fee (5bps)
+        uint256 feeBalBefore = originUSDC.balanceOf(address(routingFee));
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            address(usdtRouterB).addressToBytes32()
+        );
+        uint256 charged = originUSDC.balanceOf(address(routingFee)) -
+            feeBalBefore;
+        assertEq(charged, 5e6, "fallback to destination fee");
+    }
+
+    function test_perRouterFee_quoteMatchesCharge() public {
+        // Deploy per-router fee
+        LinearFee linearFee5bps = new LinearFee(
+            address(originUSDC),
+            10e6,
+            10000e6,
+            address(this)
+        );
+        RoutingFee routingFee = new RoutingFee(
+            address(originUSDC),
+            address(this)
+        );
+        routingFee.setRouterFeeContract(
+            DESTINATION,
+            address(usdtRouterB).addressToBytes32(),
+            address(linearFee5bps)
+        );
+        usdcRouterA.setFeeRecipient(address(routingFee));
+
+        uint256 amount = 10000e6;
+        bytes32 targetRouter = address(usdtRouterB).addressToBytes32();
+
+        // Get quote
+        Quote[] memory quotes = usdcRouterA.quoteTransferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            targetRouter
+        );
+        uint256 quotedFee = quotes[1].amount - amount; // token quote includes amount + fee
+
+        // Execute transfer and measure actual fee
+        uint256 feeBalBefore = originUSDC.balanceOf(address(routingFee));
+        vm.prank(ALICE);
+        usdcRouterA.transferRemoteTo(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            amount,
+            targetRouter
+        );
+        uint256 actualFee = originUSDC.balanceOf(address(routingFee)) -
+            feeBalBefore;
+
+        assertEq(quotedFee, actualFee, "quote matches actual charge");
     }
 
     // ============ Helpers ============

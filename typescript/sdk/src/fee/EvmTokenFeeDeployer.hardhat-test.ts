@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
+import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
@@ -140,22 +141,18 @@ describe('EvmTokenFeeDeployer', () => {
     await routingFeeContract.setFeeContract(1, linearFeeContract.address);
 
     const amount = randomInt(1, 10000000000000);
-    const quote = await routingFeeContract.quoteTransferRemote(
-      1,
-      addressToBytes32(signer.address),
-      amount,
-    );
+    const quote = await routingFeeContract[
+      'quoteTransferRemote(uint32,bytes32,uint256)'
+    ](1, addressToBytes32(signer.address), amount);
 
     expect(quote.length).to.equal(1);
     expect(quote[0].amount).to.be.equal((BigInt(amount) * BPS) / 10_000n);
     expect(quote[0].token).to.equal(token.address);
 
     // If no fee contract is set, the quote should be zero
-    const quote2 = await routingFeeContract.quoteTransferRemote(
-      122222,
-      addressToBytes32(signer.address),
-      MAX_FEE,
-    );
+    const quote2 = await routingFeeContract[
+      'quoteTransferRemote(uint32,bytes32,uint256)'
+    ](122222, addressToBytes32(signer.address), MAX_FEE);
     expect(quote2.length).to.equal(0);
   });
 
@@ -189,6 +186,7 @@ describe('EvmTokenFeeDeployer', () => {
     // Read the actual address of the deployed routing fee contract
     const actualLinearFeeAddress = await routingFeeContract.feeContracts(
       multiProvider.getChainId(TestChainName.test2),
+      constants.HashZero,
     );
 
     expect(actualLinearFeeAddress).to.equal(
@@ -228,6 +226,7 @@ describe('EvmTokenFeeDeployer', () => {
 
     const actualLinearFeeAddress = await routingFeeContract.feeContracts(
       multiProvider.getChainId(TestChainName.test2),
+      constants.HashZero,
     );
     expect(actualLinearFeeAddress).to.equal(linearFeeContract.address);
     expect(await linearFeeContract.owner()).to.equal(otherSigner.address);

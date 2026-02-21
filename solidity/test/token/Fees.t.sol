@@ -390,9 +390,12 @@ contract RoutingFeeTest is BaseFeeTest {
     function test_SetFeeContract_EmitsEvent() public {
         vm.prank(OWNER);
         vm.expectEmit(true, true, false, true, address(routingFee));
-        emit RoutingFee.FeeContractSet(DEST1, address(linearFee1));
+        emit RoutingFee.FeeContractSet(DEST1, bytes32(0), address(linearFee1));
         routingFee.setFeeContract(DEST1, address(linearFee1));
-        assertEq(routingFee.feeContracts(DEST1), address(linearFee1));
+        assertEq(
+            routingFee.feeContracts(DEST1, bytes32(0)),
+            address(linearFee1)
+        );
     }
 
     function test_RevertIf_NonOwnerSetsFeeContract() public {

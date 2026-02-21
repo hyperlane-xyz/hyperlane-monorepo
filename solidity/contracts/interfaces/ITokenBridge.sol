@@ -22,6 +22,13 @@ interface ITokenFee {
         bytes32 _recipient,
         uint256 _amount
     ) external view returns (Quote[] memory quotes);
+
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes32 _targetRouter
+    ) external view returns (Quote[] memory quotes);
 }
 
 interface ITokenBridge is ITokenFee {

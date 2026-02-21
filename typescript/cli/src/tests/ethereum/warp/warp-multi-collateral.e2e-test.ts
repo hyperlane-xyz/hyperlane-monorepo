@@ -368,7 +368,7 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
       sourceToken: usdcRouter.address,
       destinationToken: usdtRouter.address,
       value: swapAmount.toString(),
-      relay: false, // No relay needed for same-chain
+      relay: false, // Same-chain: handle() called directly, no relay needed
       skipValidation: true,
     });
 

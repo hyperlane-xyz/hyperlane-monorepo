@@ -18,7 +18,9 @@ import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
-import {Quote} from "../../interfaces/ITokenBridge.sol";
+import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {IRoutingIsm} from "../../interfaces/isms/IRoutingIsm.sol";
+import {ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol";
 
 /**
  * @title MultiCollateral
@@ -29,8 +31,8 @@ import {Quote} from "../../interfaces/ITokenBridge.sol";
  * different token) that this instance trusts to send/receive transfers.
  *
  * Overrides:
- *  - handle(): accepts messages from enrolled remote routers OR enrolled routers
- *    (overrides Router.handle which only accepts enrolled routers)
+ *  - handle(): accepts messages from the mailbox (cross-chain) or directly
+ *    from enrolled routers on the same chain.
  */
 contract MultiCollateral is HypERC20Collateral {
     using TypeCasts for address;
@@ -112,20 +114,84 @@ contract MultiCollateral is HypERC20Collateral {
 
     // ============ Handle Override ============
 
-    /// @dev Accepts messages from enrolled remote routers OR enrolled routers.
-    /// Overrides Router.handle() which only accepts enrolled remote routers.
+    /// @dev Accepts messages from the mailbox (cross-chain) or directly from
+    /// enrolled routers on the same chain. Removes the onlyMailbox modifier.
     // solhint-disable-next-line hyperlane/no-virtual-override
     function handle(
         uint32 _origin,
         bytes32 _sender,
         bytes calldata _message
-    ) external payable override onlyMailbox {
-        require(
-            _isRemoteRouter(_origin, _sender) ||
-                enrolledRouters[_origin][_sender],
-            "MC: unauthorized router"
-        );
+    ) external payable override {
+        if (msg.sender == address(mailbox)) {
+            // Cross-chain via mailbox: sender must be enrolled
+            require(
+                _isRemoteRouter(_origin, _sender) ||
+                    enrolledRouters[_origin][_sender],
+                "MC: unauthorized router"
+            );
+        } else {
+            // Same-chain direct call: caller must be an enrolled router
+            require(
+                enrolledRouters[localDomain][
+                    TypeCasts.addressToBytes32(msg.sender)
+                ],
+                "MC: unauthorized router"
+            );
+        }
         _handle(_origin, _sender, _message);
+    }
+
+    // ============ Per-Router Fee Lookup ============
+
+    function _feeRecipientAndAmountForRouter(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes32 _targetRouter
+    ) internal view returns (address _feeRecipient, uint256 feeAmount) {
+        _feeRecipient = feeRecipient();
+        if (_feeRecipient == address(0)) return (_feeRecipient, 0);
+
+        Quote[] memory quotes = ITokenFee(_feeRecipient).quoteTransferRemote(
+            _destination,
+            _recipient,
+            _amount,
+            _targetRouter
+        );
+        if (quotes.length == 0) return (_feeRecipient, 0);
+
+        require(
+            quotes.length == 1 && quotes[0].token == token(),
+            "MC: fee must match token"
+        );
+        feeAmount = quotes[0].amount;
+    }
+
+    function _calculateFeesAndChargeForRouter(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _msgValue,
+        bytes32 _targetRouter
+    ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
+        (
+            address _feeRecipient,
+            uint256 feeAmount
+        ) = _feeRecipientAndAmountForRouter(
+                _destination,
+                _recipient,
+                _amount,
+                _targetRouter
+            );
+        externalFee = _externalFeeAmount(_destination, _recipient, _amount);
+        uint256 charge = _amount + feeAmount + externalFee;
+        _transferFromSender(charge);
+        if (feeAmount > 0) {
+            _transferFee(_feeRecipient, feeAmount);
+        }
+        remainingNativeValue = token() != address(0)
+            ? _msgValue
+            : _msgValue - charge;
     }
 
     // ============ Cross-chain Transfer to Specific Router ============
@@ -153,11 +219,12 @@ contract MultiCollateral is HypERC20Collateral {
             "MC: unauthorized router"
         );
 
-        (, uint256 remainingValue) = _calculateFeesAndCharge(
+        (, uint256 remainingValue) = _calculateFeesAndChargeForRouter(
             _destination,
             _recipient,
             _amount,
-            msg.value
+            msg.value,
+            _targetRouter
         );
 
         uint256 scaled = _outboundAmount(_amount);
@@ -165,60 +232,20 @@ contract MultiCollateral is HypERC20Collateral {
 
         emit SentTransferRemote(_destination, _recipient, scaled);
 
-        messageId = mailbox.dispatch{value: remainingValue}(
-            _destination,
-            _targetRouter,
-            tokenMsg,
-            _GasRouter_hookMetadata(_destination),
-            IPostDispatchHook(address(hook))
-        );
-    }
-
-    // ============ Same-chain Local Transfer ============
-
-    /**
-     * @notice Transfer tokens locally to an enrolled router on the same chain.
-     * @param _targetRouter Address of the local enrolled router.
-     * @param _recipient Final token recipient.
-     * @param _amount Amount in local token decimals (before fees).
-     */
-    function localTransferTo(
-        address _targetRouter,
-        address _recipient,
-        uint256 _amount
-    ) external {
-        require(
-            enrolledRouters[localDomain][_targetRouter.addressToBytes32()],
-            "MC: not local router"
-        );
-
-        (address feeRecip, uint256 fee) = _feeRecipientAndAmount(
-            localDomain,
-            _recipient.addressToBytes32(),
-            _amount
-        );
-
-        _transferFromSender(_amount + fee);
-        if (fee > 0) _transferFee(feeRecip, fee);
-
-        uint256 canonical = _outboundAmount(_amount);
-        MultiCollateral(_targetRouter).receiveLocalSwap(canonical, _recipient);
-    }
-
-    /**
-     * @notice Called by a local enrolled router to release collateral.
-     * @param _canonicalAmount Amount in canonical (18-decimal) representation.
-     * @param _recipient Final token recipient.
-     */
-    function receiveLocalSwap(
-        uint256 _canonicalAmount,
-        address _recipient
-    ) external {
-        require(
-            enrolledRouters[localDomain][msg.sender.addressToBytes32()],
-            "MC: not local router"
-        );
-        _transferTo(_recipient, _inboundAmount(_canonicalAmount));
+        if (_destination == localDomain) {
+            // Same-domain: call target router's handle directly
+            MultiCollateral(_targetRouter.bytes32ToAddress()).handle{
+                value: remainingValue
+            }(localDomain, TypeCasts.addressToBytes32(address(this)), tokenMsg);
+        } else {
+            messageId = mailbox.dispatch{value: remainingValue}(
+                _destination,
+                _targetRouter,
+                tokenMsg,
+                _GasRouter_hookMetadata(_destination),
+                IPostDispatchHook(address(hook))
+            );
+        }
     }
 
     // ============ Quoting ============
@@ -235,25 +262,28 @@ contract MultiCollateral is HypERC20Collateral {
     ) external view returns (Quote[] memory quotes) {
         quotes = new Quote[](3);
 
-        bytes memory tokenMsg = TokenMessage.format(
-            _recipient,
-            _outboundAmount(_amount)
-        );
-        quotes[0] = Quote({
-            token: address(0),
-            amount: mailbox.quoteDispatch(
+        // Same-domain: handle() called directly, no interchain gas
+        uint256 gasQuote = 0;
+        if (_destination != localDomain) {
+            bytes memory tokenMsg = TokenMessage.format(
+                _recipient,
+                _outboundAmount(_amount)
+            );
+            gasQuote = mailbox.quoteDispatch(
                 _destination,
                 _targetRouter,
                 tokenMsg,
                 _GasRouter_hookMetadata(_destination),
                 IPostDispatchHook(address(hook))
-            )
-        });
+            );
+        }
+        quotes[0] = Quote({token: address(0), amount: gasQuote});
 
-        (, uint256 feeAmount) = _feeRecipientAndAmount(
+        (, uint256 feeAmount) = _feeRecipientAndAmountForRouter(
             _destination,
             _recipient,
-            _amount
+            _amount,
+            _targetRouter
         );
         quotes[1] = Quote({token: token(), amount: _amount + feeAmount});
 

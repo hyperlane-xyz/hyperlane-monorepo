@@ -117,6 +117,15 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         });
     }
 
+    function quoteTransferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes32 /*_targetRouter*/
+    ) external view override returns (Quote[] memory) {
+        return this.quoteTransferRemote(_destination, _recipient, _amount);
+    }
+
     /**
      * @notice Transfers `_amount` token to `_recipient` on the `_destination` domain.
      * @dev Delegates transfer logic to `_transferFromSender` implementation.

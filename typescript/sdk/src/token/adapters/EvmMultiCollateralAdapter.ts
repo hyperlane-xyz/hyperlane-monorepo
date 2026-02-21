@@ -27,8 +27,7 @@ import {
 
 /**
  * Adapter for MultiCollateral routers.
- * Supports transferRemoteTo (cross-chain to specific router) and
- * localTransferTo (same-chain swap).
+ * Supports transferRemoteTo for both cross-chain and same-chain transfers.
  */
 export class EvmHypMultiCollateralAdapter
   extends BaseEvmAdapter
@@ -221,21 +220,6 @@ export class EvmHypMultiCollateralAdapter
       params.amount.toString(),
       targetRouterBytes32,
       { value: nativeGas },
-    );
-  }
-
-  /**
-   * Populate same-chain local transfer to an enrolled router.
-   */
-  async populateLocalTransferToTx(params: {
-    targetRouter: Address;
-    recipient: Address;
-    amount: Numberish;
-  }): Promise<PopulatedTransaction> {
-    return this.contract.populateTransaction.localTransferTo(
-      params.targetRouter,
-      params.recipient,
-      params.amount.toString(),
     );
   }
 

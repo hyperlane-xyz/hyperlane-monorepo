@@ -53,6 +53,16 @@ contract MockITokenBridgeEth is ITokenBridge {
         }
         return quotes;
     }
+
+    function quoteTransferRemote(
+        uint32 destinationDomain,
+        bytes32 recipient,
+        uint256 amountOut,
+        bytes32 /*targetRouter*/
+    ) external view override returns (Quote[] memory) {
+        return
+            this.quoteTransferRemote(destinationDomain, recipient, amountOut);
+    }
 }
 
 contract HypNativeMovableTest is Test {
