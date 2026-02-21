@@ -50,58 +50,49 @@ export class SvmHookArtifactManager {
   createReader<T extends keyof RawHookArtifactConfigs>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    switch (type) {
-      case 'merkleTreeHook':
-        return new SvmMerkleTreeHookReader(
-          this.rpc,
-          this.programAddresses.mailbox,
-        ) as unknown as ArtifactReader<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      case 'interchainGasPaymaster':
-        return new SvmIgpHookReader(
-          this.rpc,
-          this.programAddresses.igp,
-          this.salt,
-        ) as unknown as ArtifactReader<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      default:
-        throw new Error(`Unsupported hook type: ${type}`);
-    }
+    const readers: {
+      [K in keyof RawHookArtifactConfigs]: () => ArtifactReader<
+        RawHookArtifactConfigs[K],
+        DeployedHookAddress
+      >;
+    } = {
+      merkleTreeHook: () =>
+        new SvmMerkleTreeHookReader(this.rpc, this.programAddresses.mailbox),
+      interchainGasPaymaster: () =>
+        new SvmIgpHookReader(this.rpc, this.programAddresses.igp, this.salt),
+    };
+    const factory = readers[type];
+    if (!factory) throw new Error(`Unsupported hook type: ${type}`);
+    return factory();
   }
 
   createWriter<T extends keyof RawHookArtifactConfigs>(
     type: T,
     signer: SvmSigner,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    // FIXME see typescript/cosmos-sdk/src/hook/hook-artifact-manager.ts (createWriterWithQuery)
-    // for a pattern to avoid `as unknown as ArtifactWriter`
-    switch (type) {
-      case 'merkleTreeHook':
-        return new SvmMerkleTreeHookWriter(
+    const writers: {
+      [K in keyof RawHookArtifactConfigs]: () => ArtifactWriter<
+        RawHookArtifactConfigs[K],
+        DeployedHookAddress
+      >;
+    } = {
+      merkleTreeHook: () =>
+        new SvmMerkleTreeHookWriter(
           this.rpc,
           this.programAddresses.mailbox,
           signer,
-        ) as unknown as ArtifactWriter<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      case 'interchainGasPaymaster':
-        return new SvmIgpHookWriter(
+        ),
+      interchainGasPaymaster: () =>
+        new SvmIgpHookWriter(
           this.rpc,
           this.programAddresses.igp,
           this.salt,
           signer,
-        ) as unknown as ArtifactWriter<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      default:
-        throw new Error(`Unsupported hook type: ${type}`);
-    }
+        ),
+    };
+    const factory = writers[type];
+    if (!factory) throw new Error(`Unsupported hook type: ${type}`);
+    return factory();
   }
 
   private altVmToTypeKey(hookType: HookType): keyof RawHookArtifactConfigs {

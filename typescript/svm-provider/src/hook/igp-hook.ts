@@ -1,4 +1,10 @@
-import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
+import {
+  type Address,
+  type Rpc,
+  type SolanaRpcApi,
+  getAddressDecoder,
+  getAddressEncoder,
+} from '@solana/kit';
 import { keccak_256 } from '@noble/hashes/sha3';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -82,12 +88,12 @@ export class SvmIgpHookReader implements ArtifactReader<
       }
     }
 
-    // FIXME we keep converting addresses with Buffer.toString()
-    // our account data declares them as Uint8Array, but in Rust the type is PubKey
-    // should we use string address types in account data and updated our codecs?
-    // FIY, there is a getBase16Codec() in @solana/codec-strings
-    const owner = igp.owner ? Buffer.from(igp.owner).toString('hex') : '';
-    const beneficiary = Buffer.from(igp.beneficiary).toString('hex');
+    // Account data stores pubkeys as 32-byte Uint8Array; convert to base58
+    // Address strings for the config. Changing account codecs to decode
+    // directly to Address would be cleaner but touches all decoders.
+    const addrDecoder = getAddressDecoder();
+    const owner = igp.owner ? addrDecoder.decode(igp.owner) : '';
+    const beneficiary = addrDecoder.decode(igp.beneficiary);
 
     const { address: igpPda } = await deriveIgpAccountPda(
       this.programId,
@@ -383,31 +389,5 @@ export class SvmIgpHookWriter
 }
 
 function addressToBytes32(address: Address): Uint8Array {
-  // Solana addresses are 32-byte base58 - decode to bytes
-  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-  const BASE = 58;
-  const bytes: number[] = [0];
-  for (let i = 0; i < address.length; i++) {
-    const value = ALPHABET.indexOf(address[i]);
-    if (value === -1)
-      throw new Error(`Invalid base58 character: ${address[i]}`);
-    let carry = value;
-    for (let j = 0; j < bytes.length; j++) {
-      carry += bytes[j] * BASE;
-      bytes[j] = carry & 0xff;
-      carry >>= 8;
-    }
-    while (carry > 0) {
-      bytes.push(carry & 0xff);
-      carry >>= 8;
-    }
-  }
-  for (let i = 0; i < address.length && address[i] === '1'; i++) {
-    bytes.push(0);
-  }
-  const decoded = new Uint8Array(bytes.reverse());
-  // Pad to 32 bytes
-  const result = new Uint8Array(32);
-  result.set(decoded, 32 - decoded.length);
-  return result;
+  return new Uint8Array(getAddressEncoder().encode(address));
 }
