@@ -175,6 +175,7 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypVSXERC20Lockbox,
   TokenStandard.AleoHypNative,
   TokenStandard.AleoHypCollateral,
+  TokenStandard.EvmHypMultiCollateral,
 ];
 
 export const XERC20_STANDARDS = [

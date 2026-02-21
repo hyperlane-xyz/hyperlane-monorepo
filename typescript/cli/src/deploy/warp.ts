@@ -268,7 +268,12 @@ export async function runWarpRouteDeploy({
     warpRouteIdOptions = addWarpRouteOptions;
   }
 
-  await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteIdOptions);
+  await writeDeploymentArtifacts(
+    warpCoreConfig,
+    context,
+    warpRouteIdOptions,
+    warpDeployConfig,
+  );
 
   await completeDeploy(
     context,
@@ -327,9 +332,18 @@ async function writeDeploymentArtifacts(
   warpCoreConfig: WarpCoreConfig,
   context: WriteCommandContext,
   addWarpRouteOptions?: AddWarpRouteConfigOptions,
+  warpDeployConfig?: WarpRouteDeployConfigMailboxRequired,
 ) {
   log('Writing deployment artifacts...');
   await context.registry.addWarpRoute(warpCoreConfig, addWarpRouteOptions);
+
+  // Save deploy config so `warp combine` can read it later
+  if (warpDeployConfig && addWarpRouteOptions) {
+    await context.registry.addWarpRouteConfig(
+      warpDeployConfig,
+      addWarpRouteOptions,
+    );
+  }
 
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
@@ -1329,7 +1343,10 @@ export async function runWarpRouteCombine({
   // 4. Write merged WarpCoreConfig
   const mergedId =
     outputWarpRouteId ??
-    `MULTI/${routes.map((r) => r.id.replace(/\//g, '-')).join('+')}`;
+    `MULTI/${routes
+      .map((r) => r.id.replace(/\//g, '-'))
+      .join('-and-')
+      .toLowerCase()}`;
   await context.registry.addWarpRoute(mergedConfig, { warpRouteId: mergedId });
 
   logGreen(`✅ Combined ${routes.length} routes into "${mergedId}"`);

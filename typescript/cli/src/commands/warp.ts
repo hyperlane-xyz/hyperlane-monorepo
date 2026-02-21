@@ -418,10 +418,17 @@ const send: CommandModuleWithWriteContext<
       `Chain(s) ${[...unsupportedChains].join(', ')} are not part of the warp route.`,
     );
 
-    chains =
-      chains.length === 0
-        ? [...supportedChains]
-        : [...intersection(new Set(chains), supportedChains)];
+    // When origin & destination are explicitly provided, preserve duplicates
+    // for same-chain transfers (e.g., origin=anvil2, destination=anvil2).
+    // Only deduplicate when using --chains or auto-selecting from config.
+    if (origin && destination) {
+      chains = [origin, destination];
+    } else {
+      chains =
+        chains.length === 0
+          ? [...supportedChains]
+          : [...intersection(new Set(chains), supportedChains)];
+    }
 
     if (roundTrip) {
       // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])

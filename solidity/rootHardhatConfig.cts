@@ -4,11 +4,26 @@
  */
 export const rootHardhatConfig = {
   solidity: {
-    version: '0.8.22',
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 999_999,
+    compilers: [
+      {
+        version: '0.8.22',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 999_999,
+          },
+        },
+      },
+    ],
+    overrides: {
+      'contracts/token/extensions/MultiCollateral.sol': {
+        version: '0.8.22',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
       },
     },
   },
