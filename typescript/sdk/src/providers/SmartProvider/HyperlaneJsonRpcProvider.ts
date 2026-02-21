@@ -44,9 +44,18 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
     }
     switch (method as ProviderMethod) {
       case ProviderMethod.Call:
-        return ['eth_call', [params.transaction, params.blockTag ?? 'latest']];
+        return [
+          'eth_call',
+          [
+            normalizeRpcTransaction(params.transaction),
+            params.blockTag ?? 'latest',
+          ],
+        ];
       case ProviderMethod.EstimateGas:
-        return ['eth_estimateGas', [params.transaction]];
+        return [
+          'eth_estimateGas',
+          [normalizeRpcTransaction(params.transaction)],
+        ];
       case ProviderMethod.GetBalance:
         return [
           'eth_getBalance',
@@ -99,7 +108,7 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
         'Content-Type': 'application/json',
         ...this.connection?.headers,
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify(sanitizeJsonRpcValue(requestBody)),
     });
     const json = (await response.json()) as {
       result?: unknown;
@@ -296,4 +305,73 @@ function parseBlockNumber(value: unknown): number {
     return Number(value);
   }
   return 0;
+}
+
+function normalizeRpcTransaction(
+  transaction: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  if (!transaction) return {};
+  const request = { ...transaction };
+  const gas = request.gas ?? request.gasLimit;
+  const normalized: Record<string, unknown> = {
+    ...request,
+    chainId: toRpcQuantity(request.chainId),
+    gas: toRpcQuantity(gas),
+    gasPrice: toRpcQuantity(request.gasPrice),
+    maxFeePerGas: toRpcQuantity(request.maxFeePerGas),
+    maxPriorityFeePerGas: toRpcQuantity(request.maxPriorityFeePerGas),
+    nonce: toRpcQuantity(request.nonce),
+    type: toRpcQuantity(request.type),
+    value: toRpcQuantity(request.value),
+  };
+  delete normalized.gasLimit;
+
+  for (const [key, value] of Object.entries(normalized)) {
+    if (value === undefined || value === null) delete normalized[key];
+  }
+
+  return sanitizeJsonRpcValue(normalized) as Record<string, unknown>;
+}
+
+function toRpcQuantity(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') {
+    if (value.startsWith('0x')) return value;
+    return toHex(BigInt(value));
+  }
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    return toHex(BigInt(value));
+  }
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof value.toString === 'function'
+  ) {
+    return toHex(BigInt(value.toString()));
+  }
+  return undefined;
+}
+
+function sanitizeJsonRpcValue(value: unknown): unknown {
+  if (typeof value === 'bigint') return toHex(value);
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toBigInt' in value &&
+    typeof (value as { toBigInt?: unknown }).toBigInt === 'function'
+  ) {
+    return toHex((value as { toBigInt: () => bigint }).toBigInt());
+  }
+  if (Array.isArray(value))
+    return value.map((item) => sanitizeJsonRpcValue(item));
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        sanitizeJsonRpcValue(item),
+      ]),
+    );
+  }
+  return value;
 }
