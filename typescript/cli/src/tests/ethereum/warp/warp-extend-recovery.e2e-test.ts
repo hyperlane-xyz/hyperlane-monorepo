@@ -67,7 +67,6 @@ describe('hyperlane warp apply recovery extension tests', async function () {
 
     // Initial setup with chain3 using extendWarpConfig
     await extendWarpConfig({
-      chain: CHAIN_NAME_2,
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: {
         decimals: 18,
@@ -117,7 +116,6 @@ describe('hyperlane warp apply recovery extension tests', async function () {
 
     // Re-extend to fix the configuration
     await extendWarpConfig({
-      chain: CHAIN_NAME_2,
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: {
         decimals: 18,
@@ -180,7 +178,6 @@ describe('hyperlane warp apply recovery extension tests', async function () {
 
     // Complete the extension
     await extendWarpConfig({
-      chain: CHAIN_NAME_2,
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: configToExtend,
       warpCorePath: combinedWarpCorePath,
@@ -254,7 +251,6 @@ describe('hyperlane warp apply recovery extension tests', async function () {
 
     // Complete the extension
     await extendWarpConfig({
-      chain: CHAIN_NAME_2,
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: configToExtend,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
@@ -323,7 +319,6 @@ describe('hyperlane warp apply recovery extension tests', async function () {
 
     // Complete the extension with custom gas value
     await extendWarpConfig({
-      chain: CHAIN_NAME_2,
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: configToExtend,
       warpCorePath: combinedWarpCorePath,
