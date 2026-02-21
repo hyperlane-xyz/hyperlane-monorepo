@@ -29,20 +29,23 @@ export abstract class GasRouterDeployer<
     this.logger.debug(`Setting enrolled router destination gas...`);
     for (const [chain, contracts] of Object.entries(contractsMap)) {
       const remoteDomains = await this.router(contracts).domains();
-      const remoteChains = remoteDomains.map((domain) =>
+      const remoteChains = remoteDomains.map((domain: any) =>
         this.multiProvider.getChainName(domain),
       );
       const currentConfigs = await Promise.all(
-        remoteDomains.map((domain) =>
+        remoteDomains.map((domain: any) =>
           this.router(contracts).destinationGas(domain),
         ),
       );
       const remoteConfigs = remoteDomains
-        .map((domain, i) => ({
+        .map((domain: any, i: number) => ({
           domain,
           gas: configMap[remoteChains[i]]?.gas ?? DEFAULT_GAS_OVERHEAD,
         }))
-        .filter(({ gas }, index) => !currentConfigs[index].eq(gas));
+        .filter(
+          ({ gas }: any, index: number) =>
+            BigInt(currentConfigs[index]?.toString?.() ?? 0) !== BigInt(gas),
+        );
       if (remoteConfigs.length == 0) {
         continue;
       }

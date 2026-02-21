@@ -181,13 +181,17 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       case IsmType.FALLBACK_ROUTING:
       case IsmType.ROUTING:
         config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, ism) => this.deriveIsmConfig(ism)),
+          objMap(config.domains, async (_, ism: any) =>
+            this.deriveIsmConfig(ism as any),
+          ),
         );
         break;
       case IsmType.AGGREGATION:
       case IsmType.STORAGE_AGGREGATION:
         config.modules = await Promise.all(
-          config.modules.map(async (ism) => this.deriveIsmConfig(ism)),
+          config.modules.map(async (ism: any) =>
+            this.deriveIsmConfig(ism as any),
+          ),
         );
         break;
       case IsmType.AMOUNT_ROUTING:
@@ -435,7 +439,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const ismConfigs = await concurrentMap(
       this.concurrency,
       modules,
-      async (module) => this.deriveIsmConfig(module),
+      async (module: any) => this.deriveIsmConfig(module as any),
     );
 
     // If it's a zkSync chain, it must be a StorageAggregationIsm

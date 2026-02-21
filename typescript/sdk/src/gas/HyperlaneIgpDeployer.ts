@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { formatEther } from 'viem';
 
 import {
   InterchainGasPaymaster,
@@ -56,7 +56,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       [await this.multiProvider.getSignerAddress(chain), config.beneficiary],
     );
 
-    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+    const gasParamsToSet: any[] = [];
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
       // TODO: add back support for non-EVM remotes.
       // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
@@ -68,10 +68,11 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         continue;
       }
 
-      const currentGasConfig = await igp.destinationGasConfigs(remoteId);
+      const currentGasConfig: any = await igp.destinationGasConfigs(remoteId);
       if (
         !eqAddress(currentGasConfig.gasOracle, storageGasOracle.address) ||
-        !currentGasConfig.gasOverhead.eq(newGasOverhead)
+        BigInt(currentGasConfig.gasOverhead?.toString?.() ?? 0) !==
+          BigInt(newGasOverhead)
       ) {
         this.logger.debug(
           `Setting gas params for ${chain} -> ${remote}: gasOverhead = ${newGasOverhead} gasOracle = ${storageGasOracle.address}`,
@@ -115,7 +116,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
     }
 
     this.logger.info(`Configuring gas oracle from ${chain}...`);
-    const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
+    const configsToSet: any[] = [];
 
     // For each remote, check if the gas oracle has the correct data
     for (const [remote, desired] of Object.entries(config.oracleConfig)) {
@@ -129,13 +130,14 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         continue;
       }
 
-      const actual = await gasOracle.remoteGasData(remoteDomain);
+      const actual: any = await gasOracle.remoteGasData(remoteDomain);
 
       const desiredData = oracleConfigToOracleData(desired);
 
       if (
-        !actual.gasPrice.eq(desired.gasPrice) ||
-        !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
+        BigInt(actual.gasPrice?.toString?.() ?? 0) !== desiredData.gasPrice ||
+        BigInt(actual.tokenExchangeRate?.toString?.() ?? 0) !==
+          desiredData.tokenExchangeRate
       ) {
         this.logger.info(
           `${chain} -> ${remote}: ${serializeDifference(
@@ -151,12 +153,13 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       }
 
       const exampleRemoteGas = (config.overhead[remote] ?? 200_000) + 50_000;
-      const exampleRemoteGasCost = desiredData.tokenExchangeRate
-        .mul(desiredData.gasPrice)
-        .mul(exampleRemoteGas)
-        .div(TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM);
+      const exampleRemoteGasCost =
+        (desiredData.tokenExchangeRate *
+          desiredData.gasPrice *
+          BigInt(exampleRemoteGas)) /
+        TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM;
       this.logger.info(
-        `${chain} -> ${remote}: ${exampleRemoteGas} remote gas cost: ${ethers.utils.formatEther(
+        `${chain} -> ${remote}: ${exampleRemoteGas} remote gas cost: ${formatEther(
           exampleRemoteGasCost,
         )}`,
       );

@@ -294,9 +294,9 @@ export class AgentGCPKey extends CloudAgentKey {
       await this.fetch();
     }
 
-    return new LocalAccountEvmSigner(ensure0x(this.privateKey)).connect(
-      provider as any,
-    );
+    return new LocalAccountEvmSigner(
+      ensure0x(this.privateKey) as `0x${string}`,
+    ).connect(provider as any);
   }
 
   private requireFetched() {

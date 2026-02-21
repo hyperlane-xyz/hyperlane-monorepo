@@ -107,22 +107,22 @@ export class M0PortalLiteTokenAdapter
     );
 
     // Use PortalLite's built-in gas estimation
-    const result = await this.getProvider().call({
-      to: this.portalAddress,
+    const result = await (this.getProvider() as any).call({
+      to: this.portalAddress as `0x${string}`,
       data: encodeFunctionData({
         abi: PORTAL_LITE_ABI,
         functionName: 'quoteTransfer',
         args: [
           1n, // Amount doesn't affect gas quote
           BigInt(destinationChainId),
-          sender || zeroAddress, // Recipient doesn't affect quote
+          (sender || zeroAddress) as `0x${string}`, // Recipient doesn't affect quote
         ],
-      }),
+      }) as `0x${string}`,
     });
     const gasQuote = decodeFunctionResult({
       abi: PORTAL_LITE_ABI,
       functionName: 'quoteTransfer',
-      data: result,
+      data: result as `0x${string}`,
     });
 
     return {
@@ -153,20 +153,20 @@ export class M0PortalLiteTokenAdapter
     // Use Portal's transferMLikeToken function to support wrapped tokens like mUSD
     // Both source and destination use the same token address (mUSD on both chains)
     return {
-      to: this.portalAddress,
+      to: this.portalAddress as `0x${string}`,
       data: encodeFunctionData({
         abi: PORTAL_LITE_ABI,
         functionName: 'transferMLikeToken',
         args: [
           BigInt(params.weiAmountOrId.toString()),
-          this.addresses.token, // source token
+          this.addresses.token as `0x${string}`, // source token
           BigInt(destinationChainId),
-          this.addresses.token, // destination token (same address on both chains for mUSD)
-          params.recipient,
-          params.fromAccountOwner || zeroAddress, // refundAddress
+          this.addresses.token as `0x${string}`, // destination token (same address on both chains for mUSD)
+          params.recipient as `0x${string}`,
+          (params.fromAccountOwner || zeroAddress) as `0x${string}`, // refundAddress
         ],
       }),
       value: gasQuote,
-    } as PopulatedTransaction;
+    } as any as PopulatedTransaction;
   }
 }

@@ -171,7 +171,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
           ) {
             const newProvider = new HyperlaneEtherscanProvider(
               explorerConfig,
-              network,
+              network as any,
             );
             newProvider.supportedMethods.forEach((m) =>
               supportedMethods.add(m),
@@ -200,7 +200,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
         };
         const newProvider = new HyperlaneJsonRpcProvider(
           configWithRedactedHeaders,
-          network,
+          network as any,
           undefined,
           connection,
         );

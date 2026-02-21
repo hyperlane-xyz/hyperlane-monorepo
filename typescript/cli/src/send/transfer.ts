@@ -14,6 +14,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  assert,
   parseWarpRouteMessage,
   timeout,
 } from '@hyperlane-xyz/utils';
@@ -126,8 +127,13 @@ async function executeDelivery({
 
   const recipientAddress = await recipientSigner.getAddress();
   const signerAddress = await signer.getAddress();
-
-  recipient ||= recipientAddress;
+  assert(
+    recipientAddress,
+    `Missing recipient signer address for ${destination}`,
+  );
+  assert(signerAddress, `Missing signer address for ${origin}`);
+  const normalizedRecipient = (recipient ?? recipientAddress) as string;
+  const normalizedSignerAddress = signerAddress as string;
 
   const chainAddresses = await registry.getAddresses();
 
@@ -155,8 +161,8 @@ async function executeDelivery({
     const errors = await warpCore.validateTransfer({
       originTokenAmount: token.amount(amount),
       destination,
-      recipient,
-      sender: signerAddress,
+      recipient: normalizedRecipient,
+      sender: normalizedSignerAddress,
     });
     if (errors) {
       logRed('Error validating transfer', JSON.stringify(errors));
@@ -168,8 +174,8 @@ async function executeDelivery({
   const transferTxs = await warpCore.getTransferRemoteTxs({
     originTokenAmount: new TokenAmount(amount, token),
     destination,
-    sender: signerAddress,
-    recipient,
+    sender: normalizedSignerAddress,
+    recipient: normalizedRecipient,
   });
 
   const txReceipts = [];
@@ -188,7 +194,7 @@ async function executeDelivery({
   const parsed = parseWarpRouteMessage(message.parsed.body);
 
   logBlue(
-    `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
+    `Sent transfer from sender (${normalizedSignerAddress}) on ${origin} to recipient (${normalizedRecipient}) on ${destination}.`,
   );
   logBlue(`Message ID: ${message.id}`);
   logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);

@@ -3,7 +3,7 @@ import { formatEther, parseEther } from 'viem';
 import YAML from 'yaml';
 import { fromZodError } from 'zod-validation-error';
 
-import { KeyFunderConfigSchema } from '@hyperlane-xyz/keyfunder';
+import { ContextFunderConfigSchema } from '@hyperlane-xyz/keyfunder';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 
 import { Contexts } from '../../config/contexts.js';
@@ -174,7 +174,7 @@ export class KeyFunderHelmManager extends HelmManager {
       chainsToSkip: this.config.chainsToSkip,
     };
 
-    const validationResult = KeyFunderConfigSchema.safeParse(config);
+    const validationResult = ContextFunderConfigSchema.safeParse(config);
     if (!validationResult.success) {
       throw new Error(
         `Invalid keyfunder config: ${fromZodError(validationResult.error).message}`,

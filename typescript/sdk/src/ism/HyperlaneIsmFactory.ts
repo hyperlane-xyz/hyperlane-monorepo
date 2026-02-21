@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -16,9 +15,6 @@ import {
   IMultisigIsm,
   IMultisigIsm__factory,
   IRoutingIsm,
-  IStaticWeightedMultisigIsm,
-  IncrementalDomainRoutingIsm,
-  IncrementalDomainRoutingIsm__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
@@ -82,6 +78,12 @@ const ismFactories = {
   [IsmType.OP_STACK]: new OPStackIsm__factory(),
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
   [IsmType.CCIP]: new CCIPIsm__factory(),
+};
+
+type TxReceipt = Awaited<ReturnType<MultiProvider['handleTx']>>;
+type ParsedLogDescription = {
+  name: string;
+  args: Record<string, unknown>;
 };
 
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
@@ -191,7 +193,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         break;
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
-      case IsmType.INCREMENTAL_ROUTING:
       case IsmType.AMOUNT_ROUTING:
         contract = await this.deployRoutingIsm({
           destination,
@@ -451,15 +452,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }): Promise<IRoutingIsm> {
     const { destination, config, mailbox, existingIsmAddress, logger } = params;
     const overrides = this.multiProvider.getTransactionOverrides(destination);
-    const contracts = this.getContracts(destination);
     const domainRoutingIsmFactory =
-      config.type === IsmType.INCREMENTAL_ROUTING
-        ? contracts.incrementalDomainRoutingIsmFactory
-        : contracts.domainRoutingIsmFactory;
-    let routingIsm:
-      | DomainRoutingIsm
-      | IncrementalDomainRoutingIsm
-      | DefaultFallbackRoutingIsm;
+      this.getContracts(destination).domainRoutingIsmFactory;
+    let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
     // filtering out domains which are not part of the multiprovider
     config.domains = objFilter(config.domains, (domain, _): _ is IsmConfig => {
       const domainId = this.multiProvider.tryGetDomainId(domain);
@@ -551,7 +546,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         isms[origin] = ism.address;
       }
       const submoduleAddresses = Object.values(isms);
-      let receipt: ethers.providers.TransactionReceipt;
+      let receipt: TxReceipt;
       if (config.type === IsmType.FALLBACK_ROUTING) {
         // deploying new fallback routing ISM
         if (!mailbox) {
@@ -590,14 +585,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             this.deployer,
             'HyperlaneDeployer must be set to deploy routing ISM',
           );
-          const factory =
-            config.type === IsmType.INCREMENTAL_ROUTING
-              ? new IncrementalDomainRoutingIsm__factory()
-              : new DomainRoutingIsm__factory();
           const routingIsm = await this.deployer?.deployContractFromFactory(
             destination,
-            factory,
-            config.type,
+            new DomainRoutingIsm__factory(),
+            IsmType.ROUTING,
             [],
           );
           await routingIsm['initialize(address,uint32[],address[])'](
@@ -631,7 +622,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
         // TODO: Break this out into a generalized function
         const dispatchLogs = receipt.logs
-          .map((log) => {
+          .map((log: any) => {
             try {
               return domainRoutingIsmFactory.interface.parseLog(log);
             } catch {
@@ -639,18 +630,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             }
           })
           .filter(
-            (log): log is ethers.utils.LogDescription =>
+            (log: any): log is ParsedLogDescription =>
               !!log && log.name === 'ModuleDeployed',
           );
         if (dispatchLogs.length === 0) {
           throw new Error('No ModuleDeployed event found');
         }
-        const moduleAddress = dispatchLogs[0].args['module'];
-        const factory =
-          config.type === IsmType.INCREMENTAL_ROUTING
-            ? IncrementalDomainRoutingIsm__factory
-            : DomainRoutingIsm__factory;
-        routingIsm = factory.connect(
+        const moduleAddress = String(dispatchLogs[0].args['module']);
+        routingIsm = DomainRoutingIsm__factory.connect(
           moduleAddress,
           this.multiProvider.getSigner(destination),
         );
@@ -750,7 +737,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   async deployStaticWeightedValidatorSet(
     chain: ChainName,
     factory: StaticWeightedValidatorSetFactory,
-    values: IStaticWeightedMultisigIsm.ValidatorInfoStruct[],
+    values: any[],
     thresholdWeight = 66e8,
     logger: Logger,
   ): Promise<Address> {

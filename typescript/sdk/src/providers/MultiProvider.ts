@@ -27,33 +27,14 @@ import {
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = ReturnType<typeof defaultProviderBuilder>;
-type EvmSigner = {
-  provider?: Provider;
-  connect(provider: Provider): EvmSigner;
-  estimateGas(tx: unknown): Promise<unknown>;
-  getAddress(): Promise<string>;
-  sendTransaction(tx: unknown): Promise<{
-    hash: string;
-    wait(confirmations?: number): Promise<unknown>;
-  }>;
-};
-type ContractTransaction = Awaited<ReturnType<EvmSigner['sendTransaction']>>;
-type ContractReceipt = Awaited<ReturnType<ContractTransaction['wait']>>;
+type Provider = any;
+type EvmSigner = any;
+type ContractTransaction = any;
+type ContractReceipt = any;
 type PopulatedTransaction = Record<string, unknown>;
 type TransactionOverrides = Record<string, unknown>;
-type GasAmount = Awaited<ReturnType<Provider['estimateGas']>>;
-type DeployableContract = {
-  address: string;
-  deployTransaction: ContractTransaction;
-} & Record<string, unknown>;
-type DeployableFactory = {
-  connect(signer: EvmSigner): {
-    getDeployTransaction(...params: unknown[]): unknown;
-    deploy(...params: unknown[]): Promise<DeployableContract>;
-  };
-  deploy(...params: unknown[]): Promise<DeployableContract>;
-};
+type GasAmount = any;
+type DeployableContract = any;
 
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
@@ -368,12 +349,12 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Wait for deploy tx to be confirmed
    * @throws if chain's metadata or signer has not been set or tx fails
    */
-  async handleDeploy<F extends DeployableFactory>(
+  async handleDeploy(
     chainNameOrId: ChainNameOrId,
-    factory: F,
-    params: Parameters<F['deploy']>,
+    factory: any,
+    params: any[],
     artifact?: ZKSyncArtifact,
-  ): Promise<Awaited<ReturnType<F['deploy']>>> {
+  ): Promise<any> {
     const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
     const metadata = this.getChainMetadata(chainNameOrId);
@@ -386,7 +367,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     // deploy with buffer on gas limit
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
-      const contractFactory = factory.connect(signer);
+      const contractFactory = factory.connect(signer) as any;
       const factoryDeps = await extractFactoryDepsFromArtifact(artifact);
       const { customData, ...txOverrides } = overrides;
       const deploymentOverrides = {
@@ -407,7 +388,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       });
       await this.handleTx(chainNameOrId, contract.deployTransaction);
     } else {
-      const contractFactory = factory.connect(signer);
+      const contractFactory = factory.connect(signer) as any;
       const deployTx = contractFactory.getDeployTransaction(...params);
       estimatedGas = await signer.estimateGas(deployTx);
       contract = await contractFactory.deploy(...params, {
@@ -424,7 +405,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     );
 
     // return deployed contract
-    return contract as Awaited<ReturnType<F['deploy']>>;
+    return contract;
   }
 
   /**

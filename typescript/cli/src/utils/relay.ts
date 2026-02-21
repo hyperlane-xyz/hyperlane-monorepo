@@ -23,7 +23,7 @@ type EvmTxReceiptLike = {
  * Workaround helper for bypassing bad hook derivation when self-relaying.
  */
 export function stubMerkleTreeConfig(
-  relayer: HyperlaneRelayer,
+  relayer: any,
   chain: string,
   hookAddress: string,
   merkleAddress: string,

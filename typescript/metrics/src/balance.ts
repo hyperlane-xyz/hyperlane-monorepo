@@ -201,18 +201,18 @@ export async function getXERC20Limit(
   token: Token,
   xerc20: IHypXERC20Adapter<unknown>,
 ): Promise<XERC20Limit> {
-  const [mintCurrent, mintMax, burnCurrent, burnMax] = await Promise.all([
+  const [mintCurrent, mintMax, burnCurrent, burnMax] = (await Promise.all([
     xerc20.getMintLimit(),
     xerc20.getMintMaxLimit(),
     xerc20.getBurnLimit(),
     xerc20.getBurnMaxLimit(),
-  ]);
+  ])) as bigint[];
 
   return {
-    mint: formatBigInt(token, mintCurrent),
-    mintMax: formatBigInt(token, mintMax),
-    burn: formatBigInt(token, burnCurrent),
-    burnMax: formatBigInt(token, burnMax),
+    mint: formatBigInt(token, mintCurrent ?? 0n),
+    mintMax: formatBigInt(token, mintMax ?? 0n),
+    burn: formatBigInt(token, burnCurrent ?? 0n),
+    burnMax: formatBigInt(token, burnMax ?? 0n),
   };
 }
 
@@ -269,7 +269,7 @@ export async function getExtraLockboxInfo(
     lockboxAddress,
   );
 
-  const [mintMax, burnMax, mint, burn] = await Promise.all([
+  const [mintMax, burnMax, mint, burn] = (await Promise.all([
     currentChainProvider.readContract({
       address: xERC20Address as `0x${string}`,
       abi: XERC20_VS_MINIMAL_ABI,
@@ -294,14 +294,14 @@ export async function getExtraLockboxInfo(
       functionName: 'burningCurrentLimitOf',
       args: [lockboxAddress as `0x${string}`],
     }),
-  ]);
+  ])) as bigint[];
 
   return {
     limits: {
-      burn: formatBigInt(warpToken, burn),
-      burnMax: formatBigInt(warpToken, burnMax),
-      mint: formatBigInt(warpToken, mint),
-      mintMax: formatBigInt(warpToken, mintMax),
+      burn: formatBigInt(warpToken, burn ?? 0n),
+      burnMax: formatBigInt(warpToken, burnMax ?? 0n),
+      mint: formatBigInt(warpToken, mint ?? 0n),
+      mintMax: formatBigInt(warpToken, mintMax ?? 0n),
     },
     xERC20Address,
   };
