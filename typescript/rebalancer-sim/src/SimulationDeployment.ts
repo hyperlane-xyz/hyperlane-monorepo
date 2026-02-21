@@ -75,20 +75,20 @@ export async function deployMultiDomainSimulation(
   // Create fresh provider with no caching
   const provider = HyperlaneSmartProvider.fromRpcUrl(31337, anvilRpc);
 
-  const deployer = new LocalAccountEvmSigner(ensure0x(deployerKey)).connect(
-    provider as any,
-  );
+  const deployer = new LocalAccountEvmSigner(
+    ensure0x(deployerKey) as `0x${string}`,
+  ).connect(provider as any);
   const deployerAddress = await deployer.getAddress();
   const rebalancerWallet = new LocalAccountEvmSigner(
-    ensure0x(rebalancerKey),
+    ensure0x(rebalancerKey) as `0x${string}`,
   ).connect(provider as any);
   const rebalancerAddress = await rebalancerWallet.getAddress();
   const bridgeControllerWallet = new LocalAccountEvmSigner(
-    ensure0x(bridgeControllerKey),
+    ensure0x(bridgeControllerKey) as `0x${string}`,
   ).connect(provider as any);
   const bridgeControllerAddress = await bridgeControllerWallet.getAddress();
   const mailboxProcessorWallet = new LocalAccountEvmSigner(
-    ensure0x(mailboxProcessorKey),
+    ensure0x(mailboxProcessorKey) as `0x${string}`,
   ).connect(provider as any);
   const mailboxProcessorAddress = await mailboxProcessorWallet.getAddress();
 
@@ -98,7 +98,7 @@ export async function deployMultiDomainSimulation(
     const mailbox = await new MockMailbox__factory(deployer).deploy(
       chain.domainId,
     );
-    await mailbox.deployed();
+    await mailbox.deployed?.();
     mailboxes[chain.domainId] = mailbox;
   }
 
@@ -126,7 +126,7 @@ export async function deployMultiDomainSimulation(
       totalMint,
       tokenDecimals,
     );
-    await token.deployed();
+    await token.deployed?.();
     collateralTokens[chain.domainId] = token;
   }
 
@@ -139,7 +139,7 @@ export async function deployMultiDomainSimulation(
       scale,
       mailboxes[chain.domainId].address,
     );
-    await warpToken.deployed();
+    await warpToken.deployed?.();
 
     // Initialize the warp token
     await warpToken.initialize(
@@ -179,7 +179,7 @@ export async function deployMultiDomainSimulation(
       collateralTokens[chain.domainId].address,
       mailboxes[chain.domainId].address,
     );
-    await bridge.deployed();
+    await bridge.deployed?.();
 
     // Initialize the bridge (Router requires initialization)
     await bridge.initialize(

@@ -10,8 +10,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, addBufferToGasLimit, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HelloWorld } from '../types/index.js';
-
 import { HelloWorldFactories } from './contracts.js';
 import { StatCounts } from './types.js';
 
@@ -34,8 +32,8 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     );
   }
 
-  router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {
-    return contracts.router;
+  router(contracts: HyperlaneContracts<HelloWorldFactories>): any {
+    return contracts.router as any;
   }
 
   async sendHelloWorld(

@@ -9,7 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, addBufferToGasLimit } from '@hyperlane-xyz/utils';
 
-import { HelloWorld, HelloWorld__factory } from '../types/index.js';
+import { HelloWorld__factory } from '../types/index.js';
 
 import { IHelloWorldAdapter } from './types.js';
 
@@ -75,10 +75,10 @@ export class EvmHelloWorldAdapter
     return sent.toNumber();
   }
 
-  override getConnectedContract(): HelloWorld {
+  override getConnectedContract(): any {
     return HelloWorld__factory.connect(
       this.addresses.router,
       this.getProvider(),
-    );
+    ) as any;
   }
 }
