@@ -77,8 +77,17 @@ export class CallCommitmentsService extends BaseService {
 
     logger.info({ body: req.body }, 'Received commitment creation request');
 
-    const data = this.parseCommitmentBody(req.body, res, logger);
-    if (!data) return;
+    const parsed = this.parseCommitmentBody(req.body, res, logger);
+    if (!parsed) return;
+
+    if (!parsed.commitmentDispatchTx) {
+      res.status(400).json({ error: 'commitmentDispatchTx is required' });
+      return;
+    }
+    const data = {
+      ...parsed,
+      commitmentDispatchTx: parsed.commitmentDispatchTx,
+    };
 
     const commitment = commitmentFromIcaCalls(
       normalizeCalls(data.calls),
@@ -284,6 +293,7 @@ export class CallCommitmentsService extends BaseService {
   private async upsertCommitmentInDB(
     commitment: string,
     data: PostCallsType & {
+      commitmentDispatchTx: string;
       ica: string;
       revealMessageId: string;
     },
@@ -364,7 +374,7 @@ export class CallCommitmentsService extends BaseService {
   // return the ICA address.
   // Throws if validation fails.
   private async validateCommitmentEvents(
-    data: PostCallsType,
+    data: PostCallsType & { commitmentDispatchTx: string },
     commitment: string,
     logger: Logger,
   ): Promise<{ ica: string; revealMessageId: string }> {
