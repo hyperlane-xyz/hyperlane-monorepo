@@ -1,10 +1,9 @@
-mod grpc;
+pub(crate) mod base;
+pub(crate) mod fallback;
 mod lander;
-mod prometheus;
+pub(crate) mod metric;
+pub(crate) mod traits;
 mod tron;
-
-pub(crate) use grpc::GrpcProvider;
-pub(crate) use prometheus::*;
 
 pub use lander::TronProviderForLander;
 pub use tron::TronProvider;

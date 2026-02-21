@@ -6,27 +6,15 @@ use hyperlane_core::ChainCommunicationError;
 /// in hyperlane-core using the `From` trait impl
 #[derive(Debug, thiserror::Error)]
 pub enum HyperlaneTronError {
-    /// gRPC error
-    #[error("{0}")]
-    GrpcError(#[from] Box<tonic::Status>),
-    /// Tonic error
-    #[error("{0}")]
-    Tonic(#[from] tonic::transport::Error),
-    /// Tonic codegen error
-    #[error("{0}")]
-    TonicGenError(#[from] tonic::codegen::StdError),
+    /// REST API error
+    #[error("REST API error: {0}")]
+    RestApiError(String),
     /// Missing raw data
     #[error("Missing raw data")]
     MissingRawData,
     /// Missing block header
     #[error("Missing block header")]
     MissingBlockHeader,
-    /// Missing transaction raw data in response
-    #[error("Missing transaction raw data")]
-    MissingTransactionRawData,
-    /// Protobuf encoding/decoding error
-    #[error("Protobuf error: {0}")]
-    ProtobufError(#[from] prost::EncodeError),
     /// Ethers-rs provider error
     #[error("Ethers provider error: {0}")]
     EthersProviderError(#[from] ethers::providers::ProviderError),
@@ -42,12 +30,6 @@ pub enum HyperlaneTronError {
     /// Reqwest error
     #[error("Reqwest error: {0}")]
     ReqwestError(#[from] reqwest::Error),
-}
-
-impl From<tonic::Status> for HyperlaneTronError {
-    fn from(value: tonic::Status) -> Self {
-        HyperlaneTronError::GrpcError(Box::new(value))
-    }
 }
 
 impl From<HyperlaneTronError> for ChainCommunicationError {

@@ -29,4 +29,4 @@ mod interfaces;
 /// This is an alias for `LocalWallet` from the `ethers_signers` crate
 pub type TronSigner = LocalWallet;
 
-pub(crate) use {config::*, contracts::*, error::*, provider::*, utils::*};
+pub(crate) use {config::*, contracts::*, error::*, utils::*};

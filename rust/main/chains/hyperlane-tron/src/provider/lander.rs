@@ -1,10 +1,10 @@
+use async_trait::async_trait;
 use ethers::{
     abi::{Detokenize, Function},
     providers::Middleware,
     types::{transaction::eip2718::TypedTransaction, TransactionReceipt},
 };
 use ethers_contract::decode_function_data;
-use tonic::async_trait;
 
 use hyperlane_core::{ChainCommunicationError, ChainResult, H256, H512};
 
