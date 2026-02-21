@@ -52,7 +52,7 @@ contract ArbL2ToL1Ism is
 
     constructor(address _bridge) CrossChainEnabledArbitrumL1(_bridge) {
         require(
-            Address.isContract(_bridge),
+            (_bridge.code.length > 0),
             "ArbL2ToL1Ism: invalid Arbitrum Bridge"
         );
         arbOutbox = IOutbox(IBridge(_bridge).activeOutbox());

@@ -11,6 +11,21 @@ import { ChainNameOrId } from '../../types.js';
 
 import { GetEventLogsResponse } from './types.js';
 
+function toNumber(value: unknown, field: string): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') {
+    if (value.startsWith('0x')) return Number(BigInt(value));
+    return Number(value);
+  }
+  if (typeof value === 'object' && value && 'toString' in value) {
+    const raw = value.toString();
+    if (raw.startsWith('0x')) return Number(BigInt(raw));
+    return Number(raw);
+  }
+  throw new Error(`Unable to convert ${field} to number`);
+}
+
 // calling getCode until the creation block is found
 export async function getContractCreationBlockFromRpc(
   chain: ChainNameOrId,
@@ -91,12 +106,12 @@ export async function getLogsFromRpc({
   return logs.map((rawLog): GetEventLogsResponse => {
     return {
       address: rawLog.address,
-      blockNumber: rawLog.blockNumber,
+      blockNumber: toNumber(rawLog.blockNumber, 'blockNumber'),
       data: rawLog.data,
-      logIndex: rawLog.logIndex,
+      logIndex: toNumber(rawLog.logIndex, 'logIndex'),
       topics: rawLog.topics,
       transactionHash: rawLog.transactionHash,
-      transactionIndex: rawLog.transactionIndex,
+      transactionIndex: toNumber(rawLog.transactionIndex, 'transactionIndex'),
     };
   });
 }

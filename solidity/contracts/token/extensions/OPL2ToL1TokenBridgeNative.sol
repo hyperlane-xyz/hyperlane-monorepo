@@ -38,8 +38,8 @@ contract OpL2NativeTokenBridge is TokenRouter {
     constructor(
         address _mailbox,
         address _l2Bridge
-    ) TokenRouter(SCALE, SCALE, _mailbox) {
-        require(_l2Bridge.isContract(), "L2 bridge must be a contract");
+    ) TokenRouter(SCALE, _mailbox) {
+        require((_l2Bridge.code.length > 0), "L2 bridge must be a contract");
         l2Bridge = IStandardBridge(payable(_l2Bridge));
     }
 
@@ -152,13 +152,12 @@ contract OpL2NativeTokenBridge is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev Overrides to quote for two messages: prove and finalize..
+     * @dev Overrides to quote for two messages: prove and finalize.
      */
     function _quoteGasPayment(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount,
-        address /* _feeToken */
+        uint256 _amount
     ) internal view override returns (uint256) {
         bytes memory message = TokenMessage.format(_recipient, _amount);
         uint256 proveQuote = _Router_quoteDispatch(
@@ -266,7 +265,7 @@ contract OpL1V1NativeTokenBridge is
     constructor(
         address _mailbox,
         address _opPortal
-    ) TokenRouter(SCALE, SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
+    ) TokenRouter(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
 }
 
 contract OpL1V2NativeTokenBridge is
@@ -276,5 +275,5 @@ contract OpL1V2NativeTokenBridge is
     constructor(
         address _mailbox,
         address _opPortal
-    ) TokenRouter(SCALE, SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
+    ) TokenRouter(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
 }

@@ -440,40 +440,36 @@ export class HyperlaneSmartProvider implements IProviderMethods {
     }>;
     signMessage(message: string | Uint8Array): Promise<string>;
   } {
-    const provider = this;
     const signer = {
       address,
-      provider,
-      connect(newProvider: HyperlaneSmartProvider) {
+      provider: this,
+      connect: (newProvider: HyperlaneSmartProvider) => {
         return newProvider.getSigner(address);
       },
-      async getAddress() {
+      getAddress: async () => {
         return address;
       },
-      async estimateGas(tx: Record<string, unknown>) {
-        return provider.estimateGas({ ...tx, from: address });
+      estimateGas: async (tx: Record<string, unknown>) => {
+        return this.estimateGas({ ...tx, from: address });
       },
-      async sendTransaction(tx: Record<string, unknown>) {
-        const hash = (await provider.send('eth_sendTransaction', [
+      sendTransaction: async (tx: Record<string, unknown>) => {
+        const hash = (await this.send('eth_sendTransaction', [
           normalizeRpcTx({ ...tx, from: address }),
         ])) as string;
         return {
           hash,
           wait: (confirmations = 1) =>
-            provider.waitForTransactionReceipt(hash, confirmations),
+            this.waitForTransactionReceipt(hash, confirmations),
         };
       },
-      async signMessage(message: string | Uint8Array) {
+      signMessage: async (message: string | Uint8Array) => {
         const data =
           typeof message === 'string'
             ? message.startsWith('0x')
               ? message
               : `0x${Buffer.from(message, 'utf8').toString('hex')}`
             : `0x${Buffer.from(message).toString('hex')}`;
-        return provider.send('personal_sign', [
-          data,
-          address,
-        ]) as Promise<string>;
+        return this.send('personal_sign', [data, address]) as Promise<string>;
       },
     };
     return signer;

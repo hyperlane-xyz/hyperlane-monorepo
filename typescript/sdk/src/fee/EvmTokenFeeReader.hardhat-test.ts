@@ -4,6 +4,7 @@ import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -217,8 +218,8 @@ describe('EvmTokenFeeReader', () => {
       });
 
       expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
-      expect(routingFee.owner).to.equal(signer.address);
-      expect(routingFee.token).to.equal(token.address);
+      expect(eqAddress(routingFee.owner, signer.address)).to.equal(true);
+      expect(eqAddress(routingFee.token, token.address)).to.equal(true);
       expect(
         Object.keys((routingFee as any).feeContracts ?? {}),
       ).to.have.length(0);

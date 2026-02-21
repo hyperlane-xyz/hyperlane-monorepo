@@ -3,6 +3,7 @@ import hre from 'hardhat';
 import { zeroAddress } from 'viem';
 
 import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { IcaRouterConfig } from '../ica/types.js';
@@ -64,7 +65,11 @@ describe('EvmIcaModule', async () => {
       });
 
       const actual = await evmIcaModule.read();
-      expect(actual.commitmentIsm).to.deep.contain(config.commitmentIsm);
+      expect(actual.commitmentIsm.type).to.equal(config.commitmentIsm.type);
+      expect(actual.commitmentIsm.urls).to.deep.equal(config.commitmentIsm.urls);
+      expect(
+        eqAddress(actual.commitmentIsm.owner, config.commitmentIsm.owner),
+      ).to.equal(true);
     });
   });
 });

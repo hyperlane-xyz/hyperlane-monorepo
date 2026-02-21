@@ -30,6 +30,7 @@ export default [
       // ],
       '@typescript-eslint/no-base-to-string': 'off', // FIXME: Recommended rule, fix the violations
       '@typescript-eslint/no-duplicate-type-constituents': 'off', // FIXME: Recommended rule, fix the violations
+      '@typescript-eslint/no-redundant-type-constituents': 'off', // FIXME: Recommended rule, fix the violations
       '@typescript-eslint/no-empty-object-type': 'off', // TODO: Recommended rule, fix the violations
       '@typescript-eslint/no-unnecessary-type-assertion': 'off', // TODO: Recommended rule, fix the violations
       '@typescript-eslint/only-throw-error': 'off', // FIXME: Recommended rule, fix the violations

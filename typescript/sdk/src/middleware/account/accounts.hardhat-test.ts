@@ -119,7 +119,9 @@ describe('InterchainAccounts', async () => {
     });
     const balanceAfter = await signer.getBalance();
     await coreApp.processMessages();
-    expect(balanceAfter).to.lte(balanceBefore.sub(quote));
+    const quoteValue =
+      typeof quote === 'bigint' ? quote : BigInt(quote.toString());
+    expect(balanceAfter <= balanceBefore - quoteValue).to.equal(true);
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);
     expect(await recipient.lastCaller()).to.eql(icaAddress);
   });

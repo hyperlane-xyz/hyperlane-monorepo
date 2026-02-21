@@ -91,6 +91,30 @@ const randomRemoteRouters = (n: number) => {
   return routers;
 };
 
+const toBigIntValue = (value: unknown): bigint => {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toBigInt' in value &&
+    typeof (value as { toBigInt?: unknown }).toBigInt === 'function'
+  ) {
+    return (value as { toBigInt: () => bigint }).toBigInt();
+  }
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof (value as { toString?: unknown }).toString === 'function'
+  ) {
+    return BigInt((value as { toString: () => string }).toString());
+  }
+
+  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
+};
+
 describe('EvmWarpModule', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
@@ -116,8 +140,9 @@ describe('EvmWarpModule', async () => {
   let baseConfig: RouterConfig;
 
   async function validateCoreValues(deployedToken: GasRouter) {
-    expect(await deployedToken.mailbox()).to.equal(mailbox.address);
-    expect(await deployedToken.owner()).to.equal(signer.address);
+    expect(eqAddress(await deployedToken.mailbox(), mailbox.address)).to.be
+      .true;
+    expect(eqAddress(await deployedToken.owner(), signer.address)).to.be.true;
   }
 
   async function sendTxs(txs: AnnotatedEV5Transaction[]) {
@@ -319,10 +344,11 @@ describe('EvmWarpModule', async () => {
       signer,
     );
     await validateCoreValues(collateralVaultContract);
-    expect(await collateralVaultContract.vault()).to.equal(vault.address);
-    expect(await collateralVaultContract.wrappedToken()).to.equal(
-      token.address,
-    );
+    expect(eqAddress(await collateralVaultContract.vault(), vault.address)).to
+      .be.true;
+    expect(
+      eqAddress(await collateralVaultContract.wrappedToken(), token.address),
+    ).to.be.true;
   });
 
   it('should create with a synthetic config', async () => {
@@ -358,7 +384,9 @@ describe('EvmWarpModule', async () => {
     expect(await syntheticContract.name()).to.equal(TOKEN_NAME);
     expect(await syntheticContract.symbol()).to.equal(TOKEN_NAME);
     expect(await syntheticContract.decimals()).to.equal(TOKEN_DECIMALS);
-    expect(await syntheticContract.totalSupply()).to.equal(TOKEN_SUPPLY);
+    expect(await syntheticContract.totalSupply()).to.equal(
+      BigInt(TOKEN_SUPPLY),
+    );
   });
 
   it('should create with a native config', async () => {
@@ -445,9 +473,12 @@ describe('EvmWarpModule', async () => {
         isEverclearTokenBridgeConfig(currentConfig),
         `Expected token of type ${tokenType}`,
       );
-      expect(currentConfig.everclearBridgeAddress).to.deep.equal(
-        config.everclearBridgeAddress,
-      );
+      expect(
+        eqAddress(
+          currentConfig.everclearBridgeAddress,
+          config.everclearBridgeAddress,
+        ),
+      ).to.be.true;
       expect(currentConfig.everclearFeeParams).to.deep.equal(
         config.everclearFeeParams,
       );
@@ -500,9 +531,12 @@ describe('EvmWarpModule', async () => {
         isEverclearTokenBridgeConfig(currentConfig),
         `Expected token of type ${tokenType}`,
       );
-      expect(currentConfig.everclearBridgeAddress).to.deep.equal(
-        updatedConfig.everclearBridgeAddress,
-      );
+      expect(
+        eqAddress(
+          currentConfig.everclearBridgeAddress,
+          updatedConfig.everclearBridgeAddress,
+        ),
+      ).to.be.true;
       expect(currentConfig.everclearFeeParams).to.deep.equal(
         updatedConfig.everclearFeeParams,
       );
@@ -679,7 +713,8 @@ describe('EvmWarpModule', async () => {
         derivedHookAddress(updatedConfig),
         multiProvider.getProvider(chain),
       );
-      expect(await hook.mailbox()).to.equal(expectedConfig.mailbox);
+      expect(eqAddress(await hook.mailbox(), expectedConfig.mailbox)).to.be
+        .true;
     });
 
     it("should set Proxied Hook's proxyAdmins to WarpConfig.proxyAdmin", async () => {
@@ -706,12 +741,12 @@ describe('EvmWarpModule', async () => {
 
       const updatedConfig = await evmERC20WarpModule.read();
 
-      expect(
-        await proxyAdmin(
-          multiProvider.getProvider(chain),
-          derivedHookAddress(updatedConfig),
-        ),
-      ).to.equal(expectedConfig.proxyAdmin?.address);
+      const proxyAdminAddress = await proxyAdmin(
+        multiProvider.getProvider(chain),
+        derivedHookAddress(updatedConfig),
+      );
+      expect(eqAddress(proxyAdminAddress, expectedConfig.proxyAdmin?.address))
+        .to.be.true;
     });
 
     it('should update a mutable Ism', async () => {
@@ -1205,7 +1240,7 @@ describe('EvmWarpModule', async () => {
           evmERC20WarpModule.serialize().deployedTokenRoute,
           allowedBridgeToAdd,
         );
-        expect(allowance.toBigInt() === UINT_256_MAX).to.be.true;
+        expect(toBigIntValue(allowance) === UINT_256_MAX).to.be.true;
       });
 
       it(`should remove rebalancing bridges for tokens of type "${tokenType}"`, async () => {

@@ -61,11 +61,14 @@ describe('RPC Utils', () => {
     );
 
     await testContract.deployed();
+    const deploymentReceipt = await testContract.deployTransaction.wait();
+    const deploymentBlock =
+      testContract.deployTransaction.blockNumber ?? deploymentReceipt?.blockNumber;
     assert(
-      testContract.deployTransaction.blockNumber,
+      deploymentBlock !== undefined,
       'Expected the Contract deployment block number to be defined',
     );
-    deploymentBlockNumber = testContract.deployTransaction.blockNumber;
+    deploymentBlockNumber = Number(BigInt(deploymentBlock.toString()));
   }
 
   async function mineRandomNumberOfBlocks() {

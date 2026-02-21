@@ -5,7 +5,7 @@ import hre from 'hardhat';
 import { zeroAddress } from 'viem';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -42,11 +42,11 @@ describe('EvmTimelockDeployer', async () => {
     deployer = new EvmTimelockDeployer(multiProvider);
 
     assert(
-      signer.address === signerAddress,
+      eqAddress(signer.address, signerAddress),
       'Expected signer.address to be equal signerAddress',
     );
     assert(
-      otherSigner.address === otherSignerAddress,
+      eqAddress(otherSigner.address, otherSignerAddress),
       'Expected otherSigner.address address to be equal otherSignerAddress',
     );
   });
@@ -96,7 +96,9 @@ describe('EvmTimelockDeployer', async () => {
           multiProvider.getProvider(TestChainName.test2),
         );
 
-        expect(await timelock.getMinDelay()).to.equal(config.minimumDelay);
+        expect(await timelock.getMinDelay()).to.equal(
+          BigInt(config.minimumDelay),
+        );
 
         for (const proposer of config.proposers) {
           expect(await timelock.hasRole(PROPOSER_ROLE, proposer)).to.be.true;
@@ -205,7 +207,7 @@ describe('EvmTimelockDeployer', async () => {
     );
     await executeTx.wait();
 
-    expect(await timelock.getMinDelay()).to.equal(updatedDelay);
+    expect(await timelock.getMinDelay()).to.equal(BigInt(updatedDelay));
   });
 
   describe('canceller config', () => {

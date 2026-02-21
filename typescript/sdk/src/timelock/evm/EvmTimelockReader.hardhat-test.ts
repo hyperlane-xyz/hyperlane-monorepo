@@ -75,9 +75,13 @@ describe(EvmTimelockReader.name, () => {
     );
 
     timelockAddress = TimelockController.address;
+    const deploymentReceipt = await TimelockController.deployTransaction.wait();
+    const deploymentBlock =
+      TimelockController.deployTransaction.blockNumber ??
+      deploymentReceipt?.blockNumber;
 
     assert(
-      TimelockController.deployTransaction.blockNumber,
+      deploymentBlock !== undefined,
       'Expected the Timelock deployment block number to be defined',
     );
 
@@ -223,7 +227,7 @@ describe(EvmTimelockReader.name, () => {
               normalizeAddressEvm(timelockTx.data[i].to),
             );
             assert(
-              scheduledTx.data[i].value,
+              scheduledTx.data[i].value !== undefined,
               'Expected value to be defined when reading from Timelock',
             );
             expect(scheduledTx.data[i].value?.toString()).to.equal(

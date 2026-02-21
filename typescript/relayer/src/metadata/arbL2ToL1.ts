@@ -225,7 +225,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
 
       const metadata: ArbL2ToL1Metadata = {
         ...l2ToL1TxEvent,
-        proof: outboxProof as `0x${string}`[],
+        proof: outboxProof,
       };
 
       return metadata;

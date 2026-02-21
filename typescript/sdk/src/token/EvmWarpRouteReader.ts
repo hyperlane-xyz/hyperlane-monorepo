@@ -89,6 +89,16 @@ import { getExtraLockBoxConfigs } from './xerc20.js';
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 
+function toNumber(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') return Number(value);
+  if (typeof value === 'object' && value && 'toString' in value) {
+    return Number(value.toString());
+  }
+  throw new Error(`Unable to convert value to number: ${value}`);
+}
+
 export class EvmWarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
     module: 'EvmWarpRouteReader',
@@ -829,8 +839,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         messageTransmitter,
         tokenMessenger,
         urls,
-        minFinalityThreshold,
-        maxFeeBps: maxFeeBps.toNumber(),
+        minFinalityThreshold: toNumber(minFinalityThreshold),
+        maxFeeBps: toNumber(maxFeeBps),
       };
     } else {
       throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);
@@ -1029,8 +1039,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
           await everclearTokenbridgeInstance.feeParams(domainId);
 
         return {
-          deadline: deadline.toNumber(),
-          fee: fee.toNumber(),
+          deadline: toNumber(deadline),
+          fee: toNumber(fee),
           signature,
         };
       }),
