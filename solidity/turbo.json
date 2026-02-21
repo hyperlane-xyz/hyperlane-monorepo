@@ -1,19 +1,19 @@
 {
-  "extends": ["//"],
-  "tasks": {
-    "deps:soldeer": {
-      "inputs": ["foundry.toml", "soldeer.lock"],
-      "outputs": ["dependencies/**"]
-    },
-    "build": {
-      "dependsOn": ["deps:soldeer"],
-      "outputs": [
-        "artifacts/**",
-        "cache/**",
-        "core-utils/**",
-        "dist/**",
-        "types/**"
-      ]
+    "extends": ["//"],
+    "tasks": {
+        "deps:soldeer": {
+            "inputs": ["foundry.toml", "soldeer.lock"],
+            "outputs": ["dependencies/**"]
+        },
+        "build": {
+            "dependsOn": ["deps:soldeer"],
+            "outputs": [
+                "artifacts/**",
+                "cache/**",
+                "core-utils/generated/**",
+                "dist/**",
+                "types/**"
+            ]
+        }
     }
-  }
 }

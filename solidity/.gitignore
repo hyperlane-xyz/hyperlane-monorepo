@@ -25,6 +25,7 @@ cache-zk
 # Tron
 cache-tron
 core-utils/zksync/artifacts/output
+core-utils/generated/
 .zksolc-libraries-cache/
 typechain-types/
 typechain/
