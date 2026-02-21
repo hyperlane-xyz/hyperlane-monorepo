@@ -1,7 +1,71 @@
-// Merkle tree hook uses the mailbox outbox merkle tree account.
-// This package currently exposes low-level instruction/account codecs only.
+import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
 
-export const MERKLE_TREE_HOOK_NOTES = {
-  accountSource: 'mailbox outbox account',
-  readerStatus: 'pending hand-crafted reader',
-} as const;
+import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
+import {
+  type ArtifactDeployed,
+  type ArtifactNew,
+  type ArtifactReader,
+  ArtifactState,
+  type ArtifactWriter,
+} from '@hyperlane-xyz/provider-sdk/artifact';
+import type {
+  DeployedHookAddress,
+  MerkleTreeHookConfig,
+} from '@hyperlane-xyz/provider-sdk/hook';
+
+import type { SvmSigner } from '../signer.js';
+import type { AnnotatedSvmTransaction, SvmReceipt } from '../types.js';
+
+export class SvmMerkleTreeHookReader implements ArtifactReader<
+  MerkleTreeHookConfig,
+  DeployedHookAddress
+> {
+  constructor(
+    protected readonly _rpc: Rpc<SolanaRpcApi>,
+    protected readonly mailboxAddress: Address,
+  ) {}
+
+  async read(
+    address: string,
+  ): Promise<ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>> {
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: { type: HookType.MERKLE_TREE as 'merkleTreeHook' },
+      deployed: { address: address || this.mailboxAddress },
+    };
+  }
+}
+
+export class SvmMerkleTreeHookWriter
+  extends SvmMerkleTreeHookReader
+  implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
+{
+  constructor(
+    rpc: Rpc<SolanaRpcApi>,
+    mailboxAddress: Address,
+    protected readonly _signer: SvmSigner,
+  ) {
+    super(rpc, mailboxAddress);
+  }
+
+  async create(
+    _artifact: ArtifactNew<MerkleTreeHookConfig>,
+  ): Promise<
+    [ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>, SvmReceipt[]]
+  > {
+    return [
+      {
+        artifactState: ArtifactState.DEPLOYED,
+        config: { type: HookType.MERKLE_TREE as 'merkleTreeHook' },
+        deployed: { address: this.mailboxAddress },
+      },
+      [],
+    ];
+  }
+
+  async update(
+    _artifact: ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>,
+  ): Promise<AnnotatedSvmTransaction[]> {
+    return [];
+  }
+}

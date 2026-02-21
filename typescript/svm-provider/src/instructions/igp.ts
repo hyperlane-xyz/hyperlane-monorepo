@@ -275,6 +275,43 @@ function decodeInitOverheadIgp(data: Uint8Array): InitOverheadIgpData {
   };
 }
 
+export async function getSetGasOracleConfigsInstruction(
+  programAddress: Address,
+  owner: TransactionSigner,
+  igpAccount: Address,
+  configs: GasOracleConfig[],
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(igpAccount),
+      readonlySigner(owner),
+    ],
+    encodeIgpProgramInstruction({ kind: 'setGasOracleConfigs', configs }),
+  );
+}
+
+export async function getSetDestinationGasOverheadsInstruction(
+  programAddress: Address,
+  owner: TransactionSigner,
+  overheadIgpAccount: Address,
+  configs: GasOverheadConfig[],
+): Promise<Instruction> {
+  return buildInstruction(
+    programAddress,
+    [
+      readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
+      writableAccount(overheadIgpAccount),
+      readonlySigner(owner),
+    ],
+    encodeIgpProgramInstruction({
+      kind: 'setDestinationGasOverheads',
+      configs,
+    }),
+  );
+}
+
 export function _encodeGasOracleForTests(config: GasOracleConfig): Uint8Array {
   return encodeGasOracleConfig(config);
 }
