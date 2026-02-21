@@ -412,7 +412,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           chainId: this.chainId,
           to: currentRoutingAddress,
           data: RoutingFee__factory.createInterface().encodeFunctionData(
-            'setFeeContract(uint32,address)',
+            'setFeeContract',
             [this.multiProvider.getDomainId(chainName), deployedSubFee],
           ),
         });
@@ -444,7 +444,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
             chainId: this.chainId,
             to: currentRoutingAddress,
             data: RoutingFee__factory.createInterface().encodeFunctionData(
-              'setFeeContract(uint32,address)',
+              'setFeeContract',
               [this.multiProvider.getDomainId(chainName), deployedSubFee],
             ),
           });

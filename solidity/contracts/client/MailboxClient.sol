@@ -43,7 +43,7 @@ abstract contract MailboxClient is OwnableUpgradeable, PackageVersioned {
     // ============ Modifiers ============
     modifier onlyContract(address _contract) {
         require(
-            Address.isContract(_contract),
+            (_contract.code.length > 0),
             "MailboxClient: invalid mailbox"
         );
         _;
@@ -51,7 +51,7 @@ abstract contract MailboxClient is OwnableUpgradeable, PackageVersioned {
 
     modifier onlyContractOrNull(address _contract) {
         require(
-            Address.isContract(_contract) || _contract == address(0),
+            (_contract.code.length > 0) || _contract == address(0),
             "MailboxClient: invalid contract setting"
         );
         _;

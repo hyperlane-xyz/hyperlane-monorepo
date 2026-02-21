@@ -75,7 +75,7 @@ export interface IsmReader {
 
 type DomainLike = bigint | number | { toNumber(): number };
 type DomainArg = bigint | number | string;
-type ThresholdLike = { toNumber(): number };
+type ThresholdLike = bigint | number | { toNumber(): number };
 
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
@@ -411,7 +411,12 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       lowerIsm: await this.deriveIsmConfig(lowerIsm),
       upperIsm: await this.deriveIsmConfig(upperIsm),
-      threshold: threshold.toNumber(),
+      threshold:
+        typeof threshold === 'number'
+          ? threshold
+          : typeof threshold === 'bigint'
+            ? Number(threshold)
+            : threshold.toNumber(),
     };
   }
 

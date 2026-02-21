@@ -86,6 +86,22 @@ type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
 };
 
 type BigNumberish = bigint | string | number;
+type BigNumberishLike =
+  | BigNumberish
+  | {
+      toBigInt?: () => bigint;
+      toString?: () => string;
+    };
+
+const toBigIntValue = (value: BigNumberishLike): bigint => {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (value?.toBigInt) return value.toBigInt();
+  if (value?.toString) return BigInt(value.toString());
+
+  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
+};
 
 const getAllowedRebalancingBridgesByDomain = (
   allowedRebalancingBridgesByDomain: NonNullable<
@@ -456,7 +472,7 @@ export class EvmWarpModule extends HyperlaneModule<
             bridge,
           );
 
-          if (allowance.toBigInt() !== UINT_256_MAX) {
+          if (toBigIntValue(allowance) !== UINT_256_MAX) {
             filteredApprovals.push(token);
           }
         }

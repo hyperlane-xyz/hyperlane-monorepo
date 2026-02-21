@@ -25,8 +25,7 @@ import { AgentContextConfig, AwsKeyConfig } from '../../config/agent/agent.js';
 import { Role } from '../../roles.js';
 import { getEthereumAddress } from '../../utils/utils.js';
 import { keyIdentifier } from '../agent.js';
-import { CloudAgentKey } from '../keys.js';
-import { EvmProvider, EvmSigner } from '../keys.js';
+import { CloudAgentKey, EvmProvider, EvmSigner } from '../keys.js';
 
 interface UnfetchedKey {
   fetched: false;

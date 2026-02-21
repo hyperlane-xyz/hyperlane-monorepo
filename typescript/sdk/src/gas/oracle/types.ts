@@ -66,6 +66,22 @@ export const formatGasOracleConfig = (
 const percentDifference = (actual: bigint, expected: bigint): bigint =>
   ((expected - actual) * 100n) / actual;
 
+const toBigInt = (value: unknown): bigint => {
+  if (value === undefined || value === null) return 0n;
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof value.toString === 'function'
+  ) {
+    return BigInt(value.toString());
+  }
+  throw new Error(`Unable to convert value to bigint: ${String(value)}`);
+};
+
 const serializePercentDifference = (
   actual: bigint,
   expected: bigint,
@@ -90,20 +106,35 @@ export const serializeDifference = (
   actual: OracleData,
   expected: OracleData,
 ): string => {
+  const actualRecord = actual as unknown as Record<string | number, unknown>;
+  const expectedRecord = expected as unknown as Record<string | number, unknown>;
+  const actualData: OracleData = {
+    gasPrice: toBigInt(actualRecord.gasPrice ?? actualRecord[1]),
+    tokenExchangeRate: toBigInt(
+      actualRecord.tokenExchangeRate ?? actualRecord[0],
+    ),
+  };
+  const expectedData: OracleData = {
+    gasPrice: toBigInt(expectedRecord.gasPrice ?? expectedRecord[1]),
+    tokenExchangeRate: toBigInt(
+      expectedRecord.tokenExchangeRate ?? expectedRecord[0],
+    ),
+  };
+
   const gasPriceDiff = serializePercentDifference(
-    actual.gasPrice,
-    expected.gasPrice,
+    actualData.gasPrice,
+    expectedData.gasPrice,
   );
   const tokenExchangeRateDiff = serializePercentDifference(
-    actual.tokenExchangeRate,
-    expected.tokenExchangeRate,
+    actualData.tokenExchangeRate,
+    expectedData.tokenExchangeRate,
   );
 
   const productDiff = serializePercentDifference(
-    actual.tokenExchangeRate * actual.gasPrice,
-    expected.tokenExchangeRate * expected.gasPrice,
+    actualData.tokenExchangeRate * actualData.gasPrice,
+    expectedData.tokenExchangeRate * expectedData.gasPrice,
   );
 
-  const formatted = formatGasOracleConfig(localChainProtocol, expected);
+  const formatted = formatGasOracleConfig(localChainProtocol, expectedData);
   return `Exchange rate: ${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), Gas price: ${formatted.gasPrice} gwei (${gasPriceDiff}), Product diff: ${productDiff}`;
 };

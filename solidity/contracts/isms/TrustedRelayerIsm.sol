@@ -21,7 +21,7 @@ contract TrustedRelayerIsm is IInterchainSecurityModule, PackageVersioned {
             "TrustedRelayerIsm: invalid relayer"
         );
         require(
-            Address.isContract(_mailbox),
+            (_mailbox.code.length > 0),
             "TrustedRelayerIsm: invalid mailbox"
         );
         mailbox = Mailbox(_mailbox);

@@ -1,7 +1,6 @@
 import { expect } from 'chai';
-import hre from 'hardhat';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { EvmCoreModule } from '../core/EvmCoreModule.js';
@@ -47,7 +46,7 @@ describe(EvmIcaRouterReader.name, async () => {
       );
 
       expect(res.address).to.equal(interchainAccountRouterAddress);
-      expect(res.owner).to.equal(signerAddress);
+      expect(eqAddress(res.owner, signerAddress)).to.equal(true);
       // Remote ICA Routers
       expect(res.remoteRouters).to.exist;
     });

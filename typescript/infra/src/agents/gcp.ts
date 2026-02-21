@@ -23,8 +23,7 @@ import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud.js';
 import { execCmd, include } from '../utils/utils.js';
 
 import { isValidatorKey, keyIdentifier } from './agent.js';
-import { CloudAgentKey } from './keys.js';
-import { EvmProvider, EvmSigner } from './keys.js';
+import { CloudAgentKey, EvmProvider, EvmSigner } from './keys.js';
 
 // Helper function to determine if a chain is Starknet
 function isStarknetChain(chainName: ChainName): boolean {

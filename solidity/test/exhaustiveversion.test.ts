@@ -32,8 +32,10 @@ const artifacts = (await walk("artifacts/contracts")).flat(
     Number.POSITIVE_INFINITY,
 );
 
-const filtered = artifacts.filter((path: string) =>
-    EXCLUDE_PATTERNS.every((excluded) => path.match(excluded) === null),
+const filtered = artifacts.filter(
+    (path: string) =>
+        path.endsWith(".json") &&
+        EXCLUDE_PATTERNS.every((excluded) => path.match(excluded) === null),
 );
 
 const results = await Promise.all(

@@ -201,12 +201,12 @@ export async function getXERC20Limit(
   token: Token,
   xerc20: IHypXERC20Adapter<unknown>,
 ): Promise<XERC20Limit> {
-  const [mintCurrent, mintMax, burnCurrent, burnMax] = (await Promise.all([
+  const [mintCurrent, mintMax, burnCurrent, burnMax] = await Promise.all([
     xerc20.getMintLimit(),
     xerc20.getMintMaxLimit(),
     xerc20.getBurnLimit(),
     xerc20.getBurnMaxLimit(),
-  ])) as bigint[];
+  ]);
 
   return {
     mint: formatBigInt(token, mintCurrent ?? 0n),

@@ -301,7 +301,7 @@ export async function moduleMatchesConfig(
           ),
         ),
       );
-      matches &&= threshold.eq(config.threshold);
+      matches &&= threshold === BigInt(config.threshold);
       matches &&= subModuleMatchesConfig.every(Boolean);
 
       break;

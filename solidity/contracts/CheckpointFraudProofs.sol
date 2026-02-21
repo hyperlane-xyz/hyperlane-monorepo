@@ -54,7 +54,7 @@ contract CheckpointFraudProofs is PackageVersioned {
     ) public view returns (bool) {
         address merkleTree = checkpoint.merkleTreeAddress();
         return
-            merkleTree.isContract() &&
+            (merkleTree.code.length > 0) &&
             MerkleTreeHook(merkleTree).localDomain() == checkpoint.origin;
     }
 
