@@ -575,7 +575,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
       const providerMetadata = {
         providerIndex: pIndex,
         rpcUrl: provider.getBaseUrl(),
-        method: `${method}(${JSON.stringify(params)})`,
+        method: `${method}(${jsonStringifyForLogs(params)})`,
         chainId: this.network.chainId,
       };
 
@@ -662,7 +662,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
         providerResultErrors,
         `All providers failed on chain ${
           this.network.name
-        } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+        } for method ${method} and params ${jsonStringifyForLogs(params, 2)}`,
       );
       throw new CombinedError();
     }
@@ -690,7 +690,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
           [result.error, ...providerResultErrors],
           `All providers failed on chain ${
             this.network.name
-          } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+          } for method ${method} and params ${jsonStringifyForLogs(params, 2)}`,
         );
         throw new CombinedError();
       }
@@ -929,6 +929,21 @@ function toRpcQuantity(value: unknown): string | undefined {
     return `0x${BigInt(value.toString()).toString(16)}`;
   }
   return undefined;
+}
+
+function jsonStringifyForLogs(value: unknown, space?: number): string {
+  try {
+    return JSON.stringify(
+      value,
+      (_key, item) => {
+        if (typeof item === 'bigint') return item.toString();
+        return item;
+      },
+      space,
+    );
+  } catch {
+    return '[unserializable]';
+  }
 }
 
 function timeoutResult(staggerDelay: number, multiplier = 1) {
