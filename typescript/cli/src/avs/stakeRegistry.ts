@@ -1,6 +1,6 @@
 import { password } from '@inquirer/prompts';
 import { createDecipheriv, pbkdf2Sync, randomBytes, scryptSync } from 'crypto';
-import { type Hex, hexToBytes, keccak256, pad, toHex } from 'viem';
+import { type Hex, keccak256, pad, toHex } from 'viem';
 
 import {
   ECDSAStakeRegistry__factory,

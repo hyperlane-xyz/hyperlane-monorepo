@@ -65,9 +65,9 @@ async function setIgpConfig(
     signer.connect(provider),
   );
   const storageGasOracle = await storageGasOracleF.deploy();
-  await storageGasOracle.deployTransaction.wait();
+  await storageGasOracle.deployTransaction?.wait?.();
 
-  const oracleConfigs: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
+  const oracleConfigs: any[] = [];
   oracleConfigs.push({
     remoteDomain: remoteId,
     tokenExchangeRate: '10000000000',
@@ -75,7 +75,7 @@ async function setIgpConfig(
   });
   await storageGasOracle.setRemoteGasDataConfigs(oracleConfigs);
 
-  const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+  const gasParamsToSet: any[] = [];
   gasParamsToSet.push({
     remoteDomain: remoteId,
     config: {
@@ -184,7 +184,9 @@ async function main() {
   ];
 
   // Create a multi-provider with a signer
-  const signer = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY));
+  const signer = new LocalAccountEvmSigner(
+    ensure0x(ANVIL_KEY) as `0x${string}`,
+  );
   const multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
   // Get the provider for the first chain
@@ -203,7 +205,7 @@ async function main() {
   // Deploy a recipient
   const recipientF = new TestSendReceiver__factory(signer.connect(provider));
   const recipient = await recipientF.deploy();
-  await recipient.deployTransaction.wait();
+  await recipient.deployTransaction?.wait?.();
 
   //  Generate artificial traffic
   const run_forever = messages === 0;

@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { formatUnits, parseUnits } from 'ethers/lib/utils.js';
+import { formatUnits, parseUnits } from 'viem';
 import yargs from 'yargs';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
@@ -145,9 +145,9 @@ async function fundVanguards() {
             VANGUARD_FUNDING_CONFIGS[chain][vanguard],
             TOKEN_DECIMALS,
           );
-          const delta = desiredBalance.sub(currentBalance);
+          const delta = desiredBalance - BigInt(currentBalance);
 
-          if (delta.gt(MIN_FUNDING_AMOUNT)) {
+          if (delta > MIN_FUNDING_AMOUNT) {
             topUpsNeeded[chain] = topUpsNeeded[chain] || [];
             topUpsNeeded[chain].push({
               chain,

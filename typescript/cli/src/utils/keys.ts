@@ -84,7 +84,7 @@ function privateKeyToSigner(key: string): LocalAccountEvmSigner {
 
   const formattedKey = key.trim().toLowerCase();
   if (isHex(ensure0x(formattedKey))) {
-    return new LocalAccountEvmSigner(ensure0x(formattedKey));
+    return new LocalAccountEvmSigner(ensure0x(formattedKey) as `0x${string}`);
   }
   throw new Error('Invalid private key format');
 }

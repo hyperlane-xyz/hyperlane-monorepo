@@ -137,8 +137,13 @@ async function executeDelivery({
 
   const recipientAddress = await recipientSigner.getAddress();
   const signerAddress = await signer.getAddress();
-
-  recipient ||= recipientAddress;
+  assert(
+    recipientAddress,
+    `Missing recipient signer address for ${destination}`,
+  );
+  assert(signerAddress, `Missing signer address for ${origin}`);
+  const normalizedRecipient = (recipient ?? recipientAddress) as string;
+  const normalizedSignerAddress = signerAddress as string;
 
   const chainAddresses = await registry.getAddresses();
 
@@ -180,8 +185,8 @@ async function executeDelivery({
     const errors = await warpCore.validateTransfer({
       originTokenAmount: token.amount(amount),
       destination,
-      recipient,
-      sender: signerAddress,
+      recipient: normalizedRecipient,
+      sender: normalizedSignerAddress,
       destinationToken: destToken,
     });
     if (errors) {
@@ -194,8 +199,8 @@ async function executeDelivery({
   const transferTxs = await warpCore.getTransferRemoteTxs({
     originTokenAmount: new TokenAmount(amount, token),
     destination,
-    sender: signerAddress,
-    recipient,
+    sender: normalizedSignerAddress,
+    recipient: normalizedRecipient,
     destinationToken: destToken ?? undefined,
   });
 
@@ -216,7 +221,7 @@ async function executeDelivery({
   const message: DispatchedMessage | undefined = messages[0];
 
   logBlue(
-    `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
+    `Sent transfer from sender (${normalizedSignerAddress}) on ${origin} to recipient (${normalizedRecipient}) on ${destination}.`,
   );
 
   if (message) {

@@ -2,6 +2,7 @@ import hre from 'hardhat';
 import { toHex } from 'viem';
 
 export type HardhatSignerWithAddress = { address: string; [key: string]: any };
+const hreAny = hre as any;
 
 type ProviderLike = {
   send(method: string, params: unknown[]): Promise<unknown>;
@@ -29,7 +30,7 @@ export function getHardhatProvider(): ProviderLike {
       return BigInt(hexGas);
     },
     async getBlock(tag: unknown) {
-      const publicClient = await hre.viem.getPublicClient();
+      const publicClient = await hreAny.viem.getPublicClient();
       const blockTag =
         typeof tag === 'number'
           ? BigInt(tag)
@@ -48,7 +49,7 @@ export function getHardhatProvider(): ProviderLike {
       } & Record<string, unknown>;
     },
     async getTransactionReceipt(hash: string) {
-      const publicClient = await hre.viem.getPublicClient();
+      const publicClient = await hreAny.viem.getPublicClient();
       try {
         return (await publicClient.getTransactionReceipt({
           hash: hash as `0x${string}`,
@@ -58,7 +59,7 @@ export function getHardhatProvider(): ProviderLike {
       }
     },
     async getCode(address: string) {
-      const publicClient = await hre.viem.getPublicClient();
+      const publicClient = await hreAny.viem.getPublicClient();
       return (
         (await publicClient.getCode({
           address: address as `0x${string}`,
@@ -66,7 +67,7 @@ export function getHardhatProvider(): ProviderLike {
       );
     },
     async getStorageAt(address: string, position: string) {
-      const publicClient = await hre.viem.getPublicClient();
+      const publicClient = await hreAny.viem.getPublicClient();
       return (
         (await publicClient.getStorageAt({
           address: address as `0x${string}`,
@@ -237,8 +238,8 @@ async function waitForReceipt(
 }
 
 export async function getHardhatSigners(): Promise<HardhatSignerWithAddress[]> {
-  const wallets = await hre.viem.getWalletClients();
-  return wallets.map((wallet) => {
+  const wallets = await hreAny.viem.getWalletClients();
+  return wallets.map((wallet: any) => {
     const signer = new WalletClientSigner(wallet as WalletClientLike);
     return attachAddress(
       signer as unknown as HardhatSignerWithAddress,

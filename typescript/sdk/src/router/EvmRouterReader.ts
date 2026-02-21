@@ -80,8 +80,8 @@ export class EvmRouterReader extends HyperlaneReader {
 
     const routers = Object.fromEntries(
       await Promise.all(
-        domains.map(async (domain) => {
-          return [domain, { address: await router.routers(domain) }];
+        domains.map(async (domain: any) => {
+          return [domain, { address: await router.routers(domain as any) }];
         }),
       ),
     );

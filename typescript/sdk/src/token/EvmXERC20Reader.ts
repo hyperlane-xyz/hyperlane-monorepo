@@ -123,9 +123,9 @@ export class EvmXERC20Reader extends HyperlaneReader {
       toBlock: 'latest',
     };
 
-    const rawLogs = await this.provider.getLogs(filter);
+    const rawLogs = (await this.provider.getLogs(filter)) as any[];
 
-    const logs = rawLogs.map((log) => ({
+    const logs = rawLogs.map((log: any) => ({
       address: log.address as `0x${string}`,
       blockHash: log.blockHash as `0x${string}`,
       blockNumber: BigInt(log.blockNumber),
@@ -141,7 +141,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
       abi: XERC20_VS_ABI,
       eventName: 'ConfigurationChanged',
       logs,
-    });
+    }) as any[];
 
     // Track latest log per bridge (use logIndex as tiebreaker for same block)
     const bridgeToLatestLog = new Map<string, (typeof parsedLogs)[0]>();

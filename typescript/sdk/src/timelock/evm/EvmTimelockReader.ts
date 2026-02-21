@@ -1,10 +1,5 @@
-import { BigNumber, constants } from 'ethers';
-import {
-  ContractEventName,
-  getAbiItem,
-  parseEventLogs,
-  toEventSelector,
-} from 'viem';
+import { zeroAddress } from 'viem';
+import { getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import {
   TimelockController,
@@ -40,28 +35,28 @@ const CALL_EXECUTED_EVENT_SELECTOR = toEventSelector(
   getAbiItem({
     abi: TimelockController__factory.abi,
     name: 'CallExecuted',
-  }),
+  }) as any,
 );
 
 const CALL_SCHEDULED_EVENT_SELECTOR = toEventSelector(
   getAbiItem({
     abi: TimelockController__factory.abi,
     name: 'CallScheduled',
-  }),
+  }) as any,
 );
 
 const CALL_CANCELLED_EVENT_SELECTOR = toEventSelector(
   getAbiItem({
     abi: TimelockController__factory.abi,
     name: 'Cancelled',
-  }),
+  }) as any,
 );
 
 const CALL_SALT_EVENT_SELECTOR = toEventSelector(
   getAbiItem({
     abi: TimelockController__factory.abi,
     name: 'CallSalt',
-  }),
+  }) as any,
 );
 
 export type EvmTimelockReaderConfig = {
@@ -115,7 +110,7 @@ export class EvmTimelockReader {
       abi: TimelockController__factory.abi,
       eventName: 'CallSalt',
       logs: logs.map(viemLogFromGetEventLogsResponse),
-    });
+    }) as any[];
 
     return Object.fromEntries(
       result.map((parsedEvent) => [parsedEvent.args.id, parsedEvent.args.salt]),
@@ -240,7 +235,7 @@ export class EvmTimelockReader {
     // If the 0 address has the role anyone has the role
     const [hasRole, isOpenRole] = await Promise.all([
       this.timelockInstance.hasRole(role, address),
-      this.timelockInstance.hasRole(role, constants.AddressZero),
+      this.timelockInstance.hasRole(role, zeroAddress),
     ]);
 
     return hasRole || isOpenRole;
@@ -267,7 +262,7 @@ function getScheduledTimelockOperationIdsFromLogs(
     abi: TimelockController__factory.abi,
     eventName: 'CallScheduled',
     logs: callScheduledLogs.map(viemLogFromGetEventLogsResponse),
-  });
+  }) as any[];
 
   return parsedLogs.reduce(
     (operationsById: Record<string, TimelockTx>, parsedLog) => {
@@ -280,7 +275,7 @@ function getScheduledTimelockOperationIdsFromLogs(
             {
               data,
               to: target,
-              value: BigNumber.from(value),
+              value: BigInt(value.toString()),
             },
           ],
           delay: Number(delay),
@@ -297,7 +292,7 @@ function getScheduledTimelockOperationIdsFromLogs(
         operationsById[id].data[Number(index.toString())] = {
           data,
           to: target,
-          value: BigNumber.from(value),
+          value: BigInt(value.toString()),
         };
       }
 
@@ -309,16 +304,13 @@ function getScheduledTimelockOperationIdsFromLogs(
 
 function getOperationIdFromEventLogs(
   logs: ReadonlyArray<GetEventLogsResponse>,
-  eventName: Extract<
-    ContractEventName<typeof TimelockController__factory.abi>,
-    'CallScheduled' | 'CallExecuted' | 'Cancelled' | 'CallSalt'
-  >,
+  eventName: 'CallScheduled' | 'CallExecuted' | 'Cancelled' | 'CallSalt',
 ): Set<string> {
   const result = parseEventLogs({
     abi: TimelockController__factory.abi,
     eventName: eventName,
     logs: logs.map(viemLogFromGetEventLogsResponse),
-  });
+  }) as any[];
 
   return new Set(result.map((parsedEvent) => parsedEvent.args.id));
 }
