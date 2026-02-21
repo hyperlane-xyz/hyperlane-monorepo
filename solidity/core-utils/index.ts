@@ -1,4 +1,4 @@
-export * from "./generated/contracts.generated.js";
+export * from "./generated/index.js";
 export * from "./viemFactory.js";
 export * from "./zksync/index.js";
 // GENERATED CODE - DO NOT EDIT
