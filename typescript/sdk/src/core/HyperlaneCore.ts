@@ -211,9 +211,15 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         chains.map((originChain) => {
             const mailbox = this.contractsMap[originChain].mailbox;
             this.logger.debug(`Listening for dispatch on ${originChain}`);
-            mailbox.on<DispatchEvent>(
+            mailbox.on(
                 mailbox.filters.Dispatch(),
-                (_sender, _destination, _recipient, message, event) => {
+                (
+                    _sender: unknown,
+                    _destination: unknown,
+                    _recipient: unknown,
+                    message: string,
+                    event: DispatchEvent,
+                ) => {
                     const dispatched =
                         HyperlaneCore.parseDispatchedMessage(message);
 
@@ -412,7 +418,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         const filter = mailbox.filters.ProcessId(id);
 
         return new Promise<EvmTxReceipt>((resolve, reject) => {
-            mailbox.once(filter, (emittedId, event) => {
+            mailbox.once(filter, (emittedId: string, event: any) => {
                 if (id !== emittedId) {
                     reject(`Expected message id ${id} but got ${emittedId}`);
                 }
@@ -478,9 +484,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
                 ),
             ),
         );
-        this.logger.info(
-            `All messages processed for tx ${sourceTx.transactionHash}`,
-        );
+        const txHash = (sourceTx as any).transactionHash;
+        this.logger.info(`All messages processed for tx ${txHash}`);
     }
 
     // Redundant with static method but keeping for backwards compatibility
@@ -534,12 +539,12 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     ): DispatchedMessage[] {
         const mailbox = Mailbox__factory.createInterface();
         const dispatchLogs = findMatchingLogEvents(
-            sourceTx.logs,
+            (sourceTx as any).logs,
             mailbox,
             "Dispatch",
         );
         return dispatchLogs.map((log) => {
-            const message = log.args["message"];
+            const message = (log as any).args["message"] as string;
             const parsed = parseMessage(message);
             const id = messageId(message);
             return {id, message, parsed};

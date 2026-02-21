@@ -329,9 +329,10 @@ export async function isAddressActive(
     provider: EthersLikeProvider,
     address: Address,
 ): Promise<boolean> {
+    const txCountReader = (provider as any).getTransactionCount;
     const [code, txnCount] = await Promise.all([
         provider.getCode(address),
-        provider.getTransactionCount(address),
+        typeof txCountReader === "function" ? txCountReader(address) : 0,
     ]);
 
     return code !== "0x" || txnCount > 0;

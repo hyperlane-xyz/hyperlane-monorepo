@@ -223,7 +223,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
                         .replaceAll(
                             encodeAbiParameters(
                                 [{name: "domain", type: "uint32"}],
-                                [BigInt(localDomain)],
+                                [Number(localDomain)],
                             ).slice(2),
                             (match, offset) => (offset > 8000 ? match : ""),
                         )
@@ -278,7 +278,7 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
         const announcedValidators =
             await validatorAnnounce.getAnnouncedValidators();
         [...validators].forEach((validator) => {
-            const matches = announcedValidators.filter((x) =>
+            const matches = announcedValidators.filter((x: string) =>
                 eqAddress(x, validator),
             );
             if (matches.length == 0) {
