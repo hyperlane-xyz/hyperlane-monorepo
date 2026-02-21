@@ -3,10 +3,9 @@ import {basename, dirname, join} from "path";
 
 const CONFIG = {
     artifactsRoot: join(process.cwd(), "artifacts"),
-    outputPath: join(
-        process.cwd(),
-        "core-utils/generated/contracts.generated.ts",
-    ),
+    outputRoot: join(process.cwd(), "core-utils/generated"),
+    contractsOutputRoot: join(process.cwd(), "core-utils/generated/contracts"),
+    indexOutputPath: join(process.cwd(), "core-utils/generated/index.ts"),
 };
 
 function isExportableIdentifier(name) {
@@ -65,30 +64,27 @@ function renderMethodType(methodNames, returnType) {
     return `{\n${lines}\n  }`;
 }
 
-function renderGeneratedSource(artifacts) {
-    const names = [...artifacts.keys()].sort((a, b) => a.localeCompare(b));
-    const mapEntries = names
-        .map((name) => {
-            const artifact = artifacts.get(name);
-            return `  ${name}: ${JSON.stringify(
-                {
-                    contractName: artifact.contractName,
-                    abi: artifact.abi,
-                    bytecode: artifact.bytecode ?? "0x",
-                },
-                null,
-                2,
-            ).replace(/\n/g, "\n  ")},`;
-        })
-        .join("\n");
+function renderContractModuleSource(name, artifact) {
+    const functionNames = artifact.functionNames;
+    const eventNames = artifact.eventNames;
+    const artifactIdentifier = `${name}Artifact`;
 
-    const contractExports = names
-        .map((name) => {
-            const artifact = artifacts.get(name);
-            const functionNames = artifact.functionNames;
-            const eventNames = artifact.eventNames;
+    return `/* eslint-disable */
+/* THIS FILE IS AUTO-GENERATED. DO NOT EDIT DIRECTLY. */
+import type { ArtifactEntry, ViemContractLike } from '../../viemFactory.js';
+import { ViemContractFactory } from '../../viemFactory.js';
 
-            return `export type ${name} = ViemContractLike & {
+export const ${artifactIdentifier}: ArtifactEntry = ${JSON.stringify(
+        {
+            contractName: artifact.contractName,
+            abi: artifact.abi,
+            bytecode: artifact.bytecode ?? "0x",
+        },
+        null,
+        2,
+    )};
+
+export type ${name} = ViemContractLike & {
   ${renderMethodType(functionNames, "Promise<any>").slice(2, -2)}
   populateTransaction: ${renderMethodType(functionNames, "Promise<any>")};
   callStatic: ${renderMethodType(functionNames, "Promise<any>")};
@@ -96,7 +92,7 @@ function renderGeneratedSource(artifacts) {
   filters: ${renderMethodType(eventNames, "Record<string, unknown>")};
 };
 export class ${name}__factory extends ViemContractFactory {
-  static readonly artifact = contractArtifacts.${name};
+  static readonly artifact = ${artifactIdentifier};
   static connect(address: string, runner?: any): ${name} {
     return super.connect(address, runner) as ${name};
   }
@@ -108,13 +104,28 @@ export class ${name}__factory extends ViemContractFactory {
   }
 }
 `;
-        })
+}
+
+function renderGeneratedIndexSource(artifacts) {
+    const names = [...artifacts.keys()].sort((a, b) => a.localeCompare(b));
+    const exportLines = names
+        .map((name) => `export * from './contracts/${name}.js';`)
+        .join("\n");
+    const importLines = names
+        .map(
+            (name) =>
+                `import { ${name}Artifact } from './contracts/${name}.js';`,
+        )
+        .join("\n");
+    const mapEntries = names
+        .map((name) => `  ${JSON.stringify(name)}: ${name}Artifact,`)
         .join("\n");
 
     return `/* eslint-disable */
 /* THIS FILE IS AUTO-GENERATED. DO NOT EDIT DIRECTLY. */
-import type { ArtifactEntry, ViemContractLike } from '../viemFactory.js';
-import { ViemContractFactory } from '../viemFactory.js';
+import type { ArtifactEntry } from '../viemFactory.js';
+${importLines}
+${exportLines}
 
 export const contractArtifacts: Record<string, ArtifactEntry> = {
 ${mapEntries}
@@ -125,8 +136,6 @@ export function getContractArtifactByName(
 ): ArtifactEntry | undefined {
   return contractArtifacts[name];
 }
-
-${contractExports}
 `;
 }
 
@@ -162,13 +171,26 @@ async function generate() {
         );
     }
 
-    const source = renderGeneratedSource(artifactsByName);
-    await fs.mkdir(dirname(CONFIG.outputPath), {recursive: true});
-    await fs.writeFile(CONFIG.outputPath, source);
+    await fs.rm(CONFIG.outputRoot, {recursive: true, force: true});
+    await fs.mkdir(CONFIG.contractsOutputRoot, {recursive: true});
+
+    const names = [...artifactsByName.keys()].sort((a, b) =>
+        a.localeCompare(b),
+    );
+    for (const name of names) {
+        const artifact = artifactsByName.get(name);
+        const source = renderContractModuleSource(name, artifact);
+        const modulePath = join(CONFIG.contractsOutputRoot, `${name}.ts`);
+        await fs.writeFile(modulePath, source);
+    }
+
+    const indexSource = renderGeneratedIndexSource(artifactsByName);
+    await fs.mkdir(dirname(CONFIG.indexOutputPath), {recursive: true});
+    await fs.writeFile(CONFIG.indexOutputPath, indexSource);
     console.log(
         `Generated ${
             artifactsByName.size
-        } viem contract factory exports at ${CONFIG.outputPath}`,
+        } viem contract factory modules under ${CONFIG.outputRoot}`,
     );
 }
 
