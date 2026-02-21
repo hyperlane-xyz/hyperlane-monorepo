@@ -144,11 +144,13 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       WithAddress<ArbL2ToL1HookConfig>
     >,
   ): Promise<ArbL2ToL1Metadata> {
-    const matchingL2TxEvent = findMatchingLogEvents(
-      context.dispatchTx.logs,
-      ArbSys,
-      'L2ToL1Tx',
-    ).find((log) => {
+    const matchingL2TxEvent = (
+      findMatchingLogEvents(
+        context.dispatchTx.logs,
+        ArbSys,
+        'L2ToL1Tx',
+      ) as any[]
+    ).find((log: any) => {
       const calldata: string = log.args.data;
       const messageIdHex = context.message.id.slice(2);
       return calldata && calldata.includes(messageIdHex);
@@ -223,7 +225,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
 
       const metadata: ArbL2ToL1Metadata = {
         ...l2ToL1TxEvent,
-        proof: outboxProof,
+        proof: outboxProof as `0x${string}`[],
       };
 
       return metadata;
@@ -263,12 +265,12 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
   async getArbitrumOutboxProof(
     reader: ChildToParentMessageReader,
     provider: ArbitrumProvider,
-  ): Promise<string[]> {
+  ): Promise<`0x${string}`[]> {
     const proof = (await reader.getOutboxProof(provider)) ?? [];
     if (!proof) {
       throw new Error('No outbox proof found');
     }
-    return 'proof' in proof ? proof.proof : proof;
+    return ('proof' in proof ? proof.proof : proof) as `0x${string}`[];
   }
 
   static decode(
@@ -299,20 +301,20 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       timestamp,
       callvalue: 0n,
       data,
-    } as ArbL2ToL1Metadata;
+    } as unknown as ArbL2ToL1Metadata;
   }
 
   static encodeArbL2ToL1Metadata(metadata: ArbL2ToL1Metadata): string {
     return encodeAbiParameters(ARB_L2_TO_L1_METADATA_TYPES, [
       metadata.proof,
       toBigInt(metadata.position),
-      metadata.caller,
-      metadata.destination,
+      metadata.caller as `0x${string}`,
+      metadata.destination as `0x${string}`,
       toBigInt(metadata.arbBlockNum),
       toBigInt(metadata.ethBlockNum),
       toBigInt(metadata.timestamp),
       toBigInt(metadata.callvalue),
-      metadata.data,
+      metadata.data as `0x${string}`,
     ]);
   }
 }

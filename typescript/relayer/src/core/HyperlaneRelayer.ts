@@ -409,7 +409,7 @@ export class HyperlaneRelayer {
         attempts: 0,
         lastAttempt: Date.now(),
         message: message.message,
-        dispatchTx: event.transactionHash,
+        dispatchTx: event.transactionHash ?? '',
       });
     }, this.whitelistChains());
 
