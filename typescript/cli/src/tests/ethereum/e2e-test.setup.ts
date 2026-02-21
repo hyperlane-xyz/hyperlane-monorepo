@@ -16,17 +16,7 @@ before(async function () {
     IS_TRON_TEST ? 3 * DEFAULT_E2E_TEST_TIMEOUT : DEFAULT_E2E_TEST_TIMEOUT,
   );
 
-  if (IS_TRON_TEST) {
-    // Single Tron node handles all 3 logical chains (anvil2/3/4 aliases).
-    // runTronNode uses a fixed mnemonic so ANVIL_KEY matches account 0.
-    await runTronNode({
-      name: 'tron-local',
-      chainId: 3360022319,
-      domainId: 3360022319,
-      port: 9090,
-    });
-  } else {
-    // Separate Anvil nodes for each chain
+  if (process.env.CLI_E2E_EXTERNAL_NODES !== '1') {
     await Promise.all([
       runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2),
       runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3),
