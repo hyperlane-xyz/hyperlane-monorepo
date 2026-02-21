@@ -15,7 +15,8 @@ export const DEFAULT_COMPUTE_UNITS = 400_000;
 export const DEFAULT_WRITE_CHUNK_SIZE = 880;
 export const DEFAULT_PRIORITY_FEE_MICRO_LAMPORTS = 1;
 
-// FIXME use official client for ComputeBudget program in @solana-program/compute-budget
+// Hand-rolled to avoid adding @solana-program/compute-budget as a dependency
+// for two trivial instruction encoders.
 const COMPUTE_BUDGET_PROGRAM_ID =
   'ComputeBudget111111111111111111111111111111' as Address;
 

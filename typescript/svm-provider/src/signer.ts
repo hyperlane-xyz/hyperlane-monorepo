@@ -4,6 +4,7 @@ import {
   type TransactionSigner,
   createKeyPairSignerFromBytes,
   createKeyPairSignerFromPrivateKeyBytes,
+  getBase58Encoder,
   getBase64EncodedWireTransaction,
   getSignatureFromTransaction,
   signTransactionMessageWithSigners,
@@ -19,38 +20,7 @@ export interface SvmSigner {
   send(transaction: SvmTransaction): Promise<SvmReceipt>;
 }
 
-// FIXME do we need our own string->base58?
-// there is a getBase58Codec() in @solana/codec-strings
-function decodeBase58(input: string): Uint8Array {
-  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-  const BASE = 58;
-
-  const bytes: number[] = [0];
-  for (let i = 0; i < input.length; i++) {
-    const char = input[i];
-    const value = ALPHABET.indexOf(char);
-    if (value === -1) {
-      throw new Error(`Invalid base58 character: ${char}`);
-    }
-
-    let carry = value;
-    for (let j = 0; j < bytes.length; j++) {
-      carry += bytes[j] * BASE;
-      bytes[j] = carry & 0xff;
-      carry >>= 8;
-    }
-    while (carry > 0) {
-      bytes.push(carry & 0xff);
-      carry >>= 8;
-    }
-  }
-
-  for (let i = 0; i < input.length && input[i] === '1'; i++) {
-    bytes.push(0);
-  }
-
-  return new Uint8Array(bytes.reverse());
-}
+const base58Encoder = getBase58Encoder();
 
 /**
  * Creates an SvmSigner from a private key and RPC client.
@@ -72,7 +42,7 @@ export async function createSigner(
     keyBytes = new Uint8Array(Buffer.from(stripped, 'hex'));
   } else {
     try {
-      keyBytes = decodeBase58(privateKey);
+      keyBytes = new Uint8Array(base58Encoder.encode(privateKey));
     } catch {
       keyBytes = new Uint8Array(Buffer.from(privateKey, 'base64'));
     }

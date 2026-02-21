@@ -72,44 +72,34 @@ export class SvmIsmArtifactManager {
   }
 
   private getProgramIdForType(type: keyof RawIsmArtifactConfigs): Address {
-    switch (type) {
-      case 'testIsm':
-        return this.programAddresses.testIsm;
-      case 'messageIdMultisigIsm':
-        return this.programAddresses.multisigIsmMessageId;
-      case 'merkleRootMultisigIsm':
-        throw new Error('Merkle root multisig ISM not supported on Solana');
-      case 'domainRoutingIsm':
-        throw new Error('Domain routing ISM not supported on Solana');
-      default:
-        throw new Error(`Unknown ISM type: ${type}`);
-    }
+    const programIds: Record<keyof RawIsmArtifactConfigs, Address | null> = {
+      testIsm: this.programAddresses.testIsm,
+      messageIdMultisigIsm: this.programAddresses.multisigIsmMessageId,
+      merkleRootMultisigIsm: null,
+      domainRoutingIsm: null,
+    };
+    const programId = programIds[type];
+    if (!programId) throw new Error(`Unsupported ISM type on Solana: ${type}`);
+    return programId;
   }
 
   private createReaderForProgramId<T extends keyof RawIsmArtifactConfigs>(
     type: T,
     programId: Address,
   ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    switch (type) {
-      case 'testIsm':
-        return new SvmTestIsmReader(
-          this.rpc,
-          programId,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case 'messageIdMultisigIsm':
-        return new SvmMessageIdMultisigIsmReader(
-          this.rpc,
-          programId,
-        ) as unknown as ArtifactReader<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      default:
-        throw new Error(`Unsupported ISM type: ${type}`);
-    }
+    const readers: {
+      [K in keyof RawIsmArtifactConfigs]?: () => ArtifactReader<
+        RawIsmArtifactConfigs[K],
+        DeployedIsmAddress
+      >;
+    } = {
+      testIsm: () => new SvmTestIsmReader(this.rpc, programId),
+      messageIdMultisigIsm: () =>
+        new SvmMessageIdMultisigIsmReader(this.rpc, programId),
+    };
+    const factory = readers[type];
+    if (!factory) throw new Error(`Unsupported ISM type: ${type}`);
+    return factory();
   }
 
   private createWriterForProgramId<T extends keyof RawIsmArtifactConfigs>(
@@ -117,27 +107,18 @@ export class SvmIsmArtifactManager {
     programId: Address,
     signer: SvmSigner,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    switch (type) {
-      case 'testIsm':
-        return new SvmTestIsmWriter(
-          this.rpc,
-          programId,
-          signer,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      case 'messageIdMultisigIsm':
-        return new SvmMessageIdMultisigIsmWriter(
-          this.rpc,
-          programId,
-          signer,
-        ) as unknown as ArtifactWriter<
-          RawIsmArtifactConfigs[T],
-          DeployedIsmAddress
-        >;
-      default:
-        throw new Error(`Unsupported ISM type: ${type}`);
-    }
+    const writers: {
+      [K in keyof RawIsmArtifactConfigs]?: () => ArtifactWriter<
+        RawIsmArtifactConfigs[K],
+        DeployedIsmAddress
+      >;
+    } = {
+      testIsm: () => new SvmTestIsmWriter(this.rpc, programId, signer),
+      messageIdMultisigIsm: () =>
+        new SvmMessageIdMultisigIsmWriter(this.rpc, programId, signer),
+    };
+    const factory = writers[type];
+    if (!factory) throw new Error(`Unsupported ISM type: ${type}`);
+    return factory();
   }
 }
