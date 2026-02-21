@@ -1,3 +1,5 @@
+import { TronWeb } from 'tronweb';
+
 import {
   type AltVM,
   type ChainMetadataForAltVM,
@@ -14,7 +16,9 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
+
+import { TronHookArtifactManager } from '../hook/hook-artifact-manager.js';
 
 import { TronProvider } from './provider.js';
 import { TronSigner } from './signer.js';
@@ -56,11 +60,29 @@ export class TronProtocolProvider implements ProtocolProvider {
   }
 
   createHookArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string; proxyAdmin?: string },
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string; proxyAdmin?: string },
   ): IRawHookArtifactManager {
-    // @TODO Implement in a follow up PR
-    throw Error('Not implemented');
+    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
+    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+
+    const { privateKey } = new TronWeb({
+      fullHost: rpcUrls[0],
+    }).createRandom();
+
+    const tronweb = new TronWeb({
+      fullHost: rpcUrls[0],
+      privateKey: strip0x(privateKey),
+    });
+
+    const mailboxAddress = context?.mailbox ?? '';
+    const proxyAdminAddress = context?.proxyAdmin ?? '';
+
+    return new TronHookArtifactManager(
+      tronweb,
+      mailboxAddress,
+      proxyAdminAddress,
+    );
   }
 
   getMinGas(): MinimumRequiredGasByAction {
