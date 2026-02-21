@@ -176,9 +176,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
             await this.deriveMailboxDefaultHookConfig(address);
           break;
         default:
-          throw new Error(
-            `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
-          );
+          throw new Error(`Unsupported HookType: ${String(onchainHookType)}`);
       }
     } catch (e: any) {
       let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
@@ -226,8 +224,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       case HookType.FALLBACK_ROUTING:
       case HookType.ROUTING:
         config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, hook) =>
-            this.deriveHookConfig(hook),
+          objMap(config.domains, async (_, hook: any) =>
+            this.deriveHookConfig(hook as HookConfig),
           ),
         );
 
@@ -343,7 +341,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const hookConfigs: DerivedHookConfig[] = await concurrentMap(
       this.concurrency,
       hooks,
-      (hook) => this.deriveHookConfig(hook),
+      (hook: any) => this.deriveHookConfig(hook as HookConfig),
     );
 
     const config: WithAddress<AggregationHookConfig> = {

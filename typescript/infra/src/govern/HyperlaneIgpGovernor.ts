@@ -1,6 +1,5 @@
 import { zeroAddress } from 'viem';
 
-import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import {
   ChainName,
   CheckerViolation,
@@ -57,7 +56,7 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
       case IgpViolationType.GasOracles: {
         const gasOraclesViolation = violation as IgpGasOraclesViolation;
 
-        const configs: InterchainGasPaymaster.GasParamStruct[] = [];
+        const configs: any[] = [];
         for (const [remote, expected] of Object.entries(
           gasOraclesViolation.expected,
         )) {
@@ -94,16 +93,16 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
       }
       case IgpViolationType.Overhead: {
         const overheadViolation = violation as IgpOverheadViolation;
-        const configs: InterchainGasPaymaster.GasParamStruct[] = Object.entries(
-          violation.expected,
-        ).map(([remote, gasOverhead]) => ({
-          remoteDomain: this.checker.multiProvider.getDomainId(remote),
-          // TODO: fix to use the retrieved gas oracle
-          config: {
-            gasOracle: zeroAddress,
-            gasOverhead: BigInt(gasOverhead),
-          },
-        }));
+        const configs: any[] = Object.entries(violation.expected).map(
+          ([remote, gasOverhead]) => ({
+            remoteDomain: this.checker.multiProvider.getDomainId(remote),
+            // TODO: fix to use the retrieved gas oracle
+            config: {
+              gasOracle: zeroAddress,
+              gasOverhead: BigInt(String(gasOverhead)),
+            },
+          }),
+        );
 
         return {
           chain: violation.chain,
@@ -118,7 +117,7 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
               .map((remoteStr) => {
                 const remote = remoteStr as ChainName;
                 const remoteId = this.checker.multiProvider.getDomainId(remote);
-                const expected = violation.expected[remote];
+                const expected = String((violation.expected as any)[remote]);
                 return `destination gas overhead for ${remote} (domain ID ${remoteId}) to ${expected}`;
               })
               .join(', ')}`,

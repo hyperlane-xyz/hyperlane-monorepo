@@ -158,8 +158,13 @@ const ownableFunctionSelectors = [
 
 // ICA router interface with hookMetadata parameter
 // This overload is used by the SDK when building ICA calls with custom hook metadata
-const icaInterfaceWithHookMetadata =
-  interchainAccountFactories.interchainAccountRouter.createInterface();
+const icaRouterFactory: any =
+  interchainAccountFactories.interchainAccountRouter;
+const icaInterfaceWithHookMetadata = (
+  icaRouterFactory.createInterface
+    ? icaRouterFactory.createInterface()
+    : icaRouterFactory.constructor.createInterface()
+) as any;
 
 // Function selector for callRemoteWithOverrides with hookMetadata (5 params)
 const CALL_REMOTE_WITH_HOOK_METADATA_SELECTOR =
@@ -1356,8 +1361,10 @@ export class GovernTransactionReader {
       throw new Error('No data in ICA transaction');
     }
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const icaInterface =
-      interchainAccountFactories.interchainAccountRouter.interface;
+    const icaInterface = (icaRouterFactory.interface ??
+      (icaRouterFactory.createInterface
+        ? icaRouterFactory.createInterface()
+        : icaRouterFactory.constructor.createInterface())) as any;
 
     // Check selector to determine which interface to use
     const hasHookMetadata = tx.data.startsWith(
@@ -1483,7 +1490,11 @@ export class GovernTransactionReader {
     if (!tx.data) {
       throw new Error('⚠️ No data in mailbox transaction');
     }
-    const mailboxInterface = coreFactories.mailbox.interface;
+    const mailboxFactory: any = coreFactories.mailbox;
+    const mailboxInterface = (mailboxFactory.interface ??
+      (mailboxFactory.createInterface
+        ? mailboxFactory.createInterface()
+        : mailboxFactory.constructor.createInterface())) as any;
     const decoded = mailboxInterface.parseTransaction({
       data: tx.data,
       value: tx.value,
@@ -2115,7 +2126,7 @@ function formatFunctionFragmentArgs(
   fragment: ParsedFunctionFragment,
 ): Record<string, any> {
   const accumulator: Record<string, any> = {};
-  return fragment.inputs.reduce((acc, input, index) => {
+  return fragment.inputs.reduce((acc: any, input: any, index: number) => {
     acc[input.name] = args[index];
     return acc;
   }, accumulator);

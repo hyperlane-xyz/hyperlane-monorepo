@@ -68,7 +68,7 @@ type TxReceipt = Awaited<ReturnType<MultiProvider['handleTx']>>;
 type EvmSigner = ReturnType<MultiProvider['getSigner']>;
 type ContractLike = {
   address: Address;
-  signer: EvmSigner;
+  signer?: EvmSigner;
   interface: {
     encodeFunctionData(
       functionName: string,
@@ -79,12 +79,6 @@ type ContractLike = {
   attach(address: Address): ContractLike;
   connect(signerOrProvider: unknown): ContractLike;
   [key: string]: any;
-};
-type ContractFactoryLike<TContract extends ContractLike = ContractLike> = {
-  deploy(...args: any[]): Promise<TContract>;
-  attach(address: Address): TContract;
-  bytecode?: string;
-  connect?(signer: EvmSigner): ContractFactoryLike<TContract>;
 };
 
 export interface DeployerOptions {
@@ -419,15 +413,15 @@ export abstract class HyperlaneDeployer<
     return 'initialize';
   }
 
-  public async deployContractFromFactory<F extends ContractFactoryLike>(
+  public async deployContractFromFactory(
     chain: ChainName,
-    factory: F,
+    factory: any,
     contractName: string,
-    constructorArgs: Parameters<F['deploy']>,
-    initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
+    constructorArgs: any[],
+    initializeArgs?: any[],
     shouldRecover = true,
     implementationAddress?: Address,
-  ): Promise<ReturnType<F['deploy']>> {
+  ): Promise<any> {
     if (this.cachingEnabled && shouldRecover) {
       const cachedContract = this.readCache(chain, factory, contractName);
       if (cachedContract) {
@@ -456,7 +450,7 @@ export abstract class HyperlaneDeployer<
     const signer = this.multiProvider.getSigner(chain);
     const artifact = await getZKSyncArtifactByContractName(contractName);
 
-    const contract = await this.multiProvider.handleDeploy(
+    const contract: any = await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
@@ -728,11 +722,11 @@ export abstract class HyperlaneDeployer<
     this.cachedAddresses[chain][contractName] = address;
   }
 
-  readCache<F extends ContractFactoryLike>(
+  readCache(
     chain: ChainName,
-    factory: F,
+    factory: any,
     contractName: string,
-  ): Awaited<ReturnType<F['deploy']>> | undefined {
+  ): any | undefined {
     const cachedAddress = this.cachedAddresses[chain]?.[contractName];
     if (cachedAddress && !isZeroishAddress(cachedAddress)) {
       this.logger.debug(
@@ -740,9 +734,7 @@ export abstract class HyperlaneDeployer<
       );
       return factory
         .attach(cachedAddress)
-        .connect(this.multiProvider.getSignerOrProvider(chain)) as Awaited<
-        ReturnType<F['deploy']>
-      >;
+        .connect(this.multiProvider.getSignerOrProvider(chain));
     }
     return undefined;
   }
@@ -751,8 +743,8 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     contractName: string,
     cachedContract: C,
-    constructorArgs: Parameters<C['deploy']>,
-    initializeArgs?: Parameters<C['initialize']>,
+    constructorArgs: any[],
+    initializeArgs?: any[],
   ): Promise<ContractVerificationInput[]> {
     const provider = this.multiProvider.getProvider(chain);
     const isProxied = await isProxy(provider, cachedContract.address);

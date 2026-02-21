@@ -199,10 +199,10 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
    * Mirrors solidity/contracts/middleware/libs/InterchainAccountMessage.sol#encode
    */
   encodeIcaMessageBody(
-    owner: string,
-    ism: string,
-    calls: { to: string; value: bigint; data: string }[],
-    salt: string = zeroHash,
+    owner: Hex,
+    ism: Hex,
+    calls: { to: Hex; value: bigint; data: Hex }[],
+    salt: Hex = zeroHash,
   ): string {
     const MESSAGE_TYPE_CALLS = 0;
     const prefix = encodePacked(
@@ -221,7 +221,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           ],
         },
       ],
-      [calls],
+      [calls as any],
     );
     return concatHex([prefix, suffix]);
   }
@@ -257,14 +257,14 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     );
 
     const formattedCalls = innerCalls.map((call) => ({
-      to: addressToBytes32(call.to),
+      to: addressToBytes32(call.to) as Hex,
       value: BigInt(call.value ?? '0'),
-      data: call.data,
+      data: (call.data ?? '0x') as Hex,
     }));
 
     const messageBody = this.encodeIcaMessageBody(
-      addressToBytes32(config.owner),
-      remoteIsm,
+      addressToBytes32(config.owner) as Hex,
+      remoteIsm as Hex,
       formattedCalls,
     );
 
@@ -372,9 +372,9 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           : IGP_DEFAULT_GAS;
 
     const formattedCalls = innerCalls.map((call) => ({
-      to: addressToBytes32(call.to),
+      to: addressToBytes32(call.to) as Hex,
       value: BigInt(call.value ?? '0'),
-      data: call.data,
+      data: (call.data ?? '0x') as Hex,
     }));
 
     let quote: bigint;
@@ -406,21 +406,21 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         data: defaultHookCall as Hex,
       });
       const messageBody = this.encodeIcaMessageBody(
-        addressToBytes32(config.owner),
-        remoteIsm,
+        addressToBytes32(config.owner) as Hex,
+        remoteIsm as Hex,
         formattedCalls,
       );
       const quoteDispatchCall = await provider.call({
-        to: mailboxAddress,
+        to: mailboxAddress as Hex,
         data: encodeFunctionData({
           abi: mailboxAbi,
           functionName: 'quoteDispatch',
           args: [
             remoteDomain,
-            remoteRouter,
-            messageBody,
-            resolvedHookMetadata,
-            defaultHook,
+            remoteRouter as Hex,
+            messageBody as Hex,
+            resolvedHookMetadata as Hex,
+            defaultHook as Hex,
           ],
         }),
       });
@@ -435,10 +435,10 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
     ](
       remoteDomain,
-      remoteRouter,
-      remoteIsm,
+      remoteRouter as Hex,
+      remoteIsm as Hex,
       formattedCalls,
-      resolvedHookMetadata,
+      resolvedHookMetadata as Hex,
       { value: quote },
     );
     return callEncoded;
@@ -563,9 +563,9 @@ export function encodeIcaCalls(calls: CallData[], salt: string) {
       ],
       [
         calls.map((c) => ({
-          to: addressToBytes32(c.to),
+          to: addressToBytes32(c.to) as Hex,
           value: c.value ?? 0n,
-          data: c.data,
+          data: c.data as Hex,
         })),
       ],
     ),

@@ -95,7 +95,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
     // assume they are to be sent on the current configured chain
     const [domainId] = transactionChains.values();
     const destinationChainDomainId = this.multiProvider.getDomainId(
-      domainId ?? this.config.chain,
+      (domainId ?? this.config.chain) as any,
     );
 
     const calldata: CallData[] = txs.map((transaction): CallData => {

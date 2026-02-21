@@ -183,7 +183,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ) >= 0;
 
     let allowedRebalancers: Address[] | undefined;
-    let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
+    let allowedRebalancingBridges:
+      | MovableTokenConfig['allowedRebalancingBridges']
+      | undefined;
     let domains: number[] | undefined;
 
     // Only movable collateral tokens (collateral/native) have rebalancing config
@@ -210,17 +212,20 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       }
 
       try {
-        domains = await movableToken.domains();
+        const domainList = ((await movableToken.domains()) ?? []).map(
+          (domain: any) => Number(domain),
+        );
+        domains = domainList;
         const allowedBridgesByDomain = await promiseObjAll(
           objMap(
-            arrayToObject(domains.map((domain) => domain.toString())),
-            (domain) => movableToken.allowedBridges(domain),
+            arrayToObject(domainList.map((domain: any) => domain.toString())),
+            (domain: any) => movableToken.allowedBridges(domain),
           ),
         );
 
         allowedRebalancingBridges = objFilter(
           objMap(allowedBridgesByDomain, (_domain, bridges) =>
-            bridges.map((bridge) => ({ bridge })),
+            bridges.map((bridge: any) => ({ bridge })),
           ),
           // Remove domains that do not have allowed bridges
           (_domain, bridges): bridges is any => bridges.length !== 0,
@@ -235,7 +240,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     }
 
     // Fetch tokenFee for ALL token types that support it, not just movable collateral
-    const tokenFee = await this.fetchTokenFee(warpRouteAddress, domains);
+    const tokenFee = await this.fetchTokenFee(
+      warpRouteAddress,
+      domains ?? undefined,
+    );
 
     // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
     // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
@@ -643,17 +651,17 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       functionName: 'rateLimitPerSecond' | 'bufferCap',
     ): Promise<bigint> => {
       const result = await this.provider.call({
-        to: xERC20Address,
+        to: xERC20Address as `0x${string}`,
         data: encodeFunctionData({
           abi: rateLimitsABI,
           functionName,
-          args: [warpRouteAddress],
-        }),
+          args: [warpRouteAddress as `0x${string}`],
+        }) as `0x${string}`,
       });
       return decodeFunctionResult({
         abi: rateLimitsABI,
         functionName,
-        data: result,
+        data: result as any,
       }) as bigint;
     };
 
@@ -1152,7 +1160,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     return Object.fromEntries(
       await Promise.all(
-        domains.map(async (domain) => {
+        domains.map(async (domain: any) => {
           return [domain, (await warpRoute.destinationGas(domain)).toString()];
         }),
       ),

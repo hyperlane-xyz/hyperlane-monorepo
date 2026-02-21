@@ -357,7 +357,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         throw new Error(`Unexpected hook type: ${config}`);
     }
 
-    const routingConfigs: DomainRoutingHook.HookConfigStruct[] = [];
+    const routingConfigs: any[] = [];
     let prevHookConfig: HookConfig | undefined;
     let prevHookAddress: Address | undefined;
     for (const [dest, hookConfig] of Object.entries(config.domains)) {

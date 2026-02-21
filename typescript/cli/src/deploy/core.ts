@@ -153,7 +153,7 @@ export async function runCoreApply(params: ApplyParams) {
         for (const transaction of transactions) {
           await multiProvider.sendTransaction(
             // Using the provided chain id because there might be remote chain transactions included in the batch
-            transaction.chainId ?? chain,
+            (transaction.chainId as any) ?? chain,
             transaction,
           );
         }

@@ -15,6 +15,7 @@
     "./config/**/*.ts",
     "./scripts/**/*.ts",
     "./src/**/*.ts",
+    "./src/**/*.d.ts",
     "./test/**/*.ts"
   ]
 }

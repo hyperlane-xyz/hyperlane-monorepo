@@ -211,7 +211,7 @@ async function handleTransactions(
       const signature = transaction.data.signature.startsWith('function ')
         ? transaction.data.signature
         : `function ${transaction.data.signature}`;
-      const functionAbi = parseAbiItem(signature);
+      const functionAbi = parseAbiItem(signature) as any;
       calldata = encodeFunctionData({
         abi: [functionAbi],
         functionName: functionAbi.name,
@@ -242,7 +242,7 @@ async function handleTransactions(
       throw error;
     }
 
-    const txReceipt = await pendingTx.wait();
+    const txReceipt: any = await pendingTx.wait();
     if (txReceipt.status == 0) {
       throw new Error(
         `Transaction ${transaction} reverted on chain ${chainName}`,
@@ -344,12 +344,12 @@ function assertEventBySignature(
     : `event ${eventAssertion.signature}`;
   const eventAbi = parseAbiItem(signature);
 
-  let parsedLog;
+  let parsedLog: any;
   try {
     parsedLog = decodeEventLog({
-      abi: [eventAbi],
-      data: rawLog.data,
-      topics: rawLog.topics,
+      abi: [eventAbi as any],
+      data: rawLog.data as any,
+      topics: rawLog.topics as any,
       strict: false,
     });
   } catch {
@@ -365,7 +365,7 @@ function assertEventBySignature(
     : Object.values(parsedLog.args);
   const logArgs = parsedArgs
     .slice(0, eventAssertion.args.length)
-    .map((arg) => String(arg));
+    .map((arg: any) => String(arg));
 
   return deepEquals(logArgs, eventAssertion.args);
 }

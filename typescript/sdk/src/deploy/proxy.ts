@@ -57,7 +57,7 @@ export async function proxyImplementation(
   if (isStorageEmpty(storageValue)) {
     return zeroAddress;
   }
-  return getAddress(storageValue.slice(26));
+  return getAddress(`0x${storageValue.slice(26)}`);
 }
 
 export async function isInitialized(
@@ -87,7 +87,7 @@ export async function proxyAdmin(
   if (isStorageEmpty(storageValue)) {
     return zeroAddress;
   }
-  return getAddress(storageValue.slice(26));
+  return getAddress(`0x${storageValue.slice(26)}`);
 }
 
 export function proxyConstructorArgs<

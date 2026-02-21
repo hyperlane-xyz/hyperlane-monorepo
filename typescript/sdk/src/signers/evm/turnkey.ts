@@ -179,7 +179,7 @@ export class TurnkeyEvmSigner {
     try {
       const messageBytes =
         typeof message === 'string' ? toBytes(message) : message;
-      const messageHash = hashMessage(messageBytes);
+      const messageHash = hashMessage(messageBytes as any);
 
       // Sign raw payload using Turnkey
       const { activity, r, s, v } = await this.manager

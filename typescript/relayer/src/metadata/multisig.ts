@@ -1,4 +1,4 @@
-import { joinSignature, splitSignature } from 'ethers/lib/utils.js';
+import { parseSignature, serializeSignature } from 'viem';
 
 import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
 import {
@@ -506,7 +506,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
         : this.encodeProofPrefix(metadata);
 
     metadata.signatures.forEach((signature) => {
-      const encodedSignature = joinSignature(signature);
+      const encodedSignature = serializeSignature(signature as any);
       assert(
         fromHexString(encodedSignature).byteLength === SIGNATURE_LENGTH,
         'Invalid signature length',
@@ -550,9 +550,13 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
     const signatures: SignatureLike[] = [];
     for (let i = 0; this.signatureAt(metadata, offset, i); i++) {
-      const { r, s, v } = splitSignature(
-        this.signatureAt(metadata, offset, i)!,
-      );
+      const parsed = parseSignature(this.signatureAt(metadata, offset, i)!);
+      const v =
+        (parsed as any).v ??
+        ((parsed as any).yParity !== undefined
+          ? Number((parsed as any).yParity) + 27
+          : 27);
+      const { r, s } = parsed as any;
       signatures.push({ r, s, v });
     }
 

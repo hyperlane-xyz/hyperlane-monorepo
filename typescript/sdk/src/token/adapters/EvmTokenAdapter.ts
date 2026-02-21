@@ -1,7 +1,6 @@
 import { zeroAddress } from 'viem';
 
 import {
-  ERC20,
   ERC20__factory,
   ERC4626__factory,
   HypERC20,
@@ -75,9 +74,7 @@ import { buildBlockTagOverrides } from './utils.js';
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
 const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 
-type PopulatedTransaction = Awaited<
-  ReturnType<ERC20['populateTransaction']['transfer']>
->;
+type PopulatedTransaction = any;
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -85,7 +82,7 @@ export class EvmNativeTokenAdapter
   implements ITokenAdapter<PopulatedTransaction>
 {
   async getBalance(address: Address): Promise<bigint> {
-    const balance = await this.getProvider().getBalance(address);
+    const balance = await (this.getProvider() as any).getBalance(address);
     return BigInt(balance.toString());
   }
 
@@ -143,11 +140,11 @@ export class EvmNativeTokenAdapter
 }
 
 // Interacts with ERC20/721 contracts
-export class EvmTokenAdapter<T extends ERC20 = ERC20>
+export class EvmTokenAdapter<T = any>
   extends EvmNativeTokenAdapter
   implements ITokenAdapter<PopulatedTransaction>
 {
-  public readonly contract: T;
+  public readonly contract: any;
 
   constructor(
     public readonly chainName: ChainName,
@@ -323,7 +320,7 @@ export class EvmHypSyntheticAdapter
     );
     const [, igpAmount] = igpQuote;
 
-    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote) => ({
+    const tokenFeeQuotes: Quote[] = feeQuotes.map((quote: any) => ({
       addressOrDenom: quote[0],
       amount: BigInt(quote[1].toString()),
     }));
@@ -539,7 +536,7 @@ export class EvmMovableCollateralAdapter
       await this.movableCollateral().allowedBridges(domain);
 
     return allowedBridges
-      .map((bridgeAddress) => normalizeAddress(bridgeAddress))
+      .map((bridgeAddress: any) => normalizeAddress(bridgeAddress))
       .includes(normalizeAddress(bridge));
   }
 
@@ -560,7 +557,7 @@ export class EvmMovableCollateralAdapter
       amount,
     );
 
-    return quotes.map((quote) => ({
+    return quotes.map((quote: any) => ({
       igpQuote: {
         addressOrDenom: quote.token === zeroAddress ? undefined : quote.token,
         amount: BigInt(quote.amount.toString()),
@@ -959,7 +956,7 @@ export class EvmHypNativeAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
   override async getBalance(address: Address): Promise<bigint> {
-    const provider = this.getProvider();
+    const provider = this.getProvider() as any;
     const balance = await provider.getBalance(address);
 
     return BigInt(balance.toString());
@@ -1024,7 +1021,7 @@ export class EvmHypNativeAdapter
   override async getBridgedSupply(options?: {
     blockTag?: number | EthJsonRpcBlockParameterTag;
   }): Promise<bigint | undefined> {
-    const balance = await this.getProvider().getBalance(
+    const balance = await (this.getProvider() as any).getBalance(
       this.addresses.token,
       options?.blockTag,
     );

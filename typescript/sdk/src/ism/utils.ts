@@ -505,8 +505,8 @@ async function domainRoutingModuleDelta(
   const provider = multiProvider.getProvider(destination);
   const routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, provider);
   const owner = await routingIsm.owner();
-  const deployedDomains = (await routingIsm.domains()).map((domain) =>
-    domain.toNumber(),
+  const deployedDomains = (await routingIsm.domains()).map((domain: any) =>
+    Number(domain),
   );
 
   const delta: RoutingIsmDelta = {
@@ -537,7 +537,7 @@ async function domainRoutingModuleDelta(
 
   // check for exclusion of domains in the config
   delta.domainsToUnenroll = deployedDomains.filter(
-    (domain) => !Object.values(safeConfigDomains).includes(domain),
+    (domain: any) => !Object.values(safeConfigDomains).includes(domain),
   );
   // check for inclusion of domains in the config
   for (const [origin, subConfig] of Object.entries(ismByDomainName)) {
@@ -594,10 +594,10 @@ export function collectValidators(
       validators = [...domainValidators];
     }
   } else if (config.type === IsmType.AGGREGATION) {
-    const aggregatedValidators = config.modules.map((c) =>
+    const aggregatedValidators = config.modules.map((c: any) =>
       collectValidators(origin, c),
     );
-    aggregatedValidators.forEach((set) => {
+    aggregatedValidators.forEach((set: any) => {
       validators = validators.concat([...set]);
     });
   } else if (

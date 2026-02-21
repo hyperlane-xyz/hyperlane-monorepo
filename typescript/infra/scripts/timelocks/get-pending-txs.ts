@@ -56,22 +56,21 @@ async function main() {
     process.exit(0);
   }
 
-  // Sort by chain name, then by earliestExecution (as BigNumber, so use .toNumber())
+  // Sort by chain name, then by earliestExecution
   // Then convert earliestExecution to a readable date string
   logTable(
     pendingTxs
       .sort((a, b) => {
         const chainCmp = a.chain.localeCompare(b.chain);
         if (chainCmp !== 0) return chainCmp;
-        // Compare earliestExecution as numbers (BigNumber -> number)
-        const aExec = a.earliestExecution.toNumber();
-        const bExec = b.earliestExecution.toNumber();
+        const aExec = Number(a.earliestExecution);
+        const bExec = Number(b.earliestExecution);
         return aExec - bExec;
       })
       .map((tx) => ({
         ...tx,
         earliestExecution: new Date(
-          tx.earliestExecution.toNumber() * 1000,
+          Number(tx.earliestExecution) * 1000,
         ).toLocaleString(),
       })),
     ['chain', 'id', 'earliestExecution', 'status'],

@@ -1,4 +1,4 @@
-import { formatUnits } from 'ethers/lib/utils.js';
+import { formatUnits } from 'viem';
 
 import { Contexts } from '../config/contexts.js';
 import { Role } from '../src/roles.js';

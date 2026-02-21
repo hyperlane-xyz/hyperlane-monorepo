@@ -276,7 +276,8 @@ export abstract class HyperlaneAppGovernor<
       (existingCall) =>
         existingCall.to === call.to &&
         existingCall.data === call.data &&
-        existingCall.value?.eq(call.value || 0),
+        BigInt((existingCall.value ?? 0).toString()) ===
+          BigInt((call.value ?? 0).toString()),
     );
     if (!isDuplicate) {
       this.calls[chain].push(call);
@@ -471,7 +472,7 @@ export abstract class HyperlaneAppGovernor<
     });
 
     const hookMetadata = formatStandardHookMetadata({
-      gasLimit: gasLimit.toBigInt(),
+      gasLimit,
       refundAddress,
     });
 

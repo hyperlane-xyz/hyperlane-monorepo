@@ -1,4 +1,4 @@
-import { formatUnits } from 'ethers/lib/utils.js';
+import { formatUnits } from 'viem';
 import { format } from 'util';
 
 import {
@@ -383,7 +383,7 @@ async function fundAccount({
   // Check if we have sufficient balance
   if (currentBalance < weiAmount) {
     throw new Error(
-      `Insufficient balance. Have: ${formatUnits(currentBalance.toString(), decimals)} ${tokenMetadata.symbol}, Need: ${amount} ${tokenMetadata.symbol}`,
+      `Insufficient balance. Have: ${formatUnits(currentBalance, decimals)} ${tokenMetadata.symbol}, Need: ${amount} ${tokenMetadata.symbol}`,
     );
   }
 
@@ -428,8 +428,8 @@ async function fundAccount({
   fundingLogger.info(
     {
       transactionHash,
-      senderNewBalance: formatUnits(newBalance.toString(), decimals),
-      recipientBalance: formatUnits(recipientBalance.toString(), decimals),
+      senderNewBalance: formatUnits(newBalance, decimals),
+      recipientBalance: formatUnits(recipientBalance, decimals),
       symbol: tokenMetadata.symbol,
     },
     'Transfer completed successfully',

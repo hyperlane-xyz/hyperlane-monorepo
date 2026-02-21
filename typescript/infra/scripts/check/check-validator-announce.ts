@@ -85,7 +85,7 @@ async function main() {
 
             unannouncedValidators = defaultValidatorConfigs.filter(
               ({ address }) =>
-                !announcedValidators.some((x) => eqAddress(x, address)),
+                !announcedValidators.some((x: string) => eqAddress(x, address)),
             );
 
             if (unannouncedValidators.length > 0) {

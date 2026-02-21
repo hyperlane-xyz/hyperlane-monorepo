@@ -15,7 +15,6 @@ import {
   IMultisigIsm,
   IMultisigIsm__factory,
   IRoutingIsm,
-  IStaticWeightedMultisigIsm,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
@@ -623,7 +622,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
         // TODO: Break this out into a generalized function
         const dispatchLogs = receipt.logs
-          .map((log) => {
+          .map((log: any) => {
             try {
               return domainRoutingIsmFactory.interface.parseLog(log);
             } catch {
@@ -631,7 +630,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             }
           })
           .filter(
-            (log): log is ParsedLogDescription =>
+            (log: any): log is ParsedLogDescription =>
               !!log && log.name === 'ModuleDeployed',
           );
         if (dispatchLogs.length === 0) {
@@ -738,7 +737,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   async deployStaticWeightedValidatorSet(
     chain: ChainName,
     factory: StaticWeightedValidatorSetFactory,
-    values: IStaticWeightedMultisigIsm.ValidatorInfoStruct[],
+    values: any[],
     thresholdWeight = 66e8,
     logger: Logger,
   ): Promise<Address> {
