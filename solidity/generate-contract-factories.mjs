@@ -1,9 +1,12 @@
 import {promises as fs} from "fs";
-import {basename, join} from "path";
+import {basename, dirname, join} from "path";
 
 const CONFIG = {
     artifactsRoot: join(process.cwd(), "artifacts"),
-    outputPath: join(process.cwd(), "core-utils/contracts.generated.ts"),
+    outputPath: join(
+        process.cwd(),
+        "core-utils/generated/contracts.generated.ts",
+    ),
 };
 
 function isExportableIdentifier(name) {
@@ -110,8 +113,8 @@ export class ${name}__factory extends ViemContractFactory {
 
     return `/* eslint-disable */
 /* THIS FILE IS AUTO-GENERATED. DO NOT EDIT DIRECTLY. */
-import type { ArtifactEntry, ViemContractLike } from './viemFactory.js';
-import { ViemContractFactory } from './viemFactory.js';
+import type { ArtifactEntry, ViemContractLike } from '../viemFactory.js';
+import { ViemContractFactory } from '../viemFactory.js';
 
 export const contractArtifacts: Record<string, ArtifactEntry> = {
 ${mapEntries}
@@ -160,6 +163,7 @@ async function generate() {
     }
 
     const source = renderGeneratedSource(artifactsByName);
+    await fs.mkdir(dirname(CONFIG.outputPath), {recursive: true});
     await fs.writeFile(CONFIG.outputPath, source);
     console.log(
         `Generated ${
