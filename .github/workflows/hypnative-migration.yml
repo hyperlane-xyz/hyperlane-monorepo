@@ -1,0 +1,132 @@
+name: HypNative Collateral Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      env_file:
+        description: 'Migration env file (e.g., viction-eth.env)'
+        required: true
+        type: string
+  push:
+    branches:
+      - yorke/hypnative-migration
+    paths:
+      - 'solidity/script/migrations/*.env'
+      - 'solidity/script/HypNativeCollateralMigration.s.sol'
+      - 'solidity/script/migration-pipeline.sh'
+      - '.github/workflows/hypnative-migration.yml'
+
+concurrency:
+  group: hypnative-migration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Find all env files to process
+  find-migrations:
+    runs-on: ubuntu-latest
+    outputs:
+      env_files: ${{ steps.find.outputs.env_files }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Find env files
+        id: find
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Use specified env file
+            echo "env_files=[\"${{ inputs.env_file }}\"]" >> $GITHUB_OUTPUT
+          else
+            # Find all env files in migrations directory
+            files=$(ls solidity/script/migrations/*.env 2>/dev/null | xargs -I {} basename {} | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            echo "env_files=$files" >> $GITHUB_OUTPUT
+          fi
+
+  generate-safe-tx:
+    needs: find-migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        env_file: ${{ fromJson(needs.find-migrations.outputs.env_files) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Load migration config
+        id: config
+        run: |
+          source solidity/script/migrations/${{ matrix.env_file }}
+          echo "OLD_ROUTER=$OLD_ROUTER" >> $GITHUB_OUTPUT
+          echo "REMOTE_DOMAIN=$REMOTE_DOMAIN" >> $GITHUB_OUTPUT
+          echo "PROXY_ADMIN=$PROXY_ADMIN" >> $GITHUB_OUTPUT
+          echo "CHAIN=$CHAIN" >> $GITHUB_OUTPUT
+
+      - name: Set RPC URL
+        env:
+          MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
+          MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+          MAINNET3_POLYGON_RPC_URLS: ${{ secrets.MAINNET3_POLYGON_RPC_URLS }}
+          MAINNET3_BASE_RPC_URLS: ${{ secrets.MAINNET3_BASE_RPC_URLS }}
+        run: |
+          case "${{ steps.config.outputs.CHAIN }}" in
+            mainnet)
+              echo "ETH_RPC_URL=${MAINNET3_ETHEREUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+              ;;
+            optimism)
+              echo "ETH_RPC_URL=${MAINNET3_OPTIMISM_RPC_URLS%%,*}" >> $GITHUB_ENV
+              ;;
+            arbitrum)
+              echo "ETH_RPC_URL=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+              ;;
+            polygon)
+              echo "ETH_RPC_URL=${MAINNET3_POLYGON_RPC_URLS%%,*}" >> $GITHUB_ENV
+              ;;
+            base)
+              echo "ETH_RPC_URL=${MAINNET3_BASE_RPC_URLS%%,*}" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Run Migration Pipeline
+        working-directory: ./solidity
+        env:
+          OUTPUT_FILE: migration_transactions.json
+        run: |
+          set -a
+          source script/migrations/${{ matrix.env_file }}
+          set +a
+          ./script/migration-pipeline.sh
+
+      - name: Upload Safe Transaction JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: safe-tx-${{ matrix.env_file }}
+          path: solidity/migration_transactions.json
+          retention-days: 30
+
+      - name: Print Summary
+        working-directory: ./solidity
+        run: |
+          echo "## Migration Transaction Summary: ${{ matrix.env_file }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Chain:** ${{ steps.config.outputs.CHAIN }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Old Router:** \`${{ steps.config.outputs.OLD_ROUTER }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Remote Domain:** ${{ steps.config.outputs.REMOTE_DOMAIN }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Proxy Admin:** \`${{ steps.config.outputs.PROXY_ADMIN }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Transaction Details" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Number of transactions:** $(jq '.transactions | length' migration_transactions.json)" >> $GITHUB_STEP_SUMMARY
+          echo "**Chain ID:** $(jq -r '.chainId' migration_transactions.json)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Instructions" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the \`migration_transactions.json\` artifact from this workflow run" >> $GITHUB_STEP_SUMMARY
+          echo "2. Go to your Safe app at https://app.safe.global" >> $GITHUB_STEP_SUMMARY
+          echo "3. Navigate to **New Transaction** > **Transaction Builder**" >> $GITHUB_STEP_SUMMARY
+          echo "4. Click **Upload JSON** and select the downloaded file" >> $GITHUB_STEP_SUMMARY
+          echo "5. Review the transactions and submit for signing" >> $GITHUB_STEP_SUMMARY
