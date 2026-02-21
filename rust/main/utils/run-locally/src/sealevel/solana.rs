@@ -62,8 +62,6 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
 const SOLANA_DEPLOYER_KEYPAIR: &str = "environments/local-e2e/accounts/test_deployer-keypair.json";
 const SOLANA_DEPLOYER_ACCOUNT: &str = "environments/local-e2e/accounts/test_deployer-account.json";
 
-const LOCAL_E2E_MOCK_REGISTRY: &str = "environments/local-e2e/mock-registry";
-
 const SOLANA_WARPROUTE_TOKEN_CONFIG_FILE: &str =
     "environments/local-e2e/warp-routes/testwarproute/token-config.json";
 const SOLANA_ENVS_DIR: &str = "environments";
@@ -209,12 +207,48 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     out_path
 }
 
+/// Create a temporary mock registry with dynamically allocated RPC port
+fn create_mock_registry(rpc_port: u16) -> tempfile::TempDir {
+    let temp_dir = tempdir().expect("Failed to create temp mock registry dir");
+    let chains_dir = temp_dir.path().join("chains");
+    fs::create_dir_all(&chains_dir).expect("Failed to create chains dir");
+
+    let rpc_url = format!("http://127.0.0.1:{}", rpc_port);
+    let metadata = format!(
+        r#"sealeveltest1:
+  domainId: 13375
+  isTestnet: true
+  name: sealeveltest1
+  rpcUrls:
+  - http: {rpc_url}
+sealeveltest2:
+  domainId: 13376
+  isTestnet: true
+  name: sealeveltest2
+  rpcUrls:
+  - http: {rpc_url}
+sealeveltest3:
+  domainId: 13377
+  isTestnet: true
+  name: sealeveltest3
+  rpcUrls:
+  - http: {rpc_url}
+"#
+    );
+
+    fs::write(chains_dir.join("metadata.yaml"), metadata)
+        .expect("Failed to write mock registry metadata");
+    temp_dir
+}
+
 /// Result from starting the solana test validator
 pub struct SolanaTestValidatorResult {
     pub config_path: PathBuf,
     pub validator: AgentHandles,
     /// ALT address for sealeveltest2 (for versioned transactions on destination)
     pub sealeveltest2_alt: String,
+    /// Mock registry temp dir - must be kept alive for the duration of the test
+    pub mock_registry_dir: tempfile::TempDir,
 }
 
 #[apply(as_task)]
@@ -222,6 +256,8 @@ pub fn start_solana_test_validator(
     solana_cli_tools_path: PathBuf,
     solana_programs_path: PathBuf,
     ledger_dir: PathBuf,
+    rpc_port: u16,
+    faucet_port: u16,
 ) -> SolanaTestValidatorResult {
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
@@ -232,7 +268,9 @@ pub fn start_solana_test_validator(
     let solana_env_dir = concat_path(&sealevel_path, SOLANA_ENVS_DIR);
     let solana_env_dir_str = solana_env_dir.to_string_lossy();
 
-    let _mock_registry_path = concat_path(&sealevel_path, LOCAL_E2E_MOCK_REGISTRY);
+    // Create mock registry with dynamic RPC port
+    let mock_registry_dir = create_mock_registry(rpc_port);
+    let mock_registry_path = mock_registry_dir.path().to_string_lossy().to_string();
 
     let solana_warproute_token_config_file =
         concat_path(&sealevel_path, SOLANA_WARPROUTE_TOKEN_CONFIG_FILE);
@@ -248,19 +286,23 @@ pub fn start_solana_test_validator(
     let solana_config = NamedTempFile::new().unwrap().into_temp_path();
     let solana_config_path = solana_config.to_path_buf();
 
+    let rpc_url = format!("http://127.0.0.1:{}", rpc_port);
     Program::new(concat_path(&solana_cli_tools_path, "solana"))
         .arg("config", solana_config_path.to_string_lossy())
         .cmd("config")
         .cmd("set")
-        .arg("url", "localhost")
+        .arg("url", &rpc_url)
         .run()
         .join();
 
-    log!("Starting solana validator");
+    log!("Starting solana validator on port {}", rpc_port);
     let mut args = Program::new(concat_path(&solana_cli_tools_path, "solana-test-validator"))
         .flag("quiet")
         .flag("reset")
         .arg("ledger", ledger_dir.to_str().unwrap())
+        .arg("rpc-port", rpc_port.to_string())
+        .arg("bind-address", "127.0.0.1")
+        .arg("faucet-port", faucet_port.to_string())
         .arg3(
             "account",
             "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty",
@@ -320,7 +362,7 @@ pub fn start_solana_test_validator(
             "gas-oracle-config-file",
             solana_gas_oracle_config_file_str.clone(),
         )
-        .arg("registry", LOCAL_E2E_MOCK_REGISTRY);
+        .arg("registry", &mock_registry_path);
 
     // Configure sealeveltest1 IGP
     igp_configure_command
@@ -358,7 +400,7 @@ pub fn start_solana_test_validator(
             "token-config-file",
             solana_warproute_token_config_file_str.clone(),
         )
-        .arg("registry", LOCAL_E2E_MOCK_REGISTRY)
+        .arg("registry", &mock_registry_path)
         .arg("ata-payer-funding-amount", "1000000000")
         .run()
         .join();
@@ -424,7 +466,7 @@ pub fn start_solana_test_validator(
         .cmd("configure")
         .arg("program-id", SEALEVELTEST1_IGP_PROGRAM_ID)
         .arg("gas-oracle-config-file", solana_gas_oracle_config_file_str)
-        .arg("registry", LOCAL_E2E_MOCK_REGISTRY)
+        .arg("registry", &mock_registry_path)
         .arg("chain", "sealeveltest1")
         .arg("account-salt", ALTERNATIVE_SALT)
         .run()
@@ -452,6 +494,7 @@ pub fn start_solana_test_validator(
         config_path: solana_config_path,
         validator,
         sealeveltest2_alt,
+        mock_registry_dir,
     }
 }
 
