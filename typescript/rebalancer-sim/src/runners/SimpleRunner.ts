@@ -72,7 +72,7 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
 
     // Use separate rebalancer key to avoid nonce conflicts with transfer execution
     this.deployer = new LocalAccountEvmSigner(
-      ensure0x(config.deployment.rebalancerKey),
+      ensure0x(config.deployment.rebalancerKey) as `0x${string}`,
     ).connect(this.provider as any);
   }
 

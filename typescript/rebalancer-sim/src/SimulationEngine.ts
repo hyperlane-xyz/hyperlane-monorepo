@@ -163,7 +163,7 @@ export class SimulationEngine {
     kpiCollector: KPICollector,
   ): Promise<void> {
     const deployer = new LocalAccountEvmSigner(
-      ensure0x(this.deployment.deployerKey),
+      ensure0x(this.deployment.deployerKey) as `0x${string}`,
     ).connect(this.provider as any);
     const startTime = Date.now();
 
@@ -291,7 +291,7 @@ export class SimulationEngine {
 
     const multiProvider = new MultiProvider(chainMetadata);
     const processorWallet = new LocalAccountEvmSigner(
-      ensure0x(this.deployment.mailboxProcessorKey),
+      ensure0x(this.deployment.mailboxProcessorKey) as `0x${string}`,
     ).connect(this.provider as any);
     multiProvider.setSharedSigner(processorWallet);
 

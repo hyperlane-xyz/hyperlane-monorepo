@@ -33,7 +33,17 @@
     "strict": true,
     "target": "es2022"
   },
-  "exclude": ["./node_modules/", "./dist/", "./src/types/hardhat.d.ts"],
+  "exclude": [
+    "./node_modules/",
+    "./dist/",
+    "./src/types/hardhat.d.ts",
+    "./src/**/*.test.ts",
+    "./src/**/*.e2e-test.ts",
+    "./src/**/*.hardhat-test.ts",
+    "./src/**/*.foundry-test.ts",
+    "./src/test/**/*",
+    "./src/tests/**/*"
+  ],
   "include": ["./src/"],
   "ts-node": {
     "experimentalSpecifierResolution": "node",
