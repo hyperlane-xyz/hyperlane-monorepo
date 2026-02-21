@@ -8,6 +8,8 @@
     "exclude": [
         "./src/**/*.test.ts",
         "./src/**/*.hardhat-test.ts",
-        "./src/**/*.foundry-test.ts"
+        "./src/**/*.foundry-test.ts",
+        "./src/test/**/*",
+        "./src/**/*Test.ts"
     ]
 }
