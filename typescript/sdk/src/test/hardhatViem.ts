@@ -8,9 +8,20 @@ type ProviderLike = {
   send(method: string, params: unknown[]): Promise<unknown>;
   estimateGas(tx: unknown): Promise<unknown>;
   getBlock(tag: unknown): Promise<{ number: number } & Record<string, unknown>>;
+  getBlockNumber?(): Promise<number>;
+  getBalance?(address: string): Promise<bigint>;
+  getTransactionCount?(address: string, blockTag?: string): Promise<number>;
+  getLogs?(filter: Record<string, unknown>): Promise<Record<string, unknown>[]>;
   getTransactionReceipt(hash: string): Promise<Record<string, unknown> | null>;
-  getCode?(address: string): Promise<string>;
-  getStorageAt?(address: string, position: string): Promise<string>;
+  getCode?(
+    address: string,
+    blockTag?: string | number | bigint,
+  ): Promise<string>;
+  getStorageAt?(
+    address: string,
+    position: string,
+    blockTag?: string | number | bigint,
+  ): Promise<string>;
 };
 
 type WalletClientLike = {
@@ -18,13 +29,17 @@ type WalletClientLike = {
   sendTransaction(request: Record<string, unknown>): Promise<string>;
 };
 
+function sendHardhatRpc(method: string, params: unknown[]) {
+  return hre.network.provider.send(method, sanitizedRpcParams(params) as any[]);
+}
+
 export function getHardhatProvider(): ProviderLike {
   return {
     async send(method: string, params: unknown[]) {
-      return hre.network.provider.send(method, params as any[]);
+      return sendHardhatRpc(method, params);
     },
     async estimateGas(tx: unknown) {
-      const hexGas = (await hre.network.provider.send('eth_estimateGas', [
+      const hexGas = (await sendHardhatRpc('eth_estimateGas', [
         normalizeRpcTx(tx as Record<string, unknown>),
       ])) as string;
       return BigInt(hexGas);
@@ -48,6 +63,16 @@ export function getHardhatProvider(): ProviderLike {
         number: number;
       } & Record<string, unknown>;
     },
+    async getBlockNumber() {
+      const publicClient = await hreAny.viem.getPublicClient();
+      return Number(await publicClient.getBlockNumber());
+    },
+    async getBalance(address: string) {
+      const publicClient = await hreAny.viem.getPublicClient();
+      return publicClient.getBalance({
+        address: address as `0x${string}`,
+      });
+    },
     async getTransactionReceipt(hash: string) {
       const publicClient = await hreAny.viem.getPublicClient();
       try {
@@ -58,22 +83,37 @@ export function getHardhatProvider(): ProviderLike {
         return null;
       }
     },
-    async getCode(address: string) {
-      const publicClient = await hreAny.viem.getPublicClient();
-      return (
-        (await publicClient.getCode({
-          address: address as `0x${string}`,
-        })) || '0x'
-      );
+    async getTransactionCount(address: string, blockTag = 'latest') {
+      const count = (await sendHardhatRpc('eth_getTransactionCount', [
+        address,
+        blockTag,
+      ])) as string;
+      return Number(BigInt(count));
     },
-    async getStorageAt(address: string, position: string) {
-      const publicClient = await hreAny.viem.getPublicClient();
-      return (
-        (await publicClient.getStorageAt({
-          address: address as `0x${string}`,
-          slot: position as `0x${string}`,
-        })) || '0x'
-      );
+    async getLogs(filter: Record<string, unknown>) {
+      return (await sendHardhatRpc('eth_getLogs', [
+        normalizeLogFilter(filter),
+      ])) as Record<string, unknown>[];
+    },
+    async getCode(
+      address: string,
+      blockTag: string | number | bigint = 'latest',
+    ) {
+      return ((await sendHardhatRpc('eth_getCode', [
+        address,
+        toRpcBlockTag(blockTag),
+      ])) || '0x') as string;
+    },
+    async getStorageAt(
+      address: string,
+      position: string,
+      blockTag: string | number | bigint = 'latest',
+    ) {
+      return ((await sendHardhatRpc('eth_getStorageAt', [
+        address,
+        position,
+        toRpcBlockTag(blockTag),
+      ])) || '0x') as string;
     },
   };
 }
@@ -91,6 +131,7 @@ function normalizeRpcTx(tx: Record<string, unknown>): Record<string, unknown> {
   const gas = request.gas ?? request.gasLimit;
   const normalized: Record<string, unknown> = {
     ...request,
+    chainId: toRpcQuantity(request.chainId),
     gas: toRpcQuantity(gas),
     gasPrice: toRpcQuantity(request.gasPrice),
     maxFeePerGas: toRpcQuantity(request.maxFeePerGas),
@@ -98,13 +139,14 @@ function normalizeRpcTx(tx: Record<string, unknown>): Record<string, unknown> {
     nonce: toRpcQuantity(request.nonce),
     value: toRpcQuantity(request.value),
   };
+  if (!normalized.chainId) delete normalized.chainId;
   if (!normalized.gas) delete normalized.gas;
   if (!normalized.gasPrice) delete normalized.gasPrice;
   if (!normalized.maxFeePerGas) delete normalized.maxFeePerGas;
   if (!normalized.maxPriorityFeePerGas) delete normalized.maxPriorityFeePerGas;
   if (!normalized.nonce) delete normalized.nonce;
   if (!normalized.value) delete normalized.value;
-  return normalized;
+  return sanitizedRpcValue(normalized) as Record<string, unknown>;
 }
 
 function toRpcQuantity(value: unknown): string | undefined {
@@ -122,12 +164,71 @@ function toRpcQuantity(value: unknown): string | undefined {
   return undefined;
 }
 
+function toRpcBlockTag(blockTag: string | number | bigint): string {
+  if (typeof blockTag === 'number' || typeof blockTag === 'bigint') {
+    return toHex(BigInt(blockTag));
+  }
+  if (/^[0-9]+$/.test(blockTag)) {
+    return toHex(BigInt(blockTag));
+  }
+  return blockTag;
+}
+
+function normalizeLogFilter(filter: Record<string, unknown>) {
+  const normalized = { ...filter };
+  if (normalized.fromBlock !== undefined) {
+    normalized.fromBlock = toRpcBlockTag(
+      normalized.fromBlock as string | number | bigint,
+    );
+  }
+  if (normalized.toBlock !== undefined) {
+    normalized.toBlock = toRpcBlockTag(
+      normalized.toBlock as string | number | bigint,
+    );
+  }
+  return normalized;
+}
+
+function sanitizedRpcValue(value: unknown): unknown {
+  if (typeof value === 'bigint') {
+    return toHex(value);
+  }
+
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toBigInt' in value &&
+    typeof (value as { toBigInt?: unknown }).toBigInt === 'function'
+  ) {
+    return toHex((value as { toBigInt: () => bigint }).toBigInt());
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizedRpcValue(item));
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        sanitizedRpcValue(item),
+      ]),
+    );
+  }
+
+  return value;
+}
+
+function sanitizedRpcParams(params: unknown[]): unknown[] {
+  return sanitizedRpcValue(params) as unknown[];
+}
+
 class WalletClientSigner {
   readonly address: string;
 
   constructor(
     readonly walletClient: WalletClientLike,
-    readonly provider?: ProviderLike,
+    readonly provider: ProviderLike = getHardhatProvider(),
   ) {
     this.address = walletClient.account?.address || '';
   }
@@ -144,11 +245,32 @@ class WalletClientSigner {
   }
 
   async estimateGas(tx: unknown): Promise<unknown> {
-    const connectedProvider = this.provider || getHardhatProvider();
-    return connectedProvider.estimateGas({
+    return this.provider.estimateGas({
       ...(tx as Record<string, unknown>),
       from: this.address,
     });
+  }
+
+  async getTransactionCount(blockTag = 'latest'): Promise<number> {
+    if (this.provider.getTransactionCount) {
+      return this.provider.getTransactionCount(this.address, blockTag);
+    }
+    const count = (await this.provider.send('eth_getTransactionCount', [
+      this.address,
+      blockTag,
+    ])) as string;
+    return Number(BigInt(count));
+  }
+
+  async getBalance(): Promise<bigint> {
+    if (this.provider.getBalance) {
+      return this.provider.getBalance(this.address);
+    }
+    const balance = (await this.provider.send('eth_getBalance', [
+      this.address,
+      'latest',
+    ])) as string;
+    return BigInt(balance);
   }
 
   async sendTransaction(tx: unknown): Promise<{
@@ -162,8 +284,7 @@ class WalletClientSigner {
     return {
       hash,
       wait: async (confirmations = 1) => {
-        const provider = this.provider || getHardhatProvider();
-        return waitForReceipt(provider, hash, confirmations);
+        return waitForReceipt(this.provider, hash, confirmations);
       },
     };
   }
@@ -172,7 +293,7 @@ class WalletClientSigner {
 class ImpersonatedSigner {
   constructor(
     readonly address: string,
-    readonly provider?: ProviderLike,
+    readonly provider: ProviderLike = getHardhatProvider(),
   ) {}
 
   connect(provider: ProviderLike): ImpersonatedSigner {
@@ -187,28 +308,48 @@ class ImpersonatedSigner {
   }
 
   async estimateGas(tx: unknown): Promise<unknown> {
-    const connectedProvider = this.provider || getHardhatProvider();
-    return connectedProvider.estimateGas({
+    return this.provider.estimateGas({
       ...(tx as Record<string, unknown>),
       from: this.address,
     });
+  }
+
+  async getTransactionCount(blockTag = 'latest'): Promise<number> {
+    if (this.provider.getTransactionCount) {
+      return this.provider.getTransactionCount(this.address, blockTag);
+    }
+    const count = (await this.provider.send('eth_getTransactionCount', [
+      this.address,
+      blockTag,
+    ])) as string;
+    return Number(BigInt(count));
+  }
+
+  async getBalance(): Promise<bigint> {
+    if (this.provider.getBalance) {
+      return this.provider.getBalance(this.address);
+    }
+    const balance = (await this.provider.send('eth_getBalance', [
+      this.address,
+      'latest',
+    ])) as string;
+    return BigInt(balance);
   }
 
   async sendTransaction(tx: unknown): Promise<{
     hash: string;
     wait(confirmations?: number): Promise<unknown>;
   }> {
-    const connectedProvider = this.provider || getHardhatProvider();
-    const hash = (await connectedProvider.send('eth_sendTransaction', [
-      {
+    const hash = (await this.provider.send('eth_sendTransaction', [
+      sanitizedRpcValue({
         ...normalizeRpcTx(tx as Record<string, unknown>),
         from: this.address,
-      },
+      }),
     ])) as string;
     return {
       hash,
       wait: async (confirmations = 1) =>
-        waitForReceipt(connectedProvider, hash, confirmations),
+        waitForReceipt(this.provider, hash, confirmations),
     };
   }
 }

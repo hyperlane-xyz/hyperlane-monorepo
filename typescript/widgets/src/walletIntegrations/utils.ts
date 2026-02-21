@@ -5,15 +5,15 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 type EvmTransactionLike = {
   to?: string | null;
-  value?: bigint | string | number;
+  value?: unknown;
   data?: `0x${string}` | string;
   nonce?: number;
   chainId?: number;
-  gas?: bigint | string | number;
-  gasLimit?: bigint | string | number;
-  gasPrice?: bigint | string | number;
-  maxFeePerGas?: bigint | string | number;
-  maxPriorityFeePerGas?: bigint | string | number;
+  gas?: unknown;
+  gasLimit?: unknown;
+  gasPrice?: unknown;
+  maxFeePerGas?: unknown;
+  maxPriorityFeePerGas?: unknown;
 };
 
 export function ethers5TxToWagmiTx(
@@ -23,7 +23,7 @@ export function ethers5TxToWagmiTx(
   return {
     to: tx.to as `0x${string}`,
     value: toBigInt(tx.value ?? 0n),
-    data: tx.data as `0x{string}` | undefined,
+    data: tx.data as `0x${string}` | undefined,
     nonce: tx.nonce,
     chainId: tx.chainId,
     gas: tx.gasLimit ? toBigInt(tx.gasLimit) : tx.gas ? toBigInt(tx.gas) : undefined,
@@ -35,8 +35,11 @@ export function ethers5TxToWagmiTx(
   };
 }
 
-function toBigInt(value: bigint | string | number): bigint {
-  return typeof value === 'bigint' ? value : BigInt(value);
+function toBigInt(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number' || typeof value === 'string')
+    return BigInt(value);
+  throw new Error(`Unsupported numeric value: ${String(value)}`);
 }
 
 export function getChainsForProtocol(

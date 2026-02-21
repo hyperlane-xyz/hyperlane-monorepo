@@ -1,18 +1,18 @@
-import "@nomicfoundation/hardhat-viem";
+import '@nomicfoundation/hardhat-viem';
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
-    solidity: {
-        version: "0.7.6",
+  solidity: {
+    version: '0.7.6',
+  },
+  networks: {
+    hardhat: {
+      mining: {
+        auto: true,
+        interval: 2000,
+      },
     },
-    networks: {
-        hardhat: {
-            mining: {
-                auto: true,
-                interval: 2000,
-            },
-        },
-    },
+  },
 };

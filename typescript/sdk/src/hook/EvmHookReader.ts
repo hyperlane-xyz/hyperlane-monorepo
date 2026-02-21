@@ -56,6 +56,25 @@ import {
   RoutingHookConfig,
 } from './types.js';
 
+type NumberLike =
+  | number
+  | bigint
+  | string
+  | {
+      toNumber?: () => number;
+      toString?: () => string;
+    };
+
+const toNumberValue = (value: NumberLike): number => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') return Number(BigInt(value));
+  if (value?.toNumber) return value.toNumber();
+  if (value?.toString) return Number(BigInt(value.toString()));
+
+  throw new Error(`Cannot convert value to number: ${String(value)}`);
+};
+
 export interface HookReader {
   deriveHookConfig(address: HookConfig): Promise<WithAddress<HookConfig>>;
   deriveMerkleTreeConfig(
@@ -399,20 +418,42 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         const { name: chainName, nativeToken } =
           this.multiProvider.getChainMetadata(domainId);
         try {
-          const { tokenExchangeRate, gasPrice } =
+          const exchangeRateAndGasPrice =
             await hook.getExchangeRateAndGasPrice(domainId);
+          const tokenExchangeRate =
+            (exchangeRateAndGasPrice as { tokenExchangeRate?: unknown })
+              .tokenExchangeRate ??
+            (Array.isArray(exchangeRateAndGasPrice)
+              ? exchangeRateAndGasPrice[0]
+              : undefined);
+          const gasPrice =
+            (exchangeRateAndGasPrice as { gasPrice?: unknown }).gasPrice ??
+            (Array.isArray(exchangeRateAndGasPrice)
+              ? exchangeRateAndGasPrice[1]
+              : undefined);
+          assert(
+            tokenExchangeRate !== undefined && gasPrice !== undefined,
+            'Failed to extract gas oracle exchange rate and gas price',
+          );
           const domainGasOverhead = await hook.destinationGasLimit(domainId, 0);
 
-          overhead[chainName] = domainGasOverhead.toNumber();
+          overhead[chainName] = toNumberValue(domainGasOverhead);
           oracleConfig[chainName] = {
             tokenExchangeRate: tokenExchangeRate.toString(),
             gasPrice: gasPrice.toString(),
             tokenDecimals: nativeToken?.decimals,
           };
 
-          const { gasOracle } = await hook.destinationGasConfigs(domainId);
+          const destinationGasConfig =
+            await hook.destinationGasConfigs(domainId);
+          const gasOracle =
+            (destinationGasConfig as { gasOracle?: unknown }).gasOracle ??
+            (Array.isArray(destinationGasConfig)
+              ? destinationGasConfig[0]
+              : undefined);
+          assert(gasOracle, 'Failed to extract gas oracle address');
           const oracle = StorageGasOracle__factory.connect(
-            gasOracle,
+            gasOracle as Address,
             this.provider,
           );
           return oracle.owner();
@@ -684,7 +725,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const config: WithAddress<AmountRoutingHookConfig> = {
       address,
       type: HookType.AMOUNT_ROUTING,
-      threshold: threshold.toNumber(),
+      threshold: toNumberValue(threshold),
       lowerHook: lowerHookConfig,
       upperHook: upperHookConfig,
     };

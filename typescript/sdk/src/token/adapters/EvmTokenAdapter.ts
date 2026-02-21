@@ -140,11 +140,11 @@ export class EvmNativeTokenAdapter
 }
 
 // Interacts with ERC20/721 contracts
-export class EvmTokenAdapter<T = any>
+export class EvmTokenAdapter<T extends Record<string, any> = any>
   extends EvmNativeTokenAdapter
   implements ITokenAdapter<PopulatedTransaction>
 {
-  public readonly contract: any;
+  public readonly contract: T;
 
   constructor(
     public readonly chainName: ChainName,
@@ -156,7 +156,7 @@ export class EvmTokenAdapter<T = any>
     this.contract = contractFactory.connect(
       addresses.token,
       this.getProvider(),
-    );
+    ) as T;
   }
 
   override async getBalance(address: Address): Promise<bigint> {

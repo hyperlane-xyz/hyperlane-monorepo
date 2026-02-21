@@ -44,6 +44,7 @@ import {
   test3,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, assert, randomInt } from '@hyperlane-xyz/utils';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -73,6 +74,33 @@ import {
   OwnerStatus,
   derivedIsmAddress,
 } from './types.js';
+
+function expectMatchingStringValue(expected: unknown, actual: string) {
+  if (typeof expected !== 'string') return;
+  const looksLikeAddress =
+    expected.startsWith('0x') &&
+    actual.startsWith('0x') &&
+    expected.length === 42 &&
+    actual.length === 42;
+  if (looksLikeAddress) {
+    expect(eqAddress(expected, actual)).to.equal(true);
+    return;
+  }
+  expect(expected).to.equal(actual);
+}
+
+function expectMatchingAddress(expected: string, actual: string) {
+  expect(eqAddress(expected, actual)).to.equal(true);
+}
+
+function normalizeOwnerStatus(status: Record<string, OwnerStatus>) {
+  return Object.fromEntries(
+    Object.entries(status).map(([address, ownerStatus]) => [
+      address.toLowerCase(),
+      ownerStatus,
+    ]),
+  );
+}
 
 describe('EvmWarpRouteReader', async () => {
   const TOKEN_NAME = 'fake';
@@ -229,8 +257,9 @@ describe('EvmWarpRouteReader', async () => {
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
-      if (deployedValue && typeof value === 'string')
-        expect(deployedValue).to.equal(value);
+      if (deployedValue && typeof value === 'string') {
+        expectMatchingStringValue(deployedValue, value);
+      }
     }
 
     // Check hook because they're potentially objects
@@ -320,8 +349,9 @@ describe('EvmWarpRouteReader', async () => {
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
-      if (deployedValue && typeof value === 'string')
-        expect(deployedValue).to.equal(value);
+      if (deployedValue && typeof value === 'string') {
+        expectMatchingStringValue(deployedValue, value);
+      }
     }
 
     // Check hook because they're potentially objects
@@ -340,7 +370,7 @@ describe('EvmWarpRouteReader', async () => {
       expect(derivedConfig.name).to.equal(TOKEN_NAME);
       expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
       expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
-      expect(derivedConfig.token).to.equal(xerc20Token.address);
+      expectMatchingAddress(xerc20Token.address, derivedConfig.token);
     }
   });
 
@@ -370,8 +400,9 @@ describe('EvmWarpRouteReader', async () => {
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
-      if (deployedValue && typeof value === 'string')
-        expect(deployedValue).to.equal(value);
+      if (deployedValue && typeof value === 'string') {
+        expectMatchingStringValue(deployedValue, value);
+      }
     }
 
     // Check hook because they're potentially objects
@@ -390,7 +421,7 @@ describe('EvmWarpRouteReader', async () => {
       expect(derivedConfig.name).to.equal(TOKEN_NAME);
       expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
       expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
-      expect(derivedConfig.token).to.equal(xerc20Lockbox.address);
+      expectMatchingAddress(xerc20Lockbox.address, derivedConfig.token);
     }
   });
 
@@ -416,8 +447,9 @@ describe('EvmWarpRouteReader', async () => {
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
-      if (deployedValue && typeof value === 'string')
-        expect(deployedValue).to.equal(value);
+      if (deployedValue && typeof value === 'string') {
+        expectMatchingStringValue(deployedValue, value);
+      }
     }
 
     // Check if token values matches
@@ -449,8 +481,9 @@ describe('EvmWarpRouteReader', async () => {
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
-      if (deployedValue && typeof value === 'string')
-        expect(deployedValue).to.equal(value);
+      if (deployedValue && typeof value === 'string') {
+        expectMatchingStringValue(deployedValue, value);
+      }
     }
 
     // Check if token values matches
@@ -478,8 +511,9 @@ describe('EvmWarpRouteReader', async () => {
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
-      if (deployedValue && typeof value === 'string')
-        expect(deployedValue).to.equal(value);
+      if (deployedValue && typeof value === 'string') {
+        expectMatchingStringValue(deployedValue, value);
+      }
     }
 
     // Check if token values matches
@@ -507,9 +541,9 @@ describe('EvmWarpRouteReader', async () => {
       'Must be collateralVault',
     );
     expect(derivedConfig.type).to.equal(config[chain].type);
-    expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
-    expect(derivedConfig.owner).to.equal(config[chain].owner);
-    expect(derivedConfig.token).to.equal(vault.address);
+    expectMatchingAddress(config[chain].mailbox, derivedConfig.mailbox);
+    expectMatchingAddress(config[chain].owner, derivedConfig.owner);
+    expectMatchingAddress(vault.address, derivedConfig.token);
   });
 
   it('should derive rebase collateral vault config correctly', async () => {
@@ -533,9 +567,9 @@ describe('EvmWarpRouteReader', async () => {
       'Must be collateralVaultRebase',
     );
     expect(derivedConfig.type).to.equal(config[chain].type);
-    expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
-    expect(derivedConfig.owner).to.equal(config[chain].owner);
-    expect(derivedConfig.token).to.equal(vault.address);
+    expectMatchingAddress(config[chain].mailbox, derivedConfig.mailbox);
+    expectMatchingAddress(config[chain].owner, derivedConfig.owner);
+    expectMatchingAddress(vault.address, derivedConfig.token);
   });
 
   // FiatTokenTest
@@ -560,9 +594,9 @@ describe('EvmWarpRouteReader', async () => {
       `Must be ${TokenType.collateralFiat}`,
     );
     expect(derivedConfig.type).to.equal(config[chain].type);
-    expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
-    expect(derivedConfig.owner).to.equal(config[chain].owner);
-    expect(derivedConfig.token).to.equal(collateralFiatToken.address);
+    expectMatchingAddress(config[chain].mailbox, derivedConfig.mailbox);
+    expectMatchingAddress(config[chain].owner, derivedConfig.owner);
+    expectMatchingAddress(collateralFiatToken.address, derivedConfig.token);
   });
 
   const getEverclearTokenBridgeConfig = (): Record<
@@ -620,18 +654,19 @@ describe('EvmWarpRouteReader', async () => {
 
       assert(derivedConfig.type === tokenType, `Must be ${tokenType}`);
       expect(derivedConfig.type).to.equal(config[chain].type);
-      expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
-      expect(derivedConfig.owner).to.equal(config[chain].owner);
-      expect(derivedConfig.everclearBridgeAddress).to.equal(
+      expectMatchingAddress(config[chain].mailbox, derivedConfig.mailbox);
+      expectMatchingAddress(config[chain].owner, derivedConfig.owner);
+      expectMatchingAddress(
         everclearBridgeAdapterMock.address,
+        derivedConfig.everclearBridgeAddress,
       );
 
       if (derivedConfig.type === TokenType.collateralEverclear) {
-        expect(derivedConfig.token).to.equal(token.address);
+        expectMatchingAddress(token.address, derivedConfig.token);
       }
 
       if (derivedConfig.type === TokenType.ethEverclear) {
-        expect(derivedConfig.wethAddress).to.equal(weth.address);
+        expectMatchingAddress(weth.address, derivedConfig.wethAddress);
       }
     });
   }
@@ -681,7 +716,9 @@ describe('EvmWarpRouteReader', async () => {
       delete config[TestChainName.test4].ownerOverrides;
 
       // check that derived is a superset of specified config
-      expect(derivedConfig).to.deep.include(config[TestChainName.test4]);
+      expect(normalizeConfig(derivedConfig)).to.deep.include(
+        normalizeConfig(config[TestChainName.test4]),
+      );
     });
   }
 
@@ -830,11 +867,13 @@ describe('EvmWarpRouteReader', async () => {
         warpRouteAddress,
       );
 
-    expect(derivedConfig.ownerStatus).to.deep.equal({
-      [signer.address]: OwnerStatus.Active,
-      [warpRouteAddress]: OwnerStatus.Active,
-      [mailbox.address]: OwnerStatus.Active,
-    });
+    expect(normalizeOwnerStatus(derivedConfig.ownerStatus!)).to.deep.equal(
+      normalizeOwnerStatus({
+        [signer.address]: OwnerStatus.Active,
+        [warpRouteAddress]: OwnerStatus.Active,
+        [mailbox.address]: OwnerStatus.Active,
+      }),
+    );
 
     // Restore stub
     isLocalRpcStub.restore();
@@ -873,9 +912,11 @@ describe('EvmWarpRouteReader', async () => {
         warpRouteAddress,
       );
 
-    expect(derivedConfig.ownerStatus).to.deep.equal({
-      [signer.address]: OwnerStatus.GnosisSafe,
-    });
+    expect(normalizeOwnerStatus(derivedConfig.ownerStatus!)).to.deep.equal(
+      normalizeOwnerStatus({
+        [signer.address]: OwnerStatus.GnosisSafe,
+      }),
+    );
 
     // Restore stub
     connectStub.restore();
@@ -940,7 +981,10 @@ describe('EvmWarpRouteReader', async () => {
     );
 
     expect(derivedConfig.tokenFee?.type).to.equal(TokenFeeType.RoutingFee);
-    expect((derivedConfig.tokenFee as any).owner).to.equal(mailbox.address);
+    expectMatchingAddress(
+      mailbox.address,
+      (derivedConfig.tokenFee as any).owner,
+    );
     expect(
       Object.keys(((derivedConfig.tokenFee as any)?.feeContracts ?? {}) as any),
     ).to.have.length(0);
@@ -1182,9 +1226,14 @@ describe('EvmWarpRouteReader', async () => {
         .stub(TokenRouter__factory, 'connect')
         .returns(mockTokenRouter as any);
 
-      await expect(
-        evmERC20WarpRouteReader.deriveTokenType(warpAddress),
-      ).to.be.rejectedWith(
+      let err: unknown;
+      try {
+        await evmERC20WarpRouteReader.deriveTokenType(warpAddress);
+      } catch (error) {
+        err = error;
+      }
+      expect(err).to.be.instanceOf(Error);
+      expect((err as Error).message).to.contain(
         `Error deriving token type for token at address "${warpAddress}"`,
       );
 

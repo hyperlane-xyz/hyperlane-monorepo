@@ -45,7 +45,7 @@ abstract contract StaticThresholdAddressSetFactory is
             _threshold
         );
         address _set = _getAddress(_salt, _bytecode);
-        if (!Address.isContract(_set)) {
+        if (!(_set.code.length > 0)) {
             _set = Create2.deploy(0, _salt, _bytecode);
         }
         return _set;

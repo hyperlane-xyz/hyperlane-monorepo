@@ -16,6 +16,7 @@ import type {
     Abi,
     AbiEvent,
     AbiFunction,
+    AbiParameter,
     Hex,
     Log,
     TransactionReceipt,
@@ -147,9 +148,19 @@ function splitArgsAndOverrides(
 ): {fnArgs: unknown[]; overrides: Record<string, unknown>} {
     if (args.length <= inputCount) return {fnArgs: [...args], overrides: {}};
     const maybeOverrides = args[args.length - 1];
+    const looksLikeTrailingOverrides = args.length === inputCount + 1;
+    if (looksLikeTrailingOverrides) {
+        return {
+            fnArgs: [...args.slice(0, args.length - 1)],
+            overrides: isObject(maybeOverrides) ? maybeOverrides : {},
+        };
+    }
     if (
         isObject(maybeOverrides) &&
-        Object.keys(maybeOverrides).some((key) => TX_OVERRIDE_KEYS.has(key))
+        (looksLikeTrailingOverrides ||
+            Object.keys(maybeOverrides).some((key) =>
+                TX_OVERRIDE_KEYS.has(key),
+            ))
     ) {
         return {
             fnArgs: [...args.slice(0, args.length - 1)],
@@ -163,6 +174,13 @@ function getFunctionAbi(
     abi: Abi,
     functionName: string,
 ): AbiFunction | undefined {
+    if (functionName.includes("(")) {
+        return abi.find((item): item is AbiFunction => {
+            if (item.type !== "function") return false;
+            return getFunctionSignature(item) === functionName;
+        });
+    }
+
     const item = getAbiItem({
         abi,
         name: functionName,
@@ -171,10 +189,47 @@ function getFunctionAbi(
     return item;
 }
 
+function getAbiParameterSignature(parameter: AbiParameter): string {
+    if (!parameter.type.startsWith("tuple")) return parameter.type;
+    const tupleSuffix = parameter.type.slice("tuple".length);
+    const tupleComponents =
+        "components" in parameter && Array.isArray(parameter.components)
+            ? parameter.components
+            : [];
+    const tupleFields = tupleComponents.map((component: AbiParameter) =>
+        getAbiParameterSignature(component),
+    );
+    return `(${tupleFields.join(",")})${tupleSuffix}`;
+}
+
+function getFunctionSignature(fn: AbiFunction): string {
+    return `${fn.name}(${(fn.inputs ?? [])
+        .map((input) => getAbiParameterSignature(input))
+        .join(",")})`;
+}
+
 function getConstructorInputs(abi: Abi) {
     const ctor = abi.find((item) => item.type === "constructor");
     if (!ctor || ctor.type !== "constructor") return [];
     return ctor.inputs ?? [];
+}
+
+function normalizeFunctionArgs(
+    fn: AbiFunction,
+    fnArgs: readonly unknown[],
+): unknown[] {
+    return fnArgs.map((arg, index) => {
+        const input = fn.inputs?.[index];
+        if (
+            input?.type === "bytes32" &&
+            typeof arg === "string" &&
+            isHex(arg) &&
+            arg.length === 42
+        ) {
+            return `0x${arg.slice(2).padStart(64, "0")}`;
+        }
+        return arg;
+    });
 }
 
 function buildInterfaceFunctions(abi: Abi) {
@@ -187,13 +242,13 @@ function buildInterfaceFunctions(abi: Abi) {
     > = {};
 
     for (const fn of entries) {
-        const signature = `${fn.name}(${(fn.inputs ?? []).map((i) => i.type).join(",")})`;
+        const signature = getFunctionSignature(fn);
         functions[signature] = {
             encode: (args = []) =>
                 encodeFunctionData({
-                    abi,
+                    abi: [fn] as Abi,
                     functionName: fn.name,
-                    args: [...args] as any[],
+                    args: [...normalizeFunctionArgs(fn, args)] as any[],
                 }),
         };
     }
@@ -202,7 +257,9 @@ function buildInterfaceFunctions(abi: Abi) {
 }
 
 function getEventSignature(event: AbiEvent): string {
-    return `${event.name}(${(event.inputs ?? []).map((input) => input.type).join(",")})`;
+    return `${event.name}(${(event.inputs ?? [])
+        .map((input) => getAbiParameterSignature(input))
+        .join(",")})`;
 }
 
 function normalizeLogBlock(log: Record<string, unknown>) {
@@ -223,16 +280,24 @@ export function createInterface(abi: Abi, bytecode?: Hex): any {
             functionName: string,
             args: readonly unknown[] = [],
         ) {
+            const fn = getFunctionAbi(abi, functionName);
+            if (!fn) {
+                throw new Error(`Function ${functionName} not found`);
+            }
             return encodeFunctionData({
-                abi,
-                functionName,
-                args: [...args] as any[],
+                abi: [fn] as Abi,
+                functionName: fn.name,
+                args: [...normalizeFunctionArgs(fn, args)] as any[],
             });
         },
         decodeFunctionResult(functionName: string, data: Hex) {
+            const fn = getFunctionAbi(abi, functionName);
+            if (!fn) {
+                throw new Error(`Function ${functionName} not found`);
+            }
             return decodeFunctionResult({
-                abi,
-                functionName,
+                abi: [fn] as Abi,
+                functionName: fn.name,
                 data,
             });
         },
@@ -296,10 +361,10 @@ export function createInterface(abi: Abi, bytecode?: Hex): any {
 async function performRead(
     runner: RunnerLike,
     address: string,
-    abi: Abi,
-    functionName: string,
+    fn: AbiFunction,
     args: readonly unknown[],
 ): Promise<any> {
+    const readAbi = [fn] as Abi;
     const provider = getRunnerProvider(runner);
     if (provider && isObject(provider)) {
         if (
@@ -308,15 +373,15 @@ async function performRead(
         ) {
             return (provider.readContract as any)({
                 address,
-                abi,
-                functionName,
+                abi: readAbi,
+                functionName: fn.name,
                 args: [...args],
             });
         }
         if ("call" in provider && typeof provider.call === "function") {
             const data = encodeFunctionData({
-                abi,
-                functionName,
+                abi: readAbi,
+                functionName: fn.name,
                 args: [...args] as any[],
             });
             const callResult = await (provider.call as any)({
@@ -328,16 +393,16 @@ async function performRead(
                     ? callResult
                     : ((callResult?.data as string | undefined) ?? "0x");
             return decodeFunctionResult({
-                abi,
-                functionName,
+                abi: readAbi,
+                functionName: fn.name,
                 data: resultHex as Hex,
             });
         }
     }
 
     const data = encodeFunctionData({
-        abi,
-        functionName,
+        abi: readAbi,
+        functionName: fn.name,
         args: [...args] as any[],
     });
     const callResult = await rpcRequest(runner, "eth_call", [
@@ -345,8 +410,8 @@ async function performRead(
         "latest",
     ]);
     return decodeFunctionResult({
-        abi,
-        functionName,
+        abi: readAbi,
+        functionName: fn.name,
         data: callResult as Hex,
     });
 }
@@ -518,7 +583,12 @@ export function createContractProxy(
                         rawArgs,
                         fn.inputs.length,
                     );
-                    return performRead(runner, address, abi, fn.name, fnArgs);
+                    return performRead(
+                        runner,
+                        address,
+                        fn,
+                        normalizeFunctionArgs(fn, fnArgs),
+                    );
                 };
             },
         },
@@ -536,12 +606,13 @@ export function createContractProxy(
                         rawArgs,
                         fn.inputs.length,
                     );
+                    const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
                     const request = {
                         to: address,
                         data: encodeFunctionData({
                             abi,
                             functionName: fn.name,
-                            args: fnArgs as any[],
+                            args: normalizedArgs as any[],
                         }),
                         ...overrides,
                     };
@@ -563,12 +634,13 @@ export function createContractProxy(
                         rawArgs,
                         fn.inputs.length,
                     );
+                    const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
                     return {
                         to: address,
                         data: encodeFunctionData({
                             abi,
                             functionName: fn.name,
-                            args: fnArgs as any[],
+                            args: normalizedArgs as any[],
                         }),
                         ...overrides,
                     };
@@ -598,6 +670,10 @@ export function createContractProxy(
                 if (typeof prop !== "string") return undefined;
                 return (...args: unknown[]) =>
                     (contract as any)[prop](...(args as any[]));
+            },
+            has(_target, prop) {
+                if (typeof prop !== "string") return false;
+                return !!getFunctionAbi(abi, prop);
             },
         },
     ) as Record<string, (...args: any[]) => Promise<any>>;
@@ -639,10 +715,11 @@ export function createContractProxy(
                       })
                     : (filter.topics as readonly Hex[] | undefined);
 
+            const resolvedFromBlock = fromBlock ?? 0n;
             const logs = await performGetLogs(runner, {
                 address: filterAddress,
                 topics,
-                fromBlock: toHexQuantity(fromBlock),
+                fromBlock: toHexQuantity(resolvedFromBlock),
                 toBlock: toHexQuantity(toBlock),
             });
 
@@ -697,9 +774,10 @@ export function createContractProxy(
                     rawArgs,
                     fn.inputs.length,
                 );
+                const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
                 const stateMutability = fn.stateMutability ?? "nonpayable";
                 if (stateMutability === "view" || stateMutability === "pure") {
-                    return performRead(runner, address, abi, fn.name, fnArgs);
+                    return performRead(runner, address, fn, normalizedArgs);
                 }
 
                 const request: TxRequestLike = {
@@ -707,7 +785,7 @@ export function createContractProxy(
                     data: encodeFunctionData({
                         abi,
                         functionName: fn.name,
-                        args: fnArgs as any[],
+                        args: normalizedArgs as any[],
                     }),
                     ...overrides,
                 };

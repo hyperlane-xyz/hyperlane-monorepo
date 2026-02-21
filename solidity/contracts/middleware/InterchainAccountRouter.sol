@@ -456,7 +456,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             _userSalt
         );
         address payable _account = _getLocalInterchainAccount(_deploySalt);
-        if (!Address.isContract(_account)) {
+        if (!(_account.code.length > 0)) {
             bytes memory _bytecode = MinimalProxy.bytecode(implementation);
             _account = payable(Create2.deploy(0, _deploySalt, _bytecode));
             emit InterchainAccountCreated(

@@ -97,7 +97,7 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(this.connection?.headers || {}),
+        ...this.connection?.headers,
       },
       body: JSON.stringify(requestBody),
     });

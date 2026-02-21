@@ -368,7 +368,7 @@ contract Mailbox is
      */
     function setDefaultIsm(address _module) public onlyOwner {
         require(
-            Address.isContract(_module),
+            (_module.code.length > 0),
             "Mailbox: default ISM not contract"
         );
         defaultIsm = IInterchainSecurityModule(_module);
@@ -381,7 +381,7 @@ contract Mailbox is
      */
     function setDefaultHook(address _hook) public onlyOwner {
         require(
-            Address.isContract(_hook),
+            (_hook.code.length > 0),
             "Mailbox: default hook not contract"
         );
         defaultHook = IPostDispatchHook(_hook);
@@ -394,7 +394,7 @@ contract Mailbox is
      */
     function setRequiredHook(address _hook) public onlyOwner {
         require(
-            Address.isContract(_hook),
+            (_hook.code.length > 0),
             "Mailbox: required hook not contract"
         );
         requiredHook = IPostDispatchHook(_hook);

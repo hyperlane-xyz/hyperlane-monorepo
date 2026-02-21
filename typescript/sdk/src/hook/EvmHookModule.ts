@@ -412,10 +412,17 @@ export class EvmHookModule extends HyperlaneModule<
     // We should be reusing the same oracle for all remotes, but if not, the updateIgpRemoteGasParams step will rectify this
     if (domainKeys.length > 0) {
       const domainId = this.multiProvider.getDomainId(domainKeys[0]);
-      ({ gasOracle } = await InterchainGasPaymaster__factory.connect(
-        this.args.addresses.deployedHook,
-        this.multiProvider.getSignerOrProvider(this.chain),
-      )['destinationGasConfigs(uint32)'](domainId));
+      const destinationGasConfig =
+        await InterchainGasPaymaster__factory.connect(
+          this.args.addresses.deployedHook,
+          this.multiProvider.getSignerOrProvider(this.chain),
+        )['destinationGasConfigs(uint32)'](domainId);
+      gasOracle =
+        (destinationGasConfig as { gasOracle?: Address }).gasOracle ??
+        (Array.isArray(destinationGasConfig)
+          ? (destinationGasConfig[0] as Address | undefined)
+          : undefined);
+      assert(gasOracle, 'Expected destination gas config to include gasOracle');
 
       // update storage gas oracle
       // Note: this will only update the gas oracle for remotes that are in the target config

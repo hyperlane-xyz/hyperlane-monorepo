@@ -42,7 +42,7 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
         address _dispatcher
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
         require(
-            Address.isContract(_dispatcher),
+            (_dispatcher.code.length > 0),
             "ERC5164Hook: invalid dispatcher"
         );
         dispatcher = IMessageDispatcher(_dispatcher);

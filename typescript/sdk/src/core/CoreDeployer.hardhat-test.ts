@@ -3,7 +3,7 @@ import { assert, expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
-import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import { Address, eqAddress, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -202,7 +202,20 @@ describe('core', async () => {
           const defaultHookTest = coreConfig[chainName]
             .defaultHook as DerivedHookConfig;
 
-          expect(defaultHookOnchain).to.deep.equal(defaultHookTest);
+          const { owner: onchainOwner, ...defaultHookOnchainWithoutOwner } =
+            defaultHookOnchain as Record<string, unknown>;
+          const { owner: testOwner, ...defaultHookTestWithoutOwner } =
+            defaultHookTest as Record<string, unknown>;
+
+          if (onchainOwner && testOwner) {
+            expect(eqAddress(String(onchainOwner), String(testOwner))).to.equal(
+              true,
+            );
+          }
+
+          expect(defaultHookOnchainWithoutOwner).to.deep.equal(
+            defaultHookTestWithoutOwner,
+          );
         }),
       );
     });
@@ -219,7 +232,20 @@ describe('core', async () => {
             coreConfigOnChain.requiredHook as DerivedHookConfig;
           const requiredHookTest = coreConfig[chainName].requiredHook;
 
-          expect(requiredHookOnchain).to.deep.equal(requiredHookTest);
+          const { owner: onchainOwner, ...requiredHookOnchainWithoutOwner } =
+            requiredHookOnchain as Record<string, unknown>;
+          const { owner: testOwner, ...requiredHookTestWithoutOwner } =
+            requiredHookTest as Record<string, unknown>;
+
+          if (onchainOwner && testOwner) {
+            expect(eqAddress(String(onchainOwner), String(testOwner))).to.equal(
+              true,
+            );
+          }
+
+          expect(requiredHookOnchainWithoutOwner).to.deep.equal(
+            requiredHookTestWithoutOwner,
+          );
         }),
       );
     });

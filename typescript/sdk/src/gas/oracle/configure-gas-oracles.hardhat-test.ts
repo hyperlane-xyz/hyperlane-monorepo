@@ -23,6 +23,12 @@ describe('HyperlaneIgpDeployer', () => {
   let multiProvider: MultiProvider;
   let testConfig: ChainMap<IgpConfig>;
 
+  const toBigInt = (value: unknown): bigint =>
+    value === undefined || value === null ? 0n : BigInt(value.toString());
+  const getGasPrice = (value: any): bigint => toBigInt(value?.gasPrice ?? value?.[1]);
+  const getTokenExchangeRate = (value: any): bigint =>
+    toBigInt(value?.tokenExchangeRate ?? value?.[0]);
+
   before(async () => {
     const [signer] = await getHardhatSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
@@ -33,10 +39,6 @@ describe('HyperlaneIgpDeployer', () => {
     igp = contracts[local].interchainGasPaymaster;
   });
 
-  // Note: We use .eq() method for BigNumber comparisons instead of deep.equal for robustness:
-  // If multiple copies of the BigNumber class are loaded (e.g., from separate ethers installations
-  // in solidity/ and typescript/sdk/), deep.equal will fail because they're different class instances,
-  // even though the values are identical. BigNumber.eq() works correctly across different instances.
   it('should deploy storage gas oracle with config given', async () => {
     // Assert
     const deployedConfig = await igp.getExchangeRateAndGasPrice(remoteId);
@@ -45,12 +47,16 @@ describe('HyperlaneIgpDeployer', () => {
     );
 
     expect(
-      deployedConfig.gasPrice.eq(expected.gasPrice),
-      `gasPrice mismatch: expected ${expected.gasPrice.toString()}, got ${deployedConfig.gasPrice.toString()}`,
+      getGasPrice(deployedConfig) === expected.gasPrice,
+      `gasPrice mismatch: expected ${expected.gasPrice.toString()}, got ${getGasPrice(
+        deployedConfig,
+      ).toString()}`,
     ).to.be.true;
     expect(
-      deployedConfig.tokenExchangeRate.eq(expected.tokenExchangeRate),
-      `tokenExchangeRate mismatch: expected ${expected.tokenExchangeRate.toString()}, got ${deployedConfig.tokenExchangeRate.toString()}`,
+      getTokenExchangeRate(deployedConfig) === expected.tokenExchangeRate,
+      `tokenExchangeRate mismatch: expected ${expected.tokenExchangeRate.toString()}, got ${getTokenExchangeRate(
+        deployedConfig,
+      ).toString()}`,
     ).to.be.true;
   });
 
@@ -73,12 +79,16 @@ describe('HyperlaneIgpDeployer', () => {
     );
 
     expect(
-      modifiedConfig.gasPrice.eq(expected.gasPrice),
-      `gasPrice mismatch: expected ${expected.gasPrice.toString()}, got ${modifiedConfig.gasPrice.toString()}`,
+      getGasPrice(modifiedConfig) === expected.gasPrice,
+      `gasPrice mismatch: expected ${expected.gasPrice.toString()}, got ${getGasPrice(
+        modifiedConfig,
+      ).toString()}`,
     ).to.be.true;
     expect(
-      modifiedConfig.tokenExchangeRate.eq(expected.tokenExchangeRate),
-      `tokenExchangeRate mismatch: expected ${expected.tokenExchangeRate.toString()}, got ${modifiedConfig.tokenExchangeRate.toString()}`,
+      getTokenExchangeRate(modifiedConfig) === expected.tokenExchangeRate,
+      `tokenExchangeRate mismatch: expected ${expected.tokenExchangeRate.toString()}, got ${getTokenExchangeRate(
+        modifiedConfig,
+      ).toString()}`,
     ).to.be.true;
   });
 });
