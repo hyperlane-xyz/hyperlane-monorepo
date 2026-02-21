@@ -10,7 +10,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { HelloWorldFactories, helloWorldFactories } from '../app/contracts.js';
-import { HelloWorld } from '../types/index.js';
 
 import { HelloWorldConfig } from './config.js';
 
@@ -31,8 +30,8 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
     });
   }
 
-  router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {
-    return contracts.router;
+  router(contracts: HyperlaneContracts<HelloWorldFactories>): any {
+    return contracts.router as any;
   }
 
   // Custom contract deployment logic can go here
@@ -42,7 +41,7 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
       config.mailbox,
       zeroAddress,
     ]);
-    await super.configureClient(chain, router, config);
+    await super.configureClient(chain, router as any, config);
     return {
       router,
     };

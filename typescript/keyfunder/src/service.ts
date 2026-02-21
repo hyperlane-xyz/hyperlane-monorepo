@@ -71,7 +71,9 @@ async function main(): Promise<void> {
     );
 
     const multiProvider = new MultiProvider(chainMetadata);
-    const signer = new LocalAccountEvmSigner(ensure0x(privateKey));
+    const signer = new LocalAccountEvmSigner(
+      ensure0x(privateKey) as `0x${string}`,
+    );
     multiProvider.setSharedSigner(signer);
     logger.info('Initialized MultiProvider with signer');
 

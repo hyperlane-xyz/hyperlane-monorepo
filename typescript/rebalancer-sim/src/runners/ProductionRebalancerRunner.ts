@@ -174,7 +174,7 @@ export class ProductionRebalancerRunner
     });
 
     const wallet = new LocalAccountEvmSigner(
-      ensure0x(this.config.deployment.rebalancerKey),
+      ensure0x(this.config.deployment.rebalancerKey) as `0x${string}`,
     );
     multiProvider.setSharedSigner(wallet);
 
