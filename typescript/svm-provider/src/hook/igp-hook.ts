@@ -3,8 +3,6 @@ import {
   type Address,
   type Rpc,
   type SolanaRpcApi,
-  getAddressDecoder,
-  getAddressEncoder,
 } from '@solana/kit';
 import { keccak_256 } from '@noble/hashes/sha3';
 
@@ -92,12 +90,8 @@ export class SvmIgpHookReader implements ArtifactReader<
       }
     }
 
-    // Account data stores pubkeys as 32-byte Uint8Array; convert to base58
-    // Address strings for the config. Changing account codecs to decode
-    // directly to Address would be cleaner but touches all decoders.
-    const addrDecoder = getAddressDecoder();
-    const owner = igp.owner ? addrDecoder.decode(igp.owner) : '';
-    const beneficiary = addrDecoder.decode(igp.beneficiary);
+    const owner = igp.owner ?? '';
+    const beneficiary = igp.beneficiary;
 
     const { address: igpPda } = await deriveIgpAccountPda(programId, this.salt);
 
@@ -154,20 +148,13 @@ export class SvmIgpHookWriter
     let igp = await fetchIgpAccount(this.rpc, this.programId, this.salt);
 
     if (!igp) {
-      const ownerBytes = config.owner
-        ? addressToBytes32(parseAddress(config.owner))
-        : null;
-      const beneficiaryBytes = addressToBytes32(
-        parseAddress(config.beneficiary),
-      );
-
       const initIgpIx = await getInitIgpInstruction(
         this.programId,
         this.svmSigner.signer,
         {
           salt: this.salt,
-          owner: ownerBytes,
-          beneficiary: beneficiaryBytes,
+          owner: config.owner ? parseAddress(config.owner) : null,
+          beneficiary: parseAddress(config.beneficiary),
         },
       );
 
@@ -191,18 +178,13 @@ export class SvmIgpHookWriter
     );
 
     if (!overheadIgp && Object.keys(config.overhead).length > 0) {
-      const ownerBytes = config.owner
-        ? addressToBytes32(parseAddress(config.owner))
-        : null;
-      const innerBytes = addressToBytes32(igpPda);
-
       const initOverheadIx = await getInitOverheadIgpInstruction(
         this.programId,
         this.svmSigner.signer,
         {
           salt: this.salt,
-          owner: ownerBytes,
-          inner: innerBytes,
+          owner: config.owner ? parseAddress(config.owner) : null,
+          inner: igpPda,
         },
       );
 
@@ -389,8 +371,4 @@ export class SvmIgpHookWriter
 
     return txs;
   }
-}
-
-function addressToBytes32(address: Address): Uint8Array {
-  return new Uint8Array(getAddressEncoder().encode(address));
 }
