@@ -76,12 +76,12 @@ export async function fetchOverheadIgpAccount(
 export async function detectHookType(
   rpc: Rpc<SolanaRpcApi>,
   address: Address,
-): Promise<HookType> {
+): Promise<HookType | null> {
   const igpProgramData = await fetchIgpProgramData(rpc, address);
   if (igpProgramData !== null) {
     return HookType.INTERCHAIN_GAS_PAYMASTER;
   }
-  return HookType.MERKLE_TREE;
+  return null;
 }
 
 export function remoteGasDataToConfig(gasOracle: {

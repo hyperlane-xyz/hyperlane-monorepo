@@ -1,12 +1,16 @@
 import {
   type Address,
   type KeyPairSigner,
+  type RpcSubscriptions,
+  type SolanaRpcSubscriptionsApi,
   type TransactionSigner,
+  addSignersToTransactionMessage,
   createKeyPairSignerFromBytes,
   createKeyPairSignerFromPrivateKeyBytes,
   getBase58Encoder,
   getBase64EncodedWireTransaction,
   getSignatureFromTransaction,
+  sendAndConfirmTransactionFactory,
   signTransactionMessageWithSigners,
 } from '@solana/kit';
 
@@ -27,11 +31,14 @@ const base58Encoder = getBase58Encoder();
  *
  * @param privateKey - Hex (32/64 bytes), base58, or base64 private key
  * @param rpc - Solana RPC client for sending transactions
+ * @param rpcSubscriptions - Optional subscriptions client; enables Kit-recommended
+ *   sendAndConfirmTransaction confirmation. When omitted, falls back to polling.
  * @returns SvmSigner with `address`, `signer`, and `send(tx)`
  */
 export async function createSigner(
   privateKey: string,
   rpc: SvmRpc,
+  rpcSubscriptions?: RpcSubscriptions<SolanaRpcSubscriptionsApi>,
 ): Promise<SvmSigner & { address: Address }> {
   let keyBytes: Uint8Array;
 
@@ -62,7 +69,7 @@ export async function createSigner(
   const sendFn = async (tx: SvmTransaction): Promise<SvmReceipt> => {
     const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
 
-    const txMessage = buildTransactionMessage({
+    let txMessage = buildTransactionMessage({
       instructions: tx.instructions,
       feePayer: keypair,
       recentBlockhash: latestBlockhash.blockhash,
@@ -70,14 +77,37 @@ export async function createSigner(
       computeUnits: tx.computeUnits ?? DEFAULT_COMPUTE_UNITS,
     });
 
+    if (tx.additionalSigners?.length) {
+      txMessage = addSignersToTransactionMessage(
+        tx.additionalSigners,
+        txMessage,
+      );
+    }
+
     const signedTx = await signTransactionMessageWithSigners(txMessage);
     const signature = getSignatureFromTransaction(signedTx);
-    const base64Tx = getBase64EncodedWireTransaction(signedTx);
 
+    if (rpcSubscriptions) {
+      const sendAndConfirm = sendAndConfirmTransactionFactory({
+        rpc,
+        rpcSubscriptions,
+      });
+      // buildTransactionMessage always uses blockhash lifetime.
+      // signTransactionMessageWithSigners widens the type to the lifetime union,
+      // so cast to the exact parameter type expected by sendAndConfirm.
+      await sendAndConfirm(signedTx as Parameters<typeof sendAndConfirm>[0], {
+        commitment: 'confirmed',
+      });
+      return { signature };
+    }
+
+    // Fallback: manual send + poll (no rpcSubscriptions provided).
+    // Prefer passing rpcSubscriptions for reliable confirmation semantics.
+    const base64Tx = getBase64EncodedWireTransaction(signedTx);
     await rpc
       .sendTransaction(base64Tx, {
         encoding: 'base64',
-        skipPreflight: true,
+        skipPreflight: false,
       })
       .send();
 

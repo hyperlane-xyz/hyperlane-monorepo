@@ -1,4 +1,9 @@
-import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
+import {
+  address as parseAddress,
+  type Address,
+  type Rpc,
+  type SolanaRpcApi,
+} from '@solana/kit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import type {
@@ -38,7 +43,7 @@ export class SvmIsmArtifactManager {
   ) {}
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
-    const programId = address as Address;
+    const programId = parseAddress(address);
     const ismType = await detectIsmType(this.rpc, programId);
     const typeKey = this.altVmToTypeKey(ismType);
     const reader = this.createReaderForProgramId(typeKey, programId);
