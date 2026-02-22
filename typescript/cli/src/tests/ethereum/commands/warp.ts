@@ -286,7 +286,7 @@ export function hyperlaneWarpCombine({
   outputWarpRouteId,
 }: {
   routes: string;
-  outputWarpRouteId?: string;
+  outputWarpRouteId: string;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp combine \
         --registry ${REGISTRY_PATH} \

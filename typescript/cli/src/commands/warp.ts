@@ -204,13 +204,14 @@ const combine: CommandModuleWithWriteContext<{
     'output-warp-route-id': {
       type: 'string',
       description:
-        'Warp route ID for the merged WarpCoreConfig (defaults to MULTI/route1+route2)',
-      demandOption: false,
+        'Warp route ID for the merged WarpCoreConfig (e.g., MULTI/stableswap)',
+      demandOption: true,
     },
   },
   handler: async ({ context, routes, 'output-warp-route-id': outputId }) => {
     logCommandHeader('Hyperlane Warp Combine');
 
+    assert(outputId, '--output-warp-route-id is required');
     const routeIds = routes.split(',').map((r) => r.trim());
     await runWarpRouteCombine({
       context,

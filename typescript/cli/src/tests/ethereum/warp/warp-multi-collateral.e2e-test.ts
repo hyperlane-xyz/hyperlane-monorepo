@@ -127,8 +127,10 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, usdtWarpId);
 
     // Use warp combine to cross-enroll and create merged config
+    const mergedWarpRouteId = 'MULTI/test-mc';
     await hyperlaneWarpCombine({
       routes: `${usdcWarpId},${usdtWarpId}`,
+      outputWarpRouteId: mergedWarpRouteId,
     });
 
     // Apply enrollment on-chain for each route
@@ -160,10 +162,6 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     await (await usdtChain3.transfer(usdtRouter3Addr, usdtCollateral)).wait();
 
     // Read the merged WarpCoreConfig created by warp combine
-    const mergedWarpRouteId = `MULTI/${[usdcWarpId, usdtWarpId]
-      .map((id) => id.replace(/\//g, '-'))
-      .join('-and-')
-      .toLowerCase()}`;
     const MERGED_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${mergedWarpRouteId}-config.yaml`;
 
     // Send cross-stablecoin transfer via CLI: USDC(chain2) -> USDT(chain3)
@@ -230,8 +228,10 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, usdtWarpId);
 
     // Combine routes (cross-enroll same-chain routers)
+    const mergedWarpRouteId = 'MULTI/test-mc-local';
     await hyperlaneWarpCombine({
       routes: `${usdcWarpId},${usdtWarpId}`,
+      outputWarpRouteId: mergedWarpRouteId,
     });
 
     // Apply enrollment on-chain for each route
@@ -261,10 +261,6 @@ describe('hyperlane warp multiCollateral CLI e2e tests', async function () {
     await (await usdt.transfer(usdtRouter2Addr, usdtCollateral)).wait();
 
     // Read the merged WarpCoreConfig created by warp combine
-    const mergedWarpRouteId = `MULTI/${[usdcWarpId, usdtWarpId]
-      .map((id) => id.replace(/\//g, '-'))
-      .join('-and-')
-      .toLowerCase()}`;
     const MERGED_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${mergedWarpRouteId}-config.yaml`;
 
     // Send same-chain swap via CLI: USDC -> USDT on chain 2

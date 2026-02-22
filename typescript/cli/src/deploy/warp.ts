@@ -1267,7 +1267,7 @@ export async function runWarpRouteCombine({
 }: {
   context: WriteCommandContext;
   routeIds: string[];
-  outputWarpRouteId?: string;
+  outputWarpRouteId: string;
 }): Promise<void> {
   assert(routeIds.length >= 2, 'At least 2 route IDs are required to combine');
 
@@ -1346,12 +1346,7 @@ export async function runWarpRouteCombine({
   fullyConnectTokens(mergedConfig, context.multiProvider);
 
   // 4. Write merged WarpCoreConfig
-  const mergedId =
-    outputWarpRouteId ??
-    `MULTI/${routes
-      .map((r) => r.id.replace(/\//g, '-'))
-      .join('-and-')
-      .toLowerCase()}`;
+  const mergedId = outputWarpRouteId;
   await context.registry.addWarpRoute(mergedConfig, { warpRouteId: mergedId });
 
   logGreen(`✅ Combined ${routes.length} routes into "${mergedId}"`);
