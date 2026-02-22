@@ -1,3 +1,5 @@
+import { type Address, getAddressDecoder } from '@solana/kit';
+
 import {
   decodeAccountData,
   decodeDiscriminatorPrefixed,
@@ -18,15 +20,15 @@ const OVERHEAD_IGP_ACCOUNT_DISCRIMINATOR = ascii8('OVRHDIGP');
 
 export interface HyperlaneTokenAccountData {
   bump: number;
-  mailbox: Uint8Array;
-  mailboxProcessAuthority: Uint8Array;
+  mailbox: Address;
+  mailboxProcessAuthority: Address;
   dispatchAuthorityBump: number;
   decimals: number;
   remoteDecimals: number;
-  owner: Uint8Array | null;
-  interchainSecurityModule: Uint8Array | null;
+  owner: Address | null;
+  interchainSecurityModule: Address | null;
   interchainGasPaymaster: {
-    programId: Uint8Array;
+    programId: Address;
     igpType: InterchainGasPaymasterType;
   } | null;
   destinationGas: Map<number, bigint>;
@@ -42,16 +44,16 @@ export interface IgpProgramData {
 export interface IgpAccountData {
   bumpSeed: number;
   salt: Uint8Array;
-  owner: Uint8Array | null;
-  beneficiary: Uint8Array;
+  owner: Address | null;
+  beneficiary: Address;
   gasOracles: Map<number, GasOracle>;
 }
 
 export interface OverheadIgpAccountData {
   bumpSeed: number;
   salt: Uint8Array;
-  owner: Uint8Array | null;
-  inner: Uint8Array;
+  owner: Address | null;
+  inner: Address;
   gasOverheads: Map<number, bigint>;
 }
 
@@ -83,8 +85,8 @@ export function decodeIgpAccount(raw: Uint8Array): IgpAccountData | null {
     decodeDiscriminatorPrefixed(cursor, IGP_ACCOUNT_DISCRIMINATOR, (c) => ({
       bumpSeed: c.readU8(),
       salt: c.readBytes(32),
-      owner: readOptionBytes32(c),
-      beneficiary: c.readBytes(32),
+      owner: readOptionAddress(c),
+      beneficiary: readAddress(c),
       gasOracles: decodeMapU32GasOracle(c),
     })),
   );
@@ -101,8 +103,8 @@ export function decodeOverheadIgpAccount(
       (c) => ({
         bumpSeed: c.readU8(),
         salt: c.readBytes(32),
-        owner: readOptionBytes32(c),
-        inner: c.readBytes(32),
+        owner: readOptionAddress(c),
+        inner: readAddress(c),
         gasOverheads: decodeMapU32U64(c),
       }),
     ),
@@ -115,13 +117,13 @@ function decodeHyperlaneTokenInner(
 ): HyperlaneTokenAccountData {
   // Kept manual because payload ends with trailing pluginData (remainder bytes).
   const bump = cursor.readU8();
-  const mailbox = cursor.readBytes(32);
-  const mailboxProcessAuthority = cursor.readBytes(32);
+  const mailbox = readAddress(cursor);
+  const mailboxProcessAuthority = readAddress(cursor);
   const dispatchAuthorityBump = cursor.readU8();
   const decimals = cursor.readU8();
   const remoteDecimals = cursor.readU8();
-  const owner = readOptionBytes32(cursor);
-  const interchainSecurityModule = readOptionBytes32(cursor);
+  const owner = readOptionAddress(cursor);
+  const interchainSecurityModule = readOptionAddress(cursor);
   const interchainGasPaymaster = readOptionIgpConfig(cursor);
   const destinationGas = decodeMapU32U64(cursor);
   const remoteRouters = decodeMapU32H256(cursor);
@@ -149,22 +151,28 @@ function ascii8(value: string): Uint8Array {
   return Uint8Array.from(value, (char) => char.charCodeAt(0));
 }
 
-function readOptionBytes32(cursor: ByteCursor): Uint8Array | null {
+const addressDecoder = getAddressDecoder();
+
+function readAddress(cursor: ByteCursor): Address {
+  return addressDecoder.decode(cursor.readBytes(32));
+}
+
+function readOptionAddress(cursor: ByteCursor): Address | null {
   const hasValue = cursor.readU8() === 1;
-  return hasValue ? cursor.readBytes(32) : null;
+  return hasValue ? readAddress(cursor) : null;
 }
 
 function readOptionIgpConfig(cursor: ByteCursor): {
-  programId: Uint8Array;
+  programId: Address;
   igpType: InterchainGasPaymasterType;
 } | null {
   const hasValue = cursor.readU8() === 1;
   if (!hasValue) return null;
   return {
-    programId: cursor.readBytes(32),
+    programId: readAddress(cursor),
     igpType: {
       kind: cursor.readU8() as InterchainGasPaymasterTypeKind,
-      account: cursor.readBytes(32),
+      account: readAddress(cursor),
     },
   };
 }

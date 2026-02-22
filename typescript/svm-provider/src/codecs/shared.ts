@@ -1,8 +1,9 @@
-import type { ReadonlyUint8Array } from '@solana/kit';
+import type { Address, ReadonlyUint8Array } from '@solana/kit';
 
 import {
   addCodecSizePrefix,
   fixCodecSize,
+  getAddressCodec,
   getArrayDecoder,
   getArrayEncoder,
   getBytesCodec,
@@ -65,7 +66,7 @@ export enum InterchainGasPaymasterTypeKind {
 
 export interface InterchainGasPaymasterType {
   kind: InterchainGasPaymasterTypeKind;
-  account: Uint8Array;
+  account: Address;
 }
 
 export interface RemoteGasData {
@@ -150,13 +151,14 @@ const DOMAINED_VALIDATORS_AND_THRESHOLD_DECODER = getStructDecoder([
   ['domain', U32_CODEC],
   ['data', VALIDATORS_AND_THRESHOLD_DECODER],
 ]);
+const ADDRESS_CODEC = getAddressCodec();
 const INTERCHAIN_GAS_PAYMASTER_TYPE_ENCODER = getStructEncoder([
   ['kind', U8_CODEC],
-  ['account', BYTES32_CODEC],
+  ['account', ADDRESS_CODEC],
 ]);
 const INTERCHAIN_GAS_PAYMASTER_TYPE_DECODER = getStructDecoder([
   ['kind', U8_CODEC],
-  ['account', BYTES32_CODEC],
+  ['account', ADDRESS_CODEC],
 ]);
 const GAS_ORACLE_INNER_ENCODER = getStructEncoder([
   ['kind', U8_CODEC],
@@ -292,7 +294,7 @@ export function decodeInterchainGasPaymasterType(
   const decoded = cursor.readWithDecoder(INTERCHAIN_GAS_PAYMASTER_TYPE_DECODER);
   return {
     kind: decoded.kind,
-    account: Uint8Array.from(decoded.account),
+    account: decoded.account,
   };
 }
 
