@@ -7,7 +7,7 @@ import {
 import { getCreateAccountInstruction } from '@solana-program/system';
 import {
   generateKeyPairSigner,
-  getAddressEncoder,
+  getAddressCodec,
   getProgramDerivedAddress,
   type Address,
   type Instruction,
@@ -18,6 +18,7 @@ import { LOADER_V3_PROGRAM_ADDRESS } from '../constants.js';
 import { DEFAULT_WRITE_CHUNK_SIZE } from '../tx.js';
 import type { SvmReceipt } from '../types.js';
 
+const ADDRESS_CODEC = getAddressCodec();
 const PROGRAM_DATA_HEADER_SIZE = 45;
 const PROGRAM_ACCOUNT_SIZE = 36;
 
@@ -230,7 +231,7 @@ async function deriveProgramDataAddress(
 ): Promise<Address> {
   const pda = await getProgramDerivedAddress({
     programAddress: LOADER_V3_PROGRAM_ADDRESS,
-    seeds: [getAddressEncoder().encode(programAddress)],
+    seeds: [ADDRESS_CODEC.encode(programAddress)],
   });
   return pda[0];
 }

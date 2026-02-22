@@ -5,8 +5,7 @@ import type {
   TransactionSigner,
 } from '@solana/kit';
 import {
-  fixCodecSize,
-  getBytesCodec,
+  getAddressCodec,
   getNullableDecoder,
   getNullableEncoder,
   getNullableCodec,
@@ -29,6 +28,7 @@ import {
   vec,
 } from '../codecs/binary.js';
 import {
+  decodeInterchainGasPaymasterType,
   encodeGasRouterConfig,
   encodeInterchainGasPaymasterType,
   encodeRemoteRouterConfig,
@@ -62,10 +62,10 @@ export enum TokenProgramInstructionKind {
 }
 
 export interface TokenInitInstructionData {
-  mailbox: Uint8Array;
-  interchainSecurityModule: Uint8Array | null;
+  mailbox: Address;
+  interchainSecurityModule: Address | null;
   interchainGasPaymaster: {
-    programId: Uint8Array;
+    programId: Address;
     igp: InterchainGasPaymasterType;
   } | null;
   decimals: number;
@@ -84,52 +84,52 @@ export type TokenProgramInstructionData =
   | { kind: 'enrollRemoteRouter'; value: RemoteRouterConfig }
   | { kind: 'enrollRemoteRouters'; value: RemoteRouterConfig[] }
   | { kind: 'setDestinationGasConfigs'; value: GasRouterConfig[] }
-  | { kind: 'setInterchainSecurityModule'; value: Uint8Array | null }
+  | { kind: 'setInterchainSecurityModule'; value: Address | null }
   | {
       kind: 'setInterchainGasPaymaster';
-      value: [Uint8Array, InterchainGasPaymasterType] | null;
+      value: [Address, InterchainGasPaymasterType] | null;
     }
-  | { kind: 'transferOwnership'; value: Uint8Array | null };
+  | { kind: 'transferOwnership'; value: Address | null };
 
 interface TokenInitIgpValue {
-  programId: Uint8Array;
+  programId: Address;
   igpKind: number;
-  igpAccount: Uint8Array;
+  igpAccount: Address;
 }
 
 interface TokenInitCodecValue {
-  mailbox: Uint8Array;
-  interchainSecurityModule: Uint8Array | null;
+  mailbox: Address;
+  interchainSecurityModule: Address | null;
   interchainGasPaymaster: TokenInitIgpValue | null;
   decimals: number;
   remoteDecimals: number;
 }
 
-const BYTES32_CODEC = fixCodecSize(getBytesCodec(), 32);
-const OPTIONAL_BYTES32_CODEC = getNullableCodec(BYTES32_CODEC);
+const ADDRESS_CODEC = getAddressCodec();
+const OPTIONAL_ADDRESS_CODEC = getNullableCodec(ADDRESS_CODEC);
 const U8_CODEC = getU8Codec();
 const IGP_VALUE_CODEC = getStructEncoder([
-  ['programId', BYTES32_CODEC],
+  ['programId', ADDRESS_CODEC],
   ['igpKind', U8_CODEC],
-  ['igpAccount', BYTES32_CODEC],
+  ['igpAccount', ADDRESS_CODEC],
 ]);
 const IGP_VALUE_DECODER = getStructDecoder([
-  ['programId', BYTES32_CODEC],
+  ['programId', ADDRESS_CODEC],
   ['igpKind', U8_CODEC],
-  ['igpAccount', BYTES32_CODEC],
+  ['igpAccount', ADDRESS_CODEC],
 ]);
 const OPTIONAL_IGP_ENCODER = getNullableEncoder(IGP_VALUE_CODEC);
 const OPTIONAL_IGP_DECODER = getNullableDecoder(IGP_VALUE_DECODER);
 const TOKEN_INIT_ENCODER = getStructEncoder([
-  ['mailbox', BYTES32_CODEC],
-  ['interchainSecurityModule', OPTIONAL_BYTES32_CODEC],
+  ['mailbox', ADDRESS_CODEC],
+  ['interchainSecurityModule', OPTIONAL_ADDRESS_CODEC],
   ['interchainGasPaymaster', OPTIONAL_IGP_ENCODER],
   ['decimals', U8_CODEC],
   ['remoteDecimals', U8_CODEC],
 ]);
 const TOKEN_INIT_DECODER = getStructDecoder([
-  ['mailbox', BYTES32_CODEC],
-  ['interchainSecurityModule', OPTIONAL_BYTES32_CODEC],
+  ['mailbox', ADDRESS_CODEC],
+  ['interchainSecurityModule', OPTIONAL_ADDRESS_CODEC],
   ['interchainGasPaymaster', OPTIONAL_IGP_DECODER],
   ['decimals', U8_CODEC],
   ['remoteDecimals', U8_CODEC],
@@ -173,21 +173,24 @@ export function encodeTokenProgramInstruction(
       return concatBytes(
         PROGRAM_INSTRUCTION_DISCRIMINATOR,
         u8(TokenProgramInstructionKind.SetInterchainSecurityModule),
-        option(instruction.value, (v) => v),
+        option(instruction.value, (addr) => ADDRESS_CODEC.encode(addr)),
       );
     case 'setInterchainGasPaymaster':
       return concatBytes(
         PROGRAM_INSTRUCTION_DISCRIMINATOR,
         u8(TokenProgramInstructionKind.SetInterchainGasPaymaster),
         option(instruction.value, ([programId, igp]) =>
-          concatBytes(programId, encodeInterchainGasPaymasterType(igp)),
+          concatBytes(
+            ADDRESS_CODEC.encode(programId),
+            encodeInterchainGasPaymasterType(igp),
+          ),
         ),
       );
     case 'transferOwnership':
       return concatBytes(
         PROGRAM_INSTRUCTION_DISCRIMINATOR,
         u8(TokenProgramInstructionKind.TransferOwnership),
-        option(instruction.value, (v) => v),
+        option(instruction.value, (addr) => ADDRESS_CODEC.encode(addr)),
       );
   }
 }
@@ -227,7 +230,7 @@ export function decodeTokenProgramInstruction(
     case TokenProgramInstructionKind.SetInterchainSecurityModule:
       return {
         kind: 'setInterchainSecurityModule',
-        value: decodeOptionBytes32(cursor),
+        value: decodeOptionAddress(cursor),
       };
     case TokenProgramInstructionKind.SetInterchainGasPaymaster:
       return {
@@ -235,7 +238,7 @@ export function decodeTokenProgramInstruction(
         value: decodeOptionIgpTuple(cursor),
       };
     case TokenProgramInstructionKind.TransferOwnership:
-      return { kind: 'transferOwnership', value: decodeOptionBytes32(cursor) };
+      return { kind: 'transferOwnership', value: decodeOptionAddress(cursor) };
     default:
       return null;
   }
@@ -264,7 +267,7 @@ export async function getTokenInitInstruction(
 export async function getTokenTransferOwnershipInstruction(
   programAddress: Address,
   owner: TransactionSigner,
-  newOwner: Uint8Array | null,
+  newOwner: Address | null,
 ): Promise<Instruction> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
   return buildInstruction(
@@ -280,7 +283,7 @@ export async function getTokenTransferOwnershipInstruction(
 export async function getTokenSetInterchainSecurityModuleInstruction(
   programAddress: Address,
   owner: TransactionSigner,
-  newIsm: Uint8Array | null,
+  newIsm: Address | null,
 ): Promise<Instruction> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
   return buildInstruction(
@@ -296,7 +299,7 @@ export async function getTokenSetInterchainSecurityModuleInstruction(
 export async function getTokenSetInterchainGasPaymasterInstruction(
   programAddress: Address,
   owner: TransactionSigner,
-  value: [Uint8Array, InterchainGasPaymasterType] | null,
+  value: [Address, InterchainGasPaymasterType] | null,
 ): Promise<Instruction> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
   return buildInstruction(
@@ -368,16 +371,14 @@ function decodeTokenInit(data: Uint8Array): TokenInitInstructionData {
   const igp = decoded.interchainGasPaymaster;
 
   return {
-    mailbox: Uint8Array.from(decoded.mailbox),
-    interchainSecurityModule: decoded.interchainSecurityModule
-      ? Uint8Array.from(decoded.interchainSecurityModule)
-      : null,
+    mailbox: decoded.mailbox,
+    interchainSecurityModule: decoded.interchainSecurityModule,
     interchainGasPaymaster: igp
       ? {
-          programId: Uint8Array.from(igp.programId),
+          programId: igp.programId,
           igp: {
             kind: igp.igpKind as InterchainGasPaymasterTypeKind,
-            account: Uint8Array.from(igp.igpAccount),
+            account: igp.igpAccount,
           },
         }
       : null,
@@ -424,22 +425,19 @@ function decodeGasRouterConfig(cursor: ByteCursor): GasRouterConfig {
   };
 }
 
-function decodeOptionBytes32(cursor: ByteCursor): Uint8Array | null {
+function decodeOptionAddress(cursor: ByteCursor): Address | null {
   const hasValue = cursor.readU8() === 1;
-  return hasValue ? cursor.readBytes(32) : null;
+  return hasValue ? ADDRESS_CODEC.decode(cursor.readBytes(32)) : null;
 }
 
 function decodeOptionIgpTuple(
   cursor: ByteCursor,
-): [Uint8Array, InterchainGasPaymasterType] | null {
+): [Address, InterchainGasPaymasterType] | null {
   const hasValue = cursor.readU8() === 1;
   if (!hasValue) return null;
   return [
-    cursor.readBytes(32),
-    {
-      kind: cursor.readU8() as InterchainGasPaymasterTypeKind,
-      account: cursor.readBytes(32),
-    },
+    ADDRESS_CODEC.decode(cursor.readBytes(32)),
+    decodeInterchainGasPaymasterType(cursor),
   ];
 }
 
