@@ -4,6 +4,9 @@ import type {
   ReadonlyUint8Array,
   TransactionSigner,
 } from '@solana/kit';
+import { getAddressCodec } from '@solana/kit';
+
+const ADDRESS_CODEC = getAddressCodec();
 
 import {
   PROGRAM_INSTRUCTION_DISCRIMINATOR,
@@ -43,7 +46,7 @@ export type MultisigIsmMessageIdProgramInstruction =
       value: Domained<ValidatorsAndThreshold>;
     }
   | { kind: 'getOwner' }
-  | { kind: 'transferOwnership'; newOwner: Uint8Array | null };
+  | { kind: 'transferOwnership'; newOwner: Address | null };
 
 export function encodeMultisigIsmMessageIdProgramInstruction(
   instruction: MultisigIsmMessageIdProgramInstruction,
@@ -71,7 +74,7 @@ export function encodeMultisigIsmMessageIdProgramInstruction(
       return concatBytes(
         PROGRAM_INSTRUCTION_DISCRIMINATOR,
         u8(MultisigIsmMessageIdProgramInstructionKind.TransferOwnership),
-        option(instruction.newOwner, (owner) => owner),
+        option(instruction.newOwner, (owner) => ADDRESS_CODEC.encode(owner)),
       );
   }
 }
@@ -99,7 +102,7 @@ export function decodeMultisigIsmMessageIdProgramInstruction(
       const hasOwner = cursor.readU8() === 1;
       return {
         kind: 'transferOwnership',
-        newOwner: hasOwner ? cursor.readBytes(32) : null,
+        newOwner: hasOwner ? ADDRESS_CODEC.decode(cursor.readBytes(32)) : null,
       };
     }
     default:
@@ -169,7 +172,7 @@ export async function getSetValidatorsAndThresholdInstruction(
 export async function getTransferOwnershipInstruction(
   programAddress: Address,
   owner: TransactionSigner,
-  newOwner: Uint8Array | null,
+  newOwner: Address | null,
 ): Promise<Instruction> {
   const { address: accessControl } =
     await deriveMultisigIsmAccessControlPda(programAddress);

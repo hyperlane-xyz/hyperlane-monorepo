@@ -6,6 +6,7 @@ import type {
 } from '@solana/kit';
 import {
   fixCodecSize,
+  getAddressCodec,
   getBytesCodec,
   getNullableCodec,
   getStructDecoder,
@@ -52,14 +53,14 @@ export enum IgpInstructionKind {
 
 export interface InitIgpData {
   salt: H256;
-  owner: Uint8Array | null;
-  beneficiary: Uint8Array;
+  owner: Address | null;
+  beneficiary: Address;
 }
 
 export interface InitOverheadIgpData {
   salt: H256;
-  owner: Uint8Array | null;
-  inner: Uint8Array;
+  owner: Address | null;
+  inner: Address;
 }
 
 export interface QuoteGasPaymentData {
@@ -72,36 +73,37 @@ export type IgpProgramInstructionData =
   | { kind: 'initIgp'; value: InitIgpData }
   | { kind: 'initOverheadIgp'; value: InitOverheadIgpData }
   | { kind: 'quoteGasPayment'; value: QuoteGasPaymentData }
-  | { kind: 'transferIgpOwnership'; newOwner: Uint8Array | null }
-  | { kind: 'transferOverheadIgpOwnership'; newOwner: Uint8Array | null }
-  | { kind: 'setIgpBeneficiary'; beneficiary: Uint8Array }
+  | { kind: 'transferIgpOwnership'; newOwner: Address | null }
+  | { kind: 'transferOverheadIgpOwnership'; newOwner: Address | null }
+  | { kind: 'setIgpBeneficiary'; beneficiary: Address }
   | { kind: 'setDestinationGasOverheads'; configs: GasOverheadConfig[] }
   | { kind: 'setGasOracleConfigs'; configs: GasOracleConfig[] }
   | { kind: 'claim' };
 
 const BYTES32_CODEC = fixCodecSize(getBytesCodec(), 32);
-const OPTIONAL_BYTES32_CODEC = getNullableCodec(BYTES32_CODEC);
+const ADDRESS_CODEC = getAddressCodec();
+const OPTIONAL_ADDRESS_CODEC = getNullableCodec(ADDRESS_CODEC);
 
 const INIT_IGP_ENCODER = getStructEncoder([
   ['salt', BYTES32_CODEC],
-  ['owner', OPTIONAL_BYTES32_CODEC],
-  ['beneficiary', BYTES32_CODEC],
+  ['owner', OPTIONAL_ADDRESS_CODEC],
+  ['beneficiary', ADDRESS_CODEC],
 ]);
 const INIT_IGP_DECODER = getStructDecoder([
   ['salt', BYTES32_CODEC],
-  ['owner', OPTIONAL_BYTES32_CODEC],
-  ['beneficiary', BYTES32_CODEC],
+  ['owner', OPTIONAL_ADDRESS_CODEC],
+  ['beneficiary', ADDRESS_CODEC],
 ]);
 
 const INIT_OVERHEAD_IGP_ENCODER = getStructEncoder([
   ['salt', BYTES32_CODEC],
-  ['owner', OPTIONAL_BYTES32_CODEC],
-  ['inner', BYTES32_CODEC],
+  ['owner', OPTIONAL_ADDRESS_CODEC],
+  ['inner', ADDRESS_CODEC],
 ]);
 const INIT_OVERHEAD_IGP_DECODER = getStructDecoder([
   ['salt', BYTES32_CODEC],
-  ['owner', OPTIONAL_BYTES32_CODEC],
-  ['inner', BYTES32_CODEC],
+  ['owner', OPTIONAL_ADDRESS_CODEC],
+  ['inner', ADDRESS_CODEC],
 ]);
 
 const QUOTE_GAS_PAYMENT_ENCODER = getStructEncoder([
@@ -137,17 +139,17 @@ export function encodeIgpProgramInstruction(
     case 'transferIgpOwnership':
       return concatBytes(
         u8(IgpInstructionKind.TransferIgpOwnership),
-        option(instruction.newOwner, (owner) => owner),
+        option(instruction.newOwner, (addr) => ADDRESS_CODEC.encode(addr)),
       );
     case 'transferOverheadIgpOwnership':
       return concatBytes(
         u8(IgpInstructionKind.TransferOverheadIgpOwnership),
-        option(instruction.newOwner, (owner) => owner),
+        option(instruction.newOwner, (addr) => ADDRESS_CODEC.encode(addr)),
       );
     case 'setIgpBeneficiary':
       return concatBytes(
         u8(IgpInstructionKind.SetIgpBeneficiary),
-        instruction.beneficiary,
+        ADDRESS_CODEC.encode(instruction.beneficiary),
       );
     case 'setDestinationGasOverheads':
       return concatBytes(
@@ -257,8 +259,8 @@ function decodeInitIgp(data: Uint8Array): InitIgpData {
   const decoded = INIT_IGP_DECODER.decode(data);
   return {
     salt: Uint8Array.from(decoded.salt),
-    owner: decoded.owner ? Uint8Array.from(decoded.owner) : null,
-    beneficiary: Uint8Array.from(decoded.beneficiary),
+    owner: decoded.owner,
+    beneficiary: decoded.beneficiary,
   };
 }
 
@@ -270,8 +272,8 @@ function decodeInitOverheadIgp(data: Uint8Array): InitOverheadIgpData {
   const decoded = INIT_OVERHEAD_IGP_DECODER.decode(data);
   return {
     salt: Uint8Array.from(decoded.salt),
-    owner: decoded.owner ? Uint8Array.from(decoded.owner) : null,
-    inner: Uint8Array.from(decoded.inner),
+    owner: decoded.owner,
+    inner: decoded.inner,
   };
 }
 
