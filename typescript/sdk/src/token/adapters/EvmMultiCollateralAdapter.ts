@@ -245,7 +245,10 @@ export class EvmHypMultiCollateralAdapter
     const amount = BigInt(params.amount.toString());
     const tokenQuoteAmount = BigInt(quotes[1].amount.toString());
     const externalFeeAmount = BigInt(quotes[2].amount.toString());
-    const tokenFeeAmount = tokenQuoteAmount - amount + externalFeeAmount;
+    const tokenFeeAmount =
+      tokenQuoteAmount >= amount
+        ? tokenQuoteAmount - amount + externalFeeAmount
+        : externalFeeAmount;
 
     return {
       igpQuote: { amount: BigInt(quotes[0].amount.toString()) },
