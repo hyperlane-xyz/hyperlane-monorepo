@@ -1,4 +1,5 @@
 import {
+  address as parseAddress,
   type Address,
   type Rpc,
   type SolanaRpcApi,
@@ -60,16 +61,19 @@ export class SvmIgpHookReader implements ArtifactReader<
   ) {}
 
   async read(
-    _address: string,
+    address: string,
   ): Promise<ArtifactDeployed<IgpHookConfig, DeployedHookAddress>> {
-    const igp = await fetchIgpAccount(this.rpc, this.programId, this.salt);
+    // Use the provided address as the programId: callers pass the specific
+    // deployed IGP program address, not the manager's configured default.
+    const programId = parseAddress(address);
+    const igp = await fetchIgpAccount(this.rpc, programId, this.salt);
     if (!igp) {
-      throw new Error(`IGP account not found for program: ${this.programId}`);
+      throw new Error(`IGP account not found for program: ${programId}`);
     }
 
     const overheadIgp = await fetchOverheadIgpAccount(
       this.rpc,
-      this.programId,
+      programId,
       this.salt,
     );
 
@@ -95,10 +99,7 @@ export class SvmIgpHookReader implements ArtifactReader<
     const owner = igp.owner ? addrDecoder.decode(igp.owner) : '';
     const beneficiary = addrDecoder.decode(igp.beneficiary);
 
-    const { address: igpPda } = await deriveIgpAccountPda(
-      this.programId,
-      this.salt,
-    );
+    const { address: igpPda } = await deriveIgpAccountPda(programId, this.salt);
 
     return {
       artifactState: ArtifactState.DEPLOYED,
@@ -154,9 +155,11 @@ export class SvmIgpHookWriter
 
     if (!igp) {
       const ownerBytes = config.owner
-        ? addressToBytes32(config.owner as Address)
+        ? addressToBytes32(parseAddress(config.owner))
         : null;
-      const beneficiaryBytes = addressToBytes32(config.beneficiary as Address);
+      const beneficiaryBytes = addressToBytes32(
+        parseAddress(config.beneficiary),
+      );
 
       const initIgpIx = await getInitIgpInstruction(
         this.programId,
@@ -189,7 +192,7 @@ export class SvmIgpHookWriter
 
     if (!overheadIgp && Object.keys(config.overhead).length > 0) {
       const ownerBytes = config.owner
-        ? addressToBytes32(config.owner as Address)
+        ? addressToBytes32(parseAddress(config.owner))
         : null;
       const innerBytes = addressToBytes32(igpPda);
 

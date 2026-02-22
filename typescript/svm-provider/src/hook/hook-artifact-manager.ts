@@ -1,4 +1,8 @@
-import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
+import {
+  address as parseAddress,
+  type Rpc,
+  type SolanaRpcApi,
+} from '@solana/kit';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import type {
@@ -10,6 +14,7 @@ import type {
   DeployedHookArtifact,
   RawHookArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/hook';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type { SvmSigner } from '../signer.js';
 import type { SvmProgramAddresses } from '../types.js';
@@ -40,11 +45,20 @@ export class SvmHookArtifactManager {
   }
 
   async readHook(address: string): Promise<DeployedHookArtifact> {
-    const addr = address as Address;
+    const addr = parseAddress(address);
     const hookType = await detectHookType(this.rpc, addr);
-    const typeKey = this.altVmToTypeKey(hookType);
-    const reader = this.createReader(typeKey);
-    return reader.read(address);
+
+    if (hookType !== null) {
+      return this.createReader(this.altVmToTypeKey(hookType)).read(address);
+    }
+
+    // detectHookType returns null for non-IGP addresses; the only other
+    // supported hook on SVM is the Merkle tree hook, which IS the mailbox.
+    assert(
+      addr === this.programAddresses.mailbox,
+      `Unknown hook address ${address}: not an IGP program; expected the configured mailbox (${this.programAddresses.mailbox}) for Merkle detection`,
+    );
+    return this.createReader('merkleTreeHook').read(address);
   }
 
   createReader<T extends keyof RawHookArtifactConfigs>(

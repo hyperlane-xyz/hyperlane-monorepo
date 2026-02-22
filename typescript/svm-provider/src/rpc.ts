@@ -1,6 +1,5 @@
 import {
   type Address,
-  type EncodedAccount,
   type MaybeEncodedAccount,
   type Rpc,
   type SolanaRpcApi,
@@ -12,15 +11,13 @@ export function createRpc(url: string): Rpc<SolanaRpcApi> {
   return createSolanaRpc(url);
 }
 
+// Returns MaybeEncodedAccount to preserve Kit's explicit existence-check shape.
+// Callers should branch on .exists or use assertAccountExists().
 export async function fetchAccount(
   rpc: Rpc<SolanaRpcApi>,
   address: Address,
-): Promise<EncodedAccount | null> {
-  const maybeAccount: MaybeEncodedAccount = await fetchEncodedAccount(
-    rpc,
-    address,
-  );
-  return maybeAccount.exists ? maybeAccount : null;
+): Promise<MaybeEncodedAccount> {
+  return fetchEncodedAccount(rpc, address);
 }
 
 export type SolanaRpcClient = Rpc<SolanaRpcApi>;

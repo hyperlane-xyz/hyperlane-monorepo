@@ -26,12 +26,15 @@ export class SvmMerkleTreeHookReader implements ArtifactReader<
   ) {}
 
   async read(
-    address: string,
+    _address: string,
   ): Promise<ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>> {
+    // On SVM the Merkle tree hook is the mailbox program itself.
+    // The caller-supplied address is validated upstream (readHook asserts
+    // it equals the configured mailbox); use the typed mailboxAddress here.
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: { type: HookType.MERKLE_TREE as 'merkleTreeHook' },
-      deployed: { address: address || this.mailboxAddress },
+      deployed: { address: this.mailboxAddress },
     };
   }
 }
