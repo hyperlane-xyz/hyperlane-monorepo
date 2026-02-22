@@ -15,8 +15,10 @@ describe('EvmHypMultiCollateralAdapter', () => {
   const DESTINATION_DOMAIN = 31337;
 
   let adapter: EvmHypMultiCollateralAdapter;
+  let sandbox: sinon.SinonSandbox;
 
   beforeEach(() => {
+    sandbox = sinon.createSandbox();
     const multiProvider =
       MultiProtocolProvider.createTestMultiProtocolProvider();
     adapter = new EvmHypMultiCollateralAdapter(test1.name, multiProvider, {
@@ -25,7 +27,7 @@ describe('EvmHypMultiCollateralAdapter', () => {
     });
   });
 
-  afterEach(() => sinon.restore());
+  afterEach(() => sandbox.restore());
 
   it('computes token fee as (quoted token out - input amount) + external fee', async () => {
     const quoteTransferRemoteTo = sinon.stub().resolves([
