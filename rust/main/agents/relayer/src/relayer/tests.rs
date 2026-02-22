@@ -94,6 +94,8 @@ fn generate_test_chain_conf(
             mode: IndexMode::Block,
         },
         ignore_reorg_reports: false,
+        origin_init_timeout_millis: Duration::from_millis(30_000),
+        destination_init_timeout_millis: Duration::from_millis(30_000),
     }
 }
 
