@@ -23,7 +23,6 @@ import {
   ExplorerLicenseType,
   HypERC20Deployer,
   IsmType,
-  type MultiCollateralTokenConfig,
   type MultiProvider,
   type MultisigIsmConfig,
   type OpStackIsmConfig,
@@ -1296,9 +1295,7 @@ export async function runWarpRouteCombine({
     for (const [chain, chainConfig] of Object.entries(route.deployConfig)) {
       if (!isMultiCollateralTokenConfig(chainConfig)) continue;
 
-      const mcConfig = chainConfig as MultiCollateralTokenConfig;
-      const enrolledRouters: Record<string, string[]> =
-        mcConfig.enrolledRouters ?? {};
+      const enrolledRouters: Record<string, Set<string>> = {};
 
       // Look at all OTHER routes
       for (const otherRoute of routes) {
@@ -1311,14 +1308,22 @@ export async function runWarpRouteCombine({
             .toString();
           const otherRouter = addressToBytes32(otherToken.addressOrDenom!);
 
-          enrolledRouters[otherDomain] ??= [];
-          if (!enrolledRouters[otherDomain].includes(otherRouter)) {
-            enrolledRouters[otherDomain].push(otherRouter);
-          }
+          enrolledRouters[otherDomain] ??= new Set();
+          enrolledRouters[otherDomain].add(otherRouter);
         }
       }
 
-      (route.deployConfig[chain] as any).enrolledRouters = enrolledRouters;
+      const reconciledEnrolledRouters = Object.fromEntries(
+        Object.entries(enrolledRouters).map(([domain, routers]) => [
+          domain,
+          [...routers],
+        ]),
+      );
+
+      (route.deployConfig[chain] as any).enrolledRouters =
+        Object.keys(reconciledEnrolledRouters).length > 0
+          ? reconciledEnrolledRouters
+          : undefined;
     }
 
     // Write updated deploy config back

@@ -166,9 +166,15 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
-  const destToken = destTokenAddr
-    ? warpCore.findToken(destination, destTokenAddr)
-    : undefined;
+  let destToken: Token | undefined;
+  if (destTokenAddr) {
+    const found = warpCore.findToken(destination, destTokenAddr);
+    assert(
+      found,
+      `Destination token ${destTokenAddr} not found on ${destination}`,
+    );
+    destToken = found;
+  }
 
   if (!skipValidation) {
     const errors = await warpCore.validateTransfer({
@@ -176,6 +182,7 @@ async function executeDelivery({
       destination,
       recipient,
       sender: signerAddress,
+      destinationToken: destToken,
     });
     if (errors) {
       logRed('Error validating transfer', JSON.stringify(errors));

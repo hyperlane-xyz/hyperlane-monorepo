@@ -242,8 +242,17 @@ export class EvmHypMultiCollateralAdapter
       targetRouterBytes32,
     );
 
+    const amount = BigInt(params.amount.toString());
+    const tokenQuoteAmount = BigInt(quotes[1].amount.toString());
+    const externalFeeAmount = BigInt(quotes[2].amount.toString());
+    const tokenFeeAmount = tokenQuoteAmount - amount + externalFeeAmount;
+
     return {
       igpQuote: { amount: BigInt(quotes[0].amount.toString()) },
+      tokenFeeQuote: {
+        addressOrDenom: quotes[1].token,
+        amount: tokenFeeAmount,
+      },
     };
   }
 }

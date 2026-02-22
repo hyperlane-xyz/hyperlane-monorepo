@@ -382,6 +382,240 @@ describe('WarpCore', () => {
     quoteStubs.forEach((s) => s.restore());
   });
 
+  it('Validates destination token routing', async () => {
+    const balanceStubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
+    );
+    const minimumTransferAmount = 10n;
+    const quoteStubs = warpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        quoteTransferRemoteGas: () =>
+          Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
+        isApproveRequired: () => Promise.resolve(false),
+        populateTransferRemoteTx: () => Promise.resolve({}),
+        getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
+        getBalance: () => Promise.resolve(MOCK_BALANCE),
+        getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
+        getMintLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+        getMintMaxLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
+      } as any),
+    );
+
+    const invalidDestinationToken = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+      destination: test2.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+      destinationToken: evmHypCollateralFiat,
+    });
+    expect(Object.values(invalidDestinationToken || {})[0]).to.equal(
+      `Destination token chain mismatch for ${test2.name}`,
+    );
+
+    const validDestinationToken = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+      destination: test2.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+      destinationToken: evmHypSynthetic,
+    });
+    expect(validDestinationToken).to.be.null;
+
+    balanceStubs.forEach((s) => s.restore());
+    quoteStubs.forEach((s) => s.restore());
+  });
+
+  it('Requires explicit destination token for ambiguous routes', async () => {
+    const ambiguousConfig = yamlParse(
+      fs.readFileSync('./src/warp/test-warp-core-config.yaml', 'utf-8'),
+    );
+    const extraTest2Address = '0x9876543210987654321098765432109876543219';
+
+    const test1Token = ambiguousConfig.tokens.find(
+      (token: any) =>
+        token.chainName === test1.name &&
+        token.addressOrDenom === evmHypNative.addressOrDenom,
+    );
+    test1Token.connections.push({
+      token: `ethereum|${test2.name}|${extraTest2Address}`,
+    });
+    ambiguousConfig.tokens.push({
+      chainName: test2.name,
+      standard: TokenStandard.EvmHypSynthetic,
+      decimals: 18,
+      symbol: 'ETH2',
+      name: 'Ether 2',
+      addressOrDenom: extraTest2Address,
+      connections: [
+        {
+          token: `ethereum|${test1.name}|${evmHypNative.addressOrDenom}`,
+        },
+      ],
+    });
+
+    const ambiguousWarpCore = WarpCore.FromConfig(
+      multiProvider,
+      ambiguousConfig,
+    );
+    const ambiguousOrigin = ambiguousWarpCore.findToken(
+      test1.name,
+      evmHypNative.addressOrDenom,
+    );
+    const extraDestination = ambiguousWarpCore.findToken(
+      test2.name,
+      extraTest2Address,
+    );
+    expect(ambiguousOrigin).to.not.be.null;
+    expect(extraDestination).to.not.be.null;
+
+    const balanceStubs = ambiguousWarpCore.tokens.map((t) =>
+      sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
+    );
+    const minimumTransferAmount = 10n;
+    const quoteStubs = ambiguousWarpCore.tokens.map((t) =>
+      sinon.stub(t, 'getHypAdapter').returns({
+        quoteTransferRemoteGas: () =>
+          Promise.resolve({ igpQuote: MOCK_INTERCHAIN_QUOTE }),
+        isApproveRequired: () => Promise.resolve(false),
+        populateTransferRemoteTx: () => Promise.resolve({}),
+        getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
+        getBalance: () => Promise.resolve(MOCK_BALANCE),
+        getBridgedSupply: () => Promise.resolve(MOCK_BALANCE),
+        getMintLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+        getMintMaxLimit: () => Promise.resolve(MEDIUM_MOCK_BALANCE),
+        isRevokeApprovalRequired: () => Promise.resolve(false),
+      } as any),
+    );
+
+    const ambiguousValidation = await ambiguousWarpCore.validateTransfer({
+      originTokenAmount: ambiguousOrigin!.amount(TRANSFER_AMOUNT),
+      destination: test2.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+    });
+    expect(Object.values(ambiguousValidation || {})[0]).to.equal(
+      `Ambiguous route to ${test2.name}; specify destination token`,
+    );
+
+    const explicitValidation = await ambiguousWarpCore.validateTransfer({
+      originTokenAmount: ambiguousOrigin!.amount(TRANSFER_AMOUNT),
+      destination: test2.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+      destinationToken: extraDestination!,
+    });
+    expect(explicitValidation).to.be.null;
+
+    balanceStubs.forEach((s) => s.restore());
+    quoteStubs.forEach((s) => s.restore());
+  });
+
+  it('Includes token fee in MultiCollateral approval debit', async () => {
+    const tokenFeeAmount = 123n;
+    const originalCollateralAddress = evmHypNative.collateralAddressOrDenom;
+    (evmHypNative as any).collateralAddressOrDenom =
+      evmHypNative.addressOrDenom;
+
+    const originMultiStub = sinon
+      .stub(evmHypNative, 'isMultiCollateralToken')
+      .returns(true);
+    const destinationMultiStub = sinon
+      .stub(evmHypSynthetic, 'isMultiCollateralToken')
+      .returns(true);
+
+    const quoteTransferRemoteToGas = sinon.stub().resolves({
+      igpQuote: { amount: 1n },
+      tokenFeeQuote: {
+        addressOrDenom: evmHypNative.addressOrDenom,
+        amount: tokenFeeAmount,
+      },
+    });
+    const isApproveRequired = sinon.stub().resolves(true);
+    const populateApproveTx = sinon.stub().resolves({});
+    const populateTransferRemoteToTx = sinon.stub().resolves({});
+
+    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
+      quoteTransferRemoteToGas,
+      isApproveRequired,
+      populateApproveTx,
+      populateTransferRemoteToTx,
+      isRevokeApprovalRequired: () => Promise.resolve(false),
+    } as any);
+
+    try {
+      const result = await warpCore.getTransferRemoteTxs({
+        originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
+        destinationToken: evmHypSynthetic,
+      });
+
+      expect(result.length).to.equal(2);
+      sinon.assert.calledWithExactly(
+        isApproveRequired,
+        MOCK_ADDRESS,
+        evmHypNative.addressOrDenom,
+        TRANSFER_AMOUNT + tokenFeeAmount,
+      );
+      sinon.assert.calledWithMatch(populateApproveTx, {
+        weiAmountOrId: TRANSFER_AMOUNT + tokenFeeAmount,
+        recipient: evmHypNative.addressOrDenom,
+      });
+    } finally {
+      adapterStub.restore();
+      originMultiStub.restore();
+      destinationMultiStub.restore();
+      (evmHypNative as any).collateralAddressOrDenom =
+        originalCollateralAddress;
+    }
+  });
+
+  it('Uses destination router-aware quote for MultiCollateral fees', async () => {
+    const originMultiStub = sinon
+      .stub(evmHypNative, 'isMultiCollateralToken')
+      .returns(true);
+    const destinationMultiStub = sinon
+      .stub(evmHypSynthetic, 'isMultiCollateralToken')
+      .returns(true);
+
+    const quoteTransferRemoteToGas = sinon.stub().resolves({
+      igpQuote: { amount: 42n },
+      tokenFeeQuote: {
+        addressOrDenom: evmHypNative.addressOrDenom,
+        amount: 11n,
+      },
+    });
+
+    const adapterStub = sinon.stub(evmHypNative, 'getHypAdapter').returns({
+      quoteTransferRemoteToGas,
+    } as any);
+
+    try {
+      const quote = await warpCore.getInterchainTransferFee({
+        originTokenAmount: evmHypNative.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
+        destinationToken: evmHypSynthetic,
+      });
+
+      expect(quote.igpQuote.amount).to.equal(42n);
+      expect(quote.tokenFeeQuote?.amount).to.equal(11n);
+      sinon.assert.calledWithMatch(quoteTransferRemoteToGas, {
+        destination: test2.domainId,
+        recipient: MOCK_ADDRESS,
+        amount: TRANSFER_AMOUNT,
+        targetRouter: evmHypSynthetic.addressOrDenom,
+      });
+    } finally {
+      adapterStub.restore();
+      originMultiStub.restore();
+      destinationMultiStub.restore();
+    }
+  });
+
   it('Gets transfer remote txs', async () => {
     const coreStub = sinon
       .stub(warpCore, 'isApproveRequired')
