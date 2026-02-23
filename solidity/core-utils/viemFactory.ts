@@ -450,6 +450,27 @@ async function performEstimateGas(
     return BigInt(estimated);
 }
 
+async function withRunnerFrom(
+    runner: RunnerLike,
+    request: TxRequestLike,
+): Promise<TxRequestLike> {
+    if (request.from) return request;
+    if (
+        runner &&
+        isObject(runner) &&
+        "getAddress" in runner &&
+        typeof runner.getAddress === "function"
+    ) {
+        try {
+            const from = await (runner.getAddress as () => Promise<string>)();
+            if (from) return {...request, from};
+        } catch {
+            // noop: fallback to request without explicit from
+        }
+    }
+    return request;
+}
+
 async function waitForReceipt(
     runner: RunnerLike,
     hash: string,
@@ -607,7 +628,7 @@ export function createContractProxy(
                         fn.inputs.length,
                     );
                     const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
-                    const request = {
+                    const request = await withRunnerFrom(runner, {
                         to: address,
                         data: encodeFunctionData({
                             abi,
@@ -615,7 +636,7 @@ export function createContractProxy(
                             args: normalizedArgs as any[],
                         }),
                         ...overrides,
-                    };
+                    });
                     return performEstimateGas(runner, request);
                 };
             },
@@ -822,8 +843,8 @@ export class ViemContractFactory {
     }
 
     connect(runner: RunnerLike): this {
-        this.runner = runner;
-        return this;
+        const Ctor = this.constructor as new (runner?: RunnerLike) => this;
+        return new Ctor(runner);
     }
 
     attach(address: string): any {

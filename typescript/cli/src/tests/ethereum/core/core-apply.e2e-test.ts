@@ -110,7 +110,9 @@ describe('hyperlane core apply e2e tests', async function () {
     // Verify that the owner has been set correctly without modifying any other owner values
     const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
     expect(updatedConfig.owner).to.equal(initialOwnerAddress);
-    expect(updatedConfig.proxyAdmin?.address).to.equal(newProxyAdmin.address);
+    expect(updatedConfig.proxyAdmin?.address?.toLowerCase()).to.equal(
+      newProxyAdmin.address.toLowerCase(),
+    );
     // Assuming that the ProtocolFeeHook is used for deployment
     expect(
       (updatedConfig.requiredHook as ProtocolFeeHookConfig).owner,

@@ -124,6 +124,7 @@ export type ViemProviderLike = {
     address: Address | string,
     blockTag?: string,
   ): Promise<number>;
+  send?(method: string, params: unknown[]): Promise<unknown>;
   sendTransaction(signedTransaction: Hex | string): Promise<{
     hash: string;
     wait(confirmations?: number): Promise<unknown>;
