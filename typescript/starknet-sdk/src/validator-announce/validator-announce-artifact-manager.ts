@@ -15,6 +15,7 @@ import {
   RawValidatorAnnounceArtifactConfigs,
   ValidatorAnnounceType,
 } from '@hyperlane-xyz/provider-sdk/validator-announce';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
@@ -135,12 +136,17 @@ export class StarknetValidatorAnnounceArtifactManager
     );
   }
 
+  private requireStarknetSigner(
+    signer: ISigner<AnnotatedTx, TxReceipt>,
+  ): StarknetSigner {
+    assert(signer instanceof StarknetSigner, 'Expected StarknetSigner');
+    return signer;
+  }
+
   readValidatorAnnounce(
     address: string,
   ): Promise<DeployedRawValidatorAnnounceArtifact> {
-    return this.createReader('validatorAnnounce').read(
-      address,
-    ) as Promise<DeployedRawValidatorAnnounceArtifact>;
+    return this.createReader('validatorAnnounce').read(address);
   }
 
   createReader<T extends ValidatorAnnounceType>(
@@ -152,10 +158,15 @@ export class StarknetValidatorAnnounceArtifactManager
     if (type !== 'validatorAnnounce') {
       throw new Error(`Unsupported Starknet validator announce type: ${type}`);
     }
-    return new StarknetValidatorAnnounceReader(this.provider) as ArtifactReader<
-      RawValidatorAnnounceArtifactConfigs[T],
-      DeployedValidatorAnnounceAddress
-    >;
+    const readers: {
+      [K in ValidatorAnnounceType]: ArtifactReader<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: new StarknetValidatorAnnounceReader(this.provider),
+    };
+    return readers[type];
   }
 
   createWriter<T extends ValidatorAnnounceType>(
@@ -168,12 +179,18 @@ export class StarknetValidatorAnnounceArtifactManager
     if (type !== 'validatorAnnounce') {
       throw new Error(`Unsupported Starknet validator announce type: ${type}`);
     }
-    return new StarknetValidatorAnnounceWriter(
-      this.provider,
-      signer as StarknetSigner,
-    ) as ArtifactWriter<
-      RawValidatorAnnounceArtifactConfigs[T],
-      DeployedValidatorAnnounceAddress
-    >;
+    const starknetSigner = this.requireStarknetSigner(signer);
+    const writers: {
+      [K in ValidatorAnnounceType]: ArtifactWriter<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: new StarknetValidatorAnnounceWriter(
+        this.provider,
+        starknetSigner,
+      ),
+    };
+    return writers[type];
   }
 }

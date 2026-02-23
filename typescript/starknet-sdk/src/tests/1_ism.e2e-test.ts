@@ -141,7 +141,7 @@ describe('1. starknet sdk ISM e2e tests', function () {
 
     expect(updateTxs.length).to.be.greaterThan(0);
     for (const tx of updateTxs) {
-      await signer.sendAndConfirmTransaction(tx as any);
+      await signer.sendAndConfirmTransaction(tx);
     }
 
     const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);

@@ -1,17 +1,16 @@
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { ContractType } from '@hyperlane-xyz/starknet-core';
+import { Call, GetTransactionReceiptResponse, RawArgsArray } from 'starknet';
 
-export type StarknetInvokeCall = {
-  contractAddress: string;
-  entrypoint: string;
-  calldata: any[];
+export type StarknetInvokeCall = Omit<Call, 'calldata'> & {
+  calldata: RawArgsArray;
 };
 
 export type StarknetInvokeTx = AnnotatedTx & {
   kind: 'invoke';
-  contractAddress: string;
-  entrypoint: string;
-  calldata: any[];
+  contractAddress: Call['contractAddress'];
+  entrypoint: Call['entrypoint'];
+  calldata: RawArgsArray;
   calls?: StarknetInvokeCall[];
 };
 
@@ -19,13 +18,13 @@ export type StarknetDeployTx = AnnotatedTx & {
   kind: 'deploy';
   contractName: string;
   contractType?: ContractType;
-  constructorArgs: any[];
+  constructorArgs: unknown[];
 };
 
 export type StarknetAnnotatedTx = StarknetInvokeTx | StarknetDeployTx;
 
 export type StarknetTxReceipt = TxReceipt & {
   transactionHash: string;
-  receipt?: any;
+  receipt?: GetTransactionReceiptResponse;
   contractAddress?: string;
 };

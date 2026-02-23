@@ -84,7 +84,7 @@ describe('3. starknet sdk hook e2e tests', function () {
     expect(txs[txs.length - 1].annotation).to.contain('ownership');
 
     for (const tx of txs) {
-      await signer.sendAndConfirmTransaction(tx as any);
+      await signer.sendAndConfirmTransaction(tx);
     }
 
     const updated = await reader.read(created.deployed.address);

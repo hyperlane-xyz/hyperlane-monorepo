@@ -1,13 +1,14 @@
 import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 
 import { StarknetProtocolProvider } from './protocol.js';
 
 describe('StarknetProtocolProvider', () => {
   const provider = new StarknetProtocolProvider();
 
-  const metadata = {
+  const metadata: ChainMetadataForAltVM = {
     name: 'starknetsepolia',
     protocol: ProtocolType.Starknet,
     chainId: 'SN_SEPOLIA',
@@ -20,7 +21,7 @@ describe('StarknetProtocolProvider', () => {
       denom:
         '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d',
     },
-  } as any;
+  };
 
   it('creates provider when rpc url exists', async () => {
     const starknetProvider = await provider.createProvider(metadata);
@@ -32,7 +33,7 @@ describe('StarknetProtocolProvider', () => {
   it('throws when signer config is missing Starknet account address', async () => {
     let caughtError: unknown;
     try {
-      await provider.createSigner(metadata, { privateKey: '0xabc' } as any);
+      await provider.createSigner(metadata, { privateKey: '0xabc' });
     } catch (error) {
       caughtError = error;
     }
