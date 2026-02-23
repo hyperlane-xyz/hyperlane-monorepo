@@ -7,7 +7,7 @@ import type { MultiProvider, Token, WarpCore } from '@hyperlane-xyz/sdk';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
-  DEFAULT_INTENT_TTL_S,
+  DEFAULT_INTENT_TTL_MS,
   RebalancerStrategyOptions,
 } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
@@ -50,7 +50,7 @@ function createMockRebalancerConfig(): RebalancerConfig {
         },
       },
     ],
-    intentTTL: DEFAULT_INTENT_TTL_S * 1_000,
+    intentTTL: DEFAULT_INTENT_TTL_MS,
   } as RebalancerConfig;
 }
 
@@ -480,7 +480,7 @@ describe('RebalancerService', () => {
             },
           },
         ],
-        intentTTL: DEFAULT_INTENT_TTL_S * 1_000,
+        intentTTL: DEFAULT_INTENT_TTL_MS,
       } as RebalancerConfig;
 
       const config: RebalancerServiceConfig = {

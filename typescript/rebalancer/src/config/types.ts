@@ -116,6 +116,7 @@ export const RebalancerStrategySchema = z
   .transform((val) => (Array.isArray(val) ? val : [val]));
 
 export const DEFAULT_INTENT_TTL_S = 7200;
+export const DEFAULT_INTENT_TTL_MS = DEFAULT_INTENT_TTL_S * 1_000;
 
 export const LiFiBridgeConfigSchema = z.object({
   integrator: z.string(),

@@ -5,7 +5,7 @@ import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
 
-import { DEFAULT_INTENT_TTL_S } from '../config/types.js';
+import { DEFAULT_INTENT_TTL_MS } from '../config/types.js';
 import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 
 import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
@@ -72,7 +72,7 @@ describe('ActionTracker', () => {
       },
       bridges: ['0xbridge1', '0xbridge2'],
       rebalancerAddress: '0xrebalancer',
-      intentTTL: DEFAULT_INTENT_TTL_S * 1_000,
+      intentTTL: DEFAULT_INTENT_TTL_MS,
     };
 
     tracker = new ActionTracker(
@@ -416,7 +416,7 @@ describe('ActionTracker', () => {
         destination: 2,
         amount: 100n,
         fulfilledAmount: 50n,
-        createdAt: Date.now() - DEFAULT_INTENT_TTL_S * 1_000 - 1,
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS - 1,
         updatedAt: Date.now(),
       };
 
@@ -452,7 +452,7 @@ describe('ActionTracker', () => {
         destination: 2,
         amount: 100n,
         fulfilledAmount: 50n,
-        createdAt: Date.now() - DEFAULT_INTENT_TTL_S * 1_000 + 60_000,
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS + 60_000,
         updatedAt: Date.now(),
       };
 
