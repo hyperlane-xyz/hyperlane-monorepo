@@ -36,7 +36,16 @@ export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnou
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    return new RadixValidatorAnnounceReader(this.gateway);
+    const readers: {
+      [K in ValidatorAnnounceType]: () => ArtifactReader<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: () => new RadixValidatorAnnounceReader(this.gateway),
+    };
+
+    return readers[_type]();
   }
 
   createWriter<T extends ValidatorAnnounceType>(
@@ -47,11 +56,16 @@ export class RadixValidatorAnnounceArtifactManager implements IRawValidatorAnnou
     DeployedValidatorAnnounceAddress
   > {
     const baseSigner = signer.getBaseSigner();
+    const writers: {
+      [K in ValidatorAnnounceType]: () => ArtifactWriter<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: () =>
+        new RadixValidatorAnnounceWriter(this.gateway, baseSigner, this.base),
+    };
 
-    return new RadixValidatorAnnounceWriter(
-      this.gateway,
-      baseSigner,
-      this.base,
-    );
+    return writers[_type]();
   }
 }

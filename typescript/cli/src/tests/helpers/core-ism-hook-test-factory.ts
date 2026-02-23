@@ -27,6 +27,26 @@ export interface CoreUpdateTestConfig {
 
 type HookField = 'defaultHook' | 'requiredHook';
 
+function getRoutingDomainIsmAddress(
+  routingIsm: Extract<DerivedIsmConfig, { type: typeof IsmType.ROUTING }>,
+  chainName: string,
+): string {
+  const domainIsm = routingIsm.domains[chainName];
+  assert(
+    typeof domainIsm !== 'string' &&
+      typeof domainIsm === 'object' &&
+      domainIsm !== null &&
+      'address' in domainIsm,
+    `Expected routing ISM domain ${chainName} to be a derived ISM with an address`,
+  );
+  const { address } = domainIsm;
+  assert(
+    typeof address === 'string',
+    `Expected routing ISM domain ${chainName} address to be a string`,
+  );
+  return address;
+}
+
 /**
  * Creates a reusable ISM and Hook update test suite for core deployments.
  * Each test deploys a fresh core to ensure isolation.
@@ -104,16 +124,17 @@ export function createCoreUpdateTests(
 
       // Read to get ISM address
       let readConfig: DerivedCoreConfig = await coreCommands.readConfig();
+      const initialDefaultIsm = readConfig.defaultIsm;
+      expect(initialDefaultIsm.type).to.equal(IsmType.ROUTING);
       assert(
-        readConfig.defaultIsm.type === IsmType.ROUTING,
-        'defaultIsm must be ROUTING',
+        initialDefaultIsm.type === IsmType.ROUTING,
+        'defaultIsm should be ROUTING',
       );
-      const initialIsm = readConfig.defaultIsm;
-      const initialIsmAddress = initialIsm.address;
-      const initialDomainIsm = initialIsm.domains[
-        config.chainName
-      ] as DerivedIsmConfig;
-      const initialDomainIsmAddress = initialDomainIsm.address;
+      const initialIsmAddress = initialDefaultIsm.address;
+      const initialDomainIsmAddress = getRoutingDomainIsmAddress(
+        initialDefaultIsm,
+        config.chainName,
+      );
 
       // Update only owner (mutable)
       const updatedRoutingIsmConfig: IsmConfig = {
@@ -131,20 +152,19 @@ export function createCoreUpdateTests(
 
       // Verify routing ISM address unchanged (updated in-place)
       readConfig = await coreCommands.readConfig();
+      const updatedDefaultIsm = readConfig.defaultIsm;
       assert(
-        readConfig.defaultIsm.type === IsmType.ROUTING,
-        'defaultIsm must be ROUTING',
+        updatedDefaultIsm.type === IsmType.ROUTING,
+        'defaultIsm should be ROUTING',
       );
-      const updatedIsm = readConfig.defaultIsm;
-      expect(updatedIsm.address).to.equal(initialIsmAddress);
-      expect(normalizeAddress(updatedIsm.owner)).to.equal(
+      expect(updatedDefaultIsm.address).to.equal(initialIsmAddress);
+      expect(normalizeAddress(updatedDefaultIsm.owner)).to.equal(
         normalizeAddress(config.alternateOwnerAddress),
       );
       // Domain ISM should not be redeployed
-      const updatedDomainIsm = updatedIsm.domains[
-        config.chainName
-      ] as DerivedIsmConfig;
-      expect(updatedDomainIsm.address).to.equal(initialDomainIsmAddress);
+      expect(
+        getRoutingDomainIsmAddress(updatedDefaultIsm, config.chainName),
+      ).to.equal(initialDomainIsmAddress);
     });
 
     it('should redeploy ISM when immutable config changes', async function () {
@@ -161,7 +181,12 @@ export function createCoreUpdateTests(
 
       // Read to get ISM address
       const firstConfig: DerivedCoreConfig = await coreCommands.readConfig();
-      const firstIsmAddress = firstConfig.defaultIsm.address;
+      const firstDefaultIsm: DerivedIsmConfig = firstConfig.defaultIsm;
+      assert(
+        firstDefaultIsm.type === IsmType.MESSAGE_ID_MULTISIG,
+        'defaultIsm should be MESSAGE_ID_MULTISIG',
+      );
+      const firstIsmAddress = firstDefaultIsm.address;
 
       // Update validators (immutable field)
       const newValidators = [randomAddress()];
@@ -175,13 +200,14 @@ export function createCoreUpdateTests(
 
       // Verify ISM was redeployed (different address)
       const secondConfig: DerivedCoreConfig = await coreCommands.readConfig();
-      expect(secondConfig.defaultIsm.address).to.not.equal(firstIsmAddress);
+      const secondDefaultIsm: DerivedIsmConfig = secondConfig.defaultIsm;
       assert(
-        secondConfig.defaultIsm.type === IsmType.MESSAGE_ID_MULTISIG,
-        'defaultIsm must be MESSAGE_ID_MULTISIG',
+        secondDefaultIsm.type === IsmType.MESSAGE_ID_MULTISIG,
+        'defaultIsm should be MESSAGE_ID_MULTISIG',
       );
+      expect(secondDefaultIsm.address).to.not.equal(firstIsmAddress);
       expect(
-        secondConfig.defaultIsm.validators.map((validator: string) =>
+        secondDefaultIsm.validators.map((validator: string) =>
           normalizeAddress(validator),
         ),
       ).to.deep.equal(

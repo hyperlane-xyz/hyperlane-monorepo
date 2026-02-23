@@ -1,7 +1,9 @@
 import { expect } from 'chai';
 
+import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import type { ExtendedChainSubmissionStrategy } from '../../submitters/types.js';
 import {
   resolveAltVmAccountAddress,
   resolveStarknetAccountAddress,
@@ -13,15 +15,15 @@ describe('altvm signer config helpers', () => {
   });
 
   it('reads Starknet accountAddress from strategy submitter', () => {
-    const strategy = {
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
       starknetsepolia: {
         submitter: {
-          type: 'jsonRpc',
+          type: TxSubmitterType.JSON_RPC,
           privateKey: '0xabc',
           accountAddress: '0x111',
         },
       },
-    } as any;
+    };
 
     expect(resolveStarknetAccountAddress(strategy, 'starknetsepolia')).to.equal(
       '0x111',
@@ -29,15 +31,15 @@ describe('altvm signer config helpers', () => {
   });
 
   it('falls back to userAddress and env var', () => {
-    const strategy = {
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
       starknetsepolia: {
         submitter: {
-          type: 'jsonRpc',
+          type: TxSubmitterType.JSON_RPC,
           privateKey: '0xabc',
           userAddress: '0x222',
         },
       },
-    } as any;
+    };
     expect(resolveStarknetAccountAddress(strategy, 'starknetsepolia')).to.equal(
       '0x222',
     );
