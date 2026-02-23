@@ -51,8 +51,10 @@ export async function getImpersonatedSigner({
  */
 export function assertSigner(signer: unknown) {
   if (
-    !signer ||
-    typeof (signer as { getAddress?: unknown }).getAddress !== 'function'
+    typeof signer !== 'object' ||
+    signer === null ||
+    !('getAddress' in signer) ||
+    typeof signer.getAddress !== 'function'
   )
     throw new Error('Signer is invalid');
 }
@@ -84,7 +86,7 @@ function privateKeyToSigner(key: string): LocalAccountViemSigner {
 
   const formattedKey = key.trim().toLowerCase();
   if (isHex(ensure0x(formattedKey))) {
-    return new LocalAccountViemSigner(ensure0x(formattedKey) as `0x${string}`);
+    return new LocalAccountViemSigner(ensure0x(formattedKey));
   }
   throw new Error('Invalid private key format');
 }

@@ -3,29 +3,31 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { ViemProviderLike, ViemTransactionRequestLike } from './types.js';
+import {
+  ViemProviderLike,
+  ViemTransactionRequestLike,
+  toBigIntValue,
+  toSerializableViemTransaction,
+  toSignableMessage,
+} from './types.js';
 
 export type LocalViemTransactionRequest = ViemTransactionRequestLike & {
   data?: Hex;
 };
 
-const toBigIntValue = (value: unknown): bigint | undefined =>
-  value === null || value === undefined ? undefined : BigInt(value.toString());
-
 export class LocalAccountViemSigner {
   public readonly account: ReturnType<typeof privateKeyToAccount>;
   public readonly address: string;
   public readonly provider: ViemProviderLike | undefined;
+  private readonly privateKey: Hex;
 
-  constructor(
-    private readonly privateKey: Hex,
-    provider?: ViemProviderLike,
-  ) {
+  constructor(privateKey: string, provider?: ViemProviderLike) {
     assert(
       isHex(privateKey),
       'Private key for LocalAccountViemSigner must be hex',
     );
-    this.account = privateKeyToAccount(privateKey);
+    this.privateKey = privateKey;
+    this.account = privateKeyToAccount(this.privateKey);
     this.address = this.account.address;
     this.provider = provider;
   }
@@ -47,12 +49,14 @@ export class LocalAccountViemSigner {
   }
 
   async signMessage(message: string | Uint8Array): Promise<Hex> {
-    return this.account.signMessage({ message: message as any });
+    return this.account.signMessage({ message: toSignableMessage(message) });
   }
 
   async signTransaction(tx: LocalViemTransactionRequest): Promise<Hex> {
     const populated = await this.populateTransaction(tx);
-    return this.account.signTransaction(populated as any);
+    return this.account.signTransaction(
+      toSerializableViemTransaction(populated),
+    );
   }
 
   async sendTransaction(
