@@ -14,12 +14,10 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedHookAddress,
-  IgpHookConfig,
-} from '@hyperlane-xyz/provider-sdk/hook';
+import type { IgpHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
 import type { GasOracleConfig, GasOverheadConfig } from '../codecs/shared.js';
+import { resolveProgram } from '../deploy/resolve-program.js';
 import {
   getInitIgpInstruction,
   getInitIgpProgramInstruction,
@@ -29,7 +27,12 @@ import {
 } from '../instructions/igp.js';
 import { deriveIgpAccountPda, deriveOverheadIgpAccountPda } from '../pda.js';
 import type { SvmSigner } from '../signer.js';
-import type { AnnotatedSvmTransaction, SvmReceipt } from '../types.js';
+import type {
+  AnnotatedSvmTransaction,
+  SvmDeployedIgpHook,
+  SvmProgramTarget,
+  SvmReceipt,
+} from '../types.js';
 
 import {
   fetchIgpAccount,
@@ -39,6 +42,7 @@ import {
 } from './hook-query.js';
 
 export interface SvmIgpHookConfig extends IgpHookConfig {
+  program: SvmProgramTarget;
   context?: string;
 }
 
@@ -50,19 +54,16 @@ export const DEFAULT_IGP_CONTEXT = 'hyperlane_igp';
 
 export class SvmIgpHookReader implements ArtifactReader<
   IgpHookConfig,
-  DeployedHookAddress
+  SvmDeployedIgpHook
 > {
   constructor(
     protected readonly rpc: Rpc<SolanaRpcApi>,
-    protected readonly programId: Address,
     protected readonly salt: Uint8Array,
   ) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<IgpHookConfig, DeployedHookAddress>> {
-    // Use the provided address as the programId: callers pass the specific
-    // deployed IGP program address, not the manager's configured default.
+  ): Promise<ArtifactDeployed<IgpHookConfig, SvmDeployedIgpHook>> {
     const programId = parseAddress(address);
     const igp = await fetchIgpAccount(this.rpc, programId, this.salt);
     if (!igp) {
@@ -94,6 +95,10 @@ export class SvmIgpHookReader implements ArtifactReader<
     const beneficiary = igp.beneficiary;
 
     const { address: igpPda } = await deriveIgpAccountPda(programId, this.salt);
+    const { address: overheadIgpPda } = await deriveOverheadIgpAccountPda(
+      programId,
+      this.salt,
+    );
 
     return {
       artifactState: ArtifactState.DEPLOYED,
@@ -105,37 +110,45 @@ export class SvmIgpHookReader implements ArtifactReader<
         overhead,
         oracleConfig,
       },
-      deployed: { address: igpPda },
+      deployed: {
+        address: igpPda,
+        programId,
+        igpPda,
+        overheadIgpPda: overheadIgp ? overheadIgpPda : undefined,
+      },
     };
   }
 }
 
 export class SvmIgpHookWriter
   extends SvmIgpHookReader
-  implements ArtifactWriter<IgpHookConfig, DeployedHookAddress>
+  implements ArtifactWriter<IgpHookConfig, SvmDeployedIgpHook>
 {
   constructor(
     rpc: Rpc<SolanaRpcApi>,
-    programId: Address,
     salt: Uint8Array,
     private readonly svmSigner: SvmSigner,
   ) {
-    super(rpc, programId, salt);
+    super(rpc, salt);
   }
 
   async create(
     artifact: ArtifactNew<IgpHookConfig>,
   ): Promise<
-    [ArtifactDeployed<IgpHookConfig, DeployedHookAddress>, SvmReceipt[]]
+    [ArtifactDeployed<IgpHookConfig, SvmDeployedIgpHook>, SvmReceipt[]]
   > {
-    const receipts: SvmReceipt[] = [];
-    const config = artifact.config;
+    const config = artifact.config as SvmIgpHookConfig;
+    const { programAddress: programId, receipts } = await resolveProgram(
+      config.program,
+      this.svmSigner,
+      this.rpc,
+    );
 
     // Phase 1: Initialize program data PDA if not yet created
-    const programData = await fetchIgpProgramData(this.rpc, this.programId);
+    const programData = await fetchIgpProgramData(this.rpc, programId);
     if (!programData) {
       const initProgramIx = await getInitIgpProgramInstruction(
-        this.programId,
+        programId,
         this.svmSigner.signer,
       );
       const initProgramReceipt = await this.svmSigner.send({
@@ -145,11 +158,11 @@ export class SvmIgpHookWriter
     }
 
     // Phase 2: Initialize specific IGP account
-    let igp = await fetchIgpAccount(this.rpc, this.programId, this.salt);
+    let igp = await fetchIgpAccount(this.rpc, programId, this.salt);
 
     if (!igp) {
       const initIgpIx = await getInitIgpInstruction(
-        this.programId,
+        programId,
         this.svmSigner.signer,
         {
           salt: this.salt,
@@ -163,23 +176,22 @@ export class SvmIgpHookWriter
       });
       receipts.push(initReceipt);
 
-      igp = await fetchIgpAccount(this.rpc, this.programId, this.salt);
+      igp = await fetchIgpAccount(this.rpc, programId, this.salt);
     }
 
-    const { address: igpPda } = await deriveIgpAccountPda(
-      this.programId,
-      this.salt,
-    );
+    const { address: igpPda } = await deriveIgpAccountPda(programId, this.salt);
 
     const overheadIgp = await fetchOverheadIgpAccount(
       this.rpc,
-      this.programId,
+      programId,
       this.salt,
     );
 
+    let overheadIgpPda: Address | undefined;
+
     if (!overheadIgp && Object.keys(config.overhead).length > 0) {
       const initOverheadIx = await getInitOverheadIgpInstruction(
-        this.programId,
+        programId,
         this.svmSigner.signer,
         {
           salt: this.salt,
@@ -210,7 +222,7 @@ export class SvmIgpHookWriter
 
     if (oracleConfigs.length > 0) {
       const setOracleIx = await getSetGasOracleConfigsInstruction(
-        this.programId,
+        programId,
         this.svmSigner.signer,
         igpPda,
         oracleConfigs,
@@ -230,13 +242,14 @@ export class SvmIgpHookWriter
     }));
 
     if (overheadConfigs.length > 0) {
-      const { address: overheadIgpPda } = await deriveOverheadIgpAccountPda(
-        this.programId,
+      const derivedOverheadPda = await deriveOverheadIgpAccountPda(
+        programId,
         this.salt,
       );
+      overheadIgpPda = derivedOverheadPda.address;
 
       const setOverheadIx = await getSetDestinationGasOverheadsInstruction(
-        this.programId,
+        programId,
         this.svmSigner.signer,
         overheadIgpPda,
         overheadConfigs,
@@ -252,31 +265,30 @@ export class SvmIgpHookWriter
       {
         artifactState: ArtifactState.DEPLOYED,
         config: config,
-        deployed: { address: igpPda },
+        deployed: {
+          address: igpPda,
+          programId,
+          igpPda,
+          overheadIgpPda,
+        },
       },
       receipts,
     ];
   }
 
   async update(
-    artifact: ArtifactDeployed<IgpHookConfig, DeployedHookAddress>,
+    artifact: ArtifactDeployed<IgpHookConfig, SvmDeployedIgpHook>,
   ): Promise<AnnotatedSvmTransaction[]> {
     const txs: AnnotatedSvmTransaction[] = [];
     const config = artifact.config;
+    const programId = artifact.deployed.programId;
 
-    const currentIgp = await fetchIgpAccount(
-      this.rpc,
-      this.programId,
-      this.salt,
-    );
+    const currentIgp = await fetchIgpAccount(this.rpc, programId, this.salt);
     if (!currentIgp) {
       throw new Error('IGP account not initialized');
     }
 
-    const { address: igpPda } = await deriveIgpAccountPda(
-      this.programId,
-      this.salt,
-    );
+    const { address: igpPda } = await deriveIgpAccountPda(programId, this.salt);
 
     const oracleConfigsToUpdate: GasOracleConfig[] = [];
     for (const [domainStr, oracleData] of Object.entries(config.oracleConfig)) {
@@ -318,7 +330,7 @@ export class SvmIgpHookWriter
 
     if (oracleConfigsToUpdate.length > 0) {
       const setOracleIx = await getSetGasOracleConfigsInstruction(
-        this.programId,
+        programId,
         this.svmSigner.signer,
         igpPda,
         oracleConfigsToUpdate,
@@ -332,7 +344,7 @@ export class SvmIgpHookWriter
 
     const currentOverheadIgp = await fetchOverheadIgpAccount(
       this.rpc,
-      this.programId,
+      programId,
       this.salt,
     );
 
@@ -352,12 +364,12 @@ export class SvmIgpHookWriter
 
     if (overheadConfigsToUpdate.length > 0) {
       const { address: overheadIgpPda } = await deriveOverheadIgpAccountPda(
-        this.programId,
+        programId,
         this.salt,
       );
 
       const setOverheadIx = await getSetDestinationGasOverheadsInstruction(
-        this.programId,
+        programId,
         this.svmSigner.signer,
         overheadIgpPda,
         overheadConfigsToUpdate,

@@ -1,4 +1,8 @@
-import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
+import {
+  address as parseAddress,
+  type Rpc,
+  type SolanaRpcApi,
+} from '@solana/kit';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
@@ -8,66 +12,75 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedHookAddress,
-  MerkleTreeHookConfig,
-} from '@hyperlane-xyz/provider-sdk/hook';
+import type { MerkleTreeHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 
 import type { SvmSigner } from '../signer.js';
-import type { AnnotatedSvmTransaction, SvmReceipt } from '../types.js';
+import type {
+  AnnotatedSvmTransaction,
+  SvmDeployedHook,
+  SvmProgramTarget,
+  SvmReceipt,
+} from '../types.js';
+
+export interface SvmMerkleTreeHookConfig extends MerkleTreeHookConfig {
+  program: SvmProgramTarget;
+}
 
 export class SvmMerkleTreeHookReader implements ArtifactReader<
   MerkleTreeHookConfig,
-  DeployedHookAddress
+  SvmDeployedHook
 > {
-  constructor(
-    protected readonly _rpc: Rpc<SolanaRpcApi>,
-    protected readonly mailboxAddress: Address,
-  ) {}
+  constructor(protected readonly _rpc: Rpc<SolanaRpcApi>) {}
 
   async read(
-    _address: string,
-  ): Promise<ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>> {
+    address: string,
+  ): Promise<ArtifactDeployed<MerkleTreeHookConfig, SvmDeployedHook>> {
     // On SVM the Merkle tree hook is the mailbox program itself.
-    // The caller-supplied address is validated upstream (readHook asserts
-    // it equals the configured mailbox); use the typed mailboxAddress here.
+    const programId = parseAddress(address);
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: { type: HookType.MERKLE_TREE as 'merkleTreeHook' },
-      deployed: { address: this.mailboxAddress },
+      deployed: { address: programId, programId },
     };
   }
 }
 
 export class SvmMerkleTreeHookWriter
   extends SvmMerkleTreeHookReader
-  implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
+  implements ArtifactWriter<MerkleTreeHookConfig, SvmDeployedHook>
 {
   constructor(
     rpc: Rpc<SolanaRpcApi>,
-    mailboxAddress: Address,
     protected readonly _signer: SvmSigner,
   ) {
-    super(rpc, mailboxAddress);
+    super(rpc);
   }
 
   async create(
-    _artifact: ArtifactNew<MerkleTreeHookConfig>,
+    artifact: ArtifactNew<MerkleTreeHookConfig>,
   ): Promise<
-    [ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>, SvmReceipt[]]
+    [ArtifactDeployed<MerkleTreeHookConfig, SvmDeployedHook>, SvmReceipt[]]
   > {
+    const config = artifact.config as SvmMerkleTreeHookConfig;
+    if (!('programId' in config.program)) {
+      throw new Error(
+        'Merkle tree hook requires an existing mailbox programId',
+      );
+    }
+    const programId = config.program.programId;
+
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
         config: { type: HookType.MERKLE_TREE as 'merkleTreeHook' },
-        deployed: { address: this.mailboxAddress },
+        deployed: { address: programId, programId },
       },
       [],
     ];
   }
 
   async update(
-    _artifact: ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>,
+    _artifact: ArtifactDeployed<MerkleTreeHookConfig, SvmDeployedHook>,
   ): Promise<AnnotatedSvmTransaction[]> {
     return [];
   }

@@ -1,4 +1,9 @@
-import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
+import {
+  address as parseAddress,
+  type Address,
+  type Rpc,
+  type SolanaRpcApi,
+} from '@solana/kit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
@@ -8,11 +13,9 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedIsmAddress,
-  MultisigIsmConfig,
-} from '@hyperlane-xyz/provider-sdk/ism';
+import type { MultisigIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
+import { resolveProgram } from '../deploy/resolve-program.js';
 import {
   getInitializeMultisigIsmMessageIdInstruction,
   getSetValidatorsAndThresholdInstruction,
@@ -20,6 +23,8 @@ import {
 import type { SvmSigner } from '../signer.js';
 import type {
   AnnotatedSvmTransaction,
+  SvmDeployedIsm,
+  SvmProgramTarget,
   SvmReceipt,
   SvmTransaction,
 } from '../types.js';
@@ -33,22 +38,20 @@ import {
 const CHUNK_SIZE = 5;
 
 export interface SvmMultisigIsmConfig extends MultisigIsmConfig {
+  program: SvmProgramTarget;
   domains?: Record<number, { validators: string[]; threshold: number }>;
 }
 
 export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
   MultisigIsmConfig,
-  DeployedIsmAddress
+  SvmDeployedIsm
 > {
-  constructor(
-    protected readonly rpc: Rpc<SolanaRpcApi>,
-    protected readonly programId: Address,
-  ) {}
+  constructor(protected readonly rpc: Rpc<SolanaRpcApi>) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
-    const programId = address as Address;
+  ): Promise<ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>> {
+    const programId = parseAddress(address);
     const accessControl = await fetchMultisigIsmAccessControl(
       this.rpc,
       programId,
@@ -64,16 +67,17 @@ export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
         validators: [],
         threshold: 0,
       },
-      deployed: { address: programId },
+      deployed: { address: programId, programId },
     };
   }
 
   async readDomain(
+    programId: Address,
     domain: number,
   ): Promise<{ validators: string[]; threshold: number } | null> {
     const domainData = await fetchMultisigIsmDomainData(
       this.rpc,
-      this.programId,
+      programId,
       domain,
     );
     if (domainData === null) return null;
@@ -88,32 +92,35 @@ export class SvmMessageIdMultisigIsmReader implements ArtifactReader<
 
 export class SvmMessageIdMultisigIsmWriter
   extends SvmMessageIdMultisigIsmReader
-  implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<MultisigIsmConfig, SvmDeployedIsm>
 {
   constructor(
     rpc: Rpc<SolanaRpcApi>,
-    programId: Address,
     private readonly svmSigner: SvmSigner,
   ) {
-    super(rpc, programId);
+    super(rpc);
   }
 
   async create(
     artifact: ArtifactNew<MultisigIsmConfig>,
   ): Promise<
-    [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>, SvmReceipt[]]
+    [ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>, SvmReceipt[]]
   > {
-    const receipts: SvmReceipt[] = [];
     const config = artifact.config as SvmMultisigIsmConfig;
+    const { programAddress, receipts } = await resolveProgram(
+      config.program,
+      this.svmSigner,
+      this.rpc,
+    );
 
     const accessControl = await fetchMultisigIsmAccessControl(
       this.rpc,
-      this.programId,
+      programAddress,
     );
 
     if (accessControl === null) {
       const initIx = await getInitializeMultisigIsmMessageIdInstruction(
-        this.programId,
+        programAddress,
         this.svmSigner.signer,
       );
       const initReceipt = await this.svmSigner.send({
@@ -128,7 +135,7 @@ export class SvmMessageIdMultisigIsmWriter
           async ([domainStr, domainConfig]) => {
             const domain = parseInt(domainStr);
             return getSetValidatorsAndThresholdInstruction({
-              programAddress: this.programId,
+              programAddress,
               owner: this.svmSigner.signer,
               domain,
               validators: domainConfig.validators,
@@ -154,25 +161,34 @@ export class SvmMessageIdMultisigIsmWriter
       {
         artifactState: ArtifactState.DEPLOYED,
         config: config,
-        deployed: { address: this.programId },
+        deployed: { address: programAddress, programId: programAddress },
       },
       receipts,
     ];
   }
 
   async update(
-    _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
+    artifact: ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>,
+  ): Promise<AnnotatedSvmTransaction[]> {
+    const programId = artifact.deployed.programId;
+    return this.getUpdateDomainTxs(artifact, programId);
+  }
+
+  private async getUpdateDomainTxs(
+    _artifact: ArtifactDeployed<MultisigIsmConfig, SvmDeployedIsm>,
+    _programId: Address,
   ): Promise<AnnotatedSvmTransaction[]> {
     return [];
   }
 
   async getUpdateDomainTx(
+    programId: Address,
     domain: number,
     validators: string[],
     threshold: number,
   ): Promise<AnnotatedSvmTransaction> {
     const ix = await getSetValidatorsAndThresholdInstruction({
-      programAddress: this.programId,
+      programAddress: programId,
       owner: this.svmSigner.signer,
       domain,
       validators,

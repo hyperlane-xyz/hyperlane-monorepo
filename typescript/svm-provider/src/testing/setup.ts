@@ -4,8 +4,6 @@ import * as fs from 'fs';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path';
 
-import type { SvmProgramAddresses } from '../types.js';
-
 import type { PreloadedProgram } from './solana-container.js';
 
 function findMonorepoRoot(): string {
@@ -51,26 +49,6 @@ export function getPreloadedPrograms(
     programId: TEST_PROGRAM_IDS[program as keyof typeof TEST_PROGRAM_IDS],
     soPath: path.join(programsPath, PROGRAM_BINARIES[program]),
   }));
-}
-
-export function getPreloadedProgramAddresses(
-  programs: Array<keyof typeof PROGRAM_BINARIES>,
-): SvmProgramAddresses {
-  return {
-    mailbox: programs.includes('mailbox')
-      ? TEST_PROGRAM_IDS.mailbox
-      : ('' as Address),
-    igp: programs.includes('igp') ? TEST_PROGRAM_IDS.igp : ('' as Address),
-    multisigIsmMessageId: programs.includes('multisigIsm')
-      ? TEST_PROGRAM_IDS.multisigIsm
-      : ('' as Address),
-    testIsm: programs.includes('testIsm')
-      ? TEST_PROGRAM_IDS.testIsm
-      : ('' as Address),
-    token: '' as Address,
-    tokenCollateral: '' as Address,
-    tokenNative: '' as Address,
-  };
 }
 
 export async function airdropSol(
