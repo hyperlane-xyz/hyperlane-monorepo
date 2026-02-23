@@ -1,4 +1,8 @@
-export { createRebalancerSession, runRebalancerCycle } from './agent.js';
+export {
+  RebalancerAgent,
+  createRebalancerSession,
+  runRebalancerCycle,
+} from './agent.js';
 export type { CreateSessionOptions, CycleResult } from './agent.js';
 export type {
   AssetConfig,

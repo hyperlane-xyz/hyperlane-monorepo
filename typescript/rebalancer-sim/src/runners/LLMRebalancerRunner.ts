@@ -18,10 +18,10 @@ import { pino } from 'pino';
 
 import {
   InMemoryContextStore,
+  RebalancerAgent,
   SqliteContextStore,
   buildAgentsPrompt,
   buildCustomTools,
-  runRebalancerCycle,
 } from '@hyperlane-xyz/llm-rebalancer';
 import type {
   ChainConfig,
@@ -73,6 +73,7 @@ export class LLMRebalancerRunner
   private contextStore: ContextStore;
   private routeId: string;
   private lastCycleStatus: CycleResult['status'] = 'unknown';
+  private agent?: RebalancerAgent;
 
   /** Model provider (default: 'anthropic') */
   private provider: string;
@@ -173,7 +174,11 @@ export class LLMRebalancerRunner
     this.running = true;
     this.abortController = new AbortController();
     currentRunner = this;
-    logger.info('Starting LLM rebalancer daemon');
+
+    // Create persistent agent session (reused across all cycles)
+    const sessionOpts = await this.buildSessionOptsForCycle();
+    this.agent = await RebalancerAgent.create(sessionOpts);
+    logger.info('Starting LLM rebalancer daemon (persistent session)');
 
     this.loopPromise = this.runLoop();
   }
@@ -190,6 +195,10 @@ export class LLMRebalancerRunner
       await this.loopPromise;
       this.loopPromise = undefined;
     }
+
+    // Dispose persistent agent session
+    this.agent?.dispose();
+    this.agent = undefined;
 
     // Cleanup temp dir
     if (this.workDir && fs.existsSync(this.workDir)) {
@@ -265,17 +274,25 @@ export class LLMRebalancerRunner
 
       this.cycleInProgress = true;
       try {
-        const sessionOpts = await this.buildSessionOptsForCycle();
-        const result = await runRebalancerCycle(sessionOpts);
+        const result = await this.agent!.runCycle();
         this.lastCycleStatus = result.status;
       } catch (error) {
-        logger.error({ error }, 'Rebalancer cycle failed');
+        logger.error({ error }, 'Cycle failed, recreating session');
         this.lastCycleStatus = 'unknown';
         this.emit('rebalance', {
           type: 'rebalance_failed',
           timestamp: Date.now(),
           error: error instanceof Error ? error.message : String(error),
         } satisfies RebalancerEvent);
+
+        // Recreate agent on failure (session may be corrupted)
+        try {
+          this.agent?.dispose();
+          const sessionOpts = await this.buildSessionOptsForCycle();
+          this.agent = await RebalancerAgent.create(sessionOpts);
+        } catch (recreateError) {
+          logger.error({ error: recreateError }, 'Failed to recreate session');
+        }
       } finally {
         this.cycleInProgress = false;
       }

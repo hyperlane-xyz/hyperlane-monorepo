@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
-import { runRebalancerCycle } from '../src/agent.js';
+import { RebalancerAgent } from '../src/agent.js';
 import type {
   LLMRebalancerOptions,
   RebalancerAgentConfig,
@@ -100,34 +100,61 @@ async function main() {
     running = false;
   });
 
+  // Build initial prompt with context from store
+  const previousContext = await contextStore.get(routeId);
+  let parsedContext: string | null = null;
+  if (previousContext) {
+    try {
+      const parsed = JSON.parse(previousContext);
+      parsedContext = parsed.summary ?? previousContext;
+    } catch {
+      parsedContext = previousContext;
+    }
+  }
+
+  const agentsPrompt = buildAgentsPrompt(
+    agentConfig,
+    config.strategy,
+    parsedContext,
+  );
+
+  // Create persistent agent session
+  let agent = await RebalancerAgent.create({
+    workDir,
+    provider: config.provider,
+    model: config.model,
+    agentsPrompt,
+    customTools,
+  });
+  console.log('Agent session created (persistent across cycles)');
+
   while (running) {
     try {
-      const previousContext = await contextStore.get(routeId);
-      let parsedContext: string | null = null;
-      if (previousContext) {
-        try {
-          const parsed = JSON.parse(previousContext);
-          parsedContext = parsed.summary ?? previousContext;
-        } catch {
-          parsedContext = previousContext;
-        }
-      }
-
-      const agentsPrompt = buildAgentsPrompt(
-        agentConfig,
-        config.strategy,
-        parsedContext,
-      );
-
-      await runRebalancerCycle({
-        workDir,
-        provider: config.provider,
-        model: config.model,
-        agentsPrompt,
-        customTools,
-      });
+      await agent.runCycle();
     } catch (error) {
-      console.error('Cycle failed:', error);
+      console.error('Cycle failed, recreating session:', error);
+      try {
+        agent.dispose();
+        const ctx = await contextStore.get(routeId);
+        let parsed: string | null = null;
+        if (ctx) {
+          try {
+            parsed = JSON.parse(ctx).summary ?? ctx;
+          } catch {
+            parsed = ctx;
+          }
+        }
+        const prompt = buildAgentsPrompt(agentConfig, config.strategy, parsed);
+        agent = await RebalancerAgent.create({
+          workDir,
+          provider: config.provider,
+          model: config.model,
+          agentsPrompt: prompt,
+          customTools,
+        });
+      } catch (recreateError) {
+        console.error('Failed to recreate session:', recreateError);
+      }
     }
 
     if (running) {
@@ -135,6 +162,7 @@ async function main() {
     }
   }
 
+  agent.dispose();
   contextStore.close();
   console.log('Rebalancer stopped.');
 }

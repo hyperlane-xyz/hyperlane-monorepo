@@ -1,8 +1,11 @@
 /**
  * Pi agent session creation and cycle execution.
  *
- * Creates a fresh Pi session per rebalancer cycle.
- * Context continuity via ContextStore (replaces SQLite).
+ * RebalancerAgent holds a persistent Pi session across cycles.
+ * The agent accumulates conversation history, so skill discovery,
+ * command templates, and chain metadata carry over between cycles.
+ *
+ * Context store (save_context) is still used for crash recovery.
  */
 
 import {
@@ -34,7 +37,7 @@ export interface CreateSessionOptions {
 }
 
 /**
- * Create a fresh Pi agent session for a single rebalancer cycle.
+ * Create a Pi agent session.
  */
 export async function createRebalancerSession(
   opts: CreateSessionOptions,
@@ -81,47 +84,48 @@ export async function createRebalancerSession(
 
 const CYCLE_PROMPT = `New cycle. Execute your loop — do NOT narrate or explain. Call tools immediately, no preamble.
 If no pending actions and balanced: call get_balances then save_context. Two tool calls, done.
-If imbalanced: get_balances, execute rebalance, save_context. Minimal text output.`;
+If imbalanced: get_balances, execute rebalance, save_context. Minimal text output.
+When you need multiple independent checks (e.g. check_hyperlane_delivery + get_balances), call them in parallel.`;
 
 export interface CycleResult {
   status: 'balanced' | 'pending' | 'unknown';
 }
 
+const defaultEmitter = (e: RebalancerAgentEvent): void => {
+  if (e.type === 'error') logger.error({ error: e.error }, 'Agent error');
+  else if (e.type === 'tool_call')
+    logger.info({ tool: e.tool, args: e.args }, 'Tool call');
+  else if (e.type === 'tool_result')
+    logger.info({ tool: e.tool }, 'Tool result');
+  else if (e.type === 'text') process.stdout.write(e.text);
+  else if (e.type === 'cycle_start') logger.info('Cycle started');
+  else if (e.type === 'cycle_end')
+    logger.info({ status: e.status }, 'Cycle ended');
+};
+
 /**
- * Run a single rebalancer cycle using a fresh Pi session.
- * Returns cycle status extracted from save_context tool call.
+ * Persistent rebalancer agent that reuses a single Pi session across cycles.
+ * Conversation history accumulates, so the agent remembers skills, templates, etc.
  */
-export async function runRebalancerCycle(
-  opts: CreateSessionOptions,
-): Promise<CycleResult> {
-  let session: AgentSession | undefined;
-  let cycleStatus: CycleResult['status'] = 'unknown';
+export class RebalancerAgent {
+  private session: AgentSession;
+  private unsubscribe: () => void;
+  private cycleStatus: CycleResult['status'] = 'unknown';
+  private emit: (e: RebalancerAgentEvent) => void;
 
-  try {
-    session = await createRebalancerSession(opts);
+  private constructor(
+    session: AgentSession,
+    onEvent?: (e: RebalancerAgentEvent) => void,
+  ) {
+    this.session = session;
+    this.emit = onEvent ?? defaultEmitter;
 
-    const emit =
-      opts.onEvent ??
-      ((e: RebalancerAgentEvent) => {
-        if (e.type === 'error') logger.error({ error: e.error }, 'Agent error');
-        else if (e.type === 'tool_call')
-          logger.info({ tool: e.tool, args: e.args }, 'Tool call');
-        else if (e.type === 'tool_result')
-          logger.info({ tool: e.tool }, 'Tool result');
-        else if (e.type === 'text') process.stdout.write(e.text);
-        else if (e.type === 'cycle_start') logger.info('Cycle started');
-        else if (e.type === 'cycle_end')
-          logger.info({ status: e.status }, 'Cycle ended');
-      });
-
-    emit({ type: 'cycle_start', timestamp: Date.now() });
-
-    // Subscribe to Pi session events and map to our event types
-    session.subscribe((event) => {
+    // Subscribe once — stays active across all cycles
+    this.unsubscribe = session.subscribe((event) => {
       switch (event.type) {
         case 'message_update':
           if (event.assistantMessageEvent.type === 'text_delta') {
-            emit({
+            this.emit({
               type: 'text',
               timestamp: Date.now(),
               text: event.assistantMessageEvent.delta,
@@ -129,22 +133,21 @@ export async function runRebalancerCycle(
           }
           break;
         case 'tool_execution_start':
-          emit({
+          this.emit({
             type: 'tool_call',
             timestamp: Date.now(),
             tool: event.toolName,
             args: event.args,
           });
-          // Extract status from save_context args directly
           if (event.toolName === 'save_context') {
             const status = event.args?.status;
             if (status === 'balanced' || status === 'pending') {
-              cycleStatus = status;
+              this.cycleStatus = status;
             }
           }
           break;
         case 'tool_execution_end':
-          emit({
+          this.emit({
             type: 'tool_result',
             timestamp: Date.now(),
             tool: event.toolName,
@@ -156,16 +159,50 @@ export async function runRebalancerCycle(
           break;
       }
     });
+  }
+
+  static async create(opts: CreateSessionOptions): Promise<RebalancerAgent> {
+    const session = await createRebalancerSession(opts);
+    return new RebalancerAgent(session, opts.onEvent);
+  }
+
+  /**
+   * Run a single rebalancer cycle on the persistent session.
+   * The session accumulates history — no skill re-discovery needed after first cycle.
+   */
+  async runCycle(): Promise<CycleResult> {
+    this.cycleStatus = 'unknown';
+    this.emit({ type: 'cycle_start', timestamp: Date.now() });
 
     logger.info('Starting rebalancer cycle');
-    await session.prompt(CYCLE_PROMPT);
-    logger.info({ status: cycleStatus }, 'Rebalancer cycle completed');
+    await this.session.prompt(CYCLE_PROMPT);
+    logger.info({ status: this.cycleStatus }, 'Rebalancer cycle completed');
 
-    emit({
+    this.emit({
       type: 'cycle_end',
       timestamp: Date.now(),
-      status: cycleStatus === 'unknown' ? 'pending' : cycleStatus,
+      status: this.cycleStatus === 'unknown' ? 'pending' : this.cycleStatus,
     });
+
+    return { status: this.cycleStatus };
+  }
+
+  dispose(): void {
+    this.unsubscribe();
+    this.session.dispose();
+  }
+}
+
+/**
+ * Run a single rebalancer cycle using a fresh Pi session (legacy API).
+ * For session reuse, prefer RebalancerAgent.create() + agent.runCycle().
+ */
+export async function runRebalancerCycle(
+  opts: CreateSessionOptions,
+): Promise<CycleResult> {
+  const agent = await RebalancerAgent.create(opts);
+  try {
+    return await agent.runCycle();
   } catch (error) {
     logger.error({ error }, 'Rebalancer cycle failed');
     opts.onEvent?.({
@@ -175,8 +212,6 @@ export async function runRebalancerCycle(
     });
     throw error;
   } finally {
-    session?.dispose();
+    agent.dispose();
   }
-
-  return { status: cycleStatus };
 }
