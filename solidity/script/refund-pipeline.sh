@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # HypERC20Collateral Refund Pipeline
-# Generates Safe Transaction Builder JSON for refunding stuck USDC to original depositors
+# Generates Safe Transaction Builder JSON for refunding stuck USDC to designated recipient
 #
 # Required environment variables:
 #   RPC_URL        - RPC URL for the chain (Ink)
@@ -116,7 +116,7 @@ jq --arg chainId "$CHAIN_ID_HEX" '{
     chainId: $chainId,
     meta: {
         name: "HypERC20Collateral USDC Refund",
-        description: "Refund stuck USDC from old HypERC20Collateral router to original depositors"
+        description: "Refund stuck USDC from old HypERC20Collateral router to designated recipient"
     },
     transactions: [.transactions[] | {
         to: .transaction.to,

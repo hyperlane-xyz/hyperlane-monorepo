@@ -18,6 +18,7 @@ import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
  *   2. Set TrustedRelayerIsm on old router
  *   3. For each depositor, craft a spoofed Hyperlane message and call mailbox.process()
  *   4. Restore previous ISM
+ *   5. Unenroll all remote routers
  *
  * Environment variables:
  *   OLD_ROUTER     - Address of the old HypERC20Collateral contract
@@ -62,6 +63,7 @@ contract HypERC20CollateralRefund is Script {
 
         TrustedRelayerIsm ism = _deployIsm(cfg);
         _refundAll(cfg, ism, refunds);
+        _unenrollAllRouters(cfg);
 
         vm.stopBroadcast();
 
@@ -154,6 +156,13 @@ contract HypERC20CollateralRefund is Script {
 
         // Restore previous ISM
         oldRouter.setInterchainSecurityModule(prevIsm);
+    }
+
+    function _unenrollAllRouters(Config memory cfg) internal {
+        Router oldRouter = Router(cfg.oldRouter);
+        uint32[] memory domains = oldRouter.domains();
+        console.log("Unenrolling", domains.length, "remote routers");
+        oldRouter.unenrollRemoteRouters(domains);
     }
 
     function _logResults(

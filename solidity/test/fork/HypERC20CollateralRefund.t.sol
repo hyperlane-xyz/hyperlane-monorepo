@@ -92,6 +92,10 @@ contract HypERC20CollateralRefundForkTest is Test {
         // 4. Restore previous ISM
         oldRouter.setInterchainSecurityModule(prevIsm);
 
+        // 5. Unenroll all remote routers
+        uint32[] memory domains = oldRouter.domains();
+        oldRouter.unenrollRemoteRouters(domains);
+
         vm.stopPrank();
     }
 
@@ -128,16 +132,36 @@ contract HypERC20CollateralRefundForkTest is Test {
         // Verify owner unchanged
         assertEq(Router(OLD_ROUTER).owner(), SAFE, "Owner changed");
 
-        // Verify remote routers still enrolled
-        assertNotEq(
+        // Verify all remote routers unenrolled
+        assertEq(
             Router(OLD_ROUTER).routers(42161),
             bytes32(0),
-            "Arbitrum router unenrolled"
+            "Arbitrum router not unenrolled"
         );
-        assertNotEq(
+        assertEq(
             Router(OLD_ROUTER).routers(8453),
             bytes32(0),
-            "Base router unenrolled"
+            "Base router not unenrolled"
+        );
+        assertEq(
+            Router(OLD_ROUTER).routers(10),
+            bytes32(0),
+            "Optimism router not unenrolled"
+        );
+        assertEq(
+            Router(OLD_ROUTER).routers(1),
+            bytes32(0),
+            "Ethereum router not unenrolled"
+        );
+        assertEq(
+            Router(OLD_ROUTER).routers(5330),
+            bytes32(0),
+            "Superseed router not unenrolled"
+        );
+        assertEq(
+            Router(OLD_ROUTER).routers(1399811149),
+            bytes32(0),
+            "Solana router not unenrolled"
         );
     }
 
@@ -173,6 +197,21 @@ contract HypERC20CollateralRefundForkTest is Test {
         _executeRefund();
 
         assertEq(SAFE.balance, preSafeEth, "ETH was unexpectedly transferred");
+    }
+
+    function test_allRoutersUnenrolled() public {
+        // Verify routers are enrolled before
+        assertNotEq(
+            Router(OLD_ROUTER).routers(42161),
+            bytes32(0),
+            "Arbitrum should be enrolled before"
+        );
+
+        _executeRefund();
+
+        // Verify all domains unenrolled
+        uint32[] memory domains = Router(OLD_ROUTER).domains();
+        assertEq(domains.length, 0, "Should have no enrolled domains");
     }
 
     function test_onlyUsdcMoved() public {
