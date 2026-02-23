@@ -553,10 +553,10 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       return toBigInt(await callContract(token, 'total_supply'));
     }
 
-    const balance = await callContract(token, 'balance_of', [
-      normalizeStarknetAddressSafe(req.tokenAddress),
-    ]);
-    return toBigInt((balance as any)?.balance ?? balance);
+    return this.getBalance({
+      address: req.tokenAddress,
+      denom: tokenInfo.denom,
+    });
   }
 
   async quoteRemoteTransfer(
