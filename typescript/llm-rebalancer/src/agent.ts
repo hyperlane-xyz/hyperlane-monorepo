@@ -136,6 +136,13 @@ export async function runRebalancerCycle(
             tool: event.toolName,
             args: event.args,
           });
+          // Extract status from save_context args directly
+          if (event.toolName === 'save_context') {
+            const status = event.args?.status;
+            if (status === 'balanced' || status === 'pending') {
+              cycleStatus = status;
+            }
+          }
           break;
         case 'tool_execution_end':
           emit({
@@ -147,15 +154,6 @@ export async function runRebalancerCycle(
                 ? event.result
                 : JSON.stringify(event.result),
           });
-          // Extract status from save_context result
-          if (event.toolName === 'save_context' && !event.isError) {
-            const text =
-              typeof event.result === 'string'
-                ? event.result
-                : (event.result?.text ?? '');
-            if (text.includes('status: balanced')) cycleStatus = 'balanced';
-            else if (text.includes('status: pending')) cycleStatus = 'pending';
-          }
           break;
       }
     });

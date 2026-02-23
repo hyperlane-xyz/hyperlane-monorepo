@@ -51,11 +51,11 @@ export function buildGetBalancesTool(
       'Returns balance per chain/asset with share percentages.',
     parameters,
     async execute(_toolCallId: string, params: Params) {
+      try {
       const chainNames = params.chains ?? Object.keys(agentConfig.chains);
       const results: Record<string, ChainBalance> = {};
-      let totalBalance = ethers.BigNumber.from(0);
 
-      // Collect balances
+      // Collect balances concurrently
       const balances: Record<string, ethers.BigNumber> = {};
       const assetBalances: Record<string, Record<string, ethers.BigNumber>> = {};
 
@@ -65,22 +65,24 @@ export function buildGetBalancesTool(
           if (!chain) return;
 
           const provider = getProvider(chain.rpcUrl);
-          const bal = await getBalance(provider, chain.collateralToken, chain.warpToken);
-          balances[chainName] = bal;
-          totalBalance = totalBalance.add(bal);
+          balances[chainName] = await getBalance(provider, chain.collateralToken, chain.warpToken);
 
-          // Multi-asset
           if (chain.assets) {
             assetBalances[chainName] = {};
             await Promise.all(
               Object.entries(chain.assets).map(async ([symbol, asset]) => {
-                const assetBal = await getBalance(provider, asset.collateralToken, asset.warpToken);
-                assetBalances[chainName][symbol] = assetBal;
+                assetBalances[chainName][symbol] = await getBalance(provider, asset.collateralToken, asset.warpToken);
               }),
             );
           }
         }),
       );
+
+      // Sum sequentially after all fetches complete
+      let totalBalance = ethers.BigNumber.from(0);
+      for (const bal of Object.values(balances)) {
+        totalBalance = totalBalance.add(bal);
+      }
 
       // Build results with shares
       for (const chainName of chainNames) {
@@ -113,6 +115,10 @@ export function buildGetBalancesTool(
 
       const text = JSON.stringify({ totalBalance: totalBalance.toString(), chains: results }, null, 2);
       return { content: [{ type: 'text' as const, text }], details: undefined };
+      } catch (error) {
+        const text = `Error fetching balances: ${error instanceof Error ? error.message : String(error)}`;
+        return { content: [{ type: 'text' as const, text }], details: undefined };
+      }
     },
   };
 }

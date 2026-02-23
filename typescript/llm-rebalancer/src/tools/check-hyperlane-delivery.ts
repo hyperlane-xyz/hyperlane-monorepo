@@ -36,12 +36,17 @@ export function buildCheckDeliveryTool(
         return { content: [{ type: 'text' as const, text }], details: undefined };
       }
 
-      const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
-      const mailbox = new ethers.Contract(chain.mailbox, MAILBOX_DELIVERED, provider);
-      const delivered: boolean = await mailbox.delivered(params.messageId);
+      try {
+        const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
+        const mailbox = new ethers.Contract(chain.mailbox, MAILBOX_DELIVERED, provider);
+        const delivered: boolean = await mailbox.delivered(params.messageId);
 
-      const text = JSON.stringify({ messageId: params.messageId, destinationChain: params.destinationChain, delivered });
-      return { content: [{ type: 'text' as const, text }], details: undefined };
+        const text = JSON.stringify({ messageId: params.messageId, destinationChain: params.destinationChain, delivered });
+        return { content: [{ type: 'text' as const, text }], details: undefined };
+      } catch (error) {
+        const text = `Error checking delivery for ${params.messageId}: ${error instanceof Error ? error.message : String(error)}`;
+        return { content: [{ type: 'text' as const, text }], details: undefined };
+      }
     },
   };
 }

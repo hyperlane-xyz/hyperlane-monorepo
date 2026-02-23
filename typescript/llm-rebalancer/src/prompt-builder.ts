@@ -78,12 +78,6 @@ function formatAssets(chains: Record<string, ChainConfig>): string {
   return lines.join('\n');
 }
 
-export interface BuildPromptOptions {
-  config: RebalancerAgentConfig;
-  strategy: StrategyDescription;
-  previousContext?: string | null;
-}
-
 export function buildAgentsPrompt(
   config: RebalancerAgentConfig,
   strategy: StrategyDescription,

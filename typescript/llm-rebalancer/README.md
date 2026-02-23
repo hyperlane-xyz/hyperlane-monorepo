@@ -4,43 +4,44 @@ An LLM agent that replaces coded rebalancing strategies with prose-driven decisi
 
 ## Architecture
 
-**Paradigm shift**: Instead of `Monitor → Strategy → Rebalancer → ActionTracker` with hard-coded strategies (Weighted, MinAmount, CollateralDeficit), the LLM agent reads a prose strategy description (AGENTS.md), observes on-chain state via `cast`, and decides what to do.
+**Paradigm shift**: Instead of `Monitor → Strategy → Rebalancer → ActionTracker` with hard-coded strategies (Weighted, MinAmount, CollateralDeficit), the LLM agent reads a prose strategy description (AGENTS.md), observes on-chain state via typed tools, and decides what to do.
 
 ```
 ┌─────────────────────────────────────────────────┐
 │  Pi Agent Runtime                                │
 │                                                  │
-│  AGENTS.md (strategy)  +  SKILL.md files         │
-│         ↓                      ↓                 │
+│  AGENTS.md (strategy + injected previous context)│
+│         ↓                                        │
 │  ┌──────────┐  ┌─────────────────────────┐       │
-│  │ Reasoning │  │ Tools: bash, read, write │      │
-│  │ (LLM)    │→ │ cast, sqlite3, curl      │      │
-│  └──────────┘  └─────────────────────────┘       │
+│  │ Reasoning │  │ Custom Tools (ethers.js) │      │
+│  │ (LLM)    │→ │ get_balances             │      │
+│  └──────────┘  │ check_hyperlane_delivery │      │
+│         ↓      │ get_chain_metadata       │      │
+│  ┌───────────┐ │ save_context             │      │
+│  │ Skills    │ ├─────────────────────────┤       │
+│  │ (bash/    │ │ Coding Tools             │      │
+│  │  cast)    │ │ bash, read, write        │      │
+│  └───────────┘ └─────────────────────────┘       │
 │         ↓                                        │
 │  ┌──────────────────────┐                        │
-│  │ SQLite action log    │ (crash recovery,       │
-│  │ ./action-log.db      │  inflight tracking)    │
+│  │ ContextStore         │ (prose summaries,      │
+│  │ InMemory / Postgres  │  inflight tracking)    │
 │  └──────────────────────┘                        │
 └─────────────────────────────────────────────────┘
-         ↕ cast call/send
+         ↕ ethers / cast call/send
 ┌─────────────────────────────────────────────────┐
 │  On-chain: Warp tokens, bridges, mailboxes       │
 └─────────────────────────────────────────────────┘
 ```
 
-### Why Pi + Skills over MCP/TypeScript
-
-- **Zero integration code** — `cast` already speaks to any EVM chain
-- **Skills are markdown** — faster to author, version-controlled, easy to evolve
-- **Model-agnostic** — swap Claude for other models via config
-- **Agent self-extends** — reads `--help`, inspects receipts, adapts to errors
-- **Prose replaces code** — strategy is a paragraph, not a class hierarchy
-
 ### Key Design Decisions
 
-- **Fresh session per cycle**: Each rebalancer cycle creates a new Pi session. SQLite provides continuity across cycles (inflight tracking, action history).
-- **No env var mutation**: All config (keys, addresses, RPCs) is in `rebalancer-config.json`. The agent reads it via the `read` tool.
+- **Typed tools for reads, skills for execution**: Deterministic on-chain reads (balances, delivery checks) use typed ethers.js tools. Execution (rebalance, bridge, deposit) uses bash/cast skills for flexibility.
+- **Context via prose summaries**: Each cycle ends with `save_context` — LLM writes a prose summary of pending actions and state. Injected into the next cycle's system prompt as "Previous Context".
+- **Fresh session per cycle**: Each rebalancer cycle creates a new Pi session. ContextStore provides continuity across cycles.
+- **Adaptive polling**: Short interval when actions are pending, long interval when balanced.
 - **No MockActionTracker**: The sim's `MockInfrastructureController` auto-tracks rebalances from Dispatch events.
+- **Event streaming**: Pi session events mapped to structured `RebalancerAgentEvent` types for observability.
 
 ## Package Structure
 
@@ -48,45 +49,56 @@ An LLM agent that replaces coded rebalancing strategies with prose-driven decisi
 typescript/llm-rebalancer/
 ├── package.json
 ├── tsconfig.json
-├── skills/                          # Pi skills (version-controlled)
-│   ├── check-balances/SKILL.md      # cast call to read collateral
-│   ├── execute-rebalance/SKILL.md   # cast send for rebalance()
-│   ├── inventory-deposit/SKILL.md   # cast send for transferRemote()
-│   ├── check-inflight/SKILL.md      # query action log + on-chain state
-│   ├── manage-action-log/SKILL.md   # sqlite3 CRUD
-│   └── bridge-tokens/SKILL.md       # mock bridge (sim) or LiFi (prod)
-├── schema/
-│   └── action-log.sql               # SQLite schema
+├── skills/                          # Pi skills (execution via bash/cast)
+│   ├── execute-rebalance/SKILL.md   # On-chain rebalance via bridge
+│   ├── inventory-deposit/SKILL.md   # Deposit inventory into deficit chain
+│   └── bridge-tokens/SKILL.md       # Mock bridge (sim) or LiFi (prod)
 ├── src/
 │   ├── index.ts
 │   ├── agent.ts                     # Pi session creation + cycle invocation
 │   ├── config.ts                    # Config types
-│   ├── prompt-builder.ts            # Generates AGENTS.md from config
+│   ├── context-store.ts             # ContextStore interface + InMemoryContextStore
+│   ├── events.ts                    # RebalancerAgentEvent types
+│   ├── prompt-builder.ts            # Generates AGENTS.md from config + context
+│   ├── tools/                       # Typed Pi custom tools (ethers.js)
+│   │   ├── index.ts                 # buildCustomTools() factory
+│   │   ├── get-balances.ts          # Read collateral balances
+│   │   ├── get-chain-metadata.ts    # Chain config metadata
+│   │   ├── check-hyperlane-delivery.ts  # Mailbox.delivered() check
+│   │   └── save-context.ts          # Persist LLM context summaries
 │   └── sim/
 │       └── LLMRebalancerRunner.ts   # IRebalancerRunner for rebalancer-sim
 └── scripts/
     └── run.ts                       # Production entry point
 ```
 
+## Custom Tools
+
+Typed tools provide deterministic, fast on-chain reads. The LLM calls these directly — no bash/cast needed.
+
+| Tool                       | Purpose                                       | Returns                          |
+| -------------------------- | --------------------------------------------- | -------------------------------- |
+| `get_balances`             | Read collateral balances per chain via ethers | Balance + share % per chain      |
+| `get_chain_metadata`       | Chain config (RPC, domain, addresses, bridge) | JSON metadata map                |
+| `check_hyperlane_delivery` | Check if Hyperlane message delivered on dest  | `{ messageId, delivered: bool }` |
+| `save_context`             | Persist prose summary for next cycle          | Confirmation                     |
+
 ## Skills
 
-Each skill is a `SKILL.md` file that teaches the agent a capability. Skills are copied to `.pi/skills/` in the agent's working directory at runtime.
+Skills are `SKILL.md` files that teach the agent execution capabilities via bash/cast. Copied to `.pi/skills/` at runtime.
 
 | Skill               | Purpose                                                 | Tools             |
 | ------------------- | ------------------------------------------------------- | ----------------- |
-| `check-balances`    | Read collateral balances via `cast call balanceOf`      | bash, read        |
 | `execute-rebalance` | Call `rebalance(uint32,uint256,address)` on warp tokens | bash, read, write |
 | `inventory-deposit` | Approve + `transferRemote` from deficit chain           | bash, read, write |
-| `check-inflight`    | Query action log + `cast call delivered()` on mailbox   | bash, read        |
-| `manage-action-log` | SQLite CRUD for crash recovery                          | bash, read        |
 | `bridge-tokens`     | MockValueTransferBridge (sim) or LiFi API (prod)        | bash, read, write |
 
 ## Rebalancer-Sim Integration
 
 `LLMRebalancerRunner` implements `IRebalancerRunner`:
 
-1. **initialize()**: Creates temp work dir, copies skills to `.pi/skills/`, writes `rebalancer-config.json` + SQLite DB
-2. **start()**: Begins polling loop calling `runRebalancerCycle()` per interval
+1. **initialize()**: Creates temp work dir, copies skills, writes `rebalancer-config.json`, builds custom tools with ethers closures
+2. **start()**: Begins adaptive polling loop calling `runRebalancerCycle()` per interval
 3. **stop()**: Clears timer, awaits in-flight cycle, cleans up temp dir
 
 Extended timeouts are applied when `REBALANCERS=llm`:
@@ -105,19 +117,10 @@ REBALANCERS=llm pnpm -C typescript/rebalancer-sim test --grep "extreme-drain"
 REBALANCERS=simple,production,llm pnpm -C typescript/rebalancer-sim test --grep "extreme-drain"
 ```
 
-### Results (extreme-drain-chain1)
-
-| Metric        | LLMRebalancer  |
-| ------------- | -------------- |
-| Completion    | 100% (20/20)   |
-| Rebalances    | 2 (117 tokens) |
-| Avg Latency   | ~18s           |
-| Test Duration | ~108s          |
-
 ## Production Usage
 
 ```bash
-REBALANCER_KEY=0x... tsx typescript/llm-rebalancer/scripts/run.ts config.json
+REBALANCER_KEY=0x... ANTHROPIC_API_KEY=sk-... tsx typescript/llm-rebalancer/scripts/run.ts config.json
 ```
 
 Config file format:
@@ -136,7 +139,6 @@ Config file format:
     }
   },
   "rebalancerAddress": "0x...",
-  "rebalancerKey": "0x...",
   "strategy": {
     "type": "prose",
     "text": "Maintain equal distribution across chains with ±15% tolerance."
@@ -146,8 +148,4 @@ Config file format:
 }
 ```
 
-## Open Questions
-
-1. **Session reuse vs fresh**: Currently fresh per cycle. Could reuse for faster subsequent cycles (Pi maintains conversation context), but risks context accumulation.
-2. **Model choice**: Sonnet 4.5 balances speed/cost. Haiku for cheaper runs, Opus for complex scenarios.
-3. **Determinism**: LLM decisions are non-deterministic. For critical production use, consider adding typed MCP tools for more control where needed.
+Note: `REBALANCER_KEY` is passed via env var, not in the config file.
