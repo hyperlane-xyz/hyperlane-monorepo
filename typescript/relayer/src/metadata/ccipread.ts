@@ -120,7 +120,11 @@ async function signOffchainLookupRequest(
   const signerLike = signer as SignerLike;
 
   if (typeof signerLike.signMessage === 'function') {
-    return ensure0x(await signerLike.signMessage(hexToBytes(requestHash)));
+    const signature = ensure0x(
+      await signerLike.signMessage(hexToBytes(requestHash)),
+    );
+    if (isHexString(signature)) return signature;
+    throw new Error('Invalid signature returned by signer');
   }
 
   const address =
