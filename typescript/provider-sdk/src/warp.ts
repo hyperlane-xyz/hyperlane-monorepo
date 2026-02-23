@@ -17,6 +17,7 @@ import {
   type HookArtifactConfig,
   type HookConfig,
   hookArtifactToDerivedConfig,
+  hookConfigToArtifact,
 } from './hook.js';
 import {
   type DeployedIsmAddress,
@@ -24,6 +25,7 @@ import {
   type IsmArtifactConfig,
   type IsmConfig,
   ismArtifactToDerivedConfig,
+  ismConfigToArtifact,
 } from './ism.js';
 
 export type TokenRouterModuleType = {
@@ -247,9 +249,43 @@ export interface IRawWarpArtifactManager
 export function warpConfigToArtifact(
   config: WarpConfig,
   chainLookup: ChainLookup,
-  ismArtifact?: Artifact<IsmArtifactConfig, DeployedIsmAddress>,
   logger?: Logger,
 ): ArtifactNew<WarpArtifactConfig> {
+  // Convert ISM config to artifact if present
+  let ismArtifact: Artifact<IsmArtifactConfig, DeployedIsmAddress> | undefined;
+  if (config.interchainSecurityModule) {
+    if (typeof config.interchainSecurityModule === 'string') {
+      // Address reference - create UNDERIVED artifact
+      ismArtifact = {
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: config.interchainSecurityModule },
+      };
+    } else {
+      // ISM config - convert using ismConfigToArtifact
+      ismArtifact = ismConfigToArtifact(
+        config.interchainSecurityModule,
+        chainLookup,
+      );
+    }
+  }
+
+  // Convert Hook config to artifact if present
+  let hookArtifact:
+    | Artifact<HookArtifactConfig, DeployedHookAddress>
+    | undefined;
+  if (config.hook) {
+    if (typeof config.hook === 'string') {
+      // Address reference - create UNDERIVED artifact
+      hookArtifact = {
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: config.hook },
+      };
+    } else {
+      // ISM config - convert using ismConfigToArtifact
+      hookArtifact = hookConfigToArtifact(config.hook, chainLookup);
+    }
+  }
+
   // Convert remoteRouters from chain names to domain IDs
   const remoteRouters: Record<number, { address: string }> = {};
   if (config.remoteRouters) {
@@ -286,6 +322,7 @@ export function warpConfigToArtifact(
     owner: config.owner,
     mailbox: config.mailbox,
     interchainSecurityModule: ismArtifact,
+    hook: hookArtifact,
     remoteRouters,
     destinationGas,
   };
