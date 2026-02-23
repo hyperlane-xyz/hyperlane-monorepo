@@ -5,14 +5,14 @@ import {
   getProgramDerivedAddress,
   getUtf8Encoder,
 } from '@solana/kit';
-import { Connection, PublicKey } from '@solana/web3.js';
 import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
-  getMint,
   getMetadataPointerState,
+  getMint,
   getTokenMetadata,
 } from '@solana/spl-token';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { deserializeUnchecked } from 'borsh';
 
 import {
@@ -20,6 +20,7 @@ import {
   type ArtifactNew,
   type ArtifactReader,
   ArtifactState,
+  type ArtifactUnderived,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
@@ -156,9 +157,7 @@ async function fetchCollateralMetadata(
     mintPubkey,
     'confirmed',
     TOKEN_2022_PROGRAM_ID,
-  ).catch(() =>
-    getMint(connection, mintPubkey, 'confirmed', TOKEN_PROGRAM_ID),
-  );
+  ).catch(() => getMint(connection, mintPubkey, 'confirmed', TOKEN_PROGRAM_ID));
 
   const decimals = mintInfo.decimals;
 
@@ -316,7 +315,8 @@ function buildCollateralTokenInitInstruction(
 }
 
 export class SvmCollateralTokenReader
-  implements ArtifactReader<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+  implements
+    ArtifactReader<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
 {
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
@@ -348,6 +348,14 @@ export class SvmCollateralTokenReader
       token.pluginData.mint,
     );
 
+    const igpHook: ArtifactUnderived<{ address: string }> | undefined =
+      token.interchainGasPaymaster
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: token.interchainGasPaymaster[1].fields[0] },
+          }
+        : undefined;
+
     const config: RawCollateralWarpArtifactConfig = {
       type: 'collateral',
       owner: token.owner ?? '',
@@ -362,6 +370,7 @@ export class SvmCollateralTokenReader
             deployed: { address: token.interchainSecurityModule },
           }
         : undefined,
+      hook: igpHook,
       remoteRouters,
       destinationGas,
     };
@@ -375,13 +384,15 @@ export class SvmCollateralTokenReader
 }
 
 export class SvmCollateralTokenWriter
-  implements ArtifactWriter<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
+  implements
+    ArtifactWriter<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
 {
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
     private readonly signer: SvmSigner,
     private readonly programBytes: Uint8Array,
     private readonly rpcUrl: string,
+    private readonly igpProgramId?: Address,
   ) {}
 
   async create(
@@ -423,19 +434,29 @@ export class SvmCollateralTokenWriter
     const mintInfo = await this.rpc
       .getAccountInfo(collateralMint, { encoding: 'base64' })
       .send();
-    const splProgram = mintInfo.value?.owner ?? (
-      'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as Address
-    );
+    const splProgram =
+      mintInfo.value?.owner ??
+      ('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as Address);
     console.log(`SPL program: ${splProgram}`);
 
     // Step 4: Build Init instruction
+    const igpAccountAddress = config.hook?.deployed?.address;
     const initArgs: InitProxyArgs = {
       mailbox: config.mailbox as Address,
       interchainSecurityModule: config.interchainSecurityModule?.deployed
         ?.address
         ? (config.interchainSecurityModule.deployed.address as Address)
         : null,
-      interchainGasPaymaster: null,
+      interchainGasPaymaster:
+        this.igpProgramId && igpAccountAddress
+          ? [
+              this.igpProgramId,
+              {
+                __kind: 'OverheadIgp',
+                fields: [igpAccountAddress as Address],
+              },
+            ]
+          : null,
       decimals: 9, // Will be overridden by actual mint decimals
       remoteDecimals: 9,
     };
@@ -469,7 +490,9 @@ export class SvmCollateralTokenWriter
 
     // Step 5: Configure routers
     if (Object.keys(config.remoteRouters).length > 0) {
-      console.log(`Enrolling ${Object.keys(config.remoteRouters).length} routers...`);
+      console.log(
+        `Enrolling ${Object.keys(config.remoteRouters).length} routers...`,
+      );
       const enrollments: RouterEnrollment[] = Object.entries(
         config.remoteRouters,
       ).map(([domain, router]) => ({
@@ -556,6 +579,7 @@ export class SvmCollateralTokenWriter
       artifact.config,
       programId,
       this.signer.address,
+      this.igpProgramId,
     );
 
     if (instructions.length === 0) {

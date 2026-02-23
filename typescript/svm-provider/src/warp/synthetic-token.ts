@@ -19,6 +19,7 @@ import {
   type ArtifactNew,
   type ArtifactReader,
   ArtifactState,
+  type ArtifactUnderived,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
@@ -334,6 +335,8 @@ export class SvmSyntheticTokenReader
     const token = await fetchSyntheticToken(this.rpc, programId);
     assert(token !== null, `Synthetic token not initialized at ${programId}`);
 
+    console.log('READ RAW', JSON.stringify(token, null, 2));
+
     const remoteRouters: Record<number, { address: string }> = {};
     for (const [domain, router] of token.remoteRouters.entries()) {
       remoteRouters[domain] = { address: routerBytesToHex(router) };
@@ -347,6 +350,14 @@ export class SvmSyntheticTokenReader
     // Fetch metadata from mint account
     const metadata = await fetchTokenMetadata(this.rpcUrl, programId);
 
+    const igpHook: ArtifactUnderived<{ address: string }> | undefined =
+      token.interchainGasPaymaster
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: token.interchainGasPaymaster[1].fields[0] },
+          }
+        : undefined;
+
     const config: RawSyntheticWarpArtifactConfig = {
       type: 'synthetic',
       owner: token.owner ?? '',
@@ -357,6 +368,7 @@ export class SvmSyntheticTokenReader
             deployed: { address: token.interchainSecurityModule },
           }
         : undefined,
+      hook: igpHook,
       remoteRouters,
       destinationGas,
       name: metadata?.name ?? 'Unknown',
@@ -372,21 +384,28 @@ export class SvmSyntheticTokenReader
   }
 }
 
+export type SyntheticDeployConfigWithMetadata =
+  RawSyntheticWarpArtifactConfig & {
+    metadataUri?: string;
+  };
+
 export class SvmSyntheticTokenWriter
-  implements ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
+  implements
+    ArtifactWriter<SyntheticDeployConfigWithMetadata, DeployedWarpAddress>
 {
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
     private readonly signer: SvmSigner,
     private readonly programBytes: Uint8Array,
     private readonly rpcUrl: string, // Mandatory for metadata operations
+    private readonly igpProgramId?: Address,
   ) {}
 
   async create(
-    artifact: ArtifactNew<RawSyntheticWarpArtifactConfig>,
+    artifact: ArtifactNew<SyntheticDeployConfigWithMetadata>,
   ): Promise<
     [
-      ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>,
+      ArtifactDeployed<SyntheticDeployConfigWithMetadata, DeployedWarpAddress>,
       SvmReceipt[],
     ]
   > {
@@ -414,13 +433,23 @@ export class SvmSyntheticTokenWriter
     const [ataPayerPda] = await getAtaPayerPda(programId);
 
     // Step 3: Build Init args
+    const igpAccountAddress = config.hook?.deployed?.address;
     const initArgs: InitProxyArgs = {
       mailbox: config.mailbox as Address,
       interchainSecurityModule: config.interchainSecurityModule?.deployed
         ?.address
         ? (config.interchainSecurityModule.deployed.address as Address)
         : null,
-      interchainGasPaymaster: null,
+      interchainGasPaymaster:
+        this.igpProgramId && igpAccountAddress
+          ? [
+              this.igpProgramId,
+              {
+                __kind: 'OverheadIgp',
+                fields: [igpAccountAddress as Address],
+              },
+            ]
+          : null,
       decimals: config.decimals,
       remoteDecimals: config.decimals,
     };
@@ -508,7 +537,7 @@ export class SvmSyntheticTokenWriter
         this.signer.address,
         config.name,
         config.symbol,
-        '',
+        config.metadataUri ?? '',
       );
 
       // Send funding + metadata init in same transaction
@@ -627,6 +656,7 @@ export class SvmSyntheticTokenWriter
       artifact.config,
       programId,
       this.signer.address,
+      this.igpProgramId,
     );
 
     if (instructions.length === 0) {

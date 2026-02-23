@@ -5,17 +5,17 @@ import {
   type Rpc,
   type SolanaRpcApi,
   fetchEncodedAccount,
+  fixDecoderSize,
   getAddressDecoder,
   getBytesDecoder,
+  getMapDecoder,
   getOptionDecoder,
   getProgramDerivedAddress,
   getStructDecoder,
+  getU8Decoder,
   getU32Decoder,
   getU64Decoder,
-  getU8Decoder,
   getUtf8Encoder,
-  fixDecoderSize,
-  getMapDecoder,
 } from '@solana/kit';
 
 import { assert } from '@hyperlane-xyz/utils';
@@ -83,9 +83,13 @@ function unwrapHyperlaneToken<T>(decoded: any): HyperlaneTokenData<T> {
     remoteDecimals: decoded.remoteDecimals,
     owner: unwrapOption(decoded.owner),
     interchainSecurityModule: unwrapOption(decoded.interchainSecurityModule),
-    interchainGasPaymaster: decoded.interchainGasPaymaster?.__option === 'Some'
-      ? [decoded.interchainGasPaymaster.value.programId, decoded.interchainGasPaymaster.value.accountType]
-      : null,
+    interchainGasPaymaster:
+      decoded.interchainGasPaymaster?.__option === 'Some'
+        ? [
+            decoded.interchainGasPaymaster.value.programId,
+            decoded.interchainGasPaymaster.value.accountType,
+          ]
+        : null,
     destinationGas: decoded.destinationGas,
     remoteRouters: decoded.remoteRouters,
     pluginData: decoded.pluginData as T,
@@ -145,7 +149,10 @@ function getHyperlaneTokenDecoder<T>(pluginDecoder: any) {
       ),
     ],
     ['destinationGas', getMapDecoder(getU32Decoder(), getU64Decoder())],
-    ['remoteRouters', getMapDecoder(getU32Decoder(), fixDecoderSize(getBytesDecoder(), 32))],
+    [
+      'remoteRouters',
+      getMapDecoder(getU32Decoder(), fixDecoderSize(getBytesDecoder(), 32)),
+    ],
     ['pluginData', pluginDecoder],
   ]);
 }
@@ -203,7 +210,9 @@ export async function fetchNativeToken(
   console.log(`[fetchNativeToken] Token PDA: ${tokenPda}`);
 
   const rawData = await fetchAccountDataWithInitFlag(rpc, tokenPda);
-  console.log(`[fetchNativeToken] Raw data length: ${rawData?.length ?? 'null'}`);
+  console.log(
+    `[fetchNativeToken] Raw data length: ${rawData?.length ?? 'null'}`,
+  );
 
   if (rawData === null) {
     console.log(`[fetchNativeToken] No account data found at PDA ${tokenPda}`);
@@ -245,7 +254,9 @@ export async function detectWarpTokenType(
 
   // Try synthetic first (most common)
   try {
-    const syntheticDecoder = getHyperlaneTokenDecoder(getSyntheticPluginDecoder());
+    const syntheticDecoder = getHyperlaneTokenDecoder(
+      getSyntheticPluginDecoder(),
+    );
     syntheticDecoder.decode(rawData);
     return SvmWarpTokenType.Synthetic;
   } catch {
@@ -263,7 +274,9 @@ export async function detectWarpTokenType(
 
   // Try collateral
   try {
-    const collateralDecoder = getHyperlaneTokenDecoder(getCollateralPluginDecoder());
+    const collateralDecoder = getHyperlaneTokenDecoder(
+      getCollateralPluginDecoder(),
+    );
     collateralDecoder.decode(rawData);
     return SvmWarpTokenType.Collateral;
   } catch {
@@ -285,7 +298,10 @@ export function routerBytesToHex(router: ReadonlyUint8Array): string {
  */
 export function routerHexToBytes(router: string): Uint8Array {
   const hex = router.startsWith('0x') ? router.slice(2) : router;
-  assert(hex.length === 64, `Router address must be 32 bytes (64 hex chars), got ${hex.length}`);
+  assert(
+    hex.length === 64,
+    `Router address must be 32 bytes (64 hex chars), got ${hex.length}`,
+  );
   return new Uint8Array(Buffer.from(hex, 'hex'));
 }
 

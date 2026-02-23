@@ -6,12 +6,16 @@ import { after, before, describe, it } from 'mocha';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path';
 
+import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
+import { SvmIgpHookWriter, deriveIgpSalt } from '../hook/igp-hook.js';
+import { getOverheadIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { type SvmSigner, createSigner } from '../signer.js';
 import {
   DEFAULT_PROGRAMS_PATH,
+  TEST_PROGRAM_IDS,
   airdropSol,
   getPreloadedPrograms,
 } from '../testing/setup.js';
@@ -32,7 +36,7 @@ const TEST_PRIVATE_KEY =
 
 const PRELOADED_PROGRAMS: Array<
   keyof typeof import('../testing/setup.js').PROGRAM_BINARIES
-> = ['mailbox'];
+> = ['mailbox', 'igp'];
 
 describe('SVM Collateral Warp Token E2E Tests', function () {
   this.timeout(300_000);
@@ -43,19 +47,44 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
   let programBytes: Uint8Array;
   let mailboxAddress: Address;
   let collateralMint: Address;
+  let igpProgramId: Address;
+  let overheadIgpAccountAddress: Address;
 
   before(async () => {
     const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
-    console.log('Starting validator with mailbox...');
+    console.log('Starting validator with mailbox + igp...');
     solana = await startSolanaTestValidator({ preloadedPrograms });
     await waitForRpcReady(solana.rpcUrl);
 
     rpc = createRpc(solana.rpcUrl);
     signer = await createSigner(TEST_PRIVATE_KEY);
-    await airdropSol(rpc, signer.address);
+    await airdropSol(rpc, signer.address, 50_000_000_000n); // 50 SOL — multiple program deployments per test
 
-    mailboxAddress = preloadedPrograms[0].programId as Address;
+    mailboxAddress = TEST_PROGRAM_IDS.mailbox;
+    igpProgramId = TEST_PROGRAM_IDS.igp;
     console.log(`Mailbox: ${mailboxAddress}`);
+    console.log(`IGP program: ${igpProgramId}`);
+
+    // Initialize IGP + overhead IGP accounts
+    const igpSalt = deriveIgpSalt('hyperlane-test');
+    const igpWriter = new SvmIgpHookWriter(rpc, igpProgramId, igpSalt, signer);
+    await igpWriter.create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        type: HookType.INTERCHAIN_GAS_PAYMASTER as 'interchainGasPaymaster',
+        owner: signer.address,
+        beneficiary: signer.address,
+        oracleKey: signer.address,
+        overhead: { 1: 50000 },
+        oracleConfig: {
+          1: { gasPrice: '1', tokenExchangeRate: '1000000000000000000' },
+        },
+      },
+    });
+
+    const [overheadPda] = await getOverheadIgpAccountPda(igpProgramId, igpSalt);
+    overheadIgpAccountAddress = overheadPda;
+    console.log(`Overhead IGP account: ${overheadIgpAccountAddress}`);
 
     // Create a test SPL token to use as collateral
     console.log('Creating test SPL token for collateral...');
@@ -132,6 +161,95 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
       expect(token.config.type).to.equal('collateral');
       expect(token.config.token).to.equal(collateralMint);
       expect(token.config.mailbox).to.equal(mailboxAddress);
+    });
+
+    it('should deploy with IGP configured and read it back', async () => {
+      const writer = new SvmCollateralTokenWriter(
+        rpc,
+        signer,
+        programBytes,
+        solana.rpcUrl,
+        igpProgramId,
+      );
+
+      const config = {
+        type: 'collateral' as const,
+        owner: signer.address,
+        mailbox: mailboxAddress,
+        token: collateralMint,
+        remoteRouters: {},
+        destinationGas: {},
+        hook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: overheadIgpAccountAddress },
+        },
+      };
+
+      const [deployed] = await writer.create({ config });
+
+      const reader = new SvmCollateralTokenReader(rpc, solana.rpcUrl);
+      const token = await reader.read(deployed.deployed.address);
+
+      expect(token.config.hook).to.exist;
+      expect(token.config.hook?.deployed?.address).to.equal(
+        overheadIgpAccountAddress,
+      );
+    });
+
+    it('should update IGP via update()', async () => {
+      // Deploy without IGP first
+      const writerNoIgp = new SvmCollateralTokenWriter(
+        rpc,
+        signer,
+        programBytes,
+        solana.rpcUrl,
+      );
+      const [deployed] = await writerNoIgp.create({
+        config: {
+          type: 'collateral' as const,
+          owner: signer.address,
+          mailbox: mailboxAddress,
+          token: collateralMint,
+          remoteRouters: {},
+          destinationGas: {},
+        },
+      });
+
+      const reader = new SvmCollateralTokenReader(rpc, solana.rpcUrl);
+      const current = await reader.read(deployed.deployed.address);
+      expect(current.config.hook).to.be.undefined;
+
+      // Now update to set IGP
+      const writerWithIgp = new SvmCollateralTokenWriter(
+        rpc,
+        signer,
+        programBytes,
+        solana.rpcUrl,
+        igpProgramId,
+      );
+      const updateTxs = await writerWithIgp.update({
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          ...current.config,
+          hook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: overheadIgpAccountAddress },
+          },
+        },
+        deployed: deployed.deployed,
+      });
+
+      expect(updateTxs.length).to.be.greaterThan(0);
+      for (const tx of updateTxs) {
+        for (const ix of tx.instructions) {
+          await signer.signAndSend(rpc, { instructions: [ix] });
+        }
+      }
+
+      const updated = await reader.read(deployed.deployed.address);
+      expect(updated.config.hook?.deployed?.address).to.equal(
+        overheadIgpAccountAddress,
+      );
     });
 
     it('should enroll remote routers', async () => {

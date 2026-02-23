@@ -344,6 +344,10 @@ export async function deployProgram(
     additionalSigners: [bufferKeypair.keyPair],
   });
   receipts.push(createInitReceipt);
+  console.log(
+    'Sent initialize buffer transaction',
+    createInitReceipt.signature,
+  );
 
   // Step 3: Write program bytes in chunks
   let offset = 0;
@@ -362,6 +366,10 @@ export async function deployProgram(
     });
     receipts.push(writeReceipt);
 
+    console.log(
+      `Sent buffer transaction #${offset}/${programBytes.length}`,
+      writeReceipt.signature,
+    );
     offset += chunk.length;
   }
 
@@ -404,6 +412,7 @@ export async function deployProgram(
     additionalSigners: [programKp.keyPair],
   });
   receipts.push(deployReceipt);
+  console.log(`Program deployed`, deployReceipt.signature);
 
   return {
     programId: programKp.address,

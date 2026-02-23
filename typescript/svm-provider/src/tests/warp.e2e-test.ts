@@ -4,12 +4,16 @@ import { after, before, describe, it } from 'mocha';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path';
 
+import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
+import { SvmIgpHookWriter, deriveIgpSalt } from '../hook/igp-hook.js';
+import { getOverheadIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { type SvmSigner, createSigner } from '../signer.js';
 import {
   DEFAULT_PROGRAMS_PATH,
+  TEST_PROGRAM_IDS,
   airdropSol,
   getPreloadedPrograms,
 } from '../testing/setup.js';
@@ -28,10 +32,10 @@ import * as fs from 'fs/promises';
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
 
-// Preload mailbox so we have a real mailbox address
+// Preload mailbox + igp
 const PRELOADED_PROGRAMS: Array<
   keyof typeof import('../testing/setup.js').PROGRAM_BINARIES
-> = ['mailbox'];
+> = ['mailbox', 'igp'];
 
 describe('SVM Native Warp Token E2E Tests', function () {
   this.timeout(300_000); // 5 minutes for program deployment
@@ -41,11 +45,13 @@ describe('SVM Native Warp Token E2E Tests', function () {
   let signer: SvmSigner;
   let programBytes: Uint8Array;
   let mailboxAddress: Address;
+  let igpProgramId: Address;
+  let overheadIgpAccountAddress: Address;
 
   before(async () => {
-    // Start validator with preloaded mailbox
+    // Start validator with preloaded mailbox + igp
     const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
-    console.log('Starting Solana test validator with mailbox...');
+    console.log('Starting Solana test validator with mailbox + igp...');
     solana = await startSolanaTestValidator({ preloadedPrograms });
     console.log(`Validator started at: ${solana.rpcUrl}`);
 
@@ -55,11 +61,33 @@ describe('SVM Native Warp Token E2E Tests', function () {
     signer = await createSigner(TEST_PRIVATE_KEY);
 
     console.log(`Airdropping SOL to ${signer.address}...`);
-    await airdropSol(rpc, signer.address);
+    await airdropSol(rpc, signer.address, 50_000_000_000n); // 50 SOL — multiple program deployments per test
 
-    // Get mailbox address from preloaded programs
-    mailboxAddress = preloadedPrograms[0].programId as Address;
+    mailboxAddress = TEST_PROGRAM_IDS.mailbox;
+    igpProgramId = TEST_PROGRAM_IDS.igp;
     console.log(`Mailbox address: ${mailboxAddress}`);
+    console.log(`IGP program: ${igpProgramId}`);
+
+    // Initialize IGP + overhead IGP accounts
+    const igpSalt = deriveIgpSalt('hyperlane-test');
+    const igpWriter = new SvmIgpHookWriter(rpc, igpProgramId, igpSalt, signer);
+    await igpWriter.create({
+      artifactState: ArtifactState.NEW,
+      config: {
+        type: HookType.INTERCHAIN_GAS_PAYMASTER as 'interchainGasPaymaster',
+        owner: signer.address,
+        beneficiary: signer.address,
+        oracleKey: signer.address,
+        overhead: { 1: 50000 },
+        oracleConfig: {
+          1: { gasPrice: '1', tokenExchangeRate: '1000000000000000000' },
+        },
+      },
+    });
+
+    const [overheadPda] = await getOverheadIgpAccountPda(igpProgramId, igpSalt);
+    overheadIgpAccountAddress = overheadPda;
+    console.log(`Overhead IGP account: ${overheadIgpAccountAddress}`);
 
     // Load native token program bytes for deployment
     const programPath = path.join(
@@ -125,6 +153,86 @@ describe('SVM Native Warp Token E2E Tests', function () {
       expect(token.config.type).to.equal('native');
       expect(token.config.owner).to.equal(signer.address);
       expect(token.config.mailbox).to.equal(mailboxAddress);
+    });
+
+    it('should deploy with IGP configured and read it back', async () => {
+      const writer = new SvmNativeTokenWriter(
+        rpc,
+        signer,
+        programBytes,
+        igpProgramId,
+      );
+
+      const config = {
+        type: 'native' as const,
+        owner: signer.address,
+        mailbox: mailboxAddress,
+        remoteRouters: {},
+        destinationGas: {},
+        hook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: overheadIgpAccountAddress },
+        },
+      };
+
+      const [deployed] = await writer.create({ config });
+
+      const reader = new SvmNativeTokenReader(rpc);
+      const token = await reader.read(deployed.deployed.address);
+
+      expect(token.config.hook).to.exist;
+      expect(token.config.hook?.deployed?.address).to.equal(
+        overheadIgpAccountAddress,
+      );
+    });
+
+    it('should update IGP via update()', async () => {
+      // Deploy without IGP first
+      const writerNoIgp = new SvmNativeTokenWriter(rpc, signer, programBytes);
+      const [deployed] = await writerNoIgp.create({
+        config: {
+          type: 'native' as const,
+          owner: signer.address,
+          mailbox: mailboxAddress,
+          remoteRouters: {},
+          destinationGas: {},
+        },
+      });
+
+      const reader = new SvmNativeTokenReader(rpc);
+      const current = await reader.read(deployed.deployed.address);
+      expect(current.config.hook).to.be.undefined;
+
+      // Update to set IGP
+      const writerWithIgp = new SvmNativeTokenWriter(
+        rpc,
+        signer,
+        programBytes,
+        igpProgramId,
+      );
+      const updateTxs = await writerWithIgp.update({
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          ...current.config,
+          hook: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: overheadIgpAccountAddress },
+          },
+        },
+        deployed: deployed.deployed,
+      });
+
+      expect(updateTxs.length).to.be.greaterThan(0);
+      for (const tx of updateTxs) {
+        for (const ix of tx.instructions) {
+          await signer.signAndSend(rpc, { instructions: [ix] });
+        }
+      }
+
+      const updated = await reader.read(deployed.deployed.address);
+      expect(updated.config.hook?.deployed?.address).to.equal(
+        overheadIgpAccountAddress,
+      );
     });
 
     it('should enroll remote routers', async () => {

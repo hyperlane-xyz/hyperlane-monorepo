@@ -28,6 +28,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
     private readonly rpcUrl: string,
+    private readonly igpProgramId?: Address,
   ) {}
 
   async readWarpToken(address: string): Promise<DeployedRawWarpArtifact> {
@@ -75,13 +76,19 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
       >;
     } = {
       native: () =>
-        new SvmNativeTokenWriter(this.rpc, signer, PROGRAM_BYTES.nativeToken),
+        new SvmNativeTokenWriter(
+          this.rpc,
+          signer,
+          PROGRAM_BYTES.nativeToken,
+          this.igpProgramId,
+        ),
       synthetic: () =>
         new SvmSyntheticTokenWriter(
           this.rpc,
           signer,
           PROGRAM_BYTES.syntheticToken,
           this.rpcUrl,
+          this.igpProgramId,
         ),
       collateral: () =>
         new SvmCollateralTokenWriter(
@@ -89,6 +96,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
           signer,
           PROGRAM_BYTES.collateralToken,
           this.rpcUrl,
+          this.igpProgramId,
         ),
     };
 

@@ -5,6 +5,7 @@ import {
   type ArtifactNew,
   type ArtifactReader,
   ArtifactState,
+  type ArtifactUnderived,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
@@ -114,6 +115,14 @@ export class SvmNativeTokenReader
       destinationGas[domain] = gas.toString();
     }
 
+    const igpHook: ArtifactUnderived<{ address: string }> | undefined =
+      token.interchainGasPaymaster
+        ? {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: token.interchainGasPaymaster[1].fields[0] },
+          }
+        : undefined;
+
     const config: RawNativeWarpArtifactConfig = {
       type: 'native',
       owner: token.owner ?? '',
@@ -124,6 +133,7 @@ export class SvmNativeTokenReader
             deployed: { address: token.interchainSecurityModule },
           }
         : undefined,
+      hook: igpHook,
       remoteRouters,
       destinationGas,
     };
@@ -147,6 +157,7 @@ export class SvmNativeTokenWriter
     private readonly rpc: Rpc<SolanaRpcApi>,
     private readonly signer: SvmSigner,
     private readonly programBytes: Uint8Array,
+    private readonly igpProgramId?: Address,
   ) {}
 
   async create(
@@ -180,13 +191,23 @@ export class SvmNativeTokenWriter
     const [nativeCollateralPda] = await getNativeCollateralPda(programId);
 
     // Step 3: Initialize
+    const igpAccountAddress = config.hook?.deployed?.address;
     const initArgs: InitProxyArgs = {
       mailbox: config.mailbox as Address,
       interchainSecurityModule: config.interchainSecurityModule?.deployed
         ?.address
         ? (config.interchainSecurityModule.deployed.address as Address)
         : null,
-      interchainGasPaymaster: null,
+      interchainGasPaymaster:
+        this.igpProgramId && igpAccountAddress
+          ? [
+              this.igpProgramId,
+              {
+                __kind: 'OverheadIgp',
+                fields: [igpAccountAddress as Address],
+              },
+            ]
+          : null,
       decimals: 9,
       remoteDecimals: 9,
     };
@@ -369,6 +390,7 @@ export class SvmNativeTokenWriter
       artifact.config,
       programId,
       this.signer.address,
+      this.igpProgramId,
     );
 
     if (instructions.length === 0) {

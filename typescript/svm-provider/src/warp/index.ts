@@ -19,6 +19,7 @@ export {
   getUnenrollRemoteRoutersIx,
   getSetDestinationGasConfigsIx,
   getSetIsmIx,
+  getSetIgpIx,
   getTransferOwnershipIx,
   computeWarpTokenUpdateInstructions,
 } from './warp-tx.js';

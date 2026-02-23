@@ -7,9 +7,11 @@ import { eqAddressSol } from '@hyperlane-xyz/utils';
 import {
   getEnrollRemoteRoutersInstructionDataEncoder,
   getSetDestinationGasConfigsInstructionDataEncoder,
+  getSetInterchainGasPaymasterInstructionDataEncoder,
   getSetInterchainSecurityModuleInstructionDataEncoder,
   getTransferOwnershipInstructionDataEncoder,
 } from '../generated/instructions/index.js';
+import type { InterchainGasPaymasterTypeProxyArgs } from '../generated/types/index.js';
 import type { SvmInstruction } from '../types.js';
 
 import { getHyperlaneTokenPda, routerHexToBytes } from './warp-query.js';
@@ -168,7 +170,49 @@ export async function getSetIsmIx(
   return {
     programAddress: programId,
     accounts: [
-      { address: SYSTEM_PROGRAM_ID, role: 0 },
+      { address: tokenPda, role: 1 },
+      { address: payer, role: 2 },
+    ],
+    data,
+  };
+}
+
+/**
+ * Builds SetInterchainGasPaymaster instruction.
+ * Pass null to clear the IGP.
+ * accountType defaults to 'OverheadIgp' (typical for warp routes).
+ */
+export async function getSetIgpIx(
+  programId: Address,
+  payer: Address,
+  igp: {
+    igpProgramId: Address;
+    accountAddress: Address;
+    accountType?: 'Igp' | 'OverheadIgp';
+  } | null,
+): Promise<SvmInstruction> {
+  const encoder = getSetInterchainGasPaymasterInstructionDataEncoder();
+  const igpArg: readonly [Address, InterchainGasPaymasterTypeProxyArgs] | null =
+    igp
+      ? [
+          igp.igpProgramId,
+          {
+            __kind: igp.accountType ?? 'OverheadIgp',
+            fields: [igp.accountAddress],
+          } as InterchainGasPaymasterTypeProxyArgs,
+        ]
+      : null;
+
+  const enumData = encoder.encode({ args: igpArg });
+  const data = new Uint8Array(8 + enumData.length);
+  data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
+  data.set(enumData, 8);
+
+  const [tokenPda] = await getHyperlaneTokenPda(programId);
+
+  return {
+    programAddress: programId,
+    accounts: [
       { address: tokenPda, role: 1 },
       { address: payer, role: 2 },
     ],
@@ -207,12 +251,15 @@ export async function getTransferOwnershipIx(
 
 /**
  * Computes update instructions by diffing current and expected configs.
+ * Pass igpProgramId when the warp token uses an IGP hook so that IGP
+ * changes can be applied. The account address comes from hook.deployed.address.
  */
 export async function computeWarpTokenUpdateInstructions(
   current: RawWarpArtifactConfig,
   expected: RawWarpArtifactConfig,
   programId: Address,
   payer: Address,
+  igpProgramId?: Address,
 ): Promise<SvmInstruction[]> {
   const instructions: SvmInstruction[] = [];
 
@@ -226,7 +273,22 @@ export async function computeWarpTokenUpdateInstructions(
     );
   }
 
-  // 2. Compute router diff
+  // 2. Update IGP hook if changed
+  const currentHookAddress = current.hook?.deployed?.address;
+  const expectedHookAddress = expected.hook?.deployed?.address;
+
+  if (currentHookAddress !== expectedHookAddress) {
+    const igp =
+      expectedHookAddress && igpProgramId
+        ? {
+            igpProgramId,
+            accountAddress: expectedHookAddress as Address,
+          }
+        : null;
+    instructions.push(await getSetIgpIx(programId, payer, igp));
+  }
+
+  // 3. Compute router diff
   const routerDiff = computeRemoteRoutersUpdates(
     {
       remoteRouters: current.remoteRouters,
@@ -239,14 +301,14 @@ export async function computeWarpTokenUpdateInstructions(
     eqAddressSol,
   );
 
-  // 3. Unenroll removed routers
+  // 4. Unenroll removed routers
   if (routerDiff.toUnenroll.length > 0) {
     instructions.push(
       await getUnenrollRemoteRoutersIx(programId, payer, routerDiff.toUnenroll),
     );
   }
 
-  // 4. Enroll new/updated routers with destination gas
+  // 5. Enroll new/updated routers with destination gas
   if (routerDiff.toEnroll.length > 0) {
     instructions.push(
       await getEnrollRemoteRoutersIx(
@@ -270,7 +332,7 @@ export async function computeWarpTokenUpdateInstructions(
     );
   }
 
-  // 5. Transfer ownership (always last)
+  // 6. Transfer ownership (always last)
   if (current.owner !== expected.owner) {
     instructions.push(
       await getTransferOwnershipIx(programId, payer, expected.owner as Address),
