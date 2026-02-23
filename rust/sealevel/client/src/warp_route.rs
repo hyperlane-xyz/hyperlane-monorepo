@@ -14,6 +14,7 @@ use std::{
 };
 
 use solana_sdk::{instruction::Instruction, program_error::ProgramError, pubkey::Pubkey};
+use solana_system_interface::instruction as system_instruction;
 
 use hyperlane_sealevel_connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
@@ -707,11 +708,7 @@ fn fund_ata_payer_up_to(
 
     ctx.new_txn()
         .add_with_description(
-            solana_program::system_instruction::transfer(
-                &ctx.payer_pubkey,
-                &ata_payer_account,
-                funding_amount,
-            ),
+            system_instruction::transfer(&ctx.payer_pubkey, &ata_payer_account, funding_amount),
             format!(
                 "Funding ATA payer {} with funding_amount {} to reach total balance of {}",
                 ata_payer_account, funding_amount, ata_payer_funding_amount

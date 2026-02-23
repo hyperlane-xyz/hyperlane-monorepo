@@ -130,6 +130,7 @@ import {
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { getCCTPWarpConfig as getTestnetCCTPWarpConfig } from './environments/testnet4/warp/getCCTPConfig.js';
 import { DEFAULT_REGISTRY_URI } from './registry.js';
+import { getUSDTSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getUSDTSTAGEWarpConfig.js';
 
 type WarpConfigGetter = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -212,6 +213,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EniWBTC]: getEniWbtcWarpConfig,
   [WarpRouteIds.EniUSDC]: getEniUsdcWarpConfig,
   [WarpRouteIds.EniUSDT]: getEniUsdtWarpConfig,
+  [WarpRouteIds.ModeUSDTSTAGE]: getUSDTSTAGEWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;

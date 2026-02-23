@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use solana_client::rpc_config::RpcProgramAccountsConfig;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
-use solana_sdk::commitment_config::CommitmentConfig;
+use solana_commitment_config::CommitmentConfig;
 use solana_sdk::hash::Hash;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
