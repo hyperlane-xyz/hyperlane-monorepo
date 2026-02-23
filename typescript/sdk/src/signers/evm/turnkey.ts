@@ -10,36 +10,12 @@ import {
   logTurnkeyError,
 } from '../turnkeyClient.js';
 
+import { ViemProviderLike, ViemTransactionRequestLike } from './types.js';
+
 const logger = rootLogger.child({ module: 'sdk:turnkey-evm' });
 
-type EvmProviderLike = {
-  estimateGas(transaction: TurnkeyTransactionRequest): Promise<unknown>;
-  getFeeData(): Promise<{
-    gasPrice?: unknown;
-    maxFeePerGas?: unknown;
-    maxPriorityFeePerGas?: unknown;
-  }>;
-  getNetwork(): Promise<{ chainId: number }>;
-  getTransactionCount(address: string, blockTag?: string): Promise<number>;
-  sendTransaction(signedTransaction: string): Promise<{
-    hash: string;
-    wait(confirmations?: number): Promise<unknown>;
-  }>;
-};
-
-type TurnkeyTransactionRequest = {
-  chainId?: number;
+export type TurnkeyViemTransactionRequest = ViemTransactionRequestLike & {
   data?: Hex;
-  from?: string;
-  gas?: unknown;
-  gasLimit?: unknown;
-  gasPrice?: unknown;
-  maxFeePerGas?: unknown;
-  maxPriorityFeePerGas?: unknown;
-  nonce?: number;
-  to?: string;
-  type?: number;
-  value?: unknown;
 };
 
 const toBigIntValue = (value: unknown): bigint | undefined =>
@@ -72,9 +48,9 @@ export class TurnkeyEvmSigner {
   private readonly manager: TurnkeyClientManager;
   private readonly account: LocalAccount;
   public readonly address: string;
-  public readonly provider: EvmProviderLike | undefined;
+  public readonly provider: ViemProviderLike | undefined;
 
-  constructor(config: TurnkeyConfig, provider?: EvmProviderLike) {
+  constructor(config: TurnkeyConfig, provider?: ViemProviderLike) {
     this.manager = new TurnkeyClientManager(config);
     this.address = config.publicKey;
     this.provider = provider;
@@ -99,7 +75,7 @@ export class TurnkeyEvmSigner {
    * Get an ethers Signer connected to the provided provider
    * This returns a new instance with the provider connected
    */
-  async getSigner(provider: EvmProviderLike): Promise<TurnkeyEvmSigner> {
+  async getSigner(provider: ViemProviderLike): Promise<TurnkeyEvmSigner> {
     logger.debug('Creating Turnkey EVM signer for transaction');
     return this.connect(provider);
   }
@@ -107,7 +83,7 @@ export class TurnkeyEvmSigner {
   /**
    * Connect this signer to a provider (creates new instance with proper configuration)
    */
-  connect(provider: EvmProviderLike): TurnkeyEvmSigner {
+  connect(provider: ViemProviderLike): TurnkeyEvmSigner {
     return new TurnkeyEvmSigner(this.manager.getConfig(), provider);
   }
 
@@ -122,7 +98,7 @@ export class TurnkeyEvmSigner {
    * Sign a transaction using Turnkey
    */
   async signTransaction(
-    transaction: TurnkeyTransactionRequest,
+    transaction: TurnkeyViemTransactionRequest,
   ): Promise<string> {
     if (!this.provider) {
       throw new Error('Provider required to sign transaction');
@@ -175,7 +151,7 @@ export class TurnkeyEvmSigner {
   }
 
   async sendTransaction(
-    tx: TurnkeyTransactionRequest,
+    tx: TurnkeyViemTransactionRequest,
   ): Promise<{ hash: string; wait(confirmations?: number): Promise<unknown> }> {
     if (!this.provider)
       throw new Error('Provider required to send transaction');
@@ -187,8 +163,8 @@ export class TurnkeyEvmSigner {
    * Populate a transaction with default values (nonce, gas, etc.)
    */
   async populateTransaction(
-    transaction: TurnkeyTransactionRequest,
-  ): Promise<TurnkeyTransactionRequest> {
+    transaction: TurnkeyViemTransactionRequest,
+  ): Promise<TurnkeyViemTransactionRequest> {
     if (!this.provider) {
       throw new Error('Provider required to populate transaction');
     }

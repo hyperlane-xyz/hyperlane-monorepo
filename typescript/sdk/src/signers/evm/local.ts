@@ -3,34 +3,10 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-type EvmProviderLike = {
-  estimateGas(transaction: LocalEvmTransactionRequest): Promise<unknown>;
-  getFeeData(): Promise<{
-    gasPrice?: unknown;
-    maxFeePerGas?: unknown;
-    maxPriorityFeePerGas?: unknown;
-  }>;
-  getNetwork(): Promise<{ chainId: number }>;
-  getTransactionCount(address: string, blockTag?: string): Promise<number>;
-  sendTransaction(signedTransaction: string): Promise<{
-    hash: string;
-    wait(confirmations?: number): Promise<unknown>;
-  }>;
-};
+import { ViemProviderLike, ViemTransactionRequestLike } from './types.js';
 
-export type LocalEvmTransactionRequest = {
-  chainId?: number;
+export type LocalViemTransactionRequest = ViemTransactionRequestLike & {
   data?: Hex;
-  from?: string;
-  gas?: unknown;
-  gasLimit?: unknown;
-  gasPrice?: unknown;
-  maxFeePerGas?: unknown;
-  maxPriorityFeePerGas?: unknown;
-  nonce?: number;
-  to?: string;
-  type?: number;
-  value?: unknown;
 };
 
 const toBigIntValue = (value: unknown): bigint | undefined =>
@@ -39,11 +15,11 @@ const toBigIntValue = (value: unknown): bigint | undefined =>
 export class LocalAccountEvmSigner {
   public readonly account: ReturnType<typeof privateKeyToAccount>;
   public readonly address: string;
-  public readonly provider: EvmProviderLike | undefined;
+  public readonly provider: ViemProviderLike | undefined;
 
   constructor(
     private readonly privateKey: Hex,
-    provider?: EvmProviderLike,
+    provider?: ViemProviderLike,
   ) {
     assert(
       isHex(privateKey),
@@ -54,7 +30,7 @@ export class LocalAccountEvmSigner {
     this.provider = provider;
   }
 
-  connect(provider: EvmProviderLike): LocalAccountEvmSigner {
+  connect(provider: ViemProviderLike): LocalAccountEvmSigner {
     return new LocalAccountEvmSigner(this.privateKey, provider);
   }
 
@@ -62,7 +38,7 @@ export class LocalAccountEvmSigner {
     return this.address;
   }
 
-  async estimateGas(tx: LocalEvmTransactionRequest): Promise<unknown> {
+  async estimateGas(tx: LocalViemTransactionRequest): Promise<unknown> {
     if (!this.provider) throw new Error('Provider required to estimate gas');
     return this.provider.estimateGas({
       ...tx,
@@ -74,13 +50,13 @@ export class LocalAccountEvmSigner {
     return this.account.signMessage({ message: message as any });
   }
 
-  async signTransaction(tx: LocalEvmTransactionRequest): Promise<Hex> {
+  async signTransaction(tx: LocalViemTransactionRequest): Promise<Hex> {
     const populated = await this.populateTransaction(tx);
     return this.account.signTransaction(populated as any);
   }
 
   async sendTransaction(
-    tx: LocalEvmTransactionRequest,
+    tx: LocalViemTransactionRequest,
   ): Promise<{ hash: string; wait(confirmations?: number): Promise<unknown> }> {
     if (!this.provider)
       throw new Error('Provider required to send transaction');
@@ -89,8 +65,8 @@ export class LocalAccountEvmSigner {
   }
 
   async populateTransaction(
-    transaction: LocalEvmTransactionRequest,
-  ): Promise<LocalEvmTransactionRequest> {
+    transaction: LocalViemTransactionRequest,
+  ): Promise<LocalViemTransactionRequest> {
     if (!this.provider)
       throw new Error('Provider required to populate transaction');
 
