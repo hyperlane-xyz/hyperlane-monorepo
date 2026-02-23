@@ -48,7 +48,7 @@ abstract contract OPL2ToL1CcipReadIsm is AbstractCcipReadIsm {
 
     constructor(address _opPortal) {
         require(
-            (_opPortal.code.length > 0),
+            Address.isContract(_opPortal),
             "OPL2ToL1CcipReadIsm: invalid opPortal"
         );
         opPortal = IOptimismPortal(_opPortal);

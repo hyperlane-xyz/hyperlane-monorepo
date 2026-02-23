@@ -53,7 +53,7 @@ contract OPStackHook is AbstractMessageIdAuthHook {
         address _l1Messenger
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
         require(
-            (_l1Messenger.code.length > 0),
+            Address.isContract(_l1Messenger),
             "OPStackHook: invalid messenger"
         );
         l1Messenger = ICrossDomainMessenger(_l1Messenger);

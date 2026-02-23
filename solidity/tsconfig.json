@@ -8,6 +8,7 @@
     "./test",
     "hardhat.config.cts",
     "./dist",
+    "./core-utils/typechain",
     "zk-hardhat.config.cts",
     "tron-hardhat.config.cts",
     "rootHardhatConfig.cts",

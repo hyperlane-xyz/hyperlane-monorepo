@@ -1,3 +1,5 @@
+import { toBytes } from 'viem';
+
 import {
   ChainMap,
   ChainName,
@@ -16,6 +18,36 @@ import { StatCounts } from './types.js';
 type SourceReceipt = Parameters<
   HyperlaneCoreType['waitForMessageProcessed']
 >[0];
+
+type BigNumberishLike =
+  | bigint
+  | number
+  | string
+  | {
+      toBigInt?: () => bigint;
+      toNumber?: () => number;
+      toString?: () => string;
+    };
+
+const toBigIntValue = (value: BigNumberishLike): bigint => {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (value?.toBigInt) return value.toBigInt();
+  if (value?.toString) return BigInt(value.toString());
+
+  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
+};
+
+const toNumberValue = (value: BigNumberishLike): number => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') return Number(BigInt(value));
+  if (value?.toNumber) return value.toNumber();
+  if (value?.toString) return Number(BigInt(value.toString()));
+
+  throw new Error(`Cannot convert value to number: ${String(value)}`);
+};
 
 export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   constructor(
@@ -54,8 +86,8 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
       { ...transactionOverrides, value },
     );
 
-    const quote = await sender.quoteDispatch(toDomain, message);
-    const totalValue = quote.add(value.toString());
+    const quote = await sender.quoteDispatch(toDomain, toBytes(message));
+    const totalValue = toBigIntValue(quote) + value;
     const tx = await sender.sendHelloWorld(toDomain, message, {
       gasLimit: addBufferToGasLimit(estimated),
       ...transactionOverrides,
@@ -90,7 +122,10 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
       this.multiProvider.getDomainId(from),
     );
 
-    return { sent: sent.toNumber(), received: received.toNumber() };
+    return {
+      sent: toNumberValue(sent),
+      received: toNumberValue(received),
+    };
   }
 
   async stats(): Promise<ChainMap<ChainMap<StatCounts>>> {

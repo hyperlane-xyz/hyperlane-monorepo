@@ -39,7 +39,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
         address _mailbox,
         address _l2Bridge
     ) TokenRouter(SCALE, _mailbox) {
-        require((_l2Bridge.code.length > 0), "L2 bridge must be a contract");
+        require(_l2Bridge.isContract(), "L2 bridge must be a contract");
         l2Bridge = IStandardBridge(payable(_l2Bridge));
     }
 

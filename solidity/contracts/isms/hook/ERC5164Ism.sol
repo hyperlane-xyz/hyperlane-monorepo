@@ -37,7 +37,7 @@ contract ERC5164Ism is AbstractMessageIdAuthorizedIsm {
     // ============ Constructor ============
 
     constructor(address _executor) {
-        require((_executor.code.length > 0), "ERC5164Ism: invalid executor");
+        require(Address.isContract(_executor), "ERC5164Ism: invalid executor");
         executor = _executor;
     }
 

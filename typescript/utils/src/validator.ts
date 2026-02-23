@@ -29,6 +29,12 @@ export interface ValidatorConfig {
   mailbox: string;
 }
 
+function toYParity(v: number): 0 | 1 {
+  if (v === 0 || v === 1) return v;
+  if (v === 27 || v === 28) return (v - 27) as 0 | 1;
+  throw new Error(`Unsupported signature v value: ${v}`);
+}
+
 /**
  * Utilities for validators to construct and verify checkpoints.
  */
@@ -81,7 +87,7 @@ export class BaseValidator {
         : serializeSignature({
             r: signature.r as Hex,
             s: signature.s as Hex,
-            yParity: signature.v % 2 ? 1 : 0,
+            yParity: toYParity(signature.v),
           });
     return recoverMessageAddress({
       message: { raw: toHex(msgHash) },

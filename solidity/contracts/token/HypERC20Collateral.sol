@@ -49,7 +49,7 @@ contract HypERC20Collateral is LpCollateralRouter {
         uint256 _scale,
         address _mailbox
     ) TokenRouter(_scale, _mailbox) {
-        require((erc20.code.length > 0), "HypERC20Collateral: invalid token");
+        require(Address.isContract(erc20), "HypERC20Collateral: invalid token");
         wrappedToken = IERC20(erc20);
     }
 
