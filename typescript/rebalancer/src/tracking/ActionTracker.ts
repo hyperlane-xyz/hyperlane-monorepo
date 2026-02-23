@@ -34,6 +34,7 @@ export interface ActionTrackerConfig {
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
   inventorySignerAddress?: Address; // Optional - for excluding inventory signer from user transfers query
+  intentTTL: number; // Max age in ms before in-progress intent is expired
 }
 
 /**
@@ -211,7 +212,7 @@ export class ActionTracker implements IActionTracker {
   async syncRebalanceIntents(): Promise<void> {
     this.logger.debug('Syncing rebalance intents');
 
-    // Check in_progress intents for completion by deriving from action states
+    // Check in_progress intents for completion or TTL expiry
     const inProgressIntents =
       await this.rebalanceIntentStore.getByStatus('in_progress');
     for (const intent of inProgressIntents) {
@@ -221,6 +222,21 @@ export class ActionTracker implements IActionTracker {
           status: 'complete',
         });
         this.logger.debug({ id: intent.id }, 'RebalanceIntent completed');
+      } else if (Date.now() - intent.createdAt > this.config.intentTTL) {
+        await this.rebalanceIntentStore.update(intent.id, {
+          status: 'failed',
+        });
+        this.logger.warn(
+          {
+            id: intent.id,
+            origin: intent.origin,
+            destination: intent.destination,
+            amount: intent.amount.toString(),
+            ageMs: Date.now() - intent.createdAt,
+            ttlMs: this.config.intentTTL,
+          },
+          'RebalanceIntent expired due to TTL',
+        );
       }
     }
 
@@ -863,6 +879,9 @@ export class ActionTracker implements IActionTracker {
     try {
       // Create synthetic intent
       const { amount } = parseWarpRouteMessage(msg.message_body);
+      const createdAt = msg.send_occurred_at
+        ? new Date(msg.send_occurred_at + 'Z').getTime()
+        : Date.now();
       const intent: RebalanceIntent = {
         id: uuidv4(),
         status: 'in_progress',
@@ -871,13 +890,13 @@ export class ActionTracker implements IActionTracker {
         amount,
         priority: undefined,
         strategyType: undefined,
-        createdAt: Date.now(),
+        createdAt,
         updatedAt: Date.now(),
       };
 
       await this.rebalanceIntentStore.save(intent);
       this.logger.debug(
-        { id: intent.id, amount: amount.toString() },
+        { id: intent.id, amount: amount.toString(), createdAt },
         'Created synthetic RebalanceIntent',
       );
 
@@ -892,7 +911,7 @@ export class ActionTracker implements IActionTracker {
         origin: msg.origin_domain_id,
         destination: msg.destination_domain_id,
         amount,
-        createdAt: Date.now(),
+        createdAt,
         updatedAt: Date.now(),
       };
 

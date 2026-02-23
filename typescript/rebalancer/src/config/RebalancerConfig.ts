@@ -17,6 +17,7 @@ export class RebalancerConfig {
   constructor(
     public readonly warpRouteId: string,
     public readonly strategyConfig: StrategyConfig[],
+    public readonly intentTTL: number,
     public readonly inventorySigner?: string,
     public readonly externalBridges?: ExternalBridgesConfig,
   ) {}
@@ -34,7 +35,7 @@ export class RebalancerConfig {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { warpRouteId, strategy, inventorySigner, externalBridges } =
+    const { warpRouteId, strategy, intentTTL, inventorySigner, externalBridges } =
       validationResult.data;
 
     const chainNames = getStrategyChainNames(strategy);
@@ -45,6 +46,7 @@ export class RebalancerConfig {
     return new RebalancerConfig(
       warpRouteId,
       strategy,
+      intentTTL,
       inventorySigner,
       externalBridges,
     );

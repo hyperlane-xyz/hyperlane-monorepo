@@ -203,6 +203,7 @@ export class TestRebalancerBuilder {
     const rebalancerConfig = new RebalancerConfig(
       MONITORED_ROUTE_ID,
       this.strategyConfig,
+      7_200_000,
     );
 
     const registry = this.deploymentManager.getRegistry();
@@ -325,6 +326,7 @@ export class TestRebalancerBuilder {
         origin_tx_recipient: deployedAddresses.monitoredRoute[params.from],
         is_delivered: false,
         message_body: encodeWarpRouteMessageBody(warpRecipient, params.amount),
+        send_occurred_at: null,
       };
 
       userTransfers.push(mockTransfer);

@@ -351,6 +351,7 @@ export class RebalancerContextFactory {
       bridges,
       rebalancerAddress,
       inventorySignerAddress: this.config.inventorySigner,
+      intentTTL: this.config.intentTTL,
     };
 
     // 6. Create ActionTracker

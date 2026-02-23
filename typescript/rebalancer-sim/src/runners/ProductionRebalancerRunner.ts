@@ -218,9 +218,11 @@ export class ProductionRebalancerRunner
 
     // Create RebalancerConfig
     // Need explicit cast due to discriminated union type narrowing
-    const rebalancerConfig = new RebalancerConfig(registry.getWarpRouteId(), [
-      strategyConfig,
-    ] as StrategyConfig[]);
+    const rebalancerConfig = new RebalancerConfig(
+      registry.getWarpRouteId(),
+      [strategyConfig] as StrategyConfig[],
+      7_200_000,
+    );
 
     // Create service with mock action tracker
     this.service = new RebalancerService(

@@ -100,6 +100,7 @@ describe('RebalancerConfig', () => {
           },
         },
       ],
+      intentTTL: 7_200_000,
       inventorySigner: undefined,
       externalBridges: undefined,
     });

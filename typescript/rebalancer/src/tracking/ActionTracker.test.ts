@@ -71,6 +71,7 @@ describe('ActionTracker', () => {
       },
       bridges: ['0xbridge1', '0xbridge2'],
       rebalancerAddress: '0xrebalancer',
+      intentTTL: 7_200_000,
     };
 
     tracker = new ActionTracker(
@@ -99,6 +100,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -142,6 +144,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -189,6 +192,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -232,6 +236,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 

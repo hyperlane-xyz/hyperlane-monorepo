@@ -120,6 +120,7 @@ export class ForkIndexer {
           origin_tx_recipient: event.args.sender,
           is_delivered: false,
           message_body: parsed.body,
+          send_occurred_at: null,
         };
 
         if (

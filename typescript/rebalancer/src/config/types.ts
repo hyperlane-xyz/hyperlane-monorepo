@@ -133,6 +133,15 @@ export const RebalancerConfigSchema = z
       .regex(/0x[a-fA-F0-9]{40}/)
       .optional(),
     externalBridges: ExternalBridgesConfigSchema.optional(),
+    intentTTL: z
+      .number()
+      .positive()
+      .transform((val) => val * 1_000)
+      .optional()
+      .default(7200)
+      .describe(
+        'Max age in seconds before in-progress intent is expired. Default 2h.',
+      ),
   })
   .superRefine((config, ctx) => {
     // CollateralDeficitStrategy must be first in composite if it is used
