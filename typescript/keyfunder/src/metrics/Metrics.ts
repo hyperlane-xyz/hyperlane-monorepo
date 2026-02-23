@@ -11,8 +11,7 @@ export class KeyFunderMetrics {
   readonly walletBalanceGauge: Gauge<string>;
   /**
    * Unified wallet balance gauge matching the format used by Grafana alerts.
-   * Emits hyperlane_wallet_balance{chain, wallet_address, wallet_name} to
-   * remain compatible with alert queries that filter on wallet_name="key-funder".
+   * Emits hyperlane_wallet_balance with the standard wallet balance labels.
    */
   readonly unifiedWalletBalanceGauge: Gauge<string>;
   readonly fundingAmountGauge: Gauge<string>;
@@ -43,6 +42,9 @@ export class KeyFunderMetrics {
         'chain',
         'wallet_address',
         'wallet_name',
+        'token_address',
+        'token_symbol',
+        'token_name',
         ...Object.keys(baseLabels),
       ],
       registers: [this.registry],
@@ -100,6 +102,9 @@ export class KeyFunderMetrics {
         chain,
         wallet_address: walletAddress,
         wallet_name: walletName,
+        token_address: 'native',
+        token_symbol: 'Native',
+        token_name: 'Native',
         ...this.baseLabels,
       },
       balance,
