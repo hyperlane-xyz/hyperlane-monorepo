@@ -21,6 +21,23 @@ pragma solidity >=0.8.0;
  * [34:66] Gas limit for message (uint256)
  * [66:86] Refund address (address)
  * [86:106] Fee token address (address) - OPTIONAL, read if length >= 106
+ *
+ * Fee Token Semantics:
+ * - When feeToken is address(0) or unspecified (metadata length < 106), fees are
+ *   paid in native ETH via msg.value.
+ * - When feeToken is set to a non-zero address, fees are paid in that ERC-20 token.
+ *   The caller must approve the hook to spend the fee token before calling dispatch.
+ *
+ * IMPORTANT: Mixing fee denominations within a single dispatch is NOT supported.
+ * All hooks in the call chain (requiredHook + hook, including any child hooks in
+ * aggregation) must use the same fee denomination. Hooks that only support native
+ * fees will reject metadata with a non-zero feeToken via supportsMetadata.
+ *
+ * The Mailbox.quoteDispatch function sums quotes from requiredHook and hook,
+ * assuming both return values in the same denomination. This works because:
+ * - Native-only hooks return 0 when feeToken is set (via supportsMetadata rejection)
+ * - The requiredHook (typically ProtocolFee) returns 0 when protocolFee is 0, allowing
+ *   ERC-20 fee tokens to be used with the default hook even when requiredHook exists
  */
 
 library StandardHookMetadata {

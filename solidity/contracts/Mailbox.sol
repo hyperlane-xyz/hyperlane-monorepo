@@ -316,6 +316,15 @@ contract Mailbox is
 
     /**
      * @notice Computes quote for dispatching a message to the destination domain & recipient.
+     * @dev This function sums the quotes from requiredHook and hook, assuming both return
+     * values denominated in the same currency. When using ERC-20 fee tokens (via
+     * StandardHookMetadata.feeToken), this works because:
+     * - Native-only hooks reject non-zero feeToken metadata via supportsMetadata
+     * - The requiredHook (typically ProtocolFee) returns 0 when protocolFee is 0
+     *
+     * IMPORTANT: Mixing fee denominations (native + ERC-20) in a single dispatch is not
+     * supported. Callers must ensure all hooks in the chain use the same fee denomination.
+     *
      * @param destinationDomain Domain of destination chain
      * @param recipientAddress Address of recipient on destination chain as bytes32
      * @param messageBody Raw bytes content of message body
