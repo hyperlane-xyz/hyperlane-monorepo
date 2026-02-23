@@ -131,21 +131,29 @@ describe('Aleo Warp Tokens Artifact API (e2e)', function () {
 
     // Register test token for collateral tests
     const collateralDenom = '1field';
-    await aleoSigner.sendAndConfirmTransaction({
-      programName: 'token_registry.aleo',
-      functionName: 'register_token',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [
-        collateralDenom,
-        `${stringToU128('Test Token').toString()}u128`,
-        `${stringToU128('TEST').toString()}u128`,
-        `6u8`,
-        `100000000u128`,
-        `false`,
-        TEST_ALEO_BURN_ADDRESS,
-      ],
-    });
+    const registeredToken = await aleoClient.getProgramMappingValue(
+      'token_registry.aleo',
+      'registered_tokens',
+      collateralDenom,
+    );
+
+    if (!registeredToken) {
+      await aleoSigner.sendAndConfirmTransaction({
+        programName: 'token_registry.aleo',
+        functionName: 'register_token',
+        priorityFee: 0,
+        privateFee: false,
+        inputs: [
+          collateralDenom,
+          `${stringToU128('Test Token').toString()}u128`,
+          `${stringToU128('TEST').toString()}u128`,
+          `6u8`,
+          `100000000u128`,
+          `false`,
+          TEST_ALEO_BURN_ADDRESS,
+        ],
+      });
+    }
   });
 
   // Table-driven tests for all token types
