@@ -56,6 +56,10 @@ describe('Aleo Warp Tokens Artifact API (e2e)', function () {
 
   const DOMAIN_1 = 42;
   const DOMAIN_2 = 96;
+  const COLLATERAL_TOKEN_DENOM = `${Date.now()}${Math.floor(Math.random() * 1000)}field`;
+  const COLLATERAL_TOKEN_NAME = 'Test Token';
+  const COLLATERAL_TOKEN_SYMBOL = 'TEST';
+  const COLLATERAL_TOKEN_DECIMALS = 6;
 
   before(async () => {
     // Unset ALEO_WARP_SUFFIX to ensure random suffixes for each token
@@ -130,11 +134,10 @@ describe('Aleo Warp Tokens Artifact API (e2e)', function () {
     }
 
     // Register test token for collateral tests
-    const collateralDenom = '1field';
     const registeredToken = await aleoClient.getProgramMappingValue(
       'token_registry.aleo',
       'registered_tokens',
-      collateralDenom,
+      COLLATERAL_TOKEN_DENOM,
     );
 
     if (!registeredToken) {
@@ -144,10 +147,10 @@ describe('Aleo Warp Tokens Artifact API (e2e)', function () {
         priorityFee: 0,
         privateFee: false,
         inputs: [
-          collateralDenom,
-          `${stringToU128('Test Token').toString()}u128`,
-          `${stringToU128('TEST').toString()}u128`,
-          `6u8`,
+          COLLATERAL_TOKEN_DENOM,
+          `${stringToU128(COLLATERAL_TOKEN_NAME).toString()}u128`,
+          `${stringToU128(COLLATERAL_TOKEN_SYMBOL).toString()}u128`,
+          `${COLLATERAL_TOKEN_DECIMALS}u8`,
           `100000000u128`,
           `false`,
           TEST_ALEO_BURN_ADDRESS,
@@ -184,15 +187,15 @@ describe('Aleo Warp Tokens Artifact API (e2e)', function () {
         type: AltVM.TokenType.collateral,
         owner: aleoSigner.getSignerAddress(),
         mailbox: mailboxAddress,
-        token: '1field',
+        token: COLLATERAL_TOKEN_DENOM,
         remoteRouters: {},
         destinationGas: {},
       }),
       expectedFields: {
-        token: '1field',
-        name: 'Test Token',
-        symbol: 'TEST',
-        decimals: 6,
+        token: COLLATERAL_TOKEN_DENOM,
+        name: COLLATERAL_TOKEN_NAME,
+        symbol: COLLATERAL_TOKEN_SYMBOL,
+        decimals: COLLATERAL_TOKEN_DECIMALS,
       },
     },
     {
