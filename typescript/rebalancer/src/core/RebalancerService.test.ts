@@ -47,6 +47,7 @@ function createMockRebalancerConfig(): RebalancerConfig {
         },
       },
     ],
+    intentTTL: 7_200_000,
   } as RebalancerConfig;
 }
 
@@ -476,6 +477,7 @@ describe('RebalancerService', () => {
             },
           },
         ],
+        intentTTL: 7_200_000,
       } as RebalancerConfig;
 
       const config: RebalancerServiceConfig = {
