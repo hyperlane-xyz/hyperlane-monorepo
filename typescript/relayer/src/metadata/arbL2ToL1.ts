@@ -54,21 +54,57 @@ function toBigInt(value: unknown): bigint {
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number') return BigInt(value);
   if (typeof value === 'string') return BigInt(value);
-  if (value && typeof value === 'object' && 'toString' in value) {
-    return BigInt((value as { toString: () => string }).toString());
+  if (value && typeof value === 'object') {
+    const toStringFn = value.toString;
+    if (typeof toStringFn === 'function') {
+      return BigInt(toStringFn.call(value));
+    }
   }
   throw new Error(`Cannot convert value to bigint: ${String(value)}`);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function isHexString(value: string): value is Hex {
+  return value.startsWith('0x');
+}
+
+function toHex(value: unknown, field: string): Hex {
+  assert(
+    typeof value === 'string' && isHexString(value),
+    `Invalid ${field} value: ${String(value)}`,
+  );
+  return value;
+}
+
+type ArbitrumBigNumberish = {
+  toHexString: () => string;
+  toNumber: () => number;
+  toString: () => string;
+};
+
+function toReaderNumeric(value: unknown, field: string): ArbitrumBigNumberish {
+  const numeric = toBigInt(value);
+  return {
+    toHexString: () => `0x${numeric.toString(16)}`,
+    toNumber: () => Number(numeric),
+    toString: () => numeric.toString(),
+  };
 }
 
 type L2ToL1TxArgs = {
   caller: string;
   destination: string;
-  hash: Hex;
-  position: unknown;
-  arbBlockNum: unknown;
-  ethBlockNum: unknown;
-  timestamp: unknown;
-  callvalue: unknown;
+  hash: ArbitrumBigNumberish;
+  position: ArbitrumBigNumberish;
+  arbBlockNum: ArbitrumBigNumberish;
+  ethBlockNum: ArbitrumBigNumberish;
+  timestamp: ArbitrumBigNumberish;
+  callvalue: ArbitrumBigNumberish;
   data: Hex;
 };
 
@@ -84,33 +120,39 @@ function parseL2ToL1TxArgs(args: unknown): L2ToL1TxArgs {
       timestamp,
       callvalue,
       data,
-    ] = args as unknown[];
+    ] = args;
     return {
       caller: String(caller),
       destination: String(destination),
-      hash: String(hash) as Hex,
-      position,
-      arbBlockNum,
-      ethBlockNum,
-      timestamp,
-      callvalue,
-      data: String(data) as Hex,
+      hash: toReaderNumeric(hash, 'hash'),
+      position: toReaderNumeric(position, 'position'),
+      arbBlockNum: toReaderNumeric(arbBlockNum, 'arbBlockNum'),
+      ethBlockNum: toReaderNumeric(ethBlockNum, 'ethBlockNum'),
+      timestamp: toReaderNumeric(timestamp, 'timestamp'),
+      callvalue: toReaderNumeric(callvalue, 'callvalue'),
+      data: toHex(data, 'data'),
     };
   }
 
-  assert(args && typeof args === 'object', 'Invalid L2ToL1Tx event args');
-  const objArgs = args as Record<string, unknown>;
+  const objArgs = asRecord(args);
+  assert(objArgs, 'Invalid L2ToL1Tx event args');
   return {
     caller: String(objArgs.caller),
     destination: String(objArgs.destination),
-    hash: String(objArgs.hash) as Hex,
-    position: objArgs.position,
-    arbBlockNum: objArgs.arbBlockNum,
-    ethBlockNum: objArgs.ethBlockNum,
-    timestamp: objArgs.timestamp,
-    callvalue: objArgs.callvalue,
-    data: String(objArgs.data) as Hex,
+    hash: toReaderNumeric(objArgs.hash, 'hash'),
+    position: toReaderNumeric(objArgs.position, 'position'),
+    arbBlockNum: toReaderNumeric(objArgs.arbBlockNum, 'arbBlockNum'),
+    ethBlockNum: toReaderNumeric(objArgs.ethBlockNum, 'ethBlockNum'),
+    timestamp: toReaderNumeric(objArgs.timestamp, 'timestamp'),
+    callvalue: toReaderNumeric(objArgs.callvalue, 'callvalue'),
+    data: toHex(objArgs.data, 'data'),
   };
+}
+
+function toChildToParentTransactionEvent(
+  args: L2ToL1TxArgs,
+): ChildToParentTransactionEvent {
+  return { ...args } as ChildToParentTransactionEvent;
 }
 
 const ArbSys = ArbSys__factory.createInterface();
@@ -162,9 +204,12 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         bridgeStatus: 'confirmed',
         metadata: ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(arbMetadata),
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Parse the error to determine bridge status
-      const errorMessage = error?.message ?? String(error);
+      const errorMessage =
+        error && typeof error === 'object' && 'message' in error
+          ? String(error.message)
+          : String(error);
 
       if (errorMessage.includes('Wait') && errorMessage.includes('blocks')) {
         // Extract blocks remaining from error message
@@ -199,16 +244,15 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       WithAddress<ArbL2ToL1HookConfig>
     >,
   ): Promise<ArbL2ToL1Metadata> {
-    const matchingL2TxEvent = (
-      findMatchingLogEvents(
-        context.dispatchTx.logs,
-        ArbSys,
-        'L2ToL1Tx',
-      ) as any[]
-    ).find((log: any) => {
-      const calldata = Array.isArray(log.args)
-        ? String(log.args[8] ?? '')
-        : String(log.args?.data ?? '');
+    const matchingL2TxEvent = findMatchingLogEvents(
+      context.dispatchTx.logs,
+      ArbSys,
+      'L2ToL1Tx',
+    ).find((log) => {
+      const logArgs = asRecord(log)?.args;
+      const calldata = Array.isArray(logArgs)
+        ? String(logArgs[8] ?? '')
+        : String(asRecord(logArgs)?.data ?? '');
       const messageIdHex = context.message.id.slice(2);
       return calldata && calldata.includes(messageIdHex);
     });
@@ -217,6 +261,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     this.logger.debug({ matchingL2TxEvent }, 'Found matching L2ToL1Tx event');
 
     if (matchingL2TxEvent) {
+      const eventArgs = asRecord(matchingL2TxEvent)?.args;
       const {
         caller,
         destination,
@@ -227,8 +272,8 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         timestamp,
         callvalue,
         data,
-      } = parseL2ToL1TxArgs(matchingL2TxEvent.args);
-      const l2ToL1TxEvent = {
+      } = parseL2ToL1TxArgs(eventArgs);
+      const l2ToL1TxEvent = toChildToParentTransactionEvent({
         caller,
         destination,
         hash,
@@ -238,11 +283,11 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         timestamp,
         callvalue,
         data,
-      };
+      });
 
       const reader = new ChildToParentMessageReader(
         this.core.multiProvider.getProvider(context.hook.destinationChain),
-        l2ToL1TxEvent as unknown as ChildToParentTransactionEvent,
+        l2ToL1TxEvent,
       );
 
       const originChainMetadata = this.core.multiProvider.getChainMetadata(
@@ -281,14 +326,14 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       );
 
       const metadata: ArbL2ToL1Metadata = {
-        caller: caller as Hex,
-        destination: destination as Hex,
+        caller: toHex(caller, 'caller'),
+        destination: toHex(destination, 'destination'),
         position: toBigInt(position),
         arbBlockNum: toBigInt(arbBlockNum),
         ethBlockNum: toBigInt(ethBlockNum),
         timestamp: toBigInt(timestamp),
         callvalue: toBigInt(callvalue),
-        data: data as Hex,
+        data,
         proof: outboxProof,
       };
 
@@ -330,11 +375,12 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     reader: ChildToParentMessageReader,
     provider: ArbitrumProvider,
   ): Promise<`0x${string}`[]> {
-    const proof = (await reader.getOutboxProof(provider)) ?? [];
+    const proof = await reader.getOutboxProof(provider);
     if (!proof) {
       throw new Error('No outbox proof found');
     }
-    return ('proof' in proof ? proof.proof : proof) as `0x${string}`[];
+    const rawProof = Array.isArray(proof) ? proof : proof.proof;
+    return rawProof.map((value, index) => toHex(value, `proof[${index}]`));
   }
 
   static decode(
@@ -352,33 +398,33 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       data,
     ] = decodeAbiParameters(
       ARB_L2_TO_L1_METADATA_NO_CALLVALUE_TYPES,
-      metadata as Hex,
+      toHex(metadata, 'metadata'),
     );
 
     return {
-      proof,
+      proof: proof.map((item, index) => toHex(item, `proof[${index}]`)),
       position,
-      caller,
-      destination,
+      caller: toHex(caller, 'caller'),
+      destination: toHex(destination, 'destination'),
       arbBlockNum,
       ethBlockNum,
       timestamp,
       callvalue: 0n,
-      data,
-    } as unknown as ArbL2ToL1Metadata;
+      data: toHex(data, 'data'),
+    };
   }
 
   static encodeArbL2ToL1Metadata(metadata: ArbL2ToL1Metadata): string {
     return encodeAbiParameters(ARB_L2_TO_L1_METADATA_TYPES, [
       metadata.proof,
       toBigInt(metadata.position),
-      metadata.caller as `0x${string}`,
-      metadata.destination as `0x${string}`,
+      metadata.caller,
+      metadata.destination,
       toBigInt(metadata.arbBlockNum),
       toBigInt(metadata.ethBlockNum),
       toBigInt(metadata.timestamp),
       toBigInt(metadata.callvalue),
-      metadata.data as `0x${string}`,
+      metadata.data,
     ]);
   }
 }
