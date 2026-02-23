@@ -64,6 +64,7 @@
     "@turnkey/api-key-stamper": "catalog:",
     "@turnkey/sdk-server": "catalog:",
     "@turnkey/solana": "catalog:",
+    "@turnkey/viem": "catalog:",
     "bignumber.js": "catalog:",
     "borsh": "catalog:",
     "compare-versions": "^6.1.1",

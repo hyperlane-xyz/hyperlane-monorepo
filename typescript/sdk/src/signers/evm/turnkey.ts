@@ -1,10 +1,6 @@
-import {
-  Hex,
-  hashMessage,
-  serializeSignature,
-  serializeTransaction,
-  toBytes,
-} from 'viem';
+import { createAccountWithAddress } from '@turnkey/viem';
+import { Hex } from 'viem';
+import { LocalAccount } from 'viem/accounts';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -12,7 +8,6 @@ import {
   TurnkeyClientManager,
   TurnkeyConfig,
   logTurnkeyError,
-  validateTurnkeyActivityCompleted,
 } from '../turnkeyClient.js';
 
 const logger = rootLogger.child({ module: 'sdk:turnkey-evm' });
@@ -26,12 +21,17 @@ type EvmProviderLike = {
   }>;
   getNetwork(): Promise<{ chainId: number }>;
   getTransactionCount(address: string, blockTag?: string): Promise<number>;
+  sendTransaction(signedTransaction: string): Promise<{
+    hash: string;
+    wait(confirmations?: number): Promise<unknown>;
+  }>;
 };
 
 type TurnkeyTransactionRequest = {
   chainId?: number;
   data?: Hex;
   from?: string;
+  gas?: unknown;
   gasLimit?: unknown;
   gasPrice?: unknown;
   maxFeePerGas?: unknown;
@@ -70,6 +70,7 @@ const toBigIntValue = (value: unknown): bigint | undefined =>
  */
 export class TurnkeyEvmSigner {
   private readonly manager: TurnkeyClientManager;
+  private readonly account: LocalAccount;
   public readonly address: string;
   public readonly provider: EvmProviderLike | undefined;
 
@@ -77,6 +78,12 @@ export class TurnkeyEvmSigner {
     this.manager = new TurnkeyClientManager(config);
     this.address = config.publicKey;
     this.provider = provider;
+    this.account = createAccountWithAddress({
+      client: this.manager.getClient(),
+      organizationId: config.organizationId,
+      signWith: config.privateKeyId,
+      ethereumAddress: this.address,
+    });
 
     logger.debug(`Initialized Turnkey EVM signer for key: ${this.address}`);
   }
@@ -127,42 +134,21 @@ export class TurnkeyEvmSigner {
     });
 
     try {
-      // Populate the transaction (fill in nonce, gasPrice, etc.)
       const populatedTx = await this.populateTransaction(transaction);
-
-      // Remove 'from' field for serialization
-      const { from: _, ...txToSerialize } = populatedTx;
-
-      // For EIP-1559 transactions, explicitly set type: 2 and remove gasPrice
-      if (txToSerialize.maxFeePerGas || txToSerialize.maxPriorityFeePerGas) {
-        txToSerialize.type = 2;
-        delete txToSerialize.gasPrice;
-      }
-
-      const unsignedTx = serializeTransaction(txToSerialize as any);
-
-      // Remove 0x prefix for Turnkey API (it expects raw hex)
-      const unsignedTxHex = unsignedTx.startsWith('0x')
-        ? unsignedTx.slice(2)
-        : unsignedTx;
-
-      // Sign using Turnkey's signTransaction API
-      const { activity } = await this.manager.getClient().signTransaction({
-        signWith: this.address,
-        type: 'TRANSACTION_TYPE_ETHEREUM',
-        unsignedTransaction: unsignedTxHex,
-      });
-
-      validateTurnkeyActivityCompleted(activity, 'Transaction signing');
-
-      const signedTx =
-        activity.result?.signTransactionResult?.signedTransaction;
-      if (!signedTx) {
-        throw new Error('No signed transaction returned from Turnkey');
-      }
+      const { from: _from, gasLimit, ...tx } = populatedTx;
+      const isEip1559 = !!(tx.maxFeePerGas || tx.maxPriorityFeePerGas);
+      const signedTx = await this.account.signTransaction({
+        ...tx,
+        to: tx.to as `0x${string}` | undefined,
+        gas: toBigIntValue(tx.gas ?? gasLimit),
+        value: toBigIntValue(tx.value),
+        gasPrice: isEip1559 ? undefined : toBigIntValue(tx.gasPrice),
+        maxFeePerGas: toBigIntValue(tx.maxFeePerGas),
+        maxPriorityFeePerGas: toBigIntValue(tx.maxPriorityFeePerGas),
+        type: isEip1559 ? 'eip1559' : undefined,
+      } as any);
 
       logger.debug('Transaction signed successfully');
-      // Ensure the signed transaction has 0x prefix
       return signedTx.startsWith('0x') ? signedTx : `0x${signedTx}`;
     } catch (error) {
       logTurnkeyError('Failed to sign transaction with Turnkey', error);
@@ -177,47 +163,24 @@ export class TurnkeyEvmSigner {
     logger.debug('Signing message with Turnkey');
 
     try {
-      const messageBytes =
-        typeof message === 'string' ? toBytes(message) : message;
-      const messageHash = hashMessage(messageBytes as any);
-
-      // Sign raw payload using Turnkey
-      const { activity, r, s, v } = await this.manager
-        .getClient()
-        .signRawPayload({
-          signWith: this.address,
-          payload: messageHash.slice(2), // Remove 0x prefix
-          encoding: 'PAYLOAD_ENCODING_HEXADECIMAL',
-          hashFunction: 'HASH_FUNCTION_NO_OP',
-        });
-
-      validateTurnkeyActivityCompleted(activity, 'Message signing');
-
-      // Validate signature components
-      if (!r || !s || !v) {
-        throw new Error('Missing signature components from Turnkey');
-      }
-
-      const hexPattern = /^0x[0-9a-fA-F]+$/;
-      if (!hexPattern.test(r) || !hexPattern.test(s)) {
-        throw new Error('Invalid signature format from Turnkey');
-      }
-
-      const vNum = parseInt(v, 16);
-      if (isNaN(vNum)) {
-        throw new Error(`Invalid v value from Turnkey: ${v}`);
-      }
-
-      // Reconstruct the signature from r, s, v
-      return serializeSignature({
-        r: r as Hex,
-        s: s as Hex,
-        v: BigInt(vNum),
+      const signature = await this.account.signMessage({
+        message: message as any,
       });
+      logger.debug('Message signed successfully');
+      return signature;
     } catch (error) {
       logTurnkeyError('Failed to sign message with Turnkey', error);
       throw error;
     }
+  }
+
+  async sendTransaction(
+    tx: TurnkeyTransactionRequest,
+  ): Promise<{ hash: string; wait(confirmations?: number): Promise<unknown> }> {
+    if (!this.provider)
+      throw new Error('Provider required to send transaction');
+    const signedTransaction = await this.signTransaction(tx);
+    return this.provider.sendTransaction(signedTransaction);
   }
 
   /**
@@ -263,11 +226,13 @@ export class TurnkeyEvmSigner {
       tx.chainId = network.chainId;
     }
 
-    // Estimate gas if not set
-    if (tx.gasLimit == null) {
-      tx.gasLimit = toBigIntValue(await this.provider.estimateGas(tx));
+    if (tx.gas == null && tx.gasLimit == null) {
+      tx.gas = toBigIntValue(await this.provider.estimateGas(tx));
+    } else if (tx.gas == null && tx.gasLimit != null) {
+      tx.gas = toBigIntValue(tx.gasLimit);
     }
 
+    delete tx.gasLimit;
     return tx;
   }
 }
