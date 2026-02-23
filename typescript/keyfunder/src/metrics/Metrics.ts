@@ -39,7 +39,12 @@ export class KeyFunderMetrics {
     this.unifiedWalletBalanceGauge = new Gauge({
       name: 'hyperlane_wallet_balance',
       help: 'Current balance of a wallet for a token',
-      labelNames: ['chain', 'wallet_address', 'wallet_name'],
+      labelNames: [
+        'chain',
+        'wallet_address',
+        'wallet_name',
+        ...Object.keys(baseLabels),
+      ],
       registers: [this.registry],
     });
 
@@ -91,7 +96,12 @@ export class KeyFunderMetrics {
     balance: number,
   ): void {
     this.unifiedWalletBalanceGauge.set(
-      { chain, wallet_address: walletAddress, wallet_name: walletName },
+      {
+        chain,
+        wallet_address: walletAddress,
+        wallet_name: walletName,
+        ...this.baseLabels,
+      },
       balance,
     );
   }

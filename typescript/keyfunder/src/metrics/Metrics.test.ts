@@ -138,5 +138,25 @@ describe('KeyFunderMetrics', () => {
       expect(metricsOutput).to.include('environment="mainnet3"');
       expect(metricsOutput).to.include('region="us-east"');
     });
+
+    it('should include base labels in unified wallet balance metric', async () => {
+      const metrics = new KeyFunderMetrics(
+        { jobName: 'keyfunder-test' },
+        { environment: 'mainnet3', region: 'us-east' },
+      );
+
+      metrics.recordUnifiedWalletBalance(
+        'ethereum',
+        '0x1234567890123456789012345678901234567890',
+        'key-funder',
+        1.0,
+      );
+
+      const metricsOutput = await metrics.getRegistry().metrics();
+      expect(metricsOutput).to.include('hyperlane_wallet_balance');
+      expect(metricsOutput).to.include('wallet_name="key-funder"');
+      expect(metricsOutput).to.include('environment="mainnet3"');
+      expect(metricsOutput).to.include('region="us-east"');
+    });
   });
 });
