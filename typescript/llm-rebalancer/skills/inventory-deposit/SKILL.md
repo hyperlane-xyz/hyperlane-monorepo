@@ -12,12 +12,12 @@ Deposits tokens from the rebalancer's own inventory into a warp route.
 
 ## Steps
 
-1. **Read config** from `./rebalancer-config.json`.
+1. **Get chain metadata** using `get_chain_metadata` tool or read `./rebalancer-config.json`.
 
 2. **Check inventory balance** on the deficit chain:
 
    ```bash
-   cast call <collateralToken> 'balanceOf(address)(uint256)' <rebalancerAddress from config> --rpc-url <rpc>
+   cast call <collateralToken> 'balanceOf(address)(uint256)' <rebalancerAddress> --rpc-url <rpc>
    ```
 
    Abort if insufficient balance.
@@ -37,13 +37,7 @@ Deposits tokens from the rebalancer's own inventory into a warp route.
    The recipient should be the rebalancer address padded to bytes32:
 
    ```bash
-   cast --to-bytes32 <rebalancerAddress from config>
+   cast --to-bytes32 <rebalancerAddress>
    ```
 
-5. **Record in action log** using the manage-action-log skill:
-   - type: 'inventory_deposit'
-   - origin: deficit chain name (where transferRemote was called)
-   - destination: surplus chain name
-   - amount: wei string
-   - tx_hash: transaction hash
-   - status: 'pending'
+5. **Include in save_context summary**: Record the messageId (from Dispatch event), amount, deficit chain (origin), and surplus chain (destination) so the next invocation can verify delivery via `check_hyperlane_delivery`.

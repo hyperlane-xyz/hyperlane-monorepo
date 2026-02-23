@@ -1,5 +1,5 @@
 export { createRebalancerSession, runRebalancerCycle } from './agent.js';
-export type { CreateSessionOptions } from './agent.js';
+export type { CreateSessionOptions, CycleResult } from './agent.js';
 export type {
   AssetConfig,
   ChainConfig,
@@ -7,7 +7,11 @@ export type {
   RebalancerAgentConfig,
   StrategyDescription,
 } from './config.js';
+export { InMemoryContextStore } from './context-store.js';
+export type { ContextStore } from './context-store.js';
+export type { RebalancerAgentEvent } from './events.js';
 export { buildAgentsPrompt } from './prompt-builder.js';
+export { buildCustomTools } from './tools/index.js';
 export {
   cleanupLLMRebalancer,
   LLMRebalancerRunner,

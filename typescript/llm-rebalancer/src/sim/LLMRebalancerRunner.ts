@@ -2,7 +2,7 @@
  * LLMRebalancerRunner — IRebalancerRunner implementation for rebalancer-sim.
  *
  * Creates a temp working directory, copies skills, writes config + AGENTS.md,
- * initializes SQLite, and runs Pi agent cycles on a polling loop.
+ * and runs Pi agent cycles on a polling loop with context persistence.
  *
  * No MockActionTracker needed — the controller auto-tracks rebalances
  * from Dispatch events.
@@ -11,7 +11,6 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { execSync } from 'child_process';
 import { EventEmitter } from 'events';
 import { fileURLToPath } from 'url';
 
@@ -29,8 +28,12 @@ import type {
   StrategyDescription,
 } from '../config.js';
 import type { CreateSessionOptions } from '../agent.js';
+import type { CycleResult } from '../agent.js';
 import { runRebalancerCycle } from '../agent.js';
 import { buildAgentsPrompt } from '../prompt-builder.js';
+import { InMemoryContextStore } from '../context-store.js';
+import type { ContextStore } from '../context-store.js';
+import { buildCustomTools } from '../tools/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const logger = pino({ name: 'LLMRebalancerRunner', level: 'info' });
@@ -61,17 +64,32 @@ export class LLMRebalancerRunner
   private running = false;
   private cycleInProgress = false;
   private pollingTimer?: ReturnType<typeof setTimeout>;
-  private sessionOpts?: CreateSessionOptions;
+  private baseSessionOpts?: Omit<CreateSessionOptions, 'agentsPrompt'>;
+  private agentConfig?: RebalancerAgentConfig;
+  private strategy?: StrategyDescription;
+  private contextStore: ContextStore;
+  private routeId: string;
+  private lastCycleStatus: CycleResult['status'] = 'unknown';
 
   /** Model provider (default: 'anthropic') */
   private provider: string;
   /** Model name (default: 'claude-sonnet-4-5') */
   private model: string;
 
-  constructor(opts?: { provider?: string; model?: string }) {
+  /** Adaptive polling config */
+  private adaptivePolling?: { shortIntervalMs: number; longIntervalMs: number };
+
+  constructor(opts?: {
+    provider?: string;
+    model?: string;
+    adaptivePolling?: { shortIntervalMs: number; longIntervalMs: number };
+  }) {
     super();
     this.provider = opts?.provider ?? 'anthropic';
     this.model = opts?.model ?? 'claude-sonnet-4-5';
+    this.adaptivePolling = opts?.adaptivePolling;
+    this.contextStore = new InMemoryContextStore();
+    this.routeId = 'default';
   }
 
   async initialize(config: RebalancerSimConfig): Promise<void> {
@@ -89,40 +107,39 @@ export class LLMRebalancerRunner
     fs.mkdirSync(skillsDest, { recursive: true });
     this.copyDirSync(skillsSrc, skillsDest);
 
-    // Copy schema
-    const schemaSrc = path.resolve(__dirname, '..', '..', 'schema');
-    const schemaDest = path.join(this.workDir, 'schema');
-    fs.mkdirSync(schemaDest, { recursive: true });
-    this.copyDirSync(schemaSrc, schemaDest);
-
     // Build agent config from deployment
-    const agentConfig = this.buildAgentConfig(config);
+    this.agentConfig = this.buildAgentConfig(config);
+
+    // Write config JSON (sans rebalancerKey for agent reference)
+    const configForFile = {
+      chains: this.agentConfig.chains,
+      rebalancerAddress: this.agentConfig.rebalancerAddress,
+    };
     fs.writeFileSync(
       path.join(this.workDir, 'rebalancer-config.json'),
-      JSON.stringify(agentConfig, null, 2),
+      JSON.stringify(configForFile, null, 2),
     );
 
     // Build strategy from sim config
-    const strategy = this.buildStrategy(config);
+    this.strategy = this.buildStrategy(config);
 
-    // Build AGENTS.md prompt
-    const agentsPrompt = buildAgentsPrompt(agentConfig, strategy);
+    // Build custom tools with agent config closure (includes rebalancerKey)
+    const customTools = buildCustomTools(
+      this.agentConfig,
+      this.contextStore,
+      this.routeId,
+    );
 
-    // Initialize SQLite action log
-    const schemaPath = path.join(this.workDir, 'schema', 'action-log.sql');
-    const dbPath = path.join(this.workDir, 'action-log.db');
-    execSync(`sqlite3 "${dbPath}" < "${schemaPath}"`);
-
-    this.sessionOpts = {
+    this.baseSessionOpts = {
       workDir: this.workDir,
       provider: this.provider,
       model: this.model,
-      agentsPrompt,
+      customTools,
     };
   }
 
   async start(): Promise<void> {
-    if (!this.config || !this.sessionOpts) {
+    if (!this.config || !this.baseSessionOpts) {
       throw new Error('LLMRebalancer not initialized');
     }
     if (this.running) return;
@@ -162,7 +179,7 @@ export class LLMRebalancerRunner
     }
 
     this.workDir = undefined;
-    this.sessionOpts = undefined;
+    this.baseSessionOpts = undefined;
     currentRunner = null;
   }
 
@@ -188,8 +205,46 @@ export class LLMRebalancerRunner
 
   // --- Private ---
 
+  private getPollingInterval(): number {
+    if (!this.adaptivePolling) {
+      return this.config!.pollingFrequency;
+    }
+    if (this.lastCycleStatus === 'balanced') {
+      return this.adaptivePolling.longIntervalMs;
+    }
+    // pending or unknown → short interval
+    return this.adaptivePolling.shortIntervalMs;
+  }
+
+  private async buildSessionOptsForCycle(): Promise<CreateSessionOptions> {
+    // Fetch previous context and inject into prompt
+    const rawContext = await this.contextStore.get(this.routeId);
+    let previousContext: string | null = null;
+    if (rawContext) {
+      try {
+        const parsed = JSON.parse(rawContext);
+        previousContext = parsed.summary ?? rawContext;
+      } catch {
+        previousContext = rawContext;
+      }
+    }
+
+    const agentsPrompt = buildAgentsPrompt(
+      this.agentConfig!,
+      this.strategy!,
+      previousContext,
+    );
+
+    return {
+      ...this.baseSessionOpts!,
+      agentsPrompt,
+    };
+  }
+
   private scheduleNextCycle(): void {
     if (!this.running || !this.config) return;
+
+    const interval = this.getPollingInterval();
 
     this.pollingTimer = setTimeout(async () => {
       if (!this.running || this.cycleInProgress) {
@@ -200,13 +255,17 @@ export class LLMRebalancerRunner
       this.cycleInProgress = true;
 
       try {
-        await runRebalancerCycle(this.sessionOpts!);
+        const sessionOpts = await this.buildSessionOptsForCycle();
+        const result = await runRebalancerCycle(sessionOpts);
+        this.lastCycleStatus = result.status;
+
         this.emit('rebalance', {
           type: 'cycle_completed',
           timestamp: Date.now(),
         } satisfies RebalancerEvent);
       } catch (error) {
         logger.error({ error }, 'Rebalancer cycle failed');
+        this.lastCycleStatus = 'unknown';
         this.emit('rebalance', {
           type: 'rebalance_failed',
           timestamp: Date.now(),
@@ -216,7 +275,7 @@ export class LLMRebalancerRunner
         this.cycleInProgress = false;
         this.scheduleNextCycle();
       }
-    }, this.config.pollingFrequency);
+    }, interval);
   }
 
   private buildAgentConfig(config: RebalancerSimConfig): RebalancerAgentConfig {

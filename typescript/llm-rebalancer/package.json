@@ -14,8 +14,7 @@
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "files": [
     "dist",
-    "skills",
-    "schema"
+    "skills"
   ],
   "type": "module",
   "main": "./dist/index.js",
@@ -30,6 +29,8 @@
   "dependencies": {
     "@mariozechner/pi-ai": "^0.54.2",
     "@mariozechner/pi-coding-agent": "^0.54.2",
+    "@sinclair/typebox": "^0.34.41",
+    "ethers": "catalog:",
     "pino": "catalog:"
   },
   "devDependencies": {

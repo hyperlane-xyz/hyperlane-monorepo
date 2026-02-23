@@ -5,6 +5,8 @@
  * the shape of that config and the options for session creation.
  */
 
+import type { ContextStore } from './context-store.js';
+
 /** Per-asset deployment info within a chain */
 export interface AssetConfig {
   symbol: string;
@@ -26,7 +28,10 @@ export interface ChainConfig {
   assets?: Record<string, AssetConfig>;
 }
 
-/** Full config written to rebalancer-config.json for the agent */
+/**
+ * Full config written to rebalancer-config.json for the agent.
+ * Note: rebalancerKey is NOT included — it stays in tool closures only.
+ */
 export interface RebalancerAgentConfig {
   chains: Record<string, ChainConfig>;
   rebalancerAddress: string;
@@ -64,4 +69,15 @@ export interface LLMRebalancerOptions {
   agentConfig: RebalancerAgentConfig;
   /** Polling interval in ms between rebalancer cycles */
   pollingIntervalMs: number;
+  /** Context store for persisting LLM summaries between cycles */
+  contextStore?: ContextStore;
+  /** Route identifier for context store keying */
+  routeId?: string;
+  /** Adaptive polling intervals based on cycle outcome */
+  adaptivePolling?: {
+    /** Interval when pending actions exist (default: 30s) */
+    shortIntervalMs: number;
+    /** Interval when balanced (default: 300s) */
+    longIntervalMs: number;
+  };
 }

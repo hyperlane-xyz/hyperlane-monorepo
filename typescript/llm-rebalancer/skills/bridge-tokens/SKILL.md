@@ -9,9 +9,17 @@ allowed-tools: bash read write
 Moves the rebalancer's own tokens between chains using an external bridge.
 Use this when you need inventory on a chain where you don't have enough.
 
+## Bridge Selection Strategy
+
+| Bridge                  | When to Use                   | Delivery                        |
+| ----------------------- | ----------------------------- | ------------------------------- |
+| MockValueTransferBridge | Simulation only               | `check_hyperlane_delivery` tool |
+| LiFi                    | Production, cross-chain       | Poll LiFi status API            |
+| CEX                     | Large amounts, cost-sensitive | Manual verification             |
+
 ## Simulation Mode (MockValueTransferBridge)
 
-In simulation, bridges are mock contracts. Read `./rebalancer-config.json` for bridge addresses.
+In simulation, bridges are mock contracts. Use `get_chain_metadata` tool for addresses.
 
 1. **Approve the bridge to spend collateral**:
 
@@ -27,9 +35,7 @@ In simulation, bridges are mock contracts. Read `./rebalancer-config.json` for b
 
    Recipient is the rebalancer address padded to bytes32.
 
-3. **Record in action log** via manage-action-log skill:
-   - type: 'bridge_transfer'
-   - status: 'pending'
+3. **Include in save_context summary**: Record messageId (from Dispatch event), amount, source/dest so next invocation can verify via `check_hyperlane_delivery`.
 
 ## Production Mode (LiFi API)
 
@@ -41,4 +47,4 @@ In simulation, bridges are mock contracts. Read `./rebalancer-config.json` for b
 
 2. **Execute the returned transaction** via `cast send`.
 
-3. **Record in action log**.
+3. **Include in save_context summary**: Record the LiFi transaction hash and bridge type for delivery verification.

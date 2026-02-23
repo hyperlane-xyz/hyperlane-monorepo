@@ -14,7 +14,9 @@ import type {
   LLMRebalancerOptions,
   RebalancerAgentConfig,
 } from '../src/config.js';
+import { InMemoryContextStore } from '../src/context-store.js';
 import { buildAgentsPrompt } from '../src/prompt-builder.js';
+import { buildCustomTools } from '../src/tools/index.js';
 
 interface ConfigFile {
   chains: RebalancerAgentConfig['chains'];
@@ -35,46 +37,75 @@ async function main() {
   const raw = fs.readFileSync(path.resolve(configPath), 'utf-8');
   const config: ConfigFile = JSON.parse(raw);
 
+  const rebalancerKey = process.env.REBALANCER_KEY;
+  if (!rebalancerKey) {
+    console.error('REBALANCER_KEY env var required');
+    process.exit(1);
+  }
+
   const agentConfig: RebalancerAgentConfig = {
     chains: config.chains,
     rebalancerAddress: config.rebalancerAddress,
+    rebalancerKey,
   };
 
-  const agentsPrompt = buildAgentsPrompt(agentConfig, config.strategy);
+  const contextStore = new InMemoryContextStore();
+  const routeId = 'default';
 
   // Set up working directory
   const workDir = process.cwd();
 
-  // Write config for the agent to read
+  // Write config (sans key) for the agent to read
+  const configForFile = {
+    chains: agentConfig.chains,
+    rebalancerAddress: agentConfig.rebalancerAddress,
+  };
   fs.writeFileSync(
     path.join(workDir, 'rebalancer-config.json'),
-    JSON.stringify(agentConfig, null, 2),
+    JSON.stringify(configForFile, null, 2),
   );
 
+  const customTools = buildCustomTools(agentConfig, contextStore, routeId);
   const pollingIntervalMs = config.pollingIntervalMs ?? 30_000;
 
   console.log(
     `LLM Rebalancer starting (polling every ${pollingIntervalMs / 1000}s)`,
   );
 
-  const sessionOpts = {
-    workDir,
-    provider: config.provider,
-    model: config.model,
-    agentsPrompt,
-    env: {
-      REBALANCER_KEY: process.env.REBALANCER_KEY!,
-      REBALANCER_ADDRESS: config.rebalancerAddress,
-    },
-  };
+  async function cycle() {
+    const previousContext = await contextStore.get(routeId);
+    let parsedContext: string | null = null;
+    if (previousContext) {
+      try {
+        const parsed = JSON.parse(previousContext);
+        parsedContext = parsed.summary ?? previousContext;
+      } catch {
+        parsedContext = previousContext;
+      }
+    }
+
+    const agentsPrompt = buildAgentsPrompt(
+      agentConfig,
+      config.strategy,
+      parsedContext,
+    );
+
+    await runRebalancerCycle({
+      workDir,
+      provider: config.provider,
+      model: config.model,
+      agentsPrompt,
+      customTools,
+    });
+  }
 
   // Run first cycle immediately
-  await runRebalancerCycle(sessionOpts);
+  await cycle();
 
   // Then poll
   setInterval(async () => {
     try {
-      await runRebalancerCycle(sessionOpts);
+      await cycle();
     } catch (error) {
       console.error('Cycle failed:', error);
     }
