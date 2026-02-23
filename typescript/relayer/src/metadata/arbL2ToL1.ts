@@ -55,9 +55,8 @@ function toBigInt(value: unknown): bigint {
   if (typeof value === 'number') return BigInt(value);
   if (typeof value === 'string') return BigInt(value);
   if (value && typeof value === 'object') {
-    const toStringFn = value.toString;
-    if (typeof toStringFn === 'function') {
-      return BigInt(toStringFn.call(value));
+    if (typeof value.toString === 'function') {
+      return BigInt(value.toString());
     }
   }
   throw new Error(`Cannot convert value to bigint: ${String(value)}`);
@@ -87,7 +86,7 @@ type ArbitrumBigNumberish = {
   toString: () => string;
 };
 
-function toReaderNumeric(value: unknown, field: string): ArbitrumBigNumberish {
+function toReaderNumeric(value: unknown): ArbitrumBigNumberish {
   const numeric = toBigInt(value);
   return {
     toHexString: () => `0x${numeric.toString(16)}`,
@@ -124,12 +123,12 @@ function parseL2ToL1TxArgs(args: unknown): L2ToL1TxArgs {
     return {
       caller: String(caller),
       destination: String(destination),
-      hash: toReaderNumeric(hash, 'hash'),
-      position: toReaderNumeric(position, 'position'),
-      arbBlockNum: toReaderNumeric(arbBlockNum, 'arbBlockNum'),
-      ethBlockNum: toReaderNumeric(ethBlockNum, 'ethBlockNum'),
-      timestamp: toReaderNumeric(timestamp, 'timestamp'),
-      callvalue: toReaderNumeric(callvalue, 'callvalue'),
+      hash: toReaderNumeric(hash),
+      position: toReaderNumeric(position),
+      arbBlockNum: toReaderNumeric(arbBlockNum),
+      ethBlockNum: toReaderNumeric(ethBlockNum),
+      timestamp: toReaderNumeric(timestamp),
+      callvalue: toReaderNumeric(callvalue),
       data: toHex(data, 'data'),
     };
   }
@@ -139,12 +138,12 @@ function parseL2ToL1TxArgs(args: unknown): L2ToL1TxArgs {
   return {
     caller: String(objArgs.caller),
     destination: String(objArgs.destination),
-    hash: toReaderNumeric(objArgs.hash, 'hash'),
-    position: toReaderNumeric(objArgs.position, 'position'),
-    arbBlockNum: toReaderNumeric(objArgs.arbBlockNum, 'arbBlockNum'),
-    ethBlockNum: toReaderNumeric(objArgs.ethBlockNum, 'ethBlockNum'),
-    timestamp: toReaderNumeric(objArgs.timestamp, 'timestamp'),
-    callvalue: toReaderNumeric(objArgs.callvalue, 'callvalue'),
+    hash: toReaderNumeric(objArgs.hash),
+    position: toReaderNumeric(objArgs.position),
+    arbBlockNum: toReaderNumeric(objArgs.arbBlockNum),
+    ethBlockNum: toReaderNumeric(objArgs.ethBlockNum),
+    timestamp: toReaderNumeric(objArgs.timestamp),
+    callvalue: toReaderNumeric(objArgs.callvalue),
     data: toHex(objArgs.data, 'data'),
   };
 }
