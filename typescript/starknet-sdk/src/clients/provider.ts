@@ -271,7 +271,9 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   async estimateTransactionFee(
     _req: AltVM.ReqEstimateTransactionFee<StarknetAnnotatedTx>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
-    return { gasUnits: 0n, gasPrice: 0, fee: 0n };
+    throw new Error(
+      'Starknet transaction fee estimation is unsupported without an account-backed signer',
+    );
   }
 
   // ### QUERY CORE ###
@@ -392,28 +394,12 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
     try {
-      const hook = this.withContract(
-        StarknetContractName.PROTOCOL_FEE,
-        req.hookAddress,
-      );
+      const hook = this.withContract(StarknetContractName.HOOK, req.hookAddress);
       const hookType = await callContract(hook, 'hook_type');
       return this.parseHookVariant(extractEnumVariant(hookType));
     } catch {
-      // noop
+      return AltVM.HookType.CUSTOM;
     }
-
-    try {
-      const hook = this.withContract(
-        StarknetContractName.MERKLE_TREE_HOOK,
-        req.hookAddress,
-      );
-      const hookType = await callContract(hook, 'hook_type');
-      return this.parseHookVariant(extractEnumVariant(hookType));
-    } catch {
-      // noop
-    }
-
-    return AltVM.HookType.CUSTOM;
   }
 
   async getInterchainGasPaymasterHook(
