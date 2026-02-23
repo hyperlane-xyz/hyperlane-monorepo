@@ -227,7 +227,7 @@ export class ActionTracker implements IActionTracker {
         await this.rebalanceIntentStore.update(intent.id, {
           status: 'failed',
         });
-        this.logger.warn(
+        this.logger.debug(
           {
             id: intent.id,
             origin: intent.origin,
@@ -236,8 +236,9 @@ export class ActionTracker implements IActionTracker {
             ageMs: now - intent.createdAt,
             ttlMs: this.config.intentTTL,
           },
-          'RebalanceIntent expired due to TTL',
+          'RebalanceIntent TTL expiry details',
         );
+        this.logger.warn(`RebalanceIntent ${intent.id} expired due to TTL`);
       }
     }
 
