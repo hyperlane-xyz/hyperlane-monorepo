@@ -32,6 +32,9 @@ export {
   ProductionRebalancerRunner,
 } from './runners/ProductionRebalancerRunner.js';
 export { cleanupSimpleRunner, SimpleRunner } from './runners/SimpleRunner.js';
+// LLMRebalancerRunner is NOT exported here to avoid eagerly loading Pi SDK
+// (which has Node version-specific side effects). Import directly from
+// './runners/LLMRebalancerRunner.js' when needed.
 export { SimulationRegistry } from './runners/SimulationRegistry.js';
 
 // Visualization

@@ -7,12 +7,8 @@ export type {
   RebalancerAgentConfig,
   StrategyDescription,
 } from './config.js';
-export { InMemoryContextStore } from './context-store.js';
+export { InMemoryContextStore, SqliteContextStore } from './context-store.js';
 export type { ContextStore } from './context-store.js';
 export type { RebalancerAgentEvent } from './events.js';
 export { buildAgentsPrompt } from './prompt-builder.js';
 export { buildCustomTools } from './tools/index.js';
-export {
-  cleanupLLMRebalancer,
-  LLMRebalancerRunner,
-} from './sim/LLMRebalancerRunner.js';

@@ -30,12 +30,13 @@
     "@mariozechner/pi-ai": "^0.54.2",
     "@mariozechner/pi-coding-agent": "^0.54.2",
     "@sinclair/typebox": "^0.34.41",
+    "better-sqlite3": "catalog:",
     "ethers": "catalog:",
     "pino": "catalog:"
   },
   "devDependencies": {
-    "@hyperlane-xyz/rebalancer-sim": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   },

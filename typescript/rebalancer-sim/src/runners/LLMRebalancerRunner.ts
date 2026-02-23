@@ -1,8 +1,8 @@
 /**
- * LLMRebalancerRunner — IRebalancerRunner implementation for rebalancer-sim.
+ * LLMRebalancerRunner — IRebalancerRunner implementation using an LLM agent.
  *
  * Creates a temp working directory, copies skills, writes config + AGENTS.md,
- * and runs Pi agent cycles on a polling loop with context persistence.
+ * and runs Pi agent cycles in a while loop with context persistence.
  *
  * No MockActionTracker needed — the controller auto-tracks rebalances
  * from Dispatch events.
@@ -12,30 +12,31 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { EventEmitter } from 'events';
-import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
 import { pino } from 'pino';
+
+import {
+  InMemoryContextStore,
+  buildAgentsPrompt,
+  buildCustomTools,
+  runRebalancerCycle,
+} from '@hyperlane-xyz/llm-rebalancer';
+import type {
+  ChainConfig,
+  ContextStore,
+  CreateSessionOptions,
+  CycleResult,
+  RebalancerAgentConfig,
+  StrategyDescription,
+} from '@hyperlane-xyz/llm-rebalancer';
 
 import type {
   IRebalancerRunner,
   RebalancerEvent,
   RebalancerSimConfig,
-} from '@hyperlane-xyz/rebalancer-sim';
+} from '../types.js';
 
-import type {
-  ChainConfig,
-  RebalancerAgentConfig,
-  StrategyDescription,
-} from '../config.js';
-import type { CreateSessionOptions } from '../agent.js';
-import type { CycleResult } from '../agent.js';
-import { runRebalancerCycle } from '../agent.js';
-import { buildAgentsPrompt } from '../prompt-builder.js';
-import { InMemoryContextStore } from '../context-store.js';
-import type { ContextStore } from '../context-store.js';
-import { buildCustomTools } from '../tools/index.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const logger = pino({ name: 'LLMRebalancerRunner', level: 'info' });
 
 // Track current instance for cleanup
@@ -63,7 +64,8 @@ export class LLMRebalancerRunner
   private workDir?: string;
   private running = false;
   private cycleInProgress = false;
-  private pollingTimer?: ReturnType<typeof setTimeout>;
+  private loopPromise?: Promise<void>;
+  private abortController?: AbortController;
   private baseSessionOpts?: Omit<CreateSessionOptions, 'agentsPrompt'>;
   private agentConfig?: RebalancerAgentConfig;
   private strategy?: StrategyDescription;
@@ -102,7 +104,7 @@ export class LLMRebalancerRunner
     logger.info({ workDir: this.workDir }, 'Created temp work dir');
 
     // Copy skills into .pi/skills/
-    const skillsSrc = path.resolve(__dirname, '..', '..', 'skills');
+    const skillsSrc = this.findSkillsDir();
     const skillsDest = path.join(this.workDir, '.pi', 'skills');
     fs.mkdirSync(skillsDest, { recursive: true });
     this.copyDirSync(skillsSrc, skillsDest);
@@ -145,27 +147,24 @@ export class LLMRebalancerRunner
     if (this.running) return;
 
     this.running = true;
+    this.abortController = new AbortController();
     currentRunner = this;
     logger.info('Starting LLM rebalancer daemon');
 
-    this.scheduleNextCycle();
+    this.loopPromise = this.runLoop();
   }
 
   async stop(): Promise<void> {
     this.running = false;
 
-    if (this.pollingTimer) {
-      clearTimeout(this.pollingTimer);
-      this.pollingTimer = undefined;
-    }
+    // Interrupt any pending sleep
+    this.abortController?.abort();
+    this.abortController = undefined;
 
-    // Wait for in-progress cycle
-    if (this.cycleInProgress) {
-      const maxWait = 120_000;
-      const start = Date.now();
-      while (this.cycleInProgress && Date.now() - start < maxWait) {
-        await new Promise((r) => setTimeout(r, 500));
-      }
+    // Wait for the loop to finish
+    if (this.loopPromise) {
+      await this.loopPromise;
+      this.loopPromise = undefined;
     }
 
     // Cleanup temp dir
@@ -216,6 +215,44 @@ export class LLMRebalancerRunner
     return this.adaptivePolling.shortIntervalMs;
   }
 
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(resolve, ms);
+      this.abortController?.signal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        { once: true },
+      );
+    });
+  }
+
+  private async runLoop(): Promise<void> {
+    while (this.running) {
+      await this.sleep(this.getPollingInterval());
+      if (!this.running) break;
+
+      this.cycleInProgress = true;
+      try {
+        const sessionOpts = await this.buildSessionOptsForCycle();
+        const result = await runRebalancerCycle(sessionOpts);
+        this.lastCycleStatus = result.status;
+      } catch (error) {
+        logger.error({ error }, 'Rebalancer cycle failed');
+        this.lastCycleStatus = 'unknown';
+        this.emit('rebalance', {
+          type: 'rebalance_failed',
+          timestamp: Date.now(),
+          error: error instanceof Error ? error.message : String(error),
+        } satisfies RebalancerEvent);
+      } finally {
+        this.cycleInProgress = false;
+      }
+    }
+  }
+
   private async buildSessionOptsForCycle(): Promise<CreateSessionOptions> {
     // Fetch previous context and inject into prompt
     const rawContext = await this.contextStore.get(this.routeId);
@@ -241,41 +278,25 @@ export class LLMRebalancerRunner
     };
   }
 
-  private scheduleNextCycle(): void {
-    if (!this.running || !this.config) return;
-
-    const interval = this.getPollingInterval();
-
-    this.pollingTimer = setTimeout(async () => {
-      if (!this.running || this.cycleInProgress) {
-        this.scheduleNextCycle();
-        return;
-      }
-
-      this.cycleInProgress = true;
-
-      try {
-        const sessionOpts = await this.buildSessionOptsForCycle();
-        const result = await runRebalancerCycle(sessionOpts);
-        this.lastCycleStatus = result.status;
-
-        this.emit('rebalance', {
-          type: 'cycle_completed',
-          timestamp: Date.now(),
-        } satisfies RebalancerEvent);
-      } catch (error) {
-        logger.error({ error }, 'Rebalancer cycle failed');
-        this.lastCycleStatus = 'unknown';
-        this.emit('rebalance', {
-          type: 'rebalance_failed',
-          timestamp: Date.now(),
-          error: error instanceof Error ? error.message : String(error),
-        } satisfies RebalancerEvent);
-      } finally {
-        this.cycleInProgress = false;
-        this.scheduleNextCycle();
-      }
-    }, interval);
+  private findSkillsDir(): string {
+    // Find skills directory from llm-rebalancer package
+    try {
+      const require = createRequire(import.meta.url);
+      const llmPkg =
+        require.resolve('@hyperlane-xyz/llm-rebalancer/package.json');
+      return path.join(path.dirname(llmPkg), 'skills');
+    } catch {
+      // Fallback: relative path from monorepo layout
+      const thisDir = path.dirname(new URL(import.meta.url).pathname);
+      return path.resolve(
+        thisDir,
+        '..',
+        '..',
+        '..',
+        'llm-rebalancer',
+        'skills',
+      );
+    }
   }
 
   private buildAgentConfig(config: RebalancerSimConfig): RebalancerAgentConfig {

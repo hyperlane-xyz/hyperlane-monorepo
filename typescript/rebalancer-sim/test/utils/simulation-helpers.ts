@@ -72,7 +72,7 @@ export async function createRebalancer(
       return new NoOpRebalancer();
     case 'llm': {
       const { LLMRebalancerRunner } =
-        await import('@hyperlane-xyz/llm-rebalancer');
+        await import('../../src/runners/LLMRebalancerRunner.js');
       return new LLMRebalancerRunner();
     }
   }
@@ -83,10 +83,10 @@ export async function cleanupRebalancers(): Promise<void> {
   await cleanupProductionRebalancer();
   try {
     const { cleanupLLMRebalancer } =
-      await import('@hyperlane-xyz/llm-rebalancer');
+      await import('../../src/runners/LLMRebalancerRunner.js');
     await cleanupLLMRebalancer();
   } catch {
-    // llm-rebalancer not installed, ignore
+    // Pi SDK not loadable, ignore
   }
 }
 

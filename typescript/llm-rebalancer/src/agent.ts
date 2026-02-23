@@ -19,7 +19,6 @@ import type {
   ToolDefinition,
 } from '@mariozechner/pi-coding-agent';
 import { pino } from 'pino';
-import { assert } from 'console';
 
 import type { RebalancerAgentEvent } from './events.js';
 
@@ -46,7 +45,9 @@ export async function createRebalancerSession(
   const provider = opts.provider ?? 'anthropic';
   const modelId = opts.model ?? 'claude-sonnet-4-5';
   const model = modelRegistry.find(provider, modelId);
-  assert(model, `Model not found: ${provider}/${modelId}`);
+  if (!model) {
+    throw new Error(`Model not found: ${provider}/${modelId}`);
+  }
 
   const resourceLoader = new DefaultResourceLoader({
     agentsFilesOverride: (current) => ({

@@ -59,6 +59,9 @@
       "@typechain/ethers-v5": "11.1.2",
       "xmlhttprequest-ssl": "4.0.0"
     },
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ],
     "patchedDependencies": {
       "typechain@8.3.2": "patches/typechain@8.3.2.patch",
       "node-fetch@2.7.0": "patches/node-fetch@2.7.0.patch",
