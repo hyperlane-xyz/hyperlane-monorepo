@@ -7,6 +7,7 @@ import {
   createWalletClient,
   http,
   isHex,
+  isAddress,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
@@ -17,10 +18,16 @@ import { EvmTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
 
+import { toBigIntValue } from './types.js';
+
 export class ViemMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.Ethereum> {
   private readonly account: ReturnType<typeof privateKeyToAccount>;
-  private readonly walletClient: WalletClient;
-  private readonly publicClient: PublicClient;
+  private readonly walletClient: WalletClient<
+    ReturnType<typeof http>,
+    Chain,
+    ReturnType<typeof privateKeyToAccount>
+  >;
+  private readonly publicClient: PublicClient<ReturnType<typeof http>, Chain>;
 
   constructor(
     chainName: ChainName,
@@ -68,33 +75,54 @@ export class ViemMultiProtocolSignerAdapter implements IMultiProtocolSigner<Prot
   }
 
   async sendAndConfirmTransaction(tx: EvmTransaction): Promise<string> {
-    const request = tx.transaction as Record<string, unknown>;
-    const hash = await (this.walletClient as any).sendTransaction({
+    const request = tx.transaction;
+    const to = toAddress(request.to);
+    const data = toHex(request.data);
+    const sharedRequest = {
       account: this.account,
-      to: request.to as `0x${string}` | undefined,
-      data: request.data as Hex | undefined,
-      value: toBigInt(request.value),
+      to,
+      data,
+      value: toBigIntValue(request.value),
       nonce: toNumber(request.nonce),
-      gas: toBigInt(request.gas ?? request.gasLimit),
-      gasPrice: toBigInt(request.gasPrice),
-      maxFeePerGas: toBigInt(request.maxFeePerGas),
-      maxPriorityFeePerGas: toBigInt(request.maxPriorityFeePerGas),
-    });
+      gas: toBigIntValue(request.gas ?? request.gasLimit),
+    };
+    const maxFeePerGas = toBigIntValue(request.maxFeePerGas);
+    const maxPriorityFeePerGas = toBigIntValue(request.maxPriorityFeePerGas);
+    const gasPrice = toBigIntValue(request.gasPrice);
+    const hash =
+      maxFeePerGas !== undefined || maxPriorityFeePerGas !== undefined
+        ? await this.walletClient.sendTransaction({
+            ...sharedRequest,
+            type: 'eip1559',
+            maxFeePerGas,
+            maxPriorityFeePerGas,
+          })
+        : await this.walletClient.sendTransaction({
+            ...sharedRequest,
+            gasPrice,
+          });
 
     await this.publicClient.waitForTransactionReceipt({ hash });
     return hash;
   }
 }
 
-function toBigInt(value: unknown): bigint | undefined {
+function toAddress(value: unknown): `0x${string}` | undefined {
   if (value === undefined || value === null) return undefined;
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  if (typeof value === 'object' && 'toString' in value) {
-    return BigInt(value.toString());
+  if (typeof value !== 'string') {
+    throw new Error(`Invalid EVM address: ${String(value)}`);
   }
-  return undefined;
+  assert(isAddress(value), `Invalid EVM address: ${value}`);
+  return value;
+}
+
+function toHex(value: unknown): Hex | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') {
+    throw new Error(`Invalid hex value: ${String(value)}`);
+  }
+  assert(isHex(value), `Invalid hex value: ${value}`);
+  return value;
 }
 
 function toNumber(value: unknown): number | undefined {

@@ -10,6 +10,7 @@ import { ChainName, LocalAccountViemSigner } from '@hyperlane-xyz/sdk';
 import {
   HexString,
   ProtocolType,
+  assert,
   ensure0x,
   rootLogger,
   strip0x,
@@ -53,6 +54,44 @@ interface FetchedKey {
 }
 
 type RemoteKey = UnfetchedKey | FetchedKey;
+
+function getStringField(value: unknown, field: string): string {
+  assert(
+    typeof value === 'object' && value !== null,
+    'Expected secret payload to be an object',
+  );
+  const fieldValue = Reflect.get(value, field);
+  assert(
+    typeof fieldValue === 'string',
+    `Expected secret field "${field}" to be a string`,
+  );
+  return fieldValue;
+}
+
+function parseSecretManagerPersistedKeys(
+  value: unknown,
+): SecretManagerPersistedKeys {
+  const privateKey = getStringField(value, 'privateKey');
+  const address = getStringField(value, 'address');
+  const role = getStringField(value, 'role');
+  const environment = getStringField(value, 'environment');
+  const chainNameValue =
+    typeof value === 'object' && value !== null
+      ? Reflect.get(value, 'chainName')
+      : undefined;
+  assert(
+    chainNameValue === undefined || typeof chainNameValue === 'string',
+    'Expected secret field "chainName" to be a string when provided',
+  );
+
+  return {
+    privateKey,
+    address,
+    role,
+    environment,
+    chainName: chainNameValue,
+  };
+}
 
 export class AgentGCPKey extends CloudAgentKey {
   protected logger: Logger;
@@ -220,9 +259,9 @@ export class AgentGCPKey extends CloudAgentKey {
 
   async fetch() {
     this.logger.debug('Fetching key');
-    const secret: SecretManagerPersistedKeys = (await fetchGCPSecret(
-      this.identifier,
-    )) as any;
+    const secret = parseSecretManagerPersistedKeys(
+      await fetchGCPSecret(this.identifier),
+    );
 
     // For Starknet chains, we just read the key but never create or update
     if (this.chainName && isStarknetChain(this.chainName)) {
@@ -293,9 +332,9 @@ export class AgentGCPKey extends CloudAgentKey {
       await this.fetch();
     }
 
-    return new LocalAccountViemSigner(
-      ensure0x(this.privateKey) as `0x${string}`,
-    ).connect(provider as any);
+    return new LocalAccountViemSigner(ensure0x(this.privateKey)).connect(
+      provider,
+    );
   }
 
   private requireFetched() {

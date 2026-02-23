@@ -28,6 +28,6 @@ export class MultiProtocolSignerFactory {
 class EvmSignerStrategy extends BaseMultiProtocolSigner {
   async getSigner(config: SignerConfig): Promise<TypedSigner> {
     const { privateKey } = await this.getPrivateKey(config);
-    return new LocalAccountViemSigner(privateKey as `0x${string}`);
+    return new LocalAccountViemSigner(privateKey);
   }
 }

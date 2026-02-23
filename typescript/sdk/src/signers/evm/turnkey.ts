@@ -10,16 +10,19 @@ import {
   logTurnkeyError,
 } from '../turnkeyClient.js';
 
-import { ViemProviderLike, ViemTransactionRequestLike } from './types.js';
+import {
+  ViemProviderLike,
+  ViemTransactionRequestLike,
+  toBigIntValue,
+  toSerializableViemTransaction,
+  toSignableMessage,
+} from './types.js';
 
 const logger = rootLogger.child({ module: 'sdk:turnkey-evm' });
 
 export type TurnkeyViemTransactionRequest = ViemTransactionRequestLike & {
   data?: Hex;
 };
-
-const toBigIntValue = (value: unknown): bigint | undefined =>
-  value === null || value === undefined ? undefined : BigInt(value.toString());
 
 /**
  * Turnkey signer for EVM transactions
@@ -111,18 +114,9 @@ export class TurnkeyViemSigner {
 
     try {
       const populatedTx = await this.populateTransaction(transaction);
-      const { from: _from, gasLimit, ...tx } = populatedTx;
-      const isEip1559 = !!(tx.maxFeePerGas || tx.maxPriorityFeePerGas);
-      const signedTx = await this.account.signTransaction({
-        ...tx,
-        to: tx.to as `0x${string}` | undefined,
-        gas: toBigIntValue(tx.gas ?? gasLimit),
-        value: toBigIntValue(tx.value),
-        gasPrice: isEip1559 ? undefined : toBigIntValue(tx.gasPrice),
-        maxFeePerGas: toBigIntValue(tx.maxFeePerGas),
-        maxPriorityFeePerGas: toBigIntValue(tx.maxPriorityFeePerGas),
-        type: isEip1559 ? 'eip1559' : undefined,
-      } as any);
+      const signedTx = await this.account.signTransaction(
+        toSerializableViemTransaction(populatedTx),
+      );
 
       logger.debug('Transaction signed successfully');
       return signedTx.startsWith('0x') ? signedTx : `0x${signedTx}`;
@@ -140,7 +134,7 @@ export class TurnkeyViemSigner {
 
     try {
       const signature = await this.account.signMessage({
-        message: message as any,
+        message: toSignableMessage(message),
       });
       logger.debug('Message signed successfully');
       return signature;
