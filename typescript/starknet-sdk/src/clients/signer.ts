@@ -1,13 +1,15 @@
 import {
   Account,
+  Call,
   CallData,
   ContractFactory,
   GetTransactionReceiptResponse,
+  RpcProvider,
 } from 'starknet';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
-import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   ContractType,
   getCompiledContract,
@@ -17,7 +19,6 @@ import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
 import {
   StarknetAnnotatedTx,
-  StarknetDeployTx,
   StarknetInvokeTx,
   StarknetTxReceipt,
 } from '../types.js';
@@ -28,14 +29,26 @@ export class StarknetSigner
   extends StarknetProvider
   implements AltVM.ISigner<StarknetAnnotatedTx, StarknetTxReceipt>
 {
+  private static readStringField(
+    value: unknown,
+    key: string,
+  ): string | undefined {
+    if (!value || typeof value !== 'object') return undefined;
+    const candidate = Reflect.get(value, key);
+    return typeof candidate === 'string' ? candidate : undefined;
+  }
+
   static async connectWithSigner(
     rpcUrls: string[],
     privateKey: string,
-    extraParams?: Record<string, any>,
+    extraParams?: {
+      metadata?: ChainMetadataForAltVM;
+      accountAddress?: string;
+    },
   ): Promise<AltVM.ISigner<StarknetAnnotatedTx, TxReceipt>> {
     assert(extraParams?.metadata, 'metadata missing for Starknet signer');
-    const metadata = extraParams.metadata as ChainMetadataForAltVM;
-    const accountAddress = extraParams.accountAddress as string | undefined;
+    const metadata = extraParams.metadata;
+    const accountAddress = extraParams.accountAddress;
     assert(accountAddress, 'accountAddress missing for Starknet signer');
     assert(privateKey, 'private key missing for Starknet signer');
 
@@ -44,7 +57,7 @@ export class StarknetSigner
     });
 
     return new StarknetSigner(
-      (provider as any).provider,
+      provider.getRawProvider(),
       metadata,
       rpcUrls,
       normalizeStarknetAddressSafe(accountAddress),
@@ -55,7 +68,7 @@ export class StarknetSigner
   private readonly account: Account;
 
   protected constructor(
-    provider: any,
+    provider: RpcProvider,
     metadata: ChainMetadataForAltVM,
     rpcUrls: string[],
     private readonly signerAddress: string,
@@ -83,9 +96,31 @@ export class StarknetSigner
     return transaction;
   }
 
+  private isDeployTx(transaction: AnnotatedTx): transaction is {
+    kind: 'deploy';
+    contractName: string;
+    constructorArgs: unknown[];
+    contractType?: ContractType;
+  } {
+    return (
+      transaction.kind === 'deploy' &&
+      typeof transaction.contractName === 'string' &&
+      Array.isArray(transaction.constructorArgs)
+    );
+  }
+
+  private isInvokeTx(transaction: AnnotatedTx): transaction is StarknetInvokeTx {
+    return (
+      transaction.kind === 'invoke' &&
+      typeof transaction.contractAddress === 'string' &&
+      typeof transaction.entrypoint === 'string' &&
+      Array.isArray(transaction.calldata)
+    );
+  }
+
   private async deployContract(params: {
     contractName: string;
-    constructorArgs: any[];
+    constructorArgs: unknown[];
     contractType?: ContractType;
   }): Promise<{
     transactionHash: string;
@@ -101,17 +136,22 @@ export class StarknetSigner
     const factory = new ContractFactory({
       compiledContract,
       account: this.account,
-    } as any);
+    });
 
     const deployment = await factory.deploy(constructorCalldata);
 
     const transactionHash =
-      (deployment as any).deployTransactionHash ||
-      (deployment as any).transaction_hash;
+      deployment.deployTransactionHash ||
+      StarknetSigner.readStringField(deployment, 'transaction_hash');
     assert(transactionHash, 'missing Starknet deploy transaction hash');
 
+    const rawAddress =
+      deployment.address ||
+      StarknetSigner.readStringField(deployment, 'contract_address');
+    assert(rawAddress, 'missing Starknet deploy contract address');
+
     const address = normalizeStarknetAddressSafe(
-      (deployment as any).address || (deployment as any).contract_address,
+      rawAddress,
     );
     const receipt = await this.account.waitForTransaction(transactionHash);
 
@@ -123,14 +163,13 @@ export class StarknetSigner
   }
 
   async sendAndConfirmTransaction(
-    transaction: StarknetAnnotatedTx,
+    transaction: AnnotatedTx,
   ): Promise<StarknetTxReceipt> {
-    if ((transaction as StarknetDeployTx).kind === 'deploy') {
-      const deployTx = transaction as StarknetDeployTx;
+    if (this.isDeployTx(transaction)) {
       const deployed = await this.deployContract({
-        contractName: deployTx.contractName,
-        constructorArgs: deployTx.constructorArgs,
-        contractType: deployTx.contractType,
+        contractName: transaction.contractName,
+        constructorArgs: transaction.constructorArgs,
+        contractType: transaction.contractType,
       });
 
       return {
@@ -140,17 +179,17 @@ export class StarknetSigner
       };
     }
 
-    const invokeTx = transaction as StarknetInvokeTx;
-    const calls = invokeTx.calls ?? [
+    assert(this.isInvokeTx(transaction), 'Invalid Starknet invoke transaction');
+    const calls: Call[] = transaction.calls ?? [
       {
-        contractAddress: invokeTx.contractAddress,
-        entrypoint: invokeTx.entrypoint,
-        calldata: invokeTx.calldata,
+        contractAddress: transaction.contractAddress,
+        entrypoint: transaction.entrypoint,
+        calldata: transaction.calldata,
       },
     ];
 
-    const response = await this.account.execute(calls as any);
-    const transactionHash = (response as any).transaction_hash as string;
+    const response = await this.account.execute(calls);
+    const transactionHash = response.transaction_hash;
     const receipt = await this.account.waitForTransaction(transactionHash);
 
     return { transactionHash, receipt };
@@ -166,21 +205,22 @@ export class StarknetSigner
       );
     }
 
-    const calls = transactions.flatMap((tx) => {
-      const invoke = tx as StarknetInvokeTx;
-      return (
-        invoke.calls || [
-          {
-            contractAddress: invoke.contractAddress,
-            entrypoint: invoke.entrypoint,
-            calldata: invoke.calldata,
-          },
-        ]
-      );
-    });
+    const invokeTransactions = transactions.filter(
+      (tx): tx is StarknetInvokeTx => tx.kind === 'invoke',
+    );
 
-    const response = await this.account.execute(calls as any);
-    const transactionHash = (response as any).transaction_hash as string;
+    const calls: Call[] = invokeTransactions.flatMap((invoke) =>
+      invoke.calls ?? [
+        {
+          contractAddress: invoke.contractAddress,
+          entrypoint: invoke.entrypoint,
+          calldata: invoke.calldata,
+        },
+      ],
+    );
+
+    const response = await this.account.execute(calls);
+    const transactionHash = response.transaction_hash;
     const receipt = await this.account.waitForTransaction(transactionHash);
     return { transactionHash, receipt };
   }

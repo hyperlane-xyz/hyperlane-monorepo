@@ -20,7 +20,6 @@ import { ZERO_ADDRESS_HEX_32, eqAddressStarknet, assert } from '@hyperlane-xyz/u
 import { StarknetProvider } from '../clients/provider.js';
 import { StarknetSigner } from '../clients/signer.js';
 import { normalizeStarknetAddressSafe } from '../contracts.js';
-import { StarknetAnnotatedTx } from '../types.js';
 
 class StarknetMailboxReader
   implements
@@ -109,9 +108,7 @@ class StarknetMailboxWriter
       defaultIsmAddress,
       proxyAdminAddress: undefined,
     });
-    const createReceipt = await this.signer.sendAndConfirmTransaction(
-      createTx as StarknetAnnotatedTx,
-    );
+    const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
     receipts.push(createReceipt);
 
     assert(createReceipt.contractAddress, 'failed to deploy Starknet mailbox');
@@ -123,7 +120,7 @@ class StarknetMailboxWriter
         mailboxAddress,
         hookAddress: defaultHookAddress,
       });
-      receipts.push(await this.signer.sendAndConfirmTransaction(tx as StarknetAnnotatedTx));
+      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
     }
 
     if (!eqAddressStarknet(requiredHookAddress, ZERO_ADDRESS_HEX_32)) {
@@ -132,7 +129,7 @@ class StarknetMailboxWriter
         mailboxAddress,
         hookAddress: requiredHookAddress,
       });
-      receipts.push(await this.signer.sendAndConfirmTransaction(tx as StarknetAnnotatedTx));
+      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
     }
 
     if (!eqAddressStarknet(artifact.config.owner, this.signer.getSignerAddress())) {
@@ -141,7 +138,7 @@ class StarknetMailboxWriter
         mailboxAddress,
         newOwner: artifact.config.owner,
       });
-      receipts.push(await this.signer.sendAndConfirmTransaction(tx as StarknetAnnotatedTx));
+      receipts.push(await this.signer.sendAndConfirmTransaction(tx));
     }
 
     const deployed = await this.read(mailboxAddress);
@@ -225,8 +222,15 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     );
   }
 
+  private requireStarknetSigner(
+    signer: ISigner<AnnotatedTx, TxReceipt>,
+  ): StarknetSigner {
+    assert(signer instanceof StarknetSigner, 'Expected StarknetSigner');
+    return signer;
+  }
+
   readMailbox(address: string): Promise<DeployedRawMailboxArtifact> {
-    return this.createReader('mailbox').read(address) as Promise<DeployedRawMailboxArtifact>;
+    return this.createReader('mailbox').read(address);
   }
 
   createReader<T extends MailboxType>(
@@ -235,10 +239,15 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     if (type !== 'mailbox') {
       throw new Error(`Unsupported Starknet mailbox type: ${type}`);
     }
-    return new StarknetMailboxReader(this.provider) as ArtifactReader<
-      RawMailboxArtifactConfigs[T],
-      DeployedMailboxAddress
-    >;
+    const readers: {
+      [K in MailboxType]: ArtifactReader<
+        RawMailboxArtifactConfigs[K],
+        DeployedMailboxAddress
+      >;
+    } = {
+      mailbox: new StarknetMailboxReader(this.provider),
+    };
+    return readers[type];
   }
 
   createWriter<T extends MailboxType>(
@@ -248,11 +257,19 @@ export class StarknetMailboxArtifactManager implements IRawMailboxArtifactManage
     if (type !== 'mailbox') {
       throw new Error(`Unsupported Starknet mailbox type: ${type}`);
     }
-
-    return new StarknetMailboxWriter(
-      this.provider,
-      signer as StarknetSigner,
-      this.chainMetadata,
-    ) as ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress>;
+    const starknetSigner = this.requireStarknetSigner(signer);
+    const writers: {
+      [K in MailboxType]: ArtifactWriter<
+        RawMailboxArtifactConfigs[K],
+        DeployedMailboxAddress
+      >;
+    } = {
+      mailbox: new StarknetMailboxWriter(
+        this.provider,
+        starknetSigner,
+        this.chainMetadata,
+      ),
+    };
+    return writers[type];
   }
 }

@@ -1,9 +1,20 @@
 import { expect } from 'chai';
+import { Contract, RpcProvider } from 'starknet';
 
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 
 import { StarknetContractName } from '../contracts.js';
+import { StarknetAnnotatedTx } from '../types.js';
 import { StarknetProvider } from './provider.js';
+
+const TEST_METADATA: ChainMetadataForAltVM = {
+  name: 'starknetsepolia',
+  protocol: ProtocolType.Starknet,
+  chainId: 'SN_SEPOLIA',
+  domainId: 421614,
+  rpcUrls: [{ http: 'http://localhost:9545' }],
+};
 
 class StarknetProviderTestHarness extends StarknetProvider {
   hookTypeValue: unknown = { MERKLE_TREE: {} };
@@ -12,14 +23,8 @@ class StarknetProviderTestHarness extends StarknetProvider {
 
   constructor() {
     super(
-      {} as any,
-      {
-        name: 'starknetsepolia',
-        protocol: ProtocolType.Starknet,
-        chainId: 'SN_SEPOLIA',
-        domainId: 421614,
-        rpcUrls: [{ http: 'http://localhost:9545' }],
-      } as any,
+      new RpcProvider({ nodeUrl: 'http://localhost:9545' }),
+      TEST_METADATA,
       ['http://localhost:9545'],
     );
   }
@@ -31,21 +36,23 @@ class StarknetProviderTestHarness extends StarknetProvider {
   protected override withContract(
     name: StarknetContractName,
     address: string,
-  ): any {
+  ): Contract {
     this.contractSelections.push(name);
+    const contract: Contract = Object.create(Contract.prototype);
+    Object.assign(contract, { address });
     if (this.hookTypeThrows) {
-      return {
-        address,
+      Object.assign(contract, {
         hook_type: async () => {
           throw new Error('hook_type failed');
         },
-      };
+      });
+      return contract;
     }
 
-    return {
-      address,
+    Object.assign(contract, {
       hook_type: async () => this.hookTypeValue,
-    };
+    });
+    return contract;
   }
 }
 
@@ -57,22 +64,22 @@ class StarknetBridgedSupplyTestHarness extends StarknetProvider {
 
   constructor() {
     super(
-      {} as any,
-      {
-        name: 'starknetsepolia',
-        protocol: ProtocolType.Starknet,
-        chainId: 'SN_SEPOLIA',
-        domainId: 421614,
-        rpcUrls: [{ http: 'http://localhost:9545' }],
-      } as any,
+      new RpcProvider({ nodeUrl: 'http://localhost:9545' }),
+      TEST_METADATA,
       ['http://localhost:9545'],
     );
   }
 
-  protected override withContract(): any {
-    return {
+  protected override withContract(
+    _name: StarknetContractName,
+    address: string,
+  ): Contract {
+    const contract: Contract = Object.create(Contract.prototype);
+    Object.assign(contract, { address });
+    Object.assign(contract, {
       total_supply: async () => this.syntheticSupply,
-    };
+    });
+    return contract;
   }
 
   override async getToken(
@@ -123,13 +130,14 @@ describe('StarknetProvider estimateTransactionFee', () => {
     const provider = new StarknetProviderTestHarness();
     let caughtError: unknown;
     try {
+      const transaction: StarknetAnnotatedTx = {
+        kind: 'invoke',
+        contractAddress: '0x1',
+        entrypoint: 'noop',
+        calldata: [],
+      };
       await provider.estimateTransactionFee({
-        transaction: {
-          kind: 'invoke',
-          contractAddress: '0x1',
-          entrypoint: 'noop',
-          calldata: [],
-        } as any,
+        transaction,
       });
     } catch (error) {
       caughtError = error;

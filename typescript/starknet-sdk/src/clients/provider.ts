@@ -3,6 +3,7 @@ import {
   CairoOption,
   CairoOptionVariant,
   Contract,
+  RawArgsArray,
   RpcProvider,
   shortString,
 } from 'starknet';
@@ -37,10 +38,10 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   static connect(
     rpcUrls: string[],
     _chainId: string | number,
-    extraParams?: Record<string, any>,
+    extraParams?: { metadata?: ChainMetadataForAltVM },
   ): StarknetProvider {
     assert(extraParams?.metadata, 'metadata missing for Starknet provider');
-    const metadata = extraParams.metadata as ChainMetadataForAltVM;
+    const metadata = extraParams.metadata;
     assert(rpcUrls.length > 0, 'at least one rpc url is required');
     const provider = new RpcProvider({ nodeUrl: rpcUrls[0] });
     return new StarknetProvider(provider, metadata, rpcUrls);
@@ -95,7 +96,7 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
     }
 
     if (value && typeof value === 'object') {
-      if ('value' in value) return this.parseString((value as any).value);
+      if ('value' in value) return this.parseString(value.value);
 
       if ('toString' in value && typeof value.toString === 'function') {
         const parsed = value.toString();
@@ -109,23 +110,27 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
   protected async populateInvokeCall(
     contract: Contract,
     method: string,
-    args: unknown[] = [],
-  ): Promise<{ contractAddress: string; entrypoint: string; calldata: any[] }> {
-    const populated = (contract as any).populateTransaction?.[method];
-    if (typeof populated === 'function') {
-      const tx = await populated(...args);
-      return {
-        contractAddress: normalizeStarknetAddressSafe(tx.contractAddress),
-        entrypoint: tx.entrypoint,
-        calldata: tx.calldata ?? [],
-      };
-    }
+    args: RawArgsArray = [],
+  ): Promise<{
+    contractAddress: string;
+    entrypoint: string;
+    calldata: RawArgsArray;
+  }> {
+    const tx = await populateInvokeTx(contract, method, args);
+    assert(tx.kind === 'invoke', 'Expected invoke Starknet transaction');
 
     return {
-      contractAddress: normalizeStarknetAddressSafe(contract.address),
-      entrypoint: method,
-      calldata: args as any[],
+      contractAddress: normalizeStarknetAddressSafe(tx.contractAddress),
+      entrypoint: tx.entrypoint,
+      calldata: tx.calldata,
     };
+  }
+
+  protected unwrapBalance(value: unknown): unknown {
+    if (value && typeof value === 'object' && 'balance' in value) {
+      return value.balance;
+    }
+    return value;
   }
 
   protected async determineTokenType(
@@ -252,7 +257,7 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       ]);
     }
 
-    return toBigInt((balance as any)?.balance ?? balance);
+    return toBigInt(this.unwrapBalance(balance));
   }
 
   async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
@@ -335,10 +340,12 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       callContract(ism, 'get_threshold'),
     ]);
 
+    assert(Array.isArray(validators), 'Expected Starknet validators array');
+
     return {
       address: normalizeStarknetAddressSafe(req.ismAddress),
       threshold: toNumber(threshold),
-      validators: (validators as unknown[]).map((v) => addressToEvmAddress(v)),
+      validators: validators.map((v) => addressToEvmAddress(v)),
     };
   }
 
@@ -354,10 +361,12 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       callContract(ism, 'get_threshold'),
     ]);
 
+    assert(Array.isArray(validators), 'Expected Starknet validators array');
+
     return {
       address: normalizeStarknetAddressSafe(req.ismAddress),
       threshold: toNumber(threshold),
-      validators: (validators as unknown[]).map((v) => addressToEvmAddress(v)),
+      validators: validators.map((v) => addressToEvmAddress(v)),
     };
   }
 
@@ -371,8 +380,10 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       callContract(ism, 'domains'),
     ]);
 
+    assert(Array.isArray(domains), 'Expected Starknet routing domains array');
+
     const routes = await Promise.all(
-      (domains as unknown[]).map(async (domainId) => {
+      domains.map(async (domainId) => {
         const routeAddress = await callContract(ism, 'module', [domainId]);
         return {
           domainId: toNumber(domainId),
@@ -516,7 +527,8 @@ export class StarknetProvider implements AltVM.IProvider<StarknetAnnotatedTx> {
       ContractType.TOKEN,
     );
 
-    const domains = (await callContract(token, 'domains')) as unknown[];
+    const domains = await callContract(token, 'domains');
+    assert(Array.isArray(domains), 'Expected Starknet token domains array');
 
     const remoteRouters = await Promise.all(
       domains.map(async (domainId) => {

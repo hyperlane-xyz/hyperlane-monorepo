@@ -35,8 +35,13 @@ async function waitForRpcReady(rpcUrl: string): Promise<void> {
         throw new Error(`rpc not ready: ${response.status}`);
       }
 
-      const payload = (await response.json()) as Record<string, unknown>;
-      if (payload.error) {
+      const payload = await response.json();
+      if (
+        payload &&
+        typeof payload === 'object' &&
+        'error' in payload &&
+        payload.error
+      ) {
         throw new Error(`rpc returned error: ${JSON.stringify(payload.error)}`);
       }
       await sleep(1000);

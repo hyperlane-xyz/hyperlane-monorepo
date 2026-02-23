@@ -280,6 +280,13 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
       : '';
   }
 
+  private requireStarknetSigner(
+    signer: ISigner<AnnotatedTx, TxReceipt>,
+  ): StarknetSigner {
+    assert(signer instanceof StarknetSigner, 'Expected StarknetSigner');
+    return signer;
+  }
+
   async readHook(address: string): Promise<DeployedHookArtifact> {
     const hookType = await this.provider.getHookType({ hookAddress: address });
     if (hookType === AltVM.HookType.MERKLE_TREE) {
@@ -297,73 +304,54 @@ export class StarknetHookArtifactManager implements IRawHookArtifactManager {
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
     const readers: {
-      [K in HookType]: () => ArtifactReader<
+      [K in HookType]: ArtifactReader<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
     } = {
-      merkleTreeHook: () => new StarknetMerkleTreeHookReader(),
-      interchainGasPaymaster: () =>
-        createUnsupportedHookReader(
-          AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-          'Starknet',
-        ),
-      protocolFee: () =>
-        new StarknetProtocolFeeHookReader(this.chainMetadata, this.provider),
+      merkleTreeHook: new StarknetMerkleTreeHookReader(),
+      interchainGasPaymaster: createUnsupportedHookReader(
+        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+        'Starknet',
+      ),
+      protocolFee: new StarknetProtocolFeeHookReader(
+        this.chainMetadata,
+        this.provider,
+      ),
     };
-
-    const readerFactory = readers[type];
-    if (!readerFactory) {
-      throw new Error(`Unsupported Starknet hook type: ${type}`);
-    }
-    return readerFactory() as ArtifactReader<
-      RawHookArtifactConfigs[T],
-      DeployedHookAddress
-    >;
+    return readers[type];
   }
 
   createWriter<T extends HookType>(
     type: T,
     signer: ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const starknetSigner = signer as StarknetSigner;
+    const starknetSigner = this.requireStarknetSigner(signer);
+    assert(
+      this.mailboxAddress || type !== AltVM.HookType.MERKLE_TREE,
+      'mailbox address required for Starknet merkle tree hook deployment',
+    );
 
     const writers: {
-      [K in HookType]: () => ArtifactWriter<
+      [K in HookType]: ArtifactWriter<
         RawHookArtifactConfigs[K],
         DeployedHookAddress
       >;
     } = {
-      merkleTreeHook: () => {
-        assert(
-          this.mailboxAddress,
-          'mailbox address required for Starknet merkle tree hook deployment',
-        );
-        return new StarknetMerkleTreeHookWriter(
-          starknetSigner,
-          this.mailboxAddress,
-        );
-      },
-      interchainGasPaymaster: () =>
-        createUnsupportedHookWriter(
-          AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-          'Starknet',
-        ),
-      protocolFee: () =>
-        new StarknetProtocolFeeHookWriter(
-          this.chainMetadata,
-          this.provider,
-          starknetSigner,
-        ),
+      merkleTreeHook: new StarknetMerkleTreeHookWriter(
+        starknetSigner,
+        this.mailboxAddress,
+      ),
+      interchainGasPaymaster: createUnsupportedHookWriter(
+        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+        'Starknet',
+      ),
+      protocolFee: new StarknetProtocolFeeHookWriter(
+        this.chainMetadata,
+        this.provider,
+        starknetSigner,
+      ),
     };
-
-    const writerFactory = writers[type];
-    if (!writerFactory) {
-      throw new Error(`Unsupported Starknet hook type: ${type}`);
-    }
-    return writerFactory() as ArtifactWriter<
-      RawHookArtifactConfigs[T],
-      DeployedHookAddress
-    >;
+    return writers[type];
   }
 }

@@ -3,6 +3,8 @@ import {
   CairoCustomEnum,
   Contract,
   ProviderInterface,
+  RawArgsArray,
+  Uint256,
   addAddressPadding,
   num,
   uint256,
@@ -22,6 +24,36 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { StarknetAnnotatedTx } from './types.js';
+
+type ObjectRecord = Record<string, unknown>;
+
+function isObjectRecord(value: unknown): value is ObjectRecord {
+  return !!value && typeof value === 'object';
+}
+
+function isUint256Like(value: unknown): value is Uint256 {
+  if (!isObjectRecord(value)) return false;
+  const low = value.low;
+  const high = value.high;
+  const isNumberish = (v: unknown) =>
+    typeof v === 'string' || typeof v === 'number' || typeof v === 'bigint';
+  return isNumberish(low) && isNumberish(high);
+}
+
+function isPopulatedInvokeTx(
+  value: unknown,
+): value is {
+  contractAddress: unknown;
+  entrypoint: string;
+  calldata?: RawArgsArray;
+} {
+  if (!isObjectRecord(value)) return false;
+  return (
+    'contractAddress' in value &&
+    typeof value.entrypoint === 'string' &&
+    (!('calldata' in value) || Array.isArray(value.calldata))
+  );
+}
 
 export enum StarknetContractName {
   MAILBOX = 'mailbox',
@@ -73,15 +105,15 @@ export function normalizeStarknetAddressSafe(value: unknown): string {
     return addAddressPadding(ensure0x(BigInt(value).toString(16)));
   }
 
-  if (value && typeof value === 'object') {
-    if ('low' in value || 'high' in value) {
+  if (isObjectRecord(value)) {
+    if (isUint256Like(value)) {
       return addAddressPadding(
-        ensure0x(uint256.uint256ToBN(value as any).toString(16)),
+        ensure0x(uint256.uint256ToBN(value).toString(16)),
       );
     }
 
     if ('value' in value) {
-      return normalizeStarknetAddressSafe((value as any).value);
+      return normalizeStarknetAddressSafe(value.value);
     }
 
     if ('toString' in value && typeof value.toString === 'function') {
@@ -100,11 +132,11 @@ export async function callContract(
   contract: Contract,
   method: string,
   args: unknown[] = [],
-): Promise<any> {
-  const fn = (contract as any)[method];
+): Promise<unknown> {
+  const fn = Reflect.get(contract, method);
   if (typeof fn === 'function') return fn(...args);
 
-  const call = (contract as any).call;
+  const call = Reflect.get(contract, 'call');
   if (typeof call === 'function') return call(method, args);
 
   throw new Error(`Unable to call ${method} on contract ${contract.address}`);
@@ -113,38 +145,54 @@ export async function callContract(
 export async function populateInvokeTx(
   contract: Contract,
   method: string,
-  args: unknown[] = [],
+  args: RawArgsArray = [],
 ): Promise<StarknetAnnotatedTx> {
-  const populated = (contract as any).populateTransaction?.[method];
+  const populateTransaction = Reflect.get(contract, 'populateTransaction');
+  const populated =
+    isObjectRecord(populateTransaction) &&
+    typeof populateTransaction[method] === 'function'
+      ? populateTransaction[method]
+      : undefined;
   if (typeof populated === 'function') {
     const tx = await populated(...args);
-    return { kind: 'invoke', ...tx };
+    if (isPopulatedInvokeTx(tx)) {
+      return {
+        kind: 'invoke',
+        contractAddress: normalizeStarknetAddressSafe(tx.contractAddress),
+        entrypoint: tx.entrypoint,
+        calldata: tx.calldata ?? [],
+      };
+    }
   }
 
   return {
     kind: 'invoke',
     contractAddress: normalizeStarknetAddressSafe(contract.address),
     entrypoint: method,
-    calldata: args as any[],
+    calldata: args,
   };
 }
 
 export function extractEnumVariant(value: unknown): string {
   if (!value) return '';
 
+  if (value instanceof CairoCustomEnum) {
+    return value.activeVariant();
+  }
+
   if (
-    typeof value === 'object' &&
+    isObjectRecord(value) &&
     'activeVariant' in value &&
-    typeof (value as CairoCustomEnum).activeVariant === 'function'
+    typeof value.activeVariant === 'function'
   ) {
-    return (value as CairoCustomEnum).activeVariant();
+    return value.activeVariant();
   }
 
   if (typeof value === 'string') return value;
   if (typeof value === 'number') return value.toString();
 
-  if (typeof value === 'object') {
-    for (const [key, nested] of Object.entries(value as Record<string, any>)) {
+  if (isObjectRecord(value)) {
+    for (const [key, nested] of Object.entries(value)) {
       if (nested !== undefined && nested !== null && nested !== false) {
         return key;
       }
@@ -171,9 +219,9 @@ export function toBigInt(value: unknown): bigint {
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number') return BigInt(value);
   if (typeof value === 'string') return BigInt(value);
-  if (value && typeof value === 'object') {
-    if ('low' in value || 'high' in value) {
-      return uint256.uint256ToBN(value as any);
+  if (isObjectRecord(value)) {
+    if (isUint256Like(value)) {
+      return uint256.uint256ToBN(value);
     }
     if ('toString' in value && typeof value.toString === 'function') {
       return BigInt(value.toString());
@@ -197,8 +245,8 @@ export function getFeeTokenAddress(params: {
 }
 
 export function normalizeRoutersAddress(value: unknown): string {
-  if (value && typeof value === 'object' && ('low' in value || 'high' in value)) {
-    return normalizeStarknetAddressSafe(num.toHex(uint256.uint256ToBN(value as any)));
+  if (isUint256Like(value)) {
+    return normalizeStarknetAddressSafe(num.toHex(uint256.uint256ToBN(value)));
   }
   return normalizeStarknetAddressSafe(value);
 }

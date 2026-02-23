@@ -25,8 +25,10 @@ export async function createSigner(
 ): Promise<StarknetSigner> {
   const rpcUrls = metadata.rpcUrls?.map(({ http }) => http) ?? [];
   assert(rpcUrls.length > 0, 'Expected Starknet rpc urls to be defined');
-  return (await StarknetSigner.connectWithSigner(rpcUrls, privateKey, {
+  const signer = await StarknetSigner.connectWithSigner(rpcUrls, privateKey, {
     metadata,
     accountAddress,
-  })) as StarknetSigner;
+  });
+  assert(signer instanceof StarknetSigner, 'Expected StarknetSigner');
+  return signer;
 }

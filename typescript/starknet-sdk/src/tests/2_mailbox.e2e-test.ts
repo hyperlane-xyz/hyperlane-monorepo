@@ -117,7 +117,7 @@ describe('2. starknet sdk mailbox e2e tests', function () {
 
     expect(txs.length).to.be.greaterThan(0);
     for (const tx of txs) {
-      await signer.sendAndConfirmTransaction(tx as any);
+      await signer.sendAndConfirmTransaction(tx);
     }
 
     const updated = await artifactManager.readMailbox(created.deployed.address);
