@@ -8,6 +8,7 @@ import {
   SUFFIX_LENGTH_LONG,
   SUFFIX_LENGTH_SHORT,
   fromAleoAddress,
+  getProgramIdFromSuffix,
   getProgramSuffix,
   loadProgramsInDeployOrder,
   programIdToPlaintext,
@@ -76,6 +77,39 @@ export class AleoSigner
     }
   }
 
+  private isProgramAlreadyExistsError(
+    err: unknown,
+    programId: string,
+  ): boolean {
+    return (
+      err instanceof Error &&
+      err.message.includes('already exists on the network') &&
+      err.message.includes(programId)
+    );
+  }
+
+  private async getUnusedSuffix(
+    programName: AleoProgram,
+    length: number,
+    maxAttempts = 20,
+  ): Promise<string> {
+    for (let i = 0; i < maxAttempts; i++) {
+      const suffix = this.generateSuffix(length);
+      const programId = getProgramIdFromSuffix(
+        this.prefix,
+        programName,
+        suffix,
+      );
+      if (!(await this.isProgramDeployed(programId))) {
+        return suffix;
+      }
+    }
+
+    throw new Error(
+      `Could not find an unused suffix for ${programName} after ${maxAttempts} attempts`,
+    );
+  }
+
   public async deployProgram(
     programName: AleoProgram,
     coreSuffix: string,
@@ -89,6 +123,10 @@ export class AleoSigner
     );
 
     for (const { id, program } of programs) {
+      if (await this.isProgramDeployed(id)) {
+        continue;
+      }
+
       try {
         const tx = this.skipProofs
           ? await this.programManager.buildDevnodeDeploymentTransaction({
@@ -110,11 +148,7 @@ export class AleoSigner
 
         await this.aleoClient.waitForTransactionConfirmation(txId);
       } catch (err) {
-        if (
-          err instanceof Error &&
-          err.message ===
-            `Error validating program: Program ${id} already exists on the network, please rename your program`
-        ) {
+        if (this.isProgramAlreadyExistsError(err, id)) {
           continue;
         }
 
@@ -188,7 +222,10 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
+    const mailboxSuffix = await this.getUnusedSuffix(
+      'mailbox',
+      SUFFIX_LENGTH_LONG,
+    );
     const programs = await this.deployProgram('dispatch_proxy', mailboxSuffix);
 
     const tx = await this.getCreateMailboxTransaction({
