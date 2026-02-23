@@ -74,7 +74,60 @@ import { buildBlockTagOverrides } from './utils.js';
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
 const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 
-type PopulatedTransaction = any;
+type PopulatedTransaction = Record<string, unknown>;
+
+type ContractFactory<TContract> = {
+  connect(address: Address, provider: unknown): TContract;
+};
+
+type Erc20LikeContract = {
+  balanceOf(
+    address: Address,
+    overrides?: Record<string, unknown>,
+  ): Promise<unknown>;
+  decimals(): Promise<number>;
+  symbol(): Promise<string>;
+  name(): Promise<string>;
+  allowance(owner: Address, spender: Address): Promise<unknown>;
+  totalSupply(overrides?: Record<string, unknown>): Promise<unknown>;
+  populateTransaction: {
+    approve(recipient: Address, amount: string): Promise<PopulatedTransaction>;
+    transfer(recipient: Address, amount: string): Promise<PopulatedTransaction>;
+  } & Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+type BalanceProvider = {
+  getBalance(
+    address: Address,
+    blockTag?: number | EthJsonRpcBlockParameterTag,
+  ): Promise<unknown>;
+};
+
+type BigIntLike = {
+  toBigInt(): bigint;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function isBalanceProvider(provider: unknown): provider is BalanceProvider {
+  const record = asRecord(provider);
+  return !!record && typeof record.getBalance === 'function';
+}
+
+function isBigIntLike(value: unknown): value is BigIntLike {
+  const record = asRecord(value);
+  return !!record && typeof record.toBigInt === 'function';
+}
+
+function toBalanceProvider(provider: unknown): BalanceProvider {
+  assert(isBalanceProvider(provider), 'Invalid provider');
+  return provider;
+}
 
 function toRawQuoteAmount(rawQuote: unknown): bigint {
   if (Array.isArray(rawQuote)) {
@@ -84,7 +137,8 @@ function toRawQuoteAmount(rawQuote: unknown): bigint {
   }
 
   if (rawQuote && typeof rawQuote === 'object') {
-    const quote = rawQuote as { amount?: unknown; 1?: unknown };
+    const quote = asRecord(rawQuote);
+    if (!quote) throw new Error('Invalid quote format');
     const amount = quote.amount ?? quote[1];
     if (isNullish(amount)) throw new Error('Quote amount is undefined');
     return BigInt(String(amount));
@@ -100,7 +154,8 @@ function toRawQuoteToken(rawQuote: unknown): string | undefined {
   }
 
   if (rawQuote && typeof rawQuote === 'object') {
-    const quote = rawQuote as { token?: unknown; 0?: unknown };
+    const quote = asRecord(rawQuote);
+    if (!quote) return undefined;
     const token = quote.token ?? quote[0];
     return typeof token === 'string' ? token : undefined;
   }
@@ -113,18 +168,8 @@ function toBigIntNumber(value: unknown): bigint {
   if (typeof value === 'number') return BigInt(value);
   if (typeof value === 'string') return BigInt(value);
   if (value && typeof value === 'object') {
-    if (
-      'toBigInt' in value &&
-      typeof (value as { toBigInt?: unknown }).toBigInt === 'function'
-    ) {
-      return (value as { toBigInt: () => bigint }).toBigInt();
-    }
-    if (
-      'toString' in value &&
-      typeof (value as { toString?: unknown }).toString === 'function'
-    ) {
-      return BigInt((value as { toString: () => string }).toString());
-    }
+    if (isBigIntLike(value)) return value.toBigInt();
+    return BigInt(String(value));
   }
   throw new Error(`Unsupported numeric value: ${String(value)}`);
 }
@@ -135,8 +180,9 @@ export class EvmNativeTokenAdapter
   implements ITokenAdapter<PopulatedTransaction>
 {
   async getBalance(address: Address): Promise<bigint> {
-    const balance = await (this.getProvider() as any).getBalance(address);
-    return BigInt(balance.toString());
+    const provider = toBalanceProvider(this.getProvider());
+    const balance = await provider.getBalance(address);
+    return toBigIntNumber(balance);
   }
 
   async getMetadata(): Promise<TokenMetadata> {
@@ -193,7 +239,7 @@ export class EvmNativeTokenAdapter
 }
 
 // Interacts with ERC20/721 contracts
-export class EvmTokenAdapter<T extends Record<string, any> = any>
+export class EvmTokenAdapter<T extends Erc20LikeContract = Erc20LikeContract>
   extends EvmNativeTokenAdapter
   implements ITokenAdapter<PopulatedTransaction>
 {
@@ -203,13 +249,13 @@ export class EvmTokenAdapter<T extends Record<string, any> = any>
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
-    public readonly contractFactory: any = ERC20__factory,
+    public readonly contractFactory: ContractFactory<T> = ERC20__factory as unknown as ContractFactory<T>,
   ) {
     super(chainName, multiProvider, addresses);
     this.contract = contractFactory.connect(
       addresses.token,
       this.getProvider(),
-    ) as T;
+    );
   }
 
   override async getBalance(address: Address): Promise<bigint> {
@@ -279,7 +325,7 @@ export class EvmHypSyntheticAdapter
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: { token: Address },
-    public readonly contractFactory: any = HypERC20__factory,
+    public readonly contractFactory: ContractFactory<HypERC20> = HypERC20__factory,
   ) {
     super(chainName, multiProvider, addresses, contractFactory);
   }
@@ -600,7 +646,7 @@ export class EvmMovableCollateralAdapter
       await this.movableCollateral().allowedBridges(domain);
 
     return allowedBridges
-      .map((bridgeAddress: any) => normalizeAddress(bridgeAddress))
+      .map((bridgeAddress: unknown) => normalizeAddress(String(bridgeAddress)))
       .includes(normalizeAddress(bridge));
   }
 
@@ -621,12 +667,22 @@ export class EvmMovableCollateralAdapter
       amount,
     );
 
-    return quotes.map((quote: any) => ({
-      igpQuote: {
-        addressOrDenom: quote.token === zeroAddress ? undefined : quote.token,
-        amount: BigInt(quote.amount.toString()),
-      },
-    }));
+    return quotes.map((quote: unknown) => {
+      const quoteRecord = asRecord(quote);
+      assert(quoteRecord, `Invalid bridge quote: ${String(quote)}`);
+
+      const token = quoteRecord.token;
+      const amount = quoteRecord.amount;
+      assert(typeof token === 'string', 'Invalid bridge quote token');
+      assert(!isNullish(amount), 'Invalid bridge quote amount');
+
+      return {
+        igpQuote: {
+          addressOrDenom: token === zeroAddress ? undefined : token,
+          amount: BigInt(String(amount)),
+        },
+      };
+    });
   }
 
   /**
@@ -1020,10 +1076,10 @@ export class EvmHypNativeAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
   override async getBalance(address: Address): Promise<bigint> {
-    const provider = this.getProvider() as any;
+    const provider = toBalanceProvider(this.getProvider());
     const balance = await provider.getBalance(address);
 
-    return BigInt(balance.toString());
+    return toBigIntNumber(balance);
   }
 
   override async isApproveRequired(): Promise<boolean> {
@@ -1085,11 +1141,12 @@ export class EvmHypNativeAdapter
   override async getBridgedSupply(options?: {
     blockTag?: number | EthJsonRpcBlockParameterTag;
   }): Promise<bigint | undefined> {
-    const balance = await (this.getProvider() as any).getBalance(
+    const provider = toBalanceProvider(this.getProvider());
+    const balance = await provider.getBalance(
       this.addresses.token,
       options?.blockTag,
     );
-    return BigInt(balance.toString());
+    return toBigIntNumber(balance);
   }
 }
 
