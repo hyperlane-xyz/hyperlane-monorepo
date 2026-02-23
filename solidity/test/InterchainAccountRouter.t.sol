@@ -20,6 +20,9 @@ import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDisp
 import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../contracts/libs/Message.sol";
 import {ERC20Test} from "../contracts/test/ERC20Test.sol";
+import {StaticAggregationHook} from "../contracts/hooks/aggregation/StaticAggregationHook.sol";
+import {StaticAggregationHookFactory} from "../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
+import {MerkleTreeHook} from "../contracts/hooks/MerkleTreeHook.sol";
 
 contract Callable {
     mapping(address => bytes32) public data;
@@ -1610,6 +1613,87 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             feeTokenBalanceBefore,
             feeTokenBalanceAfter,
             "No ERC20 tokens should be charged when using short metadata"
+        );
+    }
+
+    // ============ approveFeeTokenForHook Tests ============
+
+    function test_approveFeeTokenForHook_setsInfiniteApproval() public {
+        address hook = address(0xBEEF);
+
+        // Verify no approval before
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook),
+            0,
+            "Should have no approval initially"
+        );
+
+        // Call approveFeeTokenForHook
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook);
+
+        // Verify infinite approval is set
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook),
+            type(uint256).max,
+            "Should have infinite approval"
+        );
+    }
+
+    function test_approveFeeTokenForHook_allowsNonOwner() public {
+        address hook = address(0xBEEF);
+        address nonOwner = address(0xCAFE);
+
+        // Call from non-owner should succeed
+        vm.prank(nonOwner);
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook);
+
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook),
+            type(uint256).max,
+            "Non-owner should be able to set approval"
+        );
+    }
+
+    function test_approveFeeTokenForHook_multipleHooks() public {
+        address hook1 = address(0xBEEF);
+        address hook2 = address(0xCAFE);
+        address hook3 = address(0xDEAD);
+
+        // Approve multiple hooks
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook1);
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook2);
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook3);
+
+        // All should have infinite approval
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook1),
+            type(uint256).max
+        );
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook2),
+            type(uint256).max
+        );
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook3),
+            type(uint256).max
+        );
+    }
+
+    function test_approveFeeTokenForHook_multipleTokens() public {
+        ERC20Test feeToken2 = new ERC20Test("Fee Token 2", "FEE2", 1_000_000e18, 18);
+        address hook = address(0xBEEF);
+
+        // Approve same hook for multiple tokens
+        originErc20Router.approveFeeTokenForHook(address(feeToken), hook);
+        originErc20Router.approveFeeTokenForHook(address(feeToken2), hook);
+
+        assertEq(
+            feeToken.allowance(address(originErc20Router), hook),
+            type(uint256).max
+        );
+        assertEq(
+            feeToken2.allowance(address(originErc20Router), hook),
+            type(uint256).max
         );
     }
 }

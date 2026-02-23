@@ -179,6 +179,24 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     }
 
     // ============ External Functions ============
+
+    /**
+     * @notice Approves a hook to spend a fee token on behalf of this router.
+     * @dev Use this to pre-approve hooks that will call transferFrom for ERC-20 fees,
+     * such as the IGP when it is a child of a StaticAggregationHook. The per-dispatch
+     * approval in _dispatchMessageWithValue only approves the top-level hook, so child
+     * hooks that call transferFrom (like the IGP inside an aggregation) need to be
+     * pre-approved via this function.
+     * @param _feeToken The ERC-20 fee token address.
+     * @param _hook The hook address to approve for spending the fee token.
+     */
+    function approveFeeTokenForHook(
+        address _feeToken,
+        address _hook
+    ) external {
+        IERC20(_feeToken).forceApprove(_hook, type(uint256).max);
+    }
+
     /**
      * @notice Dispatches a sequence of remote calls to be made by an owner's
      * interchain account on the destination domain
