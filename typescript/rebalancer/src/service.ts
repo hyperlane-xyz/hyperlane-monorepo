@@ -8,7 +8,8 @@
  *
  * Environment Variables:
  * - REBALANCER_CONFIG_FILE: Path to the rebalancer configuration YAML file (required)
- * - HYP_REBALANCER_KEY: Private key for movable collateral rebalancing operations (required)
+ * - HYP_REBALANCER_KEY: Private key for movable collateral rebalancing operations (preferred)
+ * - HYP_KEY: Fallback private key for HYP_REBALANCER_KEY (optional)
  * - HYP_INVENTORY_KEY: Private key for inventory operations - LiFi bridges and transferRemote (optional)
  * - COINGECKO_API_KEY: API key for CoinGecko price fetching (optional, for metrics)
  * - CHECK_FREQUENCY: Balance check frequency in ms (default: 60000)
@@ -26,8 +27,12 @@ import { Wallet } from 'ethers';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { ChainMetadata, MultiProvider } from '@hyperlane-xyz/sdk';
-import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
+import { MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  applyRpcUrlOverridesFromEnv,
+  createServiceLogger,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerService } from './core/RebalancerService.js';
@@ -41,9 +46,12 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const rebalancerPrivateKey = process.env.HYP_REBALANCER_KEY;
+  const rebalancerPrivateKey =
+    process.env.HYP_REBALANCER_KEY ?? process.env.HYP_KEY;
   if (!rebalancerPrivateKey) {
-    rootLogger.error('HYP_REBALANCER_KEY environment variable is required');
+    rootLogger.error(
+      'HYP_REBALANCER_KEY (or HYP_KEY) environment variable is required',
+    );
     process.exit(1);
   }
 
@@ -106,7 +114,7 @@ async function main(): Promise<void> {
     );
 
     // Apply RPC URL overrides from environment variables
-    applyRpcOverrides(chainMetadata);
+    applyRpcUrlOverridesFromEnv(chainMetadata);
 
     // Create MultiProvider with signer
     const multiProvider = new MultiProvider(chainMetadata);
@@ -181,31 +189,6 @@ async function main(): Promise<void> {
       'Failed to start rebalancer service',
     );
     process.exit(1);
-  }
-}
-
-/**
- * Applies RPC URL overrides from environment variables.
- * Checks ALL chains in metadata for RPC_URL_<CHAIN> env vars
- * (e.g., RPC_URL_ETHEREUM, RPC_URL_PARADEX) and overrides the registry URL.
- * This ensures warp route chains not in the rebalancing strategy still get
- * private RPCs for monitoring.
- */
-function applyRpcOverrides(
-  chainMetadata: Record<string, Partial<ChainMetadata>>,
-): void {
-  for (const chain of Object.keys(chainMetadata)) {
-    const envVarName = `RPC_URL_${chain.toUpperCase().replace(/-/g, '_')}`;
-    const rpcUrl = process.env[envVarName];
-    if (rpcUrl) {
-      rootLogger.debug(
-        { chain, envVarName },
-        'Using RPC from environment variable',
-      );
-      chainMetadata[chain].rpcUrls = [
-        { http: rpcUrl },
-      ] as ChainMetadata['rpcUrls'];
-    }
   }
 }
 

@@ -48,7 +48,11 @@ export const keyFunderConfig: KeyFunderConfig<
     'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
-    [Contexts.Hyperlane]: [Role.Relayer, Role.Rebalancer],
+    [Contexts.Hyperlane]: [
+      Role.Relayer,
+      Role.Rebalancer,
+      Role.InventoryRebalancer,
+    ],
     [Contexts.ReleaseCandidate]: [Role.Relayer],
   },
   chainsToSkip: [],

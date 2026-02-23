@@ -26,7 +26,7 @@ import type {
   MovableCollateralRoute,
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
-import type { BridgeConfigWithOverride } from '../utils/index.js';
+import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
 // === Mock Classes ===
 

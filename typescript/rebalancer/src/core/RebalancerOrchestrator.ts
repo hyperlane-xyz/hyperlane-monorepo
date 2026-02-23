@@ -18,10 +18,8 @@ import {
   isMovableCollateralRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
-import {
-  type IActionTracker,
-  InflightContextAdapter,
-} from '../tracking/index.js';
+import type { IActionTracker } from '../tracking/IActionTracker.js';
+import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
 
 import { InventoryRebalancer } from './InventoryRebalancer.js';

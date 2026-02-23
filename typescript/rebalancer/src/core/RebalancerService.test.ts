@@ -15,8 +15,8 @@ import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { TEST_ADDRESSES, getTestAddress } from '../test/helpers.js';
-import type { IActionTracker } from '../tracking/index.js';
-import { InflightContextAdapter } from '../tracking/index.js';
+import type { IActionTracker } from '../tracking/IActionTracker.js';
+import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
 
 import {
   RebalancerService,
