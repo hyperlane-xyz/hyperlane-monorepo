@@ -1,5 +1,7 @@
 import { execa } from 'execa';
 import {
+  type AbiEvent,
+  type AbiFunction,
   type Hex,
   decodeEventLog,
   encodeFunctionData,
@@ -39,6 +41,52 @@ const LOCAL_HOST = 'http://127.0.0.1';
 
 type EndPoint = string;
 type EvmLog = { topics: Hex[]; data: Hex };
+type EvmTxReceipt = { status?: number; logs: EvmLog[] };
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getErrorReason(error: unknown): string | undefined {
+  const reason = asRecord(error)?.reason;
+  return typeof reason === 'string' ? reason : undefined;
+}
+
+function asFunctionAbi(signature: string): AbiFunction {
+  const abiItem = parseAbiItem(signature);
+  assert(
+    abiItem.type === 'function',
+    `Invalid function signature: ${signature}`,
+  );
+  return abiItem;
+}
+
+function asEventAbi(signature: string): AbiEvent {
+  const abiItem = parseAbiItem(signature);
+  assert(abiItem.type === 'event', `Invalid event signature: ${signature}`);
+  return abiItem;
+}
+
+function asTxReceipt(value: unknown): EvmTxReceipt {
+  const receipt = asRecord(value);
+  assert(receipt, 'Invalid transaction receipt');
+  const status = receipt.status;
+  const logs = receipt.logs;
+  assert(
+    status === undefined || typeof status === 'number',
+    'Invalid transaction receipt status',
+  );
+  assert(
+    logs === undefined || Array.isArray(logs),
+    'Invalid transaction receipt logs',
+  );
+  return {
+    status,
+    logs: (logs as EvmLog[] | undefined) ?? [],
+  };
+}
 
 export async function runForkCommand({
   context,
@@ -211,11 +259,11 @@ async function handleTransactions(
       const signature = transaction.data.signature.startsWith('function ')
         ? transaction.data.signature
         : `function ${transaction.data.signature}`;
-      const functionAbi = parseAbiItem(signature) as any;
+      const functionAbi = asFunctionAbi(signature);
       calldata = encodeFunctionData({
         abi: [functionAbi],
         functionName: functionAbi.name,
-        args: transaction.data.args as any[],
+        args: transaction.data.args,
       });
     }
 
@@ -229,8 +277,8 @@ async function handleTransactions(
         data: calldata,
         value: transaction.value,
       });
-    } catch (error: any) {
-      if (error.reason && transaction.revertAssertion) {
+    } catch (error: unknown) {
+      if (getErrorReason(error) && transaction.revertAssertion) {
         assertRevert(transaction.revertAssertion, error, {
           chainName: chainName,
           transactionAnnotation: annotation,
@@ -242,8 +290,8 @@ async function handleTransactions(
       throw error;
     }
 
-    const txReceipt: any = await pendingTx.wait();
-    if (txReceipt.status == 0) {
+    const txReceipt = asTxReceipt(await pendingTx.wait());
+    if (txReceipt.status === 0) {
       throw new Error(
         `Transaction ${transaction} reverted on chain ${chainName}`,
       );
@@ -271,17 +319,18 @@ async function handleTransactions(
 
 function assertRevert(
   revertAssertion: RevertAssertion,
-  error: any,
+  error: unknown,
   meta: {
     chainName: string;
     transactionAnnotation: string;
   },
 ) {
+  const reason = getErrorReason(error);
   // If contract call reverts, then there should be a reason
   // https://github.com/ethers-io/ethers.js/blob/v5.7/packages/providers/src.ts/json-rpc-provider.ts#L79
-  if (error.reason !== revertAssertion.reason) {
+  if (reason !== revertAssertion.reason) {
     throw new Error(
-      `Expected revert: ${revertAssertion.reason} does not match ${error.reason}`,
+      `Expected revert: ${revertAssertion.reason} does not match ${reason}`,
     );
   }
 
@@ -342,16 +391,22 @@ function assertEventBySignature(
   const signature = eventAssertion.signature.startsWith('event ')
     ? eventAssertion.signature
     : `event ${eventAssertion.signature}`;
-  const eventAbi = parseAbiItem(signature);
+  const eventAbi = asEventAbi(signature);
 
-  let parsedLog: any;
+  let parsedLogArgs: unknown[] | Record<string, unknown>;
   try {
-    parsedLog = decodeEventLog({
-      abi: [eventAbi as any],
-      data: rawLog.data as any,
-      topics: rawLog.topics as any,
+    if (rawLog.topics.length === 0) return false;
+    const topics = [rawLog.topics[0], ...rawLog.topics.slice(1)] as [
+      Hex,
+      ...Hex[],
+    ];
+    const decodedLog = decodeEventLog({
+      abi: [eventAbi],
+      data: rawLog.data,
+      topics,
       strict: false,
     });
+    parsedLogArgs = decodedLog.args;
   } catch {
     return false;
   }
@@ -360,12 +415,12 @@ function assertEventBySignature(
     return true;
   }
 
-  const parsedArgs = Array.isArray(parsedLog.args)
-    ? parsedLog.args
-    : Object.values(parsedLog.args);
+  const parsedArgs = Array.isArray(parsedLogArgs)
+    ? parsedLogArgs
+    : Object.values(parsedLogArgs);
   const logArgs = parsedArgs
     .slice(0, eventAssertion.args.length)
-    .map((arg: any) => String(arg));
+    .map((arg: unknown) => String(arg));
 
   return deepEquals(logArgs, eventAssertion.args);
 }
