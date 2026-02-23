@@ -9,7 +9,7 @@ import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import { RebalancerConfig } from './RebalancerConfig.js';
 import {
-  DEFAULT_INTENT_TTL_MS,
+  DEFAULT_INTENT_TTL_S,
   ExecutionType,
   ExternalBridgeType,
   type RebalancerConfigFileInput,
@@ -101,7 +101,7 @@ describe('RebalancerConfig', () => {
           },
         },
       ],
-      intentTTL: DEFAULT_INTENT_TTL_MS,
+      intentTTL: DEFAULT_INTENT_TTL_S * 1_000,
       inventorySigner: undefined,
       externalBridges: undefined,
     });
