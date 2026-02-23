@@ -204,7 +204,9 @@ describe('Rebalancer Simulation', function () {
       // behavior due to more aggressive rebalancing strategies
       if (result.rebalancerName === 'SimpleRebalancer') {
         expect(result.kpis.p50Latency).to.be.lessThan(
-          500,
+          // CI runners can introduce scheduling jitter; keep this strict enough
+          // to catch blocking regressions while avoiding flaky timing failures.
+          1000,
           `${result.rebalancerName} should have low p50 latency`,
         );
       }

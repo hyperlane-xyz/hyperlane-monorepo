@@ -1,5 +1,10 @@
 {
   "ui": "stream",
+  "globalPassThroughEnv": [
+    "RPC_URL_MAINNET",
+    "RPC_URL_OPTIMISM",
+    "RPC_URL_BASE"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
