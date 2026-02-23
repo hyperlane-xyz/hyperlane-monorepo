@@ -59,13 +59,25 @@ export async function handlePrompts(
   processPromise: Readonly<ProcessPromise>,
   actions: TestPromptAction[],
 ): Promise<ProcessOutput> {
+  // Suppress EPIPE errors on stdin that occur when the child process
+  // exits before all prompts are answered (common CI race condition).
+  processPromise.stdin.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EPIPE') return;
+    // Re-emit on the child process so it rejects the processPromise
+    // instead of crashing via an uncaught exception.
+    if (processPromise.child) {
+      processPromise.child.emit('error', err);
+    } else {
+      throw err;
+    }
+  });
+
   let expectedStep = 0;
   for await (const out of processPromise.stdout) {
     const currentLine: string = out.toString();
 
     const currentAction = actions[expectedStep];
     if (currentAction && currentAction.check(currentLine)) {
-      // Select mainnet chains
       await asyncStreamInputWrite(processPromise.stdin, currentAction.input);
       expectedStep++;
     }
@@ -78,7 +90,18 @@ export async function asyncStreamInputWrite(
   stream: NodeJS.WritableStream,
   data: string | Buffer,
 ): Promise<void> {
-  stream.write(data);
+  try {
+    stream.write(data);
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as NodeJS.ErrnoException).code === 'EPIPE'
+    ) {
+      return;
+    }
+    throw error;
+  }
   // Adding a slight delay to allow the buffer to update the output
   await sleep(500);
 }
