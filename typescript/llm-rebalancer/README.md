@@ -25,7 +25,7 @@ An LLM agent that replaces coded rebalancing strategies with prose-driven decisi
 │         ↓                                        │
 │  ┌──────────────────────┐                        │
 │  │ ContextStore         │ (prose summaries,      │
-│  │ InMemory / Postgres  │  inflight tracking)    │
+│  │ InMemory / SQLite    │  inflight tracking)    │
 │  └──────────────────────┘                        │
 └─────────────────────────────────────────────────┘
          ↕ ethers / cast call/send
@@ -37,8 +37,9 @@ An LLM agent that replaces coded rebalancing strategies with prose-driven decisi
 ### Key Design Decisions
 
 - **Typed tools for reads, skills for execution**: Deterministic on-chain reads (balances, delivery checks) use typed ethers.js tools. Execution (rebalance, bridge, deposit) uses bash/cast skills for flexibility.
-- **Context via prose summaries**: Each cycle ends with `save_context` — LLM writes a prose summary of pending actions and state. Injected into the next cycle's system prompt as "Previous Context".
-- **Fresh session per cycle**: Each rebalancer cycle creates a new Pi session. ContextStore provides continuity across cycles.
+- **Per-bridge skills**: Each bridge type has its own skill (mock-bridge, CCTP, LiFi) with a shared `submit-transaction` skill for signing and receipt parsing. The agent reads the appropriate skill based on the deployment's bridge type.
+- **Context via prose summaries**: Each cycle ends with `save_context` — LLM writes a terse summary of pending actions, command templates, and state. Used for crash recovery and inter-cycle state.
+- **Persistent session across cycles**: A single Pi session is reused across rebalancer cycles. Conversation history accumulates, so the agent remembers skill content, command templates, and chain metadata from previous cycles — eliminating redundant skill discovery.
 - **Adaptive polling**: Short interval when actions are pending, long interval when balanced.
 - **No MockActionTracker**: The sim's `MockInfrastructureController` auto-tracks rebalances from Dispatch events.
 - **Event streaming**: Pi session events mapped to structured `RebalancerAgentEvent` types for observability.
@@ -49,27 +50,30 @@ An LLM agent that replaces coded rebalancing strategies with prose-driven decisi
 typescript/llm-rebalancer/
 ├── package.json
 ├── tsconfig.json
-├── skills/                          # Pi skills (execution via bash/cast)
-│   ├── wallet-setup/SKILL.md        # Foundry keystore signing reference
-│   ├── execute-rebalance/SKILL.md   # On-chain rebalance via bridge
-│   ├── inventory-deposit/SKILL.md   # Deposit inventory into deficit chain
-│   └── bridge-tokens/SKILL.md       # Mock bridge (sim) or LiFi (prod)
+├── skills/                              # Pi skills (execution via bash/cast)
+│   ├── submit-transaction/SKILL.md      # Shared: foundry keystore signing + receipt parsing
+│   ├── rebalance-mock-bridge/SKILL.md   # Rebalance via MockValueTransferBridge (sim)
+│   ├── rebalance-cctp/SKILL.md          # Rebalance via CCTP bridge (production)
+│   ├── rebalance-lifi/SKILL.md          # Rebalance via LiFi (production, off-chain)
+│   ├── inventory-deposit/SKILL.md       # Deposit inventory into deficit chain
+│   └── bridge-tokens/SKILL.md           # Move inventory between chains via bridge
 ├── src/
 │   ├── index.ts
-│   ├── agent.ts                     # Pi session creation + cycle invocation
-│   ├── config.ts                    # Config types
-│   ├── context-store.ts             # ContextStore interface + InMemory/Sqlite stores
-│   ├── events.ts                    # RebalancerAgentEvent types
-│   ├── prompt-builder.ts            # Generates AGENTS.md from config + context
-│   ├── tools/                       # Typed Pi custom tools (ethers.js)
-│   │   ├── index.ts                 # buildCustomTools() factory
-│   │   ├── get-balances.ts          # Read collateral balances
-│   │   ├── get-chain-metadata.ts    # Chain config metadata
+│   ├── agent.ts                         # RebalancerAgent class (persistent session)
+│   ├── config.ts                        # Config types
+│   ├── context-store.ts                 # ContextStore interface + InMemory/Sqlite stores
+│   ├── events.ts                        # RebalancerAgentEvent types
+│   ├── prompt-builder.ts                # Generates AGENTS.md from config + context
+│   ├── tools/                           # Typed Pi custom tools (ethers.js)
+│   │   ├── index.ts                     # buildCustomTools() factory
+│   │   ├── get-balances.ts              # Read collateral balances
+│   │   ├── get-chain-metadata.ts        # Chain config metadata
 │   │   ├── check-hyperlane-delivery.ts  # Mailbox.delivered() check
-│   │   └── save-context.ts          # Persist LLM context summaries
+│   │   └── save-context.ts              # Persist LLM context summaries
 │   └── (LLMRebalancerRunner lives in rebalancer-sim/src/runners/)
-└── scripts/
-    └── run.ts                       # Production entry point
+├── scripts/
+│   └── run.ts                           # Production entry point
+└── CHANGELOG.md                         # Iteration log
 ```
 
 ## Custom Tools
@@ -85,28 +89,56 @@ Typed tools provide deterministic, fast on-chain reads. The LLM calls these dire
 
 ## Skills
 
-Skills are `SKILL.md` files that teach the agent execution capabilities via bash/cast. Copied to `.pi/skills/` at runtime.
+Skills are `SKILL.md` files that teach the agent execution capabilities via bash/cast. Copied to `.pi/skills/` at runtime. The agent reads them on-demand when it needs to execute an action.
 
-| Skill               | Purpose                                                 | Tools             |
-| ------------------- | ------------------------------------------------------- | ----------------- |
-| `wallet-setup`      | Foundry keystore signing reference (all skills use it)  | bash, read, write |
-| `execute-rebalance` | Call `rebalance(uint32,uint256,address)` on warp tokens | bash, read, write |
-| `inventory-deposit` | Approve + `transferRemote` from deficit chain           | bash, read, write |
-| `bridge-tokens`     | MockValueTransferBridge (sim) or LiFi API (prod)        | bash, read, write |
+| Skill                   | Purpose                                                             | Tools             |
+| ----------------------- | ------------------------------------------------------------------- | ----------------- |
+| `submit-transaction`    | Foundry keystore signing, receipt parsing, messageId extraction     | bash, read        |
+| `rebalance-mock-bridge` | Call `rebalance()` on warp tokens via MockValueTransferBridge (sim) | bash, read        |
+| `rebalance-cctp`        | Rebalance via CCTP bridge (production)                              | bash, read        |
+| `rebalance-lifi`        | Rebalance via LiFi bridge aggregator (production)                   | bash, read        |
+| `inventory-deposit`     | Approve + `transferRemote` from deficit chain                       | bash, read, write |
+| `bridge-tokens`         | Move inventory between chains via external bridge                   | bash, read, write |
+
+## Session Reuse
+
+The `RebalancerAgent` class holds a persistent Pi session across cycles:
+
+```typescript
+const agent = await RebalancerAgent.create(opts);
+
+// Each call reuses the same session — conversation history accumulates
+await agent.runCycle(); // First cycle: discovers skills, reads SKILL.md
+await agent.runCycle(); // Subsequent: skips skill reading, uses memory
+await agent.runCycle();
+
+agent.dispose();
+```
+
+Benefits:
+
+- **Skill discovery once**: Agent reads `.pi/skills/rebalance-*/SKILL.md` on first rebalance, remembers for all subsequent cycles
+- **Command template caching**: Agent saves `tpl:` field in context with the `cast send` template, reuses with `get_chain_metadata` for new addresses
+- **Parallel tool calls**: Agent calls `check_hyperlane_delivery` + `get_balances` simultaneously when both are needed
+- **Crash recovery**: On session failure, agent recreates session with latest context from `ContextStore`
+
+The legacy `runRebalancerCycle()` function still exists for one-shot usage.
 
 ## Rebalancer-Sim Integration
 
 `LLMRebalancerRunner` implements `IRebalancerRunner`:
 
 1. **initialize()**: Creates temp work dir, copies skills, writes `rebalancer-config.json`, builds custom tools with ethers closures
-2. **start()**: Begins adaptive polling loop calling `runRebalancerCycle()` per interval
-3. **stop()**: Clears timer, awaits in-flight cycle, cleans up temp dir
+2. **start()**: Creates persistent `RebalancerAgent` session, begins adaptive polling loop
+3. **stop()**: Disposes agent, clears timer, awaits in-flight cycle, cleans up temp dir
 
-Extended timeouts are applied when `REBALANCERS=llm`:
+Extended timeouts and timing are applied when `REBALANCERS=llm`:
 
-- `deliveryTimeoutMs: 300_000` (5 min, vs default 60s)
-- `idleTimeoutMs: 180_000` (3 min, vs default 5s)
-- Mocha timeout: 600s
+- `transferTimestampScale: 10` (stretches transfer timing for slow LLM cycles)
+- `userTransferDeliveryDelay: 5_000` (5s vs 100ms)
+- `deliveryTimeoutMs: 300_000` (5 min)
+- `idleTimeoutMs: 180_000` (3 min)
+- Mocha timeout: 900s
 
 ### Running in sim
 
@@ -143,9 +175,11 @@ tsx typescript/llm-rebalancer/scripts/run.ts config.json
 
 On startup, the script:
 
-- Imports `REBALANCER_KEY` into a foundry keystore at `./keystore/` (the agent uses `--account rebalancer --keystore-dir ./keystore --password ''` for all `cast send` commands — the private key is never exposed to the LLM)
+- Imports `REBALANCER_KEY` into a foundry keystore (the agent uses `--account rebalancer --password ''` for all `cast send` commands — the private key is never exposed to the LLM)
 - Writes `rebalancer-config.json` (sans private key) for agent reference
+- Creates a persistent `RebalancerAgent` session
 - Starts the polling loop with context persistence in SQLite (`rebalancer-context.db`)
+- On session failure, automatically recreates with latest context
 
 ### Config file format
 
@@ -178,7 +212,7 @@ On startup, the script:
 The rebalancer uses a **foundry keystore** for transaction signing. The private key is imported once at startup and never passed to the LLM agent directly. All `cast send` commands use:
 
 ```bash
---account rebalancer --keystore-dir ./keystore --password ''
+--account rebalancer --password ''
 ```
 
-This is enforced by the `wallet-setup` skill and referenced in all execution skills.
+This is enforced by the `submit-transaction` skill and referenced in all execution skills.
