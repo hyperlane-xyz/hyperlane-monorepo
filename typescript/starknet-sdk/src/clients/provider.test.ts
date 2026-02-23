@@ -49,6 +49,55 @@ class StarknetProviderTestHarness extends StarknetProvider {
   }
 }
 
+class StarknetBridgedSupplyTestHarness extends StarknetProvider {
+  tokenType = AltVM.TokenType.synthetic;
+  tokenDenom = '0x123';
+  capturedBalanceReq?: AltVM.ReqGetBalance;
+  syntheticSupply = 123n;
+
+  constructor() {
+    super(
+      {} as any,
+      {
+        name: 'starknetsepolia',
+        protocol: ProtocolType.Starknet,
+        chainId: 'SN_SEPOLIA',
+        domainId: 421614,
+        rpcUrls: [{ http: 'http://localhost:9545' }],
+      } as any,
+      ['http://localhost:9545'],
+    );
+  }
+
+  protected override withContract(): any {
+    return {
+      total_supply: async () => this.syntheticSupply,
+    };
+  }
+
+  override async getToken(
+    req: AltVM.ReqGetToken,
+  ): Promise<AltVM.ResGetToken> {
+    return {
+      address: req.tokenAddress,
+      owner: '0x0',
+      tokenType: this.tokenType,
+      mailboxAddress: '0x0',
+      ismAddress: '0x0',
+      hookAddress: '0x0',
+      denom: this.tokenDenom,
+      name: '',
+      symbol: '',
+      decimals: 18,
+    };
+  }
+
+  override async getBalance(req: AltVM.ReqGetBalance): Promise<bigint> {
+    this.capturedBalanceReq = req;
+    return 777n;
+  }
+}
+
 describe('StarknetProvider parseString', () => {
   const provider = new StarknetProviderTestHarness();
 
@@ -109,5 +158,36 @@ describe('StarknetProvider getHookType', () => {
 
     expect(hookType).to.equal(AltVM.HookType.CUSTOM);
     expect(provider.contractSelections).to.deep.equal([StarknetContractName.HOOK]);
+  });
+});
+
+describe('StarknetProvider getBridgedSupply', () => {
+  it('returns synthetic total supply for synthetic tokens', async () => {
+    const provider = new StarknetBridgedSupplyTestHarness();
+    provider.tokenType = AltVM.TokenType.synthetic;
+    provider.syntheticSupply = 444n;
+
+    const bridgedSupply = await provider.getBridgedSupply({
+      tokenAddress: '0xabc',
+    });
+
+    expect(bridgedSupply).to.equal(444n);
+    expect(provider.capturedBalanceReq).to.equal(undefined);
+  });
+
+  it('returns underlying token balance for non-synthetic tokens', async () => {
+    const provider = new StarknetBridgedSupplyTestHarness();
+    provider.tokenType = AltVM.TokenType.collateral;
+    provider.tokenDenom = '0xdef';
+
+    const bridgedSupply = await provider.getBridgedSupply({
+      tokenAddress: '0xabc',
+    });
+
+    expect(bridgedSupply).to.equal(777n);
+    expect(provider.capturedBalanceReq).to.deep.equal({
+      address: '0xabc',
+      denom: '0xdef',
+    });
   });
 });
