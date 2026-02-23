@@ -48,6 +48,75 @@ import { DispatchedMessage } from './types.js';
 // We set to 0x0001 instead of 0x0 to ensure it does not break on zksync.
 const DEFAULT_METADATA = '0x0001';
 type EvmTxReceipt = Awaited<ReturnType<MultiProvider['handleTx']>>;
+type EventLike = {
+  args?: unknown;
+  blockNumber?: number | bigint;
+  getTransactionReceipt?: () => Promise<unknown>;
+  getTransaction?: () => Promise<{ hash?: string }>;
+  log?: { blockNumber?: number | bigint; transactionHash?: string };
+  transaction?: { hash?: string };
+  transactionHash?: string;
+} & Record<string, unknown>;
+
+function asEventLike(value: unknown): EventLike {
+  return typeof value === 'object' && value !== null
+    ? (value as EventLike)
+    : {};
+}
+
+function eventTxHash(event: EventLike): string | undefined {
+  return (
+    event.transactionHash ??
+    event.log?.transactionHash ??
+    event.transaction?.hash
+  );
+}
+
+function eventBlockNumber(event: EventLike): number | undefined {
+  const block =
+    event.blockNumber ??
+    event.log?.blockNumber ??
+    (event as { block_number?: number | bigint }).block_number;
+  if (typeof block === 'number') return block;
+  if (typeof block === 'bigint') return Number(block);
+  return undefined;
+}
+
+function parseDispatchMessage(
+  event: EventLike,
+  positionalMessage?: unknown,
+): string | undefined {
+  if (typeof positionalMessage === 'string') return positionalMessage;
+
+  const args = event.args;
+  if (!args) return undefined;
+
+  if (Array.isArray(args)) {
+    const message = args[3];
+    return typeof message === 'string' ? message : undefined;
+  }
+
+  if (typeof args === 'object' && args !== null) {
+    const message = (args as { message?: unknown }).message;
+    return typeof message === 'string' ? message : undefined;
+  }
+
+  return undefined;
+}
+
+function toDispatchEvent(event: EventLike): DispatchEvent {
+  const args =
+    typeof event.args === 'object' && event.args !== null
+      ? (event.args as { message?: string } & Record<string, unknown>)
+      : undefined;
+
+  return {
+    ...event,
+    args,
+    blockNumber: eventBlockNumber(event),
+    transactionHash: eventTxHash(event),
+  };
+}
 
 export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   static fromAddressesMap(
@@ -201,38 +270,135 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   ): {
     removeHandler: (chains?: ChainName[]) => void;
   } {
+    const teardownByChain: Partial<Record<ChainName, () => void>> = {};
+
     chains.map((originChain) => {
       const mailbox = this.contractsMap[originChain].mailbox;
       this.logger.debug(`Listening for dispatch on ${originChain}`);
-      mailbox.on(
-        mailbox.filters.Dispatch(),
-        (
-          _sender: unknown,
-          _destination: unknown,
-          _recipient: unknown,
-          message: string,
-          event: DispatchEvent,
-        ) => {
-          const dispatched = HyperlaneCore.parseDispatchedMessage(message);
+      const filter = mailbox.filters.Dispatch();
+      const mailboxWithEvents = mailbox as unknown as {
+        off?: (
+          filter: unknown,
+          listener: (...args: unknown[]) => unknown,
+        ) => void;
+        on?: (
+          filter: unknown,
+          listener: (...args: unknown[]) => unknown,
+        ) => void;
+        removeAllListeners?: (eventName?: string) => void;
+      };
 
-          // add human readable chain names
-          dispatched.parsed.originChain = this.getOrigin(dispatched);
-          dispatched.parsed.destinationChain = this.getDestination(dispatched);
-
-          this.logger.info(
-            `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
+      const emitDispatch = async (event: EventLike, message?: unknown) => {
+        const parsedMessage = parseDispatchMessage(event, message);
+        if (!parsedMessage) {
+          this.logger.debug(
+            `Skipping dispatch event on ${originChain}: missing message payload`,
           );
-          return handler(dispatched, event);
-        },
-      );
+          return;
+        }
+
+        const dispatched = HyperlaneCore.parseDispatchedMessage(parsedMessage);
+        dispatched.parsed.originChain = this.getOrigin(dispatched);
+        dispatched.parsed.destinationChain = this.getDestination(dispatched);
+
+        this.logger.info(
+          `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
+        );
+        await handler(dispatched, toDispatchEvent(event));
+      };
+
+      if (typeof mailboxWithEvents.on === 'function') {
+        const listener = (...args: unknown[]) => {
+          const message = args[3];
+          const event = asEventLike(args[args.length - 1]);
+          void emitDispatch(event, message);
+        };
+        mailboxWithEvents.on(filter, listener);
+        teardownByChain[originChain] = () => {
+          if (typeof mailboxWithEvents.off === 'function') {
+            mailboxWithEvents.off(filter, listener);
+          } else if (
+            typeof mailboxWithEvents.removeAllListeners === 'function'
+          ) {
+            mailboxWithEvents.removeAllListeners('Dispatch');
+          }
+        };
+        return;
+      }
+
+      // Viem contract proxies don't expose event emitters, so poll for new Dispatch logs.
+      let stopped = false;
+      let polling = false;
+      let interval: ReturnType<typeof setInterval> | undefined;
+      let lastSeenBlock = 0;
+
+      const poll = async () => {
+        if (stopped || polling) return;
+        polling = true;
+
+        try {
+          const { toBlock: latestBlock } =
+            await this.multiProvider.getLatestBlockRange(originChain, 1);
+          if (latestBlock <= lastSeenBlock) return;
+
+          const events = (await mailbox.queryFilter(
+            filter,
+            lastSeenBlock + 1,
+            latestBlock,
+          )) as EventLike[];
+
+          for (const event of events) {
+            await emitDispatch(event);
+            const block = eventBlockNumber(event);
+            if (block !== undefined) {
+              lastSeenBlock = Math.max(lastSeenBlock, block);
+            }
+          }
+
+          lastSeenBlock = Math.max(lastSeenBlock, latestBlock);
+        } catch (error) {
+          this.logger.debug(
+            `Dispatch polling failed on ${originChain}, will retry on next interval`,
+          );
+          this.logger.trace({ error });
+        } finally {
+          polling = false;
+        }
+      };
+
+      teardownByChain[originChain] = () => {
+        stopped = true;
+        if (interval) {
+          clearInterval(interval);
+          interval = undefined;
+        }
+      };
+
+      void (async () => {
+        try {
+          const { toBlock } = await this.multiProvider.getLatestBlockRange(
+            originChain,
+            1,
+          );
+          lastSeenBlock = toBlock;
+        } catch {
+          lastSeenBlock = 0;
+        }
+
+        if (stopped) return;
+        interval = setInterval(() => {
+          void poll();
+        }, 1000);
+      })();
     });
 
     return {
-      removeHandler: (removeChains) =>
+      removeHandler: (removeChains) => {
         (removeChains ?? chains).map((originChain) => {
-          this.contractsMap[originChain].mailbox.removeAllListeners('Dispatch');
+          teardownByChain[originChain]?.();
           this.logger.debug(`Stopped listening for dispatch on ${originChain}`);
-        }),
+        });
+      },
     };
   }
 
@@ -384,7 +550,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       `Expected exactly one process event, got ${events.length}`,
     );
     const processedEvent = events[0];
-    return processedEvent.getTransactionReceipt();
+    return this.getReceiptFromEvent(
+      destinationChain,
+      processedEvent as EventLike,
+      `process event for message ${message.id}`,
+    );
   }
 
   protected waitForProcessReceipt(
@@ -395,16 +565,49 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const mailbox = this.contractsMap[destinationChain].mailbox;
     const filter = mailbox.filters.ProcessId(id);
 
-    return new Promise<EvmTxReceipt>((resolve, reject) => {
-      mailbox.once(filter, (emittedId: string, event: any) => {
-        if (id !== emittedId) {
-          reject(`Expected message id ${id} but got ${emittedId}`);
-        }
-        resolve(
-          this.multiProvider.handleTx(destinationChain, event.getTransaction()),
+    const mailboxWithEvents = mailbox as unknown as {
+      once?: (
+        filter: unknown,
+        listener: (emittedId: string, event: EventLike) => void,
+      ) => void;
+    };
+
+    if (typeof mailboxWithEvents.once === 'function') {
+      return new Promise<EvmTxReceipt>((resolve, reject) => {
+        mailboxWithEvents.once?.(
+          filter,
+          (emittedId: string, event: EventLike) => {
+            if (id !== emittedId) {
+              reject(`Expected message id ${id} but got ${emittedId}`);
+              return;
+            }
+
+            if (typeof event.getTransaction === 'function') {
+              resolve(
+                this.multiProvider.handleTx(
+                  destinationChain,
+                  event.getTransaction(),
+                ),
+              );
+              return;
+            }
+
+            this.getReceiptFromEvent(
+              destinationChain,
+              event,
+              `process event for message ${id}`,
+            )
+              .then(resolve)
+              .catch(reject);
+          },
         );
       });
-    });
+    }
+
+    return (async () => {
+      await this.waitForMessageIdProcessed(id, destinationChain, 1000, 120);
+      return this.getProcessedReceipt(message);
+    })();
   }
 
   async waitForMessageIdProcessed(
@@ -495,7 +698,27 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
     assert(matching.length === 1, 'Multiple dispatch events found');
     const event = matching[0]; // only 1 event per message ID
-    return event.getTransactionReceipt();
+    return this.getReceiptFromEvent(
+      originChain,
+      event as EventLike,
+      `dispatch event for message ${messageId}`,
+    );
+  }
+
+  private async getReceiptFromEvent(
+    chain: ChainName,
+    event: EventLike,
+    context: string,
+  ): Promise<EvmTxReceipt> {
+    if (typeof event.getTransactionReceipt === 'function') {
+      return event.getTransactionReceipt() as Promise<EvmTxReceipt>;
+    }
+
+    const txHash = eventTxHash(event);
+    assert(txHash, `Missing transaction hash for ${context}`);
+    return this.multiProvider
+      .getProvider(chain)
+      .getTransactionReceipt(txHash) as Promise<EvmTxReceipt>;
   }
 
   static parseDispatchedMessage(message: string): DispatchedMessage {
