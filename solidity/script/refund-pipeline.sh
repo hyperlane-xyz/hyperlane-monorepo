@@ -108,10 +108,9 @@ fi
 echo "Parsing broadcast file: $BROADCAST_FILE"
 
 CHAIN_ID=$(jq -r '.chain' "$BROADCAST_FILE")
-CHAIN_ID_HEX=$(printf "0x%x" "$CHAIN_ID")
 
 echo "Generating Safe Transaction Builder JSON..."
-jq --arg chainId "$CHAIN_ID_HEX" '{
+jq --arg chainId "$CHAIN_ID" '{
     version: "1.0",
     chainId: $chainId,
     meta: {
@@ -128,7 +127,7 @@ jq --arg chainId "$CHAIN_ID_HEX" '{
 echo ""
 echo "=== Pipeline Complete ==="
 echo "Output file: $OUTPUT_FILE"
-echo "Chain ID: $CHAIN_ID ($CHAIN_ID_HEX)"
+echo "Chain ID: $CHAIN_ID"
 echo "Transactions: $(jq '.transactions | length' "$OUTPUT_FILE")"
 echo ""
 echo "Import this file into the Safe Transaction Builder UI to execute the refund."
