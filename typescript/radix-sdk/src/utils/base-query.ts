@@ -14,6 +14,27 @@ type RadixComponentDetails = Extract<
   { type: 'Component' }
 >;
 
+function isComponentOwner(
+  value: unknown,
+): value is EntityDetails['role_assignments']['owner'] {
+  if (typeof value !== 'object' || value === null) return false;
+  const rule = Reflect.get(value, 'rule');
+  if (typeof rule !== 'object' || rule === null) return false;
+  const accessRule = Reflect.get(rule, 'access_rule');
+  if (typeof accessRule !== 'object' || accessRule === null) return false;
+  const proofRule = Reflect.get(accessRule, 'proof_rule');
+  if (typeof proofRule !== 'object' || proofRule === null) return false;
+  const requirement = Reflect.get(proofRule, 'requirement');
+  if (typeof requirement !== 'object' || requirement === null) return false;
+  const resource = Reflect.get(requirement, 'resource');
+  return typeof resource === 'string';
+}
+
+function isComponentState(value: unknown): value is EntityDetails['state'] {
+  if (typeof value !== 'object' || value === null) return false;
+  return Array.isArray(Reflect.get(value, 'fields'));
+}
+
 /**
  * Fetches and validates Radix component details from the gateway.
  *
@@ -98,11 +119,9 @@ export function getComponentOwnershipInfo(
   entityAddress: string,
   entityDetails: RadixComponentDetails,
 ): EntityDetails['role_assignments']['owner'] {
-  const ownershipInfo = entityDetails?.role_assignments?.owner as
-    | EntityDetails['role_assignments']['owner']
-    | undefined;
+  const ownershipInfo = entityDetails?.role_assignments?.owner;
   assert(
-    ownershipInfo,
+    isComponentOwner(ownershipInfo),
     `Expected ownership info to be defined for radix component at address ${entityAddress}`,
   );
 
@@ -159,11 +178,11 @@ export function getComponentState(
   entityDetails: RadixComponentDetails,
 ): EntityDetails['state'] {
   assert(
-    entityDetails.state,
+    isComponentState(entityDetails.state),
     `Expected state to be defined for component at address ${entityAddress}`,
   );
 
-  return entityDetails.state as EntityDetails['state'];
+  return entityDetails.state;
 }
 
 /**

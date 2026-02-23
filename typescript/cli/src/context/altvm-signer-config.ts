@@ -1,0 +1,39 @@
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
+import type { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
+
+const JSON_RPC_SUBMITTER_TYPE = 'jsonRpc';
+
+export function resolveStarknetAccountAddress(
+  strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
+  chain: string,
+): string | undefined {
+  const strategySubmitter = strategyConfig[chain]?.submitter;
+  if (strategySubmitter?.type === JSON_RPC_SUBMITTER_TYPE) {
+    const accountAddress =
+      'accountAddress' in strategySubmitter
+        ? strategySubmitter.accountAddress
+        : undefined;
+    const userAddress =
+      'userAddress' in strategySubmitter
+        ? strategySubmitter.userAddress
+        : undefined;
+    const maybeAddress =
+      (typeof accountAddress === 'string' ? accountAddress : undefined) ??
+      (typeof userAddress === 'string' ? userAddress : undefined);
+    if (maybeAddress) return maybeAddress;
+  }
+
+  return process.env.HYP_ACCOUNT_ADDRESS_STARKNET;
+}
+
+export function resolveAltVmAccountAddress(
+  strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
+  protocol: ProtocolType,
+  chain: string,
+): string | undefined {
+  if (protocol === ProtocolType.Starknet) {
+    return resolveStarknetAccountAddress(strategyConfig, chain);
+  }
+  return undefined;
+}

@@ -1,0 +1,32 @@
+import { expect } from 'chai';
+
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
+
+import { StarknetMailboxArtifactManager } from './mailbox-artifact-manager.js';
+
+describe('StarknetMailboxArtifactManager', () => {
+  const chainMetadata: ChainMetadataForAltVM = {
+    name: 'starknetsepolia',
+    protocol: ProtocolType.Starknet,
+    chainId: 'SN_SEPOLIA',
+    domainId: 421614,
+    rpcUrls: [{ http: 'http://localhost:9545' }],
+  };
+
+  it('throws for unsupported mailbox reader type', () => {
+    const manager = new StarknetMailboxArtifactManager(chainMetadata);
+    expect(() => {
+      // @ts-expect-error testing runtime validation for unsupported value
+      manager.createReader('unsupported');
+    }).to.throw(/Unsupported Starknet mailbox type/i);
+  });
+
+  it('throws for unsupported mailbox writer type', () => {
+    const manager = new StarknetMailboxArtifactManager(chainMetadata);
+    expect(() => {
+      // @ts-expect-error testing runtime validation for unsupported value
+      manager.createWriter('unsupported', {});
+    }).to.throw(/Unsupported Starknet mailbox type/i);
+  });
+});

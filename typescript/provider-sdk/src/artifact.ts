@@ -163,7 +163,7 @@ export type RawArtifact<C, D> = {
  * Helper type to transform nested objects containing Artifacts.
  * Handles objects where all properties are Artifacts (required or optional).
  */
-type NestedOnChain<T> = T extends { [L: string]: any }
+type NestedOnChain<T> = T extends Record<string, unknown>
   ? {
       [L in keyof T]: T[L] extends Artifact<infer CC, infer DD>
         ? ArtifactOnChain<CC, DD>
@@ -200,7 +200,7 @@ export type ConfigOnChain<C> = {
  */
 export interface IArtifactManager<
   TypeKey extends string,
-  ConfigMap extends Record<TypeKey, any>,
+  ConfigMap extends Record<TypeKey, unknown>,
   D,
 > {
   createReader<T extends TypeKey>(type: T): ArtifactReader<ConfigMap[T], D>;

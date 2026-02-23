@@ -10,7 +10,9 @@ import * as AltVM from './altvm.js';
 import {
   ArtifactDeployed,
   ArtifactNew,
+  ArtifactReader,
   ArtifactState,
+  ArtifactWriter,
   IArtifactManager,
   isArtifactDeployed,
 } from './artifact.js';
@@ -24,6 +26,7 @@ export type HookModuleType = {
 
 export interface HookConfigs {
   interchainGasPaymaster: IgpHookModuleConfig;
+  protocolFee: ProtocolFeeHookModuleConfig;
   merkleTreeHook: MerkleTreeHookConfig;
 }
 export type HookType = keyof HookConfigs;
@@ -36,6 +39,8 @@ export function altVmHookTypeToProviderHookType(
   switch (hookType) {
     case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
       return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
+    case AltVM.HookType.PROTOCOL_FEE:
+      return AltVM.HookType.PROTOCOL_FEE;
     case AltVM.HookType.MERKLE_TREE:
       return AltVM.HookType.MERKLE_TREE;
     default:
@@ -45,7 +50,7 @@ export function altVmHookTypeToProviderHookType(
 
 export const MUTABLE_HOOK_TYPE: HookType[] = [
   'interchainGasPaymaster',
-  // 'protocolFee',
+  'protocolFee',
   // 'domainRoutingHook',
   // 'fallbackRoutingHook',
   // 'pausableHook',
@@ -70,6 +75,17 @@ export interface IgpHookModuleConfig {
 export interface MerkleTreeHookConfig {
   type: 'merkleTreeHook';
 }
+
+export interface ProtocolFeeHookModuleConfig {
+  type: 'protocolFee';
+  owner: string;
+  beneficiary: string;
+  maxProtocolFee: string;
+  protocolFee: string;
+}
+
+// Protocol fee config has identical shapes for Config API and Artifact API.
+export type ProtocolFeeHookConfig = ProtocolFeeHookModuleConfig;
 
 export type HookModuleAddresses = {
   deployedHook: string;
@@ -105,6 +121,7 @@ export interface IgpHookConfig {
 
 export interface HookArtifactConfigs {
   interchainGasPaymaster: IgpHookConfig;
+  protocolFee: ProtocolFeeHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
 }
 
@@ -137,6 +154,7 @@ export type IHookArtifactManager = IArtifactManager<
  */
 export interface RawHookArtifactConfigs {
   interchainGasPaymaster: IgpHookConfig;
+  protocolFee: ProtocolFeeHookConfig;
   merkleTreeHook: MerkleTreeHookConfig;
 }
 
@@ -163,6 +181,42 @@ export interface IRawHookArtifactManager
    * @returns The artifact configuration and deployment data
    */
   readHook(address: string): Promise<DeployedHookArtifact>;
+}
+
+export function createUnsupportedHookReader<T extends HookType>(
+  hookType: T,
+  protocolName: string,
+): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  return {
+    read: async () => {
+      throw new Error(
+        `${hookType} hook type is unsupported on ${protocolName}`,
+      );
+    },
+  };
+}
+
+export function createUnsupportedHookWriter<T extends HookType>(
+  hookType: T,
+  protocolName: string,
+): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
+  return {
+    read: async () => {
+      throw new Error(
+        `${hookType} hook type is unsupported on ${protocolName}`,
+      );
+    },
+    create: async () => {
+      throw new Error(
+        `${hookType} hook type is unsupported on ${protocolName}`,
+      );
+    },
+    update: async () => {
+      throw new Error(
+        `${hookType} hook type is unsupported on ${protocolName}`,
+      );
+    },
+  };
 }
 
 // Hook Config Utilities
@@ -267,8 +321,20 @@ export function hookConfigToArtifact(
         },
       };
 
+    case 'protocolFee':
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: AltVM.HookType.PROTOCOL_FEE,
+          owner: config.owner,
+          beneficiary: config.beneficiary,
+          maxProtocolFee: config.maxProtocolFee,
+          protocolFee: config.protocolFee,
+        },
+      };
+
     default: {
-      throw new Error(`Unhandled hook type: ${(config as any).type}`);
+      throw new Error(`Unhandled hook type in hookConfigToArtifact`);
     }
   }
 }
@@ -305,9 +371,12 @@ export function shouldDeployNewHook(
     case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
       // IGP hooks are mutable - can be updated
       return false;
+    case AltVM.HookType.PROTOCOL_FEE:
+      // maxProtocolFee is immutable (constructor-only) and requires redeploy.
+      return normalizedActual.maxProtocolFee !== normalizedExpected.maxProtocolFee;
 
     default: {
-      throw new Error(`Unhandled hook type: ${(expected as any).type}`);
+      throw new Error(`Unhandled hook type in shouldDeployNewHook`);
     }
   }
 }
@@ -421,8 +490,18 @@ export function hookArtifactToDerivedConfig(
         address,
       };
 
+    case AltVM.HookType.PROTOCOL_FEE:
+      return {
+        type: 'protocolFee',
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        maxProtocolFee: config.maxProtocolFee,
+        protocolFee: config.protocolFee,
+        address,
+      };
+
     default: {
-      throw new Error(`Unhandled hook type: ${(config as any).type}`);
+      throw new Error(`Unhandled hook type in hookArtifactToDerivedConfig`);
     }
   }
 }

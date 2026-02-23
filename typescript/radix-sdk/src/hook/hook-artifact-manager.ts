@@ -11,6 +11,8 @@ import {
   HookType,
   IRawHookArtifactManager,
   RawHookArtifactConfigs,
+  createUnsupportedHookReader,
+  createUnsupportedHookWriter,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
 import { RadixSigner } from '../clients/signer.js';
@@ -65,6 +67,8 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
     } = {
       merkleTreeHook: () => new RadixMerkleTreeHookReader(this.gateway),
       interchainGasPaymaster: () => new RadixIgpHookReader(this.gateway),
+      protocolFee: () =>
+        createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Radix'),
     };
 
     return readers[type]();
@@ -96,6 +100,8 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
           this.base,
           this.nativeTokenDenom,
         ),
+      protocolFee: () =>
+        createUnsupportedHookWriter(AltVM.HookType.PROTOCOL_FEE, 'Radix'),
     };
 
     return writers[type]();

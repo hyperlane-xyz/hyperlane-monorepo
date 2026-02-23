@@ -9,10 +9,12 @@ import {
 import {
   type DeployedHookAddress,
   type DeployedHookArtifact,
-  type HookConfigs,
   type HookType,
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
+  altVmHookTypeToProviderHookType,
+  createUnsupportedHookReader,
+  createUnsupportedHookWriter,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -79,7 +81,7 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     const altVMType = await getHookType(query, address);
 
     const reader = this.createReaderWithQuery(
-      altVMType as keyof HookConfigs,
+      altVmHookTypeToProviderHookType(altVMType),
       query,
     );
     return reader.read(address);
@@ -124,6 +126,8 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
       [AltVM.HookType.MERKLE_TREE]: () => new CosmosMerkleTreeHookReader(query),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new CosmosIgpHookReader(query),
+      [AltVM.HookType.PROTOCOL_FEE]: () =>
+        createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Cosmos'),
     };
 
     return readers[type]();
@@ -197,6 +201,8 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
           this.config.nativeTokenDenom,
         );
       },
+      [AltVM.HookType.PROTOCOL_FEE]: () =>
+        createUnsupportedHookWriter(AltVM.HookType.PROTOCOL_FEE, 'Cosmos'),
     };
 
     return writers[type]();

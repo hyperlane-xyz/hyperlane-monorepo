@@ -1,8 +1,8 @@
-import { password } from '@inquirer/prompts';
+import { input, password } from '@inquirer/prompts';
 
 import {
   type AltVM,
-  type ProtocolType,
+  type ChainMetadataForAltVM,
   getProtocolProvider,
   hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
@@ -10,15 +10,18 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import {
-  type ChainMap,
-  type ChainMetadataManager,
-  TxSubmitterType,
-} from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
+import { resolveAltVmAccountAddress } from './altvm-signer-config.js';
 import { type SignerKeyProtocolMap } from './types.js';
+
+type ChainMetadataManagerLike = {
+  getChainMetadata: (chain: string) => ChainMetadataForAltVM;
+};
+
+type ChainMap<T> = Record<string, T>;
 
 async function loadPrivateKey(
   keyByProtocol: SignerKeyProtocolMap,
@@ -36,7 +39,7 @@ async function loadPrivateKey(
   if (strategyConfig[chain]) {
     const rawConfig = strategyConfig[chain]!.submitter;
 
-    if (rawConfig.type === TxSubmitterType.JSON_RPC) {
+    if (rawConfig.type === 'jsonRpc') {
       if (!rawConfig.privateKey) {
         throw new Error(
           `missing private key in strategy config for chain ${chain}`,
@@ -57,13 +60,40 @@ async function loadPrivateKey(
   return keyByProtocol[protocol]!;
 }
 
+async function loadAccountAddress(
+  strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
+  protocol: ProtocolType,
+  chain: string,
+  fallbackPromptedAddress?: string,
+): Promise<{ accountAddress?: string; isPrompted: boolean }> {
+  if (protocol !== ProtocolType.Starknet) {
+    return { accountAddress: undefined, isPrompted: false };
+  }
+
+  const resolved = resolveAltVmAccountAddress(strategyConfig, protocol, chain);
+  if (resolved) return { accountAddress: resolved, isPrompted: false };
+
+  if (fallbackPromptedAddress) {
+    return { accountAddress: fallbackPromptedAddress, isPrompted: false };
+  }
+
+  const promptedAddress = await input({
+    message: `Please enter the Starknet account contract address for chain ${chain}`,
+  });
+  return { accountAddress: promptedAddress, isPrompted: true };
+}
+
 export async function createAltVMSigners(
-  metadataManager: ChainMetadataManager,
+  metadataManager: ChainMetadataManagerLike,
   chains: string[],
   keyByProtocol: SignerKeyProtocolMap,
   strategyConfig: Partial<ExtendedChainSubmissionStrategy>,
 ) {
   const signers: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>> = {};
+  const promptedAccountAddressByProtocol: Partial<
+    Record<ProtocolType, string>
+  > = {};
+
   for (const chain of chains) {
     const metadata = metadataManager.getChainMetadata(chain);
 
@@ -71,6 +101,12 @@ export async function createAltVMSigners(
       continue;
     }
 
+    const { accountAddress, isPrompted } = await loadAccountAddress(
+      strategyConfig,
+      metadata.protocol,
+      chain,
+      promptedAccountAddressByProtocol[metadata.protocol],
+    );
     const signerConfig = {
       privateKey: await loadPrivateKey(
         keyByProtocol,
@@ -78,7 +114,13 @@ export async function createAltVMSigners(
         metadata.protocol,
         chain,
       ),
+      accountAddress,
     };
+
+    if (isPrompted && signerConfig.accountAddress) {
+      promptedAccountAddressByProtocol[metadata.protocol] =
+        signerConfig.accountAddress;
+    }
 
     signers[chain] = await getProtocolProvider(metadata.protocol).createSigner(
       metadata,

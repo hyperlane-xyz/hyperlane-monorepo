@@ -10,6 +10,8 @@ import {
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
   altVmHookTypeToProviderHookType,
+  createUnsupportedHookReader,
+  createUnsupportedHookWriter,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -65,6 +67,8 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
         new AleoMerkleTreeHookReader(this.aleoClient),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new AleoIgpHookReader(this.aleoClient),
+      [AltVM.HookType.PROTOCOL_FEE]: () =>
+        createUnsupportedHookReader(AltVM.HookType.PROTOCOL_FEE, 'Aleo'),
     };
 
     const maybeReader = readers[type]();
@@ -90,6 +94,8 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
         new AleoMerkleTreeHookWriter(this.aleoClient, signer, mailboxAddress),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new AleoIgpHookWriter(this.aleoClient, signer, mailboxAddress),
+      [AltVM.HookType.PROTOCOL_FEE]: () =>
+        createUnsupportedHookWriter(AltVM.HookType.PROTOCOL_FEE, 'Aleo'),
     };
 
     const maybeWriter = writers[type]();
