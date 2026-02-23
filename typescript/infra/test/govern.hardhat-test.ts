@@ -220,6 +220,6 @@ describe('ICA governance', async () => {
 
     // assert
     actualOwner = await recipient.owner();
-    expect(actualOwner).to.equal(signer.address);
+    expect(eqAddress(actualOwner, signer.address)).to.be.true;
   });
 });
