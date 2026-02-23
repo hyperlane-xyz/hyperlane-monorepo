@@ -215,6 +215,8 @@ export class ActionTracker implements IActionTracker {
     // Check in_progress intents for completion or TTL expiry
     const inProgressIntents =
       await this.rebalanceIntentStore.getByStatus('in_progress');
+    const allInProgressActions =
+      await this.rebalanceActionStore.getByStatus('in_progress');
     const now = Date.now();
     for (const intent of inProgressIntents) {
       const completedAmount = await this.getCompletedAmountForIntent(intent.id);
@@ -229,9 +231,7 @@ export class ActionTracker implements IActionTracker {
         });
 
         // Fail any in-progress actions associated with the expired intent
-        const inProgressActions =
-          await this.rebalanceActionStore.getByStatus('in_progress');
-        for (const action of inProgressActions) {
+        for (const action of allInProgressActions) {
           if (action.intentId === intent.id) {
             await this.rebalanceActionStore.update(action.id, {
               status: 'failed',

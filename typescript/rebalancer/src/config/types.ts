@@ -140,10 +140,10 @@ export const RebalancerConfigSchema = z
       .number()
       .positive()
       .default(DEFAULT_INTENT_TTL_S)
-      .transform((val) => val * 1_000)
       .describe(
         'Max age in seconds before in-progress intent is expired. Default 2h.',
-      ),
+      )
+      .transform((val) => val * 1_000),
   })
   .superRefine((config, ctx) => {
     // CollateralDeficitStrategy must be first in composite if it is used
