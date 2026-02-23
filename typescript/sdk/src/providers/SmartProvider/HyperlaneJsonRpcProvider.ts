@@ -1,4 +1,4 @@
-import { toHex } from 'viem';
+import { createPublicClient, http, toHex } from 'viem';
 
 import {
   chunk,
@@ -20,8 +20,8 @@ const NUM_PARALLEL_LOG_QUERIES = 5;
 export class HyperlaneJsonRpcProvider implements IProviderMethods {
   protected readonly logger = rootLogger.child({ module: 'JsonRpcProvider' });
   public readonly supportedMethods = AllProviderMethods;
-  private requestId = 0;
   public readonly connection: RpcConfigWithConnectionInfo['connection'];
+  private readonly client: ReturnType<typeof createPublicClient>;
 
   constructor(
     public readonly rpcConfig: RpcConfigWithConnectionInfo,
@@ -36,6 +36,36 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
       rpcConfig.connection ?? {
         url: rpcConfig.http,
       };
+
+    const url = this.connection?.url || this.rpcConfig.http;
+    const chainId =
+      typeof this.network === 'object'
+        ? this.network.chainId
+        : Number(this.network);
+    const chainName =
+      typeof this.network === 'object'
+        ? this.network.name
+        : String(this.network);
+
+    this.client = createPublicClient({
+      chain: {
+        id: Number.isFinite(chainId) ? chainId : 0,
+        name: chainName,
+        network: chainName,
+        nativeCurrency: { name: '', symbol: '', decimals: 18 },
+        rpcUrls: {
+          default: { http: [url] },
+          public: { http: [url] },
+        },
+      },
+      transport: http(url, {
+        fetchOptions: this.connection?.headers
+          ? { headers: this.connection.headers as Record<string, string> }
+          : undefined,
+        retryCount: 0,
+        timeout: getTimeout(this.connection),
+      }),
+    });
   }
 
   prepareRequest(method: string, params: any): [string, any[]] {
@@ -96,42 +126,14 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
   }
 
   protected async request(method: string, params: unknown[]): Promise<any> {
-    const requestBody = {
-      jsonrpc: '2.0',
-      id: ++this.requestId,
-      method,
-      params,
-    };
-
-    let response: Response;
     try {
-      response = await fetch(this.connection?.url || this.rpcConfig.http, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...this.connection?.headers,
-        },
-        body: JSON.stringify(sanitizeJsonRpcValue(requestBody)),
+      return await this.client.request({
+        method,
+        params: sanitizeJsonRpcValue(params),
       });
-    } catch (cause) {
-      throw createServerError(cause);
+    } catch (error) {
+      throw mapViemError(error);
     }
-
-    let json: { result?: unknown; error?: JsonRpcErrorPayload };
-    try {
-      json = (await response.json()) as {
-        result?: unknown;
-        error?: JsonRpcErrorPayload;
-      };
-    } catch (cause) {
-      throw createServerError(cause);
-    }
-
-    if (json.error) throw createMappedRpcError(json.error);
-
-    if (!response.ok) throw createServerError();
-
-    return json.result;
   }
 
   async send(method: string, params: unknown[]): Promise<unknown> {
@@ -397,12 +399,6 @@ function sanitizeJsonRpcValue(value: unknown): unknown {
   return value;
 }
 
-type JsonRpcErrorPayload = {
-  code?: number;
-  data?: unknown;
-  message?: string;
-};
-
 type MappedRpcError = Error & {
   code?: string;
   data?: unknown;
@@ -414,31 +410,156 @@ type MappedRpcError = Error & {
   };
 };
 
-function createServerError(cause?: unknown): MappedRpcError {
-  const error = new Error('RPC request failed', {
-    cause,
-  }) as MappedRpcError;
-  error.code = 'SERVER_ERROR';
-  return error;
+function getTimeout(connection: RpcConfigWithConnectionInfo['connection']) {
+  const timeout = connection?.timeout;
+  if (typeof timeout === 'number' && Number.isFinite(timeout)) {
+    return timeout;
+  }
+  return undefined;
 }
 
-function createMappedRpcError(rpcError: JsonRpcErrorPayload): MappedRpcError {
-  const message = rpcError.message || 'RPC request failed';
-  const error = new Error(message) as MappedRpcError;
-
-  if (rpcError.code === 3) {
-    // EIP-1474 code 3 is a contract execution revert.
-    error.code = 'CALL_EXCEPTION';
-    error.reason = message;
-    error.data = rpcError.data;
-  } else {
-    error.code = 'SERVER_ERROR';
+function mapViemError(error: unknown): MappedRpcError {
+  if (
+    error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    typeof (error as { code?: unknown }).code === 'string'
+  ) {
+    return error as MappedRpcError;
   }
 
-  error.error = {
-    code: rpcError.code,
-    data: rpcError.data,
-    message: rpcError.message,
-  };
-  return error;
+  const numericCode = extractNumericCode(error);
+  const data = extractData(error);
+  const extractedMessage = extractMessage(error) || 'RPC request failed';
+
+  const mapped = new Error(extractedMessage, {
+    cause: error instanceof Error ? error : undefined,
+  }) as MappedRpcError;
+
+  if (isCallException(numericCode, extractedMessage, data)) {
+    mapped.code = 'CALL_EXCEPTION';
+    mapped.reason = extractedMessage;
+    mapped.data = data;
+  } else if (isInsufficientFunds(extractedMessage)) {
+    mapped.code = 'INSUFFICIENT_FUNDS';
+  } else if (isNonceIssue(extractedMessage)) {
+    mapped.code = 'NONCE_EXPIRED';
+  } else if (isReplacementUnderpriced(extractedMessage)) {
+    mapped.code = 'REPLACEMENT_UNDERPRICED';
+  } else {
+    mapped.code = 'SERVER_ERROR';
+    // Preserve previous SmartProvider behavior for transport failures:
+    // expose canonical SERVER_ERROR message instead of generic fetch text.
+    mapped.message = 'RPC request failed';
+  }
+
+  // Only attach nested JSON-RPC error payload when RPC returned one.
+  // For transport failures we intentionally omit nested error.message so
+  // SmartProvider emits canonical SERVER_ERROR guidance.
+  if (numericCode !== undefined || data !== undefined) {
+    mapped.error = {
+      code: numericCode,
+      data,
+      message: extractedMessage,
+    };
+  }
+
+  return mapped;
+}
+
+function extractNumericCode(error: unknown): number | undefined {
+  const visited = new Set<unknown>();
+  const queue: unknown[] = [error];
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || visited.has(current) || typeof current !== 'object')
+      continue;
+    visited.add(current);
+
+    const record = current as Record<string, unknown>;
+    if (typeof record.code === 'number') return record.code;
+
+    for (const key of ['error', 'cause']) {
+      if (record[key] !== undefined) queue.push(record[key]);
+    }
+  }
+
+  return undefined;
+}
+
+function extractData(error: unknown): unknown {
+  const visited = new Set<unknown>();
+  const queue: unknown[] = [error];
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || visited.has(current) || typeof current !== 'object')
+      continue;
+    visited.add(current);
+
+    const record = current as Record<string, unknown>;
+    if (record.data !== undefined) return record.data;
+
+    for (const key of ['error', 'cause']) {
+      if (record[key] !== undefined) queue.push(record[key]);
+    }
+  }
+
+  return undefined;
+}
+
+function extractMessage(error: unknown): string | undefined {
+  const visited = new Set<unknown>();
+  const queue: unknown[] = [error];
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || visited.has(current) || typeof current !== 'object')
+      continue;
+    visited.add(current);
+
+    const record = current as Record<string, unknown>;
+    for (const key of ['shortMessage', 'details', 'message']) {
+      if (typeof record[key] === 'string' && record[key]) {
+        return record[key] as string;
+      }
+    }
+
+    for (const key of ['error', 'cause']) {
+      if (record[key] !== undefined) queue.push(record[key]);
+    }
+  }
+
+  return undefined;
+}
+
+function isCallException(
+  numericCode: number | undefined,
+  message: string,
+  data: unknown,
+): boolean {
+  if (numericCode === 3) return true;
+  const lower = message.toLowerCase();
+  if (lower.includes('execution reverted')) return true;
+  if (lower.includes('returned no data')) return true;
+  if (typeof data === 'string' && data !== '0x') return true;
+  return false;
+}
+
+function isInsufficientFunds(message: string): boolean {
+  return message.toLowerCase().includes('insufficient funds');
+}
+
+function isNonceIssue(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('nonce too low') ||
+    lower.includes('nonce too high') ||
+    lower.includes('nonce has already been used')
+  );
+}
+
+function isReplacementUnderpriced(message: string): boolean {
+  return message.toLowerCase().includes('replacement transaction underpriced');
 }
