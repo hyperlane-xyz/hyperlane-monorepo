@@ -26,7 +26,7 @@
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -120,8 +120,8 @@ async function main(): Promise<void> {
 
     // Create MultiProvider with signer
     const multiProvider = new MultiProvider(chainMetadata);
-    const rebalancerSigner = new LocalAccountEvmSigner(
-      ensure0x(rebalancerPrivateKey),
+    const rebalancerSigner = new LocalAccountViemSigner(
+      ensure0x(rebalancerPrivateKey) as `0x${string}`,
     );
     multiProvider.setSharedSigner(rebalancerSigner);
     logger.info(
@@ -135,8 +135,8 @@ async function main(): Promise<void> {
       inventoryMultiProvider = new MultiProvider(chainMetadata, {
         providers: multiProvider.providers,
       });
-      const inventorySigner = new LocalAccountEvmSigner(
-        ensure0x(inventoryPrivateKey),
+      const inventorySigner = new LocalAccountViemSigner(
+        ensure0x(inventoryPrivateKey) as `0x${string}`,
       );
       inventoryMultiProvider.setSharedSigner(inventorySigner);
 

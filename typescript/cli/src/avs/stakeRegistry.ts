@@ -6,7 +6,7 @@ import {
   ECDSAStakeRegistry__factory,
   TestAVSDirectory__factory,
 } from '@hyperlane-xyz/core';
-import { LocalAccountEvmSigner, type ChainName } from '@hyperlane-xyz/sdk';
+import { LocalAccountViemSigner, type ChainName } from '@hyperlane-xyz/sdk';
 import { type Address, assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import { type WriteCommandContext } from '../context/types.js';
@@ -112,7 +112,7 @@ export async function deregisterOperator({
 
 export async function readOperatorFromEncryptedJson(
   operatorKeyPath: string,
-): Promise<LocalAccountEvmSigner> {
+): Promise<LocalAccountViemSigner> {
   const encryptedJson = readFileAtPath(resolvePath(operatorKeyPath));
 
   const keyFilePassword = await password({
@@ -121,15 +121,15 @@ export async function readOperatorFromEncryptedJson(
   });
 
   const privateKey = decryptKeystoreJson(encryptedJson, keyFilePassword);
-  return new LocalAccountEvmSigner(privateKey);
+  return new LocalAccountViemSigner(privateKey);
 }
 
 async function getOperatorSignature(
   domain: number,
   serviceManager: Address,
   avsDirectory: Address,
-  operator: LocalAccountEvmSigner,
-  signer: LocalAccountEvmSigner,
+  operator: LocalAccountViemSigner,
+  signer: LocalAccountViemSigner,
 ): Promise<SignatureWithSaltAndExpiryStruct> {
   const avsDirectoryContract = TestAVSDirectory__factory.connect(
     avsDirectory,

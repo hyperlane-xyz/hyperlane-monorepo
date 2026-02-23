@@ -14,7 +14,7 @@ import {
   type ChainMap,
   type ChainMetadata,
   HyperlaneSmartProvider,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   type Token,
   TokenType,
   type WarpCoreConfig,
@@ -59,8 +59,8 @@ export type WarpBridgeTestConfig = {
   tokenChain2Symbol: string;
   tokenVaultChain3Symbol: string;
   tokenChain3Symbol: string;
-  walletChain2: ReturnType<LocalAccountEvmSigner['connect']>;
-  walletChain3: ReturnType<LocalAccountEvmSigner['connect']>;
+  walletChain2: ReturnType<LocalAccountViemSigner['connect']>;
+  walletChain3: ReturnType<LocalAccountViemSigner['connect']>;
   tokenChain2: ERC20Test;
   fiatToken2: FiatTokenTest;
   xERC202: XERC20VSTest;
@@ -170,10 +170,10 @@ export async function setupChains(): Promise<WarpBridgeTestConfig> {
     chain3Metadata.rpcUrls[0].http,
   );
 
-  const walletChain2 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+  const walletChain2 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
     providerChain2,
   );
-  const walletChain3 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+  const walletChain3 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
     providerChain3,
   );
 

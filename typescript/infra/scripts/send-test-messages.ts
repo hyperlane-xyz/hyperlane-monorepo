@@ -13,7 +13,7 @@ import {
   ChainName,
   HookType,
   HyperlaneCore,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   MultiProvider,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
@@ -55,7 +55,7 @@ async function setMailboxHook(
 
 async function setIgpConfig(
   remoteId: number,
-  signer: LocalAccountEvmSigner,
+  signer: LocalAccountViemSigner,
   provider: ReturnType<MultiProvider['getProvider']>,
   mailbox: Mailbox,
   addresses: any,
@@ -184,7 +184,7 @@ async function main() {
   ];
 
   // Create a multi-provider with a signer
-  const signer = new LocalAccountEvmSigner(
+  const signer = new LocalAccountViemSigner(
     ensure0x(ANVIL_KEY) as `0x${string}`,
   );
   const multiProvider = MultiProvider.createTestMultiProvider({ signer });

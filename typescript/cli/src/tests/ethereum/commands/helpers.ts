@@ -20,7 +20,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
@@ -205,7 +205,7 @@ export async function deployToken(
   // Future works: make signer compatible with protocol/chain stack
   multiProvider.setSigner(
     chain,
-    new LocalAccountEvmSigner(ensure0x(privateKey)),
+    new LocalAccountViemSigner(ensure0x(privateKey)),
   );
 
   const token = await new ERC20Test__factory(
@@ -230,7 +230,7 @@ export async function deployFiatToken(
 
   multiProvider.setSigner(
     chain,
-    new LocalAccountEvmSigner(ensure0x(privateKey)),
+    new LocalAccountViemSigner(ensure0x(privateKey)),
   );
 
   const token = await new FiatTokenTest__factory(
@@ -254,7 +254,7 @@ export async function deploy4626Vault(
   // Future works: make signer compatible with protocol/chain stack
   multiProvider.setSigner(
     chain,
-    new LocalAccountEvmSigner(ensure0x(privateKey)),
+    new LocalAccountViemSigner(ensure0x(privateKey)),
   );
 
   const vault = await new ERC4626Test__factory(
@@ -279,7 +279,7 @@ export async function deployXERC20VSToken(
   // Future works: make signer compatible with protocol/chain stack
   multiProvider.setSigner(
     chain,
-    new LocalAccountEvmSigner(ensure0x(privateKey)),
+    new LocalAccountViemSigner(ensure0x(privateKey)),
   );
 
   const token = await new XERC20VSTest__factory(
@@ -308,7 +308,7 @@ export async function deployXERC20LockboxToken(
   // Future works: make signer compatible with protocol/chain stack
   multiProvider.setSigner(
     chain,
-    new LocalAccountEvmSigner(ensure0x(privateKey)),
+    new LocalAccountViemSigner(ensure0x(privateKey)),
   );
 
   const [tokenSymbol, tokenName, tokenDecimals, tokenTotalSupply] =
@@ -345,7 +345,7 @@ export async function deployTestOffchainLookupISM(
 
   multiProvider.setSigner(
     chain,
-    new LocalAccountEvmSigner(ensure0x(privateKey)),
+    new LocalAccountViemSigner(ensure0x(privateKey)),
   );
 
   const testIsm = await new TestCcipReadIsm__factory(
@@ -371,7 +371,7 @@ export async function deployEverclearBridgeAdapter(
 
   multiProvider.setSigner(
     chain,
-    new LocalAccountEvmSigner(ensure0x(privateKey)),
+    new LocalAccountViemSigner(ensure0x(privateKey)),
   );
 
   const adapter = await new MockEverclearAdapter__factory(

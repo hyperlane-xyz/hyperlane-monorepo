@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   HyperlaneSmartProvider,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
@@ -75,19 +75,19 @@ export async function deployMultiDomainSimulation(
   // Create fresh provider with no caching
   const provider = HyperlaneSmartProvider.fromRpcUrl(31337, anvilRpc);
 
-  const deployer = new LocalAccountEvmSigner(
+  const deployer = new LocalAccountViemSigner(
     ensure0x(deployerKey) as `0x${string}`,
   ).connect(provider as any);
   const deployerAddress = await deployer.getAddress();
-  const rebalancerWallet = new LocalAccountEvmSigner(
+  const rebalancerWallet = new LocalAccountViemSigner(
     ensure0x(rebalancerKey) as `0x${string}`,
   ).connect(provider as any);
   const rebalancerAddress = await rebalancerWallet.getAddress();
-  const bridgeControllerWallet = new LocalAccountEvmSigner(
+  const bridgeControllerWallet = new LocalAccountViemSigner(
     ensure0x(bridgeControllerKey) as `0x${string}`,
   ).connect(provider as any);
   const bridgeControllerAddress = await bridgeControllerWallet.getAddress();
-  const mailboxProcessorWallet = new LocalAccountEvmSigner(
+  const mailboxProcessorWallet = new LocalAccountViemSigner(
     ensure0x(mailboxProcessorKey) as `0x${string}`,
   ).connect(provider as any);
   const mailboxProcessorAddress = await mailboxProcessorWallet.getAddress();

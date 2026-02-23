@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import {
   HyperlaneCore,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   MultiProvider,
   revertToSnapshot,
   snapshot,

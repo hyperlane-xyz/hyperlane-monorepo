@@ -38,13 +38,13 @@ const toBigIntValue = (value: unknown): bigint | undefined =>
  * };
  *
  * const provider = multiProvider.getProvider('ethereum');
- * const signer = new TurnkeyEvmSigner(config, provider);
+ * const signer = new TurnkeyViemSigner(config, provider);
  *
  * // Use with MultiProvider
  * multiProvider.setSigner('ethereum', signer);
  * ```
  */
-export class TurnkeyEvmSigner {
+export class TurnkeyViemSigner {
   private readonly manager: TurnkeyClientManager;
   private readonly account: LocalAccount;
   public readonly address: string;
@@ -75,7 +75,7 @@ export class TurnkeyEvmSigner {
    * Get an ethers Signer connected to the provided provider
    * This returns a new instance with the provider connected
    */
-  async getSigner(provider: ViemProviderLike): Promise<TurnkeyEvmSigner> {
+  async getSigner(provider: ViemProviderLike): Promise<TurnkeyViemSigner> {
     logger.debug('Creating Turnkey EVM signer for transaction');
     return this.connect(provider);
   }
@@ -83,8 +83,8 @@ export class TurnkeyEvmSigner {
   /**
    * Connect this signer to a provider (creates new instance with proper configuration)
    */
-  connect(provider: ViemProviderLike): TurnkeyEvmSigner {
-    return new TurnkeyEvmSigner(this.manager.getConfig(), provider);
+  connect(provider: ViemProviderLike): TurnkeyViemSigner {
+    return new TurnkeyViemSigner(this.manager.getConfig(), provider);
   }
 
   /**

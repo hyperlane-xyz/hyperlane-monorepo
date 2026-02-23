@@ -12,7 +12,7 @@ export type LocalViemTransactionRequest = ViemTransactionRequestLike & {
 const toBigIntValue = (value: unknown): bigint | undefined =>
   value === null || value === undefined ? undefined : BigInt(value.toString());
 
-export class LocalAccountEvmSigner {
+export class LocalAccountViemSigner {
   public readonly account: ReturnType<typeof privateKeyToAccount>;
   public readonly address: string;
   public readonly provider: ViemProviderLike | undefined;
@@ -23,15 +23,15 @@ export class LocalAccountEvmSigner {
   ) {
     assert(
       isHex(privateKey),
-      'Private key for LocalAccountEvmSigner must be hex',
+      'Private key for LocalAccountViemSigner must be hex',
     );
     this.account = privateKeyToAccount(privateKey);
     this.address = this.account.address;
     this.provider = provider;
   }
 
-  connect(provider: ViemProviderLike): LocalAccountEvmSigner {
-    return new LocalAccountEvmSigner(this.privateKey, provider);
+  connect(provider: ViemProviderLike): LocalAccountViemSigner {
+    return new LocalAccountViemSigner(this.privateKey, provider);
   }
 
   async getAddress(): Promise<string> {

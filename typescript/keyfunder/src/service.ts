@@ -3,7 +3,7 @@ import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   HyperlaneIgp,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -71,7 +71,7 @@ async function main(): Promise<void> {
     );
 
     const multiProvider = new MultiProvider(chainMetadata);
-    const signer = new LocalAccountEvmSigner(
+    const signer = new LocalAccountViemSigner(
       ensure0x(privateKey) as `0x${string}`,
     );
     multiProvider.setSharedSigner(signer);

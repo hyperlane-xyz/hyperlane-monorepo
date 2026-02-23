@@ -5,7 +5,7 @@ import { type Logger, pino } from 'pino';
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
 import {
   HyperlaneCore,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   MultiProtocolProvider,
   type MultiProvider,
   type WarpCoreConfig,
@@ -266,7 +266,7 @@ export class TestRebalancerBuilder {
       this.multiProvider,
     );
 
-    const deployerWallet = new LocalAccountEvmSigner(
+    const deployerWallet = new LocalAccountViemSigner(
       ensure0x(ANVIL_TEST_PRIVATE_KEY),
     );
     const rebalancerAddresses = [await deployerWallet.getAddress()];
@@ -746,7 +746,7 @@ export class TestRebalancerBuilder {
     const ctx = this.deploymentManager.getContext();
     const rebalancerMultiProvider = this.multiProvider.extendChainMetadata({});
 
-    const wallet = new LocalAccountEvmSigner(ensure0x(ANVIL_TEST_PRIVATE_KEY));
+    const wallet = new LocalAccountViemSigner(ensure0x(ANVIL_TEST_PRIVATE_KEY));
     for (const chain of TEST_CHAINS) {
       const provider = ctx.providers.get(chain);
       if (provider) {

@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import {
   HyperlaneCore,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   MultiProvider,
   revertToSnapshot,
   snapshot,
@@ -48,7 +48,7 @@ describe('Collateral Deficit E2E', function () {
   let collateralDeficitStrategyConfig: StrategyConfig[];
 
   before(async function () {
-    const wallet = new LocalAccountEvmSigner(ensure0x(ANVIL_USER_PRIVATE_KEY));
+    const wallet = new LocalAccountViemSigner(ensure0x(ANVIL_USER_PRIVATE_KEY));
     userAddress = await wallet.getAddress();
 
     deploymentManager = new LocalDeploymentManager();
@@ -165,7 +165,7 @@ describe('Collateral Deficit E2E', function () {
     );
 
     const ethProvider = localProviders.get('anvil1')!;
-    const deployer = new LocalAccountEvmSigner(
+    const deployer = new LocalAccountViemSigner(
       ensure0x(ANVIL_TEST_PRIVATE_KEY),
     ).connect(ethProvider as any);
     const token = (await import('@hyperlane-xyz/core')).ERC20__factory.connect(

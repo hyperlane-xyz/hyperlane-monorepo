@@ -1,7 +1,7 @@
 import {
   MultiProvider,
   TurnkeyConfig,
-  TurnkeyEvmSigner,
+  TurnkeyViemSigner,
   TurnkeySealevelSigner,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
@@ -11,7 +11,7 @@ import { TurnkeyRole } from '../roles.js';
 
 import { fetchLatestGCPSecret } from './gcloud.js';
 
-export type TurnkeySigner = TurnkeySealevelSigner | TurnkeyEvmSigner;
+export type TurnkeySigner = TurnkeySealevelSigner | TurnkeyViemSigner;
 
 /**
  * Get the GCP secret name for a Turnkey role
@@ -44,7 +44,7 @@ export async function createTurnkeySigner(
       case TurnkeyRole.EvmRebalancer:
       case TurnkeyRole.EvmIgpClaimer:
       case TurnkeyRole.EvmIgpUpdater:
-        signer = new TurnkeyEvmSigner(turnkeyConfig);
+        signer = new TurnkeyViemSigner(turnkeyConfig);
         break;
       default:
         throw new Error(`Unknown Turnkey role: ${role}`);
@@ -79,20 +79,20 @@ export async function getTurnkeySealevelDeployerSigner(
   ) as Promise<TurnkeySealevelSigner>;
 }
 
-// TurnkeyEvmSigner is now imported from SDK
+// TurnkeyViemSigner is now imported from SDK
 
 /**
  * Get Turnkey EVM signer for a specific role
  * Fetches the Turnkey config from GCP Secret Manager and creates a signer
  */
-export async function getTurnkeyEvmSigner(
+export async function getTurnkeyViemSigner(
   deployEnvironment: DeployEnvironment,
   role: Exclude<TurnkeyRole, TurnkeyRole.SealevelDeployer>,
-): Promise<TurnkeyEvmSigner> {
+): Promise<TurnkeyViemSigner> {
   return createTurnkeySigner(
     deployEnvironment,
     role,
-  ) as Promise<TurnkeyEvmSigner>;
+  ) as Promise<TurnkeyViemSigner>;
 }
 
 export async function setTurnkeySignerForEvmChains(
@@ -100,7 +100,7 @@ export async function setTurnkeySignerForEvmChains(
   deployEnvironment: DeployEnvironment,
   role: Exclude<TurnkeyRole, TurnkeyRole.SealevelDeployer>,
 ): Promise<void> {
-  const turnkeySigner = await getTurnkeyEvmSigner(deployEnvironment, role);
+  const turnkeySigner = await getTurnkeyViemSigner(deployEnvironment, role);
   await Promise.all(
     multiProvider.getKnownChainNames().reduce<Promise<void>[]>((acc, chain) => {
       if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {

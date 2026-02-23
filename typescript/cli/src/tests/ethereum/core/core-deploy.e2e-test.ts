@@ -4,7 +4,7 @@ import {
   type ChainMetadata,
   type CoreConfig,
   HyperlaneSmartProvider,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   HookType,
   type ProtocolFeeHookConfig,
   randomAddress,
@@ -41,7 +41,7 @@ describe('hyperlane core deploy e2e tests', async function () {
     CORE_READ_CONFIG_PATH_2,
   );
 
-  let signer: ReturnType<LocalAccountEvmSigner['connect']>;
+  let signer: ReturnType<LocalAccountViemSigner['connect']>;
   let initialOwnerAddress: Address;
 
   before(async () => {
@@ -51,7 +51,7 @@ describe('hyperlane core deploy e2e tests', async function () {
       chainMetadata.chainId,
       chainMetadata.rpcUrls[0].http,
     );
-    const wallet = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY));
+    const wallet = new LocalAccountViemSigner(ensure0x(ANVIL_KEY));
     signer = wallet.connect(provider);
 
     initialOwnerAddress = await signer.getAddress();

@@ -1,5 +1,5 @@
 import { ERC20__factory } from '@hyperlane-xyz/core';
-import { LocalAccountEvmSigner, type MultiProvider } from '@hyperlane-xyz/sdk';
+import { LocalAccountViemSigner, type MultiProvider } from '@hyperlane-xyz/sdk';
 import { ensure0x } from '@hyperlane-xyz/utils';
 
 export async function setupCollateralBalances(
@@ -13,7 +13,7 @@ export async function setupCollateralBalances(
     const provider = providers.get(chain);
     if (!provider) throw new Error(`No provider for chain ${chain}`);
 
-    const deployer = new LocalAccountEvmSigner(ensure0x(deployerKey)).connect(
+    const deployer = new LocalAccountViemSigner(ensure0x(deployerKey)).connect(
       provider as any,
     );
     const token = ERC20__factory.connect(tokensByChain[chain], deployer);

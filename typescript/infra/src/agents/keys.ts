@@ -1,6 +1,6 @@
 import {
   ChainName,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
@@ -15,7 +15,7 @@ import { parseKeyIdentifier } from './agent.js';
 export type EvmProvider = ReturnType<MultiProvider['getProvider']>;
 export type EvmSigner =
   | ReturnType<MultiProvider['getSigner']>
-  | LocalAccountEvmSigner;
+  | LocalAccountViemSigner;
 
 // Base class to represent keys used to run Hyperlane agents.
 export abstract class BaseAgentKey {

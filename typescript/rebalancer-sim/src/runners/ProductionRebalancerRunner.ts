@@ -9,7 +9,7 @@ import {
 } from '@hyperlane-xyz/rebalancer';
 import type { StrategyConfig } from '@hyperlane-xyz/rebalancer';
 import {
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -173,7 +173,7 @@ export class ProductionRebalancerRunner
       logger: silentLogger,
     });
 
-    const wallet = new LocalAccountEvmSigner(
+    const wallet = new LocalAccountViemSigner(
       ensure0x(this.config.deployment.rebalancerKey) as `0x${string}`,
     );
     multiProvider.setSharedSigner(wallet);

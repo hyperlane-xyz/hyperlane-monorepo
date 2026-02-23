@@ -15,7 +15,7 @@ import {
   type ChainMetadata,
   HyperlaneSmartProvider,
   InterchainAccount,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
@@ -89,12 +89,12 @@ describe('hyperlane warp check --ica e2e tests', async function () {
       chain3Metadata.rpcUrls[0].http,
     );
 
-    const walletChain2 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
-      providerChain2,
-    );
-    const walletChain3 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
-      providerChain3,
-    );
+    const walletChain2 = new LocalAccountViemSigner(
+      ensure0x(ANVIL_KEY),
+    ).connect(providerChain2);
+    const walletChain3 = new LocalAccountViemSigner(
+      ensure0x(ANVIL_KEY),
+    ).connect(providerChain3);
 
     const { registry, multiProvider } = await getContext({
       registryUris: [REGISTRY_PATH],
