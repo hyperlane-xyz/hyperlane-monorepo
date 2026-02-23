@@ -115,6 +115,9 @@ export const RebalancerStrategySchema = z
   .union([StrategyConfigSchema, z.array(StrategyConfigSchema).min(1)])
   .transform((val) => (Array.isArray(val) ? val : [val]));
 
+export const DEFAULT_INTENT_TTL_S = 7200;
+export const DEFAULT_INTENT_TTL_MS = DEFAULT_INTENT_TTL_S * 1_000;
+
 export const LiFiBridgeConfigSchema = z.object({
   integrator: z.string(),
   defaultSlippage: z.number().optional(),
@@ -136,9 +139,8 @@ export const RebalancerConfigSchema = z
     intentTTL: z
       .number()
       .positive()
+      .default(DEFAULT_INTENT_TTL_S)
       .transform((val) => val * 1_000)
-      .optional()
-      .default(7200)
       .describe(
         'Max age in seconds before in-progress intent is expired. Default 2h.',
       ),

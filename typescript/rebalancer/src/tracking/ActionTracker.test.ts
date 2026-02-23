@@ -5,6 +5,7 @@ import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
 
+import { DEFAULT_INTENT_TTL_MS } from '../config/types.js';
 import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 
 import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
@@ -71,7 +72,7 @@ describe('ActionTracker', () => {
       },
       bridges: ['0xbridge1', '0xbridge2'],
       rebalancerAddress: '0xrebalancer',
-      intentTTL: 7_200_000,
+      intentTTL: DEFAULT_INTENT_TTL_MS,
     };
 
     tracker = new ActionTracker(
@@ -335,6 +336,46 @@ describe('ActionTracker', () => {
 
       await rebalanceIntentStore.save(intent);
       await rebalanceActionStore.save(action);
+
+      await tracker.syncRebalanceIntents();
+
+      const updated = await rebalanceIntentStore.get('intent-1');
+      expect(updated?.status).to.equal('in_progress');
+    });
+
+    it('should mark unfulfilled intents as failed when TTL exceeded', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        fulfilledAmount: 50n,
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS - 1,
+        updatedAt: Date.now(),
+      };
+
+      await rebalanceIntentStore.save(intent);
+
+      await tracker.syncRebalanceIntents();
+
+      const updated = await rebalanceIntentStore.get('intent-1');
+      expect(updated?.status).to.equal('failed');
+    });
+
+    it('should not expire intents within TTL', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        fulfilledAmount: 50n,
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS + 60_000,
+        updatedAt: Date.now(),
+      };
+
+      await rebalanceIntentStore.save(intent);
 
       await tracker.syncRebalanceIntents();
 

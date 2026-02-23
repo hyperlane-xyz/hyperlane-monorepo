@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
-import { parseWarpRouteMessage } from '@hyperlane-xyz/utils';
+import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
@@ -215,6 +215,7 @@ export class ActionTracker implements IActionTracker {
     // Check in_progress intents for completion or TTL expiry
     const inProgressIntents =
       await this.rebalanceIntentStore.getByStatus('in_progress');
+    const now = Date.now();
     for (const intent of inProgressIntents) {
       const completedAmount = await this.getCompletedAmountForIntent(intent.id);
       if (completedAmount >= intent.amount) {
@@ -222,7 +223,7 @@ export class ActionTracker implements IActionTracker {
           status: 'complete',
         });
         this.logger.debug({ id: intent.id }, 'RebalanceIntent completed');
-      } else if (Date.now() - intent.createdAt > this.config.intentTTL) {
+      } else if (now - intent.createdAt > this.config.intentTTL) {
         await this.rebalanceIntentStore.update(intent.id, {
           status: 'failed',
         });
@@ -232,7 +233,7 @@ export class ActionTracker implements IActionTracker {
             origin: intent.origin,
             destination: intent.destination,
             amount: intent.amount.toString(),
-            ageMs: Date.now() - intent.createdAt,
+            ageMs: now - intent.createdAt,
             ttlMs: this.config.intentTTL,
           },
           'RebalanceIntent expired due to TTL',
@@ -882,6 +883,10 @@ export class ActionTracker implements IActionTracker {
       const createdAt = msg.send_occurred_at
         ? new Date(msg.send_occurred_at + 'Z').getTime()
         : Date.now();
+      assert(
+        !isNaN(createdAt),
+        `Invalid send_occurred_at timestamp: ${msg.send_occurred_at}`,
+      );
       const intent: RebalanceIntent = {
         id: uuidv4(),
         status: 'in_progress',

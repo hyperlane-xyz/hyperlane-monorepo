@@ -10,6 +10,7 @@ import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
+  DEFAULT_INTENT_TTL_MS,
   type StrategyConfig,
   getStrategyChainNames,
 } from '../../config/types.js';
@@ -203,7 +204,7 @@ export class TestRebalancerBuilder {
     const rebalancerConfig = new RebalancerConfig(
       MONITORED_ROUTE_ID,
       this.strategyConfig,
-      7_200_000,
+      DEFAULT_INTENT_TTL_MS,
     );
 
     const registry = this.deploymentManager.getRegistry();

@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { pino } from 'pino';
 
 import {
+  DEFAULT_INTENT_TTL_MS,
   RebalancerConfig,
   RebalancerService,
   RebalancerStrategyOptions,
@@ -221,7 +222,7 @@ export class ProductionRebalancerRunner
     const rebalancerConfig = new RebalancerConfig(
       registry.getWarpRouteId(),
       [strategyConfig] as StrategyConfig[],
-      7_200_000,
+      DEFAULT_INTENT_TTL_MS,
     );
 
     // Create service with mock action tracker
