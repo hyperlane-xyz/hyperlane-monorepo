@@ -232,6 +232,21 @@ function normalizeFunctionArgs(
     });
 }
 
+function getSingleFunctionAbi(fn: AbiFunction): Abi {
+    return [fn];
+}
+
+function encodeFunctionCallData(
+    fn: AbiFunction,
+    args: readonly unknown[] = [],
+): Hex {
+    return encodeFunctionData({
+        abi: getSingleFunctionAbi(fn),
+        functionName: fn.name,
+        args: normalizeFunctionArgs(fn, args),
+    });
+}
+
 function buildInterfaceFunctions(abi: Abi) {
     const entries = abi.filter(
         (item): item is AbiFunction => item.type === "function",
@@ -244,12 +259,7 @@ function buildInterfaceFunctions(abi: Abi) {
     for (const fn of entries) {
         const signature = getFunctionSignature(fn);
         functions[signature] = {
-            encode: (args = []) =>
-                encodeFunctionData({
-                    abi: [fn] as Abi,
-                    functionName: fn.name,
-                    args: [...normalizeFunctionArgs(fn, args)] as any[],
-                }),
+            encode: (args = []) => encodeFunctionCallData(fn, args),
         };
     }
 
@@ -284,11 +294,7 @@ export function createInterface(abi: Abi, bytecode?: Hex): any {
             if (!fn) {
                 throw new Error(`Function ${functionName} not found`);
             }
-            return encodeFunctionData({
-                abi: [fn] as Abi,
-                functionName: fn.name,
-                args: [...normalizeFunctionArgs(fn, args)] as any[],
-            });
+            return encodeFunctionCallData(fn, args);
         },
         decodeFunctionResult(functionName: string, data: Hex) {
             const fn = getFunctionAbi(abi, functionName);
@@ -296,7 +302,7 @@ export function createInterface(abi: Abi, bytecode?: Hex): any {
                 throw new Error(`Function ${functionName} not found`);
             }
             return decodeFunctionResult({
-                abi: [fn] as Abi,
+                abi: getSingleFunctionAbi(fn),
                 functionName: fn.name,
                 data,
             });
@@ -364,7 +370,7 @@ async function performRead(
     fn: AbiFunction,
     args: readonly unknown[],
 ): Promise<any> {
-    const readAbi = [fn] as Abi;
+    const readAbi = getSingleFunctionAbi(fn);
     const provider = getRunnerProvider(runner);
     if (provider && isObject(provider)) {
         if (
@@ -379,11 +385,7 @@ async function performRead(
             });
         }
         if ("call" in provider && typeof provider.call === "function") {
-            const data = encodeFunctionData({
-                abi: readAbi,
-                functionName: fn.name,
-                args: [...args] as any[],
-            });
+            const data = encodeFunctionCallData(fn, args);
             const callResult = await (provider.call as any)({
                 to: address,
                 data,
@@ -400,11 +402,7 @@ async function performRead(
         }
     }
 
-    const data = encodeFunctionData({
-        abi: readAbi,
-        functionName: fn.name,
-        args: [...args] as any[],
-    });
+    const data = encodeFunctionCallData(fn, args);
     const callResult = await rpcRequest(runner, "eth_call", [
         {to: address, data},
         "latest",
@@ -630,11 +628,7 @@ export function createContractProxy(
                     const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
                     const request = await withRunnerFrom(runner, {
                         to: address,
-                        data: encodeFunctionData({
-                            abi,
-                            functionName: fn.name,
-                            args: normalizedArgs as any[],
-                        }),
+                        data: encodeFunctionCallData(fn, normalizedArgs),
                         ...overrides,
                     });
                     return performEstimateGas(runner, request);
@@ -658,11 +652,7 @@ export function createContractProxy(
                     const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
                     return {
                         to: address,
-                        data: encodeFunctionData({
-                            abi,
-                            functionName: fn.name,
-                            args: normalizedArgs as any[],
-                        }),
+                        data: encodeFunctionCallData(fn, normalizedArgs),
                         ...overrides,
                     };
                 };
@@ -803,11 +793,7 @@ export function createContractProxy(
 
                 const request: TxRequestLike = {
                     to: address,
-                    data: encodeFunctionData({
-                        abi,
-                        functionName: fn.name,
-                        args: normalizedArgs as any[],
-                    }),
+                    data: encodeFunctionCallData(fn, normalizedArgs),
                     ...overrides,
                 };
                 const response = await performSend(runner, request);

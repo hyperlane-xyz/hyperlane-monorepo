@@ -17,6 +17,7 @@ import {
   assert,
   diffObjMerge,
   eqAddress,
+  isAddressEvm,
   keepOnlyDiffObjects,
   normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
@@ -126,6 +127,10 @@ export async function runWarpIcaOwnerCheck({
   assert(
     originOwner,
     `Origin chain "${origin}" does not have an owner configured and --originOwner was not provided`,
+  );
+  assert(
+    isAddressEvm(originOwner),
+    `Origin owner "${originOwner}" must be a valid EVM address`,
   );
 
   // Filter chains: must be in config, EVM, and not the origin chain

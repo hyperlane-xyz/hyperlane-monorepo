@@ -344,8 +344,8 @@ describe('hyperlane warp apply owner update tests', async function () {
 
     const onChainEverclearBridgeAdapterAddress =
       await movableToken.everclearAdapter();
-    expect(onChainEverclearBridgeAdapterAddress).to.equal(
-      everclearBridgeAdapterMock.address,
+    expect(normalizeAddressEvm(onChainEverclearBridgeAdapterAddress)).to.equal(
+      normalizeAddressEvm(everclearBridgeAdapterMock.address),
     );
 
     const [fee, deadline, signature] =

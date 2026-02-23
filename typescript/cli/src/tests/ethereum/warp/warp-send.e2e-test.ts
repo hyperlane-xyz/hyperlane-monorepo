@@ -50,6 +50,8 @@ describe('hyperlane warp send e2e tests', async function () {
   let ownerAddress: Address;
   let walletChain2: ReturnType<LocalAccountViemSigner['connect']>;
   let walletChain3: ReturnType<LocalAccountViemSigner['connect']>;
+  let providerChain2: HyperlaneSmartProvider;
+  let providerChain3: HyperlaneSmartProvider;
 
   before(async function () {
     [chain2Addresses, chain3Addresses] = await Promise.all([
@@ -60,11 +62,11 @@ describe('hyperlane warp send e2e tests', async function () {
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-    const providerChain2 = HyperlaneSmartProvider.fromRpcUrl(
+    providerChain2 = HyperlaneSmartProvider.fromRpcUrl(
       chain2Metadata.chainId,
       chain2Metadata.rpcUrls[0].http,
     );
-    const providerChain3 = HyperlaneSmartProvider.fromRpcUrl(
+    providerChain3 = HyperlaneSmartProvider.fromRpcUrl(
       chain3Metadata.chainId,
       chain3Metadata.rpcUrls[0].http,
     );
@@ -400,7 +402,7 @@ describe('hyperlane warp send e2e tests', async function () {
     );
     const [nativeBalanceOnChain2Before, syntheticBalanceOnChain3Before] =
       await Promise.all([
-        walletChain2.getBalance(),
+        providerChain2.getBalance(walletChain2.address),
         synthetic.callStatic.balanceOf(walletChain3.address),
       ]);
 
@@ -415,7 +417,7 @@ describe('hyperlane warp send e2e tests', async function () {
 
     const [nativeBalanceOnChain2After, syntheticBalanceOnChain3After] =
       await Promise.all([
-        walletChain2.getBalance(),
+        providerChain2.getBalance(walletChain2.address),
         synthetic.callStatic.balanceOf(walletChain3.address),
       ]);
 
@@ -452,13 +454,17 @@ describe('hyperlane warp send e2e tests', async function () {
 
     const collateral = parseEther('1');
     // Sending eth to the hypnative contract otherwise bridging will fail
-    await walletChain3.sendTransaction({
+    const collateralTx = await walletChain3.sendTransaction({
       to: config[CHAIN_NAME_3].addressOrDenom,
       value: collateral,
     });
+    await collateralTx.wait();
 
     const [nativeBalanceOnChain2Before, nativeBalanceOnChain3Before] =
-      await Promise.all([walletChain2.getBalance(), walletChain3.getBalance()]);
+      await Promise.all([
+        providerChain2.getBalance(walletChain2.address),
+        providerChain3.getBalance(walletChain3.address),
+      ]);
 
     const { stdout, exitCode } = await hyperlaneWarpSendRelay({
       warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
@@ -469,7 +475,10 @@ describe('hyperlane warp send e2e tests', async function () {
     expect(stdout).to.include(WarpSendLogs.SUCCESS);
 
     const [nativeBalanceOnChain2After, nativeBalanceOnChain3After] =
-      await Promise.all([walletChain2.getBalance(), walletChain3.getBalance()]);
+      await Promise.all([
+        providerChain2.getBalance(walletChain2.address),
+        providerChain3.getBalance(walletChain3.address),
+      ]);
 
     expect(lt(nativeBalanceOnChain2After, nativeBalanceOnChain2Before)).to.be
       .true;
@@ -499,7 +508,10 @@ describe('hyperlane warp send e2e tests', async function () {
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
     const [nativeBalanceOnChain1Before, nativeBalanceOnChain2Before] =
-      await Promise.all([walletChain2.getBalance(), walletChain3.getBalance()]);
+      await Promise.all([
+        providerChain2.getBalance(walletChain2.address),
+        providerChain3.getBalance(walletChain3.address),
+      ]);
 
     const { exitCode, stdout } = await hyperlaneWarpSendRelay({
       origin: CHAIN_NAME_2,
@@ -512,7 +524,10 @@ describe('hyperlane warp send e2e tests', async function () {
     expect(stdout).to.include(`to ${CHAIN_NAME_3} has INSUFFICIENT collateral`);
 
     const [nativeBalanceOnChain1After, nativeBalanceOnChain2After] =
-      await Promise.all([walletChain2.getBalance(), walletChain3.getBalance()]);
+      await Promise.all([
+        providerChain2.getBalance(walletChain2.address),
+        providerChain3.getBalance(walletChain3.address),
+      ]);
 
     expect(eq(nativeBalanceOnChain1After, nativeBalanceOnChain1Before)).to.be
       .true;

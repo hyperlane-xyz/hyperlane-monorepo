@@ -324,7 +324,7 @@ export async function collateralizeWarpTokens(
   routeConfigPath: string,
   warpDeployConfig: WarpRouteDeployConfig,
   walletAndCollateralByChain: ChainMap<{
-    wallet: Wallet;
+    wallet: ReturnType<LocalAccountViemSigner['connect']>;
     collateral: ERC20Test;
     xerc20Lockbox: XERC20LockboxTest;
   }>,
