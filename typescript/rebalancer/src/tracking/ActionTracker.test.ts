@@ -420,12 +420,28 @@ describe('ActionTracker', () => {
         updatedAt: Date.now(),
       };
 
+      const action: RebalanceAction = {
+        id: 'action-1',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 50n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
       await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
 
       await tracker.syncRebalanceIntents();
 
-      const updated = await rebalanceIntentStore.get('intent-1');
-      expect(updated?.status).to.equal('failed');
+      const updatedIntent = await rebalanceIntentStore.get('intent-1');
+      expect(updatedIntent?.status).to.equal('failed');
+
+      const updatedAction = await rebalanceActionStore.get('action-1');
+      expect(updatedAction?.status).to.equal('failed');
     });
 
     it('should not expire intents within TTL', async () => {

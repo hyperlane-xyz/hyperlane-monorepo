@@ -227,6 +227,22 @@ export class ActionTracker implements IActionTracker {
         await this.rebalanceIntentStore.update(intent.id, {
           status: 'failed',
         });
+
+        // Fail any in-progress actions associated with the expired intent
+        const inProgressActions =
+          await this.rebalanceActionStore.getByStatus('in_progress');
+        for (const action of inProgressActions) {
+          if (action.intentId === intent.id) {
+            await this.rebalanceActionStore.update(action.id, {
+              status: 'failed',
+            });
+            this.logger.warn(
+              { actionId: action.id, intentId: intent.id },
+              'RebalanceAction failed due to parent intent TTL expiry',
+            );
+          }
+        }
+
         this.logger.debug(
           {
             id: intent.id,
