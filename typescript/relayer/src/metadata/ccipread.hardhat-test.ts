@@ -147,13 +147,15 @@ describe('Offchain Lookup ISM Integration', () => {
     expect(payload.sender).to.equal(ccipReadIsm.address);
 
     const recovered = await recoverMessageAddress({
-      message: hexToBytes(
-        offchainLookupRequestMessageHash(
-          payload.sender,
-          payload.data,
-          OFFCHAIN_LOOKUP_SERVER_URL,
-        ) as Hex,
-      ),
+      message: {
+        raw: hexToBytes(
+          offchainLookupRequestMessageHash(
+            payload.sender,
+            payload.data,
+            OFFCHAIN_LOOKUP_SERVER_URL,
+          ) as Hex,
+        ),
+      },
       signature: payload.signature as Hex,
     });
     expect(recovered.toLowerCase()).to.equal(signers[0].address.toLowerCase());
