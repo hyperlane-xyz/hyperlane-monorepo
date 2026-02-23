@@ -4,6 +4,7 @@ import {
   CallData,
   ContractFactory,
   GetTransactionReceiptResponse,
+  RawArgs,
   RpcProvider,
 } from 'starknet';
 
@@ -99,7 +100,7 @@ export class StarknetSigner
   private isDeployTx(transaction: AnnotatedTx): transaction is {
     kind: 'deploy';
     contractName: string;
-    constructorArgs: unknown[];
+    constructorArgs: RawArgs;
     contractType?: ContractType;
   } {
     return (
@@ -120,7 +121,7 @@ export class StarknetSigner
 
   private async deployContract(params: {
     contractName: string;
-    constructorArgs: unknown[];
+    constructorArgs: RawArgs;
     contractType?: ContractType;
   }): Promise<{
     transactionHash: string;

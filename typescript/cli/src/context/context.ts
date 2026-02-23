@@ -48,7 +48,9 @@ type SignerMiddlewareArgv = ContextMiddlewareArgv & {
 };
 
 function toStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.map((v) => String(v)) : [];
+  if (Array.isArray(value)) return value.map((v) => String(v));
+  if (typeof value === 'string') return [value];
+  return [];
 }
 
 function toOptionalString(value: unknown): string | undefined {

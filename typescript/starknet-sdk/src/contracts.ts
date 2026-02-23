@@ -1,5 +1,6 @@
 import {
   AccountInterface,
+  ArgsOrCalldata,
   CairoCustomEnum,
   Contract,
   ProviderInterface,
@@ -131,13 +132,16 @@ export function addressToEvmAddress(value: unknown): string {
 export async function callContract(
   contract: Contract,
   method: string,
-  args: unknown[] = [],
+  args: RawArgsArray = [],
 ): Promise<unknown> {
   const fn = Reflect.get(contract, method);
   if (typeof fn === 'function') return fn(...args);
 
   const call = Reflect.get(contract, 'call');
-  if (typeof call === 'function') return call(method, args);
+  if (typeof call === 'function') {
+    const callArgs: ArgsOrCalldata = args;
+    return call(method, callArgs);
+  }
 
   throw new Error(`Unable to call ${method} on contract ${contract.address}`);
 }
