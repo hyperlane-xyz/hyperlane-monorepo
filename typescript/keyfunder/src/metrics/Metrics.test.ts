@@ -42,6 +42,23 @@ describe('KeyFunderMetrics', () => {
     });
   });
 
+  describe('recordUnifiedWalletBalance', () => {
+    it('should record unified wallet balance metric', async () => {
+      const metrics = new KeyFunderMetrics(undefined);
+      metrics.recordUnifiedWalletBalance(
+        'ethereum',
+        '0x1234567890123456789012345678901234567890',
+        'key-funder',
+        1.5,
+      );
+
+      const metricsOutput = await metrics.getRegistry().metrics();
+      expect(metricsOutput).to.include('hyperlane_wallet_balance');
+      expect(metricsOutput).to.include('wallet_name="key-funder"');
+      expect(metricsOutput).to.include('ethereum');
+    });
+  });
+
   describe('recordFundingAmount', () => {
     it('should record funding amount metric', async () => {
       const metrics = new KeyFunderMetrics(undefined);
