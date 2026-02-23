@@ -131,6 +131,71 @@ describe('ActionTracker', () => {
       expect(actions[0].messageId).to.equal('0xmsg1');
     });
 
+    it('should use send_occurred_at for createdAt when available', async () => {
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: '2024-01-15T12:30:45',
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.initialize();
+
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents).to.have.lengthOf(1);
+      // Hasura timestamps are UTC without 'Z'; recoverAction appends 'Z' before parsing
+      const expectedMs = new Date('2024-01-15T12:30:45Z').getTime();
+      expect(intents[0].createdAt).to.equal(expectedMs);
+
+      const actions = await rebalanceActionStore.getAll();
+      expect(actions[0].createdAt).to.equal(expectedMs);
+    });
+
+    it('should fall back to Date.now() when send_occurred_at is null', async () => {
+      const before = Date.now();
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.initialize();
+      const after = Date.now();
+
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents[0].createdAt).to.be.at.least(before);
+      expect(intents[0].createdAt).to.be.at.most(after);
+    });
+
     it('should skip creating action if it already exists', async () => {
       const inflightMessages: ExplorerMessage[] = [
         {

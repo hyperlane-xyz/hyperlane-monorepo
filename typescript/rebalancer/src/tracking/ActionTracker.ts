@@ -238,7 +238,10 @@ export class ActionTracker implements IActionTracker {
           },
           'RebalanceIntent TTL expiry details',
         );
-        this.logger.warn(`RebalanceIntent ${intent.id} expired due to TTL`);
+        this.logger.warn(
+          { id: intent.id },
+          'RebalanceIntent expired due to TTL',
+        );
       }
     }
 
