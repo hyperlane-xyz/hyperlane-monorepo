@@ -91,7 +91,14 @@ export class KeyFunder {
       await this.claimFromIgp(chain, chainConfig);
     }
 
-    await this.recordFunderBalance(chain);
+    try {
+      await this.recordFunderBalance(chain);
+    } catch (error) {
+      logger.warn(
+        { error },
+        'Failed to record funder balance metric, continuing',
+      );
+    }
 
     const resolvedKeys = this.resolveKeysForChain(chain, chainConfig);
     if (resolvedKeys.length > 0) {
