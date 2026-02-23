@@ -32,10 +32,16 @@ export class RadixMailboxArtifactManager implements IRawMailboxArtifactManager {
   createReader<T extends MailboxType>(
     _type: T,
   ): ArtifactReader<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
-    return new RadixMailboxReader(this.gateway) as ArtifactReader<
-      RawMailboxArtifactConfigs[T],
-      DeployedMailboxAddress
-    >;
+    const readers: {
+      [K in MailboxType]: () => ArtifactReader<
+        RawMailboxArtifactConfigs[K],
+        DeployedMailboxAddress
+      >;
+    } = {
+      mailbox: () => new RadixMailboxReader(this.gateway),
+    };
+
+    return readers[_type]();
   }
 
   createWriter<T extends MailboxType>(
@@ -43,12 +49,21 @@ export class RadixMailboxArtifactManager implements IRawMailboxArtifactManager {
     signer: RadixSigner,
   ): ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress> {
     const baseSigner = signer.getBaseSigner();
+    const writers: {
+      [K in MailboxType]: () => ArtifactWriter<
+        RawMailboxArtifactConfigs[K],
+        DeployedMailboxAddress
+      >;
+    } = {
+      mailbox: () =>
+        new RadixMailboxWriter(
+          this.gateway,
+          baseSigner,
+          this.base,
+          this.domainId,
+        ),
+    };
 
-    return new RadixMailboxWriter(
-      this.gateway,
-      baseSigner,
-      this.base,
-      this.domainId,
-    ) as ArtifactWriter<RawMailboxArtifactConfigs[T], DeployedMailboxAddress>;
+    return writers[_type]();
   }
 }

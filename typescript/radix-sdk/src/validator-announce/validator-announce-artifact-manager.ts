@@ -36,10 +36,16 @@ export class RadixValidatorAnnounceArtifactManager
     RawValidatorAnnounceArtifactConfigs[T],
     DeployedValidatorAnnounceAddress
   > {
-    return new RadixValidatorAnnounceReader(this.gateway) as ArtifactReader<
-      RawValidatorAnnounceArtifactConfigs[T],
-      DeployedValidatorAnnounceAddress
-    >;
+    const readers: {
+      [K in ValidatorAnnounceType]: () => ArtifactReader<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: () => new RadixValidatorAnnounceReader(this.gateway),
+    };
+
+    return readers[_type]();
   }
 
   createWriter<T extends ValidatorAnnounceType>(
@@ -50,14 +56,16 @@ export class RadixValidatorAnnounceArtifactManager
     DeployedValidatorAnnounceAddress
   > {
     const baseSigner = signer.getBaseSigner();
+    const writers: {
+      [K in ValidatorAnnounceType]: () => ArtifactWriter<
+        RawValidatorAnnounceArtifactConfigs[K],
+        DeployedValidatorAnnounceAddress
+      >;
+    } = {
+      validatorAnnounce: () =>
+        new RadixValidatorAnnounceWriter(this.gateway, baseSigner, this.base),
+    };
 
-    return new RadixValidatorAnnounceWriter(
-      this.gateway,
-      baseSigner,
-      this.base,
-    ) as ArtifactWriter<
-      RawValidatorAnnounceArtifactConfigs[T],
-      DeployedValidatorAnnounceAddress
-    >;
+    return writers[_type]();
   }
 }

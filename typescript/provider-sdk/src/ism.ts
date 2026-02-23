@@ -19,6 +19,10 @@ import {
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
 
+function assertNever(value: never, context: string): never {
+  throw new Error(`Unhandled ISM type in ${context}: ${JSON.stringify(value)}`);
+}
+
 export type IsmModuleType = {
   config: IsmConfig;
   derived: DerivedIsmConfig;
@@ -285,22 +289,20 @@ export function mergeIsmArtifacts(
 export function altVMIsmTypeToProviderSdkType(
   altVMType: AltVMIsmType,
 ): IsmType {
-  const supportedTypes: AltVMIsmType[] = [
-    AltVMIsmType.TEST_ISM,
-    AltVMIsmType.MERKLE_ROOT_MULTISIG,
-    AltVMIsmType.MESSAGE_ID_MULTISIG,
-    AltVMIsmType.ROUTING,
-  ];
-
-  if (!supportedTypes.includes(altVMType)) {
-    throw new Error(
-      `Unsupported ISM type: AltVM ISM type ${altVMType} is not supported by the provider sdk`,
-    );
+  switch (altVMType) {
+    case AltVMIsmType.TEST_ISM:
+      return 'testIsm';
+    case AltVMIsmType.MERKLE_ROOT_MULTISIG:
+      return 'merkleRootMultisigIsm';
+    case AltVMIsmType.MESSAGE_ID_MULTISIG:
+      return 'messageIdMultisigIsm';
+    case AltVMIsmType.ROUTING:
+      return 'domainRoutingIsm';
+    default:
+      throw new Error(
+        `Unsupported ISM type: AltVM ISM type ${altVMType} is not supported by the provider sdk`,
+      );
   }
-
-  // After validation, we know altVMType is one of the supported types
-  // which map directly to IsmType string literals
-  return altVMType as IsmType;
 }
 
 export function ismArtifactToDerivedConfig(
@@ -366,8 +368,7 @@ export function ismArtifactToDerivedConfig(
       };
 
     default: {
-      const invalidConfig: never = config;
-      throw new Error(`Unhandled ISM type: ${(invalidConfig as any).type}`);
+      return assertNever(config, 'ismArtifactToDerivedConfig');
     }
   }
 }

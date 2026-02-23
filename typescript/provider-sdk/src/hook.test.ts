@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import { ArtifactState } from './artifact.js';
+import { ChainLookup } from './chain.js';
 import {
   HookConfig,
   createUnsupportedHookReader,
@@ -10,10 +11,14 @@ import {
   shouldDeployNewHook,
 } from './hook.js';
 
-const chainLookup = {
-  getDomainId: (chain: string) => (chain === 'ethereum' ? 1 : null),
+const chainLookup: ChainLookup = {
+  getChainMetadata: () => {
+    throw new Error('not needed');
+  },
+  getDomainId: (chain) => (chain === 'ethereum' ? 1 : null),
   getChainName: (domainId: number) => (domainId === 1 ? 'ethereum' : null),
-} as any;
+  getKnownChainNames: () => ['ethereum'],
+};
 
 describe('hook protocolFee support', () => {
   it('converts protocolFee hook config into artifact config', () => {
@@ -109,7 +114,24 @@ describe('hook protocolFee support', () => {
 
     let writerError: unknown;
     try {
-      await writer.create({} as any);
+      const artifact = {
+        config: {
+          type: 'protocolFee',
+          owner: '0xowner',
+          beneficiary: '0xbeneficiary',
+          maxProtocolFee: '100',
+          protocolFee: '10',
+        },
+      } satisfies {
+        config: {
+          type: 'protocolFee';
+          owner: string;
+          beneficiary: string;
+          maxProtocolFee: string;
+          protocolFee: string;
+        };
+      };
+      await writer.create(artifact);
     } catch (error) {
       writerError = error;
     }

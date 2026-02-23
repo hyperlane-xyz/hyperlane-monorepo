@@ -334,7 +334,7 @@ export function hookConfigToArtifact(
       };
 
     default: {
-      throw new Error(`Unhandled hook type: ${(config as any).type}`);
+      throw new Error(`Unhandled hook type in hookConfigToArtifact`);
     }
   }
 }
@@ -373,13 +373,10 @@ export function shouldDeployNewHook(
       return false;
     case AltVM.HookType.PROTOCOL_FEE:
       // maxProtocolFee is immutable (constructor-only) and requires redeploy.
-      return (
-        (normalizedActual as ProtocolFeeHookConfig).maxProtocolFee !==
-        (normalizedExpected as ProtocolFeeHookConfig).maxProtocolFee
-      );
+      return normalizedActual.maxProtocolFee !== normalizedExpected.maxProtocolFee;
 
     default: {
-      throw new Error(`Unhandled hook type: ${(expected as any).type}`);
+      throw new Error(`Unhandled hook type in shouldDeployNewHook`);
     }
   }
 }
@@ -504,7 +501,7 @@ export function hookArtifactToDerivedConfig(
       };
 
     default: {
-      throw new Error(`Unhandled hook type: ${(config as any).type}`);
+      throw new Error(`Unhandled hook type in hookArtifactToDerivedConfig`);
     }
   }
 }

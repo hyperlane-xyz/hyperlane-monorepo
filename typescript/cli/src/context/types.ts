@@ -54,6 +54,7 @@ export interface CommandContext
   altVmProviders: ChainMap<AltVM.IProvider>;
   supportedProtocols: ProtocolType[];
   skipConfirmation: boolean;
+  altVmSigners?: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   // just for evm chains backward compatibility
   signerAddress?: string;
 }

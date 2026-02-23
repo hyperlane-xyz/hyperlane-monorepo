@@ -54,6 +54,16 @@ import { RadixWarpQuery } from '../warp/query.js';
 
 const DEFAULT_GAS_MULTIPLIER = 1.2;
 
+type RadixProviderMetadata = {
+  chainId?: string | number;
+  gatewayUrls?: { http: string }[];
+  packageAddress?: string;
+};
+
+type RadixConnectionParams = {
+  metadata?: RadixProviderMetadata;
+};
+
 export const NETWORKS = {
   [NetworkId.Stokenet]: {
     applicationName: 'hyperlane',
@@ -89,17 +99,16 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
   static async connect(
     rpcUrls: string[],
     chainId: string | number,
-    extraParams?: Record<string, any>,
+    extraParams?: RadixConnectionParams,
   ): Promise<RadixProvider> {
     const networkId = parseInt(chainId.toString());
+    const metadata = extraParams?.metadata;
 
     return new RadixProvider({
       rpcUrls,
       networkId,
-      gatewayUrls: (
-        extraParams?.metadata?.gatewayUrls as { http: string }[]
-      )?.map(({ http }) => http),
-      packageAddress: extraParams?.metadata?.packageAddress,
+      gatewayUrls: metadata?.gatewayUrls?.map(({ http }) => http),
+      packageAddress: metadata?.packageAddress,
     });
   }
 

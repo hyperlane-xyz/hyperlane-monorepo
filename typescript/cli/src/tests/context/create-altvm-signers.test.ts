@@ -1,13 +1,45 @@
 import { expect } from 'chai';
 
 import {
+  type AltVM,
+  type ChainMetadataForAltVM,
   ProtocolType,
   hasProtocol,
   registerProtocol,
 } from '@hyperlane-xyz/provider-sdk';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 
 import { createAltVMSigners } from '../../context/altvm.js';
 import { type SignerKeyProtocolMap } from '../../context/types.js';
+import { type ExtendedChainSubmissionStrategy } from '../../submitters/types.js';
+
+type MetadataManager = Parameters<typeof createAltVMSigners>[0];
+
+function getStarknetMetadata(chainName: string): ChainMetadataForAltVM {
+  return {
+    name: chainName,
+    protocol: ProtocolType.Starknet,
+    chainId: chainName.toUpperCase(),
+    domainId: chainName === 'starknetmainnet' ? 1234 : 421614,
+    rpcUrls: [{ http: 'http://localhost:9545' }],
+  };
+}
+
+function getMetadataManager(
+  getMetadata: (chainName: string) => ChainMetadataForAltVM,
+): MetadataManager {
+  return {
+    getChainMetadata: getMetadata,
+  };
+}
+
+function getStubSigner(): AltVM.ISigner<AnnotatedTx, TxReceipt> {
+  return {} as AltVM.ISigner<AnnotatedTx, TxReceipt>;
+}
 
 describe('createAltVMSigners', () => {
   const capturedConfigs: Array<{
@@ -26,7 +58,7 @@ describe('createAltVMSigners', () => {
       },
       async createSigner(_chainMetadata, config) {
         capturedConfigs.push(config);
-        return {} as any;
+        return getStubSigner();
       },
       async createSubmitter() {
         throw new Error('not needed for createAltVMSigners test');
@@ -63,32 +95,23 @@ describe('createAltVMSigners', () => {
   it('prefers strategy user/account address over environment variable', async () => {
     process.env.HYP_ACCOUNT_ADDRESS_STARKNET = '0xenv';
 
-    const strategy = {
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
       starknetsepolia: {
         submitter: {
-          type: 'jsonRpc',
+          type: TxSubmitterType.JSON_RPC,
           chain: 'starknetsepolia',
           privateKey: '0xstrategy',
           userAddress: '0xstrategy-account',
         },
       },
-    } as any;
+    };
 
     const keys: SignerKeyProtocolMap = {
       [ProtocolType.Starknet]: '0xstrategy',
     };
 
     await createAltVMSigners(
-      {
-        getChainMetadata: () =>
-          ({
-            name: 'starknetsepolia',
-            protocol: ProtocolType.Starknet,
-            chainId: 'SN_SEPOLIA',
-            domainId: 421614,
-            rpcUrls: [{ http: 'http://localhost:9545' }],
-          }) as any,
-      } as any,
+      getMetadataManager(() => getStarknetMetadata('starknetsepolia')),
       ['starknetsepolia'],
       keys,
       strategy,
@@ -102,38 +125,29 @@ describe('createAltVMSigners', () => {
   });
 
   it('respects per-chain strategy account addresses for the same protocol', async () => {
-    const strategy = {
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
       starknetsepolia: {
         submitter: {
-          type: 'jsonRpc',
+          type: TxSubmitterType.JSON_RPC,
           chain: 'starknetsepolia',
           userAddress: '0xstrategy-account-sepolia',
         },
       },
       starknet: {
         submitter: {
-          type: 'jsonRpc',
+          type: TxSubmitterType.JSON_RPC,
           chain: 'starknet',
           accountAddress: '0xstrategy-account-mainnet',
         },
       },
-    } as any;
+    };
 
     const keys: SignerKeyProtocolMap = {
       [ProtocolType.Starknet]: '0xkey',
     };
 
     await createAltVMSigners(
-      {
-        getChainMetadata: (chain: string) =>
-          ({
-            name: chain,
-            protocol: ProtocolType.Starknet,
-            chainId: chain.toUpperCase(),
-            domainId: 1,
-            rpcUrls: [{ http: 'http://localhost:9545' }],
-          }) as any,
-      } as any,
+      getMetadataManager((chainName) => getStarknetMetadata(chainName)),
       ['starknetsepolia', 'starknet'],
       keys,
       strategy,
@@ -158,16 +172,7 @@ describe('createAltVMSigners', () => {
     };
 
     await createAltVMSigners(
-      {
-        getChainMetadata: () =>
-          ({
-            name: 'starknetsepolia',
-            protocol: ProtocolType.Starknet,
-            chainId: 'SN_SEPOLIA',
-            domainId: 421614,
-            rpcUrls: [{ http: 'http://localhost:9545' }],
-          }) as any,
-      } as any,
+      getMetadataManager(() => getStarknetMetadata('starknetsepolia')),
       ['starknetsepolia'],
       keys,
       {},
@@ -181,10 +186,10 @@ describe('createAltVMSigners', () => {
   });
 
   it('resolves Starknet accountAddress per chain before fallback cache reuse', async () => {
-    const strategy = {
+    const strategy: Partial<ExtendedChainSubmissionStrategy> = {
       starknetsepolia: {
         submitter: {
-          type: 'jsonRpc',
+          type: TxSubmitterType.JSON_RPC,
           chain: 'starknetsepolia',
           privateKey: '0xkey',
           accountAddress: '0xaaa',
@@ -192,29 +197,20 @@ describe('createAltVMSigners', () => {
       },
       starknetmainnet: {
         submitter: {
-          type: 'jsonRpc',
+          type: TxSubmitterType.JSON_RPC,
           chain: 'starknetmainnet',
           privateKey: '0xkey',
           accountAddress: '0xbbb',
         },
       },
-    } as any;
+    };
 
     const keys: SignerKeyProtocolMap = {
       [ProtocolType.Starknet]: '0xkey',
     };
 
     await createAltVMSigners(
-      {
-        getChainMetadata: (chainName: string) =>
-          ({
-            name: chainName,
-            protocol: ProtocolType.Starknet,
-            chainId: chainName === 'starknetmainnet' ? 'SN_MAIN' : 'SN_SEPOLIA',
-            domainId: chainName === 'starknetmainnet' ? 1234 : 421614,
-            rpcUrls: [{ http: 'http://localhost:9545' }],
-          }) as any,
-      } as any,
+      getMetadataManager((chainName) => getStarknetMetadata(chainName)),
       ['starknetsepolia', 'starknetmainnet'],
       keys,
       strategy,

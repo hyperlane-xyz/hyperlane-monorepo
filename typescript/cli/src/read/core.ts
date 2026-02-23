@@ -10,6 +10,10 @@ import { type Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 import { type CommandContext } from '../context/types.js';
 import { errorRed } from '../logger.js';
 
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 export async function executeCoreRead({
   context,
   chain,
@@ -39,10 +43,10 @@ export async function executeCoreRead({
           mailbox,
           interchainAccountRouter: addresses?.interchainAccountRouter,
         });
-      } catch (e: any) {
+      } catch (error) {
         errorRed(
           `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
-          e,
+          toError(error),
         );
         process.exit(1);
       }
@@ -54,10 +58,10 @@ export async function executeCoreRead({
       const coreReader = createCoreReader(metadata, chainLookup);
       try {
         return await coreReader.deriveCoreConfig(mailbox);
-      } catch (e: any) {
+      } catch (error) {
         errorRed(
           `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,
-          e,
+          toError(error),
         );
         process.exit(1);
       }

@@ -9,10 +9,10 @@ import {
 import {
   type DeployedHookAddress,
   type DeployedHookArtifact,
-  type HookConfigs,
   type HookType,
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
+  altVmHookTypeToProviderHookType,
   createUnsupportedHookReader,
   createUnsupportedHookWriter,
 } from '@hyperlane-xyz/provider-sdk/hook';
@@ -81,7 +81,7 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     const altVMType = await getHookType(query, address);
 
     const reader = this.createReaderWithQuery(
-      altVMType as keyof HookConfigs,
+      altVmHookTypeToProviderHookType(altVMType),
       query,
     );
     return reader.read(address);

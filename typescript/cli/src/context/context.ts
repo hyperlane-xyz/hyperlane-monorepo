@@ -17,7 +17,12 @@ import {
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
@@ -34,23 +39,50 @@ import {
   SignerKeyProtocolMapSchema,
 } from './types.js';
 
-export async function contextMiddleware(argv: Record<string, any>) {
+type ContextMiddlewareArgv = Record<string, unknown> & {
+  context?: CommandContext;
+};
+
+type SignerMiddlewareArgv = ContextMiddlewareArgv & {
+  context: CommandContext;
+};
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((v) => String(v)) : [];
+}
+
+function toOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function toOptionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function toOptionalSignerKey(value: unknown): ContextSettings['key'] {
+  if (typeof value === 'string') return value;
+  if (value === undefined) return undefined;
+  const parsed = SignerKeyProtocolMapSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+export async function contextMiddleware(argv: ContextMiddlewareArgv) {
   const requiresKey = isSignCommand(argv);
 
   const settings: ContextSettings = {
-    registryUris: [...argv.registry],
-    key: argv.key,
+    registryUris: toStringArray(argv.registry),
+    key: toOptionalSignerKey(argv.key),
     requiresKey,
-    disableProxy: argv.disableProxy,
-    skipConfirmation: argv.yes,
-    strategyPath: argv.strategy,
-    authToken: argv.authToken,
+    disableProxy: toOptionalBoolean(argv.disableProxy),
+    skipConfirmation: toOptionalBoolean(argv.yes),
+    strategyPath: toOptionalString(argv.strategy),
+    authToken: toOptionalString(argv.authToken),
   };
 
   argv.context = await getContext(settings);
 }
 
-export async function signerMiddleware(argv: Record<string, any>) {
+export async function signerMiddleware(argv: SignerMiddlewareArgv) {
   const { key, requiresKey, strategyPath, multiProtocolProvider } =
     argv.context;
 
@@ -99,6 +131,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
   );
 
   if (!requiresKey) return argv;
+  assert(key, 'Expected signer keys when running signer middleware');
 
   /**
    * Extracts signer config
