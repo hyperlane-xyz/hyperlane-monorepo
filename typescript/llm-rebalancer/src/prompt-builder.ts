@@ -108,11 +108,17 @@ ${contextSection}## Strategy
 
 ${formatStrategy(strategy)}
 
+## Skills
+
+Rebalance skills are in \`.pi/skills/\`. Read the appropriate one when you first need to execute a rebalance.
+After the first rebalance, save a \`tpl:\` field in context with the command template (placeholders for addresses/amounts). On subsequent cycles, use the template + \`get_chain_metadata\` — skip re-reading the skill.
+
 ## Loop
 
 1. Check previous context for pending actions. If pending, use \`check_hyperlane_delivery\` to verify.
 2. \`get_balances\`. If within tolerance and no pending → \`save_context\` with status=balanced. Done.
-3. If imbalanced: read the appropriate rebalance skill, execute rebalance, extract messageId, \`save_context\` with status=pending.
+3. If imbalanced and context has \`tpl:\` → use template with \`get_chain_metadata\` to build command. Otherwise read the appropriate skill from \`.pi/skills/\`.
+4. Execute rebalance, extract messageId, \`save_context\` with status=pending.
 
 ## Rules
 
@@ -120,7 +126,7 @@ ${formatStrategy(strategy)}
 - Never rebalance more than surplus. Account for inflight amounts.
 - If action fails, note in context, don't retry immediately.
 - Prefer on-chain rebalance over inventory deposit.
-- \`save_context\` summary: include FULL messageIds (66 hex chars) for pending actions. Keep under 500 chars. No prose — just facts.
+- \`save_context\` summary format: \`tpl:\` with cast send template (use <SOURCE_WARP> <DEST_DOMAIN> <AMOUNT> <BRIDGE> <RPC> as placeholders). FULL messageIds (66 hex chars) for pending. Keep under 500 chars. No prose — just facts.
 - All amounts in wei (18 decimals).
 `;
 }
