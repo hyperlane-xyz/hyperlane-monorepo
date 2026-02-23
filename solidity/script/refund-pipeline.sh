@@ -9,6 +9,7 @@ set -euo pipefail
 #   OLD_ROUTER     - Address of the old HypERC20Collateral contract
 #   REMOTE_DOMAIN  - Any enrolled remote domain to spoof messages from
 #   TX_HASHES      - Comma-separated list of stuck transaction hashes
+#   REFUND_RECIPIENT - Address to receive all refunded tokens
 #
 # Optional environment variables:
 #   SAFE_ADDRESS   - Override the Safe address (default: read from old router owner)
@@ -21,6 +22,7 @@ cd "$SCRIPT_DIR/.."
 : "${OLD_ROUTER:?OLD_ROUTER is required}"
 : "${REMOTE_DOMAIN:?REMOTE_DOMAIN is required}"
 : "${TX_HASHES:?TX_HASHES is required}"
+: "${REFUND_RECIPIENT:?REFUND_RECIPIENT is required}"
 
 OUTPUT_FILE="${OUTPUT_FILE:-refund_transactions.json}"
 
@@ -30,12 +32,11 @@ if [ -z "${SAFE_ADDRESS:-}" ]; then
 	echo "Safe address: $SAFE_ADDRESS"
 fi
 
-# --- Fetch refund data from transaction hashes ---
-echo "Fetching refund data from transaction hashes..."
+# --- Fetch refund amounts from transaction hashes ---
+echo "Fetching refund amounts from transaction hashes..."
 SENT_TRANSFER_REMOTE_TOPIC="0xd229aacb94204188fe8042965fa6b269c62dc5818b21238779ab64bdd17efeec"
 OLD_ROUTER_LOWER=$(echo "$OLD_ROUTER" | tr '[:upper:]' '[:lower:]')
-REFUND_RECIPIENTS=""
-REFUND_AMOUNTS=""
+REFUND_AMOUNT=0
 
 IFS=',' read -ra HASHES <<< "$TX_HASHES"
 for TX_HASH in "${HASHES[@]}"; do
@@ -51,31 +52,23 @@ for TX_HASH in "${HASHES[@]}"; do
 		continue
 	fi
 
-	# Extract recipient (last 20 bytes of topic[2]) and amount (data)
-	RECIPIENT_BYTES32=$(echo "$LOG" | jq -r '.topics[2]')
-	RECIPIENT="0x${RECIPIENT_BYTES32:26}"
+	# Extract amount (data)
 	AMOUNT_HEX=$(echo "$LOG" | jq -r '.data')
 	AMOUNT=$(cast to-dec "$AMOUNT_HEX")
 
-	echo "  Recipient: $RECIPIENT, Amount: $AMOUNT"
-	if [ -n "$REFUND_RECIPIENTS" ]; then
-		REFUND_RECIPIENTS="${REFUND_RECIPIENTS},${RECIPIENT}"
-		REFUND_AMOUNTS="${REFUND_AMOUNTS},${AMOUNT}"
-	else
-		REFUND_RECIPIENTS="${RECIPIENT}"
-		REFUND_AMOUNTS="${AMOUNT}"
-	fi
+	echo "  Amount: $AMOUNT"
+	REFUND_AMOUNT=$((REFUND_AMOUNT + AMOUNT))
 done
 
-if [ -z "$REFUND_RECIPIENTS" ]; then
-	echo "Error: No refunds found from transaction hashes"
+if [ "$REFUND_AMOUNT" -eq 0 ]; then
+	echo "Error: No refund amounts found from transaction hashes"
 	exit 1
 fi
 
-export REFUND_RECIPIENTS
-export REFUND_AMOUNTS
-echo "Refund recipients: $REFUND_RECIPIENTS"
-echo "Refund amounts: $REFUND_AMOUNTS"
+export REFUND_RECIPIENT
+export REFUND_AMOUNT
+echo "Refund recipient: $REFUND_RECIPIENT"
+echo "Refund total amount: $REFUND_AMOUNT"
 
 echo "Starting anvil fork..."
 anvil --fork-url "$RPC_URL" --port 8546 >/dev/null 2>&1 &

@@ -11,10 +11,10 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 /**
  * @title HypERC20CollateralRefundForkTest
  * @notice Fork test that verifies the refund logic on an Ink fork.
- *         Reads depositor/amount data from REFUND_RECIPIENTS and REFUND_AMOUNTS env vars
+ *         Reads refund data from REFUND_RECIPIENT and REFUND_AMOUNT env vars
  *         (set by refund-pipeline.sh).
  *
- *         Run: REFUND_RECIPIENTS=0x...,0x... REFUND_AMOUNTS=123,456 \
+ *         Run: REFUND_RECIPIENT=0x... REFUND_AMOUNT=3825949075 \
  *              forge test --fork-url <INK_RPC> --match-contract HypERC20CollateralRefundForkTest -vvv
  */
 contract HypERC20CollateralRefundForkTest is Test {
@@ -29,16 +29,11 @@ contract HypERC20CollateralRefundForkTest is Test {
     uint32 constant REMOTE_DOMAIN = 42161;
     uint8 constant MAILBOX_VERSION = 3;
 
-    // Fields in alphabetical order for vm.parseJson compatibility
-    struct Refund {
-        uint256 amount;
-        address recipient;
-    }
-
     IERC20 usdc;
     IMailbox mailbox;
     bytes32 remoteRouter;
-    Refund[] refunds;
+    address refundRecipient;
+    uint256 refundAmount;
 
     function setUp() public {
         // Skip if not on a fork (handles CI without fork URL)
@@ -50,13 +45,8 @@ contract HypERC20CollateralRefundForkTest is Test {
         vm.deal(SAFE, 1 ether);
 
         // Load refund data from env vars (set by refund-pipeline.sh)
-        address[] memory recipients = vm.envAddress("REFUND_RECIPIENTS", ",");
-        uint256[] memory amounts = vm.envUint("REFUND_AMOUNTS", ",");
-        require(recipients.length == amounts.length, "Refund length mismatch");
-
-        for (uint256 i = 0; i < recipients.length; i++) {
-            refunds.push(Refund(amounts[i], recipients[i]));
-        }
+        refundRecipient = vm.envAddress("REFUND_RECIPIENT");
+        refundAmount = vm.envUint("REFUND_AMOUNT");
     }
 
     /// @dev Executes the full refund flow (same logic as HypERC20CollateralRefund.s.sol)
@@ -83,24 +73,21 @@ contract HypERC20CollateralRefundForkTest is Test {
         // 2. Set permissive ISM
         oldRouter.setInterchainSecurityModule(ism);
 
-        // 3. Process spoofed messages to refund each depositor
-        uint32 localDomain = mailbox.localDomain();
-        for (uint256 i = 0; i < refunds.length; i++) {
-            bytes memory body = abi.encodePacked(
-                refunds[i].recipient.addressToBytes32(),
-                refunds[i].amount
-            );
-            bytes memory message = abi.encodePacked(
-                MAILBOX_VERSION,
-                uint32(type(uint32).max - i),
-                REMOTE_DOMAIN,
-                remoteRouter,
-                localDomain,
-                OLD_ROUTER.addressToBytes32(),
-                body
-            );
-            mailbox.process("", message);
-        }
+        // 3. Process spoofed message to refund recipient
+        bytes memory body = abi.encodePacked(
+            refundRecipient.addressToBytes32(),
+            refundAmount
+        );
+        bytes memory message = abi.encodePacked(
+            MAILBOX_VERSION,
+            uint32(type(uint32).max),
+            REMOTE_DOMAIN,
+            remoteRouter,
+            mailbox.localDomain(),
+            OLD_ROUTER.addressToBytes32(),
+            body
+        );
+        mailbox.process("", message);
 
         // 4. Restore previous ISM
         oldRouter.setInterchainSecurityModule(prevIsm);
@@ -108,34 +95,26 @@ contract HypERC20CollateralRefundForkTest is Test {
         vm.stopPrank();
     }
 
-    function test_refundDepositors() public {
-        // Snapshot pre-state
-        uint256[] memory preBals = new uint256[](refunds.length);
-        uint256 totalRefund;
-        for (uint256 i = 0; i < refunds.length; i++) {
-            preBals[i] = usdc.balanceOf(refunds[i].recipient);
-            totalRefund += refunds[i].amount;
-        }
+    function test_refundRecipient() public {
+        uint256 preBal = usdc.balanceOf(refundRecipient);
         uint256 preRouterBal = usdc.balanceOf(OLD_ROUTER);
         address preIsm = address(Router(OLD_ROUTER).interchainSecurityModule());
 
-        assertGe(preRouterBal, totalRefund, "Router has insufficient USDC");
+        assertGe(preRouterBal, refundAmount, "Router has insufficient USDC");
 
         _executeRefund();
 
-        // Verify each depositor received the correct amount
-        for (uint256 i = 0; i < refunds.length; i++) {
-            assertEq(
-                usdc.balanceOf(refunds[i].recipient),
-                preBals[i] + refunds[i].amount,
-                string.concat("Depositor ", vm.toString(i), " balance wrong")
-            );
-        }
+        // Verify recipient received the correct amount
+        assertEq(
+            usdc.balanceOf(refundRecipient),
+            preBal + refundAmount,
+            "Recipient balance wrong"
+        );
 
-        // Verify router balance decreased by exactly the total refund
+        // Verify router balance decreased by exactly the refund amount
         assertEq(
             usdc.balanceOf(OLD_ROUTER),
-            preRouterBal - totalRefund,
+            preRouterBal - refundAmount,
             "Router balance mismatch"
         );
 
@@ -162,37 +141,12 @@ contract HypERC20CollateralRefundForkTest is Test {
         );
     }
 
-    /// @dev Sanity check: verify dynamically-fetched refunds.json matches
-    ///      the known on-chain data from the 4 stuck transactions.
-    function test_refundsMatchExpected() public {
-        // Known depositors and amounts from the original stuck txs
-        address[4] memory expectedRecipients = [
-            0x71E91e35C770b4fB56F419aDa46CF5348530D26d,
-            0x6af58cED7d0E5162aAe77aA05B7Eb6CB026EF60b,
-            0x5D0A4B19371f18d98d8ae135655ea8e12D7827E2,
-            0xD0F6c33de5Ab51301845b75835A1AE0d9F6AD294
-        ];
-        uint256[4] memory expectedAmounts = [
-            uint256(988834),
-            uint256(3725000000),
-            uint256(99959241),
-            uint256(1000)
-        ];
-
-        assertEq(refunds.length, 4, "Expected 4 refunds");
-
-        for (uint256 i = 0; i < 4; i++) {
-            assertEq(
-                refunds[i].recipient,
-                expectedRecipients[i],
-                string.concat("Recipient mismatch at index ", vm.toString(i))
-            );
-            assertEq(
-                refunds[i].amount,
-                expectedAmounts[i],
-                string.concat("Amount mismatch at index ", vm.toString(i))
-            );
-        }
+    /// @dev Sanity check: verify dynamically-fetched total matches
+    ///      the known on-chain amounts from the 4 stuck transactions.
+    function test_refundAmountMatchesExpected() public {
+        // Known amounts from the original stuck txs
+        uint256 expectedTotal = 988834 + 3725000000 + 99959241 + 1000; // 3825949075
+        assertEq(refundAmount, expectedTotal, "Total amount mismatch");
     }
 
     function test_cannotReplayRefund() public {

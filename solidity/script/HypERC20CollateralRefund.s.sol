@@ -12,7 +12,7 @@ import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
 /**
  * @title HypERC20CollateralRefund
- * @notice Refunds stuck ERC20 tokens from an old HypERC20Collateral router back to original depositors
+ * @notice Refunds stuck ERC20 tokens from an old HypERC20Collateral router to a designated recipient
  * @dev Uses the TrustedRelayerIsm spoofed-message trick (same as HypNativeCollateralMigration)
  *   1. Deploy TrustedRelayerIsm that trusts the Safe/sender
  *   2. Set TrustedRelayerIsm on old router
@@ -23,7 +23,7 @@ import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
  *   OLD_ROUTER     - Address of the old HypERC20Collateral contract
  *   REMOTE_DOMAIN  - Any enrolled remote domain to spoof messages from
  *
- * Requires REFUND_RECIPIENTS and REFUND_AMOUNTS env vars (set by refund-pipeline.sh)
+ * Requires REFUND_RECIPIENT and REFUND_AMOUNT env vars (set by refund-pipeline.sh)
  */
 contract HypERC20CollateralRefund is Script {
     using TypeCasts for address;
@@ -48,15 +48,9 @@ contract HypERC20CollateralRefund is Script {
     }
 
     function _refunds() internal view returns (Refund[] memory) {
-        address[] memory recipients = vm.envAddress("REFUND_RECIPIENTS", ",");
-        uint256[] memory amounts = vm.envUint("REFUND_AMOUNTS", ",");
-        require(recipients.length == amounts.length, "Refund length mismatch");
-
-        Refund[] memory r = new Refund[](recipients.length);
-        for (uint256 i = 0; i < recipients.length; i++) {
-            r[i].recipient = recipients[i];
-            r[i].amount = amounts[i];
-        }
+        Refund[] memory r = new Refund[](1);
+        r[0].recipient = vm.envAddress("REFUND_RECIPIENT");
+        r[0].amount = vm.envUint("REFUND_AMOUNT");
         return r;
     }
 
