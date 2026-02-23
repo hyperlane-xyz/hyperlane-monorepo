@@ -151,12 +151,14 @@ async function main(): Promise<void> {
       );
     }
 
-    // Warn if config references inventorySigner but no HYP_INVENTORY_KEY is provided
+    // Fail fast if config references inventorySigner but no HYP_INVENTORY_KEY is provided
+    // Without the matching key, inventory operations would silently use the wrong signer
     if (rebalancerConfig.inventorySigner && !inventoryPrivateKey) {
-      logger.warn(
+      logger.error(
         { inventorySigner: rebalancerConfig.inventorySigner },
-        'Config specifies inventorySigner but HYP_INVENTORY_KEY is not set. Inventory rebalancing will be skipped.',
+        'Config specifies inventorySigner but HYP_INVENTORY_KEY is not set. Provide the key or remove inventorySigner from config.',
       );
+      process.exit(1);
     }
 
     // MultiProtocolProvider will be derived from multiProvider in factory
