@@ -24,6 +24,7 @@ import {
 
 import { ExplorerLicenseType } from '../block-explorer/etherscan.js';
 import {
+  HyperlaneContractFactory,
   HyperlaneAddressesMap,
   HyperlaneContracts,
   HyperlaneContractsMap,
@@ -80,6 +81,20 @@ type ContractLike = {
   connect(signerOrProvider: unknown): ContractLike;
   [key: string]: any;
 };
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getFactoryBytecode(factory: HyperlaneContractFactory): string {
+  const bytecode = asRecord(factory)?.bytecode;
+  if (typeof bytecode !== 'string') {
+    throw new Error('Factory bytecode is required for contract verification');
+  }
+  return bytecode;
+}
 
 export interface DeployerOptions {
   logger?: Logger;
@@ -415,10 +430,10 @@ export abstract class HyperlaneDeployer<
 
   public async deployContractFromFactory(
     chain: ChainName,
-    factory: any,
+    factory: HyperlaneContractFactory,
     contractName: string,
-    constructorArgs: any[],
-    initializeArgs?: any[],
+    constructorArgs: readonly unknown[],
+    initializeArgs?: readonly unknown[],
     shouldRecover = true,
     implementationAddress?: Address,
   ): Promise<any> {
@@ -450,7 +465,7 @@ export abstract class HyperlaneDeployer<
     const signer = this.multiProvider.getSigner(chain);
     const artifact = await getZKSyncArtifactByContractName(contractName);
 
-    const contract: any = await this.multiProvider.handleDeploy(
+    const contract = await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
@@ -505,7 +520,7 @@ export abstract class HyperlaneDeployer<
       verificationInput = await getContractVerificationInputForZKSync({
         name: contractName,
         contract,
-        constructorArgs: constructorArgs,
+        constructorArgs: [...constructorArgs],
         artifact: artifact,
         expectedimplementation: implementationAddress,
       });
@@ -513,7 +528,7 @@ export abstract class HyperlaneDeployer<
       verificationInput = getContractVerificationInput({
         name: contractName,
         contract,
-        bytecode: factory.bytecode,
+        bytecode: getFactoryBytecode(factory),
         expectedimplementation: implementationAddress,
       });
     }
@@ -724,7 +739,7 @@ export abstract class HyperlaneDeployer<
 
   readCache(
     chain: ChainName,
-    factory: any,
+    factory: HyperlaneContractFactory,
     contractName: string,
   ): any | undefined {
     const cachedAddress = this.cachedAddresses[chain]?.[contractName];
@@ -743,8 +758,8 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     contractName: string,
     cachedContract: C,
-    constructorArgs: any[],
-    initializeArgs?: any[],
+    constructorArgs: readonly unknown[],
+    initializeArgs?: readonly unknown[],
   ): Promise<ContractVerificationInput[]> {
     const provider = this.multiProvider.getProvider(chain);
     const isProxied = await isProxy(provider, cachedContract.address);
