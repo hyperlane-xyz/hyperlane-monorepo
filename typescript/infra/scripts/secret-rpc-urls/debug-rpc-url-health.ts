@@ -177,8 +177,13 @@ async function main() {
     (url: string) => !privateSet.has(url),
   );
 
+  const dedupedCount = allRegistryUrls.length - registryUrls.length;
+  const dedupNote =
+    dedupedCount > 0
+      ? ` (${dedupedCount} registry URL${dedupedCount > 1 ? 's' : ''} already in private set)`
+      : '';
   console.log(
-    `Probing ${privateUrls.length} private + ${registryUrls.length} registry RPCs for ${chain} (${environment})...`,
+    `Probing ${privateUrls.length} private + ${registryUrls.length} registry RPCs for ${chain} (${environment})...${dedupNote}`,
   );
 
   // Probe all URLs concurrently
@@ -209,11 +214,11 @@ async function main() {
     privateResults,
     maxBlock,
   );
-  printTable(
-    `Registry RPCs (${environment} / ${chain})`,
-    registryResults,
-    maxBlock,
-  );
+  const registryLabel =
+    registryResults.length === 0 && dedupedCount > 0
+      ? `Registry RPCs (${environment} / ${chain}) — all ${dedupedCount} already in private set`
+      : `Registry RPCs (${environment} / ${chain})`;
+  printTable(registryLabel, registryResults, maxBlock);
 
   process.exit(0);
 }
