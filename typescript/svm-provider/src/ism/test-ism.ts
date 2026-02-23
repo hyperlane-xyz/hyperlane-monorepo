@@ -1,4 +1,8 @@
-import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
+import {
+  address as parseAddress,
+  type Rpc,
+  type SolanaRpcApi,
+} from '@solana/kit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
@@ -8,30 +12,34 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedIsmAddress,
-  TestIsmConfig,
-} from '@hyperlane-xyz/provider-sdk/ism';
+import type { TestIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 
+import { resolveProgram } from '../deploy/resolve-program.js';
 import { getInitTestIsmInstruction } from '../instructions/test-ism.js';
 import type { SvmSigner } from '../signer.js';
-import type { AnnotatedSvmTransaction, SvmReceipt } from '../types.js';
+import type {
+  AnnotatedSvmTransaction,
+  SvmDeployedIsm,
+  SvmProgramTarget,
+  SvmReceipt,
+} from '../types.js';
 
 import { fetchTestIsmStorageAccount } from './ism-query.js';
 
+export interface SvmTestIsmConfig extends TestIsmConfig {
+  program: SvmProgramTarget;
+}
+
 export class SvmTestIsmReader implements ArtifactReader<
   TestIsmConfig,
-  DeployedIsmAddress
+  SvmDeployedIsm
 > {
-  constructor(
-    protected readonly rpc: Rpc<SolanaRpcApi>,
-    protected readonly programId: Address,
-  ) {}
+  constructor(protected readonly rpc: Rpc<SolanaRpcApi>) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>> {
-    const programId = address as Address;
+  ): Promise<ArtifactDeployed<TestIsmConfig, SvmDeployedIsm>> {
+    const programId = parseAddress(address);
     const storage = await fetchTestIsmStorageAccount(this.rpc, programId);
     if (storage === null) {
       throw new Error(`Test ISM not initialized at program: ${programId}`);
@@ -40,47 +48,53 @@ export class SvmTestIsmReader implements ArtifactReader<
     return {
       artifactState: ArtifactState.DEPLOYED,
       config: { type: IsmType.TEST_ISM as 'testIsm' },
-      deployed: { address: programId },
+      deployed: { address: programId, programId },
     };
   }
 }
 
 export class SvmTestIsmWriter
   extends SvmTestIsmReader
-  implements ArtifactWriter<TestIsmConfig, DeployedIsmAddress>
+  implements ArtifactWriter<TestIsmConfig, SvmDeployedIsm>
 {
   constructor(
     rpc: Rpc<SolanaRpcApi>,
-    programId: Address,
     private readonly svmSigner: SvmSigner,
   ) {
-    super(rpc, programId);
+    super(rpc);
   }
 
   async create(
-    _artifact: ArtifactNew<TestIsmConfig>,
-  ): Promise<
-    [ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>, SvmReceipt[]]
-  > {
+    artifact: ArtifactNew<TestIsmConfig>,
+  ): Promise<[ArtifactDeployed<TestIsmConfig, SvmDeployedIsm>, SvmReceipt[]]> {
+    const config = artifact.config as SvmTestIsmConfig;
+    const { programAddress, receipts } = await resolveProgram(
+      config.program,
+      this.svmSigner,
+      this.rpc,
+    );
+
     const instruction = await getInitTestIsmInstruction(
-      this.programId,
+      programAddress,
       this.svmSigner.signer,
     );
 
-    const receipt = await this.svmSigner.send({ instructions: [instruction] });
+    const initReceipt = await this.svmSigner.send({
+      instructions: [instruction],
+    });
 
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
         config: { type: IsmType.TEST_ISM as 'testIsm' },
-        deployed: { address: this.programId },
+        deployed: { address: programAddress, programId: programAddress },
       },
-      [receipt],
+      [...receipts, initReceipt],
     ];
   }
 
   async update(
-    _artifact: ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>,
+    _artifact: ArtifactDeployed<TestIsmConfig, SvmDeployedIsm>,
   ): Promise<AnnotatedSvmTransaction[]> {
     return [];
   }

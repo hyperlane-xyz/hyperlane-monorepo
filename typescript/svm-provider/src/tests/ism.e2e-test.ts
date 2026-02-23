@@ -11,12 +11,16 @@ import {
   SvmMessageIdMultisigIsmWriter,
   type SvmMultisigIsmConfig,
 } from '../ism/multisig-ism.js';
-import { SvmTestIsmReader, SvmTestIsmWriter } from '../ism/test-ism.js';
+import {
+  SvmTestIsmReader,
+  SvmTestIsmWriter,
+  type SvmTestIsmConfig,
+} from '../ism/test-ism.js';
 import { createRpc } from '../rpc.js';
 import { type SvmSigner, createSigner } from '../signer.js';
 import {
+  TEST_PROGRAM_IDS,
   airdropSol,
-  getPreloadedProgramAddresses,
   getPreloadedPrograms,
 } from '../testing/setup.js';
 import {
@@ -24,7 +28,6 @@ import {
   startSolanaTestValidator,
   waitForRpcReady,
 } from '../testing/solana-container.js';
-import type { SvmProgramAddresses } from '../types.js';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
@@ -40,7 +43,6 @@ describe('SVM ISM E2E Tests', function () {
   let solana: SolanaTestValidator;
   let rpc: ReturnType<typeof createRpc>;
   let signer: SvmSigner & { address: string };
-  let programAddresses: SvmProgramAddresses;
 
   before(async () => {
     const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
@@ -56,9 +58,6 @@ describe('SVM ISM E2E Tests', function () {
 
     console.log(`Airdropping SOL to ${signer.address}...`);
     await airdropSol(rpc, signer.address as any);
-
-    programAddresses = getPreloadedProgramAddresses(PRELOADED_PROGRAMS);
-    console.log('Program addresses:', programAddresses);
   });
 
   after(async () => {
@@ -69,17 +68,17 @@ describe('SVM ISM E2E Tests', function () {
 
   describe('Test ISM', () => {
     it('should initialize and read Test ISM', async function () {
-      const writer = new SvmTestIsmWriter(
-        rpc,
-        programAddresses.testIsm,
-        signer,
-      );
+      const writer = new SvmTestIsmWriter(rpc, signer);
 
       let deployed, receipts;
       try {
+        const config: SvmTestIsmConfig = {
+          type: IsmType.TEST_ISM as 'testIsm',
+          program: { programId: TEST_PROGRAM_IDS.testIsm },
+        };
         [deployed, receipts] = await writer.create({
           artifactState: ArtifactState.NEW,
-          config: { type: IsmType.TEST_ISM as 'testIsm' },
+          config,
         });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -97,26 +96,26 @@ describe('SVM ISM E2E Tests', function () {
       expect(receipts).to.have.length.greaterThan(0);
       expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(deployed.config.type).to.equal(IsmType.TEST_ISM);
-      expect(deployed.deployed.address).to.equal(programAddresses.testIsm);
+      expect(deployed.deployed.address).to.equal(TEST_PROGRAM_IDS.testIsm);
+      expect(deployed.deployed.programId).to.equal(TEST_PROGRAM_IDS.testIsm);
 
-      const reader = new SvmTestIsmReader(rpc, programAddresses.testIsm);
-      const readResult = await reader.read(programAddresses.testIsm);
+      const reader = new SvmTestIsmReader(rpc);
+      const readResult = await reader.read(TEST_PROGRAM_IDS.testIsm);
 
       expect(readResult.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(readResult.config.type).to.equal(IsmType.TEST_ISM);
     });
 
     it('should return empty transactions for update', async () => {
-      const writer = new SvmTestIsmWriter(
-        rpc,
-        programAddresses.testIsm,
-        signer,
-      );
+      const writer = new SvmTestIsmWriter(rpc, signer);
 
       const artifact = {
         artifactState: ArtifactState.DEPLOYED,
         config: { type: IsmType.TEST_ISM as 'testIsm' },
-        deployed: { address: programAddresses.testIsm },
+        deployed: {
+          address: TEST_PROGRAM_IDS.testIsm,
+          programId: TEST_PROGRAM_IDS.testIsm,
+        },
       };
 
       const updateTxs = await writer.update(artifact);
@@ -126,20 +125,13 @@ describe('SVM ISM E2E Tests', function () {
 
   describe('Multisig ISM', () => {
     it('should create and read Multisig ISM with domain configs', async function () {
-      if (!programAddresses.multisigIsmMessageId) {
-        this.skip();
-        return;
-      }
-      const writer = new SvmMessageIdMultisigIsmWriter(
-        rpc,
-        programAddresses.multisigIsmMessageId,
-        signer,
-      );
+      const writer = new SvmMessageIdMultisigIsmWriter(rpc, signer);
 
       const config: SvmMultisigIsmConfig = {
         type: IsmType.MESSAGE_ID_MULTISIG as 'messageIdMultisigIsm',
         validators: [],
         threshold: 0,
+        program: { programId: TEST_PROGRAM_IDS.multisigIsm },
         domains: {
           1: {
             validators: [
@@ -168,23 +160,21 @@ describe('SVM ISM E2E Tests', function () {
       expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(deployed.config.type).to.equal(IsmType.MESSAGE_ID_MULTISIG);
 
-      const reader = new SvmMessageIdMultisigIsmReader(
-        rpc,
-        programAddresses.multisigIsmMessageId,
-      );
-      const readResult = await reader.read(
-        programAddresses.multisigIsmMessageId,
-      );
+      const reader = new SvmMessageIdMultisigIsmReader(rpc);
+      const readResult = await reader.read(TEST_PROGRAM_IDS.multisigIsm);
 
       expect(readResult.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(readResult.config.type).to.equal(IsmType.MESSAGE_ID_MULTISIG);
 
-      const domain1 = await reader.readDomain(1);
+      const domain1 = await reader.readDomain(TEST_PROGRAM_IDS.multisigIsm, 1);
       expect(domain1).to.not.be.null;
       expect(domain1!.threshold).to.equal(2);
       expect(domain1!.validators).to.have.length(3);
 
-      const domain137 = await reader.readDomain(137);
+      const domain137 = await reader.readDomain(
+        TEST_PROGRAM_IDS.multisigIsm,
+        137,
+      );
       expect(domain137).to.not.be.null;
       expect(domain137!.threshold).to.equal(1);
       expect(domain137!.validators).to.have.length(2);
@@ -193,17 +183,17 @@ describe('SVM ISM E2E Tests', function () {
 
   describe('ISM Artifact Manager', () => {
     it('should detect ISM type from address', async function () {
-      const manager = new SvmIsmArtifactManager(rpc, programAddresses);
+      const manager = new SvmIsmArtifactManager(rpc);
 
       try {
-        const testIsmArtifact = await manager.readIsm(programAddresses.testIsm);
+        const testIsmArtifact = await manager.readIsm(TEST_PROGRAM_IDS.testIsm);
         expect(testIsmArtifact.config.type).to.equal(IsmType.TEST_ISM);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes('Unable to detect ISM type')) {
           // Test ISM binary may be incompatible; verify multisig detection works
           const multisigArtifact = await manager.readIsm(
-            programAddresses.multisigIsmMessageId,
+            TEST_PROGRAM_IDS.multisigIsm,
           );
           expect(multisigArtifact.config.type).to.equal(
             IsmType.MESSAGE_ID_MULTISIG,
@@ -215,14 +205,14 @@ describe('SVM ISM E2E Tests', function () {
     });
 
     it('should create readers for different ISM types', () => {
-      const manager = new SvmIsmArtifactManager(rpc, programAddresses);
+      const manager = new SvmIsmArtifactManager(rpc);
 
       const testIsmReader = manager.createReader(IsmType.TEST_ISM);
       expect(testIsmReader).to.be.instanceOf(SvmTestIsmReader);
     });
 
     it('should create writers for different ISM types', () => {
-      const manager = new SvmIsmArtifactManager(rpc, programAddresses);
+      const manager = new SvmIsmArtifactManager(rpc);
 
       const testIsmWriter = manager.createWriter(IsmType.TEST_ISM, signer);
       expect(testIsmWriter).to.be.instanceOf(SvmTestIsmWriter);
