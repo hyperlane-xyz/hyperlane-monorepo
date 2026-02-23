@@ -3,9 +3,7 @@ import {
   ChildToParentMessageReader,
   ChildToParentMessageStatus,
   ChildToParentTransactionEvent,
-  EventArgs,
 } from '@arbitrum/sdk';
-import { L2ToL1TxEvent } from '@arbitrum/sdk/dist/lib/abi/ArbSys.js';
 import {
   type Hex,
   decodeAbiParameters,
@@ -32,12 +30,16 @@ import type {
   MetadataContext,
 } from './types.js';
 
-export type NitroChildToParentTransactionEvent = EventArgs<L2ToL1TxEvent>;
-export type ArbL2ToL1Metadata = Omit<
-  NitroChildToParentTransactionEvent,
-  'hash'
-> & {
+export type ArbL2ToL1Metadata = {
   proof: Hex[]; // bytes32[16]
+  position: bigint;
+  caller: Hex;
+  destination: Hex;
+  arbBlockNum: bigint;
+  ethBlockNum: bigint;
+  timestamp: bigint;
+  callvalue: bigint;
+  data: Hex;
 };
 
 const ARB_L2_TO_L1_METADATA_TYPES = parseAbiParameters(
@@ -56,6 +58,59 @@ function toBigInt(value: unknown): bigint {
     return BigInt((value as { toString: () => string }).toString());
   }
   throw new Error(`Cannot convert value to bigint: ${String(value)}`);
+}
+
+type L2ToL1TxArgs = {
+  caller: string;
+  destination: string;
+  hash: Hex;
+  position: unknown;
+  arbBlockNum: unknown;
+  ethBlockNum: unknown;
+  timestamp: unknown;
+  callvalue: unknown;
+  data: Hex;
+};
+
+function parseL2ToL1TxArgs(args: unknown): L2ToL1TxArgs {
+  if (Array.isArray(args)) {
+    const [
+      caller,
+      destination,
+      hash,
+      position,
+      arbBlockNum,
+      ethBlockNum,
+      timestamp,
+      callvalue,
+      data,
+    ] = args as unknown[];
+    return {
+      caller: String(caller),
+      destination: String(destination),
+      hash: String(hash) as Hex,
+      position,
+      arbBlockNum,
+      ethBlockNum,
+      timestamp,
+      callvalue,
+      data: String(data) as Hex,
+    };
+  }
+
+  assert(args && typeof args === 'object', 'Invalid L2ToL1Tx event args');
+  const objArgs = args as Record<string, unknown>;
+  return {
+    caller: String(objArgs.caller),
+    destination: String(objArgs.destination),
+    hash: String(objArgs.hash) as Hex,
+    position: objArgs.position,
+    arbBlockNum: objArgs.arbBlockNum,
+    ethBlockNum: objArgs.ethBlockNum,
+    timestamp: objArgs.timestamp,
+    callvalue: objArgs.callvalue,
+    data: String(objArgs.data) as Hex,
+  };
 }
 
 const ArbSys = ArbSys__factory.createInterface();
@@ -151,7 +206,9 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         'L2ToL1Tx',
       ) as any[]
     ).find((log: any) => {
-      const calldata: string = log.args.data;
+      const calldata = Array.isArray(log.args)
+        ? String(log.args[8] ?? '')
+        : String(log.args?.data ?? '');
       const messageIdHex = context.message.id.slice(2);
       return calldata && calldata.includes(messageIdHex);
     });
@@ -160,7 +217,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     this.logger.debug({ matchingL2TxEvent }, 'Found matching L2ToL1Tx event');
 
     if (matchingL2TxEvent) {
-      const [
+      const {
         caller,
         destination,
         hash,
@@ -170,8 +227,8 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
         timestamp,
         callvalue,
         data,
-      ] = matchingL2TxEvent.args;
-      const l2ToL1TxEvent: ChildToParentTransactionEvent = {
+      } = parseL2ToL1TxArgs(matchingL2TxEvent.args);
+      const l2ToL1TxEvent = {
         caller,
         destination,
         hash,
@@ -185,7 +242,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
 
       const reader = new ChildToParentMessageReader(
         this.core.multiProvider.getProvider(context.hook.destinationChain),
-        l2ToL1TxEvent,
+        l2ToL1TxEvent as unknown as ChildToParentTransactionEvent,
       );
 
       const originChainMetadata = this.core.multiProvider.getChainMetadata(
@@ -224,7 +281,14 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       );
 
       const metadata: ArbL2ToL1Metadata = {
-        ...l2ToL1TxEvent,
+        caller: caller as Hex,
+        destination: destination as Hex,
+        position: toBigInt(position),
+        arbBlockNum: toBigInt(arbBlockNum),
+        ethBlockNum: toBigInt(ethBlockNum),
+        timestamp: toBigInt(timestamp),
+        callvalue: toBigInt(callvalue),
+        data: data as Hex,
         proof: outboxProof,
       };
 
