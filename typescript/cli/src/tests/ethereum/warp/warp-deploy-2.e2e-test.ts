@@ -362,9 +362,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
         )
       )[CHAIN_NAME_2];
 
-      expect(
-        (collateralConfig.tokenFee as TokenFeeConfig | undefined)?.token,
-      ).to.equal(tokenChain2.address);
+      const configuredFeeToken = (
+        collateralConfig.tokenFee as TokenFeeConfig | undefined
+      )?.token;
+      assert(configuredFeeToken, 'Expected token fee token to be defined');
+      expect(normalizeAddressEvm(configuredFeeToken)).to.equal(
+        normalizeAddressEvm(tokenChain2.address),
+      );
     });
 
     for (const tokenFee of [
@@ -464,9 +468,16 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(syntheticConfig.tokenFee).to.exist;
       expect(syntheticConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
       // For synthetic tokens, fee token should be resolved to the router address
-      expect(
-        (syntheticConfig.tokenFee as TokenFeeConfig | undefined)?.token,
-      ).to.equal(syntheticTokenConfig.addressOrDenom);
+      const configuredSyntheticFeeToken = (
+        syntheticConfig.tokenFee as TokenFeeConfig | undefined
+      )?.token;
+      assert(
+        configuredSyntheticFeeToken,
+        'Expected synthetic token fee token to be defined',
+      );
+      expect(normalizeAddressEvm(configuredSyntheticFeeToken)).to.equal(
+        normalizeAddressEvm(syntheticTokenConfig.addressOrDenom),
+      );
     });
 
     it(`should deploy a native Routing Fee when providing maxFee and halfAmount only`, async () => {
@@ -570,9 +581,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       const onChainEverclearBridgeAdapterAddress =
         await movableToken.everclearAdapter();
-      expect(onChainEverclearBridgeAdapterAddress).to.equal(
-        everclearBridgeAdapterMock.address,
-      );
+      expect(
+        normalizeAddressEvm(onChainEverclearBridgeAdapterAddress),
+      ).to.equal(normalizeAddressEvm(everclearBridgeAdapterMock.address));
 
       const [fee, deadline, signature] =
         await movableToken.feeParams(chain3DomainId);

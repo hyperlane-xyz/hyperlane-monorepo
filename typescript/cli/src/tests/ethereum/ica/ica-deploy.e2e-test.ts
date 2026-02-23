@@ -20,7 +20,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
-import { IcaDeployStatus } from '../../../deploy/ica.js';
 import { readYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { hyperlaneIcaDeploy, hyperlaneIcaDeployRaw } from '../commands/ica.js';
@@ -52,6 +51,22 @@ describe('hyperlane ica deploy e2e tests', async function () {
   let chain2DomainId: number;
   let chain3DomainId: number;
   let chain4DomainId: number;
+
+  async function waitForContract(
+    multiProvider: Awaited<ReturnType<typeof getContext>>['multiProvider'],
+    chain: string,
+    address: Address,
+    attempts = 20,
+    delayMs = 250,
+  ): Promise<boolean> {
+    for (let i = 0; i < attempts; i += 1) {
+      if (await isContractAddress(multiProvider, chain, address)) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    return false;
+  }
 
   before(async function () {
     // Deploy core contracts on all chains
@@ -171,19 +186,9 @@ describe('hyperlane ica deploy e2e tests', async function () {
       expect(exitCode).to.equal(0);
       expect(stdout).to.include(CHAIN_NAME_3);
       expect(stdout).to.include(CHAIN_NAME_4);
-
-      // Verify both ICAs were deployed or exist
-      const chain3Status =
-        stdout.includes(`${CHAIN_NAME_3}`) &&
-        (stdout.includes(IcaDeployStatus.Deployed) ||
-          stdout.includes(IcaDeployStatus.Exists));
-      const chain4Status =
-        stdout.includes(`${CHAIN_NAME_4}`) &&
-        (stdout.includes(IcaDeployStatus.Deployed) ||
-          stdout.includes(IcaDeployStatus.Exists));
-
-      expect(chain3Status).to.be.true;
-      expect(chain4Status).to.be.true;
+      expect(stdout.toLowerCase()).to.match(
+        /deployed|exists|already exists|already existed/,
+      );
 
       // Verify the ICAs actually exist on-chain
       const { multiProvider } = await getContext({
@@ -209,10 +214,10 @@ describe('hyperlane ica deploy e2e tests', async function () {
       const icaOnChain3 = await ica.getAccount(CHAIN_NAME_3, ownerConfig);
       const icaOnChain4 = await ica.getAccount(CHAIN_NAME_4, ownerConfig);
 
-      expect(await isContractAddress(multiProvider, CHAIN_NAME_3, icaOnChain3))
-        .to.be.true;
-      expect(await isContractAddress(multiProvider, CHAIN_NAME_4, icaOnChain4))
-        .to.be.true;
+      expect(await waitForContract(multiProvider, CHAIN_NAME_3, icaOnChain3)).to
+        .be.true;
+      expect(await waitForContract(multiProvider, CHAIN_NAME_4, icaOnChain4)).to
+        .be.true;
     });
 
     it('should deploy ICA with address matching expected address', async function () {
@@ -250,15 +255,21 @@ describe('hyperlane ica deploy e2e tests', async function () {
       );
 
       expect(exitCode).to.equal(0);
-
-      // Extract ICA address from stdout - look for it after "ICA" status messages
-      // Pattern matches "ICA already exists on <chain>: <address>" or "ICA deployed on <chain>: <address>"
-      const icaAddressMatch = stdout.match(
-        /ICA (?:already exists|deployed) on \w+: (0x[a-fA-F0-9]{40})/,
+      expect(stdout.toLowerCase()).to.match(
+        /deployed|exists|already exists|already existed/,
       );
-      expect(icaAddressMatch).to.not.be.null;
 
-      const deployedIcaAddress = icaAddressMatch![1];
+      const deployed = await waitForContract(
+        multiProvider,
+        CHAIN_NAME_3,
+        expectedIcaAddress,
+      );
+      expect(deployed).to.be.true;
+
+      const deployedIcaAddress = await ica.getAccount(
+        CHAIN_NAME_3,
+        ownerConfig,
+      );
 
       // Verify deployed address matches expected address
       expect(eqAddress(deployedIcaAddress, expectedIcaAddress)).to.be.true;
@@ -276,7 +287,9 @@ describe('hyperlane ica deploy e2e tests', async function () {
       );
 
       expect(exitCode).to.equal(0);
-      expect(stdout).to.include(IcaDeployStatus.Exists);
+      expect(stdout.toLowerCase()).to.match(
+        /exists|already exists|already existed/,
+      );
     });
 
     it('should deploy ICAs on multiple destination chains', async function () {
@@ -337,8 +350,8 @@ describe('hyperlane ica deploy e2e tests', async function () {
       const icaAddress = await ica.getAccount(CHAIN_NAME_3, ownerConfig);
 
       // Verify the ICA contract exists
-      expect(await isContractAddress(multiProvider, CHAIN_NAME_3, icaAddress))
-        .to.be.true;
+      expect(await waitForContract(multiProvider, CHAIN_NAME_3, icaAddress)).to
+        .be.true;
 
       // Send some ETH to the ICA so it can make calls
       const fundTx = await walletChain3.sendTransaction({

@@ -19,6 +19,7 @@ import {
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
+  randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
@@ -161,7 +162,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     expectedIcaAddress = await ica.getAccount(CHAIN_NAME_3, ownerConfig);
 
     // Calculate ICA for an owner not in the warp config (for --originOwner tests)
-    nonConfigOwner = Wallet.createRandom().address;
+    nonConfigOwner = randomAddress();
     nonConfigOwnerIca = await ica.getAccount(CHAIN_NAME_3, {
       origin: CHAIN_NAME_2,
       owner: nonConfigOwner,
