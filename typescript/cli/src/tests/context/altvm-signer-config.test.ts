@@ -3,24 +3,25 @@ import { expect } from 'chai';
 import { TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import type { ExtendedChainSubmissionStrategy } from '../../submitters/types.js';
 import {
   resolveAltVmAccountAddress,
   resolveStarknetAccountAddress,
 } from '../../context/altvm-signer-config.js';
+import type { ExtendedChainSubmissionStrategy } from '../../submitters/types.js';
 
 describe('altvm signer config helpers', () => {
   afterEach(() => {
     delete process.env.HYP_ACCOUNT_ADDRESS_STARKNET;
   });
 
-  it('reads Starknet accountAddress from strategy submitter', () => {
+  it('reads Starknet address from strategy submitter', () => {
     const strategy: Partial<ExtendedChainSubmissionStrategy> = {
       starknetsepolia: {
         submitter: {
           type: TxSubmitterType.JSON_RPC,
+          chain: 'starknetsepolia',
           privateKey: '0xabc',
-          accountAddress: '0x111',
+          userAddress: '0x111',
         },
       },
     };
@@ -35,6 +36,7 @@ describe('altvm signer config helpers', () => {
       starknetsepolia: {
         submitter: {
           type: TxSubmitterType.JSON_RPC,
+          chain: 'starknetsepolia',
           privateKey: '0xabc',
           userAddress: '0x222',
         },
