@@ -108,10 +108,12 @@ export class SimulationEngine {
       await new Promise((r) => setTimeout(r, 200));
 
       // Wait for all deliveries (user transfers + bridge transfers)
-      await controller.waitForAllDeliveries(60000);
+      const deliveryTimeout = timing.deliveryTimeoutMs ?? 60000;
+      await controller.waitForAllDeliveries(deliveryTimeout);
 
       // Wait for rebalancer to become idle
-      await rebalancer.waitForIdle(5000);
+      const idleTimeout = timing.idleTimeoutMs ?? 5000;
+      await rebalancer.waitForIdle(idleTimeout);
 
       // Generate final KPIs
       const kpis = await kpiCollector.generateKPIs();

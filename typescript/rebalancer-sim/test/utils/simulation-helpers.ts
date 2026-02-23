@@ -27,26 +27,42 @@ import { ANVIL_DEPLOYER_KEY } from '../../src/types.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const RESULTS_DIR = path.join(__dirname, '..', '..', 'results');
 
-export type RebalancerType = 'simple' | 'production' | 'noop';
+export type RebalancerType = 'simple' | 'production' | 'noop' | 'llm';
 
 export function getEnabledRebalancers(): RebalancerType[] {
   const REBALANCER_ENV = process.env.REBALANCERS || 'simple,production';
   const enabled = REBALANCER_ENV.split(',')
     .map((r) => r.trim().toLowerCase())
-    .filter(
-      (r): r is RebalancerType =>
-        r === 'simple' || r === 'production' || r === 'noop',
-    );
+    .filter((r): r is RebalancerType => {
+      if (r === 'llm') {
+        const apiKey =
+          process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_TEST_API_KEY;
+        if (!apiKey) {
+          console.warn(
+            'Skipping LLM rebalancer: ANTHROPIC_API_KEY or ANTHROPIC_TEST_API_KEY not set',
+          );
+          return false;
+        }
+        // Ensure Pi SDK can find the key
+        if (!process.env.ANTHROPIC_API_KEY) {
+          process.env.ANTHROPIC_API_KEY = apiKey;
+        }
+        return true;
+      }
+      return r === 'simple' || r === 'production' || r === 'noop';
+    });
 
   if (enabled.length === 0) {
     throw new Error(
-      `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "production", "noop", or combinations.`,
+      `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "production", "noop", "llm", or combinations.`,
     );
   }
   return enabled;
 }
 
-export function createRebalancer(type: RebalancerType): IRebalancerRunner {
+export async function createRebalancer(
+  type: RebalancerType,
+): Promise<IRebalancerRunner> {
   switch (type) {
     case 'simple':
       return new SimpleRunner();
@@ -54,12 +70,24 @@ export function createRebalancer(type: RebalancerType): IRebalancerRunner {
       return new ProductionRebalancerRunner();
     case 'noop':
       return new NoOpRebalancer();
+    case 'llm': {
+      const { LLMRebalancerRunner } =
+        await import('@hyperlane-xyz/llm-rebalancer');
+      return new LLMRebalancerRunner();
+    }
   }
 }
 
 export async function cleanupRebalancers(): Promise<void> {
   await cleanupSimpleRunner();
   await cleanupProductionRebalancer();
+  try {
+    const { cleanupLLMRebalancer } =
+      await import('@hyperlane-xyz/llm-rebalancer');
+    await cleanupLLMRebalancer();
+  } catch {
+    // llm-rebalancer not installed, ignore
+  }
 }
 
 export function ensureResultsDir(): void {
@@ -110,7 +138,7 @@ export async function runScenarioWithRebalancers(
   const results: SimulationResult[] = [];
 
   for (const rebalancerType of rebalancerTypes) {
-    const rebalancer = createRebalancer(rebalancerType);
+    const rebalancer = await createRebalancer(rebalancerType);
 
     if (rebalancerTypes.length > 1) {
       console.log(`\n${'─'.repeat(50)}`);
@@ -169,12 +197,22 @@ export async function runScenarioWithRebalancers(
       };
     }
 
+    // LLM rebalancers need longer timeouts (agent cycles take 30-120s)
+    const timing =
+      rebalancerType === 'llm'
+        ? {
+            ...file.defaultTiming,
+            deliveryTimeoutMs: 300_000,
+            idleTimeoutMs: 180_000,
+          }
+        : file.defaultTiming;
+
     const engine = new SimulationEngine(deployment);
     const result = await engine.runSimulation(
       scenario,
       rebalancer,
       file.defaultBridgeConfig,
-      file.defaultTiming,
+      timing,
       strategyConfig,
     );
 

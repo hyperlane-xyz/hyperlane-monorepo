@@ -533,6 +533,16 @@ export interface SimulationTiming {
   rebalancerPollingFrequency: number;
   /** Minimum spacing between user transfer executions (ms) */
   userTransferInterval: number;
+  /**
+   * Max time to wait for all deliveries (user + bridge) to complete (ms).
+   * Default: 60000. Increase for slow rebalancers (e.g. LLM-based).
+   */
+  deliveryTimeoutMs?: number;
+  /**
+   * Max time to wait for rebalancer to become idle after transfers (ms).
+   * Default: 5000. Increase for slow rebalancers (e.g. LLM-based).
+   */
+  idleTimeoutMs?: number;
 }
 
 /**

@@ -29,6 +29,11 @@ import {
 } from '../utils/simulation-helpers.js';
 
 describe('Rebalancer Simulation', function () {
+  // LLM rebalancers need much longer per test (agent cycles take 30-120s each)
+  if (getEnabledRebalancers().includes('llm')) {
+    this.timeout(600_000);
+  }
+
   const anvil = setupAnvilTestSuite(this);
 
   before(async function () {

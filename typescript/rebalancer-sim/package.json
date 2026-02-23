@@ -42,6 +42,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@hyperlane-xyz/llm-rebalancer": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",

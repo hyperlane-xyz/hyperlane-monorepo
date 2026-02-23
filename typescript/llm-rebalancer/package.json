@@ -1,0 +1,44 @@
+{
+  "name": "@hyperlane-xyz/llm-rebalancer",
+  "version": "0.0.1",
+  "description": "LLM-based warp route rebalancer using Pi coding agent",
+  "keywords": [
+    "hyperlane",
+    "llm",
+    "pi-coding-agent",
+    "rebalancer",
+    "warp-route"
+  ],
+  "license": "Apache-2.0",
+  "author": "Abacus Works, Inc.",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "dist",
+    "skills",
+    "schema"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "dev": "tsc --watch",
+    "lint": "eslint -c ./eslint.config.mjs ./src",
+    "format": "oxfmt --write ./src"
+  },
+  "dependencies": {
+    "@mariozechner/pi-ai": "^0.54.2",
+    "@mariozechner/pi-coding-agent": "^0.54.2",
+    "pino": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/rebalancer-sim": "workspace:*",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
