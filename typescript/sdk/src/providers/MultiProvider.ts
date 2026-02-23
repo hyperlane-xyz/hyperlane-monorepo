@@ -35,6 +35,14 @@ type PopulatedTransaction = Record<string, unknown>;
 type TransactionOverrides = Record<string, unknown>;
 type GasAmount = any;
 type DeployableContract = any;
+type DeployFactory = {
+  connect(signer: EvmSigner): {
+    getDeployTransaction(
+      ...params: readonly unknown[]
+    ): PopulatedTransaction | Promise<PopulatedTransaction>;
+    deploy(...params: readonly unknown[]): Promise<DeployableContract>;
+  };
+};
 
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
@@ -351,10 +359,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async handleDeploy(
     chainNameOrId: ChainNameOrId,
-    factory: any,
-    params: any[],
+    factory: DeployFactory,
+    params: readonly unknown[],
     artifact?: ZKSyncArtifact,
-  ): Promise<any> {
+  ): Promise<DeployableContract> {
     const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
     const metadata = this.getChainMetadata(chainNameOrId);
@@ -367,7 +375,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     // deploy with buffer on gas limit
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
-      const contractFactory = factory.connect(signer) as any;
+      const contractFactory = factory.connect(signer);
       const factoryDeps = await extractFactoryDepsFromArtifact(artifact);
       const { customData, ...txOverrides } = overrides;
       const deploymentOverrides = {
@@ -388,7 +396,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       });
       await this.handleTx(chainNameOrId, contract.deployTransaction);
     } else {
-      const contractFactory = factory.connect(signer) as any;
+      const contractFactory = factory.connect(signer);
       const deployTx = contractFactory.getDeployTransaction(...params);
       estimatedGas = await signer.estimateGas(deployTx);
       contract = await contractFactory.deploy(...params, {
