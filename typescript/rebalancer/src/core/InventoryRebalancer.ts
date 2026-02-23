@@ -33,7 +33,10 @@ import {
   MIN_VIABLE_COST_MULTIPLIER,
   calculateTransferCosts,
 } from '../utils/gasEstimation.js';
-import { isNativeTokenStandard } from '../utils/tokenUtils.js';
+import {
+  getLiFiTokenAddress,
+  isNativeTokenStandard,
+} from '../utils/tokenUtils.js';
 
 /**
  * Buffer percentage to add when bridging inventory.
@@ -1058,9 +1061,12 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Convert HypNative token addresses to LiFi's native ETH representation
     const fromTokenAddress = this.getNativeTokenAddress(externalBridgeType);
-    const toTokenAddress = isNativeTokenStandard(targetToken.standard)
-      ? this.getNativeTokenAddress(externalBridgeType)
-      : targetToken.addressOrDenom;
+    const toTokenAddress = getLiFiTokenAddress(
+      targetToken,
+      externalBridgeType,
+      this.getNativeTokenAddress.bind(this),
+      this.logger,
+    );
 
     const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
     const targetChainId = Number(this.multiProvider.getChainId(targetChain));
@@ -1175,13 +1181,19 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Convert HypNative token addresses to LiFi's native ETH representation
     // For HypNative tokens, addressOrDenom is the warp route contract, not the native token
-    const fromTokenAddress = isNativeTokenStandard(sourceToken.standard)
-      ? this.getNativeTokenAddress(externalBridgeType)
-      : sourceToken.addressOrDenom;
+    const fromTokenAddress = getLiFiTokenAddress(
+      sourceToken,
+      externalBridgeType,
+      this.getNativeTokenAddress.bind(this),
+      this.logger,
+    );
 
-    const toTokenAddress = isNativeTokenStandard(targetToken.standard)
-      ? this.getNativeTokenAddress(externalBridgeType)
-      : targetToken.addressOrDenom;
+    const toTokenAddress = getLiFiTokenAddress(
+      targetToken,
+      externalBridgeType,
+      this.getNativeTokenAddress.bind(this),
+      this.logger,
+    );
 
     this.logger.debug(
       {
