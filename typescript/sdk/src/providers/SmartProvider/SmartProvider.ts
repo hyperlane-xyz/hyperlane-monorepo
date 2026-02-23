@@ -33,6 +33,57 @@ import { parseCustomRpcHeaders } from '../../utils/provider.js';
 
 type Networkish = number | string | { chainId: number; name?: string };
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  const code = asRecord(error)?.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+function getErrorReason(error: unknown): string | undefined {
+  const reason = asRecord(error)?.reason;
+  return typeof reason === 'string' ? reason : undefined;
+}
+
+function getErrorData(error: unknown): unknown {
+  return asRecord(error)?.data;
+}
+
+function getNestedError(error: unknown): Record<string, unknown> | null {
+  return asRecord(asRecord(error)?.error);
+}
+
+function getErrorMessage(error: unknown): string | undefined {
+  const message = asRecord(error)?.message;
+  return typeof message === 'string' ? message : undefined;
+}
+
+function isRpcBlockchainErrorCode(
+  code: unknown,
+): code is (typeof RPC_BLOCKCHAIN_ERRORS)[number] {
+  return (
+    typeof code === 'string' &&
+    (RPC_BLOCKCHAIN_ERRORS as readonly string[]).includes(code)
+  );
+}
+
+function isRpcServerErrorCode(
+  code: unknown,
+): code is (typeof RPC_SERVER_ERRORS)[number] {
+  return (
+    typeof code === 'string' &&
+    (RPC_SERVER_ERRORS as readonly string[]).includes(code)
+  );
+}
+
+function toErrorCause(error: unknown): Error | undefined {
+  return error instanceof Error ? error : undefined;
+}
+
 function buildRpcConnections(
   rawUrl: string,
   existingConnection?: ConnectionInfo,
@@ -172,7 +223,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
           ) {
             const newProvider = new HyperlaneEtherscanProvider(
               explorerConfig,
-              network as any,
+              this.network,
             );
             newProvider.supportedMethods.forEach((m) =>
               supportedMethods.add(m),
@@ -201,7 +252,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
         };
         const newProvider = new HyperlaneJsonRpcProvider(
           configWithRedactedHeaders,
-          network as any,
+          this.network,
           undefined,
           connection,
         );
@@ -260,7 +311,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
     if (!this.rpcProviders.length)
       throw new Error('No RPC providers available');
 
-    const errors: any[] = [];
+    const errors: unknown[] = [];
     for (const [providerIndex, provider] of this.rpcProviders.entries()) {
       try {
         return await provider.send(method, params);
@@ -548,7 +599,10 @@ export class HyperlaneSmartProvider implements IProviderMethods {
     return signer;
   }
 
-  async perform(method: string, params: { [name: string]: any }): Promise<any> {
+  async perform(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
     const allProviders = [...this.explorerProviders, ...this.rpcProviders];
     if (!allProviders.length) throw new Error('No providers available');
 
@@ -598,7 +652,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
   }
 
   isExplorerProvider(p: HyperlaneProvider): p is HyperlaneEtherscanProvider {
-    return this.explorerProviders.includes(p as any);
+    return this.explorerProviders.some((provider) => provider === p);
   }
 
   /**
@@ -609,10 +663,10 @@ export class HyperlaneSmartProvider implements IProviderMethods {
    */
   protected async performWithFallback(
     method: string,
-    params: { [name: string]: any },
+    params: Record<string, unknown>,
     providers: Array<HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider>,
     reqId: number,
-  ): Promise<any> {
+  ): Promise<unknown> {
     let pIndex = 0;
     const providerResultPromises: Promise<ProviderPerformResult>[] = [];
     const providerResultErrors: unknown[] = [];
@@ -672,14 +726,15 @@ export class HyperlaneSmartProvider implements IProviderMethods {
           // 2. Real revert without data - permanent (has nested error.error.code === 3 from JSON-RPC)
           // 3. Empty return data decode failure - permanent (no nested error, ethers failed to decode "0x")
           // 4. Actual RPC issue - transient (has nested error but not code 3)
-          const errorCode = (result.error as any)?.code;
-          const revertData = (result.error as any)?.data;
-          const hasRevertData = !!revertData && revertData !== '0x';
-          const nestedError = (result.error as any)?.error;
+          const errorCode = getErrorCode(result.error);
+          const revertData = getErrorData(result.error);
+          const hasRevertData =
+            typeof revertData === 'string' && revertData !== '0x';
+          const nestedError = getNestedError(result.error);
           // JSON-RPC error code 3 definitively indicates execution revert (EIP-1474)
           // Check both nested levels as ethers wraps errors in error.error.code structure
           const jsonRpcErrorCode =
-            nestedError?.error?.code ?? nestedError?.code;
+            asRecord(nestedError?.error)?.code ?? nestedError?.code;
           const isJsonRpcRevert = jsonRpcErrorCode === 3;
           // No nested error means ethers failed to decode empty return data - this is permanent
           const isEmptyReturnDecodeFailure =
@@ -692,8 +747,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
             !isJsonRpcRevert &&
             !isEmptyReturnDecodeFailure;
           const isPermanentBlockchainError =
-            RPC_BLOCKCHAIN_ERRORS.includes(errorCode) &&
-            !isCallExceptionWithoutData;
+            isRpcBlockchainErrorCode(errorCode) && !isCallExceptionWithoutData;
 
           if (isPermanentBlockchainError) {
             this.logger.debug(
@@ -777,7 +831,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
     provider: HyperlaneProvider,
     pIndex: number,
     method: string,
-    params: any,
+    params: Record<string, unknown>,
     reqId: number,
   ): Promise<ProviderPerformResult> {
     try {
@@ -832,7 +886,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
   }
 
   protected getCombinedProviderError(
-    errors: any[],
+    errors: unknown[],
     fallbackMsg: string,
   ): new () => Error {
     this.logger.debug(fallbackMsg);
@@ -849,43 +903,57 @@ export class HyperlaneSmartProvider implements IProviderMethods {
     // However, JSON-RPC error code 3 definitively indicates a contract revert (EIP-1474)
     // Also, no nested error means ethers failed to decode empty return data - also permanent
     const rpcBlockchainError = errors.find((e) => {
-      if (!RPC_BLOCKCHAIN_ERRORS.includes(e.code)) return false;
-      if (e.code !== EthersError.CALL_EXCEPTION) return true;
+      const errorCode = getErrorCode(e);
+      if (!isRpcBlockchainErrorCode(errorCode)) return false;
+      if (errorCode !== EthersError.CALL_EXCEPTION) return true;
       // For CALL_EXCEPTION, check if it's a real revert or decode failure
-      const hasRevertData = !!e.data && e.data !== '0x';
+      const revertData = getErrorData(e);
+      const hasRevertData =
+        typeof revertData === 'string' && revertData !== '0x';
       // Check for JSON-RPC error code 3 (nested in error.error.code by ethers)
       // Also check shallower level as error nesting varies
-      const jsonRpcErrorCode = e.error?.error?.code ?? e.error?.code;
+      const nestedError = getNestedError(e);
+      const jsonRpcErrorCode =
+        asRecord(nestedError?.error)?.code ?? nestedError?.code;
       const isJsonRpcRevert = jsonRpcErrorCode === 3;
       // No nested error means ethers failed to decode empty return data - permanent
-      const isEmptyReturnDecodeFailure = !e.error;
+      const isEmptyReturnDecodeFailure = !nestedError;
       return hasRevertData || isJsonRpcRevert || isEmptyReturnDecodeFailure;
     });
 
     const rpcServerError = errors.find((e) =>
-      RPC_SERVER_ERRORS.includes(e.code),
+      isRpcServerErrorCode(getErrorCode(e)),
     );
 
     const timedOutError = errors.find(
-      (e) => e.status === ProviderStatus.Timeout,
+      (e) => asRecord(e)?.status === ProviderStatus.Timeout,
     );
 
     if (rpcBlockchainError) {
       // All blockchain errors are non-retryable and take priority
       return class extends BlockchainError {
         constructor() {
-          super(rpcBlockchainError.reason ?? rpcBlockchainError.code, {
-            cause: rpcBlockchainError,
-          });
+          super(
+            getErrorReason(rpcBlockchainError) ??
+              getErrorCode(rpcBlockchainError) ??
+              fallbackMsg,
+            {
+              cause: toErrorCause(rpcBlockchainError),
+            },
+          );
         }
       };
     } else if (rpcServerError) {
       return class extends Error {
         constructor() {
+          const serverMessage = getErrorMessage(getNestedError(rpcServerError));
+          const serverCode = getErrorCode(rpcServerError);
           super(
-            rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
-              getSmartProviderErrorMessage(rpcServerError.code),
-            { cause: rpcServerError },
+            serverMessage ?? // Server errors sometimes will not have an error.message
+              getSmartProviderErrorMessage(
+                serverCode ?? EthersError.UNKNOWN_ERROR,
+              ),
+            { cause: toErrorCause(rpcServerError) },
           );
         }
       };
@@ -901,9 +969,9 @@ export class HyperlaneSmartProvider implements IProviderMethods {
       this.logger.warn(
         {
           errors: errors.map((e) => ({
-            code: e?.code,
-            message: e?.message,
-            name: e?.name,
+            code: asRecord(e)?.code,
+            message: asRecord(e)?.message,
+            name: asRecord(e)?.name,
           })),
         },
         'Unhandled error case in combined provider error handler',
