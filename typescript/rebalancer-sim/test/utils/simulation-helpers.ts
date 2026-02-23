@@ -5,7 +5,7 @@ import { formatEther } from 'viem';
 
 import {
   HyperlaneSmartProvider,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
 } from '@hyperlane-xyz/sdk';
 import { ensure0x } from '@hyperlane-xyz/utils';
 
@@ -139,7 +139,7 @@ export async function runScenarioWithRebalancers(
         31337,
         options.anvilRpc,
       );
-      const deployer = new LocalAccountEvmSigner(
+      const deployer = new LocalAccountViemSigner(
         ensure0x(ANVIL_DEPLOYER_KEY),
       ).connect(provider as any);
 

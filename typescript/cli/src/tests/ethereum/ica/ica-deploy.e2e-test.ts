@@ -8,7 +8,7 @@ import {
   type ChainMetadata,
   HyperlaneSmartProvider,
   InterchainAccount,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   isContractAddress,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -45,9 +45,9 @@ describe('hyperlane ica deploy e2e tests', async function () {
   let chain4Addresses: ChainAddresses;
 
   let ownerAddress: Address;
-  let walletChain2: ReturnType<LocalAccountEvmSigner['connect']>;
-  let walletChain3: ReturnType<LocalAccountEvmSigner['connect']>;
-  let walletChain4: ReturnType<LocalAccountEvmSigner['connect']>;
+  let walletChain2: ReturnType<LocalAccountViemSigner['connect']>;
+  let walletChain3: ReturnType<LocalAccountViemSigner['connect']>;
+  let walletChain4: ReturnType<LocalAccountViemSigner['connect']>;
 
   let chain2DomainId: number;
   let chain3DomainId: number;
@@ -82,13 +82,13 @@ describe('hyperlane ica deploy e2e tests', async function () {
       chain4Metadata.rpcUrls[0].http,
     );
 
-    walletChain2 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+    walletChain2 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
       providerChain2,
     );
-    walletChain3 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+    walletChain3 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
       providerChain3,
     );
-    walletChain4 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+    walletChain4 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
       providerChain4,
     );
     ownerAddress = walletChain2.address;

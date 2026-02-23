@@ -1,5 +1,5 @@
 import {
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   type MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -28,6 +28,6 @@ export class MultiProtocolSignerFactory {
 class EvmSignerStrategy extends BaseMultiProtocolSigner {
   async getSigner(config: SignerConfig): Promise<TypedSigner> {
     const { privateKey } = await this.getPrivateKey(config);
-    return new LocalAccountEvmSigner(privateKey as `0x${string}`);
+    return new LocalAccountViemSigner(privateKey as `0x${string}`);
   }
 }

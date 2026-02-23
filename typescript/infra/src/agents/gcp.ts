@@ -6,7 +6,7 @@ import { Logger } from 'pino';
 import { bytesToHex } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
-import { ChainName, LocalAccountEvmSigner } from '@hyperlane-xyz/sdk';
+import { ChainName, LocalAccountViemSigner } from '@hyperlane-xyz/sdk';
 import {
   HexString,
   ProtocolType,
@@ -293,7 +293,7 @@ export class AgentGCPKey extends CloudAgentKey {
       await this.fetch();
     }
 
-    return new LocalAccountEvmSigner(
+    return new LocalAccountViemSigner(
       ensure0x(this.privateKey) as `0x${string}`,
     ).connect(provider as any);
   }

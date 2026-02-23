@@ -954,6 +954,6 @@ export {
   TurnkeyClientManager,
   TurnkeyConfig,
 } from './signers/turnkeyClient.js';
-export { LocalAccountEvmSigner } from './signers/evm/local.js';
-export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
+export { LocalAccountViemSigner } from './signers/evm/local.js';
+export { TurnkeyViemSigner } from './signers/evm/turnkey.js';
 export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';

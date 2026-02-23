@@ -8,7 +8,7 @@ import {
   type ChainMetadata,
   HyperlaneCore,
   HyperlaneSmartProvider,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   MultiProvider,
   TokenStandard,
   type WarpCoreConfig,
@@ -162,7 +162,7 @@ export class SimulationEngine {
     timing: SimulationTiming,
     kpiCollector: KPICollector,
   ): Promise<void> {
-    const deployer = new LocalAccountEvmSigner(
+    const deployer = new LocalAccountViemSigner(
       ensure0x(this.deployment.deployerKey) as `0x${string}`,
     ).connect(this.provider as any);
     const startTime = Date.now();
@@ -290,7 +290,7 @@ export class SimulationEngine {
     }
 
     const multiProvider = new MultiProvider(chainMetadata);
-    const processorWallet = new LocalAccountEvmSigner(
+    const processorWallet = new LocalAccountViemSigner(
       ensure0x(this.deployment.mailboxProcessorKey) as `0x${string}`,
     ).connect(this.provider as any);
     multiProvider.setSharedSigner(processorWallet);

@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import {
   ChainTechnicalStack,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   MultiProtocolProvider,
   MultiProvider,
   test1,
@@ -34,6 +34,6 @@ describe('ensureEvmSignersForChains', () => {
     );
 
     const signer = multiProvider.getSigner('test1');
-    expect(signer).to.be.instanceOf(LocalAccountEvmSigner);
+    expect(signer).to.be.instanceOf(LocalAccountViemSigner);
   });
 });

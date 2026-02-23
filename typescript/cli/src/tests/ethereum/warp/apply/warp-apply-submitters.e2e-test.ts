@@ -14,7 +14,7 @@ import {
   ChainSubmissionStrategySchema,
   type DerivedCoreConfig,
   HyperlaneSmartProvider,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   type SubmissionStrategy,
   TokenType,
   TxSubmitterType,
@@ -60,8 +60,8 @@ describe('hyperlane warp apply with submitters', async function () {
     coreConfigPath: DEFAULT_EVM_WARP_CORE_PATH,
   });
 
-  let chain2Signer: ReturnType<LocalAccountEvmSigner['connect']>;
-  let chain3Signer: ReturnType<LocalAccountEvmSigner['connect']>;
+  let chain2Signer: ReturnType<LocalAccountViemSigner['connect']>;
+  let chain3Signer: ReturnType<LocalAccountViemSigner['connect']>;
   let chain3Addresses: ChainAddresses = {};
   let chain2Addresses: ChainAddresses = {};
   let initialOwnerAddress: Address;
@@ -162,7 +162,7 @@ describe('hyperlane warp apply with submitters', async function () {
     );
     chain2DomainId = chain2Metadata.domainId;
     chain3DomainId = chain3Metadata.domainId;
-    const wallet = new LocalAccountEvmSigner(
+    const wallet = new LocalAccountViemSigner(
       ensure0x(HYP_KEY_BY_PROTOCOL.ethereum),
     );
     chain2Signer = wallet.connect(chain2Provider);

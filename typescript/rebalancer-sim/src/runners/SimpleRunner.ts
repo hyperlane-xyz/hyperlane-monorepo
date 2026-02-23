@@ -7,7 +7,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   HyperlaneSmartProvider,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
 } from '@hyperlane-xyz/sdk';
 import { ensure0x } from '@hyperlane-xyz/utils';
 
@@ -56,7 +56,7 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
   private activeOperations = 0;
   private pollingTimer?: NodeJS.Timeout;
   private provider?: HyperlaneSmartProvider;
-  private deployer?: LocalAccountEvmSigner;
+  private deployer?: LocalAccountViemSigner;
 
   async initialize(config: RebalancerSimConfig): Promise<void> {
     // Cleanup any previously running instance
@@ -71,7 +71,7 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
     currentSimpleProvider = this.provider;
 
     // Use separate rebalancer key to avoid nonce conflicts with transfer execution
-    this.deployer = new LocalAccountEvmSigner(
+    this.deployer = new LocalAccountViemSigner(
       ensure0x(config.deployment.rebalancerKey) as `0x${string}`,
     ).connect(this.provider as any);
   }

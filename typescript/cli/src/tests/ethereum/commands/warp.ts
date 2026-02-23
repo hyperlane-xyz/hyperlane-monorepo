@@ -5,7 +5,7 @@ import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type ChainName,
   type HypTokenRouterConfig,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
@@ -625,10 +625,10 @@ export async function setupIncompleteWarpRouteExtension(
 
   warpDeployConfig[CHAIN_NAME_3] = configToExtend;
 
-  const signer2 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+  const signer2 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
     context.multiProvider.getProvider(CHAIN_NAME_2) as any,
   );
-  const signer3 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+  const signer3 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
     context.multiProvider.getProvider(CHAIN_NAME_3) as any,
   );
   context.multiProvider.setSigner(CHAIN_NAME_2, signer2);

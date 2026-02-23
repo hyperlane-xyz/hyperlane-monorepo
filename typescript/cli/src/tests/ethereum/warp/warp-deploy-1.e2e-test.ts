@@ -16,7 +16,7 @@ import {
   HookType,
   type IsmConfig,
   IsmType,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   TokenType,
   type WarpRouteDeployConfig,
   normalizeConfig,
@@ -70,7 +70,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
   let chain3Addresses: ChainAddresses = {};
 
   let ownerAddress: Address;
-  let walletChain2: ReturnType<LocalAccountEvmSigner['connect']>;
+  let walletChain2: ReturnType<LocalAccountViemSigner['connect']>;
   let providerChain2: HyperlaneSmartProvider;
 
   before(async function () {
@@ -79,7 +79,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       chain2Metadata.chainId,
       chain2Metadata.rpcUrls[0].http,
     );
-    walletChain2 = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+    walletChain2 = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
       providerChain2,
     );
     ownerAddress = walletChain2.address;

@@ -4,7 +4,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { TokenRouter__factory } from '@hyperlane-xyz/core';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   TokenType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
@@ -103,7 +103,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
     const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
     const tokenRouter = TokenRouter__factory.connect(
       deployedTokenRoute,
-      new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(
+      new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(
         multiProvider.getProvider(CHAIN_NAME_2) as any,
       ),
     );

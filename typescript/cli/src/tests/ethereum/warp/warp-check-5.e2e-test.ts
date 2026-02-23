@@ -11,7 +11,7 @@ import {
   type ChainMetadata,
   HyperlaneSmartProvider,
   HookType,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   TokenType,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
@@ -39,7 +39,7 @@ import {
 describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-  let signer: ReturnType<LocalAccountEvmSigner['connect']>;
+  let signer: ReturnType<LocalAccountViemSigner['connect']>;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let token: ERC20Test;
@@ -60,7 +60,7 @@ describe('hyperlane warp check e2e tests', async function () {
       chainMetadata.chainId,
       chainMetadata.rpcUrls[0].http,
     );
-    signer = new LocalAccountEvmSigner(ensure0x(ANVIL_KEY)).connect(provider);
+    signer = new LocalAccountViemSigner(ensure0x(ANVIL_KEY)).connect(provider);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     tokenSymbol = await token.symbol();

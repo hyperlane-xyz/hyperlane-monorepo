@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
   HyperlaneCore,
-  LocalAccountEvmSigner,
+  LocalAccountViemSigner,
   MultiProvider,
   revertToSnapshot,
   snapshot,
@@ -46,7 +46,7 @@ describe('CompositeStrategy E2E', function () {
   let deployedAddresses: DeployedAddresses;
 
   before(async function () {
-    const wallet = new LocalAccountEvmSigner(ensure0x(ANVIL_USER_PRIVATE_KEY));
+    const wallet = new LocalAccountViemSigner(ensure0x(ANVIL_USER_PRIVATE_KEY));
     userAddress = await wallet.getAddress();
 
     deploymentManager = new LocalDeploymentManager();
@@ -136,7 +136,7 @@ describe('CompositeStrategy E2E', function () {
 
     // Fund user and execute actual warp transfer
     const ethProvider = localProviders.get('anvil1')!;
-    const deployer = new LocalAccountEvmSigner(
+    const deployer = new LocalAccountViemSigner(
       ensure0x(ANVIL_TEST_PRIVATE_KEY),
     ).connect(ethProvider as any);
     const token = ERC20__factory.connect(
@@ -342,7 +342,7 @@ describe('CompositeStrategy E2E', function () {
       .build();
 
     const ethProvider = localProviders.get('anvil1')!;
-    const deployer2 = new LocalAccountEvmSigner(
+    const deployer2 = new LocalAccountViemSigner(
       ensure0x(ANVIL_TEST_PRIVATE_KEY),
     ).connect(ethProvider as any);
     const token2 = ERC20__factory.connect(
@@ -563,7 +563,7 @@ describe('CompositeStrategy E2E', function () {
 
     // ===== CYCLE 2: Add pending transfer to create deficit, then execute =====
     // Fund user and execute a warp transfer eth→arbitrum to create deficit on arbitrum
-    const deployer3 = new LocalAccountEvmSigner(
+    const deployer3 = new LocalAccountViemSigner(
       ensure0x(ANVIL_TEST_PRIVATE_KEY),
     ).connect(ethProvider as any);
     const token3 = ERC20__factory.connect(
@@ -869,7 +869,7 @@ describe('CompositeStrategy E2E', function () {
 
     // Fund user and execute warp transfer to create deficit
     const ethProvider = localProviders.get('anvil1')!;
-    const deployer4 = new LocalAccountEvmSigner(
+    const deployer4 = new LocalAccountViemSigner(
       ensure0x(ANVIL_TEST_PRIVATE_KEY),
     ).connect(ethProvider as any);
     const token4 = ERC20__factory.connect(
