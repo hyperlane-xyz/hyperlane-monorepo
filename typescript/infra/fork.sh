@@ -26,13 +26,19 @@ done
 # echo all subsequent commands
 set -x
 
+# Only use deployer impersonation for IGP fork checks/deploys.
+AS_DEPLOYER_FLAG=""
+if [ "$MODULE" = "igp" ]; then
+  AS_DEPLOYER_FLAG="--asDeployer"
+fi
+
 # Function to execute commands with or without --warpRouteId
 execute_command() {
     local cmd="$1"
     if [ -n "$WARP_ROUTE_ID" ]; then
-        $cmd --warpRouteId $WARP_ROUTE_ID
+        $cmd $AS_DEPLOYER_FLAG --warpRouteId $WARP_ROUTE_ID
     else
-        $cmd
+        $cmd $AS_DEPLOYER_FLAG
     fi
 }
 

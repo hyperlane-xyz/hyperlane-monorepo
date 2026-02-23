@@ -239,23 +239,24 @@ export abstract class HyperlaneAppGovernor<
     // Then propose transactions on safes for all governance types
     for (const governanceType of Object.values(GovernanceType)) {
       const safeOwner = getGovernanceSafes(governanceType)[chain];
-      if (safeOwner) {
-        // Create SafeMultiSend outside retry loop to avoid re-initializing on each retry
-        const safeMultiSend = await SafeMultiSend.initialize(
-          this.checker.multiProvider,
-          chain,
-          safeOwner,
-        );
-        await retryAsync(
-          () =>
-            sendCallsForType(
-              SubmissionType.SAFE,
-              safeMultiSend,
-              governanceType,
-            ),
-          10,
-        );
-      }
+      if (!safeOwner) continue;
+
+      // Avoid initializing Safe (which can trigger external key fetches)
+      // when there are no SAFE calls for this governance type.
+      const safeCalls = filterCalls(SubmissionType.SAFE, governanceType);
+      if (safeCalls.length === 0) continue;
+
+      // Create SafeMultiSend outside retry loop to avoid re-initializing on each retry
+      const safeMultiSend = await SafeMultiSend.initialize(
+        this.checker.multiProvider,
+        chain,
+        safeOwner,
+      );
+      await retryAsync(
+        () =>
+          sendCallsForType(SubmissionType.SAFE, safeMultiSend, governanceType),
+        10,
+      );
     }
 
     // Then finally submit remaining calls manually
