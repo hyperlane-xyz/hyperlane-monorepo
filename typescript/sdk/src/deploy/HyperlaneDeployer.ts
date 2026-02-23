@@ -83,17 +83,25 @@ type ContractLike = {
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object'
+  return value && (typeof value === 'object' || typeof value === 'function')
     ? (value as Record<string, unknown>)
     : null;
 }
 
 function getFactoryBytecode(factory: HyperlaneContractFactory): string {
-  const bytecode = asRecord(factory)?.bytecode;
-  if (typeof bytecode !== 'string') {
-    throw new Error('Factory bytecode is required for contract verification');
+  const instanceBytecode = asRecord(factory)?.bytecode;
+  if (typeof instanceBytecode === 'string') {
+    return instanceBytecode;
   }
-  return bytecode;
+
+  const constructorBytecode = asRecord(
+    asRecord(factory)?.constructor,
+  )?.bytecode;
+  if (typeof constructorBytecode === 'string') {
+    return constructorBytecode;
+  }
+
+  throw new Error('Factory bytecode is required for contract verification');
 }
 
 export interface DeployerOptions {
