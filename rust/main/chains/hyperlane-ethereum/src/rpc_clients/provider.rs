@@ -187,11 +187,7 @@ where
         function: &Function,
     ) -> ChainResult<U256> {
         let mut contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
-        if contract_call.tx.from().is_none() {
-            if let Some(from) = self.get_signer() {
-                contract_call.tx.set_from(from);
-            }
-        }
+        crate::tx::set_from_if_unset(&mut contract_call.tx, self.get_signer());
         let gas_limit = contract_call.estimate_gas().await?.into();
         Ok(gas_limit)
     }

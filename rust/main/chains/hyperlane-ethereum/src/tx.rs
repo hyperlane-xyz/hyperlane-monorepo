@@ -68,7 +68,7 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
 const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
 
-fn set_from_if_unset(tx: &mut TypedTransaction, from: Option<H160>) {
+pub(crate) fn set_from_if_unset(tx: &mut TypedTransaction, from: Option<H160>) {
     if tx.from().is_none() {
         if let Some(from) = from {
             tx.set_from(from);
@@ -585,6 +585,17 @@ mod test {
         let new_sender = H160::from_low_u64_be(7);
         super::set_from_if_unset(&mut tx, Some(new_sender));
         assert_eq!(tx.from().copied(), Some(existing_sender));
+    }
+
+    #[test]
+    fn test_set_from_if_unset_noop_when_none_provided() {
+        let mut tx = TypedTransaction::Eip1559(
+            Eip1559TransactionRequest::new()
+                .to(Address::zero())
+                .value(1),
+        );
+        super::set_from_if_unset(&mut tx, None);
+        assert_eq!(tx.from().copied(), None);
     }
 
     #[ignore = "Not running a flaky test requiring network"]
