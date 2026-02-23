@@ -136,6 +136,8 @@ where
             // around the presence of funds in the from address (which defaults to address(0)).
             // Context here: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
             tx = tx.from(RANDOM_ADDRESS);
+        } else if let Some(from) = self.contract.client().default_sender() {
+            tx = tx.from(from);
         }
         let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
         if verifies {
