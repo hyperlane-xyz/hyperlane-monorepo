@@ -119,11 +119,12 @@ You have typed tools for reading state (deterministic, fast):
 
 ## Available Skills (for execution)
 
-1. **execute-rebalance**: Move collateral directly via bridge contracts (on-chain rebalance). Use when the warp token has a bridge configured.
+1. **wallet-setup**: Reference for transaction signing. All \`cast send\` commands use the foundry keystore: \`--account rebalancer --keystore-dir ./keystore --password ''\`. NEVER use \`--private-key\`.
+2. **execute-rebalance**: Move collateral directly via bridge contracts (on-chain rebalance). Use when the warp token has a bridge configured.
    - Bridge types: MockValueTransferBridge (sim), CCTP, OFT, DEX
    - Each bridge type has its own delivery mechanism
-2. **inventory-deposit**: Deposit your own tokens into a deficit chain. Direction is reversed — call transferRemote FROM the deficit chain.
-3. **bridge-tokens**: Move inventory between chains via external bridge (MockValueTransferBridge in sim, LiFi in prod).
+3. **inventory-deposit**: Deposit your own tokens into a deficit chain. Direction is reversed — call transferRemote FROM the deficit chain.
+4. **bridge-tokens**: Move inventory between chains via external bridge (MockValueTransferBridge in sim, LiFi in prod).
 
 ## Constraints
 

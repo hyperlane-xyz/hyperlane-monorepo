@@ -18,6 +18,7 @@ import { pino } from 'pino';
 
 import {
   InMemoryContextStore,
+  SqliteContextStore,
   buildAgentsPrompt,
   buildCustomTools,
   runRebalancerCycle,
@@ -75,7 +76,7 @@ export class LLMRebalancerRunner
 
   /** Model provider (default: 'anthropic') */
   private provider: string;
-  /** Model name (default: 'claude-sonnet-4-5') */
+  /** Model name (default: 'claude-haiku-4-5') */
   private model: string;
 
   /** Adaptive polling config */
@@ -85,12 +86,15 @@ export class LLMRebalancerRunner
     provider?: string;
     model?: string;
     adaptivePolling?: { shortIntervalMs: number; longIntervalMs: number };
+    contextDbPath?: string;
   }) {
     super();
     this.provider = opts?.provider ?? 'anthropic';
-    this.model = opts?.model ?? 'claude-sonnet-4-5';
+    this.model = opts?.model ?? 'claude-haiku-4-5';
     this.adaptivePolling = opts?.adaptivePolling;
-    this.contextStore = new InMemoryContextStore();
+    this.contextStore = opts?.contextDbPath
+      ? new SqliteContextStore(opts.contextDbPath)
+      : new InMemoryContextStore();
     this.routeId = 'default';
   }
 
@@ -111,6 +115,16 @@ export class LLMRebalancerRunner
 
     // Build agent config from deployment
     this.agentConfig = this.buildAgentConfig(config);
+
+    // Import rebalancer key into foundry keystore
+    const keystoreDir = path.join(this.workDir, 'keystore');
+    fs.mkdirSync(keystoreDir, { recursive: true });
+    const { execSync } = await import('child_process');
+    execSync(
+      `cast wallet import rebalancer --private-key ${this.agentConfig.rebalancerKey} --keystore-dir ${keystoreDir} --unsafe`,
+      { stdio: 'pipe' },
+    );
+    logger.info('Imported rebalancer key into foundry keystore');
 
     // Write config JSON (sans rebalancerKey for agent reference)
     const configForFile = {
@@ -175,6 +189,11 @@ export class LLMRebalancerRunner
       } catch {
         // Best effort
       }
+    }
+
+    // Close SQLite if used
+    if ('close' in this.contextStore) {
+      (this.contextStore as { close(): void }).close();
     }
 
     this.workDir = undefined;

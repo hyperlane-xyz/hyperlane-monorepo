@@ -71,9 +71,12 @@ export async function createRebalancer(
     case 'noop':
       return new NoOpRebalancer();
     case 'llm': {
+      ensureResultsDir();
       const { LLMRebalancerRunner } =
         await import('../../src/runners/LLMRebalancerRunner.js');
-      return new LLMRebalancerRunner();
+      return new LLMRebalancerRunner({
+        contextDbPath: path.join(RESULTS_DIR, 'llm-context.db'),
+      });
     }
   }
 }

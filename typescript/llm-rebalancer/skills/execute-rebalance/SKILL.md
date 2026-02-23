@@ -9,6 +9,16 @@ allowed-tools: bash read write
 Moves collateral between chains using the warp token's built-in rebalance function.
 The bridge contract must be pre-configured on the warp token.
 
+## Signing
+
+All `cast send` commands use the foundry keystore:
+
+```bash
+--account rebalancer --keystore-dir ./keystore --password ''
+```
+
+**Do NOT use `--private-key`.** See the `wallet-setup` skill for details.
+
 ## Bridge Taxonomy
 
 | Bridge Type             | Contract      | Delivery Check                  |
@@ -22,18 +32,13 @@ The bridge contract must be pre-configured on the warp token.
 
 1. **Get chain metadata** using `get_chain_metadata` tool for addresses and RPC URLs. Or read `./rebalancer-config.json` directly.
 
-2. **Verify bridge is configured** on the source warp token for the destination domain:
-
-   ```bash
-   cast call <sourceWarpToken> 'allowedBridges(uint32)(address)' <destDomainId> --rpc-url <sourceRpc>
-   ```
-
-   If the result is the zero address, this route doesn't support on-chain rebalance.
+2. **Look up the bridge address** for the source→destination route from `rebalancer-config.json`. The `bridge` field in each chain's config is the bridge address to pass to `rebalance()`.
 
 3. **Execute rebalance**:
 
    ```bash
-   cast send <sourceWarpToken> 'rebalance(uint32,uint256,address)' <destDomainId> <amountWei> <bridgeAddress> --private-key <rebalancerKey from config> --rpc-url <sourceRpc>
+   cast send <sourceWarpToken> 'rebalance(uint32,uint256,address)' <destDomainId> <amountWei> <bridgeAddress> \
+     --account rebalancer --keystore-dir ./keystore --password '' --rpc-url <sourceRpc>
    ```
 
 4. **Parse the transaction receipt** for the Dispatch event to get the messageId:

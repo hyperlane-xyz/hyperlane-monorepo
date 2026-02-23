@@ -50,6 +50,7 @@ typescript/llm-rebalancer/
 ├── package.json
 ├── tsconfig.json
 ├── skills/                          # Pi skills (execution via bash/cast)
+│   ├── wallet-setup/SKILL.md        # Foundry keystore signing reference
 │   ├── execute-rebalance/SKILL.md   # On-chain rebalance via bridge
 │   ├── inventory-deposit/SKILL.md   # Deposit inventory into deficit chain
 │   └── bridge-tokens/SKILL.md       # Mock bridge (sim) or LiFi (prod)
@@ -57,7 +58,7 @@ typescript/llm-rebalancer/
 │   ├── index.ts
 │   ├── agent.ts                     # Pi session creation + cycle invocation
 │   ├── config.ts                    # Config types
-│   ├── context-store.ts             # ContextStore interface + InMemoryContextStore
+│   ├── context-store.ts             # ContextStore interface + InMemory/Sqlite stores
 │   ├── events.ts                    # RebalancerAgentEvent types
 │   ├── prompt-builder.ts            # Generates AGENTS.md from config + context
 │   ├── tools/                       # Typed Pi custom tools (ethers.js)
@@ -66,8 +67,7 @@ typescript/llm-rebalancer/
 │   │   ├── get-chain-metadata.ts    # Chain config metadata
 │   │   ├── check-hyperlane-delivery.ts  # Mailbox.delivered() check
 │   │   └── save-context.ts          # Persist LLM context summaries
-│   └── sim/
-│       └── LLMRebalancerRunner.ts   # IRebalancerRunner for rebalancer-sim
+│   └── (LLMRebalancerRunner lives in rebalancer-sim/src/runners/)
 └── scripts/
     └── run.ts                       # Production entry point
 ```
@@ -89,6 +89,7 @@ Skills are `SKILL.md` files that teach the agent execution capabilities via bash
 
 | Skill               | Purpose                                                 | Tools             |
 | ------------------- | ------------------------------------------------------- | ----------------- |
+| `wallet-setup`      | Foundry keystore signing reference (all skills use it)  | bash, read, write |
 | `execute-rebalance` | Call `rebalance(uint32,uint256,address)` on warp tokens | bash, read, write |
 | `inventory-deposit` | Approve + `transferRemote` from deficit chain           | bash, read, write |
 | `bridge-tokens`     | MockValueTransferBridge (sim) or LiFi API (prod)        | bash, read, write |
@@ -119,11 +120,34 @@ REBALANCERS=simple,production,llm pnpm -C typescript/rebalancer-sim test --grep 
 
 ## Production Usage
 
+### Prerequisites
+
+- [Foundry](https://book.getfoundry.sh/) installed (`cast` CLI available)
+- Node.js 18+
+- An Anthropic API key
+
+### Setup
+
+1. **Environment variables**:
+
 ```bash
-REBALANCER_KEY=0x... ANTHROPIC_API_KEY=sk-... tsx typescript/llm-rebalancer/scripts/run.ts config.json
+export REBALANCER_KEY=0x...        # Private key for the rebalancer wallet
+export ANTHROPIC_API_KEY=sk-...    # Anthropic API key for the LLM
 ```
 
-Config file format:
+2. **Run**:
+
+```bash
+tsx typescript/llm-rebalancer/scripts/run.ts config.json
+```
+
+On startup, the script:
+
+- Imports `REBALANCER_KEY` into a foundry keystore at `./keystore/` (the agent uses `--account rebalancer --keystore-dir ./keystore --password ''` for all `cast send` commands — the private key is never exposed to the LLM)
+- Writes `rebalancer-config.json` (sans private key) for agent reference
+- Starts the polling loop with context persistence in SQLite (`rebalancer-context.db`)
+
+### Config file format
 
 ```json
 {
@@ -144,8 +168,17 @@ Config file format:
     "text": "Maintain equal distribution across chains with ±15% tolerance."
   },
   "pollingIntervalMs": 30000,
-  "model": "claude-sonnet-4-5"
+  "model": "claude-haiku-4-5",
+  "dbPath": "rebalancer-context.db"
 }
 ```
 
-Note: `REBALANCER_KEY` is passed via env var, not in the config file.
+### Transaction signing
+
+The rebalancer uses a **foundry keystore** for transaction signing. The private key is imported once at startup and never passed to the LLM agent directly. All `cast send` commands use:
+
+```bash
+--account rebalancer --keystore-dir ./keystore --password ''
+```
+
+This is enforced by the `wallet-setup` skill and referenced in all execution skills.

@@ -9,6 +9,16 @@ allowed-tools: bash read write
 Moves the rebalancer's own tokens between chains using an external bridge.
 Use this when you need inventory on a chain where you don't have enough.
 
+## Signing
+
+All `cast send` commands use the foundry keystore:
+
+```bash
+--account rebalancer --keystore-dir ./keystore --password ''
+```
+
+**Do NOT use `--private-key`.** See the `wallet-setup` skill for details.
+
 ## Bridge Selection Strategy
 
 | Bridge                  | When to Use                   | Delivery                        |
@@ -24,13 +34,15 @@ In simulation, bridges are mock contracts. Use `get_chain_metadata` tool for add
 1. **Approve the bridge to spend collateral**:
 
    ```bash
-   cast send <collateralToken> 'approve(address,uint256)' <bridgeAddress> <amountWei> --private-key <rebalancerKey from config> --rpc-url <rpc>
+   cast send <collateralToken> 'approve(address,uint256)' <bridgeAddress> <amountWei> \
+     --account rebalancer --keystore-dir ./keystore --password '' --rpc-url <rpc>
    ```
 
 2. **Execute bridge transfer**:
 
    ```bash
-   cast send <bridgeAddress> 'transferRemote(uint32,bytes32,uint256)' <destDomainId> <recipientBytes32> <amountWei> --private-key <rebalancerKey from config> --rpc-url <rpc>
+   cast send <bridgeAddress> 'transferRemote(uint32,bytes32,uint256)' <destDomainId> <recipientBytes32> <amountWei> \
+     --account rebalancer --keystore-dir ./keystore --password '' --rpc-url <rpc>
    ```
 
    Recipient is the rebalancer address padded to bytes32.

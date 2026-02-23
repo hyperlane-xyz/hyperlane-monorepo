@@ -43,7 +43,7 @@ export async function createRebalancerSession(
   const modelRegistry = new ModelRegistry(authStorage);
 
   const provider = opts.provider ?? 'anthropic';
-  const modelId = opts.model ?? 'claude-sonnet-4-5';
+  const modelId = opts.model ?? 'claude-haiku-4-5';
   const model = modelRegistry.find(provider, modelId);
   if (!model) {
     throw new Error(`Model not found: ${provider}/${modelId}`);
@@ -114,6 +114,10 @@ export async function runRebalancerCycle(
           logger.info({ tool: e.tool, args: e.args }, 'Tool call');
         else if (e.type === 'tool_result')
           logger.info({ tool: e.tool }, 'Tool result');
+        else if (e.type === 'text') process.stdout.write(e.text);
+        else if (e.type === 'cycle_start') logger.info('Cycle started');
+        else if (e.type === 'cycle_end')
+          logger.info({ status: e.status }, 'Cycle ended');
       });
 
     emit({ type: 'cycle_start', timestamp: Date.now() });

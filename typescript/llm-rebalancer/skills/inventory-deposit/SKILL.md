@@ -10,6 +10,16 @@ Deposits tokens from the rebalancer's own inventory into a warp route.
 **Direction is REVERSED**: to fill a deficit on chainB, you call `transferRemote` FROM chainB
 (sending tokens to the destination chain where they'll be locked as collateral).
 
+## Signing
+
+All `cast send` commands use the foundry keystore:
+
+```bash
+--account rebalancer --keystore-dir ./keystore --password ''
+```
+
+**Do NOT use `--private-key`.** See the `wallet-setup` skill for details.
+
 ## Steps
 
 1. **Get chain metadata** using `get_chain_metadata` tool or read `./rebalancer-config.json`.
@@ -25,13 +35,15 @@ Deposits tokens from the rebalancer's own inventory into a warp route.
 3. **Approve the warp token to spend collateral**:
 
    ```bash
-   cast send <collateralToken> 'approve(address,uint256)' <warpToken> <amountWei> --private-key <rebalancerKey from config> --rpc-url <rpc>
+   cast send <collateralToken> 'approve(address,uint256)' <warpToken> <amountWei> \
+     --account rebalancer --keystore-dir ./keystore --password '' --rpc-url <rpc>
    ```
 
 4. **Execute transferRemote** from the deficit chain:
 
    ```bash
-   cast send <warpToken> 'transferRemote(uint32,bytes32,uint256)' <destDomainId> <recipientBytes32> <amountWei> --private-key <rebalancerKey from config> --rpc-url <rpc>
+   cast send <warpToken> 'transferRemote(uint32,bytes32,uint256)' <destDomainId> <recipientBytes32> <amountWei> \
+     --account rebalancer --keystore-dir ./keystore --password '' --rpc-url <rpc>
    ```
 
    The recipient should be the rebalancer address padded to bytes32:

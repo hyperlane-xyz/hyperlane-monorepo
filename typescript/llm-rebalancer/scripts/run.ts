@@ -8,6 +8,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'child_process';
 
 import { runRebalancerCycle } from '../src/agent.js';
 import type {
@@ -60,6 +61,17 @@ async function main() {
 
   // Set up working directory
   const workDir = process.cwd();
+
+  // Import rebalancer key into foundry keystore
+  const keystoreDir = path.join(workDir, 'keystore');
+  if (!fs.existsSync(keystoreDir)) {
+    fs.mkdirSync(keystoreDir, { recursive: true });
+  }
+  execSync(
+    `cast wallet import rebalancer --private-key ${rebalancerKey} --keystore-dir ${keystoreDir} --unsafe`,
+    { stdio: 'pipe' },
+  );
+  console.log('Imported rebalancer key into foundry keystore');
 
   // Write config (sans key) for the agent to read
   const configForFile = {
