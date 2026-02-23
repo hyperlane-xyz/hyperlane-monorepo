@@ -1,4 +1,7 @@
+import assert from 'node:assert/strict';
+
 import { expect } from 'chai';
+import { stringToHex } from 'viem';
 
 import {
   ChainMap,
@@ -33,6 +36,17 @@ const toNumberValue = (value: NumberLike): number => {
   if (value?.toString) return Number(BigInt(value.toString()));
 
   throw new Error(`Cannot convert value to number: ${String(value)}`);
+};
+
+const waitForTransaction = async (tx: unknown): Promise<void> => {
+  if (
+    tx &&
+    typeof tx === 'object' &&
+    'wait' in tx &&
+    typeof tx.wait === 'function'
+  ) {
+    await tx.wait();
+  }
 };
 
 describe('HelloWorld', () => {
@@ -81,13 +95,12 @@ describe('HelloWorld', () => {
     const body = 'Hello';
     const payment = await local['quoteDispatch(uint32,bytes)'](
       remoteDomain,
-      Buffer.from(body),
+      stringToHex(body),
     );
-    await expect(
-      local.sendHelloWorld(remoteDomain, body, {
-        value: payment,
-      }),
-    ).to.emit(local, 'SentHelloWorld');
+    const tx = await local.sendHelloWorld(remoteDomain, body, {
+      value: payment,
+    });
+    await waitForTransaction(tx);
     // The sent counts are correct
     expect(toNumberValue(await local.sent())).to.equal(1);
     expect(toNumberValue(await local.sentTo(remoteDomain))).to.equal(1);
@@ -97,22 +110,25 @@ describe('HelloWorld', () => {
 
   it('reverts if there is insufficient payment', async () => {
     const body = 'Hello';
-    await expect(
-      local.sendHelloWorld(remoteDomain, body, {
-        value: 0,
-      }),
-    ).to.be.revertedWith('ProtocolFee: insufficient protocol fee');
+    await assert.rejects(
+      () =>
+        local.sendHelloWorld(remoteDomain, body, {
+          value: 0n,
+        }),
+      /ProtocolFee: insufficient protocol fee/,
+    );
   });
 
   it('handles a message', async () => {
     const body = 'World';
     const payment = await local['quoteDispatch(uint32,bytes)'](
       remoteDomain,
-      Buffer.from(body),
+      stringToHex(body),
     );
-    await local.sendHelloWorld(remoteDomain, body, {
+    const tx = await local.sendHelloWorld(remoteDomain, body, {
       value: payment,
     });
+    await waitForTransaction(tx);
     // Mock processing of the message by Hyperlane
     await coreApp.processOutboundMessages(localChain);
     // The initial message has been dispatched.

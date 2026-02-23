@@ -21,7 +21,7 @@
   "scripts": {
     "build": "pnpm hardhat-esm clean && pnpm hardhat-esm compile && pnpm exec tsc",
     "clean": "pnpm hardhat-esm clean && rm -rf dist cache src/types",
-    "coverage": "pnpm hardhat-esm coverage",
+    "coverage": "SOLIDITY_COVERAGE=true pnpm hardhat-esm coverage",
     "lint": "pnpm lint:sol && pnpm lint:ts",
     "lint:sol": "solhint contracts/**/*.sol",
     "lint:ts": "eslint -c ./eslint.config.mjs \"./src/**/*.ts\" --ignore-pattern \"src/test/**\" --ignore-pattern \"artifacts/**\" --ignore-pattern \"**/*.test.ts\" --ignore-pattern \"**/*.e2e-test.ts\" --ignore-pattern \"**/*.hardhat-test.ts\" --ignore-pattern \"**/*.foundry-test.ts\"",
