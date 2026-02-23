@@ -1,7 +1,8 @@
+import { expect } from 'chai';
 import type { Logger } from 'pino';
 import sinon from 'sinon';
 
-import type { MultiProvider } from '@hyperlane-xyz/sdk';
+import { MultiProvider } from '@hyperlane-xyz/sdk';
 
 import type { KeyFunderConfig } from '../config/types.js';
 
@@ -13,39 +14,26 @@ describe('KeyFunder', () => {
   });
 
   it('should continue funding when recordFunderBalance fails', async () => {
-    const chainWarnStub = sinon.stub();
-    const chainInfoStub = sinon.stub();
+    const chainWarnSpy = sinon.spy();
+    const chainInfoSpy = sinon.spy();
 
-    const chainLogger: Pick<
-      Logger,
-      'child' | 'debug' | 'error' | 'info' | 'warn'
-    > = {
-      child: sinon.stub(),
-      debug: sinon.stub(),
-      error: sinon.stub(),
-      info: chainInfoStub,
-      warn: chainWarnStub,
-    };
+    const chainLogger = {
+      child: () => chainLogger,
+      debug: () => undefined,
+      error: () => undefined,
+      info: (...args: unknown[]) => chainInfoSpy(...args),
+      warn: (...args: unknown[]) => chainWarnSpy(...args),
+    } as unknown as Logger;
 
-    const logger: Pick<Logger, 'child' | 'debug' | 'error' | 'info' | 'warn'> =
-      {
-        child: sinon.stub().returns(chainLogger as Logger),
-        debug: sinon.stub(),
-        error: sinon.stub(),
-        info: sinon.stub(),
-        warn: sinon.stub(),
-      };
+    const logger = {
+      child: () => chainLogger,
+      debug: () => undefined,
+      error: () => undefined,
+      info: () => undefined,
+      warn: () => undefined,
+    } as unknown as Logger;
 
-    const signer = {
-      getAddress: sinon
-        .stub()
-        .resolves('0x1234567890123456789012345678901234567890'),
-      getBalance: sinon.stub().rejects(new Error('RPC failure')),
-    };
-
-    const multiProvider = {
-      getSigner: sinon.stub().returns(signer),
-    };
+    const multiProvider = sinon.createStubInstance(MultiProvider);
 
     const config: KeyFunderConfig = {
       version: '1',
@@ -53,23 +41,49 @@ describe('KeyFunder', () => {
         relayer: { address: '0x1111111111111111111111111111111111111111' },
       },
       chains: {
-        ethereum: {},
+        ethereum: {
+          balances: {
+            relayer: '1',
+          },
+        },
       },
     };
 
-    const keyFunder = new KeyFunder(multiProvider as MultiProvider, config, {
-      logger: logger as Logger,
+    const keyFunder = new KeyFunder(multiProvider, config, {
+      logger,
     });
+    const recordFunderBalanceStub = sinon.stub(
+      keyFunder as unknown as {
+        recordFunderBalance: (chain: string) => Promise<void>;
+      },
+      'recordFunderBalance',
+    );
+    recordFunderBalanceStub.rejects(new Error('RPC failure'));
+
+    const fundKeysStub = sinon.stub(
+      keyFunder as unknown as {
+        fundKeys: (chain: string, keys: unknown[]) => Promise<void>;
+      },
+      'fundKeys',
+    );
+    fundKeysStub.resolves();
 
     await keyFunder.fundChain('ethereum');
 
-    sinon.assert.calledOnce(multiProvider.getSigner);
-    sinon.assert.calledOnce(chainWarnStub);
-    sinon.assert.calledWithMatch(
-      chainWarnStub,
-      { error: sinon.match.instanceOf(Error) },
+    sinon.assert.calledOnce(recordFunderBalanceStub);
+    sinon.assert.calledOnce(fundKeysStub);
+    sinon.assert.calledOnce(chainWarnSpy);
+    const warnArgs = chainWarnSpy.firstCall.args;
+    expect(warnArgs[1]).to.equal(
       'Failed to record funder balance metric, continuing',
     );
-    sinon.assert.calledOnce(chainInfoStub);
+    expect((warnArgs[0] as { error: unknown }).error).to.be.instanceOf(Error);
+
+    sinon.assert.calledOnce(chainInfoSpy);
+    const infoArgs = chainInfoSpy.firstCall.args;
+    expect(infoArgs[1]).to.equal('Chain funding completed');
+    expect(
+      (infoArgs[0] as { durationSeconds: unknown }).durationSeconds,
+    ).to.be.a('number');
   });
 });
