@@ -43,10 +43,35 @@ type ContextMiddlewareArgv = Record<string, unknown> & {
   context?: CommandContext;
 };
 
-function toStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((v) => String(v));
+function hasIterator(value: unknown): value is Iterable<unknown> {
+  return (
+    value !== null &&
+    value !== undefined &&
+    typeof value === 'object' &&
+    Symbol.iterator in value
+  );
+}
+
+function parseRegistryUris(value: unknown): string[] {
+  if (value === undefined) return [];
   if (typeof value === 'string') return [value];
-  return [];
+
+  const values = Array.isArray(value)
+    ? value
+    : hasIterator(value)
+      ? Array.from(value)
+      : null;
+
+  assert(
+    values !== null,
+    `Invalid --registry value type: expected string or iterable of strings, got ${typeof value}`,
+  );
+  assert(
+    values.every((entry) => typeof entry === 'string'),
+    'Invalid --registry value: expected only string entries',
+  );
+
+  return values;
 }
 
 function toOptionalString(value: unknown): string | undefined {
@@ -68,7 +93,7 @@ export async function contextMiddleware(argv: ContextMiddlewareArgv) {
   const requiresKey = isSignCommand(argv);
 
   const settings: ContextSettings = {
-    registryUris: toStringArray(argv.registry),
+    registryUris: parseRegistryUris(argv.registry),
     key: toOptionalSignerKey(argv.key),
     requiresKey,
     disableProxy: toOptionalBoolean(argv.disableProxy),
