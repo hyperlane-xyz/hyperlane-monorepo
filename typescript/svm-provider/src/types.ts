@@ -7,6 +7,9 @@ import type {
   TransactionSigner,
 } from '@solana/kit';
 
+import type { DeployedHookAddress } from '@hyperlane-xyz/provider-sdk/hook';
+import type { DeployedIsmAddress } from '@hyperlane-xyz/provider-sdk/ism';
+
 export type SvmInstruction = Instruction;
 
 export type SvmRpc = Rpc<SolanaRpcApi>;
@@ -26,15 +29,29 @@ export type AnnotatedSvmTransaction = SvmTransaction & {
   annotation?: string;
 };
 
-export interface SvmProgramAddresses {
-  mailbox: Address;
-  igp: Address;
-  multisigIsmMessageId: Address;
-  testIsm: Address;
-  token: Address;
-  tokenCollateral: Address;
-  tokenNative: Address;
-  validatorAnnounce?: Address;
+/**
+ * Specifies how to obtain a deployed program address:
+ * - `{ programId }` — use an already-deployed program
+ * - `{ programBytes }` — deploy a fresh binary via BPF Loader v3
+ */
+export type SvmProgramTarget =
+  | { programId: Address }
+  | { programBytes: Uint8Array };
+
+/** ISM deployed data — the address IS the program. */
+export interface SvmDeployedIsm extends DeployedIsmAddress {
+  programId: Address;
+}
+
+/** Base hook deployed data — references the owning program. */
+export interface SvmDeployedHook extends DeployedHookAddress {
+  programId: Address;
+}
+
+/** IGP hook deployed data — account-level artifact within an IGP program. */
+export interface SvmDeployedIgpHook extends SvmDeployedHook {
+  igpPda: Address;
+  overheadIgpPda?: Address;
 }
 
 export interface PdaWithBump {
