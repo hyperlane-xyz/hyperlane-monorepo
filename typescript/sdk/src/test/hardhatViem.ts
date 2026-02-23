@@ -1,8 +1,19 @@
-import hre from 'hardhat';
+import { createRequire } from 'module';
 import { toHex } from 'viem';
 
-export type HardhatSignerWithAddress = { address: string; [key: string]: any };
-const hreAny = hre as any;
+export type HardhatSignerWithAddress = { address: string };
+
+type HardhatPublicClientLike = {
+  getBlock(args: {
+    blockNumber?: bigint;
+    blockTag?: 'latest' | 'pending';
+  }): Promise<{ number: bigint } & Record<string, unknown>>;
+  getBlockNumber(): Promise<bigint>;
+  getBalance(args: { address: `0x${string}` }): Promise<bigint>;
+  getTransactionReceipt(args: {
+    hash: `0x${string}`;
+  }): Promise<Record<string, unknown>>;
+};
 
 type ProviderLike = {
   send(method: string, params: unknown[]): Promise<unknown>;
@@ -25,12 +36,41 @@ type ProviderLike = {
 };
 
 type WalletClientLike = {
-  account?: { address: string };
+  account: { address: string };
   sendTransaction(request: Record<string, unknown>): Promise<string>;
 };
 
+type HardhatRuntimeEnvironmentLike = {
+  network: {
+    provider: {
+      send(method: string, params: unknown[]): Promise<unknown>;
+    };
+  };
+  viem: {
+    getPublicClient(): Promise<HardhatPublicClientLike>;
+    getWalletClients(): Promise<WalletClientLike[]>;
+  };
+};
+
+const require = createRequire(import.meta.url);
+let cachedHre: HardhatRuntimeEnvironmentLike | undefined;
+
+function getHardhatRuntimeEnvironment(): HardhatRuntimeEnvironmentLike {
+  if (!cachedHre) {
+    cachedHre = require('hardhat') as HardhatRuntimeEnvironmentLike;
+  }
+  return cachedHre;
+}
+
+async function getHardhatPublicClient(): Promise<HardhatPublicClientLike> {
+  return getHardhatRuntimeEnvironment().viem.getPublicClient();
+}
+
 function sendHardhatRpc(method: string, params: unknown[]) {
-  return hre.network.provider.send(method, sanitizedRpcParams(params) as any[]);
+  return getHardhatRuntimeEnvironment().network.provider.send(
+    method,
+    sanitizedRpcParams(params),
+  );
 }
 
 export function getHardhatProvider(): ProviderLike {
@@ -45,7 +85,7 @@ export function getHardhatProvider(): ProviderLike {
       return BigInt(hexGas);
     },
     async getBlock(tag: unknown) {
-      const publicClient = await hreAny.viem.getPublicClient();
+      const publicClient = await getHardhatPublicClient();
       const blockTag =
         typeof tag === 'number'
           ? BigInt(tag)
@@ -64,17 +104,17 @@ export function getHardhatProvider(): ProviderLike {
       } & Record<string, unknown>;
     },
     async getBlockNumber() {
-      const publicClient = await hreAny.viem.getPublicClient();
+      const publicClient = await getHardhatPublicClient();
       return Number(await publicClient.getBlockNumber());
     },
     async getBalance(address: string) {
-      const publicClient = await hreAny.viem.getPublicClient();
+      const publicClient = await getHardhatPublicClient();
       return publicClient.getBalance({
         address: address as `0x${string}`,
       });
     },
     async getTransactionReceipt(hash: string) {
-      const publicClient = await hreAny.viem.getPublicClient();
+      const publicClient = await getHardhatPublicClient();
       try {
         return (await publicClient.getTransactionReceipt({
           hash: hash as `0x${string}`,
@@ -116,14 +156,6 @@ export function getHardhatProvider(): ProviderLike {
       ])) || '0x') as string;
     },
   };
-}
-
-function attachAddress<T extends HardhatSignerWithAddress>(
-  signer: T,
-  address: string,
-): T {
-  signer.address = address;
-  return signer;
 }
 
 function normalizeRpcTx(tx: Record<string, unknown>): Record<string, unknown> {
@@ -230,14 +262,11 @@ class WalletClientSigner {
     readonly walletClient: WalletClientLike,
     readonly provider: ProviderLike = getHardhatProvider(),
   ) {
-    this.address = walletClient.account?.address || '';
+    this.address = walletClient.account.address;
   }
 
   connect(provider: ProviderLike): WalletClientSigner {
-    return attachAddress(
-      new WalletClientSigner(this.walletClient, provider),
-      this.address,
-    );
+    return new WalletClientSigner(this.walletClient, provider);
   }
 
   async getAddress(): Promise<string> {
@@ -297,10 +326,7 @@ class ImpersonatedSigner {
   ) {}
 
   connect(provider: ProviderLike): ImpersonatedSigner {
-    return attachAddress(
-      new ImpersonatedSigner(this.address, provider),
-      this.address,
-    );
+    return new ImpersonatedSigner(this.address, provider);
   }
 
   async getAddress(): Promise<string> {
@@ -379,20 +405,16 @@ async function waitForReceipt(
 }
 
 export async function getHardhatSigners(): Promise<HardhatSignerWithAddress[]> {
-  const wallets = await hreAny.viem.getWalletClients();
-  return wallets.map((wallet: any) => {
-    const signer = new WalletClientSigner(wallet as WalletClientLike);
-    return attachAddress(
-      signer as unknown as HardhatSignerWithAddress,
-      wallet.account.address,
-    );
-  });
+  const wallets = await getHardhatRuntimeEnvironment().viem.getWalletClients();
+  return wallets.map((wallet) => new WalletClientSigner(wallet));
 }
 
 export async function getImpersonatedHardhatSigner(
   account: string,
 ): Promise<HardhatSignerWithAddress> {
-  await hre.network.provider.send('hardhat_impersonateAccount', [account]);
-  const signer = new ImpersonatedSigner(account);
-  return attachAddress(signer as unknown as HardhatSignerWithAddress, account);
+  await getHardhatRuntimeEnvironment().network.provider.send(
+    'hardhat_impersonateAccount',
+    [account],
+  );
+  return new ImpersonatedSigner(account);
 }

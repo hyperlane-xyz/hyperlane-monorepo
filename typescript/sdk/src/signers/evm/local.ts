@@ -15,11 +15,29 @@ export type LocalViemTransactionRequest = ViemTransactionRequestLike & {
   data?: Hex;
 };
 
+type RpcSendable = {
+  send(method: string, params: unknown[]): Promise<unknown>;
+};
+
+function hasRpcSend(
+  provider: ViemProviderLike,
+): provider is ViemProviderLike & RpcSendable {
+  return typeof provider.send === 'function';
+}
+
+function toChainId(value: unknown): number | undefined {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') return Number(BigInt(value));
+  return undefined;
+}
+
 export class LocalAccountViemSigner {
   public readonly account: ReturnType<typeof privateKeyToAccount>;
   public readonly address: string;
   public readonly provider: ViemProviderLike | undefined;
   private readonly privateKey: Hex;
+  private sendQueue: Promise<void> = Promise.resolve();
 
   constructor(privateKey: string, provider?: ViemProviderLike) {
     assert(
@@ -64,8 +82,25 @@ export class LocalAccountViemSigner {
   ): Promise<{ hash: string; wait(confirmations?: number): Promise<unknown> }> {
     if (!this.provider)
       throw new Error('Provider required to send transaction');
-    const signedTransaction = await this.signTransaction(tx);
-    return this.provider.sendTransaction(signedTransaction);
+    return this.withSendLock(async () => {
+      const signedTransaction = await this.signTransaction(tx);
+      return this.provider!.sendTransaction(signedTransaction);
+    });
+  }
+
+  private async withSendLock<T>(runner: () => Promise<T>): Promise<T> {
+    const previous = this.sendQueue;
+    let release: (() => void) | undefined;
+    this.sendQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await previous;
+    try {
+      return await runner();
+    } finally {
+      release?.();
+    }
   }
 
   async populateTransaction(
@@ -85,8 +120,7 @@ export class LocalAccountViemSigner {
     }
 
     if (tx.chainId == null) {
-      const network = await this.provider.getNetwork();
-      tx.chainId = network.chainId;
+      tx.chainId = await this.resolveChainId();
     }
 
     if (tx.gasPrice == null && tx.maxFeePerGas == null) {
@@ -108,5 +142,18 @@ export class LocalAccountViemSigner {
 
     delete tx.gasLimit;
     return tx;
+  }
+
+  private async resolveChainId(): Promise<number> {
+    if (!this.provider) throw new Error('Provider required to resolve chainId');
+
+    if (hasRpcSend(this.provider)) {
+      const rpcChainId = await this.provider.send('eth_chainId', []);
+      const chainId = toChainId(rpcChainId);
+      if (chainId !== undefined) return chainId;
+    }
+
+    const network = await this.provider.getNetwork();
+    return network.chainId;
   }
 }

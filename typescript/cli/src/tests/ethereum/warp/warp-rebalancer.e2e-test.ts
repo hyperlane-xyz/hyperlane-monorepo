@@ -31,6 +31,7 @@ import {
   type Domain,
   addressToBytes32,
   bytes32ToAddress,
+  eqAddress,
   ensure0x,
   sleep,
   toWei,
@@ -409,6 +410,84 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         // Process may have already exited, which is fine
       }
     });
+  }
+
+  function getEventArg(args: unknown, key: string, index: number): unknown {
+    if (Array.isArray(args)) return args[index];
+    if (typeof args === 'object' && args !== null) {
+      return (args as Record<string, unknown>)[key];
+    }
+    return undefined;
+  }
+
+  function toBigIntArg(value: unknown, key: string): bigint {
+    if (typeof value === 'bigint') return value;
+    if (typeof value === 'number') return BigInt(value);
+    if (typeof value === 'string') return BigInt(value);
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'toString' in value &&
+      typeof value.toString === 'function'
+    ) {
+      return BigInt(value.toString());
+    }
+    throw new Error(`Missing event arg: ${key}`);
+  }
+
+  async function waitForSentTransferRemoteEvent(
+    bridgeContract: {
+      filters: {
+        SentTransferRemote: () => unknown;
+      };
+      queryFilter: (
+        filter: unknown,
+        fromBlock?: unknown,
+        toBlock?: unknown,
+      ) => Promise<Array<{ args?: unknown }>>;
+    },
+    timeoutMs = 15_000,
+  ): Promise<{
+    origin: Domain;
+    destination: Domain;
+    recipient: Address;
+    amount: bigint;
+  }> {
+    const endTime = Date.now() + timeoutMs;
+    while (Date.now() < endTime) {
+      const events = await bridgeContract.queryFilter(
+        bridgeContract.filters.SentTransferRemote(),
+        0,
+      );
+      const latestEvent = events[events.length - 1];
+      if (latestEvent?.args) {
+        const origin = Number(
+          toBigIntArg(getEventArg(latestEvent.args, 'origin', 0), 'origin'),
+        ) as Domain;
+        const destination = Number(
+          toBigIntArg(
+            getEventArg(latestEvent.args, 'destination', 1),
+            'destination',
+          ),
+        ) as Domain;
+        const recipient = getEventArg(latestEvent.args, 'recipient', 2);
+        if (typeof recipient !== 'string') {
+          throw new Error('Missing event arg: recipient');
+        }
+        const amount = toBigIntArg(
+          getEventArg(latestEvent.args, 'amount', 3),
+          'amount',
+        );
+        return {
+          origin,
+          destination,
+          recipient: bytes32ToAddress(recipient),
+          amount,
+        };
+      }
+      await sleep(250);
+    }
+    throw new Error('Timeout waiting for SentTransferRemote event');
   }
 
   it('should throw when strategy config file does not exist', async () => {
@@ -1041,38 +1120,18 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     expect(originBalance.toString()).to.equal(toWei(10));
     expect(destBalance.toString()).to.equal(toWei(10));
 
-    // Promise that will resolve with the event that is emitted by the bridge when the rebalance transaction is sent
-    const listenForSentTransferRemote = new Promise<{
-      origin: Domain;
-      destination: Domain;
-      recipient: Address;
-      amount: bigint;
-    }>((resolve) => {
-      bridgeContract.on(
-        bridgeContract.filters.SentTransferRemote(),
-        (origin, destination, recipient, amount) => {
-          resolve({
-            origin,
-            destination,
-            recipient: bytes32ToAddress(recipient),
-            amount: amount.toBigInt(),
-          });
-
-          bridgeContract.removeAllListeners();
-        },
-      );
-    });
-
     // Start the rebalancer
     const rebalancer = startRebalancer();
 
     // Await for the event that is emitted when the rebalance is triggered
-    const sentTransferRemote = await listenForSentTransferRemote;
+    const sentTransferRemote =
+      await waitForSentTransferRemoteEvent(bridgeContract);
 
     // Verify the different params of the event to make sure that the transfer of 5TKN is being done from chain 3 to chain 2
     expect(sentTransferRemote.origin).to.equal(originDomain);
     expect(sentTransferRemote.destination).to.equal(destDomain);
-    expect(sentTransferRemote.recipient).to.equal(destContractAddress);
+    expect(eqAddress(sentTransferRemote.recipient, destContractAddress)).to.be
+      .true;
     expect(sentTransferRemote.amount).to.equal(BigInt(toWei(5)));
 
     // Verify that the bridge pulled tokens from origin (10 - 5 = 5)
@@ -1307,28 +1366,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       expect(originBalance.toString()).to.equal(toWei(10));
       expect(destBalance.toString()).to.equal(toWei(10));
 
-      // Promise that will resolve with the event that is emitted by the bridge when the rebalance transaction is sent
-      const listenForSentTransferRemote = new Promise<{
-        origin: Domain;
-        destination: Domain;
-        recipient: Address;
-        amount: bigint;
-      }>((resolve) => {
-        bridgeContract.on(
-          bridgeContract.filters.SentTransferRemote(),
-          (origin, destination, recipient, amount) => {
-            resolve({
-              origin,
-              destination,
-              recipient: bytes32ToAddress(recipient),
-              amount: amount.toBigInt(),
-            });
-
-            bridgeContract.removeAllListeners();
-          },
-        );
-      });
-
       const manualRebalanceAmount = '5';
 
       // Start the rebalancer
@@ -1340,12 +1377,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       });
 
       // Await for the event that is emitted when the rebalance is triggered
-      const sentTransferRemote = await listenForSentTransferRemote;
+      const sentTransferRemote =
+        await waitForSentTransferRemoteEvent(bridgeContract);
 
       // Verify the different params of the event to make sure that the transfer of 5TKN is being done from chain 3 to chain 2
       expect(sentTransferRemote.origin).to.equal(originDomain);
       expect(sentTransferRemote.destination).to.equal(destDomain);
-      expect(sentTransferRemote.recipient).to.equal(destContractAddress);
+      expect(eqAddress(sentTransferRemote.recipient, destContractAddress)).to.be
+        .true;
       expect(sentTransferRemote.amount).to.equal(
         BigInt(toWei(manualRebalanceAmount)),
       );

@@ -87,7 +87,7 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
       case ProviderMethod.GetTransactionReceipt:
         return ['eth_getTransactionReceipt', [params.transactionHash]];
       case ProviderMethod.GetLogs:
-        return ['eth_getLogs', [params.filter]];
+        return ['eth_getLogs', [normalizeLogFilter(params.filter)]];
       case ProviderMethod.SendTransaction:
         return ['eth_sendRawTransaction', [params.signedTransaction]];
       default:
@@ -102,32 +102,35 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
       method,
       params,
     };
-    const response = await fetch(this.connection?.url || this.rpcConfig.http, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...this.connection?.headers,
-      },
-      body: JSON.stringify(sanitizeJsonRpcValue(requestBody)),
-    });
-    const json = (await response.json()) as {
-      result?: unknown;
-      error?: { message?: string; code?: number; data?: unknown };
-    };
-    if (json.error) {
-      const error = new Error(
-        json.error.message || 'RPC request failed',
-      ) as Error & {
-        code?: string;
-        error?: { code?: number; data?: unknown };
-      };
-      error.code = 'SERVER_ERROR';
-      error.error = {
-        code: json.error.code,
-        data: json.error.data,
-      };
-      throw error;
+
+    let response: Response;
+    try {
+      response = await fetch(this.connection?.url || this.rpcConfig.http, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...this.connection?.headers,
+        },
+        body: JSON.stringify(sanitizeJsonRpcValue(requestBody)),
+      });
+    } catch (cause) {
+      throw createServerError(cause);
     }
+
+    let json: { result?: unknown; error?: JsonRpcErrorPayload };
+    try {
+      json = (await response.json()) as {
+        result?: unknown;
+        error?: JsonRpcErrorPayload;
+      };
+    } catch (cause) {
+      throw createServerError(cause);
+    }
+
+    if (json.error) throw createMappedRpcError(json.error);
+
+    if (!response.ok) throw createServerError();
+
     return json.result;
   }
 
@@ -149,7 +152,6 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
     if (
       result === '0x' &&
       [
-        ProviderMethod.Call,
         ProviderMethod.GetBalance,
         ProviderMethod.GetBlock,
         ProviderMethod.GetBlockNumber,
@@ -291,9 +293,12 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
   }
 }
 
-function toBlockTag(blockTag?: string | number): string {
+function toBlockTag(blockTag?: string | number | bigint): string {
   if (blockTag === undefined || blockTag === null) return 'latest';
-  if (typeof blockTag === 'number') return toHex(blockTag);
+  if (typeof blockTag === 'number' || typeof blockTag === 'bigint') {
+    return toHex(blockTag);
+  }
+  if (/^[0-9]+$/.test(blockTag)) return toHex(BigInt(blockTag));
   return blockTag;
 }
 
@@ -331,6 +336,22 @@ function normalizeRpcTransaction(
   }
 
   return sanitizeJsonRpcValue(normalized) as Record<string, unknown>;
+}
+
+function normalizeLogFilter(
+  filter: {
+    fromBlock?: string | number | bigint;
+    toBlock?: string | number | bigint;
+  } & Record<string, unknown>,
+): Record<string, unknown> {
+  const normalized = { ...filter };
+  if (normalized.fromBlock !== undefined) {
+    normalized.fromBlock = toBlockTag(normalized.fromBlock);
+  }
+  if (normalized.toBlock !== undefined) {
+    normalized.toBlock = toBlockTag(normalized.toBlock);
+  }
+  return normalized;
 }
 
 function toRpcQuantity(value: unknown): string | undefined {
@@ -374,4 +395,50 @@ function sanitizeJsonRpcValue(value: unknown): unknown {
     );
   }
   return value;
+}
+
+type JsonRpcErrorPayload = {
+  code?: number;
+  data?: unknown;
+  message?: string;
+};
+
+type MappedRpcError = Error & {
+  code?: string;
+  data?: unknown;
+  reason?: string;
+  error?: {
+    code?: number;
+    data?: unknown;
+    message?: string;
+  };
+};
+
+function createServerError(cause?: unknown): MappedRpcError {
+  const error = new Error('RPC request failed', {
+    cause,
+  }) as MappedRpcError;
+  error.code = 'SERVER_ERROR';
+  return error;
+}
+
+function createMappedRpcError(rpcError: JsonRpcErrorPayload): MappedRpcError {
+  const message = rpcError.message || 'RPC request failed';
+  const error = new Error(message) as MappedRpcError;
+
+  if (rpcError.code === 3) {
+    // EIP-1474 code 3 is a contract execution revert.
+    error.code = 'CALL_EXCEPTION';
+    error.reason = message;
+    error.data = rpcError.data;
+  } else {
+    error.code = 'SERVER_ERROR';
+  }
+
+  error.error = {
+    code: rpcError.code,
+    data: rpcError.data,
+    message: rpcError.message,
+  };
+  return error;
 }

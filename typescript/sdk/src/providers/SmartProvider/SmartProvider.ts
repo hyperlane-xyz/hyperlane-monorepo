@@ -1,4 +1,5 @@
 import { Logger, pino } from 'pino';
+import { Hex, isHex, keccak256 } from 'viem';
 
 import {
   isObjEmpty,
@@ -256,9 +257,35 @@ export class HyperlaneSmartProvider implements IProviderMethods {
   }
 
   async send(method: string, params: unknown[]): Promise<unknown> {
-    const provider = this.rpcProviders[0];
-    if (!provider) throw new Error('No RPC providers available');
-    return provider.send(method, params);
+    if (!this.rpcProviders.length)
+      throw new Error('No RPC providers available');
+
+    const errors: any[] = [];
+    for (const [providerIndex, provider] of this.rpcProviders.entries()) {
+      try {
+        return await provider.send(method, params);
+      } catch (error) {
+        errors.push(error);
+        this.logger.debug(
+          {
+            chainId: this.network.chainId,
+            error,
+            method,
+            providerIndex,
+            rpcUrl: provider.getBaseUrl(),
+          },
+          'Error from provider while sending raw JSON-RPC method',
+        );
+      }
+    }
+
+    const CombinedError = this.getCombinedProviderError(
+      errors,
+      `All RPC providers failed on chain ${
+        this.network.name
+      } for method ${method} and params ${jsonStringifyForLogs(params, 2)}`,
+    );
+    throw new CombinedError();
   }
 
   async getBlockNumber(): Promise<number> {
@@ -387,14 +414,60 @@ export class HyperlaneSmartProvider implements IProviderMethods {
   async sendTransaction(
     signedTransaction: string,
   ): Promise<{ hash: string; wait(confirmations?: number): Promise<unknown> }> {
-    const hash = (await this.perform(ProviderMethod.SendTransaction, {
-      signedTransaction,
-    })) as string;
+    let hash: string;
+    try {
+      hash = (await this.perform(ProviderMethod.SendTransaction, {
+        signedTransaction,
+      })) as string;
+    } catch (error) {
+      const recoveredHash = await this.recoverSentTransactionHash(
+        error,
+        signedTransaction,
+      );
+      if (!recoveredHash) throw error;
+      hash = recoveredHash;
+    }
     return {
       hash,
       wait: (confirmations = 1) =>
         this.waitForTransactionReceipt(hash, confirmations),
     };
+  }
+
+  protected async recoverSentTransactionHash(
+    error: unknown,
+    signedTransaction: string,
+  ): Promise<string | null> {
+    if (!isLikelyDuplicateBroadcastError(error)) {
+      return null;
+    }
+
+    const recoveredHash =
+      getTransactionHashFromSignedTransaction(signedTransaction);
+    if (!recoveredHash) {
+      return null;
+    }
+
+    const [receipt, tx] = await Promise.all([
+      this.getTransactionReceipt(recoveredHash).catch(() => null),
+      this.perform(ProviderMethod.GetTransaction, {
+        transactionHash: recoveredHash,
+      }).catch(() => null),
+    ]);
+
+    if (!receipt && !tx) {
+      return null;
+    }
+
+    this.logger.debug(
+      {
+        chainId: this.network.chainId,
+        error,
+        transactionHash: recoveredHash,
+      },
+      'Recovered transaction hash after duplicate broadcast error',
+    );
+    return recoveredHash;
   }
 
   async waitForTransactionReceipt(
@@ -944,6 +1017,44 @@ function jsonStringifyForLogs(value: unknown, space?: number): string {
   } catch {
     return '[unserializable]';
   }
+}
+
+function isLikelyDuplicateBroadcastError(error: unknown): boolean {
+  const messages = extractErrorMessages(error).map((m) => m.toLowerCase());
+  return messages.some((message) =>
+    [
+      'nonce too low',
+      'already known',
+      'known transaction',
+      'already imported',
+    ].some((needle) => message.includes(needle)),
+  );
+}
+
+function extractErrorMessages(error: unknown): string[] {
+  if (!error || typeof error !== 'object') return [];
+
+  const e = error as {
+    message?: unknown;
+    reason?: unknown;
+    error?: { message?: unknown; error?: { message?: unknown } };
+  };
+
+  const messages = [
+    e.message,
+    e.reason,
+    e.error?.message,
+    e.error?.error?.message,
+  ].filter((message): message is string => typeof message === 'string');
+
+  return Array.from(new Set(messages));
+}
+
+function getTransactionHashFromSignedTransaction(
+  signedTransaction: string,
+): string | null {
+  if (!isHex(signedTransaction)) return null;
+  return keccak256(signedTransaction as Hex);
 }
 
 function timeoutResult(staggerDelay: number, multiplier = 1) {

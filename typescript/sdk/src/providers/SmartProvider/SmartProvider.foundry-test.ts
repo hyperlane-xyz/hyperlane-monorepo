@@ -23,9 +23,9 @@ describe('SmartProvider', function () {
   let contractAddress: string;
 
   const erc20Interface = ERC20__factory.createInterface();
-  const deployData = `${ERC20__factory.bytecode}${erc20Interface
-    .encodeDeploy(['fake', 'FAKE'])
-    .replace('0x', '')}`;
+  // Deploys a tiny contract with runtime bytecode:
+  // `0x600060005560006000fd00` (writes storage, then reverts on calls).
+  const deployData = '0x600b600c600039600b6000f3600060005560006000fd00';
 
   before(async () => {
     smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {

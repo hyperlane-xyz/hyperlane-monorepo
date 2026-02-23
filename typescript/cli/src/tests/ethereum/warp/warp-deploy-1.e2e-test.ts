@@ -21,7 +21,7 @@ import {
   type WarpRouteDeployConfig,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ensure0x } from '@hyperlane-xyz/utils';
+import { type Address, ensure0x, eqAddress } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
@@ -111,11 +111,14 @@ describe('hyperlane warp deploy e2e tests', async function () {
     expect(currentWarpDeployConfig[chainName].symbol).to.equal(
       warpDeployConfig[chainName].symbol ?? expectedMetadata.symbol,
     );
-    expect(currentWarpDeployConfig[chainName].mailbox).to.equal(
-      chainName === CHAIN_NAME_2
-        ? chain2Addresses.mailbox
-        : chain3Addresses.mailbox,
-    );
+    expect(
+      eqAddress(
+        currentWarpDeployConfig[chainName].mailbox,
+        chainName === CHAIN_NAME_2
+          ? chain2Addresses.mailbox
+          : chain3Addresses.mailbox,
+      ),
+    ).to.be.true;
   }
 
   describe('hyperlane warp deploy --config ...', () => {
@@ -459,12 +462,18 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(collateralWarpDeployConfig[CHAIN_NAME_3].symbol).to.equal(
         warpConfig[CHAIN_NAME_3].symbol ?? expectedTokenSymbol,
       );
-      expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].mailbox).to.equal(
-        chain2Addresses.mailbox,
-      );
-      expect(collateralWarpDeployConfig[CHAIN_NAME_3].mailbox).to.equal(
-        chain3Addresses.mailbox,
-      );
+      expect(
+        eqAddress(
+          collateralFiatWarpDeployConfig[CHAIN_NAME_2].mailbox,
+          chain2Addresses.mailbox,
+        ),
+      ).to.be.true;
+      expect(
+        eqAddress(
+          collateralWarpDeployConfig[CHAIN_NAME_3].mailbox,
+          chain3Addresses.mailbox,
+        ),
+      ).to.be.true;
     });
   });
 
