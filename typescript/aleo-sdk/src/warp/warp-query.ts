@@ -191,18 +191,28 @@ async function getWarpTokenMetadata(
 async function getMailboxAddress(
   aleoClient: AnyAleoNetworkClient,
   tokenAddress: string,
-): Promise<string> {
+): Promise<{
+  mailboxAddress: string;
+  ismManagerProgramId?: string;
+  hookManagerProgramId?: string;
+}> {
   const { programId } = fromAleoAddress(tokenAddress);
 
   const imports = await aleoClient.getProgramImportNames(programId);
   const mailboxProgramId = imports.find((i) => i.includes('mailbox'));
+  const ismManagerProgramId = imports.find((i) => i.includes('ism_manager'));
+  const hookManagerProgramId = imports.find((i) => i.includes('hook_manager'));
 
   assert(
     mailboxProgramId,
     `Expected mailbox program in imports for token ${tokenAddress} but none found`,
   );
 
-  return toAleoAddress(mailboxProgramId);
+  return {
+    mailboxAddress: toAleoAddress(mailboxProgramId),
+    ismManagerProgramId,
+    hookManagerProgramId,
+  };
 }
 
 /**
@@ -239,8 +249,8 @@ function formatHookAddress(
 export async function getNativeWarpTokenConfig(
   aleoClient: AnyAleoNetworkClient,
   tokenAddress: string,
-  ismManager: string,
-  hookManager: string,
+  fallbackIsmManager: string,
+  fallbackHookManager: string,
 ): Promise<AleoNativeWarpTokenConfig> {
   // Query metadata
   const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
@@ -259,12 +269,19 @@ export async function getNativeWarpTokenConfig(
   );
 
   // Get mailbox
-  const mailboxAddress = await getMailboxAddress(aleoClient, tokenAddress);
+  const { mailboxAddress, ismManagerProgramId, hookManagerProgramId } =
+    await getMailboxAddress(aleoClient, tokenAddress);
 
   // Parse ISM
-  const ism = formatIsmAddress(metadata.ism, ismManager);
+  const ism = formatIsmAddress(
+    metadata.ism,
+    ismManagerProgramId || fallbackIsmManager,
+  );
 
-  const hook = formatHookAddress(metadata.hook, hookManager);
+  const hook = formatHookAddress(
+    metadata.hook,
+    hookManagerProgramId || fallbackHookManager,
+  );
 
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
@@ -285,8 +302,8 @@ export async function getNativeWarpTokenConfig(
 export async function getCollateralWarpTokenConfig(
   aleoClient: AnyAleoNetworkClient,
   tokenAddress: string,
-  ismManager: string,
-  hookManager: string,
+  fallbackIsmManager: string,
+  fallbackHookManager: string,
 ): Promise<AleoCollateralWarpTokenConfig> {
   // Query metadata
   const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
@@ -305,12 +322,19 @@ export async function getCollateralWarpTokenConfig(
   );
 
   // Get mailbox
-  const mailboxAddress = await getMailboxAddress(aleoClient, tokenAddress);
+  const { mailboxAddress, ismManagerProgramId, hookManagerProgramId } =
+    await getMailboxAddress(aleoClient, tokenAddress);
 
   // Parse ISM
-  const ism = formatIsmAddress(metadata.ism, ismManager);
+  const ism = formatIsmAddress(
+    metadata.ism,
+    ismManagerProgramId || fallbackIsmManager,
+  );
 
-  const hook = formatHookAddress(metadata.hook, hookManager);
+  const hook = formatHookAddress(
+    metadata.hook,
+    hookManagerProgramId || fallbackHookManager,
+  );
 
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
@@ -344,8 +368,8 @@ export async function getCollateralWarpTokenConfig(
 export async function getSyntheticWarpTokenConfig(
   aleoClient: AnyAleoNetworkClient,
   tokenAddress: string,
-  ismManager: string,
-  hookManager: string,
+  fallbackIsmManager: string,
+  fallbackHookManager: string,
 ): Promise<AleoSyntheticWarpTokenConfig> {
   // Query metadata
   const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
@@ -364,12 +388,19 @@ export async function getSyntheticWarpTokenConfig(
   );
 
   // Get mailbox
-  const mailboxAddress = await getMailboxAddress(aleoClient, tokenAddress);
+  const { mailboxAddress, ismManagerProgramId, hookManagerProgramId } =
+    await getMailboxAddress(aleoClient, tokenAddress);
 
   // Parse ISM
-  const ism = formatIsmAddress(metadata.ism, ismManager);
+  const ism = formatIsmAddress(
+    metadata.ism,
+    ismManagerProgramId || fallbackIsmManager,
+  );
 
-  const hook = formatHookAddress(metadata.hook, hookManager);
+  const hook = formatHookAddress(
+    metadata.hook,
+    hookManagerProgramId || fallbackHookManager,
+  );
 
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
