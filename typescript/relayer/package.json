@@ -49,7 +49,7 @@
     "test": "pnpm test:unit && pnpm test:hardhat",
     "test:ci": "pnpm test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
-    "test:hardhat": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test:hardhat": "mkdir -p ./artifacts && NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
     "start": "node dist/fs/service.js",
     "start:dev": "tsx src/fs/service.ts"
   },
