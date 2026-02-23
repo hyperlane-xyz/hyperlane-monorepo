@@ -207,6 +207,20 @@ export async function createSigner(privateKey: string): Promise<SvmSigner> {
       throw new Error(`Transaction not confirmed: ${signature}`);
     }
 
+    const receipt = await rpc
+      .getTransaction(signature, {
+        commitment: 'confirmed',
+        encoding: 'json',
+        maxSupportedTransactionVersion: 0,
+      })
+      .send();
+
+    if (receipt && receipt.meta?.err) {
+      throw new Error(`Transaction with signature ${signature} failed`, {
+        cause: receipt.meta?.err,
+      });
+    }
+
     return { signature, slot };
   };
 
