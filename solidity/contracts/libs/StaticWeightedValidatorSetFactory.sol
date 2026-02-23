@@ -39,7 +39,7 @@ abstract contract StaticWeightedValidatorSetFactory is PackageVersioned {
             _thresholdWeight
         );
         address _set = _getAddress(_salt, _bytecode);
-        if (!(_set.code.length > 0)) {
+        if (!Address.isContract(_set)) {
             _set = Create2.deploy(0, _salt, _bytecode);
         }
         return _set;

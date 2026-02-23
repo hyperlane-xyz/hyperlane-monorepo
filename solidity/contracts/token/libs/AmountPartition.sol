@@ -23,7 +23,7 @@ abstract contract AmountPartition is PackageVersioned {
 
     constructor(address _lower, address _upper, uint256 _threshold) {
         require(
-            (_lower.code.length > 0) && (_upper.code.length > 0),
+            _lower.isContract() && _upper.isContract(),
             "AmountPartition: lower and upper must be contracts"
         );
         lower = _lower;

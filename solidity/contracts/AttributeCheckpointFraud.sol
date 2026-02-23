@@ -75,7 +75,7 @@ contract AttributeCheckpointFraud is Ownable, PackageVersioned {
 
     function whitelist(address merkleTree) external onlyOwner {
         require(
-            (merkleTree.code.length > 0),
+            merkleTree.isContract(),
             "merkle tree must be a valid contract"
         );
         merkleTreeWhitelist[merkleTree] = true;

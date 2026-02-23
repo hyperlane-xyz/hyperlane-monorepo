@@ -14,7 +14,26 @@ import {
 
 import { HelloWorldConfig } from '../deploy/config.js';
 import { HelloWorldDeployer } from '../deploy/deploy.js';
-import { HelloWorld } from '../types/index.js';
+import { HelloWorld } from '../app/helloWorldFactory.js';
+
+type NumberLike =
+  | number
+  | bigint
+  | string
+  | {
+      toNumber?: () => number;
+      toString?: () => string;
+    };
+
+const toNumberValue = (value: NumberLike): number => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') return Number(BigInt(value));
+  if (value?.toNumber) return value.toNumber();
+  if (value?.toString) return Number(BigInt(value.toString()));
+
+  throw new Error(`Cannot convert value to number: ${String(value)}`);
+};
 
 describe('HelloWorld', () => {
   const localChain = TestChainName.test1;
@@ -52,10 +71,10 @@ describe('HelloWorld', () => {
     remote = contracts[remoteChain].router;
 
     // The all counts start empty
-    expect(await local.sent()).to.equal(0);
-    expect(await local.received()).to.equal(0);
-    expect(await remote.sent()).to.equal(0);
-    expect(await remote.received()).to.equal(0);
+    expect(toNumberValue(await local.sent())).to.equal(0);
+    expect(toNumberValue(await local.received())).to.equal(0);
+    expect(toNumberValue(await remote.sent())).to.equal(0);
+    expect(toNumberValue(await remote.received())).to.equal(0);
   });
 
   it('sends a message', async () => {
@@ -70,10 +89,10 @@ describe('HelloWorld', () => {
       }),
     ).to.emit(local, 'SentHelloWorld');
     // The sent counts are correct
-    expect(await local.sent()).to.equal(1);
-    expect(await local.sentTo(remoteDomain)).to.equal(1);
+    expect(toNumberValue(await local.sent())).to.equal(1);
+    expect(toNumberValue(await local.sentTo(remoteDomain))).to.equal(1);
     // The received counts are correct
-    expect(await local.received()).to.equal(0);
+    expect(toNumberValue(await local.received())).to.equal(0);
   });
 
   it('reverts if there is insufficient payment', async () => {
@@ -97,9 +116,9 @@ describe('HelloWorld', () => {
     // Mock processing of the message by Hyperlane
     await coreApp.processOutboundMessages(localChain);
     // The initial message has been dispatched.
-    expect(await local.sent()).to.equal(1);
+    expect(toNumberValue(await local.sent())).to.equal(1);
     // The initial message has been processed.
-    expect(await remote.received()).to.equal(1);
-    expect(await remote.receivedFrom(localDomain)).to.equal(1);
+    expect(toNumberValue(await remote.received())).to.equal(1);
+    expect(toNumberValue(await remote.receivedFrom(localDomain))).to.equal(1);
   });
 });
