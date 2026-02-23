@@ -209,6 +209,22 @@ export type RebalancerConfig = z.infer<typeof RebalancerConfigSchema>;
 export type RebalancerConfigFileInput = z.input<typeof RebalancerConfigSchema>;
 
 /**
+ * Extract the real chain name from a strategy key.
+ * Multi-asset keys use "SYMBOL|chainName" format; single-asset keys are just "chainName".
+ */
+export function resolveChainName(key: string): string {
+  const idx = key.indexOf('|');
+  return idx >= 0 ? key.slice(idx + 1) : key;
+}
+
+/**
+ * Build a strategy key from symbol and chain name.
+ */
+export function buildStrategyKey(symbol: string, chainName: string): string {
+  return `${symbol}|${chainName}`;
+}
+
+/**
  * Get all unique chain names from strategy config array.
  */
 export function getStrategyChainNames(strategies: StrategyConfig[]): string[] {

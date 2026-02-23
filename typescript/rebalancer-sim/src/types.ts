@@ -4,7 +4,6 @@
  * This file contains all type definitions for the simulation framework,
  * organized by domain.
  */
-import type { WarpCoreConfig } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type { MockActionTracker } from './runners/MockActionTracker.js';
@@ -118,6 +117,18 @@ export interface SimulatedChainConfig {
 }
 
 /**
+ * Deployed asset within a multi-asset domain
+ */
+export interface DeployedAsset {
+  symbol: string;
+  decimals: number;
+  scale: bigint;
+  warpToken: Address;
+  collateralToken: Address;
+  bridge: Address;
+}
+
+/**
  * Deployed addresses for a single domain
  */
 export interface DeployedDomain {
@@ -127,6 +138,8 @@ export interface DeployedDomain {
   warpToken: Address;
   collateralToken: Address;
   bridge: Address;
+  /** Multi-asset: per-symbol assets (keyed by symbol, e.g. "USDC", "USDT") */
+  assets?: Record<string, DeployedAsset>;
 }
 
 /**
@@ -172,6 +185,22 @@ export interface MultiDomainDeploymentOptions {
   tokenSymbol?: string;
   /** Token name */
   tokenName?: string;
+}
+
+/**
+ * Asset definition for multi-asset deployment
+ */
+export interface AssetDefinition {
+  symbol: string;
+  decimals: number;
+}
+
+/**
+ * Options for multi-asset deployment (extends single-asset)
+ */
+export interface MultiAssetDeploymentOptions extends MultiDomainDeploymentOptions {
+  /** Assets to deploy per chain */
+  assets: AssetDefinition[];
 }
 
 /**
@@ -290,6 +319,8 @@ export interface TransferRecord {
   endTime?: number;
   latency?: number;
   status: 'pending' | 'completed' | 'failed';
+  /** Asset symbol (for multi-asset scenarios) */
+  asset?: string;
 }
 
 /**
@@ -307,6 +338,8 @@ export interface RebalanceRecord {
   latency?: number;
   gasCost: bigint;
   status: 'pending' | 'completed' | 'failed';
+  /** Asset symbol (for multi-asset scenarios) */
+  asset?: string;
 }
 
 /**
@@ -346,8 +379,6 @@ export interface ComparisonReport {
 export interface RebalancerSimConfig {
   /** Polling frequency in milliseconds */
   pollingFrequency: number;
-  /** Warp core configuration */
-  warpConfig: WarpCoreConfig;
   /** Strategy-specific configuration */
   strategyConfig: RebalancerStrategyConfig;
   /** Deployment info */
@@ -358,7 +389,7 @@ export interface RebalancerSimConfig {
  * Strategy configuration for rebalancer
  */
 export interface RebalancerStrategyConfig {
-  type: 'weighted' | 'minAmount';
+  type: 'weighted' | 'minAmount' | 'collateralDeficit';
   chains: Record<string, ChainStrategyConfig>;
 }
 
@@ -463,6 +494,9 @@ export interface ScenarioFile {
   /** Chain names involved in this scenario */
   chains: string[];
 
+  /** Asset definitions for multi-asset scenarios */
+  assets?: AssetDefinition[];
+
   /** Optional extra tokens to mint per chain after deployment (for creating imbalanced initial state) */
   initialImbalance?: Record<string, string>;
 
@@ -521,7 +555,7 @@ export interface SerializedBridgeConfig {
  * Serialized strategy config for JSON storage (bridge addresses added at runtime)
  */
 export interface SerializedStrategyConfig {
-  type: 'weighted' | 'minAmount';
+  type: 'weighted' | 'minAmount' | 'collateralDeficit';
   chains: {
     [chain: string]: {
       weighted?: {
@@ -586,6 +620,10 @@ export interface TransferEvent {
   amount: bigint;
   /** User address initiating the transfer */
   user: Address;
+  /** Source asset symbol (for multi-asset scenarios) */
+  sourceAsset?: string;
+  /** Destination asset symbol (for multi-asset scenarios) */
+  destinationAsset?: string;
 }
 
 /**
@@ -657,6 +695,10 @@ export interface SerializedTransferEvent {
   /** Amount as string for JSON compatibility */
   amount: string;
   user: string;
+  /** Source asset symbol (for multi-asset scenarios) */
+  sourceAsset?: string;
+  /** Destination asset symbol (for multi-asset scenarios) */
+  destinationAsset?: string;
 }
 
 /**

@@ -14,7 +14,11 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
-import { getAllBridges, getStrategyChainNames } from '../config/types.js';
+import {
+  getAllBridges,
+  getStrategyChainNames,
+  resolveChainName,
+} from '../config/types.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
@@ -102,9 +106,18 @@ export class RebalancerContextFactory {
       extendedMultiProtocolProvider,
       warpCoreConfig,
     );
-    const tokensByChainName = Object.fromEntries(
-      warpCore.tokens.map((t) => [t.chainName, t]),
-    );
+    // Detect multi-token-per-chain and use SYMBOL|chain keys when needed
+    const chainCounts = new Map<string, number>();
+    for (const t of warpCore.tokens) {
+      chainCounts.set(t.chainName, (chainCounts.get(t.chainName) ?? 0) + 1);
+    }
+    const isMultiAsset = [...chainCounts.values()].some((c) => c > 1);
+
+    const tokensByChainName: Record<string, Token> = isMultiAsset
+      ? Object.fromEntries(
+          warpCore.tokens.map((t) => [`${t.symbol}|${t.chainName}`, t]),
+        )
+      : Object.fromEntries(warpCore.tokens.map((t) => [t.chainName, t]));
 
     logger.debug(
       {
@@ -256,7 +269,9 @@ export class RebalancerContextFactory {
     if (chainNames.length === 0) {
       throw new Error('No chains configured in strategy');
     }
-    const signer = this.multiProvider.getSigner(chainNames[0]);
+    const signer = this.multiProvider.getSigner(
+      resolveChainName(chainNames[0]),
+    );
     const rebalancerAddress = await signer.getAddress();
 
     const bridges = getAllBridges(this.config.strategyConfig);

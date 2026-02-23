@@ -30,6 +30,8 @@ export {
   RebalancerStrategySchema,
   RebalancerWeightedChainConfigSchema,
   StrategyConfigSchema,
+  buildStrategyKey,
+  resolveChainName,
 } from './config/types.js';
 export type {
   MinAmountStrategyConfig,

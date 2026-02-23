@@ -15,6 +15,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { eqAddress, isNullish, mapAllSettled } from '@hyperlane-xyz/utils';
 
+import { resolveChainName } from '../config/types.js';
+
 import type {
   IRebalancer,
   PreparedTransaction,
@@ -149,7 +151,8 @@ export class Rebalancer implements IRebalancer {
 
     const originToken = this.tokensByChainName[origin];
     const destinationToken = this.tokensByChainName[destination];
-    const destinationChainMeta = this.chainMetadata[destination];
+    const destinationChainMeta =
+      this.chainMetadata[resolveChainName(destination)];
 
     const originTokenAmount = originToken.amount(amount);
     const decimalFormattedAmount =
@@ -213,7 +216,8 @@ export class Rebalancer implements IRebalancer {
     const { origin, destination, amount } = route;
     const originToken = this.tokensByChainName[origin];
     const destinationToken = this.tokensByChainName[destination];
-    const destinationDomain = this.chainMetadata[destination];
+    // Strategy keys may be "SYMBOL|chain" — resolve to actual chain name for metadata
+    const destinationDomain = this.chainMetadata[resolveChainName(destination)];
 
     if (!originToken) {
       this.logger.error(
@@ -259,7 +263,7 @@ export class Rebalancer implements IRebalancer {
       return false;
     }
 
-    const signer = this.multiProvider.getSigner(origin);
+    const signer = this.multiProvider.getSigner(resolveChainName(origin));
     const signerAddress = await signer.getAddress();
     if (!(await originHypAdapter.isRebalancer(signerAddress))) {
       this.logger.error(
@@ -334,7 +338,7 @@ export class Rebalancer implements IRebalancer {
     const gasEstimateResults = await Promise.allSettled(
       transactions.map(async (transaction) => {
         await this.multiProvider.estimateGas(
-          transaction.route.origin,
+          resolveChainName(transaction.route.origin),
           transaction.populatedTx,
         );
         return transaction;
@@ -487,7 +491,7 @@ export class Rebalancer implements IRebalancer {
         );
 
         const receipt = await this.multiProvider.sendTransaction(
-          origin,
+          resolveChainName(origin),
           transaction.populatedTx,
           {
             waitConfirmations: reorgPeriod as
@@ -559,7 +563,9 @@ export class Rebalancer implements IRebalancer {
   }
 
   private getReorgPeriod(chainName: string): number | string {
-    const metadata = this.multiProvider.getChainMetadata(chainName);
+    const metadata = this.multiProvider.getChainMetadata(
+      resolveChainName(chainName),
+    );
     return metadata.blocks?.reorgPeriod ?? 32;
   }
 }

@@ -1,0 +1,160 @@
+{
+  "name": "cross-asset-drain",
+  "description": "Tests cross-asset rebalancing when USDC is drained via heavy USDC→USDT transfers to chain2.",
+  "expectedBehavior": "Heavy cross-asset traffic drains USDT collateral on chain2.\nRebalancer should detect USDT deficit on chain2 and rebalance.\nCompletion rate should stay >80% due to rebalancing.",
+  "duration": 10000,
+  "chains": ["chain1", "chain2"],
+  "assets": [
+    { "symbol": "USDC", "decimals": 18 },
+    { "symbol": "USDT", "decimals": 18 }
+  ],
+  "transfers": [
+    {
+      "id": "ca-000",
+      "timestamp": 0,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "8000000000000000000",
+      "user": "0x8b563f19033b6111597f5ae37a91b88591fa17d6",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "ca-001",
+      "timestamp": 500,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "7000000000000000000",
+      "user": "0x53e81e13db7f8a7f1ff614b699d36b22ba85761f",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "ca-002",
+      "timestamp": 1000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "9000000000000000000",
+      "user": "0xe6aa46c39443ae5c696524b2ec1b39f82942cdd8",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "ca-003",
+      "timestamp": 1500,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "6000000000000000000",
+      "user": "0x80507c3a61c9e6eede5dca9ee05d906455618ddf",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "ca-004",
+      "timestamp": 2000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "8000000000000000000",
+      "user": "0x3d8d6bb644bb6977ed12949c603941ceb5d403f8",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "ca-005",
+      "timestamp": 2500,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "7000000000000000000",
+      "user": "0x8b563f19033b6111597f5ae37a91b88591fa17d6",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "ca-006",
+      "timestamp": 3000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "5000000000000000000",
+      "user": "0x53e81e13db7f8a7f1ff614b699d36b22ba85761f",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "ca-007",
+      "timestamp": 3500,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "9000000000000000000",
+      "user": "0xe6aa46c39443ae5c696524b2ec1b39f82942cdd8",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "ca-008",
+      "timestamp": 4000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "6000000000000000000",
+      "user": "0x80507c3a61c9e6eede5dca9ee05d906455618ddf",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "ca-009",
+      "timestamp": 4500,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "7000000000000000000",
+      "user": "0x3d8d6bb644bb6977ed12949c603941ceb5d403f8",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 0,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "chains": {
+      "USDC|chain1": {
+        "weighted": { "weight": "0.5", "tolerance": "0.15" },
+        "bridgeLockTime": 1000
+      },
+      "USDC|chain2": {
+        "weighted": { "weight": "0.5", "tolerance": "0.15" },
+        "bridgeLockTime": 1000
+      },
+      "USDT|chain1": {
+        "weighted": { "weight": "0.5", "tolerance": "0.15" },
+        "bridgeLockTime": 1000
+      },
+      "USDT|chain2": {
+        "weighted": { "weight": "0.5", "tolerance": "0.15" },
+        "bridgeLockTime": 1000
+      }
+    }
+  },
+  "expectations": {
+    "shouldTriggerRebalancing": true,
+    "minRebalances": 1
+  }
+}

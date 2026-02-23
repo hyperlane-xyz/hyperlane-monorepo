@@ -47,6 +47,8 @@ function deserializeTransfers(file: ScenarioFile): TransferScenario {
       destination: t.destination,
       amount: BigInt(t.amount),
       user: t.user as Address,
+      ...(t.sourceAsset && { sourceAsset: t.sourceAsset }),
+      ...(t.destinationAsset && { destinationAsset: t.destinationAsset }),
     })),
   };
 }

@@ -16,8 +16,8 @@ const logger = rootLogger.child({ module: 'MockInfrastructureController' });
 
 /** Hyperlane message body starts at byte offset 77 (version:1 + nonce:4 + origin:4 + sender:32 + dest:4 + recipient:32) */
 const MESSAGE_BODY_OFFSET = 77;
-/** Warp tokens scale amounts by 10^decimals; simulation uses 18 decimals */
-const WARP_TOKEN_SCALE = BigInt(1e18);
+/** Default warp token scale: 10^18 for 18-decimal tokens */
+const DEFAULT_WARP_TOKEN_SCALE = 10n ** 18n;
 
 /** Pending message awaiting delayed delivery */
 interface PendingMessage {
@@ -133,13 +133,35 @@ export class MockInfrastructureController {
     }
     const senderLower = sender.toLowerCase();
 
-    // Classify by sender
-    const isWarp = senderLower === originDomain.warpToken.toLowerCase();
-    const isBridge = senderLower === originDomain.bridge.toLowerCase();
+    // Classify by sender — check all assets if multi-asset deployment
+    let isWarp = senderLower === originDomain.warpToken.toLowerCase();
+    let warpTokenScale = DEFAULT_WARP_TOKEN_SCALE;
+    if (!isWarp && originDomain.assets) {
+      for (const asset of Object.values(originDomain.assets)) {
+        if (senderLower === asset.warpToken.toLowerCase()) {
+          isWarp = true;
+          warpTokenScale = asset.scale;
+          break;
+        }
+      }
+    }
+    let isBridge = senderLower === originDomain.bridge.toLowerCase();
+    if (!isBridge && originDomain.assets) {
+      for (const asset of Object.values(originDomain.assets)) {
+        if (senderLower === asset.bridge.toLowerCase()) {
+          isBridge = true;
+          break;
+        }
+      }
+    }
 
     if (!isWarp && !isBridge) {
       logger.warn(
-        { sender, warp: originDomain.warpToken, bridge: originDomain.bridge },
+        {
+          sender,
+          warp: originDomain.warpToken,
+          bridge: originDomain.bridge,
+        },
         'Unknown sender in Dispatch event',
       );
       return;
@@ -158,11 +180,9 @@ export class MockInfrastructureController {
         body,
       );
       const scaledAmount = decoded[1].toBigInt();
-      // Warp tokens use scale = 10^decimals, bridge Router uses scale = 1 (no scaling)
+      // Warp tokens scale by 10^decimals, bridge Router uses scale = 1
       amount =
-        type === 'user-transfer'
-          ? scaledAmount / WARP_TOKEN_SCALE
-          : scaledAmount;
+        type === 'user-transfer' ? scaledAmount / warpTokenScale : scaledAmount;
     } catch (error) {
       logger.warn(
         { messageId, origin: originChain, dest: destChain, error },
@@ -277,7 +297,11 @@ export class MockInfrastructureController {
           msg.attempts++;
           msg.deliveryTime = now + 200;
           logger.debug(
-            { messageId: msg.messageId, dest: msg.destination, error },
+            {
+              messageId: msg.messageId,
+              dest: msg.destination,
+              error,
+            },
             'Delivery tx failed, will retry',
           );
         }

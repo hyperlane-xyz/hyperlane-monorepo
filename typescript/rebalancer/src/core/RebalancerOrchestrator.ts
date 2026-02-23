@@ -3,7 +3,7 @@ import { Logger } from 'pino';
 import { type MultiProvider } from '@hyperlane-xyz/sdk';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
-import { getStrategyChainNames } from '../config/types.js';
+import { getStrategyChainNames, resolveChainName } from '../config/types.js';
 import { type MonitorEvent } from '../interfaces/IMonitor.js';
 import type { IRebalancer, RebalanceRoute } from '../interfaces/IRebalancer.js';
 import type { IStrategy, StrategyRoute } from '../interfaces/IStrategy.js';
@@ -137,8 +137,10 @@ export class RebalancerOrchestrator {
 
     for (const route of strategyRoutes) {
       const intent = await this.actionTracker.createRebalanceIntent({
-        origin: this.multiProvider.getDomainId(route.origin),
-        destination: this.multiProvider.getDomainId(route.destination),
+        origin: this.multiProvider.getDomainId(resolveChainName(route.origin)),
+        destination: this.multiProvider.getDomainId(
+          resolveChainName(route.destination),
+        ),
         amount: route.amount,
         bridge: route.bridge,
       });
@@ -188,8 +190,12 @@ export class RebalancerOrchestrator {
       if (result.success && result.messageId) {
         await this.actionTracker.createRebalanceAction({
           intentId,
-          origin: this.multiProvider.getDomainId(result.route.origin),
-          destination: this.multiProvider.getDomainId(result.route.destination),
+          origin: this.multiProvider.getDomainId(
+            resolveChainName(result.route.origin),
+          ),
+          destination: this.multiProvider.getDomainId(
+            resolveChainName(result.route.destination),
+          ),
           amount: result.route.amount,
           messageId: result.messageId,
           txHash: result.txHash,

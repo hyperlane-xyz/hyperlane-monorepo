@@ -5,6 +5,7 @@ import {
   HypERC20Collateral__factory,
   MockMailbox__factory,
   MockValueTransferBridge__factory,
+  MultiCollateral__factory,
 } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
@@ -12,7 +13,10 @@ import {
   ANVIL_BRIDGE_CONTROLLER_KEY,
   ANVIL_MAILBOX_PROCESSOR_KEY,
   ANVIL_REBALANCER_KEY,
+  type AssetDefinition,
+  type DeployedAsset,
   type DeployedDomain,
+  type MultiAssetDeploymentOptions,
   type MultiDomainDeploymentOptions,
   type MultiDomainDeploymentResult,
   type SimulatedChainConfig,
@@ -289,4 +293,295 @@ export async function getWarpTokenBalance(
   const token = ERC20Test__factory.connect(collateralTokenAddress, provider);
   const balance = await token.balanceOf(warpTokenAddress);
   return balance.toBigInt();
+}
+
+/**
+ * Deploys a multi-asset simulation environment using MultiCollateral contracts.
+ *
+ * For each asset × each chain: deploys ERC20 + MultiCollateral warp token.
+ * Same-asset routers are enrolled via enrollRemoteRouters (standard).
+ * Cross-asset routers are enrolled via MultiCollateral.enrollRouters().
+ * A single MockValueTransferBridge per chain is deployed for inventory rebalancing.
+ *
+ * The first asset is used as the "primary" for backward-compat fields
+ * (warpToken, collateralToken) on DeployedDomain. All assets are in domain.assets.
+ */
+export async function deployMultiAssetSimulation(
+  options: MultiAssetDeploymentOptions,
+): Promise<MultiDomainDeploymentResult> {
+  const {
+    anvilRpc,
+    deployerKey,
+    rebalancerKey = ANVIL_REBALANCER_KEY,
+    chains,
+    initialCollateralBalance,
+    assets,
+  } = options;
+
+  const bridgeControllerKey =
+    options.bridgeControllerKey || ANVIL_BRIDGE_CONTROLLER_KEY;
+  const mailboxProcessorKey =
+    options.mailboxProcessorKey || ANVIL_MAILBOX_PROCESSOR_KEY;
+
+  const provider = new ethers.providers.JsonRpcProvider(anvilRpc);
+  provider.pollingInterval = 100;
+  provider.polling = false;
+
+  const deployer = new ethers.Wallet(deployerKey, provider);
+  const deployerAddress = await deployer.getAddress();
+  const rebalancerWallet = new ethers.Wallet(rebalancerKey, provider);
+  const rebalancerAddress = await rebalancerWallet.getAddress();
+  const bridgeControllerWallet = new ethers.Wallet(
+    bridgeControllerKey,
+    provider,
+  );
+  const bridgeControllerAddress = await bridgeControllerWallet.getAddress();
+  const mailboxProcessorWallet = new ethers.Wallet(
+    mailboxProcessorKey,
+    provider,
+  );
+  const mailboxProcessorAddress = await mailboxProcessorWallet.getAddress();
+
+  // Step 1: Deploy MockMailboxes per domain
+  const mailboxes: Record<number, ethers.Contract> = {};
+  for (const chain of chains) {
+    const mailbox = await new MockMailbox__factory(deployer).deploy(
+      chain.domainId,
+    );
+    await mailbox.deployed();
+    mailboxes[chain.domainId] = mailbox;
+  }
+
+  // Step 2: Link mailboxes
+  for (const chain of chains) {
+    const mailbox = mailboxes[chain.domainId];
+    for (const otherChain of chains) {
+      if (chain.domainId !== otherChain.domainId) {
+        await mailbox.addRemoteMailbox(
+          otherChain.domainId,
+          mailboxes[otherChain.domainId].address,
+        );
+      }
+    }
+  }
+
+  // Step 3: Deploy ERC20 + MultiCollateral for each asset × each chain
+  // Key: `${symbol}:${domainId}`
+  const collateralTokens: Record<string, ethers.Contract> = {};
+  const warpTokens: Record<string, ethers.Contract> = {};
+  const assetMeta: Record<string, AssetDefinition> = {};
+
+  const totalMint = ethers.BigNumber.from(initialCollateralBalance).mul(
+    COLLATERAL_MULTIPLIER,
+  );
+
+  for (const asset of assets) {
+    assetMeta[asset.symbol] = asset;
+    for (const chain of chains) {
+      const key = `${asset.symbol}:${chain.domainId}`;
+      const scale = ethers.BigNumber.from(10).pow(asset.decimals);
+
+      // Deploy ERC20
+      const token = await new ERC20Test__factory(deployer).deploy(
+        `${asset.symbol} Token`,
+        asset.symbol,
+        totalMint.toString(),
+        asset.decimals,
+      );
+      await token.deployed();
+      collateralTokens[key] = token;
+
+      // Deploy MultiCollateral warp token
+      const warpToken = await new MultiCollateral__factory(deployer).deploy(
+        token.address,
+        scale,
+        mailboxes[chain.domainId].address,
+      );
+      await warpToken.deployed();
+      await warpToken.initialize(
+        ethers.constants.AddressZero,
+        ethers.constants.AddressZero,
+        deployerAddress,
+      );
+      warpTokens[key] = warpToken;
+    }
+  }
+
+  // Step 4: Same-asset enrollment via enrollRemoteRouters (standard Router enrollment)
+  for (const asset of assets) {
+    for (const chain of chains) {
+      const key = `${asset.symbol}:${chain.domainId}`;
+      const warpToken = warpTokens[key];
+      const remoteDomains: number[] = [];
+      const remoteRouters: string[] = [];
+
+      for (const otherChain of chains) {
+        if (chain.domainId !== otherChain.domainId) {
+          const otherKey = `${asset.symbol}:${otherChain.domainId}`;
+          remoteDomains.push(otherChain.domainId);
+          remoteRouters.push(
+            ethers.utils.hexZeroPad(warpTokens[otherKey].address, 32),
+          );
+        }
+      }
+
+      if (remoteDomains.length > 0) {
+        await warpToken.enrollRemoteRouters(remoteDomains, remoteRouters);
+      }
+    }
+  }
+
+  // Step 5: Cross-asset enrollment via MultiCollateral.enrollRouters
+  // Each warp token enrolls all OTHER asset warp tokens (same + different chains)
+  for (const asset of assets) {
+    for (const chain of chains) {
+      const key = `${asset.symbol}:${chain.domainId}`;
+      const warpToken = warpTokens[key];
+      const enrollDomains: number[] = [];
+      const enrollRouters: string[] = [];
+
+      for (const otherAsset of assets) {
+        if (otherAsset.symbol === asset.symbol) continue;
+        for (const targetChain of chains) {
+          const targetKey = `${otherAsset.symbol}:${targetChain.domainId}`;
+          // Use the target chain's domain (or localDomain for same-chain)
+          enrollDomains.push(targetChain.domainId);
+          enrollRouters.push(
+            ethers.utils.hexZeroPad(warpTokens[targetKey].address, 32),
+          );
+        }
+      }
+
+      if (enrollDomains.length > 0) {
+        await warpToken.enrollRouters(enrollDomains, enrollRouters);
+      }
+    }
+  }
+
+  // Step 6: Deploy MockValueTransferBridge per asset per chain
+  // Each bridge handles one ERC20 type (immutable collateral token)
+  // Key: `${symbol}:${domainId}`
+  const bridges: Record<string, ethers.Contract> = {};
+  const firstAsset = assets[0];
+  for (const asset of assets) {
+    for (const chain of chains) {
+      const key = `${asset.symbol}:${chain.domainId}`;
+      const bridge = await new MockValueTransferBridge__factory(
+        deployer,
+      ).deploy(
+        collateralTokens[key].address,
+        mailboxes[chain.domainId].address,
+      );
+      await bridge.deployed();
+      await bridge.initialize(
+        ethers.constants.AddressZero,
+        ethers.constants.AddressZero,
+        deployerAddress,
+      );
+      bridges[key] = bridge;
+    }
+  }
+
+  // Step 6b: Enroll remote routers on bridges (per-asset: USDC bridges know each other, USDT bridges know each other)
+  for (const asset of assets) {
+    for (const chain of chains) {
+      const key = `${asset.symbol}:${chain.domainId}`;
+      const bridge = bridges[key];
+      const remoteDomains: number[] = [];
+      const remoteRouters: string[] = [];
+
+      for (const otherChain of chains) {
+        if (chain.domainId !== otherChain.domainId) {
+          const otherKey = `${asset.symbol}:${otherChain.domainId}`;
+          remoteDomains.push(otherChain.domainId);
+          remoteRouters.push(
+            ethers.utils.hexZeroPad(bridges[otherKey].address, 32),
+          );
+        }
+      }
+
+      if (remoteDomains.length > 0) {
+        await bridge.enrollRemoteRouters(remoteDomains, remoteRouters);
+      }
+    }
+  }
+
+  // Step 7: Add bridges to ALL asset warp tokens
+  for (const asset of assets) {
+    for (const chain of chains) {
+      const key = `${asset.symbol}:${chain.domainId}`;
+      const warpToken = warpTokens[key];
+      for (const otherChain of chains) {
+        if (chain.domainId !== otherChain.domainId) {
+          await warpToken.addBridge(otherChain.domainId, bridges[key].address);
+        }
+      }
+    }
+  }
+
+  // Step 8: Add rebalancer on all warp tokens
+  for (const asset of assets) {
+    for (const chain of chains) {
+      const key = `${asset.symbol}:${chain.domainId}`;
+      await warpTokens[key].addRebalancer(rebalancerAddress);
+    }
+  }
+
+  // Step 9: Fund warp tokens with initial collateral
+  for (const asset of assets) {
+    for (const chain of chains) {
+      const key = `${asset.symbol}:${chain.domainId}`;
+      const tx = await collateralTokens[key].transfer(
+        warpTokens[key].address,
+        initialCollateralBalance,
+      );
+      await tx.wait();
+    }
+  }
+
+  // Cleanup provider
+  provider.removeAllListeners();
+  provider.polling = false;
+
+  // Build result
+  const domains: Record<string, DeployedDomain> = {};
+  for (const chain of chains) {
+    const domainAssets: Record<string, DeployedAsset> = {};
+    for (const asset of assets) {
+      const key = `${asset.symbol}:${chain.domainId}`;
+      domainAssets[asset.symbol] = {
+        symbol: asset.symbol,
+        decimals: asset.decimals,
+        scale: BigInt(10 ** asset.decimals),
+        warpToken: warpTokens[key].address as Address,
+        collateralToken: collateralTokens[key].address as Address,
+        bridge: bridges[key].address as Address,
+      };
+    }
+
+    // Primary asset for backward-compat fields
+    const primaryKey = `${firstAsset.symbol}:${chain.domainId}`;
+    domains[chain.chainName] = {
+      chainName: chain.chainName,
+      domainId: chain.domainId,
+      mailbox: mailboxes[chain.domainId].address as Address,
+      warpToken: warpTokens[primaryKey].address as Address,
+      collateralToken: collateralTokens[primaryKey].address as Address,
+      bridge: bridges[primaryKey].address as Address,
+      assets: domainAssets,
+    };
+  }
+
+  return {
+    anvilRpc,
+    deployer: deployerAddress as Address,
+    deployerKey,
+    rebalancer: rebalancerAddress as Address,
+    rebalancerKey,
+    bridgeController: bridgeControllerAddress as Address,
+    bridgeControllerKey,
+    mailboxProcessor: mailboxProcessorAddress as Address,
+    mailboxProcessorKey,
+    domains,
+  };
 }

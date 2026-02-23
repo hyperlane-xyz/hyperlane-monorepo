@@ -64,22 +64,59 @@ export class SimulationRegistry implements IRegistry {
 
   private buildWarpCoreConfig(): WarpCoreConfig {
     const tokens: WarpCoreConfig['tokens'] = [];
+    const domainEntries = Object.entries(this.deployment.domains);
 
-    for (const [chainName, domain] of Object.entries(this.deployment.domains)) {
-      tokens.push({
-        chainName,
-        standard: TokenStandard.EvmHypCollateral,
-        decimals: 18,
-        symbol: 'SIM',
-        name: 'Simulation Token',
-        addressOrDenom: domain.warpToken,
-        collateralAddressOrDenom: domain.collateralToken,
-        connections: Object.entries(this.deployment.domains)
-          .filter(([name]) => name !== chainName)
-          .map(([name, d]) => ({
-            token: `ethereum|${name}|${d.warpToken}`,
-          })),
-      });
+    // Detect multi-asset deployment
+    const hasAssets = domainEntries.some(([, d]) => d.assets);
+
+    if (hasAssets) {
+      // Multi-asset: produce EvmHypMultiCollateral tokens
+      for (const [chainName, domain] of domainEntries) {
+        if (!domain.assets) continue;
+        for (const [symbol, asset] of Object.entries(domain.assets)) {
+          const connections: Array<{ token: string }> = [];
+          for (const [otherChain, otherDomain] of domainEntries) {
+            if (!otherDomain.assets) continue;
+            for (const [otherSymbol, otherAsset] of Object.entries(
+              otherDomain.assets,
+            )) {
+              if (otherChain === chainName && otherSymbol === symbol) continue;
+              connections.push({
+                token: `ethereum|${otherChain}|${otherAsset.warpToken}`,
+              });
+            }
+          }
+
+          tokens.push({
+            chainName,
+            standard: TokenStandard.EvmHypMultiCollateral,
+            decimals: asset.decimals,
+            symbol,
+            name: `${symbol} Token`,
+            addressOrDenom: asset.warpToken,
+            collateralAddressOrDenom: asset.collateralToken,
+            connections,
+          });
+        }
+      }
+    } else {
+      // Single-asset: standard EvmHypCollateral
+      for (const [chainName, domain] of domainEntries) {
+        tokens.push({
+          chainName,
+          standard: TokenStandard.EvmHypCollateral,
+          decimals: 18,
+          symbol: 'SIM',
+          name: 'Simulation Token',
+          addressOrDenom: domain.warpToken,
+          collateralAddressOrDenom: domain.collateralToken,
+          connections: domainEntries
+            .filter(([name]) => name !== chainName)
+            .map(([name, d]) => ({
+              token: `ethereum|${name}|${d.warpToken}`,
+            })),
+        });
+      }
     }
 
     return { tokens };

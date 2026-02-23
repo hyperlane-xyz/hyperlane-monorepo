@@ -10,6 +10,7 @@ export { KPICollector } from './KPICollector.js';
 export { MockInfrastructureController } from './MockInfrastructureController.js';
 export { RebalancerSimulationHarness } from './RebalancerSimulationHarness.js';
 export {
+  deployMultiAssetSimulation,
   deployMultiDomainSimulation,
   getWarpTokenBalance,
 } from './SimulationDeployment.js';
@@ -45,7 +46,10 @@ export type {
   BridgeRouteConfig,
   PendingTransfer,
   // Deployment types
+  AssetDefinition,
+  DeployedAsset,
   DeployedDomain,
+  MultiAssetDeploymentOptions,
   MultiDomainDeploymentOptions,
   MultiDomainDeploymentResult,
   SimulatedChainConfig,

@@ -1,0 +1,87 @@
+{
+  "name": "same-chain-swap",
+  "description": "Tests same-chain cross-asset swaps (USDC↔USDT on chain1) via direct handle() calls.",
+  "expectedBehavior": "Same-chain swaps call handle() directly — no Dispatch event, no mailbox.\nAll swaps should complete instantly with 100% completion rate.\nNo rebalancing should be needed since collateral stays on same chain.",
+  "duration": 5000,
+  "chains": ["chain1"],
+  "assets": [
+    { "symbol": "USDC", "decimals": 18 },
+    { "symbol": "USDT", "decimals": 18 }
+  ],
+  "transfers": [
+    {
+      "id": "swap-000",
+      "timestamp": 0,
+      "origin": "chain1",
+      "destination": "chain1",
+      "amount": "5000000000000000000",
+      "user": "0x8b563f19033b6111597f5ae37a91b88591fa17d6",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "swap-001",
+      "timestamp": 200,
+      "origin": "chain1",
+      "destination": "chain1",
+      "amount": "3000000000000000000",
+      "user": "0x53e81e13db7f8a7f1ff614b699d36b22ba85761f",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDC"
+    },
+    {
+      "id": "swap-002",
+      "timestamp": 400,
+      "origin": "chain1",
+      "destination": "chain1",
+      "amount": "7000000000000000000",
+      "user": "0xe6aa46c39443ae5c696524b2ec1b39f82942cdd8",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "swap-003",
+      "timestamp": 600,
+      "origin": "chain1",
+      "destination": "chain1",
+      "amount": "4000000000000000000",
+      "user": "0x80507c3a61c9e6eede5dca9ee05d906455618ddf",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDC"
+    },
+    {
+      "id": "swap-004",
+      "timestamp": 800,
+      "origin": "chain1",
+      "destination": "chain1",
+      "amount": "6000000000000000000",
+      "user": "0x3d8d6bb644bb6977ed12949c603941ceb5d403f8",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 0,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {},
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "chains": {
+      "USDC|chain1": {
+        "weighted": { "weight": "1.0", "tolerance": "0.5" },
+        "bridgeLockTime": 1000
+      },
+      "USDT|chain1": {
+        "weighted": { "weight": "1.0", "tolerance": "0.5" },
+        "bridgeLockTime": 1000
+      }
+    }
+  },
+  "expectations": {
+    "minCompletionRate": 1.0,
+    "shouldTriggerRebalancing": false
+  }
+}

@@ -1,0 +1,160 @@
+{
+  "name": "multi-asset-rebalance",
+  "description": "Tests ProductionRebalancer with multi-asset deployment. Same-asset transfers drain USDT on chain2.",
+  "expectedBehavior": "10 USDT transfers from chain2→chain1 drain USDT collateral on chain2.\nRebalancer detects USDT|chain2 deficit and rebalances USDT back from chain1.\nProves multi-asset warp config, SYMBOL|chain strategy keys, and rebalance execution work end-to-end.",
+  "duration": 15000,
+  "chains": ["chain1", "chain2"],
+  "assets": [
+    { "symbol": "USDC", "decimals": 18 },
+    { "symbol": "USDT", "decimals": 18 }
+  ],
+  "transfers": [
+    {
+      "id": "mar-000",
+      "timestamp": 0,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "8000000000000000000",
+      "user": "0x8b563f19033b6111597f5ae37a91b88591fa17d6",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mar-001",
+      "timestamp": 500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "7000000000000000000",
+      "user": "0x53e81e13db7f8a7f1ff614b699d36b22ba85761f",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mar-002",
+      "timestamp": 1000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "9000000000000000000",
+      "user": "0xe6aa46c39443ae5c696524b2ec1b39f82942cdd8",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mar-003",
+      "timestamp": 1500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "6000000000000000000",
+      "user": "0x80507c3a61c9e6eede5dca9ee05d906455618ddf",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mar-004",
+      "timestamp": 2000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "8000000000000000000",
+      "user": "0x3d8d6bb644bb6977ed12949c603941ceb5d403f8",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mar-005",
+      "timestamp": 2500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "7000000000000000000",
+      "user": "0x8b563f19033b6111597f5ae37a91b88591fa17d6",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mar-006",
+      "timestamp": 3000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "5000000000000000000",
+      "user": "0x53e81e13db7f8a7f1ff614b699d36b22ba85761f",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mar-007",
+      "timestamp": 3500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "9000000000000000000",
+      "user": "0xe6aa46c39443ae5c696524b2ec1b39f82942cdd8",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mar-008",
+      "timestamp": 4000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "6000000000000000000",
+      "user": "0x80507c3a61c9e6eede5dca9ee05d906455618ddf",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mar-009",
+      "timestamp": 4500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "7000000000000000000",
+      "user": "0x3d8d6bb644bb6977ed12949c603941ceb5d403f8",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDT"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "chains": {
+      "USDC|chain1": {
+        "weighted": { "weight": "0.500", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      },
+      "USDC|chain2": {
+        "weighted": { "weight": "0.500", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      },
+      "USDT|chain1": {
+        "weighted": { "weight": "0.500", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      },
+      "USDT|chain2": {
+        "weighted": { "weight": "0.500", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "minCompletionRate": 0.8,
+    "shouldTriggerRebalancing": true
+  }
+}

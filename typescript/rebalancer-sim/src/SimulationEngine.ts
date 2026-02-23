@@ -3,13 +3,12 @@ import { ethers } from 'ethers';
 import {
   ERC20__factory,
   HypERC20Collateral__factory,
+  MultiCollateral__factory,
 } from '@hyperlane-xyz/core';
 import {
   type ChainMetadata,
   HyperlaneCore,
   MultiProvider,
-  TokenStandard,
-  type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -92,13 +91,9 @@ export class SimulationEngine {
       );
       await controller.start();
 
-      // Build warp config for rebalancer
-      const warpConfig = this.buildWarpConfig();
-
       // Initialize rebalancer
       const rebalancerConfig: RebalancerSimConfig = {
         pollingFrequency: timing.rebalancerPollingFrequency,
-        warpConfig,
         strategyConfig: rebalancerStrategyConfig,
         deployment: this.deployment,
       };
@@ -156,7 +151,9 @@ export class SimulationEngine {
   }
 
   /**
-   * Execute transfers according to the scenario
+   * Execute transfers according to the scenario.
+   * Handles single-asset (transferRemote), cross-asset (transferRemoteTo),
+   * and same-chain swaps (transferRemoteTo with localDomain).
    */
   private async executeTransfers(
     scenario: TransferScenario,
@@ -179,55 +176,102 @@ export class SimulationEngine {
         await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
 
-      // Execute the transfer via warp token
       const originDomain = this.deployment.domains[transfer.origin];
       const destDomain = this.deployment.domains[transfer.destination];
 
-      const warpToken = HypERC20Collateral__factory.connect(
-        originDomain.warpToken,
-        deployer,
-      );
+      // Determine if this is a cross-asset transfer
+      const isCrossAsset =
+        transfer.sourceAsset &&
+        transfer.destinationAsset &&
+        transfer.sourceAsset !== transfer.destinationAsset;
+
+      // Resolve source warp token and collateral addresses
+      let sourceWarpAddr: string;
+      let sourceCollateralAddr: string;
+      if (transfer.sourceAsset && originDomain.assets?.[transfer.sourceAsset]) {
+        const asset = originDomain.assets[transfer.sourceAsset];
+        sourceWarpAddr = asset.warpToken;
+        sourceCollateralAddr = asset.collateralToken;
+      } else {
+        sourceWarpAddr = originDomain.warpToken;
+        sourceCollateralAddr = originDomain.collateralToken;
+      }
 
       try {
         const txStartTime = Date.now();
 
-        // Approve collateral token for warp transfer
+        // Approve collateral token
         const collateralToken = ERC20__factory.connect(
-          originDomain.collateralToken,
+          sourceCollateralAddr,
           deployer,
         );
         const approveTx = await collateralToken.approve(
-          originDomain.warpToken,
+          sourceWarpAddr,
           transfer.amount,
         );
         await approveTx.wait();
 
         const approveTime = Date.now() - txStartTime;
-
-        // Quote gas payment (mock mailbox should return 0)
-        const gasPayment = await warpToken.quoteGasPayment(destDomain.domainId);
-
-        // Transfer remote
         const recipientBytes32 = ethers.utils.hexZeroPad(transfer.user, 32);
-        const transferTx = await warpToken.transferRemote(
-          destDomain.domainId,
-          recipientBytes32,
-          transfer.amount,
-          { value: gasPayment },
-        );
-        await transferTx.wait();
+
+        if (isCrossAsset) {
+          // Cross-asset: use MultiCollateral.transferRemoteTo
+          const mc = MultiCollateral__factory.connect(sourceWarpAddr, deployer);
+
+          // Resolve destination warp token (target router)
+          const destAsset = destDomain.assets?.[transfer.destinationAsset!];
+          if (!destAsset) {
+            throw new Error(
+              `No asset ${transfer.destinationAsset} on ${transfer.destination}`,
+            );
+          }
+          const targetRouter = ethers.utils.hexZeroPad(destAsset.warpToken, 32);
+
+          const transferTx = await mc.transferRemoteTo(
+            destDomain.domainId,
+            recipientBytes32,
+            transfer.amount,
+            targetRouter,
+          );
+          await transferTx.wait();
+
+          // Same-chain cross-asset swaps are instant (handle() called directly).
+          // No Dispatch event is emitted, so manually track as completed.
+          if (transfer.origin === transfer.destination) {
+            kpiCollector.recordTransferStart(
+              transfer.id,
+              transfer.origin,
+              transfer.destination,
+              transfer.amount,
+            );
+            kpiCollector.recordTransferComplete(transfer.id);
+          }
+          // Cross-chain cross-asset: controller will track via Dispatch event
+        } else {
+          // Same-asset: standard transferRemote
+          const warpToken = HypERC20Collateral__factory.connect(
+            sourceWarpAddr,
+            deployer,
+          );
+          const gasPayment = await warpToken.quoteGasPayment(
+            destDomain.domainId,
+          );
+          const transferTx = await warpToken.transferRemote(
+            destDomain.domainId,
+            recipientBytes32,
+            transfer.amount,
+            { value: gasPayment },
+          );
+          await transferTx.wait();
+        }
 
         const totalTxTime = Date.now() - txStartTime;
-
-        // Log slow transfers (>1000ms suggests significant RPC contention)
         if (totalTxTime > 1000) {
           logger.warn(
             { transferId: transfer.id, totalTxTime, approveTime },
             'Slow transfer detected',
           );
         }
-
-        // Controller auto-tracks from Dispatch events — no registration needed
       } catch (error) {
         logger.error(
           {
@@ -246,30 +290,6 @@ export class SimulationEngine {
       }
     }
     logger.info('All transfers executed');
-  }
-
-  /**
-   * Build WarpCoreConfig from deployment
-   */
-  private buildWarpConfig(): WarpCoreConfig {
-    const tokens = Object.entries(this.deployment.domains).map(
-      ([chainName, domain]) => ({
-        chainName,
-        standard: TokenStandard.EvmHypCollateral,
-        decimals: 18,
-        symbol: 'SIM',
-        name: 'Simulation Token',
-        addressOrDenom: domain.warpToken,
-        collateralAddressOrDenom: domain.collateralToken,
-        connections: Object.entries(this.deployment.domains)
-          .filter(([name]) => name !== chainName)
-          .map(([name, d]) => ({
-            token: `ethereum|${name}|${d.warpToken}`,
-          })),
-      }),
-    );
-
-    return { tokens };
   }
 
   /**

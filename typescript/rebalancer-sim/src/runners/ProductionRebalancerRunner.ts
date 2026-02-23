@@ -17,7 +17,9 @@ import { MockActionTracker } from './MockActionTracker.js';
 import { SimulationRegistry } from './SimulationRegistry.js';
 
 // Silent logger for the rebalancer service (internal)
-const silentLogger = pino({ level: 'silent' });
+const silentLogger = pino({
+  level: process.env.REBALANCER_LOG_LEVEL ?? 'silent',
+});
 
 // Logger for simulation harness output
 const logger = rootLogger.child({ module: 'ProductionRebalancerRunner' });
@@ -74,6 +76,22 @@ function buildStrategyConfig(config: RebalancerSimConfig): StrategyConfig {
 
     return {
       rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+      chains,
+    } as StrategyConfig;
+  } else if (strategyConfig.type === 'collateralDeficit') {
+    const chains: Record<string, any> = {};
+
+    for (const [chainName, chainConfig] of Object.entries(
+      strategyConfig.chains,
+    )) {
+      chains[chainName] = {
+        bridge: chainConfig.bridge,
+        bridgeLockTime: Math.ceil(chainConfig.bridgeLockTime / 1000),
+      };
+    }
+
+    return {
+      rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
       chains,
     } as StrategyConfig;
   } else {
