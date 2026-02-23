@@ -10,6 +10,7 @@ import Database from 'better-sqlite3';
 export interface ContextStore {
   get(routeId: string): Promise<string | null>;
   set(routeId: string, summary: string): Promise<void>;
+  clear(routeId: string): Promise<void>;
 }
 
 /** In-memory implementation for simulation. */
@@ -22,6 +23,10 @@ export class InMemoryContextStore implements ContextStore {
 
   async set(routeId: string, summary: string): Promise<void> {
     this.store.set(routeId, summary);
+  }
+
+  async clear(routeId: string): Promise<void> {
+    this.store.delete(routeId);
   }
 }
 
@@ -72,6 +77,10 @@ export class SqliteContextStore implements ContextStore {
         )
         .run(routeId, summary, now);
     })();
+  }
+
+  async clear(routeId: string): Promise<void> {
+    this.db.prepare('DELETE FROM context WHERE route_id = ?').run(routeId);
   }
 
   close(): void {

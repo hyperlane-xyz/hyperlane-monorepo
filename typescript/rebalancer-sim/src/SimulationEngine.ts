@@ -107,13 +107,22 @@ export class SimulationEngine {
       // Wait for ethers event polling to catch up
       await new Promise((r) => setTimeout(r, 200));
 
-      // Wait for all deliveries (user transfers + bridge transfers)
+      // Wait for all deliveries and rebalancer to settle.
+      // Loop because the rebalancer may dispatch new bridge messages during
+      // its cycle that need delivery, and those deliveries may trigger
+      // further rebalancer action.
       const deliveryTimeout = timing.deliveryTimeoutMs ?? 60000;
-      await controller.waitForAllDeliveries(deliveryTimeout);
-
-      // Wait for rebalancer to become idle
       const idleTimeout = timing.idleTimeoutMs ?? 5000;
-      await rebalancer.waitForIdle(idleTimeout);
+      const settleStart = Date.now();
+      let settled = false;
+      while (!settled && Date.now() - settleStart < deliveryTimeout) {
+        await controller.waitForAllDeliveries(deliveryTimeout);
+        await rebalancer.waitForIdle(idleTimeout);
+        // Check if new messages appeared during the rebalancer cycle
+        if (!controller.hasPendingMessages()) {
+          settled = true;
+        }
+      }
 
       // Generate final KPIs
       const kpis = await kpiCollector.generateKPIs();
@@ -167,12 +176,13 @@ export class SimulationEngine {
       this.provider,
     );
     const startTime = Date.now();
+    const timestampScale = timing.transferTimestampScale ?? 1;
 
     for (let i = 0; i < scenario.transfers.length; i++) {
       const transfer = scenario.transfers[i];
 
-      // Wait until it's time for this transfer
-      const targetTime = startTime + transfer.timestamp;
+      // Wait until it's time for this transfer (scaled for slow rebalancers)
+      const targetTime = startTime + transfer.timestamp * timestampScale;
       const waitTime = targetTime - Date.now();
       if (waitTime > 0) {
         await new Promise((resolve) => setTimeout(resolve, waitTime));

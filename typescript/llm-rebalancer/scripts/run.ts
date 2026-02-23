@@ -68,7 +68,7 @@ async function main() {
     fs.mkdirSync(keystoreDir, { recursive: true });
   }
   execSync(
-    `cast wallet import rebalancer --private-key ${rebalancerKey} --keystore-dir ${keystoreDir} --unsafe`,
+    `cast wallet import rebalancer --private-key ${rebalancerKey} --keystore-dir ${keystoreDir} --unsafe-password ''`,
     { stdio: 'pipe' },
   );
   console.log('Imported rebalancer key into foundry keystore');

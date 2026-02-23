@@ -79,15 +79,9 @@ export async function createRebalancerSession(
   return session;
 }
 
-const CYCLE_PROMPT = `New rebalancing cycle. Follow your invocation loop:
-1. Read previous context (if available — it's in your system prompt).
-2. Check pending actions — verify delivery of any inflight transfers.
-3. Check current balances using get_balances.
-4. Assess surplus/deficit (subtract inflight amounts).
-5. Execute rebalances if needed (use appropriate skill).
-6. ALWAYS call save_context at the end with your status and summary.
-
-Be concise. Execute actions, don't just describe them.`;
+const CYCLE_PROMPT = `New cycle. Execute your loop — do NOT narrate or explain. Call tools immediately, no preamble.
+If no pending actions and balanced: call get_balances then save_context. Two tool calls, done.
+If imbalanced: get_balances, execute rebalance, save_context. Minimal text output.`;
 
 export interface CycleResult {
   status: 'balanced' | 'pending' | 'unknown';

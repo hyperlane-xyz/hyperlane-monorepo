@@ -103,6 +103,9 @@ export class LLMRebalancerRunner
 
     this.config = config;
 
+    // Clear stale context from previous runs
+    await this.contextStore.clear(this.routeId);
+
     // Create temp working directory
     this.workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-rebalancer-'));
     logger.info({ workDir: this.workDir }, 'Created temp work dir');
@@ -116,13 +119,20 @@ export class LLMRebalancerRunner
     // Build agent config from deployment
     this.agentConfig = this.buildAgentConfig(config);
 
-    // Import rebalancer key into foundry keystore
+    // Import rebalancer key into foundry keystore (both local and default location)
     const keystoreDir = path.join(this.workDir, 'keystore');
     fs.mkdirSync(keystoreDir, { recursive: true });
     const { execSync } = await import('child_process');
     execSync(
-      `cast wallet import rebalancer --private-key ${this.agentConfig.rebalancerKey} --keystore-dir ${keystoreDir} --unsafe`,
+      `cast wallet import rebalancer --private-key ${this.agentConfig.rebalancerKey} --keystore-dir ${keystoreDir} --unsafe-password ''`,
       { stdio: 'pipe' },
+    );
+    // Also copy to default foundry keystore dir so `--account rebalancer` works without --keystore-dir
+    const defaultKeystoreDir = path.join(os.homedir(), '.foundry', 'keystores');
+    fs.mkdirSync(defaultKeystoreDir, { recursive: true });
+    fs.copyFileSync(
+      path.join(keystoreDir, 'rebalancer'),
+      path.join(defaultKeystoreDir, 'rebalancer'),
     );
     logger.info('Imported rebalancer key into foundry keystore');
 

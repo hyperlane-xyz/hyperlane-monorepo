@@ -10,15 +10,7 @@ Deposits tokens from the rebalancer's own inventory into a warp route.
 **Direction is REVERSED**: to fill a deficit on chainB, you call `transferRemote` FROM chainB
 (sending tokens to the destination chain where they'll be locked as collateral).
 
-## Signing
-
-All `cast send` commands use the foundry keystore:
-
-```bash
---account rebalancer --keystore-dir ./keystore --password ''
-```
-
-**Do NOT use `--private-key`.** See the `wallet-setup` skill for details.
+> For transaction signing and receipt parsing, see the `submit-transaction` skill.
 
 ## Steps
 
@@ -36,20 +28,18 @@ All `cast send` commands use the foundry keystore:
 
    ```bash
    cast send <collateralToken> 'approve(address,uint256)' <warpToken> <amountWei> \
-     --account rebalancer --keystore-dir ./keystore --password '' --rpc-url <rpc>
+     --account rebalancer --password '' --rpc-url <rpc>
    ```
 
 4. **Execute transferRemote** from the deficit chain:
 
    ```bash
    cast send <warpToken> 'transferRemote(uint32,bytes32,uint256)' <destDomainId> <recipientBytes32> <amountWei> \
-     --account rebalancer --keystore-dir ./keystore --password '' --rpc-url <rpc>
+     --account rebalancer --password '' --rpc-url <rpc>
    ```
 
-   The recipient should be the rebalancer address padded to bytes32:
+   Convert the recipient address to bytes32: `cast --to-bytes32 <rebalancerAddress>`
 
-   ```bash
-   cast --to-bytes32 <rebalancerAddress>
-   ```
+5. **Extract messageId** from the Dispatch event (see `submit-transaction` skill).
 
-5. **Include in save_context summary**: Record the messageId (from Dispatch event), amount, deficit chain (origin), and surplus chain (destination) so the next invocation can verify delivery via `check_hyperlane_delivery`.
+6. **Save context**: Record the messageId, amount, deficit chain (origin), and surplus chain (destination) so the next invocation can verify delivery via `check_hyperlane_delivery`.

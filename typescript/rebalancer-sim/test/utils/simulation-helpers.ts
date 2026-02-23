@@ -200,13 +200,17 @@ export async function runScenarioWithRebalancers(
       };
     }
 
-    // LLM rebalancers need longer timeouts (agent cycles take 30-120s)
+    // LLM rebalancers need scaled timing (agent cycles take 15-60s each)
+    // transferTimestampScale stretches scenario timestamps so transfers arrive
+    // slowly enough for the LLM to react between them (e.g. 500ms * 10 = 5s apart)
     const timing =
       rebalancerType === 'llm'
         ? {
             ...file.defaultTiming,
-            deliveryTimeoutMs: 300_000,
-            idleTimeoutMs: 180_000,
+            userTransferDeliveryDelay: 5_000,
+            transferTimestampScale: 10,
+            deliveryTimeoutMs: 600_000,
+            idleTimeoutMs: 300_000,
           }
         : file.defaultTiming;
 

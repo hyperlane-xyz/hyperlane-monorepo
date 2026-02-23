@@ -9,23 +9,15 @@ allowed-tools: bash read write
 Moves the rebalancer's own tokens between chains using an external bridge.
 Use this when you need inventory on a chain where you don't have enough.
 
-## Signing
-
-All `cast send` commands use the foundry keystore:
-
-```bash
---account rebalancer --keystore-dir ./keystore --password ''
-```
-
-**Do NOT use `--private-key`.** See the `wallet-setup` skill for details.
+> For transaction signing and receipt parsing, see the `submit-transaction` skill.
 
 ## Bridge Selection Strategy
 
-| Bridge                  | When to Use                   | Delivery                        |
-| ----------------------- | ----------------------------- | ------------------------------- |
-| MockValueTransferBridge | Simulation only               | `check_hyperlane_delivery` tool |
-| LiFi                    | Production, cross-chain       | Poll LiFi status API            |
-| CEX                     | Large amounts, cost-sensitive | Manual verification             |
+| Bridge                  | When to Use             | Delivery                        |
+| ----------------------- | ----------------------- | ------------------------------- |
+| MockValueTransferBridge | Simulation only         | `check_hyperlane_delivery` tool |
+| LiFi                    | Production, cross-chain | Poll LiFi status API            |
+| CEX                     | Large amounts           | Manual verification             |
 
 ## Simulation Mode (MockValueTransferBridge)
 
@@ -35,28 +27,22 @@ In simulation, bridges are mock contracts. Use `get_chain_metadata` tool for add
 
    ```bash
    cast send <collateralToken> 'approve(address,uint256)' <bridgeAddress> <amountWei> \
-     --account rebalancer --keystore-dir ./keystore --password '' --rpc-url <rpc>
+     --account rebalancer --password '' --rpc-url <rpc>
    ```
 
 2. **Execute bridge transfer**:
 
    ```bash
    cast send <bridgeAddress> 'transferRemote(uint32,bytes32,uint256)' <destDomainId> <recipientBytes32> <amountWei> \
-     --account rebalancer --keystore-dir ./keystore --password '' --rpc-url <rpc>
+     --account rebalancer --password '' --rpc-url <rpc>
    ```
 
-   Recipient is the rebalancer address padded to bytes32.
+   Convert recipient to bytes32: `cast --to-bytes32 <rebalancerAddress>`
 
-3. **Include in save_context summary**: Record messageId (from Dispatch event), amount, source/dest so next invocation can verify via `check_hyperlane_delivery`.
+3. **Extract messageId** from Dispatch event (see `submit-transaction` skill).
+
+4. **Save context**: Record messageId, amount, source/dest so next invocation can verify via `check_hyperlane_delivery`.
 
 ## Production Mode (LiFi API)
 
-1. **Get quote**:
-
-   ```bash
-   curl -s 'https://li.quest/v1/quote?fromChain=<chainId>&toChain=<chainId>&fromToken=<addr>&toToken=<addr>&fromAmount=<wei>&fromAddress=<rebalancerAddr>'
-   ```
-
-2. **Execute the returned transaction** via `cast send`.
-
-3. **Include in save_context summary**: Record the LiFi transaction hash and bridge type for delivery verification.
+See the `rebalance-lifi` skill for LiFi quote + execution flow.

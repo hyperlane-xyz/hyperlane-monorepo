@@ -543,6 +543,12 @@ export interface SimulationTiming {
    * Default: 5000. Increase for slow rebalancers (e.g. LLM-based).
    */
   idleTimeoutMs?: number;
+  /**
+   * Multiplier applied to scenario transfer timestamps.
+   * Default: 1. Set >1 for slow rebalancers (e.g. LLM) so transfers
+   * are spread over a longer period matching the rebalancer cycle time.
+   */
+  transferTimestampScale?: number;
 }
 
 /**
