@@ -137,7 +137,7 @@ describe('createAltVMSigners', () => {
         submitter: {
           type: TxSubmitterType.JSON_RPC,
           chain: 'starknet',
-          accountAddress: '0xstrategy-account-mainnet',
+          userAddress: '0xstrategy-account-mainnet',
         },
       },
     };
@@ -192,7 +192,7 @@ describe('createAltVMSigners', () => {
           type: TxSubmitterType.JSON_RPC,
           chain: 'starknetsepolia',
           privateKey: '0xkey',
-          accountAddress: '0xaaa',
+          userAddress: '0xaaa',
         },
       },
       starknetmainnet: {
@@ -200,7 +200,7 @@ describe('createAltVMSigners', () => {
           type: TxSubmitterType.JSON_RPC,
           chain: 'starknetmainnet',
           privateKey: '0xkey',
-          accountAddress: '0xbbb',
+          userAddress: '0xbbb',
         },
       },
     };

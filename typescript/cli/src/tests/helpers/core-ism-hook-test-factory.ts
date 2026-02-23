@@ -27,10 +27,22 @@ export interface CoreUpdateTestConfig {
 
 type HookField = 'defaultHook' | 'requiredHook';
 
+type RoutingDerivedIsm = DerivedIsmConfig & {
+  domains: Record<string, unknown>;
+};
+
+function hasDomains(value: DerivedIsmConfig): value is RoutingDerivedIsm {
+  return typeof value === 'object' && value !== null && 'domains' in value;
+}
+
 function getRoutingDomainIsmAddress(
-  routingIsm: Extract<DerivedIsmConfig, { type: typeof IsmType.ROUTING }>,
+  routingIsm: DerivedIsmConfig,
   chainName: string,
 ): string {
+  assert(
+    hasDomains(routingIsm),
+    `Expected routing ISM to contain domains for chain ${chainName}`,
+  );
   const domainIsm = routingIsm.domains[chainName];
   assert(
     typeof domainIsm !== 'string' &&

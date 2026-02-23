@@ -43,10 +43,6 @@ type ContextMiddlewareArgv = Record<string, unknown> & {
   context?: CommandContext;
 };
 
-type SignerMiddlewareArgv = ContextMiddlewareArgv & {
-  context: CommandContext;
-};
-
 function toStringArray(value: unknown): string[] {
   if (Array.isArray(value)) return value.map((v) => String(v));
   if (typeof value === 'string') return [value];
@@ -84,7 +80,17 @@ export async function contextMiddleware(argv: ContextMiddlewareArgv) {
   argv.context = await getContext(settings);
 }
 
-export async function signerMiddleware(argv: SignerMiddlewareArgv) {
+function hasCommandContext(
+  argv: ContextMiddlewareArgv,
+): argv is ContextMiddlewareArgv & { context: CommandContext } {
+  return typeof argv.context === 'object' && argv.context !== null;
+}
+
+export async function signerMiddleware(argv: ContextMiddlewareArgv) {
+  assert(
+    hasCommandContext(argv),
+    'Expected command context in signerMiddleware',
+  );
   const { key, requiresKey, strategyPath, multiProtocolProvider } =
     argv.context;
 
@@ -132,7 +138,7 @@ export async function signerMiddleware(argv: SignerMiddlewareArgv) {
     }),
   );
 
-  if (!requiresKey) return argv;
+  if (!requiresKey) return;
   assert(key, 'Expected signer keys when running signer middleware');
 
   /**
@@ -160,7 +166,7 @@ export async function signerMiddleware(argv: SignerMiddlewareArgv) {
     strategyConfig,
   );
 
-  return argv;
+  return;
 }
 
 /**
