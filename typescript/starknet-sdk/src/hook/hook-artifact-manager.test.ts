@@ -2,11 +2,12 @@ import { expect } from 'chai';
 import { RpcProvider } from 'starknet';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 
 import { StarknetSigner } from '../clients/signer.js';
 import { StarknetAnnotatedTx, StarknetTxReceipt } from '../types.js';
+
 import { StarknetHookArtifactManager } from './hook-artifact-manager.js';
 
 describe('StarknetHookArtifactManager', () => {
@@ -96,6 +97,10 @@ describe('StarknetHookArtifactManager', () => {
     expect(signer.capturedTx?.kind).to.equal('deploy');
     if (signer.capturedTx?.kind !== 'deploy') {
       throw new Error('Expected deploy transaction');
+    }
+    expect(Array.isArray(signer.capturedTx.constructorArgs)).to.equal(true);
+    if (!Array.isArray(signer.capturedTx.constructorArgs)) {
+      throw new Error('Expected constructorArgs to be an array');
     }
     expect(signer.capturedTx.constructorArgs[0]).to.equal('20');
     expect(signer.capturedTx.constructorArgs[1]).to.equal('10');
