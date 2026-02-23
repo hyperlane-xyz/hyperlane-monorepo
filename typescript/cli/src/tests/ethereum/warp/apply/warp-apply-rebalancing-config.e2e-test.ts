@@ -45,6 +45,21 @@ import {
 } from '../../commands/helpers.js';
 import { WarpTestFixture } from '../../fixtures/warp-test-fixture.js';
 
+function toBigIntValue(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof value.toString === 'function'
+  ) {
+    return BigInt(value.toString());
+  }
+  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
+}
+
 describe('hyperlane warp apply owner update tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
@@ -335,8 +350,10 @@ describe('hyperlane warp apply owner update tests', async function () {
 
     const [fee, deadline, signature] =
       await movableToken.feeParams(chain3DomainId);
-    expect(deadline.toNumber()).to.equal(expectedFeeSettings.deadline);
-    expect(fee.toNumber()).to.equal(expectedFeeSettings.fee);
+    expect(Number(toBigIntValue(deadline))).to.equal(
+      expectedFeeSettings.deadline,
+    );
+    expect(Number(toBigIntValue(fee))).to.equal(expectedFeeSettings.fee);
     expect(signature).to.equal(expectedFeeSettings.signature);
 
     const outputAssetAddress = await movableToken.outputAssets(chain3DomainId);

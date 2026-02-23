@@ -39,10 +39,19 @@ type BridgeContract = Awaited<
   ReturnType<MockValueTransferBridge__factory['deploy']>
 >;
 
-function toBigInt(value: bigint | string | number): bigint {
+function toBigInt(value: unknown): bigint {
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number') return BigInt(value);
-  return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof value.toString === 'function'
+  ) {
+    return BigInt(value.toString());
+  }
+  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
 }
 
 /**
@@ -309,5 +318,5 @@ export async function getWarpTokenBalance(
 ): Promise<bigint> {
   const token = ERC20Test__factory.connect(collateralTokenAddress, provider);
   const balance = await token.balanceOf(warpTokenAddress);
-  return balance.toBigInt();
+  return toBigInt(balance);
 }

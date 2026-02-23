@@ -60,6 +60,21 @@ chai.use(chaiAsPromised);
 const expect = chai.expect;
 chai.should();
 
+function toBigIntValue(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof value.toString === 'function'
+  ) {
+    return BigInt(value.toString());
+  }
+  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
+}
+
 function extractInputOnlyFields(config: TokenFeeConfigInput): any {
   if (!config) return config;
 
@@ -186,7 +201,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chain2TokenConfig.addressOrDenom!,
           bridge,
         );
-        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+        expect(toBigIntValue(allowance) === MAX_UINT256).to.be.true;
 
         const allowedBridgesOnDomain =
           await movableToken.callStatic.allowedBridges(chain3DomainId);
@@ -259,7 +274,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chain2TokenConfig.addressOrDenom!,
           allowedBridge,
         );
-        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+        expect(toBigIntValue(allowance) === MAX_UINT256).to.be.true;
 
         const allowedBridgesOnDomain =
           await movableToken.callStatic.allowedBridges(domain);
@@ -561,8 +576,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       const [fee, deadline, signature] =
         await movableToken.feeParams(chain3DomainId);
-      expect(deadline.toNumber()).to.equal(expectedFeeSettings.deadline);
-      expect(fee.toNumber()).to.equal(expectedFeeSettings.fee);
+      expect(Number(toBigIntValue(deadline))).to.equal(
+        expectedFeeSettings.deadline,
+      );
+      expect(Number(toBigIntValue(fee))).to.equal(expectedFeeSettings.fee);
       expect(signature).to.equal(expectedFeeSettings.signature);
 
       const outputAssetAddress =
