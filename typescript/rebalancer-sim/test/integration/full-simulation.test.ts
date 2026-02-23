@@ -8,6 +8,7 @@
  * Configuration:
  * - Set REBALANCERS env var to specify which rebalancers to test
  *   e.g., REBALANCERS=simple pnpm test (for single rebalancer)
+ *   e.g., REBALANCERS=llm pnpm test (for LLM skill-first runner)
  * - Default: runs both SimpleRunner and ProductionRebalancerRunner
  *
  * Each scenario JSON includes:
@@ -308,7 +309,7 @@ describe('Rebalancer Simulation', function () {
   it('blocked-user-transfer: ProductionRebalancer proactively adds collateral for pending transfers', async function () {
     this.timeout(120000);
 
-    const { results } = await runScenarioWithRebalancers(
+    const { results, file } = await runScenarioWithRebalancers(
       'blocked-user-transfer',
       {
         anvilRpc: anvil.rpc,
@@ -328,6 +329,9 @@ describe('Rebalancer Simulation', function () {
     );
     const simpleResult = results.find(
       (r) => r.rebalancerName === 'SimpleRebalancer',
+    );
+    const llmResult = results.find(
+      (r) => r.rebalancerName === 'LlmSkillFirstRunner',
     );
 
     // SimpleRebalancer without inflight tracking should fail to complete
@@ -351,6 +355,18 @@ describe('Rebalancer Simulation', function () {
       expect(productionResult.kpis.totalRebalances).to.be.greaterThan(
         0,
         'ProductionRebalancer should rebalance (sees pending transfer deficit)',
+      );
+    }
+
+    // LLM skill-first runner should also complete blocked transfer recovery.
+    if (llmResult) {
+      expect(llmResult.kpis.completionRate).to.be.greaterThanOrEqual(
+        file.expectations.minCompletionRate ?? 1,
+        'LlmSkillFirstRunner should restore blocked transfer completion',
+      );
+      expect(llmResult.kpis.totalRebalances).to.be.greaterThan(
+        0,
+        'LlmSkillFirstRunner should trigger rebalancing for pending transfer deficit',
       );
     }
   });

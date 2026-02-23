@@ -27,6 +27,10 @@ export {
 // Rebalancer runners
 export { NoOpRebalancer } from './runners/NoOpRebalancer.js';
 export {
+  cleanupLlmSkillFirstRunner,
+  LlmSkillFirstRunner,
+} from './runners/LlmSkillFirstRunner.js';
+export {
   cleanupProductionRebalancer,
   ProductionRebalancerRunner,
 } from './runners/ProductionRebalancerRunner.js';

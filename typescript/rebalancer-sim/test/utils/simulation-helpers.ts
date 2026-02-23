@@ -4,10 +4,12 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 import {
+  LlmSkillFirstRunner,
   NoOpRebalancer,
   ProductionRebalancerRunner,
   SimpleRunner,
   SimulationEngine,
+  cleanupLlmSkillFirstRunner,
   cleanupProductionRebalancer,
   cleanupSimpleRunner,
   deployMultiDomainSimulation,
@@ -27,7 +29,7 @@ import { ANVIL_DEPLOYER_KEY } from '../../src/types.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const RESULTS_DIR = path.join(__dirname, '..', '..', 'results');
 
-export type RebalancerType = 'simple' | 'production' | 'noop';
+export type RebalancerType = 'simple' | 'production' | 'noop' | 'llm';
 
 export function getEnabledRebalancers(): RebalancerType[] {
   const REBALANCER_ENV = process.env.REBALANCERS || 'simple,production';
@@ -35,12 +37,12 @@ export function getEnabledRebalancers(): RebalancerType[] {
     .map((r) => r.trim().toLowerCase())
     .filter(
       (r): r is RebalancerType =>
-        r === 'simple' || r === 'production' || r === 'noop',
+        r === 'simple' || r === 'production' || r === 'noop' || r === 'llm',
     );
 
   if (enabled.length === 0) {
     throw new Error(
-      `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "production", "noop", or combinations.`,
+      `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "production", "llm", "noop", or combinations.`,
     );
   }
   return enabled;
@@ -54,12 +56,15 @@ export function createRebalancer(type: RebalancerType): IRebalancerRunner {
       return new ProductionRebalancerRunner();
     case 'noop':
       return new NoOpRebalancer();
+    case 'llm':
+      return new LlmSkillFirstRunner();
   }
 }
 
 export async function cleanupRebalancers(): Promise<void> {
   await cleanupSimpleRunner();
   await cleanupProductionRebalancer();
+  await cleanupLlmSkillFirstRunner();
 }
 
 export function ensureResultsDir(): void {

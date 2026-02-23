@@ -1,62 +1,58 @@
 {
-  "name": "@hyperlane-xyz/rebalancer-sim",
-  "version": "0.1.3",
-  "description": "Fast real-time simulation framework for testing Hyperlane warp route rebalancers",
-  "keywords": [
-    "hyperlane",
-    "rebalancer",
-    "simulation",
-    "testing",
-    "warp-route"
-  ],
+  "name": "@hyperlane-xyz/llm-rebalancer",
+  "version": "0.1.0",
+  "description": "Skill-first LLM rebalancer for classic and multi-collateral warp routes",
   "license": "Apache-2.0",
   "author": "Abacus Works, Inc.",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "files": [
-    "dist",
-    "src"
-  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "hyperlane-llm-rebalancer": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "skills"
+  ],
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist cache",
     "dev": "tsc --watch",
-    "generate-scenarios": "tsx scripts/generate-scenarios.ts",
     "lint": "eslint -c ./eslint.config.mjs ./src",
-    "format": "oxfmt --write ./src",
+    "format": "oxfmt --write ./src ./test",
     "test": "mocha --config .mocharc.json './test/**/*.test.ts' --exit",
-    "test:ci": "pnpm test"
+    "test:ci": "pnpm test",
+    "start": "node dist/cli.js",
+    "start:dev": "tsx src/cli.ts",
+    "inspect": "tsx src/inspect.ts"
   },
   "dependencies": {
-    "@hyperlane-xyz/core": "workspace:*",
-    "@hyperlane-xyz/llm-rebalancer": "workspace:*",
-    "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/rebalancer": "workspace:*",
-    "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "ethers": "catalog:",
     "pino": "catalog:",
-    "pino-pretty": "catalog:",
+    "pg": "^8.17.2",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@hyperlane-xyz/eslint-config": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
-    "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
     "@types/node": "catalog:",
+    "@types/pg": "^8.15.5",
     "chai": "catalog:",
-    "chai-as-promised": "catalog:",
     "eslint": "catalog:",
     "mocha": "catalog:",
-    "testcontainers": "catalog:",
+    "oxfmt": "catalog:",
+    "ts-node": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   }
 }
