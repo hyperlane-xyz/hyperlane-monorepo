@@ -157,7 +157,7 @@ export class RadixCollateralTokenWriter
     }
 
     // We don't transfer ownership here because after deployment the token needs to be
-    // enrolled with the other tokens deployed and only the owner can
+    // enrolled with the other tokens deployed and only the owner can perform that enrollment.
 
     const deployedArtifact: ArtifactDeployed<
       RawCollateralWarpArtifactConfig,
