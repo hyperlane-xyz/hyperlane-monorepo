@@ -379,6 +379,37 @@ export function isZeroishAddress(address: Address) {
   );
 }
 
+/**
+ * Compares two optional addresses, treating undefined and zeroish addresses as equivalent.
+ * Useful for comparing optional contract addresses (ISM, hooks, etc.) where both
+ * undefined and zero address mean "not set" or "use default".
+ *
+ * @param a1 First address (can be undefined)
+ * @param a2 Second address (can be undefined)
+ * @param eqFn Protocol-specific address equality function (e.g., eqAddressEvm, eqAddressRadix)
+ * @returns true if addresses are equivalent (both unset/zeroish or both set to same address)
+ */
+export function eqOptionalAddress(
+  a1: Address | undefined,
+  a2: Address | undefined,
+  eqFn: (a1: Address, a2: Address) => boolean,
+): boolean {
+  const formatAddress = (addr?: Address) =>
+    !addr || isZeroishAddress(addr) ? undefined : addr;
+
+  const normalized1 = formatAddress(a1);
+  const normalized2 = formatAddress(a2);
+
+  // Both undefined/zeroish or same string
+  if (normalized1 === normalized2) return true;
+
+  // One is undefined/zeroish, other is not
+  if (!normalized1 || !normalized2) return false;
+
+  // Both are real addresses, use protocol-specific comparison
+  return eqFn(normalized1, normalized2);
+}
+
 export function shortenAddress(address: Address, capitalize?: boolean) {
   if (!address) return '';
   if (address.length < 8) return address;
