@@ -11,6 +11,7 @@ import {
     getAbiItem,
     isHex,
     toEventSelector,
+    toFunctionSelector,
     toHex,
 } from "viem";
 import type {
@@ -372,6 +373,10 @@ function getFunctionSignature(fn: AbiFunction): string {
         .join(",")})`;
 }
 
+function getFunctionSelector(fn: AbiFunction): Hex {
+    return toFunctionSelector(getFunctionSignature(fn));
+}
+
 function getConstructorInputs(abi: Abi) {
     const ctor = abi.find((item) => item.type === "constructor");
     if (!ctor || ctor.type !== "constructor") return [];
@@ -419,7 +424,7 @@ function buildInterfaceFunctions(abi: Abi) {
 
     for (const fn of entries) {
         const signature = getFunctionSignature(fn);
-        const selector = encodeFunctionCallData(fn, []).slice(0, 10) as Hex;
+        const selector = getFunctionSelector(fn);
         const fragment: InterfaceFunctionEncoder = {
             name: fn.name,
             signature,
@@ -443,10 +448,7 @@ function getFunctionAbiBySelector(
     const selector = data.slice(0, 10).toLowerCase();
     return abi.find((item): item is AbiFunction => {
         if (item.type !== "function") return false;
-        return (
-            encodeFunctionCallData(item, []).slice(0, 10).toLowerCase() ===
-            selector
-        );
+        return getFunctionSelector(item).toLowerCase() === selector;
     });
 }
 
@@ -528,10 +530,17 @@ export function createInterface<TAbi extends Abi>(
             if (!fn) {
                 throw new Error(`Function ${functionName} not found`);
             }
+            const outputs = fn.outputs ?? [];
+            const normalizedResult =
+                outputs.length === 0
+                    ? []
+                    : outputs.length === 1
+                      ? values[0]
+                      : [...values];
             return encodeFunctionResult({
                 abi: getSingleFunctionAbi(fn),
                 functionName: fn.name,
-                result: [...values],
+                result: normalizedResult,
             });
         },
         encodeFilterTopics(eventNameOrFragment, args = []) {
@@ -579,7 +588,7 @@ export function createInterface<TAbi extends Abi>(
                 throw new Error(`Function ${parsed.functionName} not found`);
             }
             const signature = getFunctionSignature(parsedFn);
-            const sighash = encodeFunctionCallData(parsedFn, []).slice(0, 10);
+            const sighash = getFunctionSelector(parsedFn);
             return {
                 name: parsed.functionName,
                 signature,
@@ -628,7 +637,7 @@ export function createInterface<TAbi extends Abi>(
                     `Function ${functionNameOrSignature} not found`,
                 );
             }
-            return encodeFunctionCallData(fn, []).slice(0, 10) as Hex;
+            return getFunctionSelector(fn);
         },
     } as ViemInterface;
 }
