@@ -117,8 +117,8 @@ describe('hyperlane warp send e2e tests', async function () {
 
     const [tokenBalanceOnChain2Before, tokenBalanceOnChain3Before] =
       await Promise.all([
-        token.callStatic.balanceOf(walletChain2.address),
-        synthetic.callStatic.balanceOf(walletChain3.address),
+        token.balanceOf(walletChain2.address),
+        synthetic.balanceOf(walletChain3.address),
       ]);
 
     const { stdout, exitCode } = await hyperlaneWarpSendRelay({
@@ -131,8 +131,8 @@ describe('hyperlane warp send e2e tests', async function () {
 
     let [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
       await Promise.all([
-        token.callStatic.balanceOf(walletChain2.address),
-        synthetic.callStatic.balanceOf(walletChain3.address),
+        token.balanceOf(walletChain2.address),
+        synthetic.balanceOf(walletChain3.address),
       ]);
 
     expect(lt(tokenBalanceOnChain2After, tokenBalanceOnChain2Before)).to.be
@@ -150,8 +150,8 @@ describe('hyperlane warp send e2e tests', async function () {
     expect(stdoutChains).to.include(WarpSendLogs.SUCCESS);
 
     [tokenBalanceOnChain2After, tokenBalanceOnChain3After] = await Promise.all([
-      token.callStatic.balanceOf(walletChain2.address),
-      synthetic.callStatic.balanceOf(walletChain3.address),
+      token.balanceOf(walletChain2.address),
+      synthetic.balanceOf(walletChain3.address),
     ]);
 
     // Test with --round-trip parameter with --chains
@@ -271,8 +271,8 @@ describe('hyperlane warp send e2e tests', async function () {
 
       const [tokenBalanceOnChain2Before, tokenBalanceOnChain3Before] =
         await Promise.all([
-          token.callStatic.balanceOf(walletChain2.address),
-          synthetic.callStatic.balanceOf(walletChain3.address),
+          token.balanceOf(walletChain2.address),
+          synthetic.balanceOf(walletChain3.address),
         ]);
 
       const { stdout, exitCode } = await hyperlaneWarpSendRelay({
@@ -287,8 +287,8 @@ describe('hyperlane warp send e2e tests', async function () {
 
       const [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
         await Promise.all([
-          token.callStatic.balanceOf(walletChain2.address),
-          synthetic.callStatic.balanceOf(walletChain3.address),
+          token.balanceOf(walletChain2.address),
+          synthetic.balanceOf(walletChain3.address),
         ]);
 
       const protocolFeeAmount =
@@ -347,8 +347,8 @@ describe('hyperlane warp send e2e tests', async function () {
 
     const [tokenBalanceOnChain2Before, tokenBalanceOnChain3Before] =
       await Promise.all([
-        tokenChain2.callStatic.balanceOf(walletChain2.address),
-        tokenChain3.callStatic.balanceOf(walletChain3.address),
+        tokenChain2.balanceOf(walletChain2.address),
+        tokenChain3.balanceOf(walletChain3.address),
       ]);
 
     const { stdout } = await hyperlaneWarpSendRelay({
@@ -361,8 +361,8 @@ describe('hyperlane warp send e2e tests', async function () {
 
     const [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
       await Promise.all([
-        tokenChain2.callStatic.balanceOf(walletChain2.address),
-        tokenChain3.callStatic.balanceOf(walletChain3.address),
+        tokenChain2.balanceOf(walletChain2.address),
+        tokenChain3.balanceOf(walletChain3.address),
       ]);
 
     expect(lt(tokenBalanceOnChain2After, tokenBalanceOnChain2Before)).to.be
@@ -403,7 +403,7 @@ describe('hyperlane warp send e2e tests', async function () {
     const [nativeBalanceOnChain2Before, syntheticBalanceOnChain3Before] =
       await Promise.all([
         providerChain2.getBalance(walletChain2.address),
-        synthetic.callStatic.balanceOf(walletChain3.address),
+        synthetic.balanceOf(walletChain3.address),
       ]);
 
     const { stdout, exitCode } = await hyperlaneWarpSendRelay({
@@ -418,7 +418,7 @@ describe('hyperlane warp send e2e tests', async function () {
     const [nativeBalanceOnChain2After, syntheticBalanceOnChain3After] =
       await Promise.all([
         providerChain2.getBalance(walletChain2.address),
-        synthetic.callStatic.balanceOf(walletChain3.address),
+        synthetic.balanceOf(walletChain3.address),
       ]);
 
     expect(lt(nativeBalanceOnChain2After, nativeBalanceOnChain2Before)).to.be
@@ -567,8 +567,8 @@ describe('hyperlane warp send e2e tests', async function () {
 
     const [tokenBalanceOnChain2Before, tokenBalanceOnChain3Before] =
       await Promise.all([
-        tokenChain2.callStatic.balanceOf(walletChain2.address),
-        tokenChain3.callStatic.balanceOf(walletChain3.address),
+        tokenChain2.balanceOf(walletChain2.address),
+        tokenChain3.balanceOf(walletChain3.address),
       ]);
 
     const { exitCode, stdout } = await hyperlaneWarpSendRelay({
@@ -582,8 +582,8 @@ describe('hyperlane warp send e2e tests', async function () {
 
     const [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
       await Promise.all([
-        tokenChain2.callStatic.balanceOf(walletChain2.address),
-        tokenChain3.callStatic.balanceOf(walletChain3.address),
+        tokenChain2.balanceOf(walletChain2.address),
+        tokenChain3.balanceOf(walletChain3.address),
       ]);
 
     expect(eq(tokenBalanceOnChain2After, tokenBalanceOnChain2Before)).to.be

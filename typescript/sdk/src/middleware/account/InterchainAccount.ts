@@ -435,13 +435,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       });
     }
 
-    const callArgsForContract = [
-      remoteDomain,
-      remoteRouter as Hex,
-      remoteIsm as Hex,
-      formattedCalls,
-      resolvedHookMetadata as Hex,
-    ] as const;
     const callArgsForViem = [
       remoteDomain,
       remoteRouter as Hex,
@@ -449,22 +442,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       formattedCalls.map((call) => [call.to, call.value, call.data] as const),
       resolvedHookMetadata as Hex,
     ] as const;
-
-    const routerWithPopulate = localRouter as unknown as {
-      populateTransaction?: {
-        [key: string]: (
-          ...args: readonly unknown[]
-        ) => Promise<EvmTransactionLike>;
-      };
-    };
-    const populateCall =
-      routerWithPopulate.populateTransaction?.[
-        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
-      ];
-    if (typeof populateCall === 'function') {
-      const tx = await populateCall(...callArgsForContract);
-      return { ...tx, value: quote };
-    }
 
     return {
       to: localRouter.address ?? config.localRouter,

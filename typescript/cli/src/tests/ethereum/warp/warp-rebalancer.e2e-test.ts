@@ -437,11 +437,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   async function waitForSentTransferRemoteEvent(
     bridgeContract: {
-      filters: {
-        SentTransferRemote: () => unknown;
-      };
+      address: string;
       queryFilter: (
-        filter: unknown,
+        filter: {
+          address: string;
+          eventName: string;
+          args: readonly unknown[];
+        },
         fromBlock?: unknown,
         toBlock?: unknown,
       ) => Promise<Array<{ args?: unknown }>>;
@@ -456,7 +458,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const endTime = Date.now() + timeoutMs;
     while (Date.now() < endTime) {
       const events = await bridgeContract.queryFilter(
-        bridgeContract.filters.SentTransferRemote(),
+        {
+          address: bridgeContract.address,
+          eventName: 'SentTransferRemote',
+          args: [],
+        },
         0,
       );
       const latestEvent = events[events.length - 1];

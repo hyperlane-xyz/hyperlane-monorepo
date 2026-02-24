@@ -371,7 +371,6 @@ export class EvmXERC20Module extends HyperlaneModule<
       );
       const lockboxWithMethods = lockbox as unknown as {
         XERC20?: () => Promise<unknown>;
-        callStatic?: { XERC20?: () => Promise<unknown> };
         interface?: {
           encodeFunctionData(functionName: string): string;
           decodeFunctionResult(
@@ -383,10 +382,6 @@ export class EvmXERC20Module extends HyperlaneModule<
 
       if (typeof lockboxWithMethods.XERC20 === 'function') {
         xERC20Address = String(await lockboxWithMethods.XERC20()) as Address;
-      } else if (typeof lockboxWithMethods.callStatic?.XERC20 === 'function') {
-        xERC20Address = String(
-          await lockboxWithMethods.callStatic.XERC20(),
-        ) as Address;
       } else {
         assert(
           lockboxWithMethods.interface,

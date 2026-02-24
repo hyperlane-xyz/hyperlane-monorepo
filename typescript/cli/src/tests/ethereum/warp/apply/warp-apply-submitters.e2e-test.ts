@@ -180,7 +180,7 @@ describe('hyperlane warp apply with submitters', async function () {
       chain2Signer,
     );
 
-    chain3IcaAddress = await chain2IcaRouter.callStatic[
+    chain3IcaAddress = await chain2IcaRouter[
       'getRemoteInterchainAccount(address,address,address)'
     ](
       initialOwnerAddress,
