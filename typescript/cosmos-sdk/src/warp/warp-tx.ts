@@ -148,17 +148,20 @@ export function getWarpTokenUpdateTxs<TConfig extends RawWarpArtifactConfig>(
   const newIsm = expectedConfig.interchainSecurityModule?.deployed.address;
 
   if (!eqOptionalAddress(currentIsm, newIsm, eqAddressCosmos)) {
-    if (newIsm) {
-      const setIsmTx = getSetTokenIsmTx(signerAddress, {
-        tokenAddress: deployed.address,
-        ismAddress: newIsm,
-      });
+    assert(
+      newIsm && !isZeroishAddress(newIsm),
+      'Cosmos does not support resetting the ism to the default one yet',
+    );
 
-      updateTxs.push({
-        ...setIsmTx,
-        annotation: 'Updating token ISM',
-      });
-    }
+    const setIsmTx = getSetTokenIsmTx(signerAddress, {
+      tokenAddress: deployed.address,
+      ismAddress: newIsm,
+    });
+
+    updateTxs.push({
+      ...setIsmTx,
+      annotation: 'Updating token ISM',
+    });
   }
 
   // Compute router updates
