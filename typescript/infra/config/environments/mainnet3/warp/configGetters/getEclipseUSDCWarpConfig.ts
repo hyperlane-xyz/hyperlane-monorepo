@@ -6,7 +6,7 @@ import {
   TokenType,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getChainAddresses } from '../../../../registry.js';
@@ -146,15 +146,13 @@ export interface EclipseUSDCWarpConfigOptions {
   ownersByChain: Record<DeploymentChain, string>;
   programIds: { eclipsemainnet: string; solanamainnet: string };
   tokenMetadata?: { symbol: string; name: string };
-  proxyAdminOverride?: Partial<Record<DeploymentChain, string>>;
 }
 
 export const buildEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   options: EclipseUSDCWarpConfigOptions,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const { ownersByChain, programIds, tokenMetadata, proxyAdminOverride } =
-    options;
+  const { ownersByChain, programIds, tokenMetadata } = options;
 
   const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
@@ -168,6 +166,7 @@ export const buildEclipseUSDCWarpConfig = async (
 
   for (const chain of evmDeploymentChains) {
     let chainConfig: HypTokenRouterConfig;
+    const proxyAdmin = { owner: awSafes[chain] };
 
     if (rebalanceableSet.has(chain)) {
       const baseConfig = getRebalancingUSDCConfigForChain(
@@ -186,6 +185,7 @@ export const buildEclipseUSDCWarpConfig = async (
       chainConfig = {
         ...baseConfig,
         ...tokenMetadata,
+        proxyAdmin,
         tokenFee: getFixedRoutingFeeConfig(
           getWarpFeeOwner(chain),
           destinations,
@@ -202,13 +202,9 @@ export const buildEclipseUSDCWarpConfig = async (
         type: TokenType.collateral,
         token: usdcToken,
         owner: ownersByChain[chain],
+        proxyAdmin,
         mailbox: routerConfig[chain].mailbox,
       };
-    }
-
-    const proxyAdmin = proxyAdminOverride?.[chain];
-    if (proxyAdmin) {
-      chainConfig.ownerOverrides = { proxyAdmin };
     }
 
     configs.push([chain, chainConfig]);
@@ -243,22 +239,11 @@ export const buildEclipseUSDCWarpConfig = async (
 
 export const getEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const proxyAdminOverride = Object.fromEntries(
-    evmDeploymentChains.map((chain) => {
-      const safe = awSafes[chain];
-      assert(safe, `AW safe not defined for ${chain}`);
-
-      return [chain, safe];
-    }),
-  );
-
-  return buildEclipseUSDCWarpConfig(routerConfig, {
+): Promise<ChainMap<HypTokenRouterConfig>> =>
+  buildEclipseUSDCWarpConfig(routerConfig, {
     ownersByChain: productionOwnersByChain,
     programIds: PRODUCTION_PROGRAM_IDS,
-    proxyAdminOverride,
   });
-};
 
 // Strategies
 export const getUSDCEclipseFileSubmitterStrategyConfig = () =>
