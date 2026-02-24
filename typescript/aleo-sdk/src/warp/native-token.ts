@@ -35,9 +35,10 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
-export class AleoNativeTokenReader
-  implements ArtifactReader<RawNativeWarpArtifactConfig, DeployedWarpAddress>
-{
+export class AleoNativeTokenReader implements ArtifactReader<
+  RawNativeWarpArtifactConfig,
+  DeployedWarpAddress
+> {
   constructor(
     protected readonly aleoClient: AnyAleoNetworkClient,
     protected readonly onChainArtifactManagers: OnChainArtifactManagers,

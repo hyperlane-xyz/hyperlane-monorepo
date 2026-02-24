@@ -30,10 +30,10 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
-export class CosmosCollateralTokenReader
-  implements
-    ArtifactReader<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
-{
+export class CosmosCollateralTokenReader implements ArtifactReader<
+  RawCollateralWarpArtifactConfig,
+  DeployedWarpAddress
+> {
   constructor(protected readonly query: CosmosWarpQueryClient) {}
 
   async read(

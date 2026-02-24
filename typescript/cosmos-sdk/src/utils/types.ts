@@ -27,14 +27,12 @@ export interface BaseCosmosWarpTokenConfig {
   decimals: number; // 0 on Cosmos
 }
 
-export interface CosmosCollateralWarpTokenConfig
-  extends BaseCosmosWarpTokenConfig {
+export interface CosmosCollateralWarpTokenConfig extends BaseCosmosWarpTokenConfig {
   type: AltVM.TokenType.collateral;
   token: string; // origin denom
 }
 
-export interface CosmosSyntheticWarpTokenConfig
-  extends BaseCosmosWarpTokenConfig {
+export interface CosmosSyntheticWarpTokenConfig extends BaseCosmosWarpTokenConfig {
   type: AltVM.TokenType.synthetic;
 }
 

@@ -28,10 +28,10 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
-export class RadixCollateralTokenReader
-  implements
-    ArtifactReader<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
-{
+export class RadixCollateralTokenReader implements ArtifactReader<
+  RawCollateralWarpArtifactConfig,
+  DeployedWarpAddress
+> {
   constructor(
     protected readonly gateway: GatewayApiClient,
     protected readonly base: RadixBase,

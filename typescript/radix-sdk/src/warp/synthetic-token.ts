@@ -28,9 +28,10 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
-export class RadixSyntheticTokenReader
-  implements ArtifactReader<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
-{
+export class RadixSyntheticTokenReader implements ArtifactReader<
+  RawSyntheticWarpArtifactConfig,
+  DeployedWarpAddress
+> {
   constructor(
     protected readonly gateway: GatewayApiClient,
     protected readonly base: RadixBase,

@@ -97,15 +97,13 @@ export interface BaseRadixWarpTokenConfig<TType extends RadixWarpTokenType> {
   type: TType;
 }
 
-export interface RadixSyntheticWarpTokenConfig
-  extends BaseRadixWarpTokenConfig<'Synthetic'> {
+export interface RadixSyntheticWarpTokenConfig extends BaseRadixWarpTokenConfig<'Synthetic'> {
   name: string;
   symbol: string;
   decimals: number;
 }
 
-export interface RadixCollateralWarpTokenConfig
-  extends BaseRadixWarpTokenConfig<'Collateral'> {
+export interface RadixCollateralWarpTokenConfig extends BaseRadixWarpTokenConfig<'Collateral'> {
   token: string;
 }
 

@@ -214,12 +214,11 @@ export type DeployedRawWarpArtifact = ArtifactDeployed<
  * Should be used to implement an object/closure or class that individually deploys
  * warp tokens on chain
  */
-export interface IRawWarpArtifactManager
-  extends IArtifactManager<
-    WarpType,
-    RawWarpArtifactConfigs,
-    DeployedWarpAddress
-  > {
+export interface IRawWarpArtifactManager extends IArtifactManager<
+  WarpType,
+  RawWarpArtifactConfigs,
+  DeployedWarpAddress
+> {
   /**
    * Read any warp token by detecting its type and delegating to the appropriate reader.
    * This is the generic entry point for reading warp tokens of unknown types.
