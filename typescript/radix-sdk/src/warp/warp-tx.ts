@@ -16,6 +16,7 @@ import {
   computeRemoteRoutersUpdates,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
+  assert,
   eqAddressRadix,
   eqOptionalAddress,
   isZeroishAddress,
@@ -101,7 +102,11 @@ export async function getSetTokenOwnerTx(
 
   const ownershipInfo = getComponentOwnershipInfo(tokenAddress, tokenDetails);
   const resourceAddress =
-    ownershipInfo.rule.access_rule.proof_rule.requirement.resource;
+    ownershipInfo.rule?.access_rule?.proof_rule?.requirement?.resource;
+  assert(
+    resourceAddress,
+    `Expected ownershipInfo.rule.access_rule.proof_rule.requirement.resource for token ${tokenAddress}`,
+  );
 
   return base.transfer({
     from_address: fromAddress,
