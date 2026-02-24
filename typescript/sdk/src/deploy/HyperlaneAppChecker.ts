@@ -1,4 +1,4 @@
-import { Contract, utils } from 'ethers';
+import { Contract, keccak256 } from 'ethers';
 
 import {
   Ownable,
@@ -103,20 +103,21 @@ export abstract class HyperlaneAppChecker<
   ): Promise<void> {
     // expectedProxyAdminAddress may be undefined, this means that proxyAdmin is not set in the config/not known at deployment time
     const expectedProxyAdminAddress =
-      this.app.getContracts(chain).proxyAdmin?.address;
+      this.app.getContracts(chain).proxyAdmin?.target as Address | undefined;
     const provider = this.multiProvider.getProvider(chain);
 
     const contracts = objFilter(
       this.app.getContracts(chain),
       (_name, contract: Contract): contract is Contract =>
-        !isZeroishAddress(contract.address),
+        !isZeroishAddress(contract.target as Address),
     );
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
-        if (await isProxy(provider, contract.address)) {
+        const contractAddress = contract.target as Address;
+        if (await isProxy(provider, contractAddress)) {
           const actualProxyAdminAddress = await proxyAdmin(
             provider,
-            contract.address,
+            contractAddress,
           );
 
           if (expectedProxyAdminAddress) {
@@ -130,7 +131,7 @@ export abstract class HyperlaneAppChecker<
                 name,
                 expected: expectedProxyAdminAddress,
                 actual: actualProxyAdminAddress,
-                proxyAddress: contract.address,
+                proxyAddress: contractAddress,
               } as ProxyAdminViolation);
             }
           } else {
@@ -174,7 +175,7 @@ export abstract class HyperlaneAppChecker<
       this.multiProvider.getProvider(chain),
     );
 
-    const minDelay = (await timelockController.getMinDelay()).toNumber();
+    const minDelay = Number(await timelockController.getMinDelay());
 
     if (minDelay !== upgradeConfig.timelock.delay) {
       const violation: TimelockControllerViolation = {
@@ -241,7 +242,7 @@ export abstract class HyperlaneAppChecker<
   ): Promise<void> {
     const provider = this.multiProvider.getProvider(chain);
     const bytecode = await provider.getCode(address);
-    const bytecodeHash = utils.keccak256(
+    const bytecodeHash = keccak256(
       modifyBytecodePriorToHash(this.removeBytecodeMetadata(bytecode)),
     );
     if (!expectedBytecodeHashes.includes(bytecodeHash)) {
