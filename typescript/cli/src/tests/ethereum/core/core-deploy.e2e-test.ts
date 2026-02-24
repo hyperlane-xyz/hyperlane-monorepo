@@ -55,7 +55,7 @@ describe('hyperlane core deploy e2e tests', async function () {
     const wallet = new Wallet(ANVIL_KEY);
     signer = wallet.connect(provider);
 
-    initialOwnerAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+    initialOwnerAddress = await signer.getAddress();
 
     const coreInputConfig: CoreConfig = readYamlOrJson(CORE_CONFIG_PATH);
     configOwnerAddress = coreInputConfig.owner;
@@ -93,8 +93,8 @@ describe('hyperlane core deploy e2e tests', async function () {
       expect(finalOutput.exitCode).to.equal(0);
 
       const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
-      expect(coreConfig.owner).to.equal(initialOwnerAddress);
-      expect(coreConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);
+      expect(coreConfig.owner).to.equal(configOwnerAddress);
+      expect(coreConfig.proxyAdmin?.owner).to.equal(configOwnerAddress);
       // Assuming that the ProtocolFeeHook is used for deployment
       const requiredHookConfig = coreConfig.requiredHook as Exclude<
         CoreConfig['requiredHook'],
@@ -102,7 +102,7 @@ describe('hyperlane core deploy e2e tests', async function () {
       >;
       expect(requiredHookConfig.type).to.equal(HookType.PROTOCOL_FEE);
       expect((requiredHookConfig as ProtocolFeeHookConfig).owner).to.equal(
-        initialOwnerAddress,
+        configOwnerAddress,
       );
     });
   });
