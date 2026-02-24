@@ -893,7 +893,7 @@ async function performSend(
   }
 
   const hash = await rpcRequest(runner, 'eth_sendTransaction', [
-    {
+    await withRunnerFrom(runner, {
       ...request,
       value: toHexQuantity(request.value),
       gas: toHexQuantity(request.gas ?? request.gasLimit),
@@ -901,7 +901,7 @@ async function performSend(
       maxFeePerGas: toHexQuantity(request.maxFeePerGas),
       maxPriorityFeePerGas: toHexQuantity(request.maxPriorityFeePerGas),
       nonce: toHexQuantity(request.nonce),
-    },
+    }),
   ]);
   return asTxResponse(runner, hash);
 }
@@ -931,7 +931,7 @@ export function createContractProxy<TAbi extends Abi>(
   runner: RunnerLike,
 ): ViemContractLike<TAbi> {
   const iface = createInterface(abi);
-  let proxiedContract: ViemContractLike<TAbi> | undefined;
+  const contractRef: { current?: ViemContractLike<TAbi> } = {};
 
   const estimateGas = new Proxy(
     {},
@@ -963,7 +963,7 @@ export function createContractProxy<TAbi extends Abi>(
       get(_target, prop) {
         if (typeof prop !== 'string') return undefined;
         return (...args: unknown[]) => {
-          const method = proxiedContract?.[prop];
+          const method = contractRef.current?.[prop];
           if (typeof method !== 'function') {
             throw new Error(`Function ${prop} not found`);
           }
@@ -1080,7 +1080,7 @@ export function createContractProxy<TAbi extends Abi>(
     },
   }) as ViemContractLike<TAbi>;
 
-  proxiedContract = contractProxy;
+  contractRef.current = contractProxy;
   return contractProxy;
 }
 
