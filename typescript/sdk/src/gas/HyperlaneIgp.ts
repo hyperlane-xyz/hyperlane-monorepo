@@ -1,5 +1,3 @@
-import { BigNumber } from 'ethers';
-
 import { InterchainGasPaymaster__factory } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -40,14 +38,14 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   quoteGasPayment(
     origin: ChainName,
     destination: ChainName,
-    gasAmount: BigNumber,
-  ): Promise<BigNumber> {
+    gasAmount: bigint,
+  ): Promise<bigint> {
     const igp = this.getContracts(origin).interchainGasPaymaster;
     return this.quoteGasPaymentForIgp(
       origin,
       destination,
       gasAmount,
-      igp.address,
+      igp.target as Address,
     );
   }
 
@@ -67,14 +65,14 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   quoteGasPaymentForDefaultIsmIgp(
     origin: ChainName,
     destination: ChainName,
-    gasAmount: BigNumber,
-  ): Promise<BigNumber> {
+    gasAmount: bigint,
+  ): Promise<bigint> {
     const igp = this.getContracts(origin).interchainGasPaymaster;
     return this.quoteGasPaymentForIgp(
       origin,
       destination,
       gasAmount,
-      igp.address,
+      igp.target as Address,
     );
   }
 
@@ -94,9 +92,9 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
   protected quoteGasPaymentForIgp(
     origin: ChainName,
     destination: ChainName,
-    gasAmount: BigNumber,
+    gasAmount: bigint,
     interchainGasPaymasterAddress: Address,
-  ): Promise<BigNumber> {
+  ): Promise<bigint> {
     const originProvider = this.multiProvider.getProvider(origin);
     const igp = InterchainGasPaymaster__factory.connect(
       interchainGasPaymasterAddress,

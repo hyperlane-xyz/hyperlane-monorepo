@@ -1,5 +1,3 @@
-import { BigNumber } from 'ethers';
-
 import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode.js';
@@ -37,7 +35,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     const contracts = this.app.getContracts(chain);
     const implementation = await proxyImplementation(
       this.multiProvider.getProvider(chain),
-      contracts.interchainGasPaymaster.address,
+      contracts.interchainGasPaymaster.target as string,
     );
     await this.checkBytecode(
       chain,
@@ -58,7 +56,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
     await this.checkProxy(
       chain,
       'InterchainGasPaymaster proxy',
-      contracts.interchainGasPaymaster.address,
+      contracts.interchainGasPaymaster.target as string,
     );
   }
 
@@ -100,11 +98,10 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         remoteId,
         0,
       );
-      if (!existingOverhead.eq(expectedOverhead)) {
+      if (existingOverhead !== BigInt(expectedOverhead)) {
         const remoteChain = remote as ChainName;
         overheadViolation.actual[remoteChain] = existingOverhead;
-        overheadViolation.expected[remoteChain] =
-          BigNumber.from(expectedOverhead);
+        overheadViolation.expected[remoteChain] = BigInt(expectedOverhead);
       }
     }
 
@@ -144,7 +141,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
       }
       const destinationGasConfigs = await igp.destinationGasConfigs(remoteId);
       const actualGasOracle = destinationGasConfigs.gasOracle;
-      const expectedGasOracle = coreContracts.storageGasOracle.address;
+      const expectedGasOracle = coreContracts.storageGasOracle.target as string;
 
       if (!eqAddress(actualGasOracle, expectedGasOracle)) {
         const remoteChain = remote as ChainName;
