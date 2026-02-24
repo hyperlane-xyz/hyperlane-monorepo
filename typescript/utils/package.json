@@ -69,8 +69,10 @@
   "devDependencies": {
     "@eslint/js": "catalog:",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
     "@types/lodash-es": "catalog:",
     "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
     "@types/sinon": "catalog:",
     "@types/sinon-chai": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",

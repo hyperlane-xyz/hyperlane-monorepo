@@ -53,6 +53,7 @@
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
     "chai": "catalog:",
