@@ -116,7 +116,7 @@ After the first rebalance, save a \`tpl:\` field in context with the command tem
 ## Loop
 
 1. Check previous context for pending actions. If pending, use \`check_hyperlane_delivery\` to verify.
-2. \`get_balances\`. If within tolerance and no pending → \`save_context\` with status=balanced. Done.
+2. \`get_balances\` and \`get_pending_transfers\` (call in parallel). For each destination chain, check: collateral balance >= sum of pending transfer amounts TO that chain. If collateral < pending amount, the transfer is BLOCKED (cannot deliver) — you MUST rebalance to add at least (pending amount - collateral) to that chain, even if weight percentages look within tolerance. Only if all chains have sufficient collateral AND weights are within tolerance → \`save_context\` with status=balanced.
 3. If imbalanced and context has \`tpl:\` → use template with \`get_chain_metadata\` to build command. Otherwise read the appropriate skill from \`.pi/skills/\`.
 4. Execute rebalance, extract messageId, \`save_context\` with status=pending.
 

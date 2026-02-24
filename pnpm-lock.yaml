@@ -1756,6 +1756,9 @@ importers:
 
   typescript/llm-rebalancer:
     dependencies:
+      '@hyperlane-xyz/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@mariozechner/pi-ai':
         specifier: ^0.54.2
         version: 0.54.2(bufferutil@4.0.9)(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@4.1.12)

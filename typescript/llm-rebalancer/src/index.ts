@@ -14,5 +14,10 @@ export type {
 export { InMemoryContextStore, SqliteContextStore } from './context-store.js';
 export type { ContextStore } from './context-store.js';
 export type { RebalancerAgentEvent } from './events.js';
+export { ExplorerPendingTransferProvider } from './explorer-pending-transfers.js';
+export type {
+  PendingTransfer,
+  PendingTransferProvider,
+} from './pending-transfers.js';
 export { buildAgentsPrompt } from './prompt-builder.js';
 export { buildCustomTools } from './tools/index.js';

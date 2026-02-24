@@ -4,8 +4,7 @@
  * Creates a temp working directory, copies skills, writes config + AGENTS.md,
  * and runs Pi agent cycles in a while loop with context persistence.
  *
- * No MockActionTracker needed — the controller auto-tracks rebalances
- * from Dispatch events.
+ * Uses MockActionTracker to expose inflight user transfers via get_pending_transfers tool.
  */
 
 import * as fs from 'fs';
@@ -28,6 +27,8 @@ import type {
   ContextStore,
   CreateSessionOptions,
   CycleResult,
+  PendingTransfer,
+  PendingTransferProvider,
   RebalancerAgentConfig,
   StrategyDescription,
 } from '@hyperlane-xyz/llm-rebalancer';
@@ -37,6 +38,7 @@ import type {
   RebalancerEvent,
   RebalancerSimConfig,
 } from '../types.js';
+import { MockActionTracker } from './MockActionTracker.js';
 
 const logger = pino({ name: 'LLMRebalancerRunner', level: 'info' });
 
@@ -74,6 +76,7 @@ export class LLMRebalancerRunner
   private routeId: string;
   private lastCycleStatus: CycleResult['status'] = 'unknown';
   private agent?: RebalancerAgent;
+  private actionTracker = new MockActionTracker();
 
   /** Model provider (default: 'anthropic') */
   private provider: string;
@@ -150,11 +153,32 @@ export class LLMRebalancerRunner
     // Build strategy from sim config
     this.strategy = this.buildStrategy(config);
 
+    // Build domain → chainName lookup for the adapter
+    const domainToChain: Record<number, string> = {};
+    for (const [name, chain] of Object.entries(this.agentConfig.chains)) {
+      domainToChain[chain.domainId] = name;
+    }
+
+    // Adapter: wraps MockActionTracker as PendingTransferProvider
+    const tracker = this.actionTracker;
+    const pendingTransferProvider: PendingTransferProvider = {
+      async getPendingTransfers(): Promise<PendingTransfer[]> {
+        const transfers = await tracker.getInProgressTransfers();
+        return transfers.map((t) => ({
+          messageId: t.messageId,
+          origin: domainToChain[t.origin] ?? String(t.origin),
+          destination: domainToChain[t.destination] ?? String(t.destination),
+          amount: t.amount.toString(),
+        }));
+      },
+    };
+
     // Build custom tools with agent config closure (includes rebalancerKey)
     const customTools = buildCustomTools(
       this.agentConfig,
       this.contextStore,
       this.routeId,
+      pendingTransferProvider,
     );
 
     this.baseSessionOpts = {
@@ -235,9 +259,8 @@ export class LLMRebalancerRunner
     return super.on(event, listener);
   }
 
-  // No action tracker — controller auto-tracks from Dispatch events
-  getActionTracker(): undefined {
-    return undefined;
+  getActionTracker(): MockActionTracker {
+    return this.actionTracker;
   }
 
   // --- Private ---

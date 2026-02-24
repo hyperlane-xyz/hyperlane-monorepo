@@ -27,6 +27,7 @@
     "format": "oxfmt --write ./src"
   },
   "dependencies": {
+    "@hyperlane-xyz/utils": "workspace:*",
     "@mariozechner/pi-ai": "^0.54.2",
     "@mariozechner/pi-coding-agent": "^0.54.2",
     "@sinclair/typebox": "^0.34.41",

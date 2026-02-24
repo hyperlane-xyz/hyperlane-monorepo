@@ -36,6 +36,8 @@ export interface RebalancerAgentConfig {
   chains: Record<string, ChainConfig>;
   rebalancerAddress: string;
   rebalancerKey: string;
+  /** Hyperlane Explorer GraphQL URL for pending transfer queries */
+  explorerUrl?: string;
 }
 
 /** Strategy description — either prose or structured */
