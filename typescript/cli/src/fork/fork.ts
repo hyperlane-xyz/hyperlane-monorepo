@@ -43,6 +43,22 @@ type EndPoint = string;
 type EvmLog = { topics: Hex[]; data: Hex };
 type EvmTxReceipt = { status?: number; logs: EvmLog[] };
 
+function parseReceiptStatus(status: unknown): number | undefined {
+  if (status === undefined || status === null) return undefined;
+  if (typeof status === 'number') return status;
+  if (typeof status === 'bigint') return Number(status);
+  if (typeof status !== 'string') {
+    throw new Error('Invalid transaction receipt status');
+  }
+
+  if (status === 'success') return 1;
+  if (status === 'reverted') return 0;
+  if (status.startsWith('0x')) return Number(BigInt(status));
+  const parsed = Number(status);
+  if (Number.isFinite(parsed)) return parsed;
+  throw new Error('Invalid transaction receipt status');
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object'
     ? (value as Record<string, unknown>)
@@ -72,12 +88,8 @@ function asEventAbi(signature: string): AbiEvent {
 function asTxReceipt(value: unknown): EvmTxReceipt {
   const receipt = asRecord(value);
   assert(receipt, 'Invalid transaction receipt');
-  const status = receipt.status;
+  const status = parseReceiptStatus(receipt.status);
   const logs = receipt.logs;
-  assert(
-    status === undefined || typeof status === 'number',
-    'Invalid transaction receipt status',
-  );
   assert(
     logs === undefined || Array.isArray(logs),
     'Invalid transaction receipt logs',

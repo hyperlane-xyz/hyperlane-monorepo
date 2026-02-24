@@ -169,6 +169,7 @@ const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
 const DEFAULT_STAGGER_DELAY_MS = 1000; // 1 seconds
 const DEFAULT_PHASE2_WAIT_MULTIPLIER = 20;
+const DEFAULT_PRIORITY_FEE_WEI = 1_500_000_000n;
 
 type HyperlaneProvider = HyperlaneEtherscanProvider | HyperlaneJsonRpcProvider;
 
@@ -375,20 +376,41 @@ export class HyperlaneSmartProvider implements IProviderMethods {
     return rpcHexToBigInt(result);
   }
 
+  async getPriorityFee(): Promise<bigint> {
+    try {
+      const result = await this.perform(
+        ProviderMethod.MaxPriorityFeePerGas,
+        {},
+      );
+      return rpcHexToBigInt(result);
+    } catch {
+      return DEFAULT_PRIORITY_FEE_WEI;
+    }
+  }
+
   async getFeeData(): Promise<{
-    gasPrice: bigint;
-    maxFeePerGas: bigint;
-    maxPriorityFeePerGas: bigint;
+    gasPrice?: bigint;
+    lastBaseFeePerGas?: bigint;
+    maxFeePerGas?: bigint;
+    maxPriorityFeePerGas?: bigint;
   }> {
-    const [gasPrice, maxPriorityFeePerGas] = await Promise.all([
-      this.getGasPrice(),
-      this.perform(ProviderMethod.MaxPriorityFeePerGas, {}).then(
-        rpcHexToBigInt,
-      ),
+    const [block, gasPrice] = await Promise.all([
+      this.getBlock('latest').catch(() => null),
+      this.getGasPrice().catch(() => undefined),
     ]);
+
+    const baseFeePerGas = rpcHexToBigIntOrUndefined(
+      asRecord(block)?.baseFeePerGas,
+    );
+    if (baseFeePerGas === undefined) {
+      return { gasPrice };
+    }
+
+    const maxPriorityFeePerGas = await this.getPriorityFee();
     return {
       gasPrice,
-      maxFeePerGas: gasPrice + maxPriorityFeePerGas,
+      lastBaseFeePerGas: baseFeePerGas,
+      maxFeePerGas: baseFeePerGas * 2n + maxPriorityFeePerGas,
       maxPriorityFeePerGas,
     };
   }
@@ -439,9 +461,17 @@ export class HyperlaneSmartProvider implements IProviderMethods {
       transactionHash,
     })) as Record<string, unknown> | null;
     if (!result) return null;
+    const status = normalizeReceiptStatus(result.status);
+    const transactionIndex = rpcHexToNumberOrUndefined(result.transactionIndex);
+    const logs = Array.isArray(result.logs)
+      ? result.logs.map(normalizeReceiptLog)
+      : result.logs;
     return {
       ...result,
       blockNumber: rpcHexToNumber(result.blockNumber),
+      ...(status !== undefined ? { status } : {}),
+      ...(transactionIndex !== undefined ? { transactionIndex } : {}),
+      ...(logs !== undefined ? { logs } : {}),
     };
   }
 
@@ -563,6 +593,17 @@ export class HyperlaneSmartProvider implements IProviderMethods {
       wait(confirmations?: number): Promise<unknown>;
     }>;
     signMessage(message: string | Uint8Array): Promise<string>;
+    signTypedData(typedData: {
+      domain: Record<string, unknown>;
+      types: Record<string, unknown>;
+      primaryType: string;
+      message: Record<string, unknown>;
+    }): Promise<string>;
+    _signTypedData(
+      domain: Record<string, unknown>,
+      types: Record<string, unknown>,
+      value: Record<string, unknown>,
+    ): Promise<string>;
   } {
     const signer = {
       address,
@@ -594,6 +635,35 @@ export class HyperlaneSmartProvider implements IProviderMethods {
               : `0x${Buffer.from(message, 'utf8').toString('hex')}`
             : `0x${Buffer.from(message).toString('hex')}`;
         return this.send('personal_sign', [data, address]) as Promise<string>;
+      },
+      signTypedData: async (typedData: {
+        domain: Record<string, unknown>;
+        types: Record<string, unknown>;
+        primaryType: string;
+        message: Record<string, unknown>;
+      }) => {
+        const payload = jsonStringifyWithBigInt(typedData);
+        return this.send('eth_signTypedData_v4', [
+          address,
+          payload,
+        ]) as Promise<string>;
+      },
+      _signTypedData: async (
+        domain: Record<string, unknown>,
+        types: Record<string, unknown>,
+        value: Record<string, unknown>,
+      ) => {
+        const primaryType = Object.keys(types).find(
+          (type) => type !== 'EIP712Domain',
+        );
+        if (!primaryType)
+          throw new Error('Typed data types must include a primary type');
+        return signer.signTypedData({
+          domain,
+          types,
+          primaryType,
+          message: value,
+        });
       },
     };
     return signer;
@@ -1018,23 +1088,56 @@ function normalizeNetworkish(network: Networkish): {
 }
 
 function rpcHexToBigInt(value: unknown): bigint {
+  return rpcHexToBigIntOrUndefined(value) ?? 0n;
+}
+
+function rpcHexToBigIntOrUndefined(value: unknown): bigint | undefined {
+  if (value === undefined || value === null) return undefined;
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number') return BigInt(value);
   if (typeof value === 'string') {
     if (value.startsWith('0x')) return BigInt(value);
     return BigInt(value || '0');
   }
-  return 0n;
+  return undefined;
 }
 
 function rpcHexToNumber(value: unknown): number {
+  return rpcHexToNumberOrUndefined(value) ?? 0;
+}
+
+function rpcHexToNumberOrUndefined(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
   if (typeof value === 'number') return value;
   if (typeof value === 'bigint') return Number(value);
   if (typeof value === 'string') {
     if (value.startsWith('0x')) return Number(BigInt(value));
-    return Number(value || 0);
+    const parsed = Number(value || 0);
+    return Number.isFinite(parsed) ? parsed : undefined;
   }
-  return 0;
+  return undefined;
+}
+
+function normalizeReceiptStatus(status: unknown): number | undefined {
+  if (status === 'success') return 1;
+  if (status === 'reverted') return 0;
+  return rpcHexToNumberOrUndefined(status);
+}
+
+function normalizeReceiptLog(log: unknown): unknown {
+  const parsed = asRecord(log);
+  if (!parsed) return log;
+
+  const blockNumber = rpcHexToNumberOrUndefined(parsed.blockNumber);
+  const logIndex = rpcHexToNumberOrUndefined(parsed.logIndex);
+  const transactionIndex = rpcHexToNumberOrUndefined(parsed.transactionIndex);
+
+  return {
+    ...parsed,
+    ...(blockNumber !== undefined ? { blockNumber } : {}),
+    ...(logIndex !== undefined ? { logIndex } : {}),
+    ...(transactionIndex !== undefined ? { transactionIndex } : {}),
+  };
 }
 
 function normalizeRpcTx(tx: Record<string, unknown>): Record<string, unknown> {
@@ -1074,17 +1177,19 @@ function toRpcQuantity(value: unknown): string | undefined {
 
 function jsonStringifyForLogs(value: unknown, space?: number): string {
   try {
-    return JSON.stringify(
-      value,
-      (_key, item) => {
-        if (typeof item === 'bigint') return item.toString();
-        return item;
-      },
-      space,
-    );
+    return JSON.stringify(value, jsonStringifyBigIntReplacer, space);
   } catch {
     return '[unserializable]';
   }
+}
+
+function jsonStringifyWithBigInt(value: unknown): string {
+  return JSON.stringify(value, jsonStringifyBigIntReplacer);
+}
+
+function jsonStringifyBigIntReplacer(_key: string, item: unknown) {
+  if (typeof item === 'bigint') return item.toString();
+  return item;
 }
 
 function isLikelyDuplicateBroadcastError(error: unknown): boolean {
