@@ -1,11 +1,11 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Wallet } from 'ethers';
 import { pino } from 'pino';
 import Sinon, { type SinonStubbedInstance } from 'sinon';
 
 import {
   type ChainName,
+  LocalAccountViemSigner,
   type MultiProvider,
   TokenStandard,
   type WarpCore,
@@ -44,7 +44,9 @@ describe('InventoryRebalancer E2E', () => {
   const SOLANA_DOMAIN = 1399811149;
   const TEST_PRIVATE_KEY =
     '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-  const TEST_WALLET = new Wallet(TEST_PRIVATE_KEY);
+  const TEST_WALLET = new LocalAccountViemSigner(
+    TEST_PRIVATE_KEY as `0x${string}`,
+  );
   const INVENTORY_SIGNER = TEST_WALLET.address;
 
   beforeEach(() => {
@@ -608,7 +610,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).to.include('Gas quote failed');
     });
 
-    it('throws when signer is not a Wallet instance', async () => {
+    it('throws when signer has no private key access', async () => {
       multiProvider.getSigner = Sinon.stub().returns({
         getAddress: Sinon.stub().resolves(INVENTORY_SIGNER),
       });
@@ -641,7 +643,7 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('Wallet');
+      expect(results[0].error).to.include('private key access');
       expect(bridge.execute.called).to.be.false;
     });
   });

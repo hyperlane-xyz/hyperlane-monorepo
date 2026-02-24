@@ -110,7 +110,7 @@ export class SimulationEngine {
       // Execute transfers according to scenario
       await this.executeTransfers(scenario, timing, kpiCollector);
 
-      // Wait for ethers event polling to catch up
+      // Wait for provider event polling to catch up
       await new Promise((r) => setTimeout(r, 200));
 
       // Wait for all deliveries (user transfers + bridge transfers)

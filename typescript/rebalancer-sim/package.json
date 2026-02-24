@@ -36,7 +36,6 @@
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "ethers": "catalog:",
     "pino": "catalog:",
     "pino-pretty": "catalog:",
     "viem": "catalog:",

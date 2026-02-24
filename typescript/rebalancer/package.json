@@ -50,7 +50,6 @@
     "@inquirer/select": "catalog:",
     "@lifi/sdk": "catalog:",
     "bignumber.js": "catalog:",
-    "ethers": "catalog:",
     "express": "^5.1.0",
     "pino": "catalog:",
     "pino-pretty": "catalog:",
@@ -59,8 +58,7 @@
     "viem": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:",
-    "zod-validation-error": "catalog:",
-    "zksync-ethers": "catalog:"
+    "zod-validation-error": "catalog:"
   },
   "devDependencies": {
     "@ethersproject/constants": "*",

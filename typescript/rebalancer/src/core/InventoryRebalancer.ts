@@ -1,5 +1,4 @@
 import type { Logger } from 'pino';
-import { Wallet, type ContractReceipt } from 'ethers';
 
 import {
   type AnnotatedEV5Transaction,
@@ -8,13 +7,10 @@ import {
   HyperlaneCore,
   type InterchainGasQuote,
   type MultiProvider,
-  Token,
   TOKEN_COLLATERALIZED_STANDARDS,
-  TokenAmount,
   type WarpCore,
-  WarpTxCategory,
 } from '@hyperlane-xyz/sdk';
-import { assert, isZeroishAddress } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
 import type {
@@ -36,10 +32,7 @@ import {
   MIN_VIABLE_COST_MULTIPLIER,
   calculateTransferCosts,
 } from '../utils/gasEstimation.js';
-import {
-  getExternalBridgeTokenAddress,
-  isNativeTokenStandard,
-} from '../utils/tokenUtils.js';
+import { isNativeTokenStandard } from '../utils/tokenUtils.js';
 
 /**
  * Buffer percentage to add when bridging inventory.
@@ -61,14 +54,26 @@ const GAS_COST_MULTIPLIER = 20n;
  */
 const MAX_GAS_PERCENT_THRESHOLD = 10n;
 
+type PrivateKeySigner = {
+  privateKey: string;
+};
+
+function getPrivateKeyFromSigner(signer: unknown): string | undefined {
+  if (!signer || typeof signer !== 'object' || !('privateKey' in signer)) {
+    return undefined;
+  }
+  const privateKey = (signer as Partial<PrivateKeySigner>).privateKey;
+  return typeof privateKey === 'string' ? privateKey : undefined;
+}
+
 /**
  * Configuration for the InventoryRebalancer.
  */
 export interface InventoryRebalancerConfig {
   /** EOA address of the inventory signer */
   inventorySigner: string;
-  /** MultiProvider with inventory signer for signing transactions */
-  inventoryMultiProvider: MultiProvider;
+  /** Optional MultiProvider with inventory signer for signing transactions */
+  inventoryMultiProvider?: MultiProvider;
   /** Chains configured for inventory-based rebalancing (for validation) */
   inventoryChains: ChainName[];
 }
@@ -822,11 +827,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     const destinationDomain = this.multiProvider.getDomainId(destination);
 
-    const signingProvider = this.config.inventoryMultiProvider;
-
-    // Get reorgPeriod for confirmation waiting
-    const reorgPeriod =
-      this.multiProvider.getChainMetadata(origin).blocks?.reorgPeriod ?? 32;
+    // Get the hyperlane adapter for the token
+    const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
 
     this.logger.debug(
       {
@@ -841,39 +843,13 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Using pre-calculated gas quote for transferRemote',
     );
 
-    // Convert pre-calculated gas quote to TokenAmount for WarpCore
-    const originChainMetadata = this.multiProvider.getChainMetadata(origin);
-    const igpAddressOrDenom = gasQuote.igpQuote.addressOrDenom;
-    const igpToken =
-      !igpAddressOrDenom || isZeroishAddress(igpAddressOrDenom)
-        ? Token.FromChainMetadataNativeToken(originChainMetadata)
-        : this.warpCore.findToken(origin, igpAddressOrDenom);
-    assert(igpToken, `IGP fee token ${igpAddressOrDenom} is unknown`);
-    const interchainFee = new TokenAmount(gasQuote.igpQuote.amount, igpToken);
-
-    let tokenFeeQuote: TokenAmount | undefined;
-    if (gasQuote.tokenFeeQuote?.amount) {
-      const feeAddress = gasQuote.tokenFeeQuote.addressOrDenom;
-      const feeToken =
-        !feeAddress || isZeroishAddress(feeAddress)
-          ? Token.FromChainMetadataNativeToken(originChainMetadata)
-          : originToken;
-      tokenFeeQuote = new TokenAmount(gasQuote.tokenFeeQuote.amount, feeToken);
-    }
-
-    const originTokenAmount = originToken.amount(amount);
-    const transactions = await this.warpCore.getTransferRemoteTxs({
-      originTokenAmount,
-      destination,
-      sender: this.config.inventorySigner,
+    // Populate the transferRemote transaction
+    const populatedTx = await adapter.populateTransferRemoteTx({
+      destination: destinationDomain,
       recipient: this.config.inventorySigner,
-      interchainFee,
-      tokenFeeQuote,
+      weiAmountOrId: amount,
+      interchainGas: gasQuote,
     });
-    assert(
-      transactions.length > 0,
-      'Expected at least one transaction from WarpCore',
-    );
 
     // Send the transaction using inventory MultiProvider if available
     this.logger.info(
@@ -886,28 +862,24 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Sending transferRemote transaction',
     );
 
-    let receipt: ContractReceipt | undefined;
-    for (const tx of transactions) {
-      this.logger.debug(
-        { origin, destination, category: tx.category },
-        `Sending ${tx.category} transaction`,
-      );
-      const isTransfer = tx.category === WarpTxCategory.Transfer;
-      receipt = await signingProvider.sendTransaction(
-        origin,
-        tx.transaction as AnnotatedEV5Transaction,
-        isTransfer
-          ? {
-              waitConfirmations: reorgPeriod as
-                | number
-                | EthJsonRpcBlockParameterTag,
-            }
-          : undefined,
-      );
-    }
+    // Use inventoryMultiProvider if available, otherwise fall back to multiProvider
+    const signingProvider =
+      this.config.inventoryMultiProvider ?? this.multiProvider;
+
+    // Get reorgPeriod for confirmation waiting
+    const reorgPeriod =
+      this.multiProvider.getChainMetadata(origin).blocks?.reorgPeriod ?? 32;
+
+    // Wait for reorgPeriod confirmations via SDK to ensure Monitor sees balance changes
+    const receipt = await signingProvider.sendTransaction(
+      origin,
+      populatedTx as AnnotatedEV5Transaction,
+      {
+        waitConfirmations: reorgPeriod as number | EthJsonRpcBlockParameterTag,
+      },
+    );
 
     // Extract messageId from the transaction receipt logs
-    assert(receipt, 'Expected receipt from transferRemote transactions');
     const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
     const messageId = dispatchedMessages[0]?.id;
 
@@ -1015,13 +987,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       return rawInventory; // ERC20s don't compete with gas
     }
 
-    // Convert HypNative token addresses to the external bridge's native token representation
+    // Convert HypNative token addresses to LiFi's native ETH representation
     const fromTokenAddress = this.getNativeTokenAddress(externalBridgeType);
-    const toTokenAddress = getExternalBridgeTokenAddress(
-      targetToken,
-      externalBridgeType,
-      this.getNativeTokenAddress.bind(this),
-    );
+    const toTokenAddress = isNativeTokenStandard(targetToken.standard)
+      ? this.getNativeTokenAddress(externalBridgeType)
+      : targetToken.addressOrDenom;
 
     const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
     const targetChainId = Number(this.multiProvider.getChainId(targetChain));
@@ -1134,19 +1104,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
     const targetChainId = Number(this.multiProvider.getChainId(targetChain));
 
-    // Convert HypNative token addresses to the external bridge's native token representation
+    // Convert HypNative token addresses to LiFi's native ETH representation
     // For HypNative tokens, addressOrDenom is the warp route contract, not the native token
-    const fromTokenAddress = getExternalBridgeTokenAddress(
-      sourceToken,
-      externalBridgeType,
-      this.getNativeTokenAddress.bind(this),
-    );
+    const fromTokenAddress = isNativeTokenStandard(sourceToken.standard)
+      ? this.getNativeTokenAddress(externalBridgeType)
+      : sourceToken.addressOrDenom;
 
-    const toTokenAddress = getExternalBridgeTokenAddress(
-      targetToken,
-      externalBridgeType,
-      this.getNativeTokenAddress.bind(this),
-    );
+    const toTokenAddress = isNativeTokenStandard(targetToken.standard)
+      ? this.getNativeTokenAddress(externalBridgeType)
+      : targetToken.addressOrDenom;
 
     this.logger.debug(
       {
@@ -1245,14 +1211,21 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Received LiFi quote for inventory movement',
       );
 
-      const signingProvider = this.config.inventoryMultiProvider;
+      const signingProvider =
+        this.config.inventoryMultiProvider ?? this.multiProvider;
       const signer = signingProvider.getSigner(sourceChain);
+      const signerPrivateKey = getPrivateKeyFromSigner(signer);
+      const signerType =
+        signer && typeof signer === 'object'
+          ? ((signer as { constructor?: { name?: string } }).constructor
+              ?.name ?? 'object')
+          : typeof signer;
       assert(
-        signer instanceof Wallet,
-        `External bridge execution requires a Wallet signer with private key access, got ${signer.constructor.name}`,
+        signerPrivateKey,
+        `External bridge execution requires a signer with private key access, got ${signerType}`,
       );
 
-      const result = await externalBridge.execute(quote, signer.privateKey);
+      const result = await externalBridge.execute(quote, signerPrivateKey);
 
       this.logger.info(
         {
