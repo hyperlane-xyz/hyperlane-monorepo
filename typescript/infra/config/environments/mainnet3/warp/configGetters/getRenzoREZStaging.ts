@@ -3,7 +3,6 @@ import { pick } from '@hyperlane-xyz/utils';
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 import {
-  ezEthValidators,
   getRenzoWarpConfigGenerator,
   renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';

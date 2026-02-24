@@ -21,7 +21,7 @@ jobs:
   cli-install-test:
     strategy:
       matrix:
-        os: ${{ (github.event_name == 'schedule' || inputs.include-windows) && fromJson('["depot-ubuntu-latest", "depot-macos-latest", "depot-windows-2025-8"]') || fromJson('["depot-ubuntu-latest", "depot-macos-latest"]') }}
+        os: ${{ (github.event_name == 'schedule' || inputs.include-windows) && fromJson('["depot-ubuntu-24.04", "depot-macos-15", "depot-windows-2025-8"]') || fromJson('["depot-ubuntu-24.04", "depot-macos-15"]') }}
         node-version: [24, 25]
     runs-on: ${{ matrix.os }}
     steps:

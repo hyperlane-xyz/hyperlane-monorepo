@@ -1,4 +1,3 @@
-import { expect } from 'chai';
 import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -142,7 +141,8 @@ export async function runScenarioWithRebalancers(
             domain.collateralToken,
             deployer,
           );
-          await token.mintTo(domain.warpToken, extraAmount);
+          const mintTx = await token.mintTo(domain.warpToken, extraAmount);
+          await mintTx.wait();
           console.log(
             `  Applied imbalance: +${ethers.utils.formatEther(extraAmount)} tokens to ${chainName}`,
           );

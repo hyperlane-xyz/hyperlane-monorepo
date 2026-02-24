@@ -62,6 +62,8 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
+import { EvmXERC20Module } from './EvmXERC20Module.js';
+import { DeployableTokenType, TokenType } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
 import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
@@ -76,6 +78,7 @@ import {
   derivedIsmAddress,
   isEverclearTokenBridgeConfig,
   isMovableCollateralTokenConfig,
+  isXERC20TokenConfig,
 } from './types.js';
 
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
@@ -157,6 +160,17 @@ export class EvmWarpModule extends HyperlaneModule<
     const actualConfig = await this.read();
     const transactions = [];
 
+    let xerc20Txs: AnnotatedEV5Transaction[] = [];
+    if (isXERC20TokenConfig(expectedConfig)) {
+      const { module, config } = await EvmXERC20Module.fromWarpRouteConfig(
+        this.multiProvider,
+        this.chainName,
+        expectedConfig,
+        this.args.addresses.deployedTokenRoute,
+      );
+      xerc20Txs = await module.update(config);
+    }
+
     /**
      * @remark
      * The order of operations matter
@@ -194,6 +208,8 @@ export class EvmWarpModule extends HyperlaneModule<
 
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
+
+      ...xerc20Txs,
 
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
@@ -316,7 +332,6 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    actualConfig.type;
     if (
       !isMovableCollateralTokenConfig(expectedConfig) ||
       !isMovableCollateralTokenConfig(actualConfig)
@@ -358,7 +373,6 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    actualConfig.type;
     if (
       !isMovableCollateralTokenConfig(expectedConfig) ||
       !isMovableCollateralTokenConfig(actualConfig)
@@ -1127,6 +1141,11 @@ export class EvmWarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
+    assert(
+      expectedConfig.type !== TokenType.unknown,
+      'Cannot upgrade warp route with unknown token type',
+    );
+
     // This should be impossible since we try catch the call to `PACKAGE_VERSION`
     // in `EvmWarpRouteReader.fetchPackageVersion`
     assert(
@@ -1171,10 +1190,11 @@ export class EvmWarpModule extends HyperlaneModule<
       this.chainName,
       expectedConfig,
     );
+    const tokenType = expectedConfig.type as DeployableTokenType;
     const implementation = await deployer.deployContractWithName(
       this.chainName,
-      expectedConfig.type,
-      hypERC20contracts[expectedConfig.type],
+      tokenType,
+      hypERC20contracts[tokenType],
       constructorArgs,
       undefined,
       false,

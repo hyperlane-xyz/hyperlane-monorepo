@@ -42,12 +42,14 @@ export const keyFunderConfig: KeyFunderConfig<
     hyperliquidevmtestnet: '0.1',
     incentivtestnet: '1',
     kyvetestnet: '0',
+    modetestnet: '0.05',
     optimismsepolia: '0.1',
     paradexsepolia: '0',
     polygonamoy: '0.2',
     radixtestnet: '0',
     sepolia: '5',
     starknetsepolia: '0',
+    somniatestnet: '10',
     // no funding for SVM chains
     solanatestnet: '0',
     // no funding for SVM chains

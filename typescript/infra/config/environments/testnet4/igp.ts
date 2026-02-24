@@ -1,11 +1,5 @@
-import {
-  ChainMap,
-  ChainName,
-  HookType,
-  IgpConfig,
-  StorageGasOracleConfig,
-} from '@hyperlane-xyz/sdk';
-import { Address, exclude, objFilter, objMap } from '@hyperlane-xyz/utils';
+import { ChainMap, ChainName, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
+import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
@@ -22,6 +16,11 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote);
+
+  if (remote === 'somniatestnet') {
+    overhead *= 2;
+  }
+
   return overhead;
 }
 

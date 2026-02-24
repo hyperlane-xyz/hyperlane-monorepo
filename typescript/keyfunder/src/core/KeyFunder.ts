@@ -39,14 +39,24 @@ export class KeyFunder {
       chains.map((chain) => this.fundChainWithTimeout(chain)),
     );
 
-    const failures = results.filter((r) => r.status === 'rejected');
+    const failures = results
+      .map((r, i) => ({ result: r, chain: chains[i] }))
+      .filter(
+        (entry): entry is { result: PromiseRejectedResult; chain: string } =>
+          entry.result.status === 'rejected',
+      );
+
     if (failures.length > 0) {
+      const failedChains = failures.map((f) => ({
+        chain: f.chain,
+        error: f.result.reason?.message ?? String(f.result.reason),
+      }));
       this.options.logger.error(
-        { failureCount: failures.length, totalChains: chains.length },
+        { failedChains, totalChains: chains.length },
         'Some chains failed to fund',
       );
       throw new Error(
-        `${failures.length}/${chains.length} chains failed to fund`,
+        `${failures.length}/${chains.length} chains failed to fund: ${failedChains.map((f) => f.chain).join(', ')}`,
       );
     }
   }
@@ -59,6 +69,9 @@ export class KeyFunder {
 
     try {
       await Promise.race([this.fundChain(chain), timeoutPromise]);
+    } catch (error) {
+      this.options.logger.error({ chain, error }, 'Chain funding failed');
+      throw error;
     } finally {
       cleanup();
     }
@@ -74,31 +87,26 @@ export class KeyFunder {
     const startTime = Date.now();
     const logger = this.options.logger.child({ chain });
 
-    try {
-      if (!this.options.skipIgpClaim && chainConfig.igp) {
-        await this.claimFromIgp(chain, chainConfig);
-      }
-
-      const resolvedKeys = this.resolveKeysForChain(chain, chainConfig);
-      if (resolvedKeys.length > 0) {
-        await this.fundKeys(chain, resolvedKeys);
-      }
-
-      if (chainConfig.sweep?.enabled) {
-        await this.sweepExcessFunds(chain, chainConfig);
-      }
-
-      const durationSeconds = (Date.now() - startTime) / 1000;
-      this.options.metrics?.recordOperationDuration(
-        chain,
-        'fund',
-        durationSeconds,
-      );
-      logger.info({ durationSeconds }, 'Chain funding completed');
-    } catch (error) {
-      logger.error({ error }, 'Chain funding failed');
-      throw error;
+    if (!this.options.skipIgpClaim && chainConfig.igp) {
+      await this.claimFromIgp(chain, chainConfig);
     }
+
+    const resolvedKeys = this.resolveKeysForChain(chain, chainConfig);
+    if (resolvedKeys.length > 0) {
+      await this.fundKeys(chain, resolvedKeys);
+    }
+
+    if (chainConfig.sweep?.enabled) {
+      await this.sweepExcessFunds(chain, chainConfig);
+    }
+
+    const durationSeconds = (Date.now() - startTime) / 1000;
+    this.options.metrics?.recordOperationDuration(
+      chain,
+      'fund',
+      durationSeconds,
+    );
+    logger.info({ durationSeconds }, 'Chain funding completed');
   }
 
   private resolveKeysForChain(
@@ -217,6 +225,19 @@ export class KeyFunder {
     const funderBalance = await this.multiProvider
       .getSigner(chain)
       .getBalance();
+
+    if (funderBalance.lt(fundingAmount)) {
+      logger.error(
+        {
+          funderBalance: ethers.utils.formatEther(funderBalance),
+          requiredAmount: ethers.utils.formatEther(fundingAmount),
+        },
+        'Funder balance insufficient to cover funding amount',
+      );
+      throw new Error(
+        `Insufficient funder balance on ${chain}: has ${ethers.utils.formatEther(funderBalance)}, needs ${ethers.utils.formatEther(fundingAmount)}`,
+      );
+    }
 
     logger.info(
       {

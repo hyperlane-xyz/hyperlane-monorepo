@@ -30,6 +30,7 @@ import { strategyCommand } from './src/commands/strategy.js';
 import { submitCommand } from './src/commands/submit.js';
 import { validatorCommand } from './src/commands/validator.js';
 import { warpCommand } from './src/commands/warp.js';
+import { xerc20Command } from './src/commands/xerc20.js';
 import { contextMiddleware, signerMiddleware } from './src/context/context.js';
 import { configureLogger, errorRed } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
@@ -73,6 +74,7 @@ try {
     .command(submitCommand)
     .command(validatorCommand)
     .command(warpCommand)
+    .command(xerc20Command)
     .command(forkCommand)
     .version(VERSION)
     .demandCommand()

@@ -189,6 +189,7 @@ export {
   AggregationHookConfigSchema,
   ArbL2ToL1HookConfig,
   ArbL2ToL1HookSchema,
+  DeployableHookType,
   DerivedHookConfig,
   DomainRoutingHookConfig,
   DomainRoutingHookConfigSchema,
@@ -205,16 +206,19 @@ export {
   IgpSchema,
   MerkleTreeHookConfig,
   MerkleTreeSchema,
+  normalizeUnknownHookTypes,
   OpStackHookConfig,
   OpStackHookSchema,
   PausableHookConfig,
   PausableHookSchema,
   ProtocolFeeHookConfig,
   ProtocolFeeSchema,
+  SafeParseHookConfigSchema,
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
+// Note: MetadataBuilder types are now exported from @hyperlane-xyz/relayer
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
@@ -248,6 +252,7 @@ export {
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfig,
   ArbL2ToL1IsmConfigSchema,
+  DeployableIsmType,
   DeployedIsm,
   DeployedIsmType,
   DerivedIsmConfig,
@@ -261,6 +266,7 @@ export {
   MultisigConfigSchema,
   MultisigIsmConfig,
   MultisigIsmConfigSchema,
+  normalizeUnknownIsmTypes,
   NullIsmConfig,
   OffchainLookupIsmConfig,
   OpStackIsmConfig,
@@ -269,6 +275,7 @@ export {
   PausableIsmConfigSchema,
   RoutingIsmConfig,
   RoutingIsmConfigSchema,
+  SafeParseIsmConfigSchema,
   TrustedRelayerIsmConfig,
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfig,
@@ -688,7 +695,7 @@ export {
 } from './token/adapters/serialization.js';
 export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
-export { TokenType } from './token/config.js';
+export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
@@ -706,6 +713,20 @@ export {
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmWarpModule } from './token/EvmWarpModule.js';
 export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
+export {
+  EvmXERC20Reader,
+  StandardXERC20Limits,
+  VeloXERC20Limits,
+  XERC20Limits,
+  XERC20LimitsMap,
+  limitsAreZero,
+  limitsMatch,
+} from './token/EvmXERC20Reader.js';
+export {
+  EvmXERC20Module,
+  XERC20ModuleAddresses,
+  XERC20ModuleConfig,
+} from './token/EvmXERC20Module.js';
 export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
 export { Token, getCollateralTokenAdapter } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
@@ -787,7 +808,16 @@ export {
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
 } from './token/types.js';
-export { getExtraLockBoxConfigs } from './token/xerc20.js';
+export {
+  deriveBridgesConfig,
+  deriveStandardBridgesConfig,
+  deriveXERC20TokenType,
+  getExtraLockBoxConfigs,
+} from './token/xerc20.js';
+export {
+  CONFIGURATION_CHANGED_EVENT_SELECTOR,
+  XERC20_VS_ABI,
+} from './token/xerc20-abi.js';
 export {
   ChainMap,
   ChainName,
@@ -812,8 +842,15 @@ export {
   ANVIL_RPC_METHODS,
   getLocalProvider,
   impersonateAccount,
+  impersonateAccounts,
+  increaseTime,
+  mine,
   resetFork,
+  revertToSnapshot,
+  setBalance,
   setFork,
+  setStorageAt,
+  snapshot,
   stopImpersonatingAccount,
 } from './utils/fork.js';
 export {
@@ -888,6 +925,8 @@ export {
 } from './signers/svm/solana-web3js.js';
 
 export {
+  OnchainTokenFeeType,
+  onChainTypeToTokenFeeTypeMap,
   TokenFeeType,
   TokenFeeConfig,
   TokenFeeConfigSchema,

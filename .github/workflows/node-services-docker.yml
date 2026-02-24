@@ -3,8 +3,6 @@ name: Build and Push Node Services Images to GCR
 on:
   push:
     branches: [main]
-    tags:
-      - '**'
   pull_request:
     paths:
       - 'typescript/rebalancer/**'
@@ -61,6 +59,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Generate tag data

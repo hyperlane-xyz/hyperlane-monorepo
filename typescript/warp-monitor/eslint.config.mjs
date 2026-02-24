@@ -1,3 +1,7 @@
-import { jsRules, typescriptRules } from '@hyperlane-xyz/eslint-config';
+import {
+  jestRules,
+  jsRules,
+  typescriptRules,
+} from '@hyperlane-xyz/eslint-config';
 
-export default [...jsRules, ...typescriptRules];
+export default [...jsRules, ...typescriptRules, ...jestRules];

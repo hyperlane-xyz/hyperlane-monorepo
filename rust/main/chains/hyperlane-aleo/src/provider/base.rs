@@ -127,6 +127,7 @@ impl JWTBaseHttpClient {
             .connect_timeout(DEFAULT_CONNECT_TIMEOUT)
             .timeout(DEFAULT_REQUEST_TIMEOUT)
             .default_headers(headers)
+            .cookie_store(true)
             .build()
             .map_err(HyperlaneAleoError::from)?;
         let suffix = match network {

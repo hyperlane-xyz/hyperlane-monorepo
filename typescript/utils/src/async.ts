@@ -8,6 +8,60 @@ interface Recoverable {
 }
 
 /**
+ * Lazily initialized async value with deduplication.
+ * Concurrent callers share the same initialization promise.
+ * After successful init, returns cached value immediately.
+ * On error, clears state to allow retry on next call.
+ */
+export class LazyAsync<T> {
+  private promise?: Promise<T>;
+  private value?: T;
+  private hasValue = false;
+  private generation = 0;
+
+  constructor(private readonly initializer: () => Promise<T>) {}
+
+  get(): Promise<T> {
+    if (this.hasValue) return Promise.resolve(this.value as T);
+    this.promise ??= this.initialize(this.generation);
+    return this.promise;
+  }
+
+  reset(): void {
+    this.generation++;
+    this.promise = undefined;
+    this.value = undefined;
+    this.hasValue = false;
+  }
+
+  isInitialized(): boolean {
+    return this.hasValue;
+  }
+
+  peek(): T | undefined {
+    return this.hasValue ? (this.value as T) : undefined;
+  }
+
+  private async initialize(gen: number): Promise<T> {
+    try {
+      const result = await this.initializer();
+      // Only store if generation hasn't changed (no reset during init)
+      if (gen === this.generation) {
+        this.value = result;
+        this.hasValue = true;
+      }
+      return result;
+    } catch (error) {
+      // Only clear promise if generation hasn't changed
+      if (gen === this.generation) {
+        this.promise = undefined;
+      }
+      throw error;
+    }
+  }
+}
+
+/**
  * Return a promise that resolves in ms milliseconds.
  * @param ms Time to wait
  */
@@ -28,10 +82,19 @@ export function timeout<T>(
 ): Promise<T> {
   if (!timeoutMs || timeoutMs <= 0) return promise;
   return new Promise((resolve, reject) => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       reject(new Error(message));
     }, timeoutMs);
-    promise.then(resolve).catch(reject);
+    promise.then(
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
   });
 }
 

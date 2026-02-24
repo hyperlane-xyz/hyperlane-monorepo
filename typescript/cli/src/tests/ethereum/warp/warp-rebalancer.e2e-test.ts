@@ -823,7 +823,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy(tokenChain3.address);
+    ).deploy(tokenChain3.address, chain3Addresses.mailbox);
+    await bridgeContract.initialize(
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+      ANVIL_DEPLOYER_ADDRESS,
+    );
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
@@ -877,7 +882,12 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy(tokenChain3.address);
+    ).deploy(tokenChain3.address, chain3Addresses.mailbox);
+    await bridgeContract.initialize(
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+      ANVIL_DEPLOYER_ADDRESS,
+    );
 
     // Allow bridge
     await chain3CollateralContract.addBridge(
@@ -961,7 +971,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // It will also allow us to mock some token movement
     const bridgeContract = await new MockValueTransferBridge__factory(
       originSigner,
-    ).deploy(tokenChain3.address);
+    ).deploy(tokenChain3.address, chain3Addresses.mailbox);
+    await bridgeContract.initialize(
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+      ANVIL_DEPLOYER_ADDRESS,
+    );
+    await bridgeContract.enrollRemoteRouter(
+      destDomain,
+      addressToBytes32(destContractAddress),
+    );
 
     // Allow bridge
     // This allow the bridge to be used to send the rebalance transaction
@@ -1049,10 +1068,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       destTknAddress,
       destSigner,
     );
-    await destCollateralToken.mintTo(
+    const mintTx = await destCollateralToken.mintTo(
       destContractAddress,
       sentTransferRemote.amount.toString(),
     );
+    await mintTx.wait();
 
     originBalance = await originTkn.balanceOf(originContractAddress);
     destBalance = await destTkn.balanceOf(destContractAddress);
@@ -1207,7 +1227,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // It will also allow us to mock some token movement
       const bridgeContract = await new MockValueTransferBridge__factory(
         originSigner,
-      ).deploy(tokenChain3.address);
+      ).deploy(tokenChain3.address, chain3Addresses.mailbox);
+      await bridgeContract.initialize(
+        ethers.constants.AddressZero,
+        ethers.constants.AddressZero,
+        ANVIL_DEPLOYER_ADDRESS,
+      );
+      await bridgeContract.enrollRemoteRouter(
+        destDomain,
+        addressToBytes32(destContractAddress),
+      );
 
       // Allow bridge
       // This allow the bridge to be used to send the rebalance transaction
@@ -1308,10 +1337,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         destTknAddress,
         destSigner,
       );
-      await destCollateralToken.mintTo(
+      const mintTx = await destCollateralToken.mintTo(
         destContractAddress,
         sentTransferRemote.amount.toString(),
       );
+      await mintTx.wait();
 
       originBalance = await originTkn.balanceOf(originContractAddress);
       destBalance = await destTkn.balanceOf(destContractAddress);

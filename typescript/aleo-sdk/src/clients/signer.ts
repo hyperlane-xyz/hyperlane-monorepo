@@ -222,6 +222,12 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     const mailboxSuffix = await this.getUnusedSuffix(
       'mailbox',
       SUFFIX_LENGTH_LONG,
@@ -741,11 +747,29 @@ export class AleoSigner
     };
   }
 
+  async createProxyAdmin(
+    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
   // ### TX WARP ###
 
   async createNativeToken(
     req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
   ): Promise<AltVM.ResCreateNativeToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     const suffix = req.warpSuffix || this.warpSuffix;
 
     if (suffix) {
@@ -792,6 +816,12 @@ export class AleoSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     const suffix = req.warpSuffix || this.warpSuffix;
 
     if (suffix) {
@@ -838,6 +868,12 @@ export class AleoSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     const suffix = req.warpSuffix || this.warpSuffix;
 
     if (suffix) {

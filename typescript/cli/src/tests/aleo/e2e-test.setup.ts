@@ -4,17 +4,19 @@ import { type StartedTestContainer } from 'testcontainers';
 import { runAleoNode } from '@hyperlane-xyz/aleo-sdk/testing';
 
 import {
-  DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
 
+// Longer timeout for setup: image pull + 2 parallel container startups
+const SETUP_TIMEOUT_MS = 180_000;
+
 let aleoNode1Container: StartedTestContainer | undefined;
 let aleoNode2Container: StartedTestContainer | undefined;
 
 before(async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(SETUP_TIMEOUT_MS);
 
   // Clean up existing chain addresses
   Object.entries(TEST_CHAIN_NAMES_BY_PROTOCOL).forEach(
@@ -46,7 +48,7 @@ beforeEach(() => {
 });
 
 after(async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(SETUP_TIMEOUT_MS);
 
   // Stop both Aleo nodes
   await Promise.all(

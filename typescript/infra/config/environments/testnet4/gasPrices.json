@@ -51,6 +51,10 @@
     "amount": "0.001",
     "decimals": 1
   },
+  "modetestnet": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
   "optimismsepolia": {
     "amount": "0.001000251",
     "decimals": 9
@@ -74,6 +78,10 @@
   "solanatestnet": {
     "amount": "0.01",
     "decimals": 1
+  },
+  "somniatestnet": {
+    "amount": "6.0",
+    "decimals": 9
   },
   "sonicsvmtestnet": {
     "amount": "0.01",

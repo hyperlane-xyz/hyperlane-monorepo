@@ -49,7 +49,8 @@ const fixtures: Fixture<MultisigMetadata>[] = files
     return { decoded, encoded: contents.encoded };
   });
 
-// FIXME: migrate to mocha rules: eslint-disable-next-line jest/no-disabled-tests
+// FIXME: migrate to mocha rules
+// eslint-disable-next-line jest/no-disabled-tests -- intentionally skipped pending migration
 describe.skip('MultisigMetadataBuilder', () => {
   fixtures.forEach((fixture, i) => {
     it(`should encode fixture ${i}`, () => {

@@ -15,8 +15,8 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signer::Signer as _,
-    system_program,
 };
+use solana_system_interface::program as system_program;
 use tracing::{info, instrument};
 
 use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, TransactionSubmitter};
@@ -206,6 +206,7 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
                 payer,
                 self.tx_submitter.clone(),
                 self.conn.priority_fee_oracle.create_oracle(),
+                None, // ALT not used for validator announce
             )
             .await?;
 

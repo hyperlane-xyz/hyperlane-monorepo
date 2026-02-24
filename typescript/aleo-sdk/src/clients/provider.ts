@@ -127,22 +127,37 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     return BigInt(balance);
   }
 
-  async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
+  async getTotalSupply(
+    req: AltVM.ReqGetTotalSupply & { programId?: string },
+  ): Promise<bigint> {
     if (!req.denom) {
       return 0n;
     }
 
-    const result = await this.queryMappingValue(
-      'token_registry.aleo',
-      'registered_tokens',
-      req.denom,
-    );
+    let result = null;
+
+    // The USAD deployment is a special case
+    // It doesn't use the token_registry to mint tokens, but instead has a custom program on Aleo
+    // Query the USAD token program to get the total supply for USAD instead of the token_registry
+    if (req.programId && req.programId === 'hyp_warp_token_usad.aleo') {
+      result = await this.queryMappingValue(
+        'usad_stablecoin.aleo',
+        'token_info',
+        'true',
+      );
+    } else {
+      result = await this.queryMappingValue(
+        'token_registry.aleo',
+        'registered_tokens',
+        req.denom,
+      );
+    }
 
     if (!result) {
       return 0n;
     }
 
-    return result['max_supply'];
+    return result['supply'];
   }
 
   async estimateTransactionFee(
@@ -433,7 +448,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     const { programId } = fromAleoAddress(req.tokenAddress);
 
     const metadata = await this.queryMappingValue(
-      req.tokenAddress,
+      programId,
       'app_metadata',
       'true',
     );
@@ -448,6 +463,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       case AleoTokenType.SYNTHETIC: {
         return this.getTotalSupply({
           denom: metadata['token_id'],
+          programId,
         });
       }
       case AleoTokenType.COLLATERAL: {
@@ -768,6 +784,18 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       privateFee: false,
       inputs: [address, `${localDomain}u32`],
     };
+  }
+
+  async getCreateProxyAdminTransaction(
+    _req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<AleoTransaction> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
+  async getSetProxyAdminOwnerTransaction(
+    _req: AltVM.ReqSetProxyAdminOwner,
+  ): Promise<AleoTransaction> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
   }
 
   // ### GET WARP TXS ###
