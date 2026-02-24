@@ -21,41 +21,7 @@ import {
   isTokenMetadata,
   isXERC20TokenConfig,
 } from './types.js';
-
-type AddressReaderContract = {
-  address: string;
-  [key: string]: unknown;
-  interface: {
-    encodeFunctionData(functionName: string, args?: readonly unknown[]): string;
-    decodeFunctionResult(functionName: string, data: `0x${string}`): unknown;
-  };
-};
-
-async function readAddressWithCall(
-  provider: ReturnType<MultiProvider['getProvider']>,
-  contract: AddressReaderContract,
-  functionName: string,
-): Promise<string> {
-  const contractMethod = contract[functionName];
-  if (typeof contractMethod === 'function') {
-    return String(await (contractMethod as () => Promise<unknown>)());
-  }
-
-  if (typeof (provider as { call?: unknown }).call !== 'function') {
-    throw new Error('Provider does not support call for address read');
-  }
-
-  const result = await provider.call({
-    to: contract.address,
-    data: contract.interface.encodeFunctionData(functionName),
-  });
-  return String(
-    contract.interface.decodeFunctionResult(
-      functionName,
-      result as `0x${string}`,
-    ),
-  );
-}
+import { readAddressWithCall } from './ethCall.js';
 
 export async function deriveTokenMetadata(
   multiProvider: MultiProvider,

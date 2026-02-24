@@ -64,6 +64,7 @@ import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
+import { asHexAddress, performEthCall } from './ethCall.js';
 import {
   CctpTokenConfig,
   CollateralTokenConfig,
@@ -96,6 +97,12 @@ function toNumber(value: unknown): number {
     return Number(value.toString());
   }
   throw new Error(`Unable to convert value to number: ${value}`);
+}
+
+function toBigIntResult(value: unknown, label: string): bigint {
+  if (typeof value === 'bigint') return value;
+  if (Array.isArray(value) && typeof value[0] === 'bigint') return value[0];
+  throw new Error(`Unable to convert value to bigint for ${label}`);
 }
 
 export class EvmWarpRouteReader extends EvmRouterReader {
@@ -434,34 +441,42 @@ export class EvmWarpRouteReader extends EvmRouterReader {
    * @returns The derived token type, which can be one of: collateralVault, collateral, native, or synthetic.
    */
   async deriveTokenType(warpRouteAddress: Address): Promise<TokenType> {
-    const contractTypes: Partial<
-      Record<TokenType, { factory: any; method: string }>
-    > = {
-      [TokenType.collateralVault]: {
+    const contractTypes: Array<{
+      tokenType: TokenType;
+      factory: any;
+      method: string;
+    }> = [
+      {
+        tokenType: TokenType.collateralVault,
         factory: HypERC4626OwnerCollateral__factory,
         method: 'assetDeposited',
       },
-      [TokenType.collateralVaultRebase]: {
+      {
+        tokenType: TokenType.collateralVaultRebase,
         factory: HypERC4626Collateral__factory,
         method: 'NULL_RECIPIENT',
       },
-      [TokenType.XERC20Lockbox]: {
+      {
+        tokenType: TokenType.XERC20Lockbox,
         factory: HypXERC20Lockbox__factory,
         method: 'lockbox',
       },
-      [TokenType.collateralCctp]: {
+      {
+        tokenType: TokenType.collateralCctp,
         factory: TokenBridgeCctpBase__factory,
         method: 'messageTransmitter',
       },
-      [TokenType.collateral]: {
+      {
+        tokenType: TokenType.collateral,
         factory: HypERC20Collateral__factory,
         method: 'wrappedToken',
       },
-      [TokenType.syntheticRebase]: {
+      {
+        tokenType: TokenType.syntheticRebase,
         factory: HypERC4626__factory,
         method: 'collateralDomain',
       },
-    };
+    ];
 
     // Temporarily turn off SmartProvider logging
     // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
@@ -469,9 +484,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     try {
       // First, try checking token specific methods
-      for (const [tokenType, { factory, method }] of Object.entries(
-        contractTypes,
-      )) {
+      for (const { tokenType, factory, method } of contractTypes) {
         try {
           const warpRoute = factory.connect(warpRouteAddress, this.provider);
           await warpRoute[method]();
@@ -498,7 +511,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               );
 
               // Simulate minting tokens from the warp route contract
-              await this.provider.call({
+              await performEthCall(this.provider, {
                 from: warpRouteAddress,
                 to: wrappedToken,
                 data: fiatToken.interface.encodeFunctionData('mint', [
@@ -553,7 +566,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
             }
           }
 
-          return tokenType as TokenType;
+          return tokenType;
         } catch {
           continue;
         }
@@ -670,19 +683,22 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     const readXerc20Limit = async (
       functionName: 'rateLimitPerSecond' | 'bufferCap',
     ): Promise<bigint> => {
-      const result = await this.provider.call({
-        to: xERC20Address as `0x${string}`,
+      const result = await performEthCall(this.provider, {
+        to: xERC20Address,
         data: encodeFunctionData({
           abi: rateLimitsABI,
           functionName,
-          args: [warpRouteAddress as `0x${string}`],
-        }) as `0x${string}`,
+          args: [asHexAddress(warpRouteAddress, 'warpRouteAddress')],
+        }),
       });
-      return decodeFunctionResult({
-        abi: rateLimitsABI,
+      return toBigIntResult(
+        decodeFunctionResult({
+          abi: rateLimitsABI,
+          functionName,
+          data: result,
+        }),
         functionName,
-        data: result as any,
-      }) as bigint;
+      );
     };
 
     try {
