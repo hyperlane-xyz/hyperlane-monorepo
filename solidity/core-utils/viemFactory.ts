@@ -209,6 +209,14 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return isObject(value) ? value : undefined;
 }
 
+function getAccountAddress(account: unknown): string | undefined {
+  if (typeof account === 'string') return account;
+  if (isObject(account) && typeof account.address === 'string') {
+    return account.address;
+  }
+  return undefined;
+}
+
 function getRunnerProvider(runner: RunnerLike): RunnerLike {
   if (!runner || !isObject(runner)) return undefined;
   if ('provider' in runner && isObject(runner.provider)) return runner.provider;
@@ -330,17 +338,13 @@ function splitArgsAndOverrides(
   inputCount: number,
 ): { fnArgs: unknown[]; overrides: Record<string, unknown> } {
   if (args.length <= inputCount) return { fnArgs: [...args], overrides: {} };
-  const maybeOverrides = args[args.length - 1];
-  const looksLikeTrailingOverrides = args.length === inputCount + 1;
-  if (looksLikeTrailingOverrides) {
-    return {
-      fnArgs: [...args.slice(0, args.length - 1)],
-      overrides: isObject(maybeOverrides) ? maybeOverrides : {},
-    };
+  if (args.length !== inputCount + 1) {
+    return { fnArgs: [...args], overrides: {} };
   }
+  const maybeOverrides = args[args.length - 1];
   if (
     isObject(maybeOverrides) &&
-    (looksLikeTrailingOverrides ||
+    (Object.keys(maybeOverrides).length === 0 ||
       Object.keys(maybeOverrides).some((key) => TX_OVERRIDE_KEYS.has(key)))
   ) {
     return {
@@ -477,6 +481,7 @@ function getFunctionAbiBySelector(
   abi: Abi,
   data: string,
 ): AbiFunction | undefined {
+  if (!isHex(data) || data.length < 10) return undefined;
   const selector = data.slice(0, 10).toLowerCase();
   return abi.find((item): item is AbiFunction => {
     if (item.type !== 'function') return false;
@@ -501,7 +506,9 @@ function buildInterfaceEvents(abi: Abi) {
       signature,
       topic: toEventSelector(signature),
     };
-    events[event.name] = fragment;
+    if (!(event.name in events)) {
+      events[event.name] = fragment;
+    }
     events[signature] = fragment;
   }
 
@@ -772,6 +779,17 @@ async function withRunnerFrom(
       // noop: fallback to request without explicit from
     }
   }
+  if (runner && isObject(runner) && 'account' in runner) {
+    const from = getAccountAddress((runner as Record<string, unknown>).account);
+    if (from) return { ...request, from };
+  }
+  const provider = getRunnerProvider(runner);
+  if (provider && isObject(provider) && 'account' in provider) {
+    const from = getAccountAddress(
+      (provider as Record<string, unknown>).account,
+    );
+    if (from) return { ...request, from };
+  }
   return request;
 }
 
@@ -864,8 +882,21 @@ async function performSend(
 ): Promise<SentTxLike> {
   if (runner && isObject(runner)) {
     if (
+      'writeContract' in runner &&
+      typeof runner.writeContract === 'function'
+    ) {
+      const hash = await runner.writeContract(request);
+      return asTxResponse(runner, hash);
+    }
+
+    const hasRunnerAddress =
+      ('getAddress' in runner && typeof runner.getAddress === 'function') ||
+      getAccountAddress((runner as Record<string, unknown>).account) !==
+        undefined;
+    if (
       'sendTransaction' in runner &&
-      typeof runner.sendTransaction === 'function'
+      typeof runner.sendTransaction === 'function' &&
+      hasRunnerAddress
     ) {
       try {
         const sent = await (
@@ -874,30 +905,6 @@ async function performSend(
         return asTxResponse(runner, sent);
       } catch {
         // fall through to other execution paths
-      }
-    }
-    if (
-      'writeContract' in runner &&
-      typeof runner.writeContract === 'function'
-    ) {
-      const hash = await runner.writeContract(request);
-      return asTxResponse(runner, hash);
-    }
-  }
-
-  const provider = getRunnerProvider(runner);
-  if (provider && isObject(provider)) {
-    if (
-      'sendTransaction' in provider &&
-      typeof provider.sendTransaction === 'function'
-    ) {
-      try {
-        const sent = await (
-          provider.sendTransaction as (args: unknown) => Promise<unknown>
-        )(request);
-        return asTxResponse(runner, sent);
-      } catch {
-        // fall through to RPC fallback
       }
     }
   }
