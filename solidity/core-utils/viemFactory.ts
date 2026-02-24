@@ -68,6 +68,22 @@ export type ContractMethodMap<TAbi extends Abi> = {
     [key: string]: UnknownAsyncMethod;
 };
 
+type ContractCallStaticMap<TAbi extends Abi> = {
+    [TName in AnyFunctionNames<TAbi>]: (
+        ...args: readonly unknown[]
+    ) => Promise<unknown>;
+} & {
+    [key: string]: UnknownAsyncMethod;
+};
+
+type ContractPopulateTransactionMap<TAbi extends Abi> = {
+    [TName in AnyFunctionNames<TAbi>]: (
+        ...args: readonly unknown[]
+    ) => Promise<TxRequestLike>;
+} & {
+    [key: string]: (...args: readonly unknown[]) => Promise<TxRequestLike>;
+};
+
 export type ContractEstimateGasMap<TAbi extends Abi> = {
     [TName in AnyFunctionNames<TAbi>]: (
         ...args: readonly unknown[]
@@ -167,6 +183,9 @@ export interface ViemContractLike<TAbi extends Abi = Abi> {
     interface: ViemInterface;
     estimateGas: ContractEstimateGasMap<TAbi>;
     functions: ContractMethodMap<TAbi>;
+    callStatic: ContractCallStaticMap<TAbi>;
+    populateTransaction: ContractPopulateTransactionMap<TAbi>;
+    filters: Record<string, (...args: readonly unknown[]) => Record<string, unknown>>;
     queryFilter: <T = Record<string, unknown>>(
         filter: Record<string, unknown>,
         fromBlock?: unknown,
@@ -693,6 +712,47 @@ async function performRead(
     });
 }
 
+async function performCall(
+    runner: RunnerLike,
+    request: TxRequestLike,
+    fn: AbiFunction,
+): Promise<unknown> {
+    const provider = getRunnerProvider(runner);
+    if (provider && isObject(provider)) {
+        if ("call" in provider && typeof provider.call === "function") {
+            const callResult = await provider.call(request);
+            const callResultRecord = asRecord(callResult);
+            const resultHex =
+                typeof callResult === "string"
+                    ? callResult
+                    : ((callResultRecord?.data as string | undefined) ?? "0x");
+            return decodeFunctionResult({
+                abi: getSingleFunctionAbi(fn),
+                functionName: fn.name,
+                data: resultHex as Hex,
+            });
+        }
+    }
+
+    const callResult = await rpcRequest(runner, "eth_call", [
+        {
+            ...request,
+            value: toHexQuantity(request.value),
+            gas: toHexQuantity(request.gas ?? request.gasLimit),
+            gasPrice: toHexQuantity(request.gasPrice),
+            maxFeePerGas: toHexQuantity(request.maxFeePerGas),
+            maxPriorityFeePerGas: toHexQuantity(request.maxPriorityFeePerGas),
+            nonce: toHexQuantity(request.nonce),
+        },
+        "latest",
+    ]);
+    return decodeFunctionResult({
+        abi: getSingleFunctionAbi(fn),
+        functionName: fn.name,
+        data: callResult as Hex,
+    });
+}
+
 async function performEstimateGas(
     runner: RunnerLike,
     request: TxRequestLike,
@@ -819,8 +879,16 @@ function asTxResponse(runner: RunnerLike, tx: unknown): SentTxLike {
             ? tx
             : ((txRecord.hash as string | undefined) ??
               (txRecord.transactionHash as string | undefined));
-    if (!hash || !wait) {
+    if (!hash) {
         throw new Error("Unable to extract transaction hash from send result");
+    }
+    if (!wait) {
+        return {
+            ...txRecord,
+            hash,
+            wait: (confirmations?: number) =>
+                waitForReceipt(runner, hash, confirmations),
+        };
     }
     return {
         ...txRecord,
@@ -964,6 +1032,79 @@ export function createContractProxy<TAbi extends Abi>(
         },
     ) as ContractMethodMap<TAbi>;
 
+    const callStatic = new Proxy(
+        {},
+        {
+            get(_target, prop) {
+                if (typeof prop !== "string") return undefined;
+                return async (...rawArgs: unknown[]) => {
+                    const fn = getFunctionAbi(abi, prop);
+                    if (!fn) throw new Error(`Function ${prop} not found`);
+                    const {fnArgs, overrides} = splitArgsAndOverrides(
+                        rawArgs,
+                        fn.inputs.length,
+                    );
+                    const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
+                    const stateMutability = fn.stateMutability ?? "nonpayable";
+                    if (stateMutability === "view" || stateMutability === "pure") {
+                        return performRead(runner, address, fn, normalizedArgs);
+                    }
+                    const request = await withRunnerFrom(runner, {
+                        to: address,
+                        data: encodeFunctionCallData(fn, normalizedArgs),
+                        ...overrides,
+                    });
+                    return performCall(runner, request, fn);
+                };
+            },
+            has(_target, prop) {
+                if (typeof prop !== "string") return false;
+                return !!getFunctionAbi(abi, prop);
+            },
+        },
+    ) as ContractCallStaticMap<TAbi>;
+
+    const populateTransaction = new Proxy(
+        {},
+        {
+            get(_target, prop) {
+                if (typeof prop !== "string") return undefined;
+                return async (...rawArgs: unknown[]) => {
+                    const fn = getFunctionAbi(abi, prop);
+                    if (!fn) throw new Error(`Function ${prop} not found`);
+                    const {fnArgs, overrides} = splitArgsAndOverrides(
+                        rawArgs,
+                        fn.inputs.length,
+                    );
+                    const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
+                    return withRunnerFrom(runner, {
+                        to: address,
+                        data: encodeFunctionCallData(fn, normalizedArgs),
+                        ...overrides,
+                    });
+                };
+            },
+            has(_target, prop) {
+                if (typeof prop !== "string") return false;
+                return !!getFunctionAbi(abi, prop);
+            },
+        },
+    ) as ContractPopulateTransactionMap<TAbi>;
+
+    const filters = new Proxy(
+        {},
+        {
+            get(_target, prop) {
+                if (typeof prop !== "string") return undefined;
+                return (...eventArgs: readonly unknown[]) => ({
+                    address,
+                    eventName: prop,
+                    args: eventArgs,
+                });
+            },
+        },
+    ) as Record<string, (...args: readonly unknown[]) => Record<string, unknown>>;
+
     const contract = {
         address,
         signer: runner,
@@ -971,6 +1112,9 @@ export function createContractProxy<TAbi extends Abi>(
         interface: iface,
         estimateGas,
         functions,
+        callStatic,
+        populateTransaction,
+        filters,
         async queryFilter(
             filter: Record<string, unknown>,
             fromBlock?: unknown,
