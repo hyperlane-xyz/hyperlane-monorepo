@@ -2,7 +2,7 @@ import type { Wallet } from 'ethers';
 import hre from 'hardhat';
 
 export async function getSigners(): Promise<Wallet[]> {
-  // @ts-ignore Hardhat type overrides from @nomiclabs/hardhat-ethers don't work
+  // @ts-ignore Hardhat type overrides from hardhat ethers plugin don't work
   return hre.ethers.getSigners();
 }
 

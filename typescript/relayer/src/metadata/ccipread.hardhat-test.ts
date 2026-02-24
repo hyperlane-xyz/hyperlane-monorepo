@@ -1,4 +1,3 @@
-import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import hre from 'hardhat';
