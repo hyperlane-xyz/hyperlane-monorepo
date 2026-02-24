@@ -110,7 +110,7 @@ jobs:
           FOUNDRY_VERSION: ${{ steps.taggen.outputs.FOUNDRY_VERSION }}
           SERVICE_VERSION: ${{ steps.taggen.outputs.TAG_SHA_DATE }}
         with:
-          project: 3cpjhx94qv
+          project: 057xstl4t6
           files: typescript/docker-bake.hcl
           push: true
 
