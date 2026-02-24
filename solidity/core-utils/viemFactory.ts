@@ -14,6 +14,10 @@ import {
 } from "viem";
 import type {
     Abi,
+    ContractEventName,
+    ContractFunctionArgs,
+    ContractFunctionName,
+    ContractFunctionReturnType,
     AbiEvent,
     AbiFunction,
     AbiParameter,
@@ -22,9 +26,99 @@ import type {
     TransactionReceipt,
 } from "viem";
 
-export interface ArtifactEntry {
+type ReadFunctionMutability = "view" | "pure";
+type WriteFunctionMutability = "nonpayable" | "payable";
+type AnyFunctionMutability =
+    | ReadFunctionMutability
+    | WriteFunctionMutability;
+
+type ReadFunctionNames<TAbi extends Abi> = ContractFunctionName<
+    TAbi,
+    ReadFunctionMutability
+>;
+type AnyFunctionNames<TAbi extends Abi> = ContractFunctionName<
+    TAbi,
+    AnyFunctionMutability
+>;
+
+type MethodArgs<
+    TAbi extends Abi,
+    TMutability extends AnyFunctionMutability,
+    TName extends ContractFunctionName<TAbi, TMutability>,
+> = ContractFunctionArgs<TAbi, TMutability, TName> extends readonly unknown[]
+    ? ContractFunctionArgs<TAbi, TMutability, TName>
+    : readonly unknown[];
+
+export type TxRequestLike = Record<string, unknown>;
+
+export type ContractMethodMap<TAbi extends Abi> = {
+    [TName in AnyFunctionNames<TAbi>]: (
+        ...args: MethodArgs<TAbi, AnyFunctionMutability, TName>
+    ) => Promise<
+        TName extends ReadFunctionNames<TAbi>
+            ? ContractFunctionReturnType<
+                  TAbi,
+                  ReadFunctionMutability,
+                  TName
+              >
+            : unknown
+    >;
+};
+
+export type ContractCallStaticMap<TAbi extends Abi> = {
+    [TName in AnyFunctionNames<TAbi>]: (
+        ...args: MethodArgs<TAbi, AnyFunctionMutability, TName>
+    ) => Promise<ContractFunctionReturnType<TAbi, AnyFunctionMutability, TName>>;
+};
+
+export type ContractEstimateGasMap<TAbi extends Abi> = {
+    [TName in AnyFunctionNames<TAbi>]: (
+        ...args: MethodArgs<TAbi, AnyFunctionMutability, TName>
+    ) => Promise<bigint>;
+};
+
+export type ContractPopulateTransactionMap<TAbi extends Abi> = {
+    [TName in AnyFunctionNames<TAbi>]: (
+        ...args: MethodArgs<TAbi, AnyFunctionMutability, TName>
+    ) => Promise<TxRequestLike>;
+};
+
+export type ContractFilterMap<TAbi extends Abi> = {
+    [TName in ContractEventName<TAbi>]: (
+        ...args: readonly unknown[]
+    ) => Record<string, unknown>;
+};
+
+type InterfaceFunctionEncoder = {
+    encode: (args?: readonly unknown[]) => Hex;
+};
+
+export interface ViemInterface<TAbi extends Abi = Abi> {
+    abi: TAbi;
+    functions: Record<string, InterfaceFunctionEncoder>;
+    encodeFunctionData(
+        functionName: string,
+        args?: readonly unknown[],
+    ): Hex;
+    decodeFunctionResult(functionName: string, data: Hex): unknown;
+    encodeDeploy(args?: readonly unknown[]): Hex;
+    parseTransaction(tx: {data: string; value?: unknown}): {
+        name: string;
+        args: readonly unknown[];
+        value?: unknown;
+    };
+    parseLog(log: {data: string; topics: readonly string[]}): {
+        name: string;
+        event: string;
+        args: unknown;
+    };
+    parseError(data: string): unknown;
+    getEventTopic(eventNameOrSignature: string): Hex;
+}
+
+export interface ArtifactEntry<TAbi extends Abi = Abi> {
     readonly contractName: string;
-    readonly abi: Abi;
+    readonly abi: TAbi;
     readonly bytecode: Hex;
 }
 
@@ -32,42 +126,72 @@ type JsonRpcLike = {
     request: (args: {
         method: string;
         params?: readonly unknown[];
-    }) => Promise<any>;
+    }) => Promise<unknown>;
 };
 
 type SendLike = {
-    send: (method: string, params?: readonly unknown[]) => Promise<any>;
+    send: (method: string, params?: readonly unknown[]) => Promise<unknown>;
 };
 
-type RunnerLike = any;
+export type RunnerLike =
+    | ({
+          provider?: Record<string, unknown>;
+          request?: JsonRpcLike["request"];
+          send?: SendLike["send"];
+          readContract?: (args: Record<string, unknown>) => Promise<unknown>;
+          call?: (args: Record<string, unknown>) => Promise<unknown>;
+          estimateContractGas?: (
+              args: Record<string, unknown>,
+          ) => Promise<unknown>;
+          estimateGas?: (args: Record<string, unknown>) => Promise<unknown>;
+          sendTransaction?: (
+              args: Record<string, unknown>,
+          ) => Promise<unknown>;
+          writeContract?: (args: Record<string, unknown>) => Promise<unknown>;
+          waitForTransactionReceipt?: (args: {
+              hash: string;
+              confirmations?: number;
+          }) => Promise<unknown>;
+          waitForTransaction?: (
+              hash: string,
+              confirmations?: number,
+          ) => Promise<unknown>;
+          getLogs?: (filter: Record<string, unknown>) => Promise<Log[]>;
+          getAddress?: () => Promise<string>;
+      } & Record<string, unknown>)
+    | undefined;
 
-type TxRequestLike = Record<string, any>;
-
-export interface ViemContractLike {
+export interface ViemContractLike<TAbi extends Abi = Abi> {
     address: string;
-    interface: any;
-    populateTransaction: any;
-    callStatic: any;
-    estimateGas: any;
-    filters: any;
-    functions: any;
-    queryFilter: <T = any>(
+    interface: ViemInterface<TAbi>;
+    populateTransaction: ContractPopulateTransactionMap<TAbi>;
+    callStatic: ContractCallStaticMap<TAbi>;
+    estimateGas: ContractEstimateGasMap<TAbi>;
+    filters: ContractFilterMap<TAbi>;
+    functions: ContractMethodMap<TAbi>;
+    queryFilter: <T = Record<string, unknown>>(
         filter: Record<string, unknown>,
         fromBlock?: unknown,
         toBlock?: unknown,
     ) => Promise<T[]>;
-    connect: (runner: RunnerLike) => ViemContractLike;
-    attach: (address: string) => ViemContractLike;
+    connect: (runner: RunnerLike) => ViemContractLike<TAbi>;
+    attach: (address: string) => ViemContractLike<TAbi>;
     signer: RunnerLike;
     provider: RunnerLike;
     deployTransaction?: {
         hash: string;
         data?: string;
-        wait: (confirmations?: number) => Promise<any>;
+        wait: (confirmations?: number) => Promise<unknown>;
     };
-    deployed?: () => Promise<ViemContractLike>;
-    [key: string]: any;
+    deployed?: () => Promise<ViemContractLike<TAbi>>;
+    [key: string]: unknown;
 }
+
+type SentTxLike = {
+    hash: string;
+    transactionHash?: string;
+    wait: (confirmations?: number) => Promise<TransactionReceipt | Record<string, unknown>>;
+} & Record<string, unknown>;
 
 const TX_OVERRIDE_KEYS = new Set([
     "from",
@@ -86,6 +210,10 @@ const TX_OVERRIDE_KEYS = new Set([
 
 function isObject(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === "object";
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+    return isObject(value) ? value : undefined;
 }
 
 function getRunnerProvider(runner: RunnerLike): RunnerLike {
@@ -123,7 +251,7 @@ async function rpcRequest(
     runner: RunnerLike,
     method: string,
     params: readonly unknown[] = [],
-): Promise<any> {
+): Promise<unknown> {
     const rpc = getRpc(runner);
     if (rpc) return rpc.request({method, params});
     const sender = getSend(runner);
@@ -140,6 +268,33 @@ function toHexQuantity(value: unknown): Hex | undefined {
         if (/^[0-9]+$/.test(value)) return toHex(BigInt(value));
     }
     return undefined;
+}
+
+function toBigIntValue(value: unknown, label: string): bigint {
+    if (typeof value === "bigint") return value;
+    if (typeof value === "number") return BigInt(value);
+    if (typeof value === "string") {
+        if (value.startsWith("0x")) return BigInt(value);
+        if (/^[0-9]+$/.test(value)) return BigInt(value);
+    }
+    if (
+        isObject(value) &&
+        "toString" in value &&
+        typeof value.toString === "function"
+    ) {
+        return toBigIntValue(value.toString(), label);
+    }
+    throw new Error(`Unable to convert ${label} result to bigint`);
+}
+
+function toReceiptLike(
+    value: unknown,
+    hash: string,
+): TransactionReceipt | Record<string, unknown> {
+    if (isObject(value)) {
+        return value as TransactionReceipt | Record<string, unknown>;
+    }
+    throw new Error(`Transaction receipt not found for ${hash}`);
 }
 
 function splitArgsAndOverrides(
@@ -187,6 +342,19 @@ function getFunctionAbi(
     });
     if (!item || item.type !== "function") return undefined;
     return item;
+}
+
+function getEventAbi(abi: Abi, eventNameOrSignature: string): AbiEvent | undefined {
+    if (eventNameOrSignature.includes("(")) {
+        return abi.find((item): item is AbiEvent => {
+            if (item.type !== "event") return false;
+            return getEventSignature(item) === eventNameOrSignature;
+        });
+    }
+    return abi.find(
+        (item): item is AbiEvent =>
+            item.type === "event" && item.name === eventNameOrSignature,
+    );
 }
 
 function getAbiParameterSignature(parameter: AbiParameter): string {
@@ -280,7 +448,10 @@ function normalizeLogBlock(log: Record<string, unknown>) {
     return blockNumber;
 }
 
-export function createInterface(abi: Abi, bytecode?: Hex): any {
+export function createInterface<TAbi extends Abi>(
+    abi: TAbi,
+    bytecode?: Hex,
+): ViemInterface<TAbi> {
     const functions = buildInterfaceFunctions(abi);
 
     return {
@@ -312,10 +483,7 @@ export function createInterface(abi: Abi, bytecode?: Hex): any {
                 return bytecode ?? ("0x" as Hex);
             const inputs = getConstructorInputs(abi);
             if (!inputs.length) return bytecode;
-            const encodedArgs = encodeAbiParameters(
-                inputs as any[],
-                [...args] as any[],
-            );
+            const encodedArgs = encodeAbiParameters(inputs, [...args]);
             return concatHex([bytecode, encodedArgs]);
         },
         parseTransaction(tx: {data: string; value?: unknown}) {
@@ -352,16 +520,13 @@ export function createInterface(abi: Abi, bytecode?: Hex): any {
             if (eventNameOrSignature.includes("(")) {
                 return toEventSelector(eventNameOrSignature);
             }
-            const event = getAbiItem({
-                abi,
-                name: eventNameOrSignature,
-            });
-            if (!event || event.type !== "event") {
+            const event = getEventAbi(abi, eventNameOrSignature);
+            if (!event) {
                 throw new Error(`Event ${eventNameOrSignature} not found`);
             }
             return toEventSelector(getEventSignature(event));
         },
-    };
+    } as ViemInterface<TAbi>;
 }
 
 async function performRead(
@@ -369,7 +534,7 @@ async function performRead(
     address: string,
     fn: AbiFunction,
     args: readonly unknown[],
-): Promise<any> {
+): Promise<unknown> {
     const readAbi = getSingleFunctionAbi(fn);
     const provider = getRunnerProvider(runner);
     if (provider && isObject(provider)) {
@@ -377,7 +542,7 @@ async function performRead(
             "readContract" in provider &&
             typeof provider.readContract === "function"
         ) {
-            return (provider.readContract as any)({
+            return provider.readContract({
                 address,
                 abi: readAbi,
                 functionName: fn.name,
@@ -386,14 +551,15 @@ async function performRead(
         }
         if ("call" in provider && typeof provider.call === "function") {
             const data = encodeFunctionCallData(fn, args);
-            const callResult = await (provider.call as any)({
+            const callResult = await provider.call({
                 to: address,
                 data,
             });
+            const callResultRecord = asRecord(callResult);
             const resultHex =
                 typeof callResult === "string"
                     ? callResult
-                    : ((callResult?.data as string | undefined) ?? "0x");
+                    : ((callResultRecord?.data as string | undefined) ?? "0x");
             return decodeFunctionResult({
                 abi: readAbi,
                 functionName: fn.name,
@@ -424,14 +590,17 @@ async function performEstimateGas(
             "estimateContractGas" in provider &&
             typeof provider.estimateContractGas === "function"
         ) {
-            return BigInt(await (provider.estimateContractGas as any)(request));
+            return toBigIntValue(
+                await provider.estimateContractGas(request),
+                "estimateContractGas",
+            );
         }
         if (
             "estimateGas" in provider &&
             typeof provider.estimateGas === "function"
         ) {
-            const estimate = await (provider.estimateGas as any)(request);
-            return typeof estimate === "bigint" ? estimate : BigInt(estimate);
+            const estimate = await provider.estimateGas(request);
+            return toBigIntValue(estimate, "estimateGas");
         }
     }
     const estimated = await rpcRequest(runner, "eth_estimateGas", [
@@ -445,7 +614,7 @@ async function performEstimateGas(
             nonce: toHexQuantity(request.nonce),
         },
     ]);
-    return BigInt(estimated);
+    return toBigIntValue(estimated, "eth_estimateGas");
 }
 
 async function withRunnerFrom(
@@ -480,16 +649,22 @@ async function waitForReceipt(
             "waitForTransactionReceipt" in provider &&
             typeof provider.waitForTransactionReceipt === "function"
         ) {
-            return (provider.waitForTransactionReceipt as any)({
+            return toReceiptLike(
+                await provider.waitForTransactionReceipt({
+                    hash,
+                    confirmations,
+                }),
                 hash,
-                confirmations,
-            });
+            );
         }
         if (
             "waitForTransaction" in provider &&
             typeof provider.waitForTransaction === "function"
         ) {
-            return (provider.waitForTransaction as any)(hash, confirmations);
+            return toReceiptLike(
+                await provider.waitForTransaction(hash, confirmations),
+                hash,
+            );
         }
     }
 
@@ -499,42 +674,54 @@ async function waitForReceipt(
     if (!receipt) {
         throw new Error(`Transaction receipt not found for ${hash}`);
     }
-    return receipt;
+    return toReceiptLike(receipt, hash);
 }
 
-function asTxResponse(runner: RunnerLike, tx: any) {
-    if (tx && typeof tx.wait === "function") return tx;
+function asTxResponse(
+    runner: RunnerLike,
+    tx: unknown,
+): SentTxLike {
+    const txRecord = isObject(tx) ? tx : {};
+    const maybeWait = txRecord.wait;
+    const wait =
+        typeof maybeWait === "function"
+            ? (maybeWait as SentTxLike["wait"])
+            : undefined;
     const hash =
         typeof tx === "string"
             ? tx
-            : ((tx?.hash as string | undefined) ??
-              (tx?.transactionHash as string | undefined));
-    if (!hash) return tx;
+            : ((txRecord.hash as string | undefined) ??
+              (txRecord.transactionHash as string | undefined));
+    if (!hash || !wait) {
+        throw new Error("Unable to extract transaction hash from send result");
+    }
     return {
-        ...tx,
+        ...txRecord,
         hash,
         wait: (confirmations?: number) =>
-            waitForReceipt(runner, hash, confirmations),
+            wait(confirmations).catch(() =>
+                waitForReceipt(runner, hash, confirmations),
+            ),
     };
 }
 
 async function performSend(
     runner: RunnerLike,
     request: TxRequestLike,
-): Promise<any> {
+): Promise<SentTxLike> {
     if (runner && isObject(runner)) {
         if (
             "sendTransaction" in runner &&
             typeof runner.sendTransaction === "function"
         ) {
-            const sent = await (runner.sendTransaction as any)(request);
+            const sent = await runner.sendTransaction(request);
             return asTxResponse(runner, sent);
         }
         if (
             "writeContract" in runner &&
             typeof runner.writeContract === "function"
         ) {
-            const hash = await (runner.writeContract as any)(request);
+            const hash = await runner.writeContract(request);
             return asTxResponse(runner, hash);
         }
     }
@@ -545,7 +732,7 @@ async function performSend(
             "sendTransaction" in provider &&
             typeof provider.sendTransaction === "function"
         ) {
-            const sent = await (provider.sendTransaction as any)(request);
+            const sent = await provider.sendTransaction(request);
             return asTxResponse(runner, sent);
         }
     }
@@ -571,7 +758,7 @@ async function performGetLogs(
     const provider = getRunnerProvider(runner);
     if (provider && isObject(provider)) {
         if ("getLogs" in provider && typeof provider.getLogs === "function") {
-            return (provider.getLogs as any)(filter);
+            return provider.getLogs(filter);
         }
     }
     const logs = await rpcRequest(runner, "eth_getLogs", [filter]);
@@ -583,11 +770,11 @@ function normalizeWriteResult(result: unknown): unknown {
     return result;
 }
 
-export function createContractProxy(
+export function createContractProxy<TAbi extends Abi>(
     address: string,
-    abi: Abi,
+    abi: TAbi,
     runner: RunnerLike,
-): any {
+): ViemContractLike<TAbi> {
     const iface = createInterface(abi);
 
     const callStatic = new Proxy(
@@ -611,7 +798,7 @@ export function createContractProxy(
                 };
             },
         },
-    ) as Record<string, (...args: any[]) => Promise<any>>;
+    ) as ContractCallStaticMap<TAbi>;
 
     const estimateGas = new Proxy(
         {},
@@ -635,7 +822,7 @@ export function createContractProxy(
                 };
             },
         },
-    ) as Record<string, (...args: any[]) => Promise<bigint>>;
+    ) as ContractEstimateGasMap<TAbi>;
 
     const populateTransaction = new Proxy(
         {},
@@ -658,7 +845,7 @@ export function createContractProxy(
                 };
             },
         },
-    ) as Record<string, (...args: any[]) => Promise<TxRequestLike>>;
+    ) as ContractPopulateTransactionMap<TAbi>;
 
     const filters = new Proxy(
         {},
@@ -672,24 +859,29 @@ export function createContractProxy(
                 });
             },
         },
-    ) as Record<string, (...args: any[]) => Record<string, unknown>>;
+    ) as ContractFilterMap<TAbi>;
 
     const functions = new Proxy(
         {},
         {
             get(_target, prop) {
                 if (typeof prop !== "string") return undefined;
-                return (...args: unknown[]) =>
-                    (contract as any)[prop](...(args as any[]));
+                return (...args: unknown[]) => {
+                    const method = contract[prop];
+                    if (typeof method !== "function") {
+                        throw new Error(`Function ${prop} not found`);
+                    }
+                    return method(...args);
+                };
             },
             has(_target, prop) {
                 if (typeof prop !== "string") return false;
                 return !!getFunctionAbi(abi, prop);
             },
         },
-    ) as Record<string, (...args: any[]) => Promise<any>>;
+    ) as ContractMethodMap<TAbi>;
 
-    const contract: any = {
+    const contract = {
         address,
         signer: runner,
         provider: getRunnerProvider(runner),
@@ -710,19 +902,14 @@ export function createContractProxy(
             const eventArgs =
                 (filter.args as readonly unknown[] | undefined) ?? [];
 
-            const abiItem = eventName
-                ? (getAbiItem({
-                      abi,
-                      name: eventName,
-                  }) as AbiEvent | undefined)
-                : undefined;
+            const abiItem = eventName ? getEventAbi(abi, eventName) : undefined;
 
             const topics =
                 abiItem && abiItem.type === "event"
                     ? encodeEventTopics({
                           abi: [abiItem],
                           eventName: abiItem.name,
-                          args: eventArgs as any[],
+                          args: eventArgs as readonly unknown[],
                       })
                     : (filter.topics as readonly Hex[] | undefined);
 
@@ -769,7 +956,7 @@ export function createContractProxy(
         attach(nextAddress: string) {
             return createContractProxy(nextAddress, abi, runner);
         },
-    } as ViemContractLike;
+    } as ViemContractLike<TAbi>;
 
     return new Proxy(contract, {
         get(target, prop, receiver) {
@@ -800,11 +987,14 @@ export function createContractProxy(
                 return normalizeWriteResult(response);
             };
         },
-    }) as ViemContractLike;
+    }) as ViemContractLike<TAbi>;
 }
 
-export class ViemContractFactory {
-    static artifact: ArtifactEntry;
+export class ViemContractFactory<
+    TAbi extends Abi = Abi,
+    TContract extends ViemContractLike<TAbi> = ViemContractLike<TAbi>,
+> {
+    static artifact: ArtifactEntry<Abi>;
 
     static get abi(): Abi {
         return this.artifact.abi;
@@ -814,12 +1004,18 @@ export class ViemContractFactory {
         return this.artifact.bytecode;
     }
 
-    static createInterface() {
-        return createInterface(this.abi, this.bytecode);
+    static createInterface<TAbi extends Abi>(
+        this: {artifact: ArtifactEntry<TAbi>},
+    ): ViemInterface<TAbi> {
+        return createInterface(this.artifact.abi, this.artifact.bytecode);
     }
 
-    static connect(address: string, runner?: RunnerLike): any {
-        return createContractProxy(address, this.abi, runner);
+    static connect<TAbi extends Abi>(
+        this: {artifact: ArtifactEntry<TAbi>},
+        address: string,
+        runner?: RunnerLike,
+    ): ViemContractLike<TAbi> {
+        return createContractProxy(address, this.artifact.abi, runner);
     }
 
     runner?: RunnerLike;
@@ -833,14 +1029,19 @@ export class ViemContractFactory {
         return new Ctor(runner);
     }
 
-    attach(address: string): any {
-        return (this.constructor as typeof ViemContractFactory).connect(
+    attach(address: string): TContract {
+        return (this.constructor as unknown as {
+            connect: (
+                address: string,
+                runner?: RunnerLike,
+            ) => TContract;
+        }).connect(
             address,
             this.runner,
         );
     }
 
-    getDeployTransaction(...constructorArgs: readonly unknown[]): any {
+    getDeployTransaction(...constructorArgs: readonly unknown[]): TxRequestLike {
         const iface = (
             this.constructor as typeof ViemContractFactory
         ).createInterface();
@@ -849,7 +1050,7 @@ export class ViemContractFactory {
         } as TxRequestLike;
     }
 
-    async deploy(...rawArgs: readonly unknown[]): Promise<any> {
+    async deploy(...rawArgs: readonly unknown[]): Promise<TContract> {
         const ctorInputs = getConstructorInputs(
             (this.constructor as typeof ViemContractFactory).abi,
         );
@@ -875,7 +1076,12 @@ export class ViemContractFactory {
             );
         }
         const contract = (
-            this.constructor as typeof ViemContractFactory
+            this.constructor as unknown as {
+                connect: (
+                    address: string,
+                    runner?: RunnerLike,
+                ) => TContract;
+            }
         ).connect(contractAddress, this.runner);
         const txHash =
             txResponse?.hash ??
@@ -884,7 +1090,7 @@ export class ViemContractFactory {
         contract.deployTransaction = {
             ...txResponse,
             hash: txHash,
-            data: deployTx.data,
+            data: typeof deployTx.data === "string" ? deployTx.data : undefined,
             wait: txResponse.wait,
         };
         contract.deployed = async () => {
