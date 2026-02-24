@@ -10,7 +10,7 @@ import {
   buildTestMovableCollateralRoute,
   createRebalancerTestContext,
 } from '../test/helpers.js';
-import type { IActionTracker } from '../tracking/index.js';
+import type { IActionTracker } from '../tracking/IActionTracker.js';
 
 import { Rebalancer } from './Rebalancer.js';
 

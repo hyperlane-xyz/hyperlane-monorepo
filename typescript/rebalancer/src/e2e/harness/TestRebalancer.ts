@@ -21,7 +21,7 @@ import { RebalancerContextFactory } from '../../factories/RebalancerContextFacto
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { IStrategy } from '../../interfaces/IStrategy.js';
 import type { Monitor } from '../../monitor/Monitor.js';
-import type { IActionTracker } from '../../tracking/index.js';
+import type { IActionTracker } from '../../tracking/IActionTracker.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
 import {
   ANVIL_TEST_PRIVATE_KEY,

@@ -17,7 +17,7 @@ import type {
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { extractBridgeConfigs } from '../test/helpers.js';
-import type { BridgeConfigWithOverride } from '../utils/index.js';
+import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
 import { CollateralDeficitStrategy } from './CollateralDeficitStrategy.js';
 

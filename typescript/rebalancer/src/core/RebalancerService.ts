@@ -28,10 +28,8 @@ import type {
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
-import {
-  type IActionTracker,
-  InflightContextAdapter,
-} from '../tracking/index.js';
+import type { IActionTracker } from '../tracking/IActionTracker.js';
+import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
 
 import type { RebalancerOrchestrator } from './RebalancerOrchestrator.js';
 

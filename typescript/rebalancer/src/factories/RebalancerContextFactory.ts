@@ -35,21 +35,23 @@ import { StrategyFactory } from '../strategy/StrategyFactory.js';
 import {
   ActionTracker,
   type ActionTrackerConfig,
-  type IActionTracker,
-  InMemoryStore,
-  InflightContextAdapter,
-  type RebalanceAction,
-  type RebalanceActionStatus,
-  type RebalanceIntent,
-  type RebalanceIntentStatus,
-  type Transfer,
-  type TransferStatus,
-} from '../tracking/index.js';
+} from '../tracking/ActionTracker.js';
+import type { IActionTracker } from '../tracking/IActionTracker.js';
+import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
+import { InMemoryStore } from '../tracking/store/index.js';
+import type {
+  RebalanceAction,
+  RebalanceActionStatus,
+  RebalanceIntent,
+  RebalanceIntentStatus,
+  Transfer,
+  TransferStatus,
+} from '../tracking/types.js';
 import {
   ExplorerClient,
   type IExplorerClient,
 } from '../utils/ExplorerClient.js';
-import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
+import { isCollateralizedTokenEligibleForRebalancing } from '../utils/tokenUtils.js';
 
 const DEFAULT_EXPLORER_URL =
   process.env.EXPLORER_API_URL || 'https://explorer4.hasura.app/v1/graphql';

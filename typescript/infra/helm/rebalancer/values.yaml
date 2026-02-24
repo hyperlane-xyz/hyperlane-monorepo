@@ -3,14 +3,14 @@ image:
   tag:
 warpRouteId: ''
 hyperlane:
-  runEnv:
+  runEnv: mainnet3
   context: hyperlane
   registryUri: ''
   rebalancerConfig: ''
   withMetrics: true
-   # Used for fetching private RPC secrets
-   chains: []
- nameOverride: ''
+  # Used for fetching private RPC secrets
+  chains: []
+nameOverride: ''
 fullnameOverride: ''
 externalSecrets:
   clusterSecretStore:
