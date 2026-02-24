@@ -35,11 +35,10 @@ import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenMetadataMap } from './TokenMetadataMap.js';
-import { DeployableTokenType, gasOverhead } from './config.js';
+import { gasOverhead } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
 import {
   HypERC20Factories,
-  HypERC20contracts,
   HypERC721Factories,
   TokenFactories,
   getCctpFactory,
@@ -71,9 +70,7 @@ import {
 
 const INITIALIZE_FUNCTION_NAME = 'initialize';
 
-export const TOKEN_INITIALIZE_SIGNATURE = (
-  contractName: HypERC20contracts[DeployableTokenType],
-) => {
+export const TOKEN_INITIALIZE_SIGNATURE = (contractName: string) => {
   switch (contractName) {
     case 'OPL2TokenBridgeNative':
       return INITIALIZE_FUNCTION_NAME;
@@ -179,7 +176,7 @@ abstract class TokenDeployer<
   }
 
   initializeFnSignature(name: string): string {
-    return TOKEN_INITIALIZE_SIGNATURE(name as any);
+    return TOKEN_INITIALIZE_SIGNATURE(name);
   }
 
   async initializeArgs(

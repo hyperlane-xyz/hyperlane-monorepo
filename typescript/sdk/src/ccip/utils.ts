@@ -135,11 +135,9 @@ export async function isSupportedCCIPLane({
     to: originRouter,
     data,
   });
-  const resultData =
-    typeof result === 'string' ? result : ((result as any)?.data ?? '0x');
   return decodeFunctionResult({
     abi: CCIP_ROUTER_CLIENT_ABI,
     functionName: 'isChainSupported',
-    data: resultData as `0x${string}`,
+    data: result as `0x${string}`,
   }) as boolean;
 }

@@ -48,16 +48,36 @@ export class RadixCoreAdapter extends BaseRadixAdapter implements ICoreAdapter {
     );
 
     return dispatchEvents.map((event) => {
+      const rawFields =
+        typeof event.data === 'object' &&
+        event.data !== null &&
+        'fields' in event.data
+          ? (event.data as { fields?: unknown }).fields
+          : undefined;
+      const fields = Array.isArray(rawFields)
+        ? rawFields.filter(
+            (field): field is Record<string, unknown> =>
+              typeof field === 'object' && field !== null,
+          )
+        : [];
+
       const findField = (key: string) =>
-        ((event.data as any)?.fields ?? []).find(
-          (f: any) => f.field_name === key,
-        );
+        fields.find((field) => field.field_name === key);
 
       const messageField = findField(MESSAGE_FIELD_KEY);
       const destField = findField(MESSAGE_DESTINATION_FIELD_KEY);
 
       assert(messageField, 'No message field found in dispatch event');
       assert(destField, 'No destination field found in dispatch event');
+      assert(
+        typeof messageField.hex === 'string',
+        'No message hex found in dispatch event',
+      );
+      assert(
+        typeof destField.value === 'number' ||
+          typeof destField.value === 'string',
+        'No destination value found in dispatch event',
+      );
 
       return {
         messageId: ensure0x(messageId(ensure0x(messageField.hex))),

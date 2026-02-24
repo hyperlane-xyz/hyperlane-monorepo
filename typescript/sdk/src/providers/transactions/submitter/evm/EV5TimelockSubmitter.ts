@@ -94,9 +94,16 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
     // If no domain id is set on the transactions
     // assume they are to be sent on the current configured chain
     const [domainId] = transactionChains.values();
-    const destinationChainDomainId = this.multiProvider.getDomainId(
-      (domainId ?? this.config.chain) as any,
-    );
+    const destinationSelector = domainId ?? this.config.chain;
+    const destinationChainDomainId =
+      typeof destinationSelector === 'string' ||
+      typeof destinationSelector === 'number'
+        ? this.multiProvider.getDomainId(destinationSelector)
+        : typeof destinationSelector === 'bigint'
+          ? this.multiProvider.getDomainId(Number(destinationSelector))
+          : this.multiProvider.getDomainId(
+              Number(destinationSelector.toString()),
+            );
 
     const calldata: CallData[] = txs.map((transaction): CallData => {
       assert(transaction.data, 'Invalid Transaction: data must be defined');
@@ -171,7 +178,9 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
     if (!proposeFormattedCallData) {
       // Appending the execute transaction so that it can be written to a file
       // by the caller
-      return [executeCallData as any];
+      return [
+        executeCallData as unknown as ProtocolTypedReceipt<ProtocolType.Ethereum>['receipt'],
+      ];
     }
 
     const proposeTransactions = Array.isArray(proposeFormattedCallData)
@@ -179,6 +188,9 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
       : [proposeFormattedCallData];
     // Appending the execute transaction so that it can be written to a file
     // by the caller
-    return [...proposeTransactions, executeCallData as any];
+    return [
+      ...proposeTransactions,
+      executeCallData as unknown as ProtocolTypedReceipt<ProtocolType.Ethereum>['receipt'],
+    ];
   }
 }

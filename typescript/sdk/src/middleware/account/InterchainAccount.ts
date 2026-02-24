@@ -225,7 +225,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           ],
         },
       ],
-      [calls as any],
+      [calls as readonly { to: Hex; value: bigint; data: Hex }[]],
     );
     return concatHex([prefix, suffix]);
   }

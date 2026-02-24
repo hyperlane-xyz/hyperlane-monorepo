@@ -135,53 +135,39 @@ export const SafeTxFileSchema = z.object({
 });
 export type SafeTx = z.infer<typeof SafeTxFileSchema>;
 
-type TxFormatter = {
-  [Key in TransactionConfigType]: (
-    config: Extract<RawForkedChainTransactionConfig, { type: Key }>,
-  ) => ReadonlyArray<ForkedChainTransactionConfig>;
-};
-
 function forkedChainTransactionsFromRaw(
   raw: RawForkedChainTransactionConfig,
   fileReader: <T>(path: string) => T,
 ): ReadonlyArray<ForkedChainTransactionConfig> {
-  const formatters: TxFormatter = {
-    [TransactionConfigType.FILE]: (config) => {
-      const safeTxs: SafeTx = SafeTxFileSchema.parse(fileReader(config.path));
+  if (raw.type === TransactionConfigType.FILE) {
+    const config = raw;
+    const safeTxs: SafeTx = SafeTxFileSchema.parse(fileReader(config.path));
 
-      const transactions = safeTxs.transactions.map(
-        (safeTx, idx): ForkedChainTransactionConfig => {
-          const overrides = config.overrides[idx] ?? {};
+    const transactions = safeTxs.transactions.map(
+      (safeTx, idx): ForkedChainTransactionConfig => {
+        const overrides = config.overrides[idx] ?? {};
 
-          const baseTx: ForkedChainTransactionConfig = {
-            from: config.defaultSender,
-            data: {
-              type: TransactionDataType.RAW_CALLDATA,
-              calldata: safeTx.data ?? '0x',
-            },
-            to: safeTx.to,
-            value: safeTx.value,
-            eventAssertions: [],
-          };
+        const baseTx: ForkedChainTransactionConfig = {
+          from: config.defaultSender,
+          data: {
+            type: TransactionDataType.RAW_CALLDATA,
+            calldata: safeTx.data ?? '0x',
+          },
+          to: safeTx.to,
+          value: safeTx.value,
+          eventAssertions: [],
+        };
 
-          return objMerge(baseTx, overrides);
-        },
-      );
-
-      return transactions;
-    },
-    [TransactionConfigType.RAW_TRANSACTION]: (config) => config.transactions,
-  };
-
-  const formatter = formatters[raw.type];
-
-  if (!formatter) {
-    throw new Error(
-      `Formatter not defined for parsing transaction of type "${raw.type}" for fork config`,
+        return objMerge(baseTx, overrides);
+      },
     );
-  }
 
-  return formatter(raw as any);
+    return transactions;
+  }
+  if (raw.type === TransactionConfigType.RAW_TRANSACTION) {
+    return raw.transactions;
+  }
+  throw new Error('Formatter not defined for parsing transaction config');
 }
 
 function forkedChainConfigFromRaw(

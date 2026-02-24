@@ -107,7 +107,7 @@ export class M0PortalLiteTokenAdapter
     );
 
     // Use PortalLite's built-in gas estimation
-    const result = await (this.getProvider() as any).call({
+    const result = await this.getProvider().call({
       to: this.portalAddress as `0x${string}`,
       data: encodeFunctionData({
         abi: PORTAL_LITE_ABI,
@@ -167,6 +167,6 @@ export class M0PortalLiteTokenAdapter
         ],
       }),
       value: gasQuote,
-    } as any as PopulatedTransaction;
+    } as PopulatedTransaction;
   }
 }

@@ -23,8 +23,10 @@ export class MultiProtocolRouterApp<
   ): AdapterClassType<IAdapterApi> {
     // Casts are required here to allow for default adapters while still
     // enabling extensible generic types
-    if (protocol === ProtocolType.Ethereum) return EvmRouterAdapter as any;
-    if (protocol === ProtocolType.Sealevel) return SealevelRouterAdapter as any;
+    if (protocol === ProtocolType.Ethereum)
+      return EvmRouterAdapter as unknown as AdapterClassType<IAdapterApi>;
+    if (protocol === ProtocolType.Sealevel)
+      return SealevelRouterAdapter as unknown as AdapterClassType<IAdapterApi>;
     // TODO cosmos support here
     throw new Error(`No adapter for protocol ${protocol}`);
   }
@@ -57,9 +59,10 @@ export class MultiProtocolGasRouterApp<
   ): AdapterClassType<IAdapterApi> {
     // Casts are required here to allow for default adapters while still
     // enabling extensible generic types
-    if (protocol === ProtocolType.Ethereum) return EvmGasRouterAdapter as any;
+    if (protocol === ProtocolType.Ethereum)
+      return EvmGasRouterAdapter as unknown as AdapterClassType<IAdapterApi>;
     if (protocol === ProtocolType.Sealevel)
-      return SealevelGasRouterAdapter as any;
+      return SealevelGasRouterAdapter as unknown as AdapterClassType<IAdapterApi>;
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 

@@ -206,7 +206,7 @@ export async function moduleCanCertainlyVerify(
         return true;
       }
       default:
-        throw new Error(`Unsupported module type: ${(destModule as any).type}`);
+        throw new Error(`Unsupported module type: ${destModule.type}`);
     }
   }
 }
