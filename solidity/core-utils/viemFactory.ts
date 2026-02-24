@@ -17,6 +17,7 @@ import {
 import type {
   Abi,
   ContractFunctionName,
+  ContractFunctionArgs,
   ContractFunctionReturnType,
   AbiEvent,
   AbiFunction,
@@ -54,13 +55,26 @@ export type ContractWriteResult = {
   ) => Promise<TransactionReceipt | Record<string, unknown>>;
 } & Record<string, unknown>;
 
+type ContractMethodArgs<
+  TAbi extends Abi,
+  TMutability extends AnyFunctionMutability,
+  TName extends ContractFunctionName<TAbi, TMutability>,
+> =
+  ContractFunctionArgs<
+    TAbi,
+    TMutability,
+    TName
+  > extends infer TArgs extends readonly unknown[]
+    ? [...TArgs, TxRequestLike?]
+    : readonly unknown[];
+
 export type ContractMethodMap<TAbi extends Abi> = {
   [TName in ReadFunctionNames<TAbi>]: (
-    ...args: readonly unknown[]
+    ...args: ContractMethodArgs<TAbi, ReadFunctionMutability, TName>
   ) => Promise<ContractFunctionReturnType<TAbi, ReadFunctionMutability, TName>>;
 } & {
   [TName in WriteFunctionNames<TAbi>]: (
-    ...args: readonly unknown[]
+    ...args: ContractMethodArgs<TAbi, WriteFunctionMutability, TName>
   ) => Promise<ContractWriteResult>;
 } & {
   [key: string]: UnknownAsyncMethod;
@@ -68,7 +82,7 @@ export type ContractMethodMap<TAbi extends Abi> = {
 
 export type ContractEstimateGasMap<TAbi extends Abi> = {
   [TName in AnyFunctionNames<TAbi>]: (
-    ...args: readonly unknown[]
+    ...args: ContractMethodArgs<TAbi, AnyFunctionMutability, TName>
   ) => Promise<bigint>;
 } & {
   [key: string]: (...args: readonly unknown[]) => Promise<bigint>;
@@ -181,7 +195,6 @@ export interface ViemContractLike<TAbi extends Abi = Abi> {
     wait: (confirmations?: number) => Promise<unknown>;
   };
   deployed?: () => Promise<ViemContractLike<TAbi>>;
-  [key: string]: unknown;
 }
 
 type SentTxLike = ContractWriteResult;
