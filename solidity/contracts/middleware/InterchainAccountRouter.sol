@@ -201,10 +201,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
      * @param _feeToken The ERC-20 fee token address.
      * @param _hook The hook address to approve for spending the fee token.
      */
-    function approveFeeTokenForHook(
-        address _feeToken,
-        address _hook
-    ) external {
+    function approveFeeTokenForHook(address _feeToken, address _hook) external {
         IERC20(_feeToken).forceApprove(_hook, type(uint256).max);
     }
 

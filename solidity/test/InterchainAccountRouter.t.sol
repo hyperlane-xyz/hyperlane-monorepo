@@ -1680,7 +1680,12 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     }
 
     function test_approveFeeTokenForHook_multipleTokens() public {
-        ERC20Test feeToken2 = new ERC20Test("Fee Token 2", "FEE2", 1_000_000e18, 18);
+        ERC20Test feeToken2 = new ERC20Test(
+            "Fee Token 2",
+            "FEE2",
+            1_000_000e18,
+            18
+        );
         address hook = address(0xBEEF);
 
         // Approve same hook for multiple tokens
