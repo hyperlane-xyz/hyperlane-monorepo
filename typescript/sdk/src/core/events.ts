@@ -1,5 +1,4 @@
-import type { DispatchEvent, ProcessEvent } from '@hyperlane-xyz/core/mailbox';
-
-export { DispatchEvent, ProcessEvent };
+export type DispatchEvent = any;
+export type ProcessEvent = any;
 
 export type HyperlaneLifecyleEvent = ProcessEvent | DispatchEvent;

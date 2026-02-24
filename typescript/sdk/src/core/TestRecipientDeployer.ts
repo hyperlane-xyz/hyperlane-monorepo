@@ -1,4 +1,4 @@
-import { TestRecipient, TestRecipient__factory } from '@hyperlane-xyz/core';
+import { TestRecipient__factory } from '@hyperlane-xyz/core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -6,15 +6,16 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
 import { ChainName } from '../types.js';
+import { HyperlaneContracts } from '../contracts/types.js';
 
 export type TestRecipientConfig = Pick<
   MailboxClientConfig,
   'interchainSecurityModule'
 >;
 
-export type TestRecipientContracts = {
-  testRecipient: TestRecipient;
-};
+export type TestRecipientContracts = HyperlaneContracts<
+  typeof testRecipientFactories
+>;
 
 export type TestRecipientAddresses = {
   testRecipient: Address;
@@ -53,13 +54,13 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
         testRecipient,
         config.interchainSecurityModule,
         (tr) => tr.interchainSecurityModule(),
-        (tr, ism) => tr.populateTransaction.setInterchainSecurityModule(ism),
+        (tr, ism) => tr.setInterchainSecurityModule.populateTransaction(ism),
       );
     } else {
       this.logger.warn(`No ISM config provided for TestRecipient on ${chain}`);
     }
     return {
       testRecipient,
-    };
+    } as any;
   }
 }

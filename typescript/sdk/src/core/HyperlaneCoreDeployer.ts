@@ -82,6 +82,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       proxyAdmin,
       [domain],
     );
+    const mailboxAddress = await mailbox.getAddress();
 
     let defaultIsm = await mailbox.defaultIsm();
     const matches = await moduleMatchesConfig(
@@ -96,12 +97,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       defaultIsm = await this.deployIsm(
         chain,
         config.defaultIsm,
-        mailbox.address,
+        mailboxAddress,
       );
     }
     this.cachedAddresses[chain].interchainSecurityModule = defaultIsm;
 
-    const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
+    const hookAddresses = { mailbox: mailboxAddress, proxyAdmin };
 
     this.logger.debug('Deploying default hook');
     const defaultHook = await this.deployHook(
@@ -125,19 +126,19 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       // If the default ISM is the zero address, the mailbox hasn't been initialized
       this.logger.debug('Initializing mailbox');
       try {
-        const estimatedGas = await mailbox.estimateGas.initialize(
+        const estimatedGas = await mailbox.initialize.estimateGas(
           config.owner,
           defaultIsm,
-          defaultHook.address,
-          requiredHook.address,
+          defaultHook.target as Address,
+          requiredHook.target as Address,
         );
         await this.multiProvider.handleTx(
           chain,
           mailbox.initialize(
             config.owner,
             defaultIsm,
-            defaultHook.address,
-            requiredHook.address,
+            defaultHook.target as Address,
+            requiredHook.target as Address,
             {
               gasLimit: addBufferToGasLimit(estimatedGas),
               ...txOverrides,
@@ -157,19 +158,19 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     await this.configureHook(
       chain,
       mailbox,
-      defaultHook.address,
+      defaultHook.target as Address,
       (_mailbox) => _mailbox.defaultHook(),
       (_mailbox, _hook) =>
-        _mailbox.populateTransaction.setDefaultHook(_hook, { ...txOverrides }),
+        _mailbox.setDefaultHook.populateTransaction(_hook, { ...txOverrides }),
     );
 
     await this.configureHook(
       chain,
       mailbox,
-      requiredHook.address,
+      requiredHook.target as Address,
       (_mailbox) => _mailbox.requiredHook(),
       (_mailbox, _hook) =>
-        _mailbox.populateTransaction.setRequiredHook(_hook, { ...txOverrides }),
+        _mailbox.setRequiredHook.populateTransaction(_hook, { ...txOverrides }),
     );
 
     await this.configureIsm(
@@ -178,7 +179,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       defaultIsm,
       (_mailbox) => _mailbox.defaultIsm(),
       (_mailbox, _module) =>
-        _mailbox.populateTransaction.setDefaultIsm(_module),
+        _mailbox.setDefaultIsm.populateTransaction(_module),
     );
 
     return mailbox;
@@ -242,7 +243,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox,
     });
     this.addDeployedContracts(chain, this.ismFactory.deployedIsms[chain]);
-    return ism.address;
+    return ((ism as any).address ?? (ism as any).target) as Address;
   }
 
   async deployTestRecipient(
@@ -267,11 +268,16 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
 
-    const mailbox = await this.deployMailbox(chain, config, proxyAdmin.address);
+    const mailbox = await this.deployMailbox(
+      chain,
+      config,
+      proxyAdmin.target as Address,
+    );
+    const mailboxAddress = await mailbox.getAddress();
 
     const validatorAnnounce = await this.deployValidatorAnnounce(
       chain,
-      mailbox.address,
+      mailboxAddress,
     );
 
     if (config.upgrade) {
@@ -281,7 +287,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       );
       config.ownerOverrides = {
         ...config.ownerOverrides,
-        proxyAdmin: timelockController.address,
+        proxyAdmin: timelockController.target as Address,
       };
     }
 
@@ -299,6 +305,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
     await this.transferOwnershipOfContracts(chain, config, contracts);
 
-    return contracts;
+    return contracts as any;
   }
 }

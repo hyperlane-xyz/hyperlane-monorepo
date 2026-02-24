@@ -1,4 +1,3 @@
-import type { Contract } from 'ethers';
 import { z } from 'zod';
 
 import type {
@@ -30,7 +29,7 @@ export interface CheckerViolation {
   type: string;
   expected: any;
   actual: any;
-  contract?: Contract;
+  contract?: any;
 }
 
 export enum ViolationType {
