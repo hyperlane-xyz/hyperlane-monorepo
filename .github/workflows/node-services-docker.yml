@@ -3,6 +3,19 @@ name: Build and Push Node Services Images to GCR
 on:
   push:
     branches: [main]
+    paths:
+      - 'typescript/**'
+      - 'solidity/**'
+      - 'starknet/**'
+      - 'scripts/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - 'patches/**'
+      - 'turbo.json'
+      - '.dockerignore'
+      - '.github/workflows/node-services-docker.yml'
+      - 'solidity/.foundryrc'
   pull_request:
     paths:
       - 'typescript/rebalancer/**'
