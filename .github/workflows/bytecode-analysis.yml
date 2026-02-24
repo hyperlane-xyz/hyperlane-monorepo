@@ -49,26 +49,10 @@ jobs:
         env:
           BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
         run: |
-          # Fetch the base reference
           git fetch origin $BASE_REF
-
-          # Get list of contract files in base branch
-          if [[ "$BASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
-            BASE_FILES=$(git ls-tree -r --name-only $BASE_REF -- solidity/contracts)
-          else
-            BASE_FILES=$(git ls-tree -r --name-only origin/$BASE_REF -- solidity/contracts)
-          fi
-
-          # Remove contract files that don't exist in base branch
-          # This prevents compiling new HEAD contracts against old base dependencies
-          for file in $(find solidity/contracts -name '*.sol' -type f); do
-            if ! echo "$BASE_FILES" | grep -qx "$file"; then
-              echo "Removing $file (not in base branch)"
-              rm "$file"
-            fi
-          done
-
-          # Checkout base branch contracts (overwrites existing files)
+          # Remove then checkout to ensure clean state
+          # (git checkout alone doesn't delete files that only exist in HEAD)
+          rm -rf solidity/contracts
           if [[ "$BASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
             git checkout $BASE_REF -- solidity/contracts
           else
