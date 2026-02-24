@@ -1,5 +1,6 @@
 // Testing utilities for Tron SDK
 export {
+  enableInstamine,
   runTronNode,
   stopTronNode,
   type TronNodeInfo,

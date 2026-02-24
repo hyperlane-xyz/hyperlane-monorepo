@@ -53,7 +53,7 @@ export async function runTronNode(
 
   const container = await retryAsync(
     () => {
-      return new GenericContainer('tronbox/tre:1.0.3')
+      return new GenericContainer('tronbox/tre:dev')
         .withEnvironment({
           preapprove: 'allowTvmCompatibleEvm:1',
           mnemonic: TRE_MNEMONIC,
@@ -80,6 +80,9 @@ export async function runTronNode(
   );
   const privateKeys = await waitForTronNodeReady(chainMetadata.port);
 
+  // Enable instamine mode for faster tests
+  await enableInstamine(chainMetadata.port);
+
   return { container, privateKeys };
 }
 
@@ -96,6 +99,24 @@ export async function stopTronNode(
       ? nodeOrContainer.container
       : nodeOrContainer;
   await container.stop();
+}
+
+/**
+ * Enable instamine mode on a local TRE node.
+ * In instamine mode, transactions are mined instantly.
+ *
+ * @param port - The port the TRE node is listening on
+ */
+export async function enableInstamine(port: number): Promise<void> {
+  const response = await fetch(
+    `http://127.0.0.1:${port}/admin/set-env?instamine=true`,
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Failed to enable instamine mode: ${await response.text()}`,
+    );
+  }
+  rootLogger.info('Enabled instamine mode');
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
