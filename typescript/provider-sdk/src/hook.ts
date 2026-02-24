@@ -266,7 +266,7 @@ export function hookConfigToArtifact(
       };
 
     default: {
-      throw new Error(`Unhandled hook type: ${(config as any).type}`);
+      throw new Error('Unhandled hook type');
     }
   }
 }
@@ -305,7 +305,7 @@ export function shouldDeployNewHook(
       return false;
 
     default: {
-      throw new Error(`Unhandled hook type: ${(expected as any).type}`);
+      throw new Error('Unhandled hook type');
     }
   }
 }
@@ -377,7 +377,7 @@ export function hookArtifactToDerivedConfig(
       };
 
     default: {
-      throw new Error(`Unhandled hook type: ${(config as any).type}`);
+      throw new Error('Unhandled hook type');
     }
   }
 }
