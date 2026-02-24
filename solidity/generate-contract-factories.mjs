@@ -86,11 +86,6 @@ function functionSignature(item) {
   return `${item.name}(${inputs.map((input) => abiParamSignature(input)).join(',')})`;
 }
 
-function eventSignature(item) {
-  const inputs = Array.isArray(item?.inputs) ? item.inputs : [];
-  return `${item.name}(${inputs.map((input) => abiParamSignature(input)).join(',')})`;
-}
-
 function renderMethodType(
   methodNames,
   returnType,
@@ -198,29 +193,11 @@ async function generate() {
       contractName,
       abi: parsed.abi ?? [],
       bytecode: parsed.bytecode ?? '0x',
-      functionNames: (() => {
-        const functions = (parsed.abi ?? []).filter(
-          (item) => item?.type === 'function' && typeof item?.name === 'string',
-        );
-        return uniqueStrings(functions.map((item) => item.name));
-      })(),
       functionSignatures: (() => {
         const functions = (parsed.abi ?? []).filter(
           (item) => item?.type === 'function' && typeof item?.name === 'string',
         );
         return uniqueStrings(functions.map((item) => functionSignature(item)));
-      })(),
-      eventNames: (() => {
-        const events = (parsed.abi ?? []).filter(
-          (item) => item?.type === 'event' && typeof item?.name === 'string',
-        );
-        return uniqueStrings(events.map((item) => item.name));
-      })(),
-      eventSignatures: (() => {
-        const events = (parsed.abi ?? []).filter(
-          (item) => item?.type === 'event' && typeof item?.name === 'string',
-        );
-        return uniqueStrings(events.map((item) => eventSignature(item)));
       })(),
     };
     artifactsByName.set(
