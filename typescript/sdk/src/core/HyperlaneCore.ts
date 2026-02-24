@@ -299,7 +299,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
           value: quote,
           gasLimit: addBufferToGasLimit(estimateGas),
         },
-      ),
+      ) as Promise<EvmTransactionResponseLike>,
     );
 
     return {
@@ -322,7 +322,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     chains.map((originChain) => {
       const mailbox = this.contractsMap[originChain].mailbox;
       this.logger.debug(`Listening for dispatch on ${originChain}`);
-      const filter = mailbox.filters.Dispatch();
+      const filter = {
+        address: mailbox.address,
+        eventName: 'Dispatch',
+        args: [] as const,
+      };
       const mailboxWithEvents = getMailboxEventApi(mailbox);
 
       const emitDispatch = async (event: EventLike, message?: unknown) => {
@@ -575,7 +579,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
 
     const processedBlock = await mailbox.processedAt(message.id);
     const events = await mailbox.queryFilter(
-      mailbox.filters.ProcessId(message.id),
+      {
+        address: mailbox.address,
+        eventName: 'ProcessId',
+        args: [message.id] as const,
+      },
       processedBlock,
       processedBlock,
     );
@@ -598,7 +606,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const id = messageId(message.message);
     const destinationChain = this.getDestination(message);
     const mailbox = this.contractsMap[destinationChain].mailbox;
-    const filter = mailbox.filters.ProcessId(id);
+    const filter = {
+      address: mailbox.address,
+      eventName: 'ProcessId',
+      args: [id] as const,
+    };
 
     const mailboxWithEvents = getMailboxEventApi(mailbox);
 
@@ -715,7 +727,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     blockNumber?: number,
   ): Promise<EvmTxReceipt> {
     const mailbox = this.contractsMap[originChain].mailbox;
-    const filter = mailbox.filters.DispatchId(messageId);
+    const filter = {
+      address: mailbox.address,
+      eventName: 'DispatchId',
+      args: [messageId] as const,
+    };
 
     const { fromBlock, toBlock } = blockNumber
       ? { toBlock: blockNumber, fromBlock: blockNumber }

@@ -75,12 +75,16 @@ function eventSignature(item) {
     return `${item.name}(${inputs.map((input) => abiParamSignature(input)).join(",")})`;
 }
 
-function renderMethodType(methodNames, returnType) {
+function renderMethodType(
+    methodNames,
+    returnType,
+    argsType = "readonly unknown[]",
+) {
     if (!methodNames.length) return "{}";
     const lines = methodNames
         .map(
             (methodName) =>
-                `    ${JSON.stringify(methodName)}: (...args: any[]) => ${returnType};`,
+                `    ${JSON.stringify(methodName)}: (...args: ${argsType}) => ${returnType};`,
         )
         .join("\n");
     return `{\n${lines}\n  }`;
@@ -104,16 +108,14 @@ export const ${artifactIdentifier}: ArtifactEntry<typeof ${abiIdentifier}> = {
   bytecode: ${JSON.stringify(artifact.bytecode ?? "0x")},
 };
 
-export type ${name} = ViemContractLike<typeof ${abiIdentifier}> & {
-  ${renderMethodType(artifact.functionNames, "Promise<any>").slice(2, -2)}
-  populateTransaction: ${renderMethodType(artifact.functionNames, "Promise<Record<string, unknown>>")} & {
-    [key: string]: (...args: any[]) => Promise<Record<string, unknown>>;
-  };
-  callStatic: ${renderMethodType(artifact.functionNames, "Promise<any>")};
-  estimateGas: ${renderMethodType(artifact.functionNames, "Promise<bigint>")} & {
-    [key: string]: (...args: any[]) => Promise<bigint>;
-  };
-  filters: ${renderMethodType(artifact.eventNames, "Record<string, unknown>")};
+type ${name}Methods = {
+  [TName in keyof ViemContractLike<typeof ${abiIdentifier}>['functions']]:
+    ViemContractLike<typeof ${abiIdentifier}>['functions'][TName];
+};
+
+export type ${name} = ViemContractLike<typeof ${abiIdentifier}> & ${name}Methods & {
+  ${renderMethodType(artifact.functionSignatures, "Promise<unknown>").slice(2, -2)}
+  estimateGas: ViemContractLike<typeof ${abiIdentifier}>['estimateGas'] & ${renderMethodType(artifact.functionSignatures, "Promise<bigint>")};
 };
 
 export class ${name}__factory extends ViemContractFactory<typeof ${abiIdentifier}, ${name}> {
@@ -181,10 +183,17 @@ async function generate() {
                         item?.type === "function" &&
                         typeof item?.name === "string",
                 );
-                return uniqueStrings([
-                    ...functions.map((item) => item.name),
-                    ...functions.map((item) => functionSignature(item)),
-                ]);
+                return uniqueStrings(functions.map((item) => item.name));
+            })(),
+            functionSignatures: (() => {
+                const functions = (parsed.abi ?? []).filter(
+                    (item) =>
+                        item?.type === "function" &&
+                        typeof item?.name === "string",
+                );
+                return uniqueStrings(
+                    functions.map((item) => functionSignature(item)),
+                );
             })(),
             eventNames: (() => {
                 const events = (parsed.abi ?? []).filter(
@@ -192,10 +201,15 @@ async function generate() {
                         item?.type === "event" &&
                         typeof item?.name === "string",
                 );
-                return uniqueStrings([
-                    ...events.map((item) => item.name),
-                    ...events.map((item) => eventSignature(item)),
-                ]);
+                return uniqueStrings(events.map((item) => item.name));
+            })(),
+            eventSignatures: (() => {
+                const events = (parsed.abi ?? []).filter(
+                    (item) =>
+                        item?.type === "event" &&
+                        typeof item?.name === "string",
+                );
+                return uniqueStrings(events.map((item) => eventSignature(item)));
             })(),
         };
         artifactsByName.set(

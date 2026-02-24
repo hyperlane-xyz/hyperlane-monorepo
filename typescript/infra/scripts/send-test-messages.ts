@@ -97,7 +97,11 @@ const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
   const dispatched = await mailbox.nonce();
   // TODO: Allow processed messages to be filtered by
   // origin, possibly sender and recipient.
-  const processFilter = mailbox.filters.Process();
+  const processFilter = {
+    address: mailbox.address,
+    eventName: 'Process',
+    args: [] as const,
+  };
   const processes = await mailbox.queryFilter(processFilter);
   const processed = processes.length;
 
@@ -266,7 +270,7 @@ async function main() {
         mailbox.address
       } on ${local} with nonce ${
         (await mailbox.nonce()) - 1
-      } and quote ${quote.toString()}`,
+      } and quote ${String(quote)}`,
     );
     console.log(await chainSummary(core, local));
     console.log(await chainSummary(core, remote));

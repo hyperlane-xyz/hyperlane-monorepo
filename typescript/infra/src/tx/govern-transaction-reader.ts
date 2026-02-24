@@ -151,6 +151,62 @@ type ParsedTransactionDescription = NonNullable<
 type ParsedFunctionFragment = ParsedTransactionDescription['functionFragment'];
 type ParsedFunctionArgs = ParsedTransactionDescription['args'];
 
+function asAddress(value: unknown): Address {
+  return String(value);
+}
+
+function asString(value: unknown): string {
+  return String(value);
+}
+
+function asNumber(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  return Number(String(value));
+}
+
+function asBigInt(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return BigInt(value);
+  if (typeof value === 'string') return BigInt(value);
+  if (
+    value &&
+    typeof value === 'object' &&
+    'toString' in value &&
+    typeof value.toString === 'function'
+  ) {
+    return BigInt(value.toString());
+  }
+  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
+}
+
+function asArray<T = unknown>(value: unknown): readonly T[] {
+  return Array.isArray(value) ? (value as readonly T[]) : [];
+}
+
+type BridgeConfigLike = {
+  bufferCap: unknown;
+  rateLimitPerSecond: unknown;
+  bridge: unknown;
+};
+
+function asBridgeConfig(value: unknown): BridgeConfigLike | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const config = value as Record<string, unknown>;
+  if (
+    !('bufferCap' in config) ||
+    !('rateLimitPerSecond' in config) ||
+    !('bridge' in config)
+  ) {
+    return undefined;
+  }
+  return {
+    bufferCap: config.bufferCap,
+    rateLimitPerSecond: config.rateLimitPerSecond,
+    bridge: config.bridge,
+  };
+}
+
 const ownableFunctionSelectors = [
   'renounceOwnership()',
   'transferOwnership(address)',
@@ -549,7 +605,9 @@ export class GovernTransactionReader {
       return { decoded };
     }
 
-    const [destination, feeContract] = decoded.args;
+    const [destinationRaw, feeContractRaw] = decoded.args;
+    const destination = asNumber(destinationRaw);
+    const feeContract = asAddress(feeContractRaw);
     const chainName =
       this.multiProvider.tryGetChainName(destination) ??
       `unknown (${destination})`;
@@ -639,33 +697,41 @@ export class GovernTransactionReader {
     let insight;
     switch (decoded.functionFragment.name) {
       case erc20Interface.functions['transfer(address,uint256)'].name: {
-        const [to, amount] = decoded.args;
-        const numTokens = formatUnits(BigInt(amount.toString()), decimals);
+        const [toRaw, amountRaw] = decoded.args;
+        const to = asAddress(toRaw);
+        const numTokens = formatUnits(asBigInt(amountRaw), decimals);
         insight = `Transfer ${numTokens} ${symbol} to ${to}`;
         break;
       }
       case erc20Interface.functions['approve(address,uint256)'].name: {
-        const [spender, amount] = decoded.args;
-        const numTokens = formatUnits(BigInt(amount.toString()), decimals);
+        const [spenderRaw, amountRaw] = decoded.args;
+        const spender = asAddress(spenderRaw);
+        const numTokens = formatUnits(asBigInt(amountRaw), decimals);
         insight = `Approve ${numTokens} ${symbol} for ${spender}`;
         break;
       }
       case erc20Interface.functions['transferFrom(address,address,uint256)']
         .name: {
-        const [from, to, amount] = decoded.args;
-        const numTokens = formatUnits(BigInt(amount.toString()), decimals);
+        const [fromRaw, toRaw, amountRaw] = decoded.args;
+        const from = asAddress(fromRaw);
+        const to = asAddress(toRaw);
+        const numTokens = formatUnits(asBigInt(amountRaw), decimals);
         insight = `Transfer ${numTokens} ${symbol} from ${from} to ${to}`;
         break;
       }
       case erc20Interface.functions['increaseAllowance(address,uint256)']
         .name: {
-        const [spender, addedValue] = decoded.args;
+        const [spenderRaw, addedValueRaw] = decoded.args;
+        const spender = asAddress(spenderRaw);
+        const addedValue = asBigInt(addedValueRaw);
         insight = `Increase allowance for ${spender} by ${addedValue.toString()}`;
         break;
       }
       case erc20Interface.functions['decreaseAllowance(address,uint256)']
         .name: {
-        const [spender, subtractedValue] = decoded.args;
+        const [spenderRaw, subtractedValueRaw] = decoded.args;
+        const spender = asAddress(spenderRaw);
+        const subtractedValue = asBigInt(subtractedValueRaw);
         insight = `Decrease allowance for ${spender} by ${subtractedValue.toString()}`;
         break;
       }
@@ -737,14 +803,18 @@ export class GovernTransactionReader {
         'schedule(address,uint256,bytes,bytes32,bytes32,uint256)'
       ].name
     ) {
-      const [target, value, data, _predecessor, _salt, delay] = decoded.args;
+      const [targetRaw, valueRaw, dataRaw, _predecessor, _salt, delayRaw] =
+        decoded.args;
+      const target = asAddress(targetRaw);
+      const value = asBigInt(valueRaw);
+      const data = asString(dataRaw);
       const inner = await this.read(chain, {
         to: target,
         data,
         value,
       });
 
-      const eta = new Date(Date.now() + delay.toNumber() * 1000);
+      const eta = new Date(Date.now() + asNumber(delayRaw) * 1000);
 
       insight = `Schedule for ${eta}: ${JSON.stringify(inner)}`;
     }
@@ -755,21 +825,25 @@ export class GovernTransactionReader {
         'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
       ].name
     ) {
-      const [targets, values, data, _predecessor, _salt, delay] = decoded.args;
+      const [targetsRaw, valuesRaw, dataRaw, _predecessor, _salt, delayRaw] =
+        decoded.args;
+      const targets = asArray<Address>(targetsRaw);
+      const values = asArray<unknown>(valuesRaw);
+      const data = asArray<unknown>(dataRaw);
 
       calls = [];
       const numOfTxs = targets.length;
       for (let i = 0; i < numOfTxs; i++) {
         calls.push(
           await this.read(chain, {
-            to: targets[i],
-            data: data[i],
-            value: values[i],
+            to: asAddress(targets[i]),
+            data: asString(data[i]),
+            value: asBigInt(values[i]),
           }),
         );
       }
 
-      const eta = new Date(Date.now() + delay.toNumber() * 1000);
+      const eta = new Date(Date.now() + asNumber(delayRaw) * 1000);
 
       insight = `Schedule for ${eta}`;
     }
@@ -780,7 +854,11 @@ export class GovernTransactionReader {
         'execute(address,uint256,bytes,bytes32,bytes32)'
       ].name
     ) {
-      const [target, value, data, executor] = decoded.args;
+      const [targetRaw, valueRaw, dataRaw, executorRaw] = decoded.args;
+      const target = asAddress(targetRaw);
+      const value = asBigInt(valueRaw);
+      const data = asString(dataRaw);
+      const executor = asAddress(executorRaw);
       insight = `Execute ${target} with ${value} ${data}. Executor: ${executor}`;
     }
 
@@ -790,16 +868,20 @@ export class GovernTransactionReader {
         'executeBatch(address[],uint256[],bytes[],bytes32,bytes32)'
       ].name
     ) {
-      const [targets, values, data, _predecessor, _salt] = decoded.args;
+      const [targetsRaw, valuesRaw, dataRaw, _predecessor, _salt] =
+        decoded.args;
+      const targets = asArray<Address>(targetsRaw);
+      const values = asArray<unknown>(valuesRaw);
+      const data = asArray<unknown>(dataRaw);
 
       calls = [];
       const numOfTxs = targets.length;
       for (let i = 0; i < numOfTxs; i++) {
         calls.push(
           await this.read(chain, {
-            to: targets[i],
-            data: data[i],
-            value: values[i],
+            to: asAddress(targets[i]),
+            data: asString(data[i]),
+            value: asBigInt(values[i]),
           }),
         );
       }
@@ -874,7 +956,9 @@ export class GovernTransactionReader {
       decoded.functionFragment.name ===
       managedLockboxInterface.functions['grantRole(bytes32,address)'].name
     ) {
-      const [role, account] = decoded.args;
+      const [roleRaw, accountRaw] = decoded.args;
+      const role = asString(roleRaw);
+      const account = asAddress(accountRaw);
       const roleName = roleMap[role] ? ` ${roleMap[role]}` : '';
       insight = `Grant role${roleName} to ${account}`;
     } else {
@@ -926,25 +1010,33 @@ export class GovernTransactionReader {
     if (metadata.type === TokenStandard.EvmHypVSXERC20) {
       switch (decoded.functionFragment.name) {
         case vsTokenInterface.functions['setBufferCap(address,uint256)'].name: {
-          const [bridge, newBufferCap] = decoded.args;
+          const [bridgeRaw, newBufferCapRaw] = decoded.args;
+          const bridge = asAddress(bridgeRaw);
+          const newBufferCap = asBigInt(newBufferCapRaw);
           insight = `Set buffer cap for bridge ${bridge} to ${newBufferCap}`;
           break;
         }
         case vsTokenInterface.functions[
           'setRateLimitPerSecond(address,uint128)'
         ].name: {
-          const [bridge, newRateLimit] = decoded.args;
+          const [bridgeRaw, newRateLimitRaw] = decoded.args;
+          const bridge = asAddress(bridgeRaw);
+          const newRateLimit = asBigInt(newRateLimitRaw);
           insight = `Set rate limit per second for bridge ${bridge} to ${newRateLimit}`;
           break;
         }
         case vsTokenInterface.functions['addBridge((uint112,uint128,address))']
           .name: {
-          const [{ bufferCap, rateLimitPerSecond, bridge }] = decoded.args;
-          insight = `Add new bridge ${bridge} with buffer cap ${bufferCap} and rate limit ${rateLimitPerSecond}`;
+          const [bridgeConfigRaw] = decoded.args;
+          const bridgeConfig = asBridgeConfig(bridgeConfigRaw);
+          if (bridgeConfig) {
+            insight = `Add new bridge ${asAddress(bridgeConfig.bridge)} with buffer cap ${asBigInt(bridgeConfig.bufferCap)} and rate limit ${asBigInt(bridgeConfig.rateLimitPerSecond)}`;
+          }
           break;
         }
         case vsTokenInterface.functions['removeBridge(address)'].name: {
-          const [bridgeToRemove] = decoded.args;
+          const [bridgeToRemoveRaw] = decoded.args;
+          const bridgeToRemove = asAddress(bridgeToRemoveRaw);
           insight = `Remove bridge ${bridgeToRemove}`;
           break;
         }
@@ -954,7 +1046,10 @@ export class GovernTransactionReader {
         decoded.functionFragment.name ===
         xerc20Interface.functions['setLimits(address,uint256,uint256)'].name
       ) {
-        const [bridge, mintingLimit, burningLimit] = decoded.args;
+        const [bridgeRaw, mintingLimitRaw, burningLimitRaw] = decoded.args;
+        const bridge = asAddress(bridgeRaw);
+        const mintingLimit = asBigInt(mintingLimitRaw);
+        const burningLimit = asBigInt(burningLimitRaw);
         insight = `Set limits for bridge ${bridge} - minting limit: ${mintingLimit}, burning limit: ${burningLimit}`;
       }
     }
@@ -963,29 +1058,23 @@ export class GovernTransactionReader {
     if (!insight) {
       switch (decoded.functionFragment.name) {
         case xerc20Interface.functions['mint(address,uint256)'].name: {
-          const [to, amount] = decoded.args;
-          const numTokens = formatUnits(
-            BigInt(amount.toString()),
-            metadata.decimals,
-          );
+          const [toRaw, amountRaw] = decoded.args;
+          const to = asAddress(toRaw);
+          const numTokens = formatUnits(asBigInt(amountRaw), metadata.decimals);
           insight = `Mint ${numTokens} ${metadata.symbol} to ${to}`;
           break;
         }
         case xerc20Interface.functions['approve(address,uint256)'].name: {
-          const [spender, amount] = decoded.args;
-          const numTokens = formatUnits(
-            BigInt(amount.toString()),
-            metadata.decimals,
-          );
+          const [spenderRaw, amountRaw] = decoded.args;
+          const spender = asAddress(spenderRaw);
+          const numTokens = formatUnits(asBigInt(amountRaw), metadata.decimals);
           insight = `Approve ${numTokens} ${metadata.symbol} for ${spender}`;
           break;
         }
         case xerc20Interface.functions['burn(address,uint256)'].name: {
-          const [from, amount] = decoded.args;
-          const numTokens = formatUnits(
-            BigInt(amount.toString()),
-            metadata.decimals,
-          );
+          const [fromRaw, amountRaw] = decoded.args;
+          const from = asAddress(fromRaw);
+          const numTokens = formatUnits(asBigInt(amountRaw), metadata.decimals);
           insight = `Burn ${numTokens} ${metadata.symbol} from ${from}`;
           break;
         }
@@ -1061,7 +1150,9 @@ export class GovernTransactionReader {
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['removeBridge(uint32,address)'].name
     ) {
-      const [domain, bridgeAddress] = decoded.args;
+      const [domainRaw, bridgeAddressRaw] = decoded.args;
+      const domain = asNumber(domainRaw);
+      const bridgeAddress = asAddress(bridgeAddressRaw);
       const chainName = this.multiProvider.tryGetChainName(domain);
       insight = `Remove bridge ${bridgeAddress} from domain ${domain}${chainName ? ` (${chainName})` : ''}`;
     }
@@ -1088,15 +1179,17 @@ export class GovernTransactionReader {
       tokenRouterInterface.functions['setDestinationGas((uint32,uint256)[])']
         .name
     ) {
-      const [gasConfigs] = decoded.args;
-      const insights = gasConfigs.map(
-        (config: { domain: number; gas: { toString(): string } }) => {
-          const chainName = this.multiProvider.getChainName(config.domain);
-          return `domain ${
-            config.domain
-          } (${chainName}) to ${config.gas.toString()}`;
-        },
+      const [gasConfigsRaw] = decoded.args;
+      const gasConfigs = asArray<{ domain: unknown; gas: unknown }>(
+        gasConfigsRaw,
       );
+      const insights = gasConfigs.map((config) => {
+        const domain = asNumber(config.domain);
+        const chainName = this.multiProvider.getChainName(domain);
+        return `domain ${
+          domain
+        } (${chainName}) to ${asBigInt(config.gas).toString()}`;
+      });
       insight = `Set destination gas for ${insights.join(', ')}`;
     }
 
@@ -1105,10 +1198,13 @@ export class GovernTransactionReader {
       tokenRouterInterface.functions['enrollRemoteRouters(uint32[],bytes32[])']
         .name
     ) {
-      const [domains, routers] = decoded.args;
-      const insights = domains.map((domain: number, index: number) => {
+      const [domainsRaw, routersRaw] = decoded.args;
+      const domains = asArray<unknown>(domainsRaw);
+      const routers = asArray<unknown>(routersRaw);
+      const insights = domains.map((domainRaw, index: number) => {
+        const domain = asNumber(domainRaw);
         const chainName = this.multiProvider.getChainName(domain);
-        return `domain ${domain} (${chainName}) to ${routers[index]}`;
+        return `domain ${domain} (${chainName}) to ${asString(routers[index])}`;
       });
       insight = `Enroll remote routers for ${insights.join(', ')}`;
     }
@@ -1117,7 +1213,8 @@ export class GovernTransactionReader {
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['unenrollRemoteRouter(uint32)'].name
     ) {
-      const [domain] = decoded.args;
+      const [domainRaw] = decoded.args;
+      const domain = asNumber(domainRaw);
       const chainName = this.multiProvider.getChainName(domain);
       insight = `Unenroll remote router for domain ${domain} (${chainName})`;
     }
@@ -1126,8 +1223,10 @@ export class GovernTransactionReader {
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['unenrollRemoteRouters(uint32[])'].name
     ) {
-      const [domains] = decoded.args;
-      const insights = domains.map((domain: number) => {
+      const [domainsRaw] = decoded.args;
+      const domains = asArray<unknown>(domainsRaw);
+      const insights = domains.map((domainRaw) => {
+        const domain = asNumber(domainRaw);
         const chainName = this.multiProvider.getChainName(domain);
         return `domain ${domain} (${chainName})`;
       });
@@ -1138,7 +1237,8 @@ export class GovernTransactionReader {
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['setFeeRecipient(address)'].name
     ) {
-      const [recipient] = decoded.args;
+      const [recipientRaw] = decoded.args;
+      const recipient = asAddress(recipientRaw);
       // Read fee contract details (handles address(0), non-fee contracts gracefully)
       const feeInfo = await this.readFeeContractDetails(
         chain,
@@ -1161,7 +1261,9 @@ export class GovernTransactionReader {
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['setRecipient(uint32,bytes32)'].name
     ) {
-      const [domain, recipient] = decoded.args;
+      const [domainRaw, recipientRaw] = decoded.args;
+      const domain = asNumber(domainRaw);
+      const recipient = asString(recipientRaw);
       const chainName = this.multiProvider.tryGetChainName(domain);
       insight = `Set rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${recipient}`;
     }
@@ -1170,7 +1272,8 @@ export class GovernTransactionReader {
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['removeRecipient(uint32)'].name
     ) {
-      const [domain] = decoded.args;
+      const [domainRaw] = decoded.args;
+      const domain = asNumber(domainRaw);
       const chainName = this.multiProvider.tryGetChainName(domain);
       insight = `Remove rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''}`;
     }
@@ -1188,7 +1291,9 @@ export class GovernTransactionReader {
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
     ) {
-      const [domain, router] = decoded.args;
+      const [domainRaw, routerRaw] = decoded.args;
+      const domain = asNumber(domainRaw);
+      const router = asString(routerRaw);
       const chainName = this.multiProvider.tryGetChainName(domain);
       insight = `Enroll remote router for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${router}`;
     }
@@ -1207,7 +1312,7 @@ export class GovernTransactionReader {
       chain,
       to: `${token.symbol} (${token.name}, ${token.standard}, ${tokenAddress})`,
       insight,
-      value: `${formatEther(BigInt(decoded.value.toString()))} ${symbol}`,
+      value: `${formatEther(asBigInt(decoded.value))} ${symbol}`,
       signature: decoded.signature,
       ...(feeDetails && { feeDetails }),
     };
@@ -1249,7 +1354,7 @@ export class GovernTransactionReader {
       const feeReader = new EvmTokenFeeReader(this.multiProvider, chain);
       const feeConfig = await feeReader.deriveTokenFeeConfig({
         address: feeRecipientAddress,
-        routingDestinations: domains,
+        routingDestinations: [...domains],
       });
 
       return await this.formatFeeConfig(chain, feeConfig);
@@ -1849,7 +1954,8 @@ export class GovernTransactionReader {
       decoded.functionFragment.name ===
       ownableInterface.functions['transferOwnership(address)'].name
     ) {
-      const [newOwner] = decoded.args;
+      const [newOwnerRaw] = decoded.args;
+      const newOwner = asAddress(newOwnerRaw);
       const newOwnerInsight = await getOwnerInsight(chain, newOwner);
       insight = `Transfer ownership to ${newOwnerInsight}`;
     }
@@ -2126,10 +2232,14 @@ function formatFunctionFragmentArgs(
   fragment: ParsedFunctionFragment,
 ): Record<string, any> {
   const accumulator: Record<string, any> = {};
-  return fragment.inputs.reduce((acc: any, input: any, index: number) => {
-    acc[input.name] = args[index];
-    return acc;
-  }, accumulator);
+  const inputs = fragment.inputs as readonly { name?: string }[];
+
+  for (let index = 0; index < inputs.length; index++) {
+    const name = inputs[index]?.name || `arg${index}`;
+    accumulator[name] = args[index];
+  }
+
+  return accumulator;
 }
 
 function formatOperationType(operation: OperationType | undefined): string {

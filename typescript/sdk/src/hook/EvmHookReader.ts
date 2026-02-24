@@ -359,8 +359,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     const hookConfigs: DerivedHookConfig[] = await concurrentMap(
       this.concurrency,
-      hooks,
-      (hook: any) => this.deriveHookConfig(hook as HookConfig),
+      [...hooks],
+      (hook: Address) => this.deriveHookConfig(hook as HookConfig),
     );
 
     const config: WithAddress<AggregationHookConfig> = {
@@ -409,7 +409,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const overhead: IgpHookConfig['overhead'] = {};
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
 
-    let oracleKey: string | undefined;
+    let oracleKey: Address | undefined;
 
     const allKeys = await concurrentMap(
       this.concurrency,
@@ -469,7 +469,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     );
 
     const resolvedOracleKeys = allKeys.filter(
-      (key): key is string => key !== null,
+      (key): key is NonNullable<(typeof allKeys)[number]> => key !== null,
     );
 
     if (resolvedOracleKeys.length > 0) {

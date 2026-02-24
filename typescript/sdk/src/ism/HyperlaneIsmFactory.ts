@@ -52,6 +52,7 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import type { EvmTransactionResponseLike } from '../providers/evmTypes.js';
 import { ChainMap, ChainName } from '../types.js';
 import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
@@ -570,7 +571,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             safeConfigDomains,
             submoduleAddresses,
             overrides,
-          ),
+          ) as Promise<EvmTransactionResponseLike>,
         );
       } else {
         // deploying new domain routing ISM
@@ -710,10 +711,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory['getAddress(address[],uint8)'](
+    const address = (await factory['getAddress(address[],uint8)'](
       sorted,
       threshold,
-    );
+    )) as Address;
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -728,10 +729,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         overrides,
       );
       // add gas buffer
-      const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
-        gasLimit: addBufferToGasLimit(estimatedGas),
-        ...overrides,
-      });
+      const hash = (await factory['deploy(address[],uint8)'](
+        sorted,
+        threshold,
+        {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+          ...overrides,
+        },
+      )) as EvmTransactionResponseLike;
 
       await this.multiProvider.handleTx(chain, hash);
       // TODO: add proxy verification artifact?
@@ -752,10 +757,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory['getAddress((address,uint96)[],uint96)'](
+    const address = (await factory['getAddress((address,uint96)[],uint96)'](
       sorted,
       thresholdWeight,
-    );
+    )) as Address;
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -768,14 +773,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         'deploy((address,uint96)[],uint96)'
       ](sorted, thresholdWeight, overrides);
       // add gas buffer
-      const hash = await factory['deploy((address,uint96)[],uint96)'](
+      const hash = (await factory['deploy((address,uint96)[],uint96)'](
         sorted,
         thresholdWeight,
         {
           gasLimit: addBufferToGasLimit(estimatedGas),
           ...overrides,
         },
-      );
+      )) as EvmTransactionResponseLike;
 
       await this.multiProvider.handleTx(chain, hash);
       // TODO: add proxy verification artifact?

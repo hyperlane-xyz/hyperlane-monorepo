@@ -2,7 +2,7 @@ import { toBytes } from 'viem';
 
 import {
   ChainName,
-  EthersV5Transaction,
+  EvmTransaction,
   EvmRouterAdapter,
   MultiProtocolProvider,
   ProviderType,
@@ -53,17 +53,14 @@ export class EvmHelloWorldAdapter
     message: string,
     value: string,
     sender: Address,
-  ): Promise<EthersV5Transaction> {
+  ): Promise<EvmTransaction> {
     const contract = this.getConnectedContract();
     const toDomain = this.multiProvider.getDomainId(destination);
     const { transactionOverrides } = this.multiProvider.getChainMetadata(
       this.chainName,
     );
 
-    const quote = await contract.callStatic.quoteDispatch(
-      toDomain,
-      toBytes(message),
-    );
+    const quote = await contract.quoteDispatch(toDomain, toBytes(message));
     const totalValue = BigInt(value) + toBigInt(quote);
     // apply gas buffer due to https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/634
     const estimated = await contract.estimateGas.sendHelloWorld(
@@ -79,16 +76,17 @@ export class EvmHelloWorldAdapter
       },
     );
 
-    const tx = await contract.populateTransaction.sendHelloWorld(
-      toDomain,
-      message,
-      {
-        gasLimit: addBufferToGasLimit(estimated),
-        ...transactionOverrides,
-        value: totalValue,
-      },
-    );
-    return { transaction: tx, type: ProviderType.EthersV5 };
+    const tx = {
+      to: contract.address,
+      data: contract.interface.encodeFunctionData('sendHelloWorld', [
+        toDomain,
+        message,
+      ]),
+      gasLimit: addBufferToGasLimit(estimated),
+      ...transactionOverrides,
+      value: totalValue,
+    };
+    return { transaction: tx, type: ProviderType.Evm };
   }
 
   async sentStat(destination: ChainName): Promise<number> {

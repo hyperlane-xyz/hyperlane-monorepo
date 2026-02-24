@@ -30,6 +30,7 @@ import {
 import {
   HyperlaneAddresses,
   HyperlaneAddressesMap,
+  HyperlaneContractLike,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
@@ -46,9 +47,20 @@ export function serializeContractsMap<F extends HyperlaneFactories>(
 export function serializeContracts<F extends HyperlaneFactories>(
   contracts: HyperlaneContracts<F>,
 ): any {
-  return objMap(contracts, (_, contract) =>
-    contract.address ? contract.address : serializeContracts(contract),
-  );
+  return objMap(contracts, (_, contract) => {
+    if (isHyperlaneContractLike(contract)) {
+      return contract.address;
+    }
+    return serializeContracts(
+      contract as HyperlaneContracts<HyperlaneFactories>,
+    );
+  });
+}
+
+function isHyperlaneContractLike(
+  value: unknown,
+): value is HyperlaneContractLike {
+  return !!value && typeof value === 'object' && 'address' in value;
 }
 
 function getFactory<F extends HyperlaneFactories>(

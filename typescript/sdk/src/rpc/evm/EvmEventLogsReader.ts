@@ -71,7 +71,7 @@ export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrat
       );
     }
 
-    return deploymentTransactionReceipt.blockNumber;
+    return Number(deploymentTransactionReceipt.blockNumber);
   }
 
   async getContractLogs(

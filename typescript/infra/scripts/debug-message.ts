@@ -137,13 +137,11 @@ async function checkMessage(
       'Calling recipient `handle` function from the inbox does not revert',
     );
   } catch (err: any) {
-    const data = (
-      await recipient.populateTransaction.handle(
-        message.parsed.origin,
-        message.parsed.sender,
-        message.parsed.body,
-      )
-    ).data;
+    const data = recipient.interface.encodeFunctionData('handle', [
+      message.parsed.origin,
+      message.parsed.sender,
+      message.parsed.body,
+    ]);
     console.log('Simulated call', {
       from: destinationMailbox.address,
       to: recipient.address,

@@ -369,7 +369,16 @@ export class EvmXERC20Module extends HyperlaneModule<
         warpRouteConfig.token,
         provider,
       );
-      xERC20Address = await lockbox.callStatic.XERC20();
+      const result = await provider.call({
+        to: lockbox.address,
+        data: lockbox.interface.encodeFunctionData('XERC20'),
+      });
+      xERC20Address = String(
+        lockbox.interface.decodeFunctionResult(
+          'XERC20',
+          result as `0x${string}`,
+        ),
+      ) as Address;
     }
 
     const limits: XERC20LimitsMap = {};

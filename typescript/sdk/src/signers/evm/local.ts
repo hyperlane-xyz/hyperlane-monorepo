@@ -171,12 +171,19 @@ export class LocalAccountViemSigner {
     value: TypedDataValueLike,
   ): Promise<Hex> {
     const primaryType = getTypedDataPrimaryType(types);
-    return this.account.signTypedData({
-      domain: domain as any,
-      types: types as any,
-      primaryType: primaryType as any,
-      message: value as any,
-    });
+    const signRequest: Parameters<typeof this.account.signTypedData>[0] = {
+      domain: domain as Parameters<
+        typeof this.account.signTypedData
+      >[0]['domain'],
+      types: types as Parameters<typeof this.account.signTypedData>[0]['types'],
+      primaryType: primaryType as Parameters<
+        typeof this.account.signTypedData
+      >[0]['primaryType'],
+      message: value as Parameters<
+        typeof this.account.signTypedData
+      >[0]['message'],
+    };
+    return this.account.signTypedData(signRequest);
   }
 
   async _signTypedData(

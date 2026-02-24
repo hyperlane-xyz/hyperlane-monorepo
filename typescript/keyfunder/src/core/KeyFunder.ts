@@ -197,10 +197,10 @@ export class KeyFunder {
 
     if (igpBalance > claimThreshold) {
       logger.info('IGP balance exceeds threshold, claiming');
-      await this.multiProvider.sendTransaction(
-        chain,
-        await igpContract.populateTransaction.claim(),
-      );
+      await this.multiProvider.sendTransaction(chain, {
+        to: igpContract.address,
+        data: igpContract.interface.encodeFunctionData('claim'),
+      });
       logger.info('IGP claim completed');
     }
   }

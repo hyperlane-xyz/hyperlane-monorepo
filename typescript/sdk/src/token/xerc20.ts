@@ -119,7 +119,7 @@ async function getConfigurationChangedLogsFromExplorerApi({
     { apiUrl: explorerUrl, apiKey },
     {
       address: xERC20Address,
-      fromBlock: deploymentTransactionReceipt.blockNumber,
+      fromBlock: Number(deploymentTransactionReceipt.blockNumber),
       toBlock: currentBlockNumber,
       topic0: CONFIGURATION_CHANGED_EVENT_SELECTOR,
     },
@@ -179,7 +179,7 @@ async function getLockboxesFromLogs(
           provider,
         );
 
-        await maybeXERC20Lockbox.callStatic.XERC20();
+        await maybeXERC20Lockbox.XERC20();
         return log;
       } catch {
         logger.debug(

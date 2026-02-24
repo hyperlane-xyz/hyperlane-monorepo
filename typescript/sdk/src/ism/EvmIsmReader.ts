@@ -165,7 +165,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return {
       address,
       type: IsmType.OFFCHAIN_LOOKUP,
-      urls,
+      urls: [...urls],
       owner,
     };
   }
@@ -279,7 +279,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       return {
         type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
         isms: await this.deriveRemoteIsmConfigs(
-          domainIds,
+          [...domainIds],
           abstractRoutingIsm,
           icaRouter.isms,
           // The isms here are deployed on remote chains and can't be derived
@@ -297,7 +297,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     const domains: DomainRoutingIsmConfig['domains'] =
       await this.deriveRemoteIsmConfigs(
-        domainIds,
+        [...domainIds],
         abstractRoutingIsm,
         defaultFallbackIsmInstance.module,
         true,
@@ -411,12 +411,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       lowerIsm: await this.deriveIsmConfig(lowerIsm),
       upperIsm: await this.deriveIsmConfig(upperIsm),
-      threshold:
-        typeof threshold === 'number'
-          ? threshold
-          : typeof threshold === 'bigint'
-            ? Number(threshold)
-            : threshold.toNumber(),
+      threshold: typeof threshold === 'bigint' ? Number(threshold) : threshold,
     };
   }
 
@@ -431,7 +426,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     const ismConfigs = await concurrentMap(
       this.concurrency,
-      modules,
+      [...modules],
       async (module: any) => this.deriveIsmConfig(module as any),
     );
 
@@ -478,7 +473,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return {
       address,
       type: ismType,
-      validators,
+      validators: [...validators],
       threshold,
     };
   }

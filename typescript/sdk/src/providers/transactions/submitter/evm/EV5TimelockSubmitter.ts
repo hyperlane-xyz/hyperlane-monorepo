@@ -139,23 +139,29 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
       `Operation with id "${operationId}" already exists. If this is a new operation with the same input as another one provide a salt to generate a different operation id or cancel the existing one if it is still pending.`,
     );
 
-    const [proposeCallData, executeCallData] = await Promise.all([
-      this.timelockInstance.populateTransaction.scheduleBatch(
-        to,
-        value,
-        data,
-        this.config.predecessor,
-        this.config.salt,
-        this.config.delay,
-      ),
-      this.timelockInstance.populateTransaction.executeBatch(
-        to,
-        value,
-        data,
-        this.config.predecessor,
-        this.config.salt,
-      ),
-    ]);
+    const [proposeCallData, executeCallData] = [
+      {
+        to: this.timelockInstance.address,
+        data: this.timelockInstance.interface.encodeFunctionData(
+          'scheduleBatch',
+          [
+            to,
+            value,
+            data,
+            this.config.predecessor,
+            this.config.salt,
+            this.config.delay,
+          ],
+        ),
+      },
+      {
+        to: this.timelockInstance.address,
+        data: this.timelockInstance.interface.encodeFunctionData(
+          'executeBatch',
+          [to, value, data, this.config.predecessor, this.config.salt],
+        ),
+      },
+    ];
 
     const proposeFormattedCallData = await this.proposerSubmitter.submit({
       chainId: destinationChainDomainId,

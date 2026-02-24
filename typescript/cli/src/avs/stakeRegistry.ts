@@ -70,13 +70,13 @@ export async function registerOperatorWithSignature({
   log(
     `Registering operator ${operatorAsSigner.address} attesting ${avsSigningKeyAddress} with signature on ${chain}...`,
   );
-  await multiProvider.handleTx(
-    chain,
-    ecdsaStakeRegistry.registerOperatorWithSignature(
-      operatorSignature,
-      avsSigningKeyAddress,
+  await multiProvider.sendTransaction(chain, {
+    to: ecdsaStakeRegistry.address,
+    data: ecdsaStakeRegistry.interface.encodeFunctionData(
+      'registerOperatorWithSignature',
+      [operatorSignature, avsSigningKeyAddress],
     ),
-  );
+  });
   logBlue(`Operator ${operatorAsSigner.address} registered to Hyperlane AVS`);
 }
 
@@ -104,7 +104,10 @@ export async function deregisterOperator({
   );
 
   log(`Deregistering operator ${operatorAsSigner.address} on ${chain}...`);
-  await multiProvider.handleTx(chain, ecdsaStakeRegistry.deregisterOperator());
+  await multiProvider.sendTransaction(chain, {
+    to: ecdsaStakeRegistry.address,
+    data: ecdsaStakeRegistry.interface.encodeFunctionData('deregisterOperator'),
+  });
   logBlue(
     `Operator ${operatorAsSigner.address} deregistered from Hyperlane AVS`,
   );

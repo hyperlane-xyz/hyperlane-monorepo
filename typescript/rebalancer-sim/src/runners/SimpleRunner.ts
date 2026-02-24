@@ -119,8 +119,7 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
           this.provider,
         );
         const balance = await token.balanceOf(domain.warpToken);
-        balances[chainName] =
-          typeof balance === 'bigint' ? balance : BigInt(balance.toString());
+        balances[chainName] = balance;
       }
 
       // Calculate total and target balances per strategy

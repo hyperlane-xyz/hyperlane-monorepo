@@ -227,7 +227,16 @@ export class MockInfrastructureController {
 
         // Static call pre-check
         try {
-          await mailbox.callStatic.process('0x', msg.message);
+          const destinationProvider = this.core.multiProvider.getProvider(
+            msg.destination,
+          );
+          await destinationProvider.call({
+            to: mailbox.address,
+            data: mailbox.interface.encodeFunctionData('process', [
+              '0x',
+              msg.message,
+            ]),
+          });
         } catch (error) {
           logger.debug(
             {
@@ -352,7 +361,11 @@ export class MockInfrastructureController {
 
         const mailbox = this.core.getContracts(chainName).mailbox;
         const events = await mailbox.queryFilter(
-          mailbox.filters.Dispatch(),
+          {
+            address: mailbox.address,
+            eventName: 'Dispatch',
+            args: [] as const,
+          },
           lastScanned + 1,
           currentBlock,
         );

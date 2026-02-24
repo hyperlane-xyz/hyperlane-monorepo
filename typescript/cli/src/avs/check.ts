@@ -145,7 +145,11 @@ const getAvsOperators = async (
     return avsOperators;
   }
 
-  const filter = ecdsaStakeRegistry.filters.SigningKeyUpdate(null, null);
+  const filter = {
+    address: ecdsaStakeRegistry.address,
+    eventName: 'SigningKeyUpdate',
+    args: [null, null],
+  };
   const provider = multiProvider.getProvider(chain);
   const latestBlock = await provider.getBlockNumber();
   const blockLimit = 50000; // 50k blocks per query
@@ -197,10 +201,11 @@ const getAVSMetadataURI = async (
     multiProvider.getProvider(chain),
   );
 
-  const filter = delegationManager.filters.OperatorMetadataURIUpdated(
-    operatorAddress,
-    null,
-  );
+  const filter = {
+    address: delegationManager.address,
+    eventName: 'OperatorMetadataURIUpdated',
+    args: [operatorAddress, null],
+  };
 
   const provider = multiProvider.getProvider(chain);
   const latestBlock = await provider.getBlockNumber();

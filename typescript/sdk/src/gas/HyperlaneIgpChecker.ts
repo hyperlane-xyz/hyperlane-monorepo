@@ -145,7 +145,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         continue;
       }
       const destinationGasConfigs = await igp.destinationGasConfigs(remoteId);
-      const actualGasOracle = destinationGasConfigs.gasOracle;
+      const actualGasOracle = destinationGasConfigs[0];
       const expectedGasOracle = coreContracts.storageGasOracle.address;
 
       if (!eqAddress(actualGasOracle, expectedGasOracle)) {
