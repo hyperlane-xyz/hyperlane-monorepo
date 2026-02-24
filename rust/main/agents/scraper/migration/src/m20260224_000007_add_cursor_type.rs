@@ -6,53 +6,50 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let table = Cursor::Table.to_string();
+        let cursor_type = Cursor::Stage.to_string();
+        let domain = Cursor::Domain.to_string();
+        let height = Cursor::Height.to_string();
+        let index_name = "cursor_domain_type_height_idx";
+
         manager
-            .alter_table(
-                Table::alter()
-                    .table(Cursor::Table)
-                    .add_column(
-                        ColumnDef::new(Cursor::Stage)
-                            .text()
-                            .not_null()
-                            .default("finalized"),
-                    )
-                    .to_owned(),
-            )
+            .get_connection()
+            .execute_unprepared(&format!(
+                r#"
+                ALTER TABLE "{table}"
+                ADD COLUMN IF NOT EXISTS "{cursor_type}" TEXT NOT NULL DEFAULT 'finalized'
+                "#
+            ))
             .await?;
 
         manager
-            .create_index(
-                Index::create()
-                    .table(Cursor::Table)
-                    .name("cursor_domain_type_height_idx")
-                    .col(Cursor::Domain)
-                    .col(Cursor::Stage)
-                    .col(Cursor::Height)
-                    .index_type(IndexType::BTree)
-                    .to_owned(),
-            )
+            .get_connection()
+            .execute_unprepared(&format!(
+                r#"
+                CREATE INDEX IF NOT EXISTS "{index_name}"
+                ON "{table}" ("{domain}", "{cursor_type}", "{height}")
+                "#
+            ))
             .await?;
 
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let table = Cursor::Table.to_string();
+        let cursor_type = Cursor::Stage.to_string();
+        let index_name = "cursor_domain_type_height_idx";
+
         manager
-            .drop_index(
-                Index::drop()
-                    .table(Cursor::Table)
-                    .name("cursor_domain_type_height_idx")
-                    .to_owned(),
-            )
+            .get_connection()
+            .execute_unprepared(&format!(r#"DROP INDEX IF EXISTS "{index_name}""#))
             .await?;
 
         manager
-            .alter_table(
-                Table::alter()
-                    .table(Cursor::Table)
-                    .drop_column(Cursor::Stage)
-                    .to_owned(),
-            )
+            .get_connection()
+            .execute_unprepared(&format!(
+                r#"ALTER TABLE "{table}" DROP COLUMN IF EXISTS "{cursor_type}""#
+            ))
             .await?;
 
         Ok(())

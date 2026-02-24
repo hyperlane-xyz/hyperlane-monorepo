@@ -62,7 +62,7 @@ impl BlockCursor {
             Height,
         }
 
-        let height = (cursor::Entity::find())
+        let height_with_cursor_type = (cursor::Entity::find())
             .filter(cursor::Column::Domain.eq(domain))
             .filter(cursor::Column::CursorType.eq(cursor_kind.as_str()))
             .order_by(cursor::Column::Height, Order::Desc)
@@ -70,9 +70,39 @@ impl BlockCursor {
             .column_as(cursor::Column::Height, QueryAs::Height)
             .into_values::<i64, QueryAs>()
             .one(&db)
-            .await?
-            .map(|h| h as u64)
-            .unwrap_or(default_height);
+            .await;
+
+        let height = match height_with_cursor_type {
+            Ok(height) => height.map(|h| h as u64).unwrap_or(default_height),
+            Err(err) if should_fallback_to_legacy_cursor_query(&err) => {
+                warn!(
+                    domain,
+                    cursor_kind = ?cursor_kind,
+                    error = ?err,
+                    "cursor_type column missing, falling back to legacy cursor query"
+                );
+                match cursor_kind {
+                    CursorKind::Finalized => (cursor::Entity::find())
+                        .filter(cursor::Column::Domain.eq(domain))
+                        .order_by(cursor::Column::Height, Order::Desc)
+                        .select_only()
+                        .column_as(cursor::Column::Height, QueryAs::Height)
+                        .into_values::<i64, QueryAs>()
+                        .one(&db)
+                        .await?
+                        .map(|h| h as u64)
+                        .unwrap_or(default_height),
+                    CursorKind::Tip => {
+                        warn!(
+                            domain,
+                            "Tip cursor persistence requires cursor_type migration; using default tip height"
+                        );
+                        default_height
+                    }
+                }
+            }
+            Err(err) => return Err(err.into()),
+        };
         if height < default_height {
             warn!(
                 height,
@@ -136,4 +166,9 @@ impl ScraperDb {
     ) -> Result<BlockCursor> {
         BlockCursor::new(self.clone_connection(), domain, default_height, cursor_kind).await
     }
+}
+
+fn should_fallback_to_legacy_cursor_query(err: &DbErr) -> bool {
+    let msg = err.to_string().to_lowercase();
+    (msg.contains("cursor_type") && msg.contains("column")) || msg.contains("no such column")
 }
