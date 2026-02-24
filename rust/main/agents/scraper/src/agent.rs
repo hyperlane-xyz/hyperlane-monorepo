@@ -420,8 +420,9 @@ impl Scraper {
                 domain.clone(),
                 finalized_store.mailbox_address,
                 // Seed tip cursor near-head on first run for responsiveness.
+                // Use tip-1 so the first sync pass still includes current tip block.
                 // Finalized pipeline remains authoritative for historical backfill.
-                tip_height as u64,
+                tip_height.saturating_sub(1) as u64,
                 Some(contract_sync_metrics.stored_events.clone()),
             )
             .await
