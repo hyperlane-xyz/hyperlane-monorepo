@@ -1,5 +1,4 @@
-import { ethers, utils } from 'ethers';
-import { Hex, decodeFunctionData, parseAbi } from 'viem';
+import { Hex, decodeFunctionData, encodeAbiParameters, parseAbi } from 'viem';
 
 import {
   ProxyAdmin__factory,
@@ -11,13 +10,18 @@ import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 import { tryGetContractDeploymentTransaction } from '../../block-explorer/etherscan.js';
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import type { EvmDeployableContractLike } from '../../providers/evmTypes.js';
 import { ChainMap, ChainName } from '../../types.js';
 import { proxyAdmin, proxyImplementation } from '../proxy.js';
 
 import { ContractVerificationInput } from './types.js';
 
+type FunctionFragmentLike = {
+  inputs: Array<{ name: string }>;
+};
+
 export function formatFunctionArguments(
-  fragment: utils.Fragment,
+  fragment: FunctionFragmentLike,
   args: any[],
 ): any {
   const params = Object.fromEntries(
@@ -27,7 +31,7 @@ export function formatFunctionArguments(
 }
 
 export function getConstructorArguments(
-  contract: ethers.Contract,
+  contract: EvmDeployableContractLike,
   bytecode: string,
 ): any {
   const tx = contract.deployTransaction;
@@ -59,7 +63,7 @@ export function getContractVerificationInput({
   expectedimplementation,
 }: {
   name: string;
-  contract: ethers.Contract;
+  contract: EvmDeployableContractLike;
   bytecode: string;
   isProxy?: boolean;
   expectedimplementation?: Address;
@@ -83,7 +87,7 @@ export async function getContractVerificationInputForZKSync({
   expectedimplementation,
 }: {
   name: string;
-  contract: ethers.Contract;
+  contract: EvmDeployableContractLike;
   constructorArgs: any[];
   artifact: ZKSyncArtifact;
   isProxy?: boolean;
@@ -100,8 +104,16 @@ export async function getContractVerificationInputForZKSync({
 }
 
 export function encodeArguments(abi: any, constructorArgs: any[]): string {
-  const contractInterface = new utils.Interface(abi);
-  return contractInterface.encodeDeploy(constructorArgs).replace('0x', '');
+  const constructorAbi = abi.find(
+    (item: { type?: string }) => item.type === 'constructor',
+  );
+  if (!constructorAbi?.inputs?.length) {
+    return '';
+  }
+  return encodeAbiParameters(constructorAbi.inputs, constructorArgs).replace(
+    '0x',
+    '',
+  );
 }
 
 /**

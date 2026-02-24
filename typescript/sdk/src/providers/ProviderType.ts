@@ -40,18 +40,12 @@ import {
   ProtocolType,
 } from '@hyperlane-xyz/utils';
 
-import type { EvmProviderLike } from './evmTypes.js';
-
-type EvmContractLike = { address?: string } & Record<string, unknown>;
-type EvmTransactionLike = {
-  to?: string;
-  data?: string;
-  value?: unknown;
-} & Record<string, unknown>;
-type EvmTransactionReceiptLike = {
-  transactionHash?: string;
-  logs?: unknown[];
-} & Record<string, unknown>;
+import type {
+  EvmContractLike,
+  EvmProviderLike,
+  EvmTransactionLike,
+  EvmTransactionReceiptLike,
+} from './evmTypes.js';
 type ZkSyncProviderLike = EvmProviderLike;
 type ZkSyncContractLike = EvmContractLike;
 type ZkSyncTransactionLike = EvmTransactionLike;

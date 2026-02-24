@@ -31,6 +31,8 @@ import {
 } from './types.js';
 import { parseCustomRpcHeaders } from '../../utils/provider.js';
 import {
+  type TypedDataDomainLike,
+  type TypedDataValueLike,
   type TypedDataTypesLike,
   getTypedDataPrimaryType,
 } from '../../utils/typedData.js';
@@ -48,15 +50,15 @@ type SmartProviderSigner = EvmSignerLike & {
   provider: HyperlaneSmartProvider;
   signMessage(message: string | Uint8Array): Promise<string>;
   signTypedData(typedData: {
-    domain: Record<string, unknown>;
-    types: Record<string, unknown>;
+    domain: TypedDataDomainLike;
+    types: TypedDataTypesLike;
     primaryType: string;
-    message: Record<string, unknown>;
+    message: TypedDataValueLike;
   }): Promise<string>;
   _signTypedData(
-    domain: Record<string, unknown>,
-    types: Record<string, unknown>,
-    value: Record<string, unknown>,
+    domain: TypedDataDomainLike,
+    types: TypedDataTypesLike,
+    value: TypedDataValueLike,
   ): Promise<string>;
 };
 
@@ -653,22 +655,20 @@ export class HyperlaneSmartProvider implements IProviderMethods {
         return this.send<string>('personal_sign', [data, address]);
       },
       signTypedData: async (typedData: {
-        domain: Record<string, unknown>;
-        types: Record<string, unknown>;
+        domain: TypedDataDomainLike;
+        types: TypedDataTypesLike;
         primaryType: string;
-        message: Record<string, unknown>;
+        message: TypedDataValueLike;
       }) => {
         const payload = jsonStringifyWithBigInt(typedData);
         return this.send<string>('eth_signTypedData_v4', [address, payload]);
       },
       _signTypedData: async (
-        domain: Record<string, unknown>,
-        types: Record<string, unknown>,
-        value: Record<string, unknown>,
+        domain: TypedDataDomainLike,
+        types: TypedDataTypesLike,
+        value: TypedDataValueLike,
       ) => {
-        const primaryType = getTypedDataPrimaryType(
-          types as TypedDataTypesLike,
-        );
+        const primaryType = getTypedDataPrimaryType(types);
         return signer.signTypedData({
           domain,
           types,
