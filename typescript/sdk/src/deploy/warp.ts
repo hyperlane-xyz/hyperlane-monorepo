@@ -38,6 +38,7 @@ import {
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { HookConfig } from '../hook/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -132,9 +133,16 @@ export async function executeWarpDeploy(
 
     switch (protocol) {
       case ProtocolType.Ethereum: {
+        const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+          registryAddresses,
+          multiProvider,
+          undefined,
+          contractVerifier,
+        );
+
         const deployer = warpDeployConfig.isNft
           ? new HypERC721Deployer(multiProvider)
-          : new HypERC20Deployer(multiProvider); // TODO: replace with EvmWarpModule
+          : new HypERC20Deployer(multiProvider, ismFactory, contractVerifier); // TODO: replace with EvmERC20WarpModule
 
         const evmContracts = await deployer.deploy(protocolSpecificConfig);
         deployedContracts = {

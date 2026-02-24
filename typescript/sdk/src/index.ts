@@ -807,6 +807,9 @@ export {
   XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
+  PredicateWrapperConfig,
+  PredicateWrapperConfigSchema,
+  isPredicateWrapperConfig,
 } from './token/types.js';
 export {
   deriveBridgesConfig,
@@ -818,6 +821,14 @@ export {
   CONFIGURATION_CHANGED_EVENT_SELECTOR,
   XERC20_VS_ABI,
 } from './token/xerc20-abi.js';
+export {
+  PredicateApiClient,
+  PredicateAttestation,
+  PredicateAttestationRequest,
+  PredicateAttestationResponse,
+  PredicateWrapperDeployer,
+  PredicateWrapperDeploymentResult,
+} from './predicate/index.js';
 export {
   ChainMap,
   ChainName,

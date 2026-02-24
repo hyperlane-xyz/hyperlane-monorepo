@@ -82,6 +82,22 @@ export const BaseMovableTokenConfigSchema = z.object({
     .optional(),
 });
 
+// Predicate wrapper configuration for compliance-gated transfers
+export const PredicateWrapperConfigSchema = z.object({
+  predicateRegistry: ZHash.describe('Predicate registry contract address'),
+  policyId: z
+    .string()
+    .min(1)
+    .describe('Predicate policy ID for attestation validation'),
+});
+
+export type PredicateWrapperConfig = z.infer<
+  typeof PredicateWrapperConfigSchema
+>;
+export const isPredicateWrapperConfig = isCompliant(
+  PredicateWrapperConfigSchema,
+);
+
 export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.native, TokenType.nativeScaled]),
   ...BaseMovableTokenConfigSchema.shape,
@@ -127,6 +143,7 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
         'Existing token address to extend with Warp Route functionality',
       ),
     ...BaseMovableTokenConfigSchema.shape,
+    predicateWrapper: PredicateWrapperConfigSchema.optional(),
   },
 );
 
@@ -218,6 +235,7 @@ export const isCollateralRebaseTokenConfig = isCompliant(
 export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
   initialSupply: z.string().or(z.number()).optional(),
+  predicateWrapper: PredicateWrapperConfigSchema.optional(),
 });
 export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
