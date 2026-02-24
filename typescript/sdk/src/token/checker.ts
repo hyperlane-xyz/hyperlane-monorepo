@@ -1,5 +1,3 @@
-import { BigNumber } from 'ethers';
-
 import {
   ERC20,
   ERC20__factory,
@@ -11,7 +9,7 @@ import {
   ProxyAdmin__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import { LazyAsync, eqAddress, objMap } from '@hyperlane-xyz/utils';
+import { LazyAsync, assert, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { filterOwnableContracts } from '../contracts/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
@@ -42,6 +40,11 @@ export class HypERC20Checker extends ProxiedRouterChecker<
   private readonly allActualDecimals = new LazyAsync(() =>
     this.loadAllActualDecimals(),
   );
+
+  private getContractAddress(contract: { target?: unknown }): string {
+    assert(typeof contract.target === 'string', 'Missing contract target');
+    return contract.target;
+  }
 
   async checkChain(chain: ChainName): Promise<void> {
     let expectedChains: string[];
@@ -87,27 +90,26 @@ export class HypERC20Checker extends ProxiedRouterChecker<
           provider,
         );
         collateralToken = ERC20__factory.connect(
-          await lockbox.callStatic['XERC20()'](),
+          await lockbox.XERC20.staticCall(),
           provider,
         );
-        contracts['collateralToken'] = Ownable__factory.connect(
-          collateralToken.address,
+        (contracts as any)['collateralToken'] = Ownable__factory.connect(
+          this.getContractAddress(collateralToken),
           provider,
         );
       }
 
       if (expectedConfig.type === TokenType.XERC20) {
-        contracts['collateralToken'] = Ownable__factory.connect(
-          collateralToken.address,
+        (contracts as any)['collateralToken'] = Ownable__factory.connect(
+          this.getContractAddress(collateralToken),
           provider,
         );
       }
-      if (await isProxy(provider, collateralToken.address)) {
-        const admin = await proxyAdmin(provider, collateralToken.address);
-        contracts['collateralProxyAdmin'] = ProxyAdmin__factory.connect(
-          admin,
-          provider,
-        );
+      const collateralTokenAddress = this.getContractAddress(collateralToken);
+      if (await isProxy(provider, collateralTokenAddress)) {
+        const admin = await proxyAdmin(provider, collateralTokenAddress);
+        (contracts as any)['collateralProxyAdmin'] =
+          ProxyAdmin__factory.connect(admin, provider);
       }
     }
 
@@ -129,7 +131,9 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       ];
 
       for (const check of checks) {
-        const actual = await token[check.method]();
+        const rawActual = await token[check.method]();
+        const actual =
+          check.method === 'decimals' ? Number(rawActual) : rawActual;
         const expected = config[check.method];
         if (expected !== undefined && actual !== expected) {
           const violation: TokenMismatchViolation = {
@@ -137,7 +141,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
             chain,
             expected,
             actual,
-            tokenAddress: token.address,
+            tokenAddress: this.getContractAddress(token),
           };
           this.addViolation(violation);
         }
@@ -153,8 +157,8 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         await this.multiProvider.estimateGas(
           chain,
           {
-            to: hypToken.address,
-            value: BigNumber.from(1),
+            to: this.getContractAddress(hypToken),
+            value: 1n,
           },
           NON_ZERO_SENDER_ADDRESS,
         );
@@ -164,7 +168,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
           chain,
           expected: 'true',
           actual: 'false',
-          tokenAddress: hypToken.address,
+          tokenAddress: this.getContractAddress(hypToken),
         };
         this.addViolation(violation);
       }
@@ -178,13 +182,14 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       const actualToken = await (
         hypToken as unknown as HypERC20Collateral
       ).wrappedToken();
-      if (!eqAddress(collateralToken.address, actualToken)) {
+      const collateralTokenAddress = this.getContractAddress(collateralToken);
+      if (!eqAddress(collateralTokenAddress, actualToken)) {
         const violation: TokenMismatchViolation = {
           type: 'CollateralTokenMismatch',
           chain,
-          expected: collateralToken.address,
+          expected: collateralTokenAddress,
           actual: actualToken,
-          tokenAddress: hypToken.address,
+          tokenAddress: this.getContractAddress(hypToken),
         };
         this.addViolation(violation);
       }
@@ -239,14 +244,14 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       decimals =
         this.multiProvider.getChainMetadata(chain).nativeToken?.decimals;
     } else if (isSyntheticTokenConfig(expectedConfig)) {
-      decimals = await (hypToken as unknown as ERC20).decimals();
+      decimals = Number(await (hypToken as unknown as ERC20).decimals());
     } else if (
       isCollateralTokenConfig(expectedConfig) ||
       isXERC20TokenConfig(expectedConfig) ||
       isCctpTokenConfig(expectedConfig)
     ) {
       const collateralToken = await this.getCollateralToken(chain);
-      decimals = await collateralToken.decimals();
+      decimals = Number(await collateralToken.decimals());
     }
 
     if (decimals === undefined) {
@@ -271,7 +276,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         const collateralTokenAddress = await IXERC20Lockbox__factory.connect(
           expectedConfig.token,
           provider,
-        ).callStatic.ERC20();
+        ).ERC20.staticCall();
         collateralToken = ERC20__factory.connect(
           collateralTokenAddress,
           provider,
@@ -283,7 +288,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         const collateralTokenAddress = await IERC4626__factory.connect(
           expectedConfig.token,
           provider,
-        ).callStatic.asset();
+        ).asset.staticCall();
         collateralToken = ERC20__factory.connect(
           collateralTokenAddress,
           provider,
@@ -324,7 +329,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         actual: JSON.stringify(chainDecimals, (_k, v) =>
           v === undefined ? 'undefined' : v,
         ),
-        tokenAddress: hypToken.address,
+        tokenAddress: this.getContractAddress(hypToken),
       };
       this.addViolation(violation);
       return;
@@ -339,7 +344,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         actual: JSON.stringify(chainDecimals, (_k, v) =>
           v === undefined ? 'undefined' : v,
         ),
-        tokenAddress: hypToken.address,
+        tokenAddress: this.getContractAddress(hypToken),
       };
       this.addViolation(violation);
       return;
@@ -372,7 +377,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       actual: JSON.stringify(chainDecimals, (_k, v) =>
         v === undefined ? 'undefined' : v,
       ),
-      tokenAddress: hypToken.address,
+      tokenAddress: this.getContractAddress(hypToken),
     };
     this.addViolation(violation);
   }

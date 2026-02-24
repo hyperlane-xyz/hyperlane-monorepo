@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { isHexString } from 'ethers';
 import { Account as StarknetAccount } from 'starknet';
 
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
@@ -19,12 +19,9 @@ export class StarknetMultiProtocolSignerAdapter implements IMultiProtocolSigner<
   ) {
     const provider = multiProtocolProvider.getStarknetProvider(this.chainName);
 
+    assert(isHexString(address), 'Starknet address must be a hex string');
     assert(
-      ethers.utils.isHexString(address),
-      'Starknet address must be a hex string',
-    );
-    assert(
-      ethers.utils.isHexString(privateKey),
+      isHexString(privateKey),
       'Starknet private key must be a hex string',
     );
 

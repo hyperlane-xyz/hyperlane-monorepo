@@ -1,6 +1,6 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
-import { BigNumberish, constants } from 'ethers';
+import { BigNumberish, ZeroAddress } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 
 import {
@@ -114,6 +114,11 @@ export class EvmWarpModule extends HyperlaneModule<
   public readonly chainName: ChainName;
   public readonly chainId: EvmChainId;
   public readonly domainId: Domain;
+
+  private getContractAddress(contract: { target?: unknown }): Address {
+    assert(typeof contract.target === 'string', 'Missing contract target');
+    return contract.target as Address;
+  }
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -271,7 +276,7 @@ export class EvmWarpModule extends HyperlaneModule<
     updateTransactions.push({
       chainId: this.chainId,
       annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-      to: contractToUpdate.address,
+      to: this.getContractAddress(contractToUpdate),
       data: contractToUpdate.interface.encodeFunctionData(
         'enrollRemoteRouters',
         [
@@ -320,9 +325,9 @@ export class EvmWarpModule extends HyperlaneModule<
     updateTransactions.push({
       annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
       chainId: this.chainId,
-      to: contractToUpdate.address,
+      to: this.getContractAddress(contractToUpdate),
       data: contractToUpdate.interface.encodeFunctionData(
-        'unenrollRemoteRouters(uint32[])',
+        'unenrollRemoteRouters',
         [routesToUnenroll.map((k) => Number(k))],
       ),
     });
@@ -365,7 +370,7 @@ export class EvmWarpModule extends HyperlaneModule<
       annotation: `Adding rebalancer role to "${rebalancerToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
       to: this.args.addresses.deployedTokenRoute,
       data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-        'addRebalancer(address)',
+        'addRebalancer',
         [rebalancerToAdd],
       ),
     }));
@@ -406,7 +411,7 @@ export class EvmWarpModule extends HyperlaneModule<
       annotation: `Removing rebalancer role from "${rebalancerToRemove}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
       to: this.args.addresses.deployedTokenRoute,
       data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-        'removeRebalancer(address)',
+        'removeRebalancer',
         [rebalancerToRemove],
       ),
     }));
@@ -456,7 +461,7 @@ export class EvmWarpModule extends HyperlaneModule<
             bridge,
           );
 
-          if (allowance.toBigInt() !== UINT_256_MAX) {
+          if (allowance !== UINT_256_MAX) {
             filteredApprovals.push(token);
           }
         }
@@ -472,7 +477,7 @@ export class EvmWarpModule extends HyperlaneModule<
           annotation: `Approving allowed bridge "${bridge}" to spend token "${tokenToApprove}" on behalf of "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
           to: this.args.addresses.deployedTokenRoute,
           data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-            'approveTokenForBridge(address,address)',
+            'approveTokenForBridge',
             [tokenToApprove, bridge],
           ),
         })),
@@ -525,7 +530,7 @@ export class EvmWarpModule extends HyperlaneModule<
           annotation: `Adding allowed bridge "${bridgeToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
           to: this.args.addresses.deployedTokenRoute,
           data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-            'addBridge(uint32,address)',
+            'addBridge',
             [domain, bridgeToAdd],
           ),
         };
@@ -583,7 +588,7 @@ export class EvmWarpModule extends HyperlaneModule<
             annotation: `Removing allowed bridge "${bridgeToAdd}" on token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
             to: this.args.addresses.deployedTokenRoute,
             data: MovableCollateralRouter__factory.createInterface().encodeFunctionData(
-              'removeBridge(uint32,address)',
+              'removeBridge',
               [domain, bridgeToAdd],
             ),
           };
@@ -638,7 +643,7 @@ export class EvmWarpModule extends HyperlaneModule<
         to: this.args.addresses.deployedTokenRoute,
         annotation: `Adding "${Object.keys(assets)}" output assets for token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
         data: EverclearTokenBridge__factory.createInterface().encodeFunctionData(
-          'setOutputAssetsBatch((uint32,bytes32)[])',
+          'setOutputAssetsBatch',
           [assets],
         ),
       },
@@ -694,7 +699,7 @@ export class EvmWarpModule extends HyperlaneModule<
         to: this.args.addresses.deployedTokenRoute,
         annotation: `Removing "${outputAssetsToRemove}" output assets from token "${this.args.addresses.deployedTokenRoute}" on chain "${this.chainName}"`,
         data: EverclearTokenBridge__factory.createInterface().encodeFunctionData(
-          'setOutputAssetsBatch((uint32,bytes32)[])',
+          'setOutputAssetsBatch',
           [assets],
         ),
       },
@@ -894,7 +899,7 @@ export class EvmWarpModule extends HyperlaneModule<
       updateTransactions.push({
         chainId: this.chainId,
         annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        to: contractToUpdate.address,
+        to: this.getContractAddress(contractToUpdate),
         data: contractToUpdate.interface.encodeFunctionData(
           'setDestinationGas((uint32,uint256)[])',
           [gasRouterConfigs],
@@ -941,7 +946,7 @@ export class EvmWarpModule extends HyperlaneModule<
       updateTransactions.push({
         chainId: this.chainId,
         annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
-        to: contractToUpdate.address,
+        to: this.getContractAddress(contractToUpdate),
         data: contractToUpdate.interface.encodeFunctionData(
           'setInterchainSecurityModule',
           [expectedDeployedIsm],
@@ -1042,7 +1047,7 @@ export class EvmWarpModule extends HyperlaneModule<
             `Failed to read feeRecipient, defaulting to generate setFeeRecipient tx`,
             error,
           );
-          return constants.AddressZero;
+          return ZeroAddress;
         });
 
       if (eqAddress(currentFeeRecipient, deployedFee)) {
@@ -1055,7 +1060,7 @@ export class EvmWarpModule extends HyperlaneModule<
           chainId: this.chainId,
           to: this.args.addresses.deployedTokenRoute,
           data: TokenRouter__factory.createInterface().encodeFunctionData(
-            'setFeeRecipient(address)',
+            'setFeeRecipient',
             [deployedFee],
           ),
         },
@@ -1089,7 +1094,7 @@ export class EvmWarpModule extends HyperlaneModule<
         chainId: this.chainId,
         to: this.args.addresses.deployedTokenRoute,
         data: TokenRouter__factory.createInterface().encodeFunctionData(
-          'setFeeRecipient(address)',
+          'setFeeRecipient',
           [deployedFee],
         ),
       });
@@ -1262,7 +1267,7 @@ export class EvmWarpModule extends HyperlaneModule<
       to: proxyAdminAddress,
       data: ProxyAdmin__factory.createInterface().encodeFunctionData(
         'upgrade',
-        [proxyAddress, implementation.address],
+        [proxyAddress, this.getContractAddress(implementation)],
       ),
     });
 
@@ -1302,7 +1307,7 @@ export class EvmWarpModule extends HyperlaneModule<
       {
         addresses: {
           ...proxyFactoryFactories,
-          deployedTokenRoute: deployedContracts[config.type].address,
+          deployedTokenRoute: deployedContracts[config.type].target as Address,
         },
         chain,
         config,

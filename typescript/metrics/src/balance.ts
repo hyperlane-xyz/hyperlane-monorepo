@@ -1,4 +1,4 @@
-import { Contract, type PopulatedTransaction } from 'ethers';
+import { Contract, type TransactionRequest } from 'ethers';
 import type { Logger } from 'pino';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
@@ -22,6 +22,19 @@ import type {
   XERC20Limit,
 } from './types.js';
 import { formatBigInt } from './utils.js';
+
+type PopulatedTransaction = TransactionRequest;
+
+function getContractAddress(contract: { target?: unknown }): Address {
+  return String(contract.target);
+}
+
+async function getManagedLockboxAddress(
+  lockbox: Contract,
+  functionName: 'XERC20' | 'ERC20',
+): Promise<Address> {
+  return (await lockbox.getFunction(functionName).staticCall()) as Address;
+}
 
 /**
  * Minimal ABI for managed lockbox contracts.
@@ -92,8 +105,9 @@ export async function getTokenBridgedBalance(
     token.standard === TokenStandard.EvmHypXERC20Lockbox ||
     token.standard === TokenStandard.EvmHypVSXERC20Lockbox
   ) {
-    tokenAddress = (await (adapter as EvmHypXERC20LockboxAdapter).getXERC20())
-      .address;
+    tokenAddress = getContractAddress(
+      await (adapter as EvmHypXERC20LockboxAdapter).getXERC20(),
+    );
   }
 
   return {
@@ -166,7 +180,7 @@ export async function getXERC20Info(
     ) as EvmHypXERC20Adapter;
     return {
       limits: await getXERC20Limit(token, adapter),
-      xERC20Address: (await adapter.getXERC20()).address,
+      xERC20Address: getContractAddress(await adapter.getXERC20()),
     };
   } else if (
     token.standard === TokenStandard.EvmHypXERC20Lockbox ||
@@ -177,7 +191,7 @@ export async function getXERC20Info(
     ) as EvmHypXERC20LockboxAdapter;
     return {
       limits: await getXERC20Limit(token, adapter),
-      xERC20Address: (await adapter.getXERC20()).address,
+      xERC20Address: getContractAddress(await adapter.getXERC20()),
     };
   }
 
@@ -249,7 +263,10 @@ export async function getExtraLockboxInfo(
     lockboxAddress,
   );
 
-  const xERC20Address = await lockboxInstance['XERC20']();
+  const xERC20Address = await getManagedLockboxAddress(
+    lockboxInstance,
+    'XERC20',
+  );
   const vsXERC20Instance = IXERC20VS__factory.connect(
     xERC20Address,
     currentChainProvider,
@@ -264,10 +281,10 @@ export async function getExtraLockboxInfo(
 
   return {
     limits: {
-      burn: formatBigInt(warpToken, burn.toBigInt()),
-      burnMax: formatBigInt(warpToken, burnMax.toBigInt()),
-      mint: formatBigInt(warpToken, mint.toBigInt()),
-      mintMax: formatBigInt(warpToken, mintMax.toBigInt()),
+      burn: formatBigInt(warpToken, burn),
+      burnMax: formatBigInt(warpToken, burnMax),
+      mint: formatBigInt(warpToken, mint),
+      mintMax: formatBigInt(warpToken, mintMax),
     },
     xERC20Address,
   };
@@ -300,7 +317,10 @@ export async function getExtraLockboxBalance(
     lockboxAddress,
   );
 
-  const erc20TokenAddress = await lockboxInstance['ERC20']();
+  const erc20TokenAddress = await getManagedLockboxAddress(
+    lockboxInstance,
+    'ERC20',
+  );
   const erc20tokenAdapter = new EvmTokenAdapter(
     warpToken.chainName,
     multiProvider,
@@ -355,7 +375,10 @@ export async function getManagedLockBoxCollateralInfo(
     lockBoxAddress,
   );
 
-  const collateralTokenAddress = await lockBoxInstance['ERC20']();
+  const collateralTokenAddress = await getManagedLockboxAddress(
+    lockBoxInstance,
+    'ERC20',
+  );
   const collateralTokenAdapter = new EvmTokenAdapter(
     warpToken.chainName,
     multiProvider,

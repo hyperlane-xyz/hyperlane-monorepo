@@ -1,4 +1,4 @@
-import { BigNumber, constants } from 'ethers';
+import { ZeroAddress } from 'ethers';
 import {
   ContractEventName,
   getAbiItem,
@@ -107,7 +107,7 @@ export class EvmTimelockReader {
 
   async getOperationsSalt(): Promise<Record<string, string>> {
     const logs = await this.evmLogReader.getLogsByTopic({
-      contractAddress: this.timelockInstance.address,
+      contractAddress: this.timelockInstance.target as Address,
       eventTopic: CALL_SALT_EVENT_SELECTOR,
     });
 
@@ -125,7 +125,7 @@ export class EvmTimelockReader {
   async getScheduledOperations(): Promise<Record<string, TimelockTx>> {
     const [callScheduledEvents, callSaltByOperationId] = await Promise.all([
       this.evmLogReader.getLogsByTopic({
-        contractAddress: this.timelockInstance.address,
+        contractAddress: this.timelockInstance.target as Address,
         eventTopic: CALL_SCHEDULED_EVENT_SELECTOR,
       }),
       this.getOperationsSalt(),
@@ -139,7 +139,7 @@ export class EvmTimelockReader {
 
   async getCancelledOperationIds(): Promise<Set<string>> {
     const cancelledOperationEvents = await this.evmLogReader.getLogsByTopic({
-      contractAddress: this.timelockInstance.address,
+      contractAddress: this.timelockInstance.target as Address,
       eventTopic: CALL_CANCELLED_EVENT_SELECTOR,
     });
 
@@ -148,7 +148,7 @@ export class EvmTimelockReader {
 
   async getExecutedOperationIds(): Promise<Set<string>> {
     const executedOperationEvents = await this.evmLogReader.getLogsByTopic({
-      contractAddress: this.timelockInstance.address,
+      contractAddress: this.timelockInstance.target as Address,
       eventTopic: CALL_EXECUTED_EVENT_SELECTOR,
     });
 
@@ -240,7 +240,7 @@ export class EvmTimelockReader {
     // If the 0 address has the role anyone has the role
     const [hasRole, isOpenRole] = await Promise.all([
       this.timelockInstance.hasRole(role, address),
-      this.timelockInstance.hasRole(role, constants.AddressZero),
+      this.timelockInstance.hasRole(role, ZeroAddress),
     ]);
 
     return hasRole || isOpenRole;
@@ -280,7 +280,7 @@ function getScheduledTimelockOperationIdsFromLogs(
             {
               data,
               to: target,
-              value: BigNumber.from(value),
+              value,
             },
           ],
           delay: Number(delay),
@@ -297,7 +297,7 @@ function getScheduledTimelockOperationIdsFromLogs(
         operationsById[id].data[Number(index.toString())] = {
           data,
           to: target,
-          value: BigNumber.from(value),
+          value,
         };
       }
 

@@ -25,8 +25,10 @@ describe('deploy', () => {
   let app: HelloWorldApp;
 
   before(async () => {
-    const [signer] = await hre.ethers.getSigners();
-    multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    const [signer] = await (hre as any).ethers.getSigners();
+    multiProvider = MultiProvider.createTestMultiProvider({
+      signer: signer as any,
+    });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),

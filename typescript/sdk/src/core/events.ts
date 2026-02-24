@@ -1,4 +1,4 @@
 export type DispatchEvent = any;
 export type ProcessEvent = any;
 
-export type HyperlaneLifecyleEvent = ProcessEvent | DispatchEvent;
+export type HyperlaneLifecyleEvent = ProcessEvent;

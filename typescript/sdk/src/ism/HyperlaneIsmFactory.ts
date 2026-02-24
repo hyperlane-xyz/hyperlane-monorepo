@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import type { Log, LogDescription, TransactionReceipt } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -98,6 +98,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   // TODO: fix this in the next refactoring
   public deployedIsms: ChainMap<any> = {};
   protected readonly deployer: IsmDeployer;
+
+  protected getContractAddress(contract: { target?: unknown }): Address {
+    return contract.target as Address;
+  }
 
   constructor(
     contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
@@ -322,7 +326,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         [config.validators, config.threshold],
         artifact,
       );
-      return contract.address;
+      return this.getContractAddress(contract);
     };
 
     let address: string;
@@ -429,7 +433,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         origin: params.origin,
         mailbox: params.mailbox,
       });
-      addresses.push(submodule.address);
+      addresses.push(this.getContractAddress(submodule));
     }
 
     const [lowerIsmAddress, upperIsmAddress] = addresses;
@@ -517,7 +521,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           origin,
           mailbox,
         });
-        isms[originDomain] = ism.address;
+        isms[originDomain] = this.getContractAddress(ism);
         const tx = await routingIsm.set(
           originDomain,
           isms[originDomain],
@@ -548,10 +552,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           origin,
           mailbox,
         });
-        isms[origin] = ism.address;
+        isms[origin] = this.getContractAddress(ism);
       }
       const submoduleAddresses = Object.values(isms);
-      let receipt: ethers.providers.TransactionReceipt;
+      let receipt: TransactionReceipt;
       if (config.type === IsmType.FALLBACK_ROUTING) {
         // deploying new fallback routing ISM
         if (!mailbox) {
@@ -610,7 +614,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         }
 
         // estimate gas
-        const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
+        const estimatedGas = await domainRoutingIsmFactory.deploy.estimateGas(
           owner,
           safeConfigDomains,
           submoduleAddresses,
@@ -631,21 +635,21 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
         // TODO: Break this out into a generalized function
         const dispatchLogs = receipt.logs
-          .map((log) => {
+          .map((log: Log) => {
             try {
-              return domainRoutingIsmFactory.interface.parseLog(log);
+              return domainRoutingIsmFactory.interface.parseLog(log) ?? null;
             } catch {
-              return undefined;
+              return null;
             }
           })
-          .filter(
-            (log): log is ethers.utils.LogDescription =>
-              !!log && log.name === 'ModuleDeployed',
-          );
-        if (dispatchLogs.length === 0) {
+          .filter((log): log is LogDescription => !!log);
+        const moduleDeployedLogs = dispatchLogs.filter(
+          (log) => log.name === 'ModuleDeployed',
+        );
+        if (moduleDeployedLogs.length === 0) {
           throw new Error('No ModuleDeployed event found');
         }
-        const moduleAddress = dispatchLogs[0].args['module'];
+        const moduleAddress = moduleDeployedLogs[0].args['module'] as Address;
         const factory =
           config.type === IsmType.INCREMENTAL_ROUTING
             ? IncrementalDomainRoutingIsm__factory
@@ -677,7 +681,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         origin,
         mailbox,
       });
-      addresses.push(submodule.address);
+      addresses.push(this.getContractAddress(submodule));
     }
 
     let ismAddress: string;
@@ -688,7 +692,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         addresses,
         config.threshold,
       ]);
-      ismAddress = ism.address;
+      ismAddress = this.getContractAddress(ism);
     } else {
       const staticAggregationIsmFactory =
         this.getContracts(destination).staticAggregationIsmFactory;
@@ -714,25 +718,26 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory['getAddress(address[],uint8)'](
-      sorted,
-      threshold,
-    );
+    const address = await factory.getAddress(sorted, threshold);
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
       );
       const overrides = this.multiProvider.getTransactionOverrides(chain);
+      const deployFn =
+        'deploy' in factory
+          ? factory.deploy
+          : factory['deploy(address[],uint8)'];
 
       // estimate gas
-      const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
+      const estimatedGas = await deployFn.estimateGas(
         sorted,
         threshold,
         overrides,
       );
       // add gas buffer
-      const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
+      const hash = await deployFn(sorted, threshold, {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
@@ -756,10 +761,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory['getAddress((address,uint96)[],uint96)'](
-      sorted,
-      thresholdWeight,
-    );
+    const address = await factory.getAddress(sorted, thresholdWeight);
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -768,18 +770,16 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       const overrides = this.multiProvider.getTransactionOverrides(chain);
 
       // estimate gas
-      const estimatedGas = await factory.estimateGas[
-        'deploy((address,uint96)[],uint96)'
-      ](sorted, thresholdWeight, overrides);
-      // add gas buffer
-      const hash = await factory['deploy((address,uint96)[],uint96)'](
+      const estimatedGas = await factory.deploy.estimateGas(
         sorted,
         thresholdWeight,
-        {
-          gasLimit: addBufferToGasLimit(estimatedGas),
-          ...overrides,
-        },
+        overrides,
       );
+      // add gas buffer
+      const hash = await factory.deploy(sorted, thresholdWeight, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
+        ...overrides,
+      });
 
       await this.multiProvider.handleTx(chain, hash);
       // TODO: add proxy verification artifact?

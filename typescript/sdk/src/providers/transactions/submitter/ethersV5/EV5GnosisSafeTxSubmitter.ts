@@ -129,6 +129,10 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
           to,
           `Invalid AnnotatedEV5Transaction: target address is required for gnosis safe transaction on chain with ID ${submitterChainId}`,
         );
+        assert(
+          typeof to === 'string',
+          'Invalid AnnotatedEV5Transaction: target address must be a string',
+        );
         return { to, data, value: value?.toString() ?? '0' };
       },
     );

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -16,9 +16,9 @@ describe('MultiProtocolCore', () => {
     });
     const core = new MultiProtocolCore(multiProvider, {
       test1: {
-        validatorAnnounce: ethers.constants.AddressZero,
-        proxyAdmin: ethers.constants.AddressZero,
-        mailbox: ethers.constants.AddressZero,
+        validatorAnnounce: ZeroAddress,
+        proxyAdmin: ZeroAddress,
+        mailbox: ZeroAddress,
       },
     });
     expect(core).to.be.instanceOf(MultiProtocolCore);

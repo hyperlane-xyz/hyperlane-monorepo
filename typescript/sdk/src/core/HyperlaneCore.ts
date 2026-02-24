@@ -190,18 +190,15 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   }
 
   onDispatch(
-    handler: (
-      message: DispatchedMessage,
-      event: any,
-    ) => Promise<void>,
+    handler: (message: DispatchedMessage, event: any) => Promise<void>,
     chains = Object.keys(this.contractsMap),
   ): {
     removeHandler: (chains?: ChainName[]) => void;
   } {
-    chains.map((originChain) => {
+    chains.forEach((originChain) => {
       const mailbox = this.contractsMap[originChain].mailbox;
       this.logger.debug(`Listening for dispatch on ${originChain}`);
-      mailbox.on(
+      void mailbox.on(
         mailbox.filters.Dispatch(),
         (_sender, _destination, _recipient, message, event) => {
           const dispatched = HyperlaneCore.parseDispatchedMessage(message);
@@ -219,11 +216,12 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     });
 
     return {
-      removeHandler: (removeChains) =>
-        (removeChains ?? chains).map((originChain) => {
-          this.contractsMap[originChain].mailbox.removeAllListeners();
+      removeHandler: (removeChains) => {
+        (removeChains ?? chains).forEach((originChain) => {
+          void this.contractsMap[originChain].mailbox.removeAllListeners();
           this.logger.debug(`Stopped listening for dispatch on ${originChain}`);
-        }),
+        });
+      },
     };
   }
 
@@ -389,7 +387,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const filter = mailbox.filters.ProcessId(id);
 
     return new Promise<TransactionReceipt>((resolve, reject) => {
-      mailbox.once(filter, (emittedId, event) => {
+      void mailbox.once(filter, (emittedId, event) => {
         if (id !== emittedId) {
           reject(`Expected message id ${id} but got ${emittedId}`);
         }

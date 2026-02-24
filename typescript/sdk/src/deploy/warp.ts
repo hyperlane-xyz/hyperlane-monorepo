@@ -59,6 +59,10 @@ import { ContractVerifier } from './verify/ContractVerifier.js';
 
 type ChainAddresses = Record<string, string>;
 
+function getEvmAddress(contract: { target?: unknown }): Address {
+  return contract.target as Address;
+}
+
 export async function executeWarpDeploy(
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired,
   multiProvider: MultiProvider,
@@ -141,7 +145,7 @@ export async function executeWarpDeploy(
           ...deployedContracts,
           ...objMap(
             evmContracts as HyperlaneContractsMap<HypERC20Factories>,
-            (_, contracts) => getRouter(contracts).address,
+            (_, contracts) => getEvmAddress(getRouter(contracts)),
           ),
         };
 
@@ -334,8 +338,13 @@ async function createWarpHook({
       // If config.proxyadmin.address exists, then use that. otherwise deploy a new proxyAdmin
       const proxyAdminAddress: Address =
         warpConfig.proxyAdmin?.address ??
-        (await multiProvider.handleDeploy(chain, new ProxyAdmin__factory(), []))
-          .address;
+        getEvmAddress(
+          await multiProvider.handleDeploy(
+            chain,
+            new ProxyAdmin__factory(),
+            [],
+          ),
+        );
 
       const evmHookModule = await EvmHookModule.create({
         chain,

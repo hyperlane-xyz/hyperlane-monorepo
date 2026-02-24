@@ -94,13 +94,13 @@ export async function deriveTokenMetadata(
           token = await IXERC20Lockbox__factory.connect(
             config.token,
             provider,
-          ).callStatic.ERC20();
+          ).ERC20.staticCall();
           break;
         case TokenType.collateralVault:
           token = await IERC4626__factory.connect(
             config.token,
             provider,
-          ).callStatic.asset();
+          ).asset();
           break;
         default:
           token = config.token;

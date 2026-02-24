@@ -9,6 +9,17 @@ export default [
   ...typescriptRules,
   ...jestRules,
   {
+    name: 'sdk-ts-parser',
+    files: ['**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.eslint.json'],
+        projectService: false,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
     name: 'sdk-rules',
     rules: {
       'no-restricted-imports': ['error', '@hyperlane-xyz/registry'],

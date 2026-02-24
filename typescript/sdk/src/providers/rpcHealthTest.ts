@@ -1,5 +1,10 @@
 import { Mailbox__factory } from '@hyperlane-xyz/core';
-import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  assert,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
@@ -62,10 +67,9 @@ export async function isEthersV5ProviderHealthy(
 
   if (mailboxAddress) {
     const mailbox = Mailbox__factory.createInterface();
-    const topics = mailbox.encodeFilterTopics(
-      mailbox.events['DispatchId(bytes32)'],
-      [],
-    );
+    const dispatchIdEvent = mailbox.getEvent('DispatchId');
+    assert(dispatchIdEvent, 'DispatchId(bytes32) event not found on Mailbox');
+    const topics = mailbox.encodeFilterTopics(dispatchIdEvent, []);
     rootLogger.debug(`Checking mailbox logs for ${chainName}`);
     const mailboxLogs = await provider.getLogs({
       address: mailboxAddress,

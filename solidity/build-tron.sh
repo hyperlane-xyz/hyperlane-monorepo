@@ -13,8 +13,22 @@ forge soldeer install --quiet || echo "Warning: soldeer install failed, assuming
 
 OZ_CREATE2="dependencies/@openzeppelin-contracts-4.9.3/contracts/utils/Create2.sol"
 
-# Collect all .sol files that use isContract (contracts + dependencies)
-ISCONTRACT_FILES=$(grep -rl '\.isContract\b' contracts/ dependencies/ --include='*.sol' || true)
+# Collect all .sol files that use isContract (contracts + dependencies + OZ deps).
+# In pnpm workspaces, OZ packages often live in node_modules/.pnpm/... instead of
+# under node_modules/@openzeppelin symlinks, so include both layouts.
+ISCONTRACT_DIRS="contracts/ dependencies/"
+if [ -d "node_modules/@openzeppelin/" ]; then
+  ISCONTRACT_DIRS="$ISCONTRACT_DIRS node_modules/@openzeppelin/"
+fi
+for pnpm_dir in node_modules/.pnpm ../node_modules/.pnpm; do
+  for d in $(find "$pnpm_dir" -maxdepth 1 -type d -name '@openzeppelin+*' 2>/dev/null); do
+    if [ -d "$d/node_modules/@openzeppelin/" ]; then
+      ISCONTRACT_DIRS="$ISCONTRACT_DIRS $d/node_modules/@openzeppelin/"
+    fi
+  done
+done
+# shellcheck disable=SC2086
+ISCONTRACT_FILES=$(grep -Rrl 'isContract(' $ISCONTRACT_DIRS --include='*.sol' || true)
 
 # Backup all files we'll modify
 backup_files() {

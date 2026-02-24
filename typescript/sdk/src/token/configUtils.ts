@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { ZeroAddress } from 'ethers';
 import { zeroAddress } from 'viem';
 
 import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
@@ -336,7 +336,7 @@ export function resolveTokenFeeAddress(
   let feeToken: Address;
 
   if (isNativeTokenConfig(tokenConfig)) {
-    feeToken = constants.AddressZero;
+    feeToken = ZeroAddress;
   } else if (isCollateralTokenConfig(tokenConfig)) {
     feeToken = tokenConfig.token;
   } else if (

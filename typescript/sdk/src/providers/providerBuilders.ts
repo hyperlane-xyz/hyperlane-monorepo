@@ -1,7 +1,7 @@
 import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
-import { Networkish, Provider } from 'ethers';
+import { Provider } from 'ethers';
 import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
@@ -150,11 +150,11 @@ export function defaultStarknetJsProviderBuilder(
 
 export function defaultZKSyncProviderBuilder(
   rpcUrls: RpcUrl[],
-  network: Networkish,
+  network: number | string,
 ): ZKSyncProvider {
   assert(rpcUrls.length, 'No RPC URLs provided');
   const url = rpcUrls[0].http;
-  const provider = new ZKProvider(url, network);
+  const provider = new ZKProvider(url, network as any);
   return { type: ProviderType.ZkSync, provider };
 }
 

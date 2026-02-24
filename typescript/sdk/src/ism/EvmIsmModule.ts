@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ZeroAddress } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -67,6 +67,10 @@ export class EvmIsmModule extends HyperlaneModule<
   public readonly chain: ChainName;
   public readonly chainId: EvmChainId;
   public readonly domainId: Domain;
+
+  protected getContractAddress(contract: { target?: unknown }): Address {
+    return contract.target as Address;
+  }
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -151,7 +155,7 @@ export class EvmIsmModule extends HyperlaneModule<
         config: normalizedTargetConfig,
       });
 
-      this.args.addresses.deployedIsm = contract.address;
+      this.args.addresses.deployedIsm = this.getContractAddress(contract);
       return [];
     }
 
@@ -283,7 +287,7 @@ export class EvmIsmModule extends HyperlaneModule<
         addresses: {
           ...proxyFactoryFactories,
           mailbox,
-          deployedIsm: ethers.constants.AddressZero,
+          deployedIsm: ZeroAddress,
         },
         chain,
         config,
@@ -293,7 +297,7 @@ export class EvmIsmModule extends HyperlaneModule<
     );
 
     const deployedIsm = await module.deploy({ config });
-    module.args.addresses.deployedIsm = deployedIsm.address;
+    module.args.addresses.deployedIsm = module.getContractAddress(deployedIsm);
 
     return module;
   }
@@ -331,9 +335,10 @@ export class EvmIsmModule extends HyperlaneModule<
       const ism = await this.deploy({
         config: target.domains[origin],
       });
+      const ismAddress = this.getContractAddress(ism);
 
       const domainId = this.multiProvider.getDomainId(origin);
-      const tx = await contract.populateTransaction.set(domainId, ism.address);
+      const tx = await contract.set.populateTransaction(domainId, ismAddress);
       updateTxs.push({
         chainId: this.chainId,
         annotation: `Setting new ISM for origin ${origin}...`,
@@ -349,7 +354,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // Unenroll domains
     for (const origin of knownUnenrolls) {
       const domainId = this.multiProvider.getDomainId(origin);
-      const tx = await contract.populateTransaction.remove(domainId);
+      const tx = await contract.remove.populateTransaction(domainId);
       updateTxs.push({
         chainId: this.chainId,
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
@@ -404,7 +409,7 @@ export class EvmIsmModule extends HyperlaneModule<
         to: this.args.addresses.deployedIsm,
         // The contract code just replaces the existing array with the new one
         data: AbstractCcipReadIsm__factory.createInterface().encodeFunctionData(
-          'setUrls(string[])',
+          'setUrls',
           [target.urls],
         ),
       },

@@ -1,4 +1,4 @@
-import { keccak256 } from 'ethers/lib/utils.js';
+import { keccak256 } from 'ethers';
 
 export const EMPTY_BYTES_32 =
   '0x0000000000000000000000000000000000000000000000000000000000000000';

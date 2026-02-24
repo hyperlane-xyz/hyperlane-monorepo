@@ -1,4 +1,3 @@
-import { BigNumber } from 'ethers';
 import {
   CairoOption,
   CairoOptionVariant,
@@ -134,9 +133,7 @@ export class StarknetTokenAdapter
     const contract = await this.getContractInstance();
 
     const allowance = await contract.allowance(owner, spender);
-    return BigNumber.from(allowance.toString()).lt(
-      BigNumber.from(weiAmountOrId),
-    );
+    return BigInt(allowance.toString()) < BigInt(weiAmountOrId.toString());
   }
 
   async isRevokeApprovalRequired(
@@ -214,9 +211,7 @@ class BaseStarknetHypTokenAdapter
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     const allowance = await this.contract.allowance(owner, spender);
-    return BigNumber.from(allowance.toString()).lt(
-      BigNumber.from(weiAmountOrId),
-    );
+    return BigInt(allowance.toString()) < BigInt(weiAmountOrId.toString());
   }
 
   async isRevokeApprovalRequired(
@@ -416,9 +411,7 @@ export class StarknetHypNativeAdapter extends StarknetHypSyntheticAdapter {
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     const allowance = await this.nativeContract.allowance(owner, spender);
-    return BigNumber.from(allowance.toString()).lt(
-      BigNumber.from(weiAmountOrId),
-    );
+    return BigInt(allowance.toString()) < BigInt(weiAmountOrId.toString());
   }
 
   async populateApproveTx({
@@ -484,9 +477,7 @@ export class StarknetHypFeeAdapter extends StarknetHypSyntheticAdapter {
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
     const allowance = await this.feeTokenContract.allowance(owner, spender);
-    return BigNumber.from(allowance.toString()).lt(
-      BigNumber.from(weiAmountOrId),
-    );
+    return BigInt(allowance.toString()) < BigInt(weiAmountOrId.toString());
   }
 
   async populateApproveTx({

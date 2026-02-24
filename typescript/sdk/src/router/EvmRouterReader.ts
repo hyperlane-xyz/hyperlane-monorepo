@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import { MailboxClient__factory, Router__factory } from '@hyperlane-xyz/core';
 import { Address, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
@@ -59,11 +59,11 @@ export class EvmRouterReader extends HyperlaneReader {
       mailboxClient.interchainSecurityModule(),
     ]);
 
-    const derivedIsm = eqAddress(ismAddress, constants.AddressZero)
-      ? constants.AddressZero
+    const derivedIsm = eqAddress(ismAddress, ZeroAddress)
+      ? ZeroAddress
       : await this.evmIsmReader.deriveIsmConfig(ismAddress);
-    const derivedHook = eqAddress(hookAddress, constants.AddressZero)
-      ? constants.AddressZero
+    const derivedHook = eqAddress(hookAddress, ZeroAddress)
+      ? ZeroAddress
       : await this.evmHookReader.deriveHookConfig(hookAddress);
 
     return {
@@ -81,7 +81,7 @@ export class EvmRouterReader extends HyperlaneReader {
     const routers = Object.fromEntries(
       await Promise.all(
         domains.map(async (domain) => {
-          return [domain, { address: await router.routers(domain) }];
+          return [Number(domain), { address: await router.routers(domain) }];
         }),
       ),
     );

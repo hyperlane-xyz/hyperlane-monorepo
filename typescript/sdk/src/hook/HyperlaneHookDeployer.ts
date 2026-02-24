@@ -209,7 +209,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         `Cannot deploy unknown hook type in aggregation`,
       );
       const hookType = hookConfig.type as DeployableHookType;
-      aggregatedHooks.push(subhooks[hookType].address);
+      aggregatedHooks.push(this.getContractAddress(subhooks[hookType]));
       hooks = { ...hooks, ...subhooks };
     }
 
@@ -264,27 +264,29 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       config: ismConfig,
       origin: chain,
     })) as OPStackIsm;
+    const opstackIsmAddress = this.getContractAddress(opstackIsm);
     // deploy opstack hook
     const hook = await this.deployContract(chain, HookType.OP_STACK, [
       mailbox,
       this.multiProvider.getDomainId(config.destinationChain),
-      addressToBytes32(opstackIsm.address),
+      addressToBytes32(opstackIsmAddress),
       config.nativeBridge,
     ]);
+    const hookAddress = this.getContractAddress(hook);
     const overrides = this.multiProvider.getTransactionOverrides(chain);
     // set authorized hook on opstack ism
     const authorizedHook = await opstackIsm.authorizedHook();
-    if (authorizedHook === addressToBytes32(hook.address)) {
+    if (authorizedHook === addressToBytes32(hookAddress)) {
       this.logger.debug(
         'Authorized hook already set on ism %s',
-        opstackIsm.address,
+        opstackIsmAddress,
       );
       return hook;
     } else if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
       this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
-        opstackIsm.address,
-        addressToBytes32(hook.address),
+        opstackIsmAddress,
+        addressToBytes32(hookAddress),
         authorizedHook,
       );
       throw new Error('Authorized hook mismatch');
@@ -292,13 +294,13 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     // check if mismatch and redeploy hook
     this.logger.debug(
       'Setting authorized hook %s on ism % on destination %s',
-      hook.address,
-      opstackIsm.address,
+      hookAddress,
+      opstackIsmAddress,
       config.destinationChain,
     );
     await this.multiProvider.handleTx(
       config.destinationChain,
-      opstackIsm.setAuthorizedHook(addressToBytes32(hook.address), overrides),
+      opstackIsm.setAuthorizedHook(addressToBytes32(hookAddress), overrides),
     );
 
     return hook;
@@ -344,7 +346,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
             `Cannot deploy unknown hook type as fallback`,
           );
           const fallbackType = config.fallback.type as DeployableHookType;
-          fallbackAddress = fallbackHook[fallbackType].address;
+          fallbackAddress = this.getContractAddress(fallbackHook[fallbackType]);
         }
         routingHook = await this.deployContract(
           chain,
@@ -393,10 +395,10 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         const deployedHookType = hookConfig.type as DeployableHookType;
         routingConfigs.push({
           destination: destDomain,
-          hook: hook[deployedHookType].address,
+          hook: this.getContractAddress(hook[deployedHookType]),
         });
         prevHookConfig = hookConfig;
-        prevHookAddress = hook[deployedHookType].address;
+        prevHookAddress = this.getContractAddress(hook[deployedHookType]);
       }
     }
 
@@ -405,13 +407,13 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       this.logger.debug(
         {
           chain,
-          routingHookAddress: routingHook.address,
+          routingHookAddress: this.getContractAddress(routingHook),
           routingConfigs,
         },
         'Setting routing hooks',
       );
       const estimatedGas =
-        await routingHook.estimateGas.setHooks(routingConfigs);
+        await routingHook.setHooks.estimateGas(routingConfigs);
       return this.multiProvider.handleTx(
         chain,
         routingHook.setHooks(routingConfigs, {
@@ -449,7 +451,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         `Cannot deploy unknown hook type in amount routing`,
       );
       const deployedType = hookConfig.type as DeployableHookType;
-      hooks.push(contracts[deployedType].address);
+      hooks.push(this.getContractAddress(contracts[deployedType]));
     }
 
     const [lowerHook, upperHook] = hooks;

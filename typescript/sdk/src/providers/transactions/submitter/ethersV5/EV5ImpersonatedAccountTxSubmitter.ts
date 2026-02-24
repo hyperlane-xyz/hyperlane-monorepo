@@ -1,4 +1,4 @@
-import { TransactionReceipt } from '@ethersproject/providers';
+import { TransactionReceipt } from 'ethers';
 import { Logger } from 'pino';
 
 import { rootLogger } from '@hyperlane-xyz/utils';

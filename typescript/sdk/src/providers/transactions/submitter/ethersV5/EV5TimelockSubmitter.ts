@@ -47,7 +47,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
       provider,
     );
 
-    const minDelay = (await timelockInstance.getMinDelay()).toBigInt();
+    const minDelay = await timelockInstance.getMinDelay();
     const delay = config.delay ?? minDelay;
     assert(
       delay >= minDelay,
@@ -94,8 +94,14 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
     // If no domain id is set on the transactions
     // assume they are to be sent on the current configured chain
     const [domainId] = transactionChains.values();
+    const destinationDomainOrChain =
+      domainId === undefined || domainId === null
+        ? this.config.chain
+        : typeof domainId === 'bigint'
+          ? Number(domainId)
+          : domainId;
     const destinationChainDomainId = this.multiProvider.getDomainId(
-      domainId ?? this.config.chain,
+      destinationDomainOrChain,
     );
 
     const calldata: CallData[] = txs.map((transaction): CallData => {
@@ -103,6 +109,10 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
       assert(
         transaction.to,
         'Invalid Transaction: target address must be defined',
+      );
+      assert(
+        typeof transaction.to === 'string',
+        'Invalid Transaction: target address must be a string',
       );
 
       return {
@@ -140,7 +150,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
     );
 
     const [proposeCallData, executeCallData] = await Promise.all([
-      this.timelockInstance.populateTransaction.scheduleBatch(
+      this.timelockInstance.scheduleBatch.populateTransaction(
         to,
         value,
         data,
@@ -148,7 +158,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
         this.config.salt,
         this.config.delay,
       ),
-      this.timelockInstance.populateTransaction.executeBatch(
+      this.timelockInstance.executeBatch.populateTransaction(
         to,
         value,
         data,
