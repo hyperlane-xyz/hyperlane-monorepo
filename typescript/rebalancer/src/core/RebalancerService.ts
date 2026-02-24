@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
@@ -15,20 +14,24 @@ import {
   getStrategyChainNames,
 } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import {
   MonitorEvent,
   MonitorEventType,
   MonitorPollingError,
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
-import type { IRebalancer, RebalanceRoute } from '../interfaces/IRebalancer.js';
-import type { IStrategy } from '../interfaces/IStrategy.js';
+import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  IStrategy,
+  MovableCollateralRoute,
+} from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
-import { Monitor } from '../monitor/Monitor.js';
-
-import { RebalancerOrchestrator } from './RebalancerOrchestrator.js';
+import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
+import type { IActionTracker } from '../tracking/IActionTracker.js';
 import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
-import { IActionTracker } from '../tracking/IActionTracker.js';
+
+import type { RebalancerOrchestrator } from './RebalancerOrchestrator.js';
 
 export interface RebalancerServiceConfig {
   /** Execution mode: 'manual' for one-off execution, 'daemon' for continuous monitoring */
@@ -118,10 +121,10 @@ export class RebalancerService {
   private mode: 'manual' | 'daemon';
   private actionTracker?: IActionTracker;
   private inflightContextAdapter?: InflightContextAdapter;
-  private orchestrator!: RebalancerOrchestrator;
-
+  private orchestrator?: RebalancerOrchestrator;
   constructor(
     private readonly multiProvider: MultiProvider,
+    private readonly inventoryMultiProvider: MultiProvider | undefined,
     private readonly multiProtocolProvider: MultiProtocolProvider | undefined,
     private readonly registry: IRegistry,
     private readonly rebalancerConfig: RebalancerConfig,
@@ -146,16 +149,11 @@ export class RebalancerService {
     this.contextFactory = await RebalancerContextFactory.create(
       this.rebalancerConfig,
       this.multiProvider,
+      this.inventoryMultiProvider,
       this.multiProtocolProvider,
       this.registry,
       this.logger,
     );
-
-    // Create monitor (always needed for daemon mode)
-    if (this.mode === 'daemon') {
-      const checkFrequency = this.config.checkFrequency ?? 60_000;
-      this.monitor = this.contextFactory.createMonitor(checkFrequency);
-    }
 
     // Create metrics if enabled
     if (this.config.withMetrics) {
@@ -168,16 +166,8 @@ export class RebalancerService {
     // Create strategy
     this.strategy = await this.contextFactory.createStrategy(this.metrics);
 
-    // Create rebalancer (unless in monitor-only mode)
-    if (!this.config.monitorOnly) {
-      this.rebalancer = this.contextFactory.createRebalancer(this.metrics);
-    } else {
-      this.logger.warn(
-        'Running in monitorOnly mode: no transactions will be executed.',
-      );
-    }
-
     // Create or use provided ActionTracker for tracking inflight actions
+    // Must be created BEFORE rebalancer since rebalancer needs it
     if (this.config.actionTracker) {
       // Use externally provided ActionTracker (e.g., for simulation/testing)
       this.actionTracker = this.config.actionTracker;
@@ -196,14 +186,49 @@ export class RebalancerService {
       this.logger.info('ActionTracker initialized');
     }
 
-    this.orchestrator = new RebalancerOrchestrator({
-      strategy: this.strategy!,
-      rebalancer: this.rebalancer,
+    // Create rebalancers (both movableCollateral and inventory if configured)
+    let rebalancers: IRebalancer[] = [];
+    let externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
+    let inventoryConfig: InventoryMonitorConfig | undefined;
+
+    if (!this.config.monitorOnly) {
+      const result = await this.contextFactory.createRebalancers(
+        this.actionTracker,
+        this.metrics,
+      );
+      rebalancers = result.rebalancers;
+      externalBridgeRegistry = result.externalBridgeRegistry;
+      inventoryConfig = result.inventoryConfig;
+
+      if (rebalancers.length > 0) {
+        this.logger.info(`${rebalancers.length} rebalancer(s) created`);
+      }
+    } else {
+      this.logger.warn(
+        'Running in monitorOnly mode: no transactions will be executed.',
+      );
+    }
+
+    // Set instance variable for backward compatibility with executeManual
+    // (Task 5 will remove this when refactoring executeManual)
+    if (rebalancers.length > 0) {
+      this.rebalancer = rebalancers[0];
+    }
+
+    if (this.mode === 'daemon') {
+      const checkFrequency = this.config.checkFrequency ?? 60_000;
+      this.monitor = this.contextFactory.createMonitor(
+        checkFrequency,
+        inventoryConfig,
+      );
+    }
+
+    this.orchestrator = this.contextFactory.createOrchestrator({
+      strategy: this.strategy,
       actionTracker: this.actionTracker,
       inflightContextAdapter: this.inflightContextAdapter,
-      multiProvider: this.multiProvider,
-      rebalancerConfig: this.rebalancerConfig,
-      logger: this.logger,
+      rebalancers,
+      externalBridgeRegistry: externalBridgeRegistry,
       metrics: this.metrics,
     });
 
@@ -266,14 +291,15 @@ export class RebalancerService {
       originConfig.override?.[destination]?.bridge ?? originConfig.bridge;
 
     try {
-      const route: RebalanceRoute = {
-        intentId: randomUUID(),
+      const manualRoute: MovableCollateralRoute & { intentId: string } = {
         origin,
         destination,
         amount: BigInt(toWei(amount, originToken.decimals)),
+        executionType: 'movableCollateral',
         bridge,
+        intentId: `manual-${Date.now()}`,
       };
-      await this.rebalancer.rebalance([route]);
+      await this.rebalancer.rebalance([manualRoute]);
       this.logger.info(
         `✅ Manual rebalance from ${origin} to ${destination} for amount ${amount} submitted successfully.`,
       );
@@ -345,7 +371,15 @@ export class RebalancerService {
     process.exit(0);
   }
 
+  /**
+   * Handle token info events from monitor by delegating to orchestrator
+   */
   private async onTokenInfo(event: MonitorEvent): Promise<void> {
+    if (!this.orchestrator) {
+      this.logger.error('Orchestrator not initialized');
+      return;
+    }
+
     await this.orchestrator.executeCycle(event);
   }
 

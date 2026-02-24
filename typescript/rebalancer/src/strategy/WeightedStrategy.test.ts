@@ -258,6 +258,7 @@ describe('WeightedStrategy', () => {
           destination: chain1,
           amount: ethers.utils.parseEther('50').toBigInt(),
           bridge: ethers.constants.AddressZero,
+          executionType: 'movableCollateral',
         },
       ]);
     });
@@ -325,6 +326,7 @@ describe('WeightedStrategy', () => {
           destination: chain1,
           amount: ethers.utils.parseEther('100').toBigInt(),
           bridge: ethers.constants.AddressZero,
+          executionType: 'movableCollateral',
         },
       ]);
     });
@@ -363,12 +365,14 @@ describe('WeightedStrategy', () => {
           destination: chain1,
           amount: 133333333333333333333n,
           bridge: ethers.constants.AddressZero,
+          executionType: 'movableCollateral',
         },
         {
           origin: chain3,
           destination: chain2,
           amount: 133333333333333333333n,
           bridge: ethers.constants.AddressZero,
+          executionType: 'movableCollateral',
         },
       ]);
     });
@@ -408,12 +412,14 @@ describe('WeightedStrategy', () => {
           destination: chain1,
           amount: ethers.utils.parseEther('25').toBigInt(),
           bridge: ethers.constants.AddressZero,
+          executionType: 'movableCollateral',
         },
         {
           origin: chain3,
           destination: chain1,
           amount: ethers.utils.parseEther('25').toBigInt(),
           bridge: ethers.constants.AddressZero,
+          executionType: 'movableCollateral',
         },
       ]);
     });
