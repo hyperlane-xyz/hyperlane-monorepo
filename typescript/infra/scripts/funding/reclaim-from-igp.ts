@@ -7,6 +7,7 @@ import {
   objMap,
   promiseObjAll,
   rootLogger,
+  toBigInt,
 } from '@hyperlane-xyz/utils';
 
 import { getEnvAddresses } from '../../config/registry.js';
@@ -110,7 +111,7 @@ async function main() {
 
       try {
         const provider = multiProvider.getProvider(chain);
-        const balance = await provider.getBalance(paymaster.address);
+        const balance = toBigInt(await provider.getBalance(paymaster.address));
         const formattedBalance = formatEther(balance);
 
         // Get the threshold for this chain from config, default to 0.1 ETH if not set
@@ -169,12 +170,12 @@ async function main() {
           return {
             chain,
             balance: formatTo5SF(formattedBalance),
-            threshold: formatTo5SF(thresholdStr),
+            threshold: formatTo5SF(thresholdStr ?? formatEther(threshold)),
             status: ReclaimStatus.NO_GAS_PRICE,
           };
         }
 
-        const estimatedCost = BigInt(gasEstimate) * BigInt(gasPrice);
+        const estimatedCost = toBigInt(gasEstimate) * toBigInt(gasPrice);
         const costThreshold = estimatedCost * 2n; // 2x the cost
 
         // Only proceed if balance > 2x the estimated cost (unless --force is used)
@@ -212,7 +213,7 @@ async function main() {
         let thresholdDisplay = '0.1';
         try {
           const bal = await provider.getBalance(paymaster.address);
-          balance = formatTo5SF(formatEther(bal));
+          balance = formatTo5SF(formatEther(toBigInt(bal)));
         } catch {
           // Balance fetch failed, leave as N/A
         }

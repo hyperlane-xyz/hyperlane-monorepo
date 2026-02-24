@@ -4,10 +4,7 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": [
-    "./src/**/*",
-    "./src/**/*.d.ts"
-  ],
+  "include": ["./src/**/*", "./src/**/*.d.ts"],
   "exclude": [
     "./src/**/*.test.ts",
     "./src/**/*.e2e-test.ts",

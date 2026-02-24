@@ -10,7 +10,12 @@ import {
   MultiProvider,
   RouterApp,
 } from '@hyperlane-xyz/sdk';
-import { Address, addBufferToGasLimit, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addBufferToGasLimit,
+  rootLogger,
+  toBigInt,
+} from '@hyperlane-xyz/utils';
 
 import { HelloWorldFactories } from './contracts.js';
 import { StatCounts } from './types.js';
@@ -24,29 +29,22 @@ type BigNumberishLike =
   | number
   | string
   | {
-      toBigInt?: () => bigint;
       toNumber?: () => number;
-      toString?: () => string;
+      toBigInt?: () => bigint;
     };
 
-const toBigIntValue = (value: BigNumberishLike): bigint => {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  if (value?.toBigInt) return value.toBigInt();
-  if (value?.toString) return BigInt(value.toString());
-
-  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
-};
+const hasToNumber = (
+  value: BigNumberishLike,
+): value is { toNumber: () => number } =>
+  !!value &&
+  typeof value === 'object' &&
+  'toNumber' in value &&
+  typeof value.toNumber === 'function';
 
 const toNumberValue = (value: BigNumberishLike): number => {
   if (typeof value === 'number') return value;
-  if (typeof value === 'bigint') return Number(value);
-  if (typeof value === 'string') return Number(BigInt(value));
-  if (value?.toNumber) return value.toNumber();
-  if (value?.toString) return Number(BigInt(value.toString()));
-
-  throw new Error(`Cannot convert value to number: ${String(value)}`);
+  if (hasToNumber(value)) return value.toNumber();
+  return Number(toBigInt(value));
 };
 
 export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
@@ -87,7 +85,7 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     );
 
     const quote = await sender.quoteDispatch(toDomain, toBytes(message));
-    const totalValue = toBigIntValue(quote) + value;
+    const totalValue = toBigInt(quote) + value;
     const tx = await sender.sendHelloWorld(toDomain, message, {
       gasLimit: addBufferToGasLimit(estimated),
       ...transactionOverrides,

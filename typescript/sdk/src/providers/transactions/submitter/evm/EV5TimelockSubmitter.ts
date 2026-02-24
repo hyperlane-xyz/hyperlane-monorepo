@@ -2,7 +2,7 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, toBigInt } from '@hyperlane-xyz/utils';
 
 import { EMPTY_BYTES_32 } from '../../../../timelock/evm/constants.js';
 import { ChainMap } from '../../../../types.js';
@@ -47,7 +47,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
       provider,
     );
 
-    const minDelay = toBigIntValue(await timelockInstance.getMinDelay());
+    const minDelay = toBigInt(await timelockInstance.getMinDelay());
     const delay = config.delay ?? minDelay;
     assert(
       delay >= minDelay,
@@ -175,19 +175,4 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
     // by the caller
     return [...proposeTransactions, executeCallData as any];
   }
-}
-
-function toBigIntValue(value: unknown): bigint {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'toBigInt' in value &&
-    typeof (value as { toBigInt?: unknown }).toBigInt === 'function'
-  ) {
-    return (value as { toBigInt(): bigint }).toBigInt();
-  }
-  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
 }

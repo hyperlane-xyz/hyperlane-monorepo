@@ -6,6 +6,7 @@ import {
   formatStandardHookMetadata,
   objFilter,
   rootLogger,
+  toBigInt,
 } from '@hyperlane-xyz/utils';
 
 import { getGovernanceSafes } from '../../../config/environments/mainnet3/governance/utils.js';
@@ -81,8 +82,8 @@ async function main() {
         destination: chain,
         innerCalls: [
           {
-            to: call.to,
-            data: call.data,
+            to: String(call.to),
+            data: String(call.data),
           },
         ],
         config: accountConfig,
@@ -99,9 +100,12 @@ async function main() {
 
   await safeMultiSend.sendTransactions(
     remoteCalls.map((call) => ({
-      to: call.to!,
-      data: call.data!,
-      value: call.value,
+      to: String(call.to),
+      data: String(call.data),
+      value:
+        call.value === undefined || call.value === null
+          ? undefined
+          : toBigInt(call.value),
     })),
   );
 }

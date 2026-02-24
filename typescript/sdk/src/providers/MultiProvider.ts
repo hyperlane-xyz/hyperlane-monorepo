@@ -49,6 +49,15 @@ type DeployFactory<TContract = unknown> = {
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
 
+function isEvmProviderLike(value: unknown): value is EvmProviderLike {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    typeof (value as EvmProviderLike).estimateGas === 'function' &&
+    typeof (value as EvmProviderLike).getTransactionReceipt === 'function'
+  );
+}
+
 export interface MultiProviderOptions {
   logger?: Logger;
   providers?: ChainMap<EvmProviderLike>;
@@ -244,7 +253,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     }
     const chainName = this.getChainName(chainNameOrId);
     this.signers[chainName] = signer;
-    if (signer.provider && !this.providers[chainName]) {
+    if (isEvmProviderLike(signer.provider) && !this.providers[chainName]) {
       this.providers[chainName] = signer.provider;
     }
     return signer;
@@ -672,7 +681,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (signer) {
       mp.setSharedSigner(signer);
     }
-    const _provider = provider || signer?.provider;
+    const _provider =
+      provider ||
+      (isEvmProviderLike(signer?.provider) ? signer.provider : undefined);
     if (_provider) {
       const providerMap: ChainMap<EvmProviderLike> = {};
       chains.forEach((t) => (providerMap[t] = _provider));

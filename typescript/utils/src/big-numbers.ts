@@ -96,3 +96,80 @@ export function BigNumberMax(
 ): string {
   return BigNumber(bn1).lte(bn2) ? bn2.toString(10) : bn1.toString(10);
 }
+
+export type BigIntLike = { toBigInt(): bigint };
+export type Stringable = { toString(): string };
+
+export type BigIntCoercible =
+  | bigint
+  | number
+  | string
+  | BigIntLike
+  | Stringable;
+
+function isBigIntLike(value: unknown): value is BigIntLike {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    typeof (value as { toBigInt?: unknown }).toBigInt === 'function'
+  );
+}
+
+function isStringable(value: unknown): value is Stringable {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    typeof (value as { toString?: unknown }).toString === 'function'
+  );
+}
+
+export function isBigIntCoercible(value: unknown): value is BigIntCoercible {
+  if (
+    typeof value === 'bigint' ||
+    typeof value === 'number' ||
+    typeof value === 'string'
+  ) {
+    return true;
+  }
+
+  if (isBigIntLike(value) || isStringable(value)) return true;
+
+  return false;
+}
+
+/**
+ * Converts a value to bigint.
+ * @param value The value to convert.
+ * @param errorMessage Optional error message when conversion fails.
+ * @returns bigint representation of the value.
+ */
+export function toBigInt(value: BigIntCoercible, errorMessage?: string): bigint;
+export function toBigInt(value: unknown, errorMessage?: string): bigint;
+export function toBigInt(
+  value: unknown,
+  errorMessage = 'Unable to convert value to bigint',
+): bigint {
+  try {
+    if (typeof value === 'bigint') return value;
+
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value) || !Number.isInteger(value)) {
+        throw new Error(`Invalid number: ${value}`);
+      }
+      return BigInt(value);
+    }
+
+    if (typeof value === 'string') return BigInt(value);
+
+    if (isBigIntLike(value)) return value.toBigInt();
+    if (isStringable(value)) return BigInt(value.toString());
+  } catch (error) {
+    const cause =
+      error && typeof error === 'object' && 'message' in error
+        ? String(error.message)
+        : String(error);
+    throw new Error(`${errorMessage}: ${cause}`);
+  }
+
+  throw new Error(errorMessage);
+}

@@ -1,7 +1,14 @@
-import { Hex, isHex } from 'viem';
+import { Address, Hex, isHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import { assert } from '@hyperlane-xyz/utils';
+import type {
+  EvmBigNumberish,
+  EvmGasAmount,
+  EvmProviderLike,
+  EvmTransactionReceiptLike,
+  EvmTransactionResponseLike,
+} from '../../providers/evmTypes.js';
 
 import {
   TypedDataDomainLike,
@@ -29,11 +36,39 @@ function hasRpcSend(
   return typeof provider.send === 'function';
 }
 
+type BalanceReadable = {
+  getBalance(
+    address: Address | string,
+    blockTag?: string | number,
+  ): Promise<unknown>;
+};
+
+function hasBalanceReader(
+  provider: ViemProviderLike,
+): provider is ViemProviderLike & BalanceReadable {
+  return typeof provider.getBalance === 'function';
+}
+
 function toChainId(value: unknown): number | undefined {
   if (typeof value === 'number') return value;
   if (typeof value === 'bigint') return Number(value);
   if (typeof value === 'string') return Number(BigInt(value));
   return undefined;
+}
+
+function toViemProviderLike(
+  provider: ViemProviderLike | EvmProviderLike,
+): ViemProviderLike {
+  const candidate = provider as Record<string, unknown>;
+  assert(
+    typeof candidate.estimateGas === 'function' &&
+      typeof candidate.getFeeData === 'function' &&
+      typeof candidate.getNetwork === 'function' &&
+      typeof candidate.getTransactionCount === 'function' &&
+      typeof candidate.sendTransaction === 'function',
+    'Provider does not satisfy LocalAccountViemSigner requirements',
+  );
+  return provider as ViemProviderLike;
 }
 
 export class LocalAccountViemSigner {
@@ -54,20 +89,76 @@ export class LocalAccountViemSigner {
     this.provider = provider;
   }
 
-  connect(provider: ViemProviderLike): LocalAccountViemSigner {
-    return new LocalAccountViemSigner(this.privateKey, provider);
+  connect(
+    provider: ViemProviderLike | EvmProviderLike,
+  ): LocalAccountViemSigner {
+    return new LocalAccountViemSigner(
+      this.privateKey,
+      toViemProviderLike(provider),
+    );
   }
 
   async getAddress(): Promise<string> {
     return this.address;
   }
 
-  async estimateGas(tx: LocalViemTransactionRequest): Promise<unknown> {
+  async getBalance(): Promise<EvmBigNumberish> {
+    if (!this.provider) throw new Error('Provider required to get balance');
+    if (hasBalanceReader(this.provider)) {
+      const balance = await this.provider.getBalance(this.address);
+      if (
+        typeof balance === 'string' ||
+        typeof balance === 'number' ||
+        typeof balance === 'bigint'
+      ) {
+        return balance;
+      }
+      if (
+        balance &&
+        typeof (balance as { toString?: unknown }).toString === 'function'
+      ) {
+        return balance as { toString(): string };
+      }
+      throw new Error('Unable to convert balance');
+    }
+    if (hasRpcSend(this.provider)) {
+      const balance = await this.provider.send('eth_getBalance', [
+        this.address,
+        'latest',
+      ]);
+      if (
+        typeof balance === 'string' ||
+        typeof balance === 'number' ||
+        typeof balance === 'bigint'
+      ) {
+        return balance;
+      }
+      if (
+        balance &&
+        typeof (balance as { toString?: unknown }).toString === 'function'
+      ) {
+        return balance as { toString(): string };
+      }
+      throw new Error('Unable to convert balance');
+    }
+    throw new Error('Provider does not support getBalance');
+  }
+
+  async estimateGas(tx: LocalViemTransactionRequest): Promise<EvmGasAmount> {
     if (!this.provider) throw new Error('Provider required to estimate gas');
-    return this.provider.estimateGas({
+    const estimated = await this.provider.estimateGas({
       ...tx,
       from: tx.from || this.address,
     });
+    const asBigInt = toBigIntValue(estimated);
+    if (asBigInt !== undefined) return asBigInt;
+    if (
+      estimated &&
+      typeof (estimated as { toString?: unknown }).toString === 'function'
+    ) {
+      return estimated as { toString(): string };
+    }
+    throw new Error('Unable to convert estimated gas');
   }
 
   async signMessage(message: string | Uint8Array): Promise<Hex> {
@@ -105,12 +196,20 @@ export class LocalAccountViemSigner {
 
   async sendTransaction(
     tx: LocalViemTransactionRequest,
-  ): Promise<{ hash: string; wait(confirmations?: number): Promise<unknown> }> {
+  ): Promise<EvmTransactionResponseLike> {
     if (!this.provider)
       throw new Error('Provider required to send transaction');
     return this.withSendLock(async () => {
       const signedTransaction = await this.signTransaction(tx);
-      return this.provider!.sendTransaction(signedTransaction);
+      const response = await this.provider!.sendTransaction(signedTransaction);
+      return {
+        ...response,
+        hash: response.hash,
+        wait: async (confirmations?: number) =>
+          (await response.wait(
+            confirmations,
+          )) as EvmTransactionReceiptLike | null,
+      };
     });
   }
 

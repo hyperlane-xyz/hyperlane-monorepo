@@ -2,6 +2,7 @@ import type { Logger } from 'pino';
 import { formatEther, parseEther } from 'viem';
 
 import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { toBigInt } from '@hyperlane-xyz/utils';
 
 import type {
   ChainConfig,
@@ -171,7 +172,10 @@ export class KeyFunder {
       return;
     }
 
-    const logger = this.options.logger.child({ chain, operation: 'igp-claim' });
+    const logger = this.options.logger.child({
+      chain,
+      operation: 'igp-claim',
+    });
     const provider = this.multiProvider.getProvider(chain);
     const igpContract =
       this.options.igp.getContracts(chain).interchainGasPaymaster;
@@ -284,11 +288,19 @@ export class KeyFunder {
       parseFloat(formatEther(fundingAmount)),
     );
 
+    const fundingTxHash =
+      tx.transactionHash ??
+      (tx as { hash?: string | undefined }).hash ??
+      undefined;
+    if (!fundingTxHash) {
+      throw new Error(`Funding transaction hash missing on ${chain}`);
+    }
+
     logger.info(
       {
-        txHash: tx.transactionHash,
+        txHash: fundingTxHash,
         txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
-          hash: tx.transactionHash,
+          hash: fundingTxHash,
         }),
       },
       'Funding transaction completed',
@@ -373,11 +385,19 @@ export class KeyFunder {
         parseFloat(formatEther(sweepAmount)),
       );
 
+      const sweepTxHash =
+        tx.transactionHash ??
+        (tx as { hash?: string | undefined }).hash ??
+        undefined;
+      if (!sweepTxHash) {
+        throw new Error(`Sweep transaction hash missing on ${chain}`);
+      }
+
       logger.info(
         {
-          txHash: tx.transactionHash,
+          txHash: sweepTxHash,
           txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
-            hash: tx.transactionHash,
+            hash: sweepTxHash,
           }),
         },
         'Sweep completed',
@@ -397,10 +417,6 @@ export function calculateMultipliedBalance(
   multiplier: number,
 ): bigint {
   return (base * BigInt(Math.floor(multiplier * 100))) / 100n;
-}
-
-function toBigInt(value: bigint | number | string | { toString(): string }): bigint {
-  return typeof value === 'bigint' ? value : BigInt(value.toString());
 }
 
 function createTimeoutPromise(

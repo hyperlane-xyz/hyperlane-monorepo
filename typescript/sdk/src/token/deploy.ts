@@ -19,6 +19,7 @@ import {
   objMap,
   promiseObjAll,
   rootLogger,
+  toBigInt,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -69,21 +70,6 @@ import {
 } from './types.js';
 
 const INITIALIZE_FUNCTION_NAME = 'initialize';
-
-function toBigIntValue(value: unknown): bigint {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'toString' in value &&
-    typeof value.toString === 'function'
-  ) {
-    return BigInt(value.toString());
-  }
-  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
-}
 
 export const TOKEN_INITIALIZE_SIGNATURE = (
   contractName: HypERC20contracts[DeployableTokenType],
@@ -417,7 +403,7 @@ abstract class TokenDeployer<
               bridge,
             );
 
-            if (toBigIntValue(currentAllowance) > 0n) {
+            if (toBigInt(currentAllowance) > 0n) {
               bridgesWithAllowanceAlreadySet[token].add(bridge);
             }
           }),

@@ -636,7 +636,16 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         if (dispatchLogs.length === 0) {
           throw new Error('No ModuleDeployed event found');
         }
-        const moduleAddress = String(dispatchLogs[0].args['module']);
+        const moduleLog = dispatchLogs[0];
+        const moduleArgs = moduleLog?.args as
+          | Record<string, unknown>
+          | undefined;
+        const moduleValue = moduleArgs?.module;
+        assert(
+          typeof moduleValue === 'string',
+          'ModuleDeployed event is missing module address',
+        );
+        const moduleAddress = moduleValue;
         routingIsm = DomainRoutingIsm__factory.connect(
           moduleAddress,
           this.multiProvider.getSigner(destination),

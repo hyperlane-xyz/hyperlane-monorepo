@@ -25,6 +25,7 @@ import {
   objMap,
   retryAsync,
   rootLogger,
+  toBigInt,
 } from '@hyperlane-xyz/utils';
 
 import { awIcasLegacy } from '../../config/environments/mainnet3/governance/ica/_awLegacy.js';
@@ -504,9 +505,12 @@ export abstract class HyperlaneAppGovernor<
     // If the call to the remote ICA is valid, infer the submission type
     const { description, expandedDescription } = call;
     const encodedCall: AnnotatedCallData = {
-      to: callRemote.to,
-      data: callRemote.data,
-      value: callRemote.value,
+      to: String(callRemote.to),
+      data: String(callRemote.data),
+      value:
+        callRemote.value === undefined || callRemote.value === null
+          ? undefined
+          : toBigInt(callRemote.value),
       description,
       expandedDescription,
       governanceType,

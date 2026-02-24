@@ -32,8 +32,12 @@ import { messageMatchesWhitelist } from './whitelist.js';
 
 type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
-type DispatchReceipt = Awaited<
-  ReturnType<ReturnType<MultiProvider['getProvider']>['getTransactionReceipt']>
+type DispatchReceipt = NonNullable<
+  Awaited<
+    ReturnType<
+      ReturnType<MultiProvider['getProvider']>['getTransactionReceipt']
+    >
+  >
 >;
 type DeliveryReceipt = Awaited<ReturnType<HyperlaneCore['deliver']>>;
 
@@ -360,6 +364,10 @@ export class HyperlaneRelayer {
         const dispatchReceipt = await this.multiProvider
           .getProvider(parsed.origin)
           .getTransactionReceipt(dispatchTx);
+        assert(
+          dispatchReceipt,
+          `No dispatch receipt found for tx ${dispatchTx} on ${originChain}`,
+        );
 
         await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
       } catch {

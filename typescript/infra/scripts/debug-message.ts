@@ -5,7 +5,12 @@ import {
   HyperlaneCore,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { bytes32ToAddress, ensure0x, messageId } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  bytes32ToAddress,
+  ensure0x,
+  messageId,
+} from '@hyperlane-xyz/utils';
 
 import { getChainMetadata } from '../config/registry.js';
 import { assertChain } from '../src/utils/utils.js';
@@ -45,6 +50,7 @@ async function main() {
   const dispatchReceipt = await originProvider.getTransactionReceipt(
     argv.txHash,
   );
+  assert(dispatchReceipt, `No transaction receipt found for ${argv.txHash}`);
   const dispatchedMessages = core.getDispatchedMessages(dispatchReceipt);
 
   // 1 indexed for human friendly logs

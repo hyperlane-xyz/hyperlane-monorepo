@@ -202,6 +202,10 @@ async function executeDelivery({
   log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
 
   if (selfRelay) {
+    assert(
+      transferTxReceipt?.transactionHash,
+      'Transfer receipt missing transaction hash for self relay',
+    );
     return runSelfRelay({
       txReceipt: transferTxReceipt,
       multiProvider: multiProvider,

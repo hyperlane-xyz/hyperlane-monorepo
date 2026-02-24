@@ -1,4 +1,4 @@
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { eqAddress, toBigInt } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
@@ -13,30 +13,6 @@ import {
   IgpOverheadViolation,
   IgpViolationType,
 } from './types.js';
-
-const toBigIntValue = (value: unknown): bigint => {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number' || typeof value === 'string') {
-    return BigInt(value);
-  }
-  if (
-    value &&
-    typeof value === 'object' &&
-    'toBigInt' in value &&
-    typeof value.toBigInt === 'function'
-  ) {
-    return value.toBigInt();
-  }
-  if (
-    value &&
-    typeof value === 'object' &&
-    'toString' in value &&
-    typeof value.toString === 'function'
-  ) {
-    return BigInt(value.toString());
-  }
-  throw new Error(`Cannot convert gas overhead to bigint: ${String(value)}`);
-};
 
 export class HyperlaneIgpChecker extends HyperlaneAppChecker<
   HyperlaneIgp,
@@ -122,7 +98,10 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
         remoteId,
         0,
       );
-      const existingOverheadValue = toBigIntValue(existingOverhead);
+      const existingOverheadValue = toBigInt(
+        existingOverhead,
+        `Cannot convert gas overhead to bigint for ${local} -> ${remote}`,
+      );
       const expectedOverheadValue = BigInt(expectedOverhead);
       if (existingOverheadValue !== expectedOverheadValue) {
         const remoteChain = remote as ChainName;

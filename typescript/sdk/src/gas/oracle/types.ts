@@ -1,7 +1,7 @@
 import { formatUnits } from 'viem';
 import { z } from 'zod';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, toBigInt } from '@hyperlane-xyz/utils';
 
 import { getProtocolExchangeRateDecimals } from '../../consts/igp.js';
 
@@ -66,22 +66,6 @@ export const formatGasOracleConfig = (
 const percentDifference = (actual: bigint, expected: bigint): bigint =>
   ((expected - actual) * 100n) / actual;
 
-const toBigInt = (value: unknown): bigint => {
-  if (value === undefined || value === null) return 0n;
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'toString' in value &&
-    typeof value.toString === 'function'
-  ) {
-    return BigInt(value.toString());
-  }
-  throw new Error(`Unable to convert value to bigint: ${String(value)}`);
-};
-
 const serializePercentDifference = (
   actual: bigint,
   expected: bigint,
@@ -107,17 +91,20 @@ export const serializeDifference = (
   expected: OracleData,
 ): string => {
   const actualRecord = actual as unknown as Record<string | number, unknown>;
-  const expectedRecord = expected as unknown as Record<string | number, unknown>;
+  const expectedRecord = expected as unknown as Record<
+    string | number,
+    unknown
+  >;
   const actualData: OracleData = {
-    gasPrice: toBigInt(actualRecord.gasPrice ?? actualRecord[1]),
+    gasPrice: toBigInt(actualRecord.gasPrice ?? actualRecord[1] ?? 0n),
     tokenExchangeRate: toBigInt(
-      actualRecord.tokenExchangeRate ?? actualRecord[0],
+      actualRecord.tokenExchangeRate ?? actualRecord[0] ?? 0n,
     ),
   };
   const expectedData: OracleData = {
-    gasPrice: toBigInt(expectedRecord.gasPrice ?? expectedRecord[1]),
+    gasPrice: toBigInt(expectedRecord.gasPrice ?? expectedRecord[1] ?? 0n),
     tokenExchangeRate: toBigInt(
-      expectedRecord.tokenExchangeRate ?? expectedRecord[0],
+      expectedRecord.tokenExchangeRate ?? expectedRecord[0] ?? 0n,
     ),
   };
 
