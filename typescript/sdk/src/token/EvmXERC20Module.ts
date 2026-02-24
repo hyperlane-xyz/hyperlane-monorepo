@@ -369,16 +369,40 @@ export class EvmXERC20Module extends HyperlaneModule<
         warpRouteConfig.token,
         provider,
       );
-      const result = await provider.call({
-        to: lockbox.address,
-        data: lockbox.interface.encodeFunctionData('XERC20'),
-      });
-      xERC20Address = String(
-        lockbox.interface.decodeFunctionResult(
-          'XERC20',
-          result as `0x${string}`,
-        ),
-      ) as Address;
+      const lockboxWithMethods = lockbox as unknown as {
+        XERC20?: () => Promise<unknown>;
+        callStatic?: { XERC20?: () => Promise<unknown> };
+        interface?: {
+          encodeFunctionData(functionName: string): string;
+          decodeFunctionResult(
+            functionName: string,
+            data: `0x${string}`,
+          ): unknown;
+        };
+      };
+
+      if (typeof lockboxWithMethods.XERC20 === 'function') {
+        xERC20Address = String(await lockboxWithMethods.XERC20()) as Address;
+      } else if (typeof lockboxWithMethods.callStatic?.XERC20 === 'function') {
+        xERC20Address = String(
+          await lockboxWithMethods.callStatic.XERC20(),
+        ) as Address;
+      } else {
+        assert(
+          lockboxWithMethods.interface,
+          'IXERC20Lockbox instance missing interface for XERC20 lookup',
+        );
+        const result = await provider.call({
+          to: lockbox.address,
+          data: lockboxWithMethods.interface.encodeFunctionData('XERC20'),
+        });
+        xERC20Address = String(
+          lockboxWithMethods.interface.decodeFunctionResult(
+            'XERC20',
+            result as `0x${string}`,
+          ),
+        ) as Address;
+      }
     }
 
     const limits: XERC20LimitsMap = {};

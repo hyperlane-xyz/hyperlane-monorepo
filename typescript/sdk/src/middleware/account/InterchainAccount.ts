@@ -60,6 +60,9 @@ const IGP_DEFAULT_GAS = 50_000n;
 const ICA_OVERHEAD = 50_000n;
 const PER_CALL_OVERHEAD = 5_000n;
 const ICA_HANDLE_GAS_FALLBACK = 200_000n;
+const interchainAccountRouterCallAbi = parseAbi([
+  'function callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)',
+]);
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   knownAccounts: Record<Address, AccountConfig | undefined>;
@@ -432,18 +435,44 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       });
     }
 
+    const callArgsForContract = [
+      remoteDomain,
+      remoteRouter as Hex,
+      remoteIsm as Hex,
+      formattedCalls,
+      resolvedHookMetadata as Hex,
+    ] as const;
+    const callArgsForViem = [
+      remoteDomain,
+      remoteRouter as Hex,
+      remoteIsm as Hex,
+      formattedCalls.map((call) => [call.to, call.value, call.data] as const),
+      resolvedHookMetadata as Hex,
+    ] as const;
+
+    const routerWithPopulate = localRouter as unknown as {
+      populateTransaction?: {
+        [key: string]: (
+          ...args: readonly unknown[]
+        ) => Promise<EvmTransactionLike>;
+      };
+    };
+    const populateCall =
+      routerWithPopulate.populateTransaction?.[
+        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
+      ];
+    if (typeof populateCall === 'function') {
+      const tx = await populateCall(...callArgsForContract);
+      return { ...tx, value: quote };
+    }
+
     return {
-      to: localRouter.address,
-      data: localRouter.interface.encodeFunctionData(
-        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)',
-        [
-          remoteDomain,
-          remoteRouter as Hex,
-          remoteIsm as Hex,
-          formattedCalls,
-          resolvedHookMetadata as Hex,
-        ],
-      ),
+      to: localRouter.address ?? config.localRouter,
+      data: encodeFunctionData({
+        abi: interchainAccountRouterCallAbi,
+        functionName: 'callRemoteWithOverrides',
+        args: callArgsForViem,
+      }),
       value: quote,
     };
   }
