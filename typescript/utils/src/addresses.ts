@@ -2,7 +2,15 @@ import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
 import { PublicKey } from '@solana/web3.js';
 import { bech32m } from 'bech32';
 import bs58 from 'bs58';
-import { Wallet, utils as ethersUtils } from 'ethers';
+import {
+  Wallet,
+  getBytes,
+  getAddress,
+  isAddress as isEthersAddress,
+  sha256,
+  stripZerosLeft,
+  zeroPadValue,
+} from 'ethers';
 import {
   addAddressPadding,
   encode,
@@ -146,7 +154,7 @@ function routeAddressUtil<T>(
 export function isValidAddressEvm(address: Address) {
   // Need to catch because ethers' isAddress throws in some cases (bad checksum)
   try {
-    const isValid = address && ethersUtils.isAddress(address);
+    const isValid = address && isEthersAddress(address);
     return !!isValid;
   } catch {
     return false;
@@ -240,7 +248,7 @@ export function isValidAddress(address: Address, protocol?: ProtocolType) {
 export function normalizeAddressEvm(address: Address) {
   if (isZeroishAddress(address)) return address;
   try {
-    return ethersUtils.getAddress(address);
+    return getAddress(address);
   } catch {
     return address;
   }
@@ -463,14 +471,12 @@ export function capitalizeAddress(address: Address) {
 }
 
 export function addressToBytes32Evm(address: Address): string {
-  return ethersUtils
-    .hexZeroPad(ethersUtils.hexStripZeros(address), 32)
-    .toLowerCase();
+  return zeroPadValue(stripZerosLeft(address), 32).toLowerCase();
 }
 
 // For EVM addresses only, kept for backwards compatibility and convenience
 export function bytes32ToAddress(bytes32: HexString): Address {
-  return ethersUtils.getAddress(bytes32.slice(-40));
+  return getAddress(bytes32.slice(-40));
 }
 
 export function addressToBytesEvm(address: Address): Uint8Array {
@@ -523,8 +529,8 @@ export function addressToBytesTron(address: Address): Uint8Array {
   const decoded = bs58.decode(address);
   const payload = decoded.slice(0, -4);
   const checksum = decoded.slice(-4);
-  const hash1 = ethersUtils.arrayify(ethersUtils.sha256(payload));
-  const hash2 = ethersUtils.arrayify(ethersUtils.sha256(hash1));
+  const hash1 = getBytes(sha256(payload));
+  const hash2 = getBytes(sha256(hash1));
   assert(
     Buffer.from(checksum).equals(new Uint8Array(hash2.slice(0, 4))),
     'Invalid Tron address checksum',
@@ -584,10 +590,7 @@ export function bytesToBytes32(bytes: Uint8Array): string {
     throw new Error('bytes must be 32 bytes or less');
   }
   // This 0x-prefixes the hex string
-  return ethersUtils.hexZeroPad(
-    ensure0x(Buffer.from(bytes).toString('hex')),
-    32,
-  );
+  return zeroPadValue(ensure0x(Buffer.from(bytes).toString('hex')), 32);
 }
 
 // Pad bytes to a certain length, padding with 0s at the start
@@ -673,8 +676,8 @@ export function bytesToAddressTron(bytes: Uint8Array): Address {
 
   const addressBytes = new Uint8Array([0x41, ...payload20]);
 
-  const hash1 = ethersUtils.arrayify(ethersUtils.sha256(addressBytes));
-  const hash2 = ethersUtils.arrayify(ethersUtils.sha256(hash1));
+  const hash1 = getBytes(sha256(addressBytes));
+  const hash2 = getBytes(sha256(hash1));
   const checksum = hash2.slice(0, 4);
 
   const finalBytes = new Uint8Array(addressBytes.length + 4);
