@@ -159,7 +159,7 @@ export class SvmSigner
     await this.rpc
       .sendTransaction(base64Tx, {
         encoding: 'base64',
-        skipPreflight: false,
+        skipPreflight: tx.skipPreflight ?? false,
       })
       .send();
 
@@ -188,6 +188,20 @@ export class SvmSigner
 
     if (!confirmed) {
       throw new Error(`Transaction not confirmed: ${signature}`);
+    }
+
+    const receipt = await this.rpc
+      .getTransaction(signature, {
+        commitment: 'confirmed',
+        encoding: 'json',
+        maxSupportedTransactionVersion: 0,
+      })
+      .send();
+
+    if (receipt && receipt.meta?.err) {
+      throw new Error(`Transaction with signature ${signature} failed`, {
+        cause: receipt.meta?.err,
+      });
     }
 
     return { signature, slot };

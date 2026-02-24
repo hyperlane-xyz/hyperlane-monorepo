@@ -155,6 +155,7 @@ export class SvmNativeTokenWriter
       await this.svmSigner.send({
         instructions: [initIx],
         computeUnits: 400_000,
+        skipPreflight: true,
       }),
     );
 
