@@ -11,6 +11,10 @@ import {
 } from '../turnkeyClient.js';
 
 import {
+  TypedDataDomainLike,
+  TypedDataTypesLike,
+  TypedDataValueLike,
+  getTypedDataPrimaryType,
   ViemProviderLike,
   ViemTransactionRequestLike,
   toBigIntValue,
@@ -23,13 +27,6 @@ const logger = rootLogger.child({ module: 'sdk:turnkey-evm' });
 export type TurnkeyViemTransactionRequest = ViemTransactionRequestLike & {
   data?: Hex;
 };
-
-type TypedDataDomainLike = Record<string, unknown>;
-type TypedDataTypesLike = Record<
-  string,
-  readonly { name: string; type: string }[]
->;
-type TypedDataValueLike = Record<string, unknown>;
 
 /**
  * Turnkey signer for EVM transactions
@@ -156,11 +153,7 @@ export class TurnkeyViemSigner {
     types: TypedDataTypesLike,
     value: TypedDataValueLike,
   ): Promise<string> {
-    const primaryType = Object.keys(types).find(
-      (key) => key !== 'EIP712Domain',
-    );
-    if (!primaryType)
-      throw new Error('Typed data types must include a primary type');
+    const primaryType = getTypedDataPrimaryType(types);
     return this.account.signTypedData({
       domain: domain as any,
       types: types as any,

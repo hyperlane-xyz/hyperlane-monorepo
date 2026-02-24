@@ -30,6 +30,10 @@ import {
   SmartProviderOptions,
 } from './types.js';
 import { parseCustomRpcHeaders } from '../../utils/provider.js';
+import {
+  type TypedDataTypesLike,
+  getTypedDataPrimaryType,
+} from '../../utils/typedData.js';
 
 type Networkish = number | string | { chainId: number; name?: string };
 
@@ -653,11 +657,9 @@ export class HyperlaneSmartProvider implements IProviderMethods {
         types: Record<string, unknown>,
         value: Record<string, unknown>,
       ) => {
-        const primaryType = Object.keys(types).find(
-          (type) => type !== 'EIP712Domain',
+        const primaryType = getTypedDataPrimaryType(
+          types as TypedDataTypesLike,
         );
-        if (!primaryType)
-          throw new Error('Typed data types must include a primary type');
         return signer.signTypedData({
           domain,
           types,

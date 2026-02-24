@@ -7,6 +7,13 @@ import {
 } from 'viem';
 
 import { assert } from '@hyperlane-xyz/utils';
+export {
+  TypedDataDomainLike,
+  TypedDataFieldLike,
+  TypedDataTypesLike,
+  TypedDataValueLike,
+  getTypedDataPrimaryType,
+} from '../../utils/typedData.js';
 
 export type ViemTransactionRequestLike = {
   chainId?: number;
