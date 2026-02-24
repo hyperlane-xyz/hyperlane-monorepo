@@ -98,6 +98,8 @@ export async function createRebalancer(
         await import('../../src/runners/LLMRebalancerRunner.js');
       return new LLMRebalancerRunner({
         contextDbPath: path.join(RESULTS_DIR, 'llm-context.db'),
+        provider: process.env.LLM_PROVIDER,
+        model: process.env.LLM_MODEL,
       });
     }
   }
@@ -219,10 +221,12 @@ export async function runScenarioWithRebalancers(
       type: 'weighted' | 'minAmount' | 'collateralDeficit';
       chains: Record<string, ChainStrategyConfig>;
       routeHints?: string;
+      policyProse?: string;
     } = {
       type: file.defaultStrategyConfig.type,
       chains: {},
       routeHints: file.defaultStrategyConfig.routeHints,
+      policyProse: file.defaultStrategyConfig.policyProse,
     };
     for (const [key, chainConfig] of Object.entries(
       file.defaultStrategyConfig.chains,

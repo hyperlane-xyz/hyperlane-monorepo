@@ -33,6 +33,12 @@ import type {
   StrategyDescription,
 } from '@hyperlane-xyz/llm-rebalancer';
 
+import type { KPICollector } from '../KPICollector.js';
+import {
+  buildRebalanceCollateralTool,
+  buildSupplyCollateralTool,
+} from './rebalancing-tools.js';
+
 import type {
   IRebalancerRunner,
   RebalancerEvent,
@@ -86,16 +92,27 @@ export class LLMRebalancerRunner
   /** Adaptive polling config */
   private adaptivePolling?: { shortIntervalMs: number; longIntervalMs: number };
 
+  /** KPI collector for mock swap tool tracking (set by SimulationEngine) */
+  private kpiCollector?: KPICollector;
+
+  /** Cycle guardrail options */
+  private cycleTimeoutMs?: number;
+  private maxToolCallsPerCycle?: number;
+
   constructor(opts?: {
     provider?: string;
     model?: string;
     adaptivePolling?: { shortIntervalMs: number; longIntervalMs: number };
     contextDbPath?: string;
+    cycleTimeoutMs?: number;
+    maxToolCallsPerCycle?: number;
   }) {
     super();
     this.provider = opts?.provider ?? 'anthropic';
     this.model = opts?.model ?? 'claude-haiku-4-5';
     this.adaptivePolling = opts?.adaptivePolling;
+    this.cycleTimeoutMs = opts?.cycleTimeoutMs;
+    this.maxToolCallsPerCycle = opts?.maxToolCallsPerCycle;
     this.contextStore = opts?.contextDbPath
       ? new SqliteContextStore(opts.contextDbPath)
       : new InMemoryContextStore();
@@ -193,11 +210,23 @@ export class LLMRebalancerRunner
       pendingTransferProvider,
     );
 
+    // Register structured rebalancing tools (all scenarios)
+    customTools.push(buildRebalanceCollateralTool(this.agentConfig));
+    customTools.push(
+      buildSupplyCollateralTool(this.agentConfig, this.kpiCollector),
+    );
+
+    // Overwrite skill files with tool-redirect stubs so the LLM uses
+    // tools instead of constructing raw cast transactions
+    this.overwriteSkillStubs(skillsDest);
+
     this.baseSessionOpts = {
       workDir: this.workDir,
       provider: this.provider,
       model: this.model,
       customTools,
+      cycleTimeoutMs: this.cycleTimeoutMs,
+      maxToolCallsPerCycle: this.maxToolCallsPerCycle,
     };
   }
 
@@ -273,6 +302,10 @@ export class LLMRebalancerRunner
 
   getActionTracker(): MockActionTracker {
     return this.actionTracker;
+  }
+
+  setKpiCollector(collector: KPICollector): void {
+    this.kpiCollector = collector;
   }
 
   // --- Private ---
@@ -445,6 +478,7 @@ export class LLMRebalancerRunner
         type: 'weighted',
         chains,
         routeHints: strategyConfig.routeHints,
+        policyProse: strategyConfig.policyProse,
       };
     }
 
@@ -468,6 +502,7 @@ export class LLMRebalancerRunner
         type: 'minAmount',
         chains,
         routeHints: strategyConfig.routeHints,
+        policyProse: strategyConfig.policyProse,
       };
     }
 
@@ -476,7 +511,51 @@ export class LLMRebalancerRunner
       type: 'prose',
       text: `Maintain balanced collateral distribution across all chains. Strategy type: ${strategyConfig.type}.`,
       routeHints: strategyConfig.routeHints,
+      policyProse: strategyConfig.policyProse,
     };
+  }
+
+  /**
+   * Overwrite skill files with stubs that redirect the LLM to use
+   * the structured tools instead of constructing raw transactions.
+   */
+  private overwriteSkillStubs(skillsDest: string): void {
+    const stubs: Record<string, string> = {
+      'rebalance-mock-bridge': [
+        '---',
+        'name: rebalance-mock-bridge',
+        '---',
+        '# Disabled — use `rebalance_collateral` tool',
+        '',
+        'Call the `rebalance_collateral` tool with `source` and `destination` node IDs and `amount`.',
+        'The tool handles the on-chain transaction. Do NOT use `cast send` for rebalancing.',
+      ].join('\n'),
+      'inventory-deposit': [
+        '---',
+        'name: inventory-deposit',
+        '---',
+        '# Disabled — use `supply_collateral` tool',
+        '',
+        'Call the `supply_collateral` tool with `source` (where your wallet inventory is),',
+        '`destination` (which router to supply), and `amount`.',
+        'The tool handles approvals, encoding, and bridge calls. Do NOT use `cast send`.',
+      ].join('\n'),
+      'submit-transaction': [
+        '---',
+        'name: submit-transaction',
+        '---',
+        '# Disabled — use tools for all operations',
+        '',
+        'Use `rebalance_collateral` or `supply_collateral` tools.',
+        'Do NOT construct raw `cast send` transactions.',
+      ].join('\n'),
+    };
+
+    for (const [skillName, content] of Object.entries(stubs)) {
+      const skillDir = path.join(skillsDest, skillName);
+      fs.mkdirSync(skillDir, { recursive: true });
+      fs.writeFileSync(path.join(skillDir, 'SKILL.md'), content);
+    }
   }
 
   private copyDirSync(src: string, dest: string): void {

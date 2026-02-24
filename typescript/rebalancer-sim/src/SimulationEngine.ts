@@ -88,6 +88,7 @@ export class SimulationEngine {
         timing.userTransferDeliveryDelay,
         kpiCollector,
         actionTracker,
+        this.deployment.rebalancer,
       );
       await controller.start();
 
@@ -97,6 +98,11 @@ export class SimulationEngine {
         strategyConfig: rebalancerStrategyConfig,
         deployment: this.deployment,
       };
+
+      // Pass KPI collector to runner for mock swap tool tracking
+      if ('setKpiCollector' in rebalancer) {
+        (rebalancer as any).setKpiCollector(kpiCollector);
+      }
 
       await rebalancer.initialize(rebalancerConfig);
       await rebalancer.start();

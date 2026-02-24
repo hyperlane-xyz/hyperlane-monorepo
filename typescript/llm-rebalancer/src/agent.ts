@@ -34,6 +34,10 @@ export interface CreateSessionOptions {
   agentsPrompt: string;
   customTools?: ToolDefinition<any>[];
   onEvent?: (e: RebalancerAgentEvent) => void;
+  /** Max time (ms) for a single cycle before aborting (default: 120000) */
+  cycleTimeoutMs?: number;
+  /** Max tool calls per cycle before aborting (default: 25) */
+  maxToolCallsPerCycle?: number;
 }
 
 /**
@@ -112,13 +116,20 @@ export class RebalancerAgent {
   private unsubscribe: () => void;
   private cycleStatus: CycleResult['status'] = 'unknown';
   private emit: (e: RebalancerAgentEvent) => void;
+  private cycleTimeoutMs: number;
+  private maxToolCallsPerCycle: number;
+  private toolCallCount = 0;
 
   private constructor(
     session: AgentSession,
     onEvent?: (e: RebalancerAgentEvent) => void,
+    cycleTimeoutMs?: number,
+    maxToolCallsPerCycle?: number,
   ) {
     this.session = session;
     this.emit = onEvent ?? defaultEmitter;
+    this.cycleTimeoutMs = cycleTimeoutMs ?? 120_000;
+    this.maxToolCallsPerCycle = maxToolCallsPerCycle ?? 25;
 
     // Subscribe once — stays active across all cycles
     this.unsubscribe = session.subscribe((event) => {
@@ -133,6 +144,7 @@ export class RebalancerAgent {
           }
           break;
         case 'tool_execution_start':
+          this.toolCallCount++;
           this.emit({
             type: 'tool_call',
             timestamp: Date.now(),
@@ -144,6 +156,14 @@ export class RebalancerAgent {
             if (status === 'balanced' || status === 'pending') {
               this.cycleStatus = status;
             }
+          }
+          // Guardrail: abort if too many tool calls
+          if (this.toolCallCount >= this.maxToolCallsPerCycle) {
+            logger.warn(
+              { count: this.toolCallCount, max: this.maxToolCallsPerCycle },
+              'Max tool calls reached, aborting cycle',
+            );
+            this.session.abort().catch(() => {});
           }
           break;
         case 'tool_execution_end':
@@ -163,19 +183,41 @@ export class RebalancerAgent {
 
   static async create(opts: CreateSessionOptions): Promise<RebalancerAgent> {
     const session = await createRebalancerSession(opts);
-    return new RebalancerAgent(session, opts.onEvent);
+    return new RebalancerAgent(
+      session,
+      opts.onEvent,
+      opts.cycleTimeoutMs,
+      opts.maxToolCallsPerCycle,
+    );
   }
 
   /**
    * Run a single rebalancer cycle on the persistent session.
    * The session accumulates history — no skill re-discovery needed after first cycle.
+   * Protected by timeout and max tool call guardrails.
    */
   async runCycle(): Promise<CycleResult> {
     this.cycleStatus = 'unknown';
+    this.toolCallCount = 0;
     this.emit({ type: 'cycle_start', timestamp: Date.now() });
 
     logger.info('Starting rebalancer cycle');
-    await this.session.prompt(CYCLE_PROMPT);
+
+    // Timeout guardrail
+    const timeoutId = setTimeout(() => {
+      logger.warn(
+        { timeoutMs: this.cycleTimeoutMs },
+        'Cycle timeout reached, aborting',
+      );
+      this.session.abort().catch(() => {});
+    }, this.cycleTimeoutMs);
+
+    try {
+      await this.session.prompt(CYCLE_PROMPT);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
     logger.info({ status: this.cycleStatus }, 'Rebalancer cycle completed');
 
     this.emit({

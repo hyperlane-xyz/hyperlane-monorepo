@@ -1,7 +1,11 @@
 import { ethers } from 'ethers';
 
 import type { HyperlaneCore } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import {
+  parseMessage,
+  parseWarpRouteMessage,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { KPICollector } from './KPICollector.js';
 import { MockActionTracker } from './runners/MockActionTracker.js';
@@ -14,8 +18,6 @@ import { DEFAULT_BRIDGE_ROUTE_CONFIG } from './types.js';
 
 const logger = rootLogger.child({ module: 'MockInfrastructureController' });
 
-/** Hyperlane message body starts at byte offset 77 (version:1 + nonce:4 + origin:4 + sender:32 + dest:4 + recipient:32) */
-const MESSAGE_BODY_OFFSET = 77;
 /** Default warp token scale: 10^18 for 18-decimal tokens */
 const DEFAULT_WARP_TOKEN_SCALE = 10n ** 18n;
 
@@ -27,7 +29,7 @@ interface PendingMessage {
   message: string;
   destination: string;
   deliveryTime: number;
-  type: 'user-transfer' | 'bridge-transfer';
+  type: 'user-transfer' | 'bridge-transfer' | 'self-rebalance';
   /** Origin chain name */
   origin: string;
   /** Decoded amount from body */
@@ -56,6 +58,7 @@ export class MockInfrastructureController {
     private readonly userTransferDelay: number,
     private readonly kpiCollector: KPICollector,
     private readonly actionTracker?: MockActionTracker,
+    private readonly rebalancerAddress?: string,
   ) {}
 
   private getRouteConfig(
@@ -170,36 +173,42 @@ export class MockInfrastructureController {
       return;
     }
 
-    const type = isWarp ? 'user-transfer' : 'bridge-transfer';
-
     // Compute real messageId
     const messageId = ethers.utils.keccak256(message);
 
-    const body = '0x' + message.slice(2 + MESSAGE_BODY_OFFSET * 2);
-    let amount = 0n;
-    try {
-      const decoded = ethers.utils.defaultAbiCoder.decode(
-        ['bytes32', 'uint256'],
-        body,
-      );
-      const scaledAmount = decoded[1].toBigInt();
-      // Warp tokens scale by 10^decimals, bridge Router uses scale = 1
-      amount =
-        type === 'user-transfer' ? scaledAmount / warpTokenScale : scaledAmount;
-    } catch (error) {
-      logger.warn(
-        { messageId, origin: originChain, dest: destChain, error },
-        'Failed to decode message amount',
-      );
+    // Parse message using SDK helpers
+    const parsed = parseMessage(message);
+    const warpBody = parseWarpRouteMessage(parsed.body);
+    const recipientAddr = ethers.utils.getAddress(
+      '0x' + parsed.recipient.slice(26),
+    );
+
+    // Warp tokens scale by 10^decimals, bridge Router uses scale = 1
+    const scaledAmount = warpBody.amount;
+    const amount = isWarp ? scaledAmount / warpTokenScale : scaledAmount;
+
+    // Self-rebalance detection: rebalancer sending warp tokens to itself
+    let type: PendingMessage['type'];
+    if (isBridge) {
+      type = 'bridge-transfer';
+    } else if (
+      this.rebalancerAddress &&
+      warpBody.recipient.slice(26).toLowerCase() ===
+        this.rebalancerAddress.slice(2).toLowerCase()
+    ) {
+      type = 'self-rebalance';
+    } else {
+      type = 'user-transfer';
     }
 
     // Calculate delivery time
     let delay: number;
-    if (type === 'user-transfer') {
-      delay = this.userTransferDelay;
-    } else {
+    if (type === 'bridge-transfer') {
       const routeConfig = this.getRouteConfig(originChain, destChain);
       delay = this.calculateBridgeDelay(routeConfig);
+    } else {
+      // Both user-transfer and self-rebalance go through warp/Hyperlane
+      delay = this.userTransferDelay;
     }
 
     const pending: PendingMessage = {
@@ -213,8 +222,8 @@ export class MockInfrastructureController {
       attempts: 0,
     };
 
-    if (type === 'bridge-transfer') {
-      // Record rebalance start in KPI
+    if (type === 'bridge-transfer' || type === 'self-rebalance') {
+      // Record rebalance start in KPI (both bridge and self-rebalance are rebalancer actions)
       const rebalanceId = this.kpiCollector.recordRebalanceStart(
         originChain,
         destChain,
@@ -232,25 +241,15 @@ export class MockInfrastructureController {
       );
 
       // Resolve destination asset for cross-asset transfers.
-      // In MultiCollateral.transferRemoteTo, the targetRouter (destination warp token)
-      // is the Hyperlane message RECIPIENT, not in the body. Extract from message header:
-      // offset 45 = version(1) + nonce(4) + origin(4) + sender(32) + destination(4), length 32.
+      // The message recipient is the destination warp token address.
       let destAssetSymbol = senderAssetSymbol;
       const destDomain = this.domains[destChain];
       if (destDomain?.assets && senderAssetSymbol) {
-        try {
-          const recipientHex = '0x' + message.slice(2 + 45 * 2, 2 + 77 * 2);
-          const recipientAddr = ethers.utils.getAddress(
-            '0x' + recipientHex.slice(26),
-          );
-          for (const [symbol, asset] of Object.entries(destDomain.assets)) {
-            if (asset.warpToken.toLowerCase() === recipientAddr.toLowerCase()) {
-              destAssetSymbol = symbol;
-              break;
-            }
+        for (const [symbol, asset] of Object.entries(destDomain.assets)) {
+          if (asset.warpToken.toLowerCase() === recipientAddr.toLowerCase()) {
+            destAssetSymbol = symbol;
+            break;
           }
-        } catch {
-          // Can't decode recipient — use same asset
         }
       }
 
@@ -315,7 +314,10 @@ export class MockInfrastructureController {
           if (msg.type === 'user-transfer') {
             this.kpiCollector.recordTransferComplete(msg.messageId);
             this.actionTracker?.removeTransfer(msg.messageId);
-          } else if (msg.type === 'bridge-transfer') {
+          } else if (
+            msg.type === 'bridge-transfer' ||
+            msg.type === 'self-rebalance'
+          ) {
             this.kpiCollector.recordRebalanceComplete(msg.messageId);
             if (this.actionTracker && msg.amount > 0n) {
               this.actionTracker.completeRebalanceByRoute(
@@ -382,7 +384,10 @@ export class MockInfrastructureController {
           if (msg.type === 'user-transfer') {
             this.kpiCollector.recordTransferFailed(msg.messageId);
             this.actionTracker?.removeTransfer(msg.messageId);
-          } else if (msg.type === 'bridge-transfer') {
+          } else if (
+            msg.type === 'bridge-transfer' ||
+            msg.type === 'self-rebalance'
+          ) {
             this.kpiCollector.recordRebalanceFailed(msg.messageId);
             if (this.actionTracker && msg.amount > 0n) {
               this.actionTracker.failRebalanceByRoute(

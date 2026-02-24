@@ -42,11 +42,12 @@ export interface RebalancerAgentConfig {
 
 /** Strategy description — either prose or structured */
 export type StrategyDescription =
-  | { type: 'prose'; text: string; routeHints?: string }
+  | { type: 'prose'; text: string; routeHints?: string; policyProse?: string }
   | {
       type: 'weighted';
       chains: Record<string, { weight: number; tolerance: number }>;
       routeHints?: string;
+      policyProse?: string;
     }
   | {
       type: 'minAmount';
@@ -55,6 +56,7 @@ export type StrategyDescription =
         { min: string; target: string; amountType: 'absolute' | 'relative' }
       >;
       routeHints?: string;
+      policyProse?: string;
     };
 
 /** Options for creating the LLM rebalancer agent */
@@ -84,4 +86,8 @@ export interface LLMRebalancerOptions {
     /** Interval when balanced (default: 300s) */
     longIntervalMs: number;
   };
+  /** Max time (ms) for a single cycle before aborting (default: 120000) */
+  cycleTimeoutMs?: number;
+  /** Max tool calls per cycle before aborting (default: 25) */
+  maxToolCallsPerCycle?: number;
 }

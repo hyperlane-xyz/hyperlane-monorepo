@@ -393,6 +393,8 @@ export interface RebalancerStrategyConfig {
   chains: Record<string, ChainStrategyConfig>;
   /** Optional route hints for LLM rebalancer (describes available rebalancing routes) */
   routeHints?: string;
+  /** Optional policy prose injected into the LLM strategy prompt */
+  policyProse?: string;
 }
 
 /**
@@ -576,6 +578,8 @@ export interface SerializedStrategyConfig {
   type: 'weighted' | 'minAmount' | 'collateralDeficit';
   /** Optional route hints for LLM rebalancer (describes available rebalancing routes) */
   routeHints?: string;
+  /** Optional policy prose injected into the LLM strategy prompt */
+  policyProse?: string;
   chains: {
     [chain: string]: {
       weighted?: {

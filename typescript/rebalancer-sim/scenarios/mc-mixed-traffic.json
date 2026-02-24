@@ -106,7 +106,8 @@
   },
   "defaultStrategyConfig": {
     "type": "weighted",
-    "routeHints": "Available routes:\n- Mock bridge: same-asset cross-chain (USDC chain1↔chain2↔chain3, USDT chain1↔chain2↔chain3)\n- NOT available: direct cross-asset cross-chain\nUser traffic is mostly cross-asset (USDC in, USDT out), globally depleting USDT.\nWhen USDT is depleted (totalBalance=0), deposit USDT from wallet inventory.\nBridge same-asset collateral between chains for distribution imbalances.",
+    "routeHints": "Available paths:\n- rebalance_collateral tool: same-asset cross-chain (USDC chain1↔chain2↔chain3, USDT chain1↔chain2↔chain3)\n- supply_collateral tool: deposit wallet inventory into any router (same-asset, same-chain instant, cross-chain via bridge)\n- No inventory bridges configured (no cross-asset conversion available)",
+    "policyProse": "User traffic is mostly cross-asset (USDC in, USDT out), globally depleting USDT.\nWhen USDT is DEPLETED, use supply_collateral to deposit USDT from wallet inventory to deficit routers.\nFor same-asset distribution imbalances, use rebalance_collateral.\nCheck get_inventory to see your wallet balances. You have ample USDT inventory.",
     "chains": {
       "USDC|chain1": {
         "weighted": { "weight": "0.333", "tolerance": "0.10" },

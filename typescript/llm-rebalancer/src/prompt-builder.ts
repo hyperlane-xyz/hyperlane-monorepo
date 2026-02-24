@@ -55,6 +55,9 @@ function formatStrategy(strategy: StrategyDescription): string {
   if (strategy.routeHints) {
     base += '\n\n### Route Hints\n\n' + strategy.routeHints;
   }
+  if (strategy.policyProse) {
+    base += '\n\n### Policy\n\n' + strategy.policyProse;
+  }
   return base;
 }
 
@@ -107,29 +110,26 @@ ${previousContext}
 Each asset is an independent liquidity pool. \`get_balances\` returns per-asset totals/shares.
 Strategy keys are \`SYMBOL|chain\` — evaluate each independently.
 
-### PRIORITY ORDER — handle in this exact order:
-1. **DEPLETED assets FIRST** (totalBalance=0) — see below. These block all pending transfers that need them.
-2. **Cross-asset pending transfers** — check \`destinationAsset\` on each pending transfer. That asset's collateral must be sufficient on the destination chain.
-3. **Same-asset distribution imbalance** — standard \`rebalance()\` via bridge.
+### Terminology
+- **Router collateral**: tokens held by warp token contracts. Shown by \`get_balances\`. Backs user transfers.
+- **Wallet inventory**: tokens in your wallet. Shown by \`get_inventory\`. Available for supplying to routers.
 
-### Depleted Assets (HIGHEST PRIORITY)
-If \`get_balances\` shows an asset with totalBalance=0 (status: DEPLETED):
-- \`warp.rebalance()\` CANNOT help — no collateral exists to bridge
-- You MUST use the \`inventory-deposit\` skill: call \`bridge.transferRemote()\` DIRECTLY (not through warp)
-- **Amount**: sum ALL pending transfers where \`destinationAsset\` matches the depleted asset. Each such transfer needs that much collateral on its destination chain.
-- **A DEPLETED asset means the system is NOT balanced — do NOT save status=balanced.**
+### Priority Order
+1. **DEPLETED assets** (totalBalance=0) — block ALL pending transfers for that asset. Highest priority.
+2. **Cross-asset pending transfers** — a USDC→USDT transfer needs **USDT** collateral on dest chain, not USDC.
+3. **Same-asset distribution imbalance** — surplus on one chain, deficit on another.
+A DEPLETED asset means system is NOT balanced — do NOT save status=balanced.
 
-### Cross-Asset Pending Transfers (CRITICAL)
-\`get_pending_transfers\` shows \`sourceAsset\` and \`destinationAsset\`. When these differ (e.g., USDC→USDT):
-- The transfer needs **destinationAsset** (USDT) collateral on the target chain, NOT sourceAsset (USDC).
-- Check: does the destination chain's warp token for the **destinationAsset** have enough collateral?
-- If not, you must add collateral for the **destinationAsset** (via bridge or inventory-deposit).
-**Common mistake**: seeing "pending USDC→USDT" and checking USDC collateral. You must check USDT collateral.
+### Tools
+- \`rebalance_collateral\` — move router collateral directly between chains (same-asset). **Preferred** for distribution imbalances when surplus exists elsewhere.
+- \`supply_collateral\` — supply collateral to a router from your wallet inventory (same-asset). Use when router collateral is depleted or insufficient. Specify source (where your wallet has tokens) and destination (which router needs collateral).
+- \`get_inventory\` — check your wallet balances before supplying.
+- Inventory bridge skills (if available) — convert between assets in your wallet. Check \`.pi/skills/\` for available bridges.
 
-### Available Operations
-1. **Same-asset cross-chain**: \`rebalance()\` via bridge (moves USDC chain1→chain2)
-2. **Inventory deposit**: \`bridge.transferRemote()\` directly for depleted assets (see \`inventory-deposit\` skill)
-3. **Same-chain asset swap**: \`transferRemoteTo(localDomain)\` (swaps USDC→USDT on same chain, only if destination has collateral)
+### Decision Tree
+1. Same-asset surplus on another chain? → \`rebalance_collateral\` (direct, preferred)
+2. Wallet has the right asset? → \`supply_collateral\` (from wallet to router)
+3. Need a different asset? → Use inventory bridge skill to convert, then \`supply_collateral\`
 
 `
     : '';
@@ -151,27 +151,27 @@ ${formatStrategy(strategy)}
 ${multiAssetSection}
 ## Skills
 
-Rebalance skills are in \`.pi/skills/\`. Read the appropriate one when you first need to execute a rebalance.
-After the first rebalance, save a \`tpl:\` field in context with the command template (placeholders for addresses/amounts). On subsequent cycles, use the template + \`get_chain_metadata\` — skip re-reading the skill.
+Inventory bridge skills (for cross-asset conversion) are in \`.pi/skills/\`. Check when you need to convert between assets.
+For standard operations (same-asset rebalance, supplying collateral), use the tools directly — no skill reading needed.
 
 ## Loop
 
 1. Check previous context for pending actions. If pending, use \`check_hyperlane_delivery\` to verify.
-2. \`get_balances\` and \`get_pending_transfers\` (call in parallel). Check three conditions:
-   a. For each pending transfer: the DESTINATION ASSET's collateral on the destination chain must be >= the pending amount. Match by asset (e.g., USDC→USDT transfer needs USDT collateral). If insufficient, BLOCKED — rebalance that specific asset.
-   b. If any asset is DEPLETED (totalBalance=0), NOT balanced — deposit from inventory (see Depleted Assets).
+2. \`get_balances\` and \`get_pending_transfers\` (call in parallel). Check:
+   a. For each pending transfer: the DESTINATION ASSET's collateral on the destination chain must be >= the pending amount. Match by asset (e.g., USDC→USDT transfer needs USDT collateral). If insufficient, BLOCKED — act on that specific asset.
+   b. If any asset is DEPLETED (totalBalance=0), NOT balanced — supply collateral from inventory.
    c. Weights within tolerance for all assets.
-   Only if ALL three pass → \`save_context\` with status=balanced.
-3. If imbalanced and context has \`tpl:\` → use template with \`get_chain_metadata\` to build command. Otherwise read the appropriate skill from \`.pi/skills/\`.
-4. Execute rebalance, extract messageId, \`save_context\` with status=pending.
+   Only if ALL pass → \`save_context\` with status=balanced.
+3. If imbalanced: use \`rebalance_collateral\` (preferred for same-asset surplus) or \`supply_collateral\` (for depleted assets or when no surplus exists). For cross-asset: use inventory bridge skill first if needed.
+4. If action returns a messageId, save it in context for delivery verification.
 
 ## Rules
 
 - MUST call \`save_context\` at end of every cycle.
 - Never rebalance more than surplus. Account for inflight amounts.
 - If action fails, note in context, don't retry immediately.
-- Prefer on-chain rebalance over inventory deposit.
-- \`save_context\` summary format: \`tpl:\` with cast send template (use <SOURCE_WARP> <DEST_DOMAIN> <AMOUNT> <BRIDGE> <RPC> as placeholders). FULL messageIds (66 hex chars) for pending. Keep under 500 chars. No prose — just facts.
+- Prefer \`rebalance_collateral\` over \`supply_collateral\` (direct router movement > consuming wallet inventory).
+- \`save_context\` summary format: FULL messageIds (66 hex chars) for pending. status=balanced or status=pending. Keep under 500 chars. No prose — just facts.
 - All amounts in wei (18 decimals).
 `;
 }
