@@ -99,9 +99,7 @@ mod tests {
         }
 
         async fn refresh_finalized_transaction_count(&self) -> Result<u64, LanderError> {
-            Err(LanderError::NonRetryableError(
-                "recount failed".to_string(),
-            ))
+            Err(LanderError::NonRetryableError("recount failed".to_string()))
         }
     }
 
