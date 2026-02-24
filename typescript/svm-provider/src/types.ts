@@ -18,6 +18,8 @@ export interface SvmTransaction {
   instructions: SvmInstruction[];
   computeUnits?: number;
   additionalSigners?: TransactionSigner[];
+  /** Skip preflight simulation. Required for BPF Loader v3 deploy transactions. */
+  skipPreflight?: boolean;
 }
 
 export interface SvmReceipt {
