@@ -1,4 +1,4 @@
-import type { Address, ReadonlyUint8Array } from '@solana/kit';
+import { type ReadonlyUint8Array, address } from '@solana/kit';
 
 /**
  * Program instruction discriminator used by all Hyperlane token programs.
@@ -8,7 +8,10 @@ export const PROGRAM_INSTRUCTION_DISCRIMINATOR = new Uint8Array([
   1, 1, 1, 1, 1, 1, 1, 1,
 ]);
 
-export const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111' as Address;
+export const SYSTEM_PROGRAM_ID = address('11111111111111111111111111111111');
+export const RENT_SYSVAR = address(
+  'SysvarRent111111111111111111111111111111111',
+);
 
 /** Native SOL decimal precision. */
 export const SOL_DECIMALS = 9;

@@ -1,4 +1,10 @@
-import { AccountRole, type Address, address } from '@solana/kit';
+import {
+  AccountRole,
+  type Address,
+  type Rpc,
+  type SolanaRpcApi,
+  address,
+} from '@solana/kit';
 
 import type { RawWarpArtifactConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import { computeRemoteRoutersUpdates } from '@hyperlane-xyz/provider-sdk/warp';
@@ -11,8 +17,12 @@ import {
   getSetInterchainSecurityModuleInstructionDataEncoder,
   getTransferOwnershipInstructionDataEncoder,
 } from '../generated/instructions/index.js';
-import type { InterchainGasPaymasterTypeProxyArgs } from '../generated/types/index.js';
-import type { SvmInstruction } from '../types.js';
+import type {
+  InitProxyArgs,
+  InterchainGasPaymasterTypeProxyArgs,
+} from '../generated/types/index.js';
+import type { SvmSigner } from '../signer.js';
+import type { SvmInstruction, SvmReceipt } from '../types.js';
 
 import { SYSTEM_PROGRAM_ID, prependDiscriminator } from './constants.js';
 import { getHyperlaneTokenPda, routerHexToBytes } from './warp-query.js';
@@ -302,4 +312,95 @@ export async function computeWarpTokenUpdateInstructions(
   }
 
   return instructions;
+}
+
+/**
+ * Builds the common InitProxyArgs shared by all warp token types.
+ * Handles mailbox, ISM, and IGP; decimals are token-type-specific.
+ */
+export function buildBaseInitArgs(
+  config: Pick<
+    RawWarpArtifactConfig,
+    'mailbox' | 'interchainSecurityModule' | 'hook'
+  >,
+  igpProgramId: Address,
+  decimals: number,
+  remoteDecimals: number,
+): InitProxyArgs {
+  const igpAccountAddress = config.hook?.deployed?.address;
+  return {
+    mailbox: address(config.mailbox),
+    interchainSecurityModule: config.interchainSecurityModule?.deployed?.address
+      ? address(config.interchainSecurityModule.deployed.address)
+      : null,
+    interchainGasPaymaster: igpAccountAddress
+      ? [
+          igpProgramId,
+          { __kind: 'OverheadIgp', fields: [address(igpAccountAddress)] },
+        ]
+      : null,
+    decimals,
+    remoteDecimals,
+  };
+}
+
+/**
+ * Sends all post-init configuration instructions (routers, gas, ISM) in a
+ * single batched transaction. Returns the receipt, or undefined if there is
+ * nothing to configure.
+ */
+export async function applyPostInitConfig(
+  rpc: Rpc<SolanaRpcApi>,
+  signer: SvmSigner,
+  programId: Address,
+  config: Pick<
+    RawWarpArtifactConfig,
+    'remoteRouters' | 'destinationGas' | 'interchainSecurityModule'
+  >,
+): Promise<SvmReceipt | undefined> {
+  const instructions: SvmInstruction[] = [];
+
+  if (Object.keys(config.remoteRouters).length > 0) {
+    const enrollments: RouterEnrollment[] = Object.entries(
+      config.remoteRouters,
+    ).map(([domain, router]) => ({
+      domain: parseInt(domain),
+      router: router.address,
+    }));
+    instructions.push(
+      await getEnrollRemoteRoutersIx(programId, signer.address, enrollments),
+    );
+  }
+
+  if (Object.keys(config.destinationGas).length > 0) {
+    const gasConfigs: DestinationGasConfig[] = Object.entries(
+      config.destinationGas,
+    ).map(([domain, gas]) => ({
+      domain: parseInt(domain),
+      gas: BigInt(gas),
+    }));
+    instructions.push(
+      await getSetDestinationGasConfigsIx(
+        programId,
+        signer.address,
+        gasConfigs,
+      ),
+    );
+  }
+
+  // if (config.interchainSecurityModule?.deployed?.address) {
+  //   instructions.push(
+  //     await getSetIsmIx(
+  //       programId,
+  //       signer.address,
+  //       address(config.interchainSecurityModule.deployed.address),
+  //     ),
+  //   );
+  // }
+
+  if (instructions.length === 0) {
+    return undefined;
+  }
+
+  return signer.signAndSend(rpc, { instructions });
 }
