@@ -43,8 +43,8 @@ export const owners: ChainMap<OwnableConfig> = {
   },
 };
 
+const ethereumChainNameSet = new Set<string>(ethereumChainNames);
+
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
-  Object.entries(owners).filter(([chain]) =>
-    ethereumChainNames.includes(chain as any),
-  ),
+  Object.entries(owners).filter(([chain]) => ethereumChainNameSet.has(chain)),
 );

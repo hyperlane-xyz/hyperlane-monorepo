@@ -150,6 +150,35 @@ type ParsedTransactionDescription = NonNullable<
 >;
 type ParsedFunctionFragment = ParsedTransactionDescription['functionFragment'];
 type ParsedFunctionArgs = ParsedTransactionDescription['args'];
+type ParsedContractInterface = ReturnType<
+  typeof BaseFee__factory.createInterface
+>;
+
+function getFactoryInterface(factory: unknown): ParsedContractInterface {
+  if (!factory || typeof factory !== 'object') {
+    throw new Error('Factory does not expose an interface');
+  }
+
+  const withInterface = factory as {
+    interface?: ParsedContractInterface;
+    createInterface?: () => ParsedContractInterface;
+    constructor?: {
+      createInterface?: () => ParsedContractInterface;
+    };
+  };
+
+  if (withInterface.interface) {
+    return withInterface.interface;
+  }
+  if (withInterface.createInterface) {
+    return withInterface.createInterface();
+  }
+  if (withInterface.constructor?.createInterface) {
+    return withInterface.constructor.createInterface();
+  }
+
+  throw new Error('Factory does not expose an interface');
+}
 
 function asAddress(value: unknown): Address {
   return String(value);
@@ -214,13 +243,8 @@ const ownableFunctionSelectors = [
 
 // ICA router interface with hookMetadata parameter
 // This overload is used by the SDK when building ICA calls with custom hook metadata
-const icaRouterFactory: any =
-  interchainAccountFactories.interchainAccountRouter;
-const icaInterfaceWithHookMetadata = (
-  icaRouterFactory.createInterface
-    ? icaRouterFactory.createInterface()
-    : icaRouterFactory.constructor.createInterface()
-) as any;
+const icaRouterFactory = interchainAccountFactories.interchainAccountRouter;
+const icaInterfaceWithHookMetadata = getFactoryInterface(icaRouterFactory);
 
 // Function selector for callRemoteWithOverrides with hookMetadata (5 params)
 const CALL_REMOTE_WITH_HOOK_METADATA_SELECTOR =
@@ -1466,10 +1490,7 @@ export class GovernTransactionReader {
       throw new Error('No data in ICA transaction');
     }
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const icaInterface = (icaRouterFactory.interface ??
-      (icaRouterFactory.createInterface
-        ? icaRouterFactory.createInterface()
-        : icaRouterFactory.constructor.createInterface())) as any;
+    const icaInterface = getFactoryInterface(icaRouterFactory);
 
     // Check selector to determine which interface to use
     const hasHookMetadata = tx.data.startsWith(
@@ -1525,7 +1546,7 @@ export class GovernTransactionReader {
 
     return {
       to: `ICA Router${isLegacy ? ' (Legacy)' : ''} (${chain} ${routerAddress})`,
-      value: `${formatEther(BigInt(decoded.value.toString()))} ${symbol}`,
+      value: `${formatEther(asBigInt(decoded.value))} ${symbol}`,
       signature: decoded.signature,
       args: prettyArgs,
       chain,
@@ -1595,11 +1616,8 @@ export class GovernTransactionReader {
     if (!tx.data) {
       throw new Error('⚠️ No data in mailbox transaction');
     }
-    const mailboxFactory: any = coreFactories.mailbox;
-    const mailboxInterface = (mailboxFactory.interface ??
-      (mailboxFactory.createInterface
-        ? mailboxFactory.createInterface()
-        : mailboxFactory.constructor.createInterface())) as any;
+    const mailboxFactory = coreFactories.mailbox;
+    const mailboxInterface = getFactoryInterface(mailboxFactory);
     const decoded = mailboxInterface.parseTransaction({
       data: tx.data,
       value: tx.value,

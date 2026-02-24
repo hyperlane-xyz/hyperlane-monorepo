@@ -307,12 +307,7 @@ export async function getGovernor(
       foreignDeployments,
     );
 
-    const checker = new HypERC20Checker(
-      multiProvider,
-      app,
-      config as any,
-      ismFactory,
-    );
+    const checker = new HypERC20Checker(multiProvider, app, config, ismFactory);
     governor = new ProxiedRouterGovernor(checker, ica);
   } else {
     throw Error(

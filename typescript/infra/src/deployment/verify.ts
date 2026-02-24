@@ -14,7 +14,20 @@ export function extractBuildArtifact(buildArtifactPath: string): BuildArtifact {
   return readJson<BuildArtifact>(buildArtifactPath);
 }
 
+function isChainMapOfStrings(value: unknown): value is ChainMap<string> {
+  if (!value || typeof value !== 'object') return false;
+  return Object.values(value as Record<string, unknown>).every(
+    (entry) => typeof entry === 'string',
+  );
+}
+
 // fetch explorer API keys from GCP
 export async function fetchExplorerApiKeys(): Promise<ChainMap<string>> {
-  return (await fetchGCPSecret('explorer-api-keys', true)) as any;
+  const secret = await fetchGCPSecret('explorer-api-keys', true);
+  if (!isChainMapOfStrings(secret)) {
+    throw new Error(
+      'Invalid explorer-api-keys secret format, expected object of string values',
+    );
+  }
+  return secret;
 }
