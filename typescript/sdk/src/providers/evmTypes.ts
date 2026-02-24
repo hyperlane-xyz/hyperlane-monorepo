@@ -1,29 +1,74 @@
-export type EvmContractLike = { address?: string } & Record<string, unknown>;
+export type EvmContractLike = {
+  address?: string;
+};
+
 export type EvmTransactionLike = {
   to?: string;
+  from?: string;
   data?: string;
-  value?: unknown;
-} & Record<string, unknown>;
+  value?: EvmBigNumberish;
+  gas?: EvmBigNumberish;
+  gasLimit?: EvmBigNumberish;
+  gasPrice?: EvmBigNumberish;
+  maxFeePerGas?: EvmBigNumberish;
+  maxPriorityFeePerGas?: EvmBigNumberish;
+  nonce?: EvmBigNumberish;
+  chainId?: EvmBigNumberish;
+  type?: EvmBigNumberish;
+  accessList?: readonly unknown[] | unknown[];
+  customData?: Record<string, unknown>;
+};
 
-export type EvmTransactionOverrides = Record<string, unknown>;
+export type EvmTransactionOverrides = {
+  from?: string;
+  to?: string;
+  data?: string;
+  value?: EvmBigNumberish;
+  gas?: EvmBigNumberish;
+  gasLimit?: EvmBigNumberish;
+  gasPrice?: EvmBigNumberish;
+  maxFeePerGas?: EvmBigNumberish;
+  maxPriorityFeePerGas?: EvmBigNumberish;
+  nonce?: EvmBigNumberish;
+  chainId?: EvmBigNumberish;
+  type?: EvmBigNumberish;
+  accessList?: readonly unknown[] | unknown[];
+  customData?: Record<string, unknown>;
+};
 
 export type EvmBigNumberish = string | number | bigint | { toString(): string };
 export type EvmGasAmount = EvmBigNumberish;
 
-export type EvmBlockLike = { number: number } & Record<string, unknown>;
+export type EvmBlockLike = {
+  number: number;
+};
 
 export type EvmTransactionReceiptLike = {
-  blockNumber?: number | bigint;
-  transactionHash?: string;
+  blockHash?: string | null;
+  blockNumber?: EvmBigNumberish | null;
+  contractAddress?: string | null;
+  from?: string | null;
+  to?: string | null;
+  transactionHash?: string | null;
+  transactionIndex?: EvmBigNumberish | null;
   status?: number | string;
-  logs?: readonly unknown[] | unknown[];
-} & Record<string, unknown>;
+  gasUsed?: EvmBigNumberish;
+  cumulativeGasUsed?: EvmBigNumberish;
+  logs?: readonly unknown[] | unknown[] | null;
+};
 
 export type EvmTransactionResponseLike = {
   hash: string;
+  from?: string;
+  to?: string;
+  nonce?: EvmBigNumberish;
+  gasPrice?: EvmBigNumberish;
+  maxFeePerGas?: EvmBigNumberish;
+  maxPriorityFeePerGas?: EvmBigNumberish;
+  value?: EvmBigNumberish;
   data?: string;
   wait(confirmations?: number): Promise<EvmTransactionReceiptLike | null>;
-} & Record<string, unknown>;
+};
 
 export interface EvmProviderLike {
   estimateGas(transaction: EvmTransactionLike): Promise<EvmGasAmount>;
@@ -76,10 +121,12 @@ export interface EvmSignerLike {
 export type EvmDeployTransactionLike = {
   data: string;
   hash?: string;
+  blockNumber?: number | bigint | string;
+  transactionHash?: string;
   wait?(confirmations?: number): Promise<EvmTransactionReceiptLike | null>;
-} & Record<string, unknown>;
+};
 
 export type EvmDeployableContractLike = {
   address: string;
   deployTransaction?: EvmDeployTransactionLike;
-} & Record<string, unknown>;
+};
