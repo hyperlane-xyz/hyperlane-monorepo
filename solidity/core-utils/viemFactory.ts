@@ -185,6 +185,11 @@ export interface ViemContractLike<TAbi extends Abi = Abi> {
 }
 
 type SentTxLike = ContractWriteResult;
+type WriteContractRequestLike = {
+  address: string;
+  abi: Abi;
+  functionName: string;
+} & Record<string, unknown>;
 
 const TX_OVERRIDE_KEYS = new Set([
   'from',
@@ -331,6 +336,16 @@ function toReceiptLike(
     return value as TransactionReceipt | Record<string, unknown>;
   }
   throw new Error(`Transaction receipt not found for ${hash}`);
+}
+
+function isWriteContractRequest(
+  request: TxRequestLike,
+): request is WriteContractRequestLike {
+  return (
+    typeof request.address === 'string' &&
+    Array.isArray(request.abi) &&
+    typeof request.functionName === 'string'
+  );
 }
 
 function splitArgsAndOverrides(
@@ -883,10 +898,15 @@ async function performSend(
   if (runner && isObject(runner)) {
     if (
       'writeContract' in runner &&
-      typeof runner.writeContract === 'function'
+      typeof runner.writeContract === 'function' &&
+      isWriteContractRequest(request)
     ) {
-      const hash = await runner.writeContract(request);
-      return asTxResponse(runner, hash);
+      try {
+        const hash = await runner.writeContract(request);
+        return asTxResponse(runner, hash);
+      } catch {
+        // fall through to other execution paths
+      }
     }
 
     const hasRunnerAddress =
