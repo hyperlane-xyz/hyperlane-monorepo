@@ -86,4 +86,5 @@ try {
     .showHelpOnFail(false).argv;
 } catch (error: any) {
   errorRed('Error: ' + error.message);
+  process.exit(1);
 }
