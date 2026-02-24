@@ -113,6 +113,11 @@ async function getConfigurationChangedLogsFromExplorerApi({
     provider.getBlockNumber(),
     provider.getTransactionReceipt(contractDeploymentTx.txHash),
   ]);
+  if (!deploymentTransactionReceipt?.blockNumber) {
+    throw new Error(
+      `No deployment receipt block number for xERC20 ${xERC20Address} on ${chain}`,
+    );
+  }
 
   return getLogsFromEtherscanLikeExplorerAPI(
     { apiUrl: explorerUrl, apiKey },

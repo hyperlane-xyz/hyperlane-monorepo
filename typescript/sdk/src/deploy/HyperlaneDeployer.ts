@@ -477,12 +477,12 @@ export abstract class HyperlaneDeployer<
     const signer = this.multiProvider.getSigner(chain);
     const artifact = await getZKSyncArtifactByContractName(contractName);
 
-    const contract = await this.multiProvider.handleDeploy(
+    const contract = (await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
       artifact,
-    );
+    )) as ContractLike & { deployTransaction?: { data: string } };
 
     if (initializeArgs) {
       if (

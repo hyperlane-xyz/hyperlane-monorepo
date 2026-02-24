@@ -201,7 +201,8 @@ export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
 ): HyperlaneSmartProvider {
-  return defaultEvmProviderBuilder(rpcUrls, _network).provider;
+  return defaultEvmProviderBuilder(rpcUrls, _network)
+    .provider as HyperlaneSmartProvider;
 }
 
 export function defaultZKProviderBuilder(
@@ -210,7 +211,7 @@ export function defaultZKProviderBuilder(
   retryOverride?: ProviderRetryOptions,
 ): HyperlaneSmartProvider {
   return defaultZKSyncProviderBuilder(rpcUrls, _network, retryOverride)
-    .provider;
+    .provider as HyperlaneSmartProvider;
 }
 
 export type ProviderBuilderMap = Record<
