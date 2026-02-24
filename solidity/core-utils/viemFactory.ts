@@ -140,7 +140,7 @@ type JsonRpcLike = {
 };
 
 type SendLike = {
-  send: (method: string, params?: readonly unknown[]) => Promise<unknown>;
+  send: (method: string, params: unknown[]) => Promise<unknown>;
 };
 
 export type RunnerLike =
@@ -221,7 +221,12 @@ function getRpc(runner: RunnerLike): JsonRpcLike | undefined {
     return runner as unknown as JsonRpcLike;
   }
   const provider = getRunnerProvider(runner);
-  if (provider && isObject(provider) && 'request' in provider) {
+  if (
+    provider &&
+    isObject(provider) &&
+    'request' in provider &&
+    typeof provider.request === 'function'
+  ) {
     return provider as unknown as JsonRpcLike;
   }
   return undefined;
@@ -233,7 +238,12 @@ function getSend(runner: RunnerLike): SendLike | undefined {
     return runner as unknown as SendLike;
   }
   const provider = getRunnerProvider(runner);
-  if (provider && isObject(provider) && 'send' in provider) {
+  if (
+    provider &&
+    isObject(provider) &&
+    'send' in provider &&
+    typeof provider.send === 'function'
+  ) {
     return provider as unknown as SendLike;
   }
   return undefined;
@@ -247,7 +257,7 @@ async function rpcRequest(
   const rpc = getRpc(runner);
   if (rpc) return rpc.request({ method, params });
   const sender = getSend(runner);
-  if (sender) return sender.send(method, params);
+  if (sender) return sender.send(method, [...params]);
   throw new Error(`No rpc transport for method ${method}`);
 }
 
@@ -941,9 +951,10 @@ export function createContractProxy<TAbi extends Abi>(
         return async (...rawArgs: unknown[]) => {
           const fn = getFunctionAbi(abi, prop);
           if (!fn) throw new Error(`Function ${prop} not found`);
+          const inputCount = (fn.inputs ?? []).length;
           const { fnArgs, overrides } = splitArgsAndOverrides(
             rawArgs,
-            fn.inputs.length,
+            inputCount,
           );
           const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
           const request = await withRunnerFrom(runner, {
@@ -1059,9 +1070,10 @@ export function createContractProxy<TAbi extends Abi>(
       if (!fn) return Reflect.get(target, prop, receiver);
 
       return async (...rawArgs: unknown[]) => {
+        const inputCount = (fn.inputs ?? []).length;
         const { fnArgs, overrides } = splitArgsAndOverrides(
           rawArgs,
-          fn.inputs.length,
+          inputCount,
         );
         const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
         const stateMutability = fn.stateMutability ?? 'nonpayable';
@@ -1069,11 +1081,11 @@ export function createContractProxy<TAbi extends Abi>(
           return performRead(runner, address, fn, normalizedArgs);
         }
 
-        const request: TxRequestLike = {
+        const request = await withRunnerFrom(runner, {
           to: address,
           data: encodeFunctionCallData(fn, normalizedArgs),
           ...overrides,
-        };
+        });
         const response = await performSend(runner, request);
         return normalizeWriteResult(response);
       };
@@ -1148,10 +1160,10 @@ export class ViemContractFactory<
       rawArgs,
       ctorInputs.length,
     );
-    const deployTx = {
+    const deployTx = await withRunnerFrom(this.runner, {
       ...this.getDeployTransaction(...fnArgs),
       ...overrides,
-    };
+    });
     const txResponse = await performSend(this.runner, deployTx);
     const receipt = (await txResponse.wait()) as TransactionReceipt & {
       contractAddress?: string;
