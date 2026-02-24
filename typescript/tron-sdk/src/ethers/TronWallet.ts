@@ -71,7 +71,7 @@ export class TronWallet extends Wallet {
   /** Convert Tron address (base58 or 41-hex) to ethers 0x address */
   toEvmAddress(tronAddress: string): string {
     const hex = this.tronWeb.address.toHex(tronAddress);
-    return ensure0x(hex.slice(2));
+    return ensure0x(hex.slice(2)).toLowerCase();
   }
 
   /** Tron doesn't use nonces */
