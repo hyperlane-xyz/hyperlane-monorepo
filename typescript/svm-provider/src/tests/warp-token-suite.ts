@@ -6,14 +6,23 @@ import type { ArtifactWriter } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import type {
   DeployedWarpAddress,
+  RawNativeWarpArtifactConfig,
   RawWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
 import type { SvmSigner } from '../signer.js';
 
+/**
+ * Overrides that can be applied to any token type config.
+ * Excludes the `type` discriminant — each test provides its own fixed type.
+ */
+export type WarpConfigOverrides = Partial<
+  Omit<RawNativeWarpArtifactConfig, 'type'>
+>;
+
 export interface WarpTestContext {
   writer: ArtifactWriter<RawWarpArtifactConfig, DeployedWarpAddress>;
-  makeConfig(overrides?: Partial<RawWarpArtifactConfig>): RawWarpArtifactConfig;
+  makeConfig(overrides?: WarpConfigOverrides): RawWarpArtifactConfig;
   overheadIgpAccountAddress: Address;
   testIsmAddress: Address;
   signer: SvmSigner & { address: Address };
@@ -75,6 +84,7 @@ export function defineWarpTokenTests(
       }),
     });
     deployedWithIgpAndIsmId = deployed.deployed.address;
+
     const token = await writer.read(deployedWithIgpAndIsmId);
     expect(token.config.hook?.deployed?.address).to.equal(
       overheadIgpAccountAddress,
