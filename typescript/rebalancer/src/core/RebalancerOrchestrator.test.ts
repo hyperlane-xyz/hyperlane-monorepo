@@ -4,7 +4,11 @@ import { pino } from 'pino';
 import Sinon from 'sinon';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
-import { ExecutionType, RebalancerStrategyOptions } from '../config/types.js';
+import {
+  DEFAULT_INTENT_TTL_MS,
+  ExecutionType,
+  RebalancerStrategyOptions,
+} from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import { MonitorEventType } from '../interfaces/IMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
@@ -43,6 +47,7 @@ function createMockRebalancerConfig(): RebalancerConfig {
         },
       },
     ],
+    intentTTL: DEFAULT_INTENT_TTL_MS,
   } as RebalancerConfig;
 }
 
@@ -372,6 +377,7 @@ describe('RebalancerOrchestrator', () => {
             },
           },
         ],
+        intentTTL: DEFAULT_INTENT_TTL_MS,
       } as RebalancerConfig;
 
       const strategy = createMockStrategy();
@@ -446,6 +452,7 @@ describe('RebalancerOrchestrator', () => {
             },
           },
         ],
+        intentTTL: DEFAULT_INTENT_TTL_MS,
       } as RebalancerConfig;
 
       const strategy = createMockStrategy();
@@ -541,6 +548,7 @@ describe('RebalancerOrchestrator', () => {
             },
           },
         ],
+        intentTTL: DEFAULT_INTENT_TTL_MS,
       } as RebalancerConfig;
 
       const strategy = createMockStrategy();
@@ -591,6 +599,7 @@ describe('RebalancerOrchestrator', () => {
             },
           },
         ],
+        intentTTL: DEFAULT_INTENT_TTL_MS,
       } as RebalancerConfig;
 
       const strategy = createMockStrategy();

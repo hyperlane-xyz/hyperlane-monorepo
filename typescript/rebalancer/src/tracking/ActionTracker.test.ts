@@ -446,13 +446,13 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 50n,
         createdAt: Date.now() - DEFAULT_INTENT_TTL_MS - 1,
         updatedAt: Date.now(),
       };
 
       const action: RebalanceAction = {
         id: 'action-1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
@@ -482,7 +482,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 50n,
         createdAt: Date.now() - DEFAULT_INTENT_TTL_MS + 60_000,
         updatedAt: Date.now(),
       };
