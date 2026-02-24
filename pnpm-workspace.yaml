@@ -35,6 +35,7 @@ catalog:
   dotenv: ^10.0.0
   asn1.js: ^5.4.1
   uuid: ^10.0.0
+  bs58: ^6.0.0
 
   # Starknet
   starknet: ^7.4.0

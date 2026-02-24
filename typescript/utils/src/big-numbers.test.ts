@@ -69,14 +69,14 @@ describe('bigToFixed', () => {
 
 describe('fixedToBig', () => {
   it('converts a FixedNumber to a floored BigNumber', () => {
-    const fixed = FixedNumber.from('12.34');
+    const fixed = FixedNumber.fromString('12.34');
     const big = fixedToBig(fixed);
 
     expect(big.toNumber()).to.equal(12);
   });
 
   it('converts a FixedNumber to a ceilinged BigNumber', () => {
-    const fixed = FixedNumber.from('12.34');
+    const fixed = FixedNumber.fromString('12.34');
     const big = fixedToBig(fixed, true);
 
     expect(big.toNumber()).to.equal(13);
@@ -86,7 +86,7 @@ describe('fixedToBig', () => {
 describe('mulBigAndFixed', () => {
   it('gets the floored product of a BigNumber and FixedNumber', () => {
     const big = BigNumber('1000');
-    const fixed = FixedNumber.from('1.2345');
+    const fixed = FixedNumber.fromString('1.2345');
     const product = mulBigAndFixed(big, fixed);
 
     expect(product).to.equal((1234).toString());
@@ -94,7 +94,7 @@ describe('mulBigAndFixed', () => {
 
   it('gets the ceilinged product of a BigNumber and FixedNumber', () => {
     const big = BigNumber('1000');
-    const fixed = FixedNumber.from('1.2345');
+    const fixed = FixedNumber.fromString('1.2345');
     const product = mulBigAndFixed(big, fixed, true);
 
     expect(product).to.equal((1235).toString());

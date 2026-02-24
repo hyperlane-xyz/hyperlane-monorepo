@@ -39,7 +39,7 @@ export function isZeroish(value: BigNumber.Value): boolean {
  * @returns A FixedNumber representation of a BigNumber.
  */
 export function bigToFixed(big: BigNumber.Value): FixedNumber {
-  return FixedNumber.from(big.toString(10));
+  return FixedNumber.fromString(big.toString(10));
 }
 
 /**
