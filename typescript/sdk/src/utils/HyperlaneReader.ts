@@ -2,10 +2,10 @@ import { LevelWithSilentOrString } from 'pino';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
-import type { ChainNameOrId, MultiProviderEvmProvider } from '../types.js';
+import type { ChainNameOrId, EvmProvider } from '../types.js';
 
 export class HyperlaneReader {
-  provider: MultiProviderEvmProvider;
+  provider: EvmProvider;
 
   constructor(
     protected readonly multiProvider: MultiProvider,

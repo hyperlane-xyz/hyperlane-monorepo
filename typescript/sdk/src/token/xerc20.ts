@@ -15,11 +15,7 @@ import { isContractAddress } from '../contracts/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
-import {
-  ChainName,
-  ChainNameOrId,
-  MultiProviderEvmProvider,
-} from '../types.js';
+import { ChainName, ChainNameOrId, EvmProvider } from '../types.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
 import { TokenType } from './config.js';
@@ -142,7 +138,7 @@ type ConfigurationChangedLog = Log<
 
 async function getLockboxesFromLogs(
   logs: Log[],
-  provider: MultiProviderEvmProvider,
+  provider: EvmProvider,
   chain: ChainNameOrId,
   logger: Logger,
 ): Promise<XERC20TokenExtraBridgesLimits[]> {

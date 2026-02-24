@@ -12,11 +12,7 @@ import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import {
-  ChainNameOrId,
-  DeployedOwnableConfig,
-  MultiProviderEvmProvider,
-} from '../types.js';
+import { ChainNameOrId, DeployedOwnableConfig, EvmProvider } from '../types.js';
 
 import { CoreConfig, DerivedCoreConfig } from './types.js';
 
@@ -28,7 +24,7 @@ interface CoreReader {
 }
 
 export class EvmCoreReader implements CoreReader {
-  public readonly provider: MultiProviderEvmProvider;
+  public readonly provider: EvmProvider;
   public readonly evmHookReader: EvmHookReader;
   public readonly evmIsmReader: EvmIsmReader;
   public readonly evmIcaRouterReader: EvmIcaRouterReader;

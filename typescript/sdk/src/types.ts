@@ -19,10 +19,14 @@ export type ProtocolMap<Value> = Partial<Record<ProtocolType, Value>>;
 
 export type ChainNameOrId = ChainName | Domain;
 
-export type MultiProviderEvmProvider = ReturnType<MultiProvider['getProvider']>;
-export type MultiProviderEvmSigner = ReturnType<MultiProvider['getSigner']>;
+export type EvmProvider = ReturnType<MultiProvider['getProvider']>;
+export type EvmSigner = ReturnType<MultiProvider['getSigner']>;
 
-export type Connection = MultiProviderEvmProvider | MultiProviderEvmSigner;
+// Backwards-compatible aliases while downstream code migrates to EvmProvider/EvmSigner.
+export type MultiProviderEvmProvider = EvmProvider;
+export type MultiProviderEvmSigner = EvmSigner;
+
+export type Connection = EvmProvider | EvmSigner;
 
 export const OwnableSchema = z.object({
   owner: ZHash,
@@ -47,18 +51,18 @@ export const PausableSchema = OwnableSchema.extend({
 export type PausableConfig = z.infer<typeof PausableSchema>;
 
 export type TypedSigner<T extends ProtocolType> =
-  | MultiProviderEvmSigner
+  | EvmSigner
   | AltVM.ISigner<ProtocolTransaction<T>, ProtocolReceipt<T>>;
 
 export interface IMultiProtocolSignerManager {
   getMultiProvider(): Promise<MultiProvider>;
 
-  getEVMSigner(chain: ChainName): MultiProviderEvmSigner;
+  getEVMSigner(chain: ChainName): EvmSigner;
 
   getSignerAddress(chain: ChainName): Promise<Address>;
   getBalance(params: {
     address: Address;
     chain: ChainName;
     denom?: string;
-  }): Promise<Awaited<ReturnType<MultiProviderEvmProvider['getBalance']>>>;
+  }): Promise<Awaited<ReturnType<EvmProvider['getBalance']>>>;
 }
