@@ -87,13 +87,10 @@ pub async fn update_tx_status(
         _ => {}
     }
 
-    match tx.status {
-        TransactionStatus::Dropped(ref reason) => {
-            state
-                .metrics
-                .update_dropped_transactions_metric(&format!("{reason:?}"), &state.domain);
-        }
-        _ => {}
+    if let TransactionStatus::Dropped(ref reason) = tx.status {
+        state
+            .metrics
+            .update_dropped_transactions_metric(&format!("{reason:?}"), &state.domain);
     }
     Ok(())
 }

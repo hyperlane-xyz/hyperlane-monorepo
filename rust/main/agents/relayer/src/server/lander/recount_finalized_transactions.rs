@@ -67,6 +67,8 @@ mod tests {
     };
     use tower::ServiceExt;
 
+    use crate::test_utils::request::parse_body_to_json;
+
     use lander::{AdaptsChainAction, CommandEntrypoint, LanderError};
 
     use super::*;
@@ -84,6 +86,22 @@ mod tests {
 
         async fn refresh_finalized_transaction_count(&self) -> Result<u64, LanderError> {
             Ok(self.count)
+        }
+    }
+
+    #[derive(Clone)]
+    struct FailingEntrypoint;
+
+    #[async_trait]
+    impl CommandEntrypoint for FailingEntrypoint {
+        async fn execute_command(&self, _action: AdaptsChainAction) -> Result<(), LanderError> {
+            Ok(())
+        }
+
+        async fn refresh_finalized_transaction_count(&self) -> Result<u64, LanderError> {
+            Err(LanderError::NonRetryableError(
+                "recount failed".to_string(),
+            ))
         }
     }
 
@@ -110,6 +128,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+
+        let body: ResponseBody = parse_body_to_json(response.into_body()).await;
+        assert_eq!(body.finalized_transactions, 42);
     }
 
     #[tokio::test]
@@ -129,5 +150,26 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_recount_finalized_transactions_refresh_fails() {
+        let mut entrypoints: HashMap<u32, Arc<dyn CommandEntrypoint>> = HashMap::new();
+        entrypoints.insert(1000, Arc::new(FailingEntrypoint));
+        let app = setup_app(entrypoints);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/lander/recount_finalized_transactions")
+                    .method(Method::POST)
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"domain_id":1000}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

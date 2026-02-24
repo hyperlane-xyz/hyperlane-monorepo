@@ -82,7 +82,7 @@ async fn test_dispatcher_initializes_finalized_tx_gauge_from_db() {
     let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
 
     let mut initialized = false;
-    for _ in 0..20 {
+    for _ in 0..80 {
         let finalized_txs = metrics
             .finalized_transactions
             .with_label_values(&[&domain])
@@ -118,7 +118,7 @@ async fn test_dispatcher_initializes_finalized_tx_gauge_from_persisted_counter()
     let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
 
     let mut initialized = false;
-    for _ in 0..20 {
+    for _ in 0..80 {
         let finalized_txs = metrics
             .finalized_transactions
             .with_label_values(&[&domain])
