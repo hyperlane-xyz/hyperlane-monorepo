@@ -197,14 +197,14 @@ describe('hyperlane warp deploy e2e tests', async function () {
       );
 
       for (const bridge of bridges) {
-        const allowance = await tokenChain2.callStatic.allowance(
+        const allowance = await tokenChain2.allowance(
           chain2TokenConfig.addressOrDenom!,
           bridge,
         );
         expect(toBigIntValue(allowance) === MAX_UINT256).to.be.true;
 
         const allowedBridgesOnDomain =
-          await movableToken.callStatic.allowedBridges(chain3DomainId);
+          await movableToken.allowedBridges(chain3DomainId);
         expect(allowedBridgesOnDomain.length).to.eql(bridges.length);
         expect(
           new Set(allowedBridgesOnDomain.map(normalizeAddressEvm)).has(
@@ -270,14 +270,14 @@ describe('hyperlane warp deploy e2e tests', async function () {
       );
 
       for (const domain of [chain3DomainId, chain4DomainId]) {
-        const allowance = await tokenChain2.callStatic.allowance(
+        const allowance = await tokenChain2.allowance(
           chain2TokenConfig.addressOrDenom!,
           allowedBridge,
         );
         expect(toBigIntValue(allowance) === MAX_UINT256).to.be.true;
 
         const allowedBridgesOnDomain =
-          await movableToken.callStatic.allowedBridges(domain);
+          await movableToken.allowedBridges(domain);
         expect(allowedBridgesOnDomain.length).to.eql(1);
         expect(
           new Set(allowedBridgesOnDomain.map(normalizeAddressEvm)).has(
