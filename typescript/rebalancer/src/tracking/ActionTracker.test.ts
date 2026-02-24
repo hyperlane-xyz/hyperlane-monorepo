@@ -196,7 +196,7 @@ describe('ActionTracker', () => {
       expect(intents[0].createdAt).to.be.at.most(after);
     });
 
-    it('should throw on invalid send_occurred_at timestamp', async () => {
+    it('should skip action with invalid send_occurred_at timestamp', async () => {
       const inflightMessages: ExplorerMessage[] = [
         {
           msg_id: '0xmsg1',
