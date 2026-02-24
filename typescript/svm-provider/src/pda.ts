@@ -135,3 +135,43 @@ export async function deriveValidatorAnnouncePda(
     utf8.encode('validator_announce'),
   ]);
 }
+
+export async function deriveNativeCollateralPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_token'),
+    utf8.encode('-'),
+    utf8.encode('native_collateral'),
+  ]);
+}
+
+export async function deriveSyntheticMintPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_token'),
+    utf8.encode('-'),
+    utf8.encode('mint'),
+  ]);
+}
+
+export async function deriveAtaPayerPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_token'),
+    utf8.encode('-'),
+    utf8.encode('ata_payer'),
+  ]);
+}
+
+export async function deriveEscrowPda(
+  programAddress: Address,
+): Promise<PdaWithBump> {
+  return derive(programAddress, [
+    utf8.encode('hyperlane_token'),
+    utf8.encode('-'),
+    utf8.encode('escrow'),
+  ]);
+}
