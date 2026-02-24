@@ -19,6 +19,7 @@ pub struct ResponseBody {
 }
 
 /// Recount finalized transactions from DB and refresh lander gauge for a destination domain.
+/// This also persists the recounted value in the DB.
 pub async fn handler(
     State(state): State<ServerState>,
     Json(payload): Json<RequestBody>,
@@ -99,7 +100,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/evm/recount_finalized_transactions")
+                    .uri("/lander/recount_finalized_transactions")
                     .method(Method::POST)
                     .header(CONTENT_TYPE, "application/json")
                     .body(Body::from(r#"{"domain_id":1000}"#))
@@ -118,7 +119,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/evm/recount_finalized_transactions")
+                    .uri("/lander/recount_finalized_transactions")
                     .method(Method::POST)
                     .header(CONTENT_TYPE, "application/json")
                     .body(Body::from(r#"{"domain_id":1000}"#))

@@ -1,7 +1,7 @@
 use std::{future::Future, time::Duration};
 
 use tokio::time::sleep;
-use tracing::{error, info, instrument, warn};
+use tracing::{error, info, instrument};
 
 use crate::{
     dispatcher::metrics::DispatcherMetrics,
@@ -67,15 +67,10 @@ pub async fn update_tx_status(
                 Ok(count) => state
                     .metrics
                     .set_finalized_transactions_metric(count, &state.domain),
-                Err(err) => {
-                    warn!(
-                        ?err,
-                        "Failed to persist finalized transaction count decrement"
-                    );
-                    state
-                        .metrics
-                        .decrement_finalized_transactions_metric(&state.domain);
-                }
+                Err(err) => error!(
+                    ?err,
+                    "Failed to persist finalized transaction count decrement"
+                ),
             }
         }
         (_, TransactionStatus::Finalized) => {
@@ -83,15 +78,10 @@ pub async fn update_tx_status(
                 Ok(count) => state
                     .metrics
                     .set_finalized_transactions_metric(count, &state.domain),
-                Err(err) => {
-                    warn!(
-                        ?err,
-                        "Failed to persist finalized transaction count increment"
-                    );
-                    state
-                        .metrics
-                        .increment_finalized_transactions_metric(&state.domain);
-                }
+                Err(err) => error!(
+                    ?err,
+                    "Failed to persist finalized transaction count increment"
+                ),
             }
         }
         _ => {}
