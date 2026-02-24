@@ -123,7 +123,7 @@ export class KeyFunder {
     const signer = this.multiProvider.getSigner(chain);
     const funderAddress = await signer.getAddress();
     const funderBalance = await signer.getBalance();
-    const balanceInEther = parseFloat(ethers.utils.formatEther(funderBalance));
+    const balanceInEther = parseFloat(formatEther(toBigInt(funderBalance)));
     this.options.metrics?.recordUnifiedWalletBalance(
       chain,
       funderAddress,
