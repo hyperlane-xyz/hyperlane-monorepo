@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import hre from 'hardhat';
-import { bytesToHex, pad, stringToHex } from 'viem';
+import { bytesToHex, isHex, pad, stringToHex } from 'viem';
 
 import {
   addressToBytes32,
@@ -19,6 +19,19 @@ const nonce = 11;
 describe('Message', async () => {
   let messageLib: any;
   let version: number;
+
+  function normalizeHexBody(body: unknown): `0x${string}` {
+    if (typeof body === 'string') {
+      if (isHex(body)) return body;
+      const prefixedBody = `0x${body}`;
+      if (isHex(prefixedBody)) return prefixedBody;
+      return stringToHex(body);
+    }
+    if (Array.isArray(body) && body.every((value) => typeof value === 'number')) {
+      return bytesToHex(Uint8Array.from(body));
+    }
+    throw new Error(`Unsupported message body type: ${typeof body}`);
+  }
 
   before(async () => {
     messageLib = await hre.viem.deployContract('TestMessage');
@@ -67,10 +80,7 @@ describe('Message', async () => {
     for (const test of testCases) {
       const { origin, sender, destination, recipient, body, nonce, id } = test;
 
-      const hexBody =
-        typeof body === 'string'
-          ? body
-          : bytesToHex(Uint8Array.from(body as number[]));
+      const hexBody = normalizeHexBody(body);
 
       const hyperlaneMessage = formatMessage(
         version,
