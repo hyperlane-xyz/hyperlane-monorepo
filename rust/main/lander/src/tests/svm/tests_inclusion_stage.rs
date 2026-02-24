@@ -1,14 +1,16 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain};
-use hyperlane_sealevel::{SealevelKeypair, SealevelTxCostEstimate, TransactionSubmitter};
-use solana_client::rpc_response::RpcSimulateTransactionResult;
-use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, hash::Hash,
-    instruction::Instruction as SealevelInstruction, message::Message, pubkey::Pubkey,
-    signature::Signature, signer::Signer, system_instruction,
-    transaction::Transaction as SealevelTransaction,
+use hyperlane_sealevel::{
+    SealevelKeypair, SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
 };
+use solana_client::rpc_response::RpcSimulateTransactionResult;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
+use solana_sdk::{
+    hash::Hash, instruction::Instruction as SealevelInstruction, message::Message, pubkey::Pubkey,
+    signature::Signature, signer::Signer, transaction::Transaction as SealevelTransaction,
+};
+use solana_system_interface::instruction as system_instruction;
 use tokio::{select, sync::mpsc};
 use tracing::info;
 use tracing_test::traced_test;
@@ -97,7 +99,7 @@ async fn test_svm_inclusion_gas_spike() {
     provider
         .expect_get_estimated_costs_for_instruction()
         .returning(
-            move |_instruction, _payer, _tx_submitter, _priority_fee_oracle| {
+            move |_instruction, _payer, _tx_submitter, _priority_fee_oracle, _alt_address| {
                 fee_call_counter += 1;
                 let compute_unit_price_micro_lamports = match fee_call_counter {
                     1 => 500, // Initial fee
@@ -222,7 +224,7 @@ async fn test_svm_inclusion_escalate_but_old_hash_finalized() {
     provider
         .expect_get_estimated_costs_for_instruction()
         .returning(
-            move |_instruction, _payer, _tx_submitter, _priority_fee_oracle| {
+            move |_instruction, _payer, _tx_submitter, _priority_fee_oracle, _alt_address| {
                 fee_call_counter += 1;
                 let compute_unit_price_micro_lamports = match fee_call_counter {
                     1 => 500, // Initial fee
@@ -310,7 +312,7 @@ async fn test_svm_inclusion_send_returns_blockhash_not_found() {
     // Mock estimated costs to always return static values
     provider
         .expect_get_estimated_costs_for_instruction()
-        .returning(|_, _, _, _| {
+        .returning(|_, _, _, _, _| {
             Ok(SealevelTxCostEstimate {
                 compute_units: 1400000,
                 compute_unit_price_micro_lamports: 100, // Static cost
@@ -381,7 +383,7 @@ async fn test_svm_failure_to_estimate_costs_causes_tx_to_be_dropped() {
     // Mock estimated costs to return an error
     provider
         .expect_get_estimated_costs_for_instruction()
-        .returning(|_, _, _, _| {
+        .returning(|_, _, _, _, _| {
             Err(ChainCommunicationError::from_other(
                 LanderError::EstimationFailed,
             ))
@@ -532,7 +534,7 @@ async fn mock_svm_tx(
 ) -> Transaction {
     let mut payload = FullPayload::random();
     payload.status = PayloadStatus::InTransaction(status.clone());
-    let data = serde_json::to_vec(&mock_svm_instruction()).unwrap();
+    let data = serde_json::to_vec(&mock_svm_payload()).unwrap();
     payload.data = data;
     payload_db.store_payload_by_uuid(&payload).await.unwrap();
     let precursor = SealevelTxPrecursor::from_payload(&payload);
@@ -541,11 +543,15 @@ async fn mock_svm_tx(
     tx
 }
 
-fn mock_svm_instruction() -> SealevelInstruction {
-    system_instruction::allocate(
+fn mock_svm_payload() -> hyperlane_sealevel::SealevelProcessPayload {
+    let instruction = system_instruction::allocate(
         &Pubkey::new_unique(), // random pubkey
         10,
-    )
+    );
+    hyperlane_sealevel::SealevelProcessPayload {
+        instruction,
+        alt_address: None,
+    }
 }
 
 fn mock_create_transaction_for_instruction(mock_provider: &mut MockSvmProvider) {
@@ -557,7 +563,8 @@ fn mock_create_transaction_for_instruction(mock_provider: &mut MockSvmProvider) 
              instruction: SealevelInstruction,
              payer: &SealevelKeypair,
              tx_submitter: Arc<dyn TransactionSubmitter>,
-             _sign: bool| {
+             _sign: bool,
+             _alt_address: Option<Pubkey>| {
                 let instructions = vec![
                     // Set the compute unit limit.
                     ComputeBudgetInstruction::set_compute_unit_limit(compute_unit_limit),
@@ -577,7 +584,7 @@ fn mock_create_transaction_for_instruction(mock_provider: &mut MockSvmProvider) 
                     &recent_blockhash,
                 ));
 
-                Ok(tx)
+                Ok(SealevelTxType::Legacy(tx))
             },
         );
 }
@@ -586,7 +593,7 @@ fn mock_get_estimated_costs_for_instruction(mock_provider: &mut MockSvmProvider)
     mock_provider
         .expect_get_estimated_costs_for_instruction()
         .returning(
-            |_instruction, _payer, _tx_submitter, _priority_fee_oracle| {
+            |_instruction, _payer, _tx_submitter, _priority_fee_oracle, _alt_address| {
                 Ok(SealevelTxCostEstimate::default())
             },
         );
@@ -612,6 +619,35 @@ fn mock_simulate_transaction(mock_provider: &mut MockClient) {
                 accounts: None,
                 units_consumed: None,
                 return_data: None,
+                replacement_blockhash: None,
+                inner_instructions: None,
+                fee: None,
+                loaded_accounts_data_size: None,
+                loaded_addresses: None,
+                post_balances: None,
+                post_token_balances: None,
+                pre_balances: None,
+                pre_token_balances: None,
+            })
+        });
+    mock_provider
+        .expect_simulate_versioned_transaction()
+        .returning(|_tx| {
+            Ok(RpcSimulateTransactionResult {
+                err: None,
+                logs: None,
+                accounts: None,
+                units_consumed: None,
+                return_data: None,
+                replacement_blockhash: None,
+                inner_instructions: None,
+                fee: None,
+                loaded_accounts_data_size: None,
+                loaded_addresses: None,
+                post_balances: None,
+                post_token_balances: None,
+                pre_balances: None,
+                pre_token_balances: None,
             })
         });
 }

@@ -10,6 +10,7 @@ borsh.workspace = true
 num-derive.workspace = true
 num-traits.workspace = true
 solana-program.workspace = true
+solana-system-interface.workspace = true
 thiserror.workspace = true
 spl-associated-token-account.workspace = true
 spl-noop.workspace = true

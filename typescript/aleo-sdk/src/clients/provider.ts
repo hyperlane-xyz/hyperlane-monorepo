@@ -2,8 +2,26 @@ import { Plaintext, U128 } from '@provablehq/sdk/mainnet.js';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  ensure0x,
+  isNullish,
+  isZeroishAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
+import {
+  getHookType,
+  getIgpHookConfig,
+  getMerkleTreeHookConfig,
+} from '../hook/hook-query.js';
+import {
+  getCreateIgpHookTx,
+  getCreateMerkleTreeHookTx,
+  getRemoveDestinationGasConfigTx,
+  getSetDestinationGasConfigTx,
+  getSetIgpHookOwnerTx,
+} from '../hook/hook-tx.js';
 import {
   getIsmType,
   getMessageIdMultisigIsmConfig,
@@ -35,7 +53,6 @@ import {
   toAleoAddress,
 } from '../utils/helper.js';
 import {
-  AleoHookType,
   AleoIsmType,
   AleoTokenType,
   type AleoTransaction,
@@ -43,7 +60,15 @@ import {
 
 import { AleoBase } from './base.js';
 
+interface TransactionFeeCache {
+  [key: string]: {
+    fee: bigint;
+  };
+}
+
 export class AleoProvider extends AleoBase implements AltVM.IProvider {
+  private transactionFeeCache: TransactionFeeCache = {};
+
   static async connect(
     rpcUrls: string[],
     chainId: string | number,
@@ -107,32 +132,62 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     return BigInt(balance);
   }
 
-  async getTotalSupply(req: AltVM.ReqGetTotalSupply): Promise<bigint> {
+  async getTotalSupply(
+    req: AltVM.ReqGetTotalSupply & { programId?: string },
+  ): Promise<bigint> {
     if (!req.denom) {
       return 0n;
     }
 
-    const result = await this.queryMappingValue(
-      'token_registry.aleo',
-      'registered_tokens',
-      req.denom,
-    );
+    let result = null;
+
+    // The USAD deployment is a special case
+    // It doesn't use the token_registry to mint tokens, but instead has a custom program on Aleo
+    // Query the USAD token program to get the total supply for USAD instead of the token_registry
+    if (req.programId && req.programId === 'hyp_warp_token_usad.aleo') {
+      result = await this.queryMappingValue(
+        'usad_stablecoin.aleo',
+        'token_info',
+        'true',
+      );
+    } else {
+      result = await this.queryMappingValue(
+        'token_registry.aleo',
+        'registered_tokens',
+        req.denom,
+      );
+    }
 
     if (!result) {
       return 0n;
     }
 
-    return result['max_supply'];
+    return result['supply'];
   }
 
   async estimateTransactionFee(
     req: AltVM.ReqEstimateTransactionFee<AleoTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
+    const cacheKey = `${req.transaction.programName}:${req.transaction.functionName}`;
+
+    const cached = this.transactionFeeCache[cacheKey];
+    if (cached) {
+      return {
+        fee: cached.fee,
+        gasUnits: 0n,
+        gasPrice: 0,
+      };
+    }
+
     const programManager = this.getProgramManager();
     const fee = await programManager.estimateExecutionFee({
       programName: req.transaction.programName,
       functionName: req.transaction.functionName,
     });
+
+    this.transactionFeeCache[cacheKey] = {
+      fee,
+    };
 
     return {
       fee,
@@ -251,91 +306,31 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    const result = await this.queryMappingValue(programId, 'hooks', address);
-
-    switch (result) {
-      case AleoHookType.CUSTOM:
-        return AltVM.HookType.CUSTOM;
-      case AleoHookType.MERKLE_TREE:
-        return AltVM.HookType.MERKLE_TREE;
-      case AleoHookType.INTERCHAIN_GAS_PAYMASTER:
-        return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
-      case AleoHookType.PAUSABLE:
-        return AltVM.HookType.PAUSABLE;
-      default:
-        throw new Error(`Unknown Hook type for address: ${req.hookAddress}`);
-    }
+    return getHookType(this.aleoClient, req.hookAddress);
   }
 
   async getInterchainGasPaymasterHook(
     req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    const destinationGasConfigs: {
-      [domainId: string]: {
-        gasOracle: {
-          tokenExchangeRate: string;
-          gasPrice: string;
-        };
-        gasOverhead: string;
-      };
-    } = {};
-
-    const igpData = await this.queryMappingValue(programId, 'igps', address);
-    const owner = igpData.hook_owner;
-
-    const gasConfigLength = await this.queryMappingValue(
-      programId,
-      'destination_gas_config_length',
-      address,
-    );
-
-    for (let i = 0; i < (gasConfigLength || 0); i++) {
-      const gasConfigKey = await this.aleoClient.getProgramMappingPlaintext(
-        programId,
-        'destination_gas_config_iter',
-        `{hook:${address},index:${i}u32}`,
-      );
-
-      const destinationGasConfig = await this.queryMappingValue(
-        programId,
-        'destination_gas_configs',
-        gasConfigKey.toString(),
-      );
-
-      // This is necessary because `destination_gas_config_iter` maintains keys for all destination domain entries,
-      // including those from domains that have already been removed. When a domain is
-      // deleted from the Destination Gas Configs, its key remains in the map and `destination_gas_configs` simply returns null.
-      if (!destinationGasConfig) continue;
-
-      destinationGasConfigs[gasConfigKey.toObject().destination] = {
-        gasOracle: {
-          tokenExchangeRate: destinationGasConfig.exchange_rate.toString(),
-          gasPrice: destinationGasConfig.gas_price.toString(),
-        },
-        gasOverhead: destinationGasConfig.gas_overhead.toString(),
-      };
-    }
+    const config = await getIgpHookConfig(this.aleoClient, req.hookAddress);
 
     return {
-      address: req.hookAddress,
-      owner: owner,
-      destinationGasConfigs: destinationGasConfigs,
+      address: config.address,
+      owner: config.owner,
+      destinationGasConfigs: config.destinationGasConfigs,
     };
   }
 
   async getMerkleTreeHook(
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    await this.queryMappingValue(programId, 'merkle_tree_hooks', address);
+    const config = await getMerkleTreeHookConfig(
+      this.aleoClient,
+      req.hookAddress,
+    );
 
     return {
-      address: req.hookAddress,
+      address: config.address,
     };
   }
 
@@ -503,7 +498,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     const { programId } = fromAleoAddress(req.tokenAddress);
 
     const metadata = await this.queryMappingValue(
-      req.tokenAddress,
+      programId,
       'app_metadata',
       'true',
     );
@@ -518,6 +513,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       case AleoTokenType.SYNTHETIC: {
         return this.getTotalSupply({
           denom: metadata['token_id'],
+          programId,
         });
       }
       case AleoTokenType.COLLATERAL: {
@@ -749,81 +745,59 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     const { programId } = fromAleoAddress(req.mailboxAddress);
     const suffix = getProgramSuffix(programId);
 
-    return {
-      programName: getProgramIdFromSuffix(this.prefix, 'hook_manager', suffix),
-      functionName: 'init_merkle_tree',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [
-        getAddressFromProgramId(
-          getProgramIdFromSuffix(this.prefix, 'dispatch_proxy', suffix),
-        ),
-      ],
-    };
+    const hookManagerProgramId = getProgramIdFromSuffix(
+      this.prefix,
+      'hook_manager',
+      suffix,
+    );
+    const dispatchProxyProgramId = getProgramIdFromSuffix(
+      this.prefix,
+      'dispatch_proxy',
+      suffix,
+    );
+
+    return getCreateMerkleTreeHookTx(
+      hookManagerProgramId,
+      dispatchProxyProgramId,
+    );
   }
 
   async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<AleoTransaction> {
     const { programId } = fromAleoAddress(req.mailboxAddress);
+    const suffix = getProgramSuffix(programId);
 
-    return {
-      programName: getProgramIdFromSuffix(
-        this.prefix,
-        'hook_manager',
-        getProgramSuffix(programId),
-      ),
-      functionName: 'init_igp',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [],
-    };
+    const hookManagerProgramId = getProgramIdFromSuffix(
+      this.prefix,
+      'hook_manager',
+      suffix,
+    );
+
+    return getCreateIgpHookTx(hookManagerProgramId);
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
     req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    return {
-      programName: programId,
-      functionName: 'transfer_igp_ownership',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [address, req.newOwner],
-    };
+    return getSetIgpHookOwnerTx(req.hookAddress, req.newOwner);
   }
 
   async getSetDestinationGasConfigTransaction(
     req: AltVM.ReqSetDestinationGasConfig,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    return {
-      programName: programId,
-      functionName: 'set_destination_gas_config',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [
-        address,
-        `${req.destinationGasConfig.remoteDomainId}u32`,
-        `{gas_overhead:${req.destinationGasConfig.gasOverhead}u128,exchange_rate:${req.destinationGasConfig.gasOracle.tokenExchangeRate}u128,gas_price:${req.destinationGasConfig.gasOracle.gasPrice}u128}`,
-      ],
-    };
+    return getSetDestinationGasConfigTx(req.hookAddress, {
+      remoteDomainId: req.destinationGasConfig.remoteDomainId,
+      gasOverhead: req.destinationGasConfig.gasOverhead,
+      tokenExchangeRate: req.destinationGasConfig.gasOracle.tokenExchangeRate,
+      gasPrice: req.destinationGasConfig.gasOracle.gasPrice,
+    });
   }
 
   async getRemoveDestinationGasConfigTransaction(
     req: AltVM.ReqRemoveDestinationGasConfig,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    return {
-      programName: programId,
-      functionName: 'remove_destination_gas_config',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [address, `${req.remoteDomainId}u32`],
-    };
+    return getRemoveDestinationGasConfigTx(req.hookAddress, req.remoteDomainId);
   }
 
   async getCreateNoopHookTransaction(
@@ -860,6 +834,18 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       privateFee: false,
       inputs: [address, `${localDomain}u32`],
     };
+  }
+
+  async getCreateProxyAdminTransaction(
+    _req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<AleoTransaction> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
+  async getSetProxyAdminOwnerTransaction(
+    _req: AltVM.ReqSetProxyAdminOwner,
+  ): Promise<AleoTransaction> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
   }
 
   // ### GET WARP TXS ###
@@ -922,24 +908,35 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getSetTokenIsmTransaction(
     req: AltVM.ReqSetTokenIsm,
   ): Promise<AleoTransaction> {
+    // Handle zero address - use Aleo null address to unset ISM
+    const ismAddress =
+      isNullish(req.ismAddress) || isZeroishAddress(req.ismAddress)
+        ? ALEO_NULL_ADDRESS
+        : req.ismAddress;
+
     return {
       programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'set_custom_ism',
       priorityFee: 0,
       privateFee: false,
-      inputs: [fromAleoAddress(req.ismAddress).address],
+      inputs: [fromAleoAddress(ismAddress).address],
     };
   }
 
   async getSetTokenHookTransaction(
     req: AltVM.ReqSetTokenHook,
   ): Promise<AleoTransaction> {
+    const hook =
+      !isNullish(req.hookAddress) && !isZeroishAddress(req.hookAddress)
+        ? fromAleoAddress(req.hookAddress).address
+        : ALEO_NULL_ADDRESS;
+
     return {
       programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'set_custom_hook',
       priorityFee: 0,
       privateFee: false,
-      inputs: [fromAleoAddress(req.hookAddress).address],
+      inputs: [hook],
     };
   }
 
@@ -1004,7 +1001,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getRemoteTransferTransaction(
     req: AltVM.ReqRemoteTransfer,
   ): Promise<AleoTransaction> {
-    const { mailboxAddress } = await this.getToken({
+    const { mailboxAddress, tokenType } = await this.getToken({
       tokenAddress: req.tokenAddress,
     });
 
@@ -1076,6 +1073,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       required_hook:${mailbox.requiredHook ? fromAleoAddress(mailbox.requiredHook).address : ALEO_NULL_ADDRESS}
     }`;
 
+    const amount = `${req.amount}${tokenType === AltVM.TokenType.native ? 'u64' : 'u128'}`;
+
     if (req.customHookAddress) {
       const metadataBytes: number[] = fillArray(
         [...Buffer.from(strip0x(req.customHookMetadata || ''), 'hex')],
@@ -1099,7 +1098,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
           remoteRouterValue,
           `${req.destinationDomainId}u32`,
           recipient,
-          `${req.amount}u64`,
+          amount,
           arrayToPlaintext(creditAllowance),
           fromAleoAddress(req.customHookAddress).address,
           hookMetadata,
@@ -1118,7 +1117,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         remoteRouterValue,
         `${req.destinationDomainId}u32`,
         recipient,
-        `${req.amount}u64`,
+        amount,
         arrayToPlaintext(creditAllowance),
       ],
     };

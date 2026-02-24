@@ -35,6 +35,7 @@ fn test_configuration_fields() {
             native_token: Default::default(),
             priority_fee_oracle: Default::default(),
             transaction_submitter: Default::default(),
+            mailbox_process_alt: None,
         }),
         metrics_conf: Default::default(),
         index: Default::default(),

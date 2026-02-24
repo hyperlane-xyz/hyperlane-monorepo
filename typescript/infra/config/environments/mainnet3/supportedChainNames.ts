@@ -35,6 +35,7 @@ export const mainnet3SupportedChainNames = [
   'degenchain',
   'dogechain',
   'eclipsemainnet',
+  'eden',
   'electroneum',
   'endurance',
   'eni',

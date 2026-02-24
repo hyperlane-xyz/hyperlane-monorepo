@@ -1,9 +1,12 @@
 import chalk from 'chalk';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
+
+const execAsync = promisify(exec);
 
 export async function validateRegistryCommit(commit: string) {
   const registry = getRegistry();
@@ -13,8 +16,8 @@ export async function validateRegistryCommit(commit: string) {
     rootLogger.info(
       chalk.grey.italic(`Attempting to fetch registry commit ${commit}...`),
     );
-    execSync(`cd ${registryUri} && git fetch origin ${commit}`, {
-      stdio: 'inherit',
+    await execAsync(`cd ${registryUri} && git fetch origin ${commit}`, {
+      timeout: 60000, // 60 second timeout
     });
     rootLogger.info(chalk.grey.italic('Fetch completed successfully.'));
   } catch (_) {

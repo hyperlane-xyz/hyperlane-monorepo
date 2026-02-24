@@ -65,9 +65,14 @@ impl BaseAgent for Scraper {
 
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
 
-        let scrapers =
-            Self::build_chain_scrapers(&settings, metrics.clone(), &chain_metrics, db.clone())
-                .await;
+        let scrapers = Self::build_chain_scrapers(
+            &settings,
+            metrics.clone(),
+            &chain_metrics,
+            db.clone(),
+            contract_sync_metrics.clone(),
+        )
+        .await;
 
         trace!(domain_count = scrapers.len(), "Created scrapers");
 
@@ -235,6 +240,7 @@ impl Scraper {
         settings: &ScraperSettings,
         metrics: Arc<CoreMetrics>,
         scraper_db: ScraperDb,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
     ) -> eyre::Result<ChainScraper> {
         info!(domain = domain.name(), "create chain scraper for domain");
         let chain_setup = settings.chain_setup(domain)?;
@@ -248,6 +254,7 @@ impl Scraper {
             chain_setup.addresses.interchain_gas_paymaster,
             provider,
             &chain_setup.index.clone(),
+            Some(contract_sync_metrics.stored_events.clone()),
         )
         .await?;
         Ok(ChainScraper {
@@ -262,12 +269,19 @@ impl Scraper {
         metrics: Arc<CoreMetrics>,
         chain_metrics: &ChainMetrics,
         scraper_db: ScraperDb,
+        contract_sync_metrics: Arc<ContractSyncMetrics>,
     ) -> HashMap<u32, ChainScraper> {
         let mut scrapers: HashMap<u32, ChainScraper> = HashMap::new();
 
         for domain in settings.chains_to_scrape.iter() {
-            match Self::build_chain_scraper(domain, settings, metrics.clone(), scraper_db.clone())
-                .await
+            match Self::build_chain_scraper(
+                domain,
+                settings,
+                metrics.clone(),
+                scraper_db.clone(),
+                contract_sync_metrics.clone(),
+            )
+            .await
             {
                 Ok(scraper) => {
                     info!(domain = domain.name(), "insert chain scraper");
@@ -537,7 +551,8 @@ mod test {
         let mut settings = generate_test_scraper_settings();
 
         let registry = Registry::new();
-        let core_metrics = CoreMetrics::new("scraper", 4000, registry).unwrap();
+        let core_metrics = Arc::new(CoreMetrics::new("scraper", 4000, registry).unwrap());
+        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
         let chain_metrics = ChainMetrics {
             block_height: IntGaugeVec::new(
                 opts!("block_height", BLOCK_HEIGHT_HELP),
@@ -569,9 +584,10 @@ mod test {
 
         let scrapers = Scraper::build_chain_scrapers(
             &settings,
-            Arc::new(core_metrics),
+            core_metrics,
             &chain_metrics,
             scraper_db,
+            contract_sync_metrics,
         )
         .await;
 

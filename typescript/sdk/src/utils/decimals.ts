@@ -77,7 +77,7 @@ function areDecimalsUniform(
       | { numerator: number | string; denominator: number | string };
   }>,
 ): boolean {
-  const values = [...Object.values(configMap)];
+  const values = Object.values(configMap);
   const [first, ...rest] = values;
   for (const d of rest) {
     if (d.decimals !== first.decimals) {

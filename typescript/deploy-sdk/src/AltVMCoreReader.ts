@@ -10,7 +10,7 @@ import {
 import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
-import { AltVMHookReader } from './AltVMHookReader.js';
+import { HookReader, createHookReader } from './hook/hook-reader.js';
 import { IsmReader, createIsmReader } from './ism/generic-ism.js';
 
 export class AltVMCoreReader implements HypReader<CoreModuleType> {
@@ -18,17 +18,14 @@ export class AltVMCoreReader implements HypReader<CoreModuleType> {
     module: 'AltVMCoreReader',
   });
   private readonly ismReader: IsmReader;
-  protected hookReader: AltVMHookReader;
+  protected readonly hookReader: HookReader;
 
   constructor(
     protected readonly chainMetadata: ChainMetadataForAltVM,
     protected readonly chainLookup: ChainLookup,
     protected readonly provider: AltVM.IProvider,
   ) {
-    this.hookReader = new AltVMHookReader(
-      chainLookup.getChainMetadata,
-      this.provider,
-    );
+    this.hookReader = createHookReader(this.chainMetadata, this.chainLookup);
     this.ismReader = createIsmReader(this.chainMetadata, this.chainLookup);
   }
 

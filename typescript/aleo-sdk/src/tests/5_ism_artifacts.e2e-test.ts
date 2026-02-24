@@ -1,4 +1,5 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -20,6 +21,8 @@ import { normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { AleoSigner } from '../clients/signer.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+
+chai.use(chaiAsPromised);
 
 describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async function () {
   this.timeout(100_000);
@@ -487,6 +490,42 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
       expect(readIsm.config.domains[DOMAIN_1].deployed.address).to.equal(
         multisigIsmAddress,
       );
+    });
+
+    it('should set owner during creation when different from signer', async () => {
+      // Use a burn address as the owner
+      const burnAddress =
+        'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc';
+
+      const config: RawRoutingIsmArtifactConfig = {
+        type: AltVM.IsmType.ROUTING,
+        owner: burnAddress,
+        domains: {
+          [DOMAIN_1]: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: testIsmAddress },
+          },
+          [DOMAIN_2]: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: multisigIsmAddress },
+          },
+        },
+      };
+
+      const writer = artifactManager.createWriter(
+        AltVM.IsmType.ROUTING,
+        signer,
+      );
+      const [routingIsm, receipts] = await writer.create({ config });
+
+      // Verify owner transfer happened during creation
+      // Should have 1 create tx + 2 setRoute txs + 1 setOwner tx
+      expect(receipts).to.have.length(4);
+
+      // Read back and verify owner was set correctly
+      const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);
+      const readIsm = await reader.read(routingIsm.deployed.address);
+      expect(readIsm.config.owner).to.equal(burnAddress);
     });
 
     it('should transfer ownership of the ISM', async () => {

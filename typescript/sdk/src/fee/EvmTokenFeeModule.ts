@@ -384,27 +384,60 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
     if (!targetConfig.feeContracts) return [];
     const currentRoutingAddress = this.args.addresses.deployedFee;
-    await promiseObjAll(
-      objMap(targetConfig.feeContracts, async (chainName, config) => {
-        const address = config.address;
+    for (const [chainName, config] of Object.entries(
+      targetConfig.feeContracts,
+    )) {
+      const address = config.address;
 
-        let subFeeModule: EvmTokenFeeModule;
-        let deployedSubFee: string;
+      let subFeeModule: EvmTokenFeeModule;
+      let deployedSubFee: string;
 
-        if (!address) {
-          // Sub-fee contract doesn't exist yet, deploy a new one
-          this.logger.info(
-            `No existing sub-fee contract for ${chainName}, deploying new one`,
-          );
-          subFeeModule = await EvmTokenFeeModule.create({
-            multiProvider: this.multiProvider,
+      if (!address) {
+        // Sub-fee contract doesn't exist yet, deploy a new one
+        this.logger.info(
+          `No existing sub-fee contract for ${chainName}, deploying new one`,
+        );
+        subFeeModule = await EvmTokenFeeModule.create({
+          multiProvider: this.multiProvider,
+          chain: this.chainName,
+          config,
+          contractVerifier: this.contractVerifier,
+        });
+        deployedSubFee = subFeeModule.serialize().deployedFee;
+
+        const annotation = `New sub fee contract deployed. Setting contract for ${chainName} to ${deployedSubFee}`;
+        this.logger.debug(annotation);
+        updateTransactions.push({
+          annotation: annotation,
+          chainId: this.chainId,
+          to: currentRoutingAddress,
+          data: RoutingFee__factory.createInterface().encodeFunctionData(
+            'setFeeContract(uint32,address)',
+            [this.multiProvider.getDomainId(chainName), deployedSubFee],
+          ),
+        });
+      } else {
+        // Update existing sub-fee contract
+        subFeeModule = new EvmTokenFeeModule(
+          this.multiProvider,
+          {
+            addresses: {
+              deployedFee: address,
+            },
             chain: this.chainName,
             config,
-            contractVerifier: this.contractVerifier,
-          });
-          deployedSubFee = subFeeModule.serialize().deployedFee;
+          },
+          this.contractVerifier,
+        );
+        const subFeeUpdateTransactions = await subFeeModule.update(config, {
+          address,
+        });
+        deployedSubFee = subFeeModule.serialize().deployedFee;
 
-          const annotation = `New sub fee contract deployed. Setting contract for ${chainName} to ${deployedSubFee}`;
+        updateTransactions.push(...subFeeUpdateTransactions);
+
+        if (!eqAddress(deployedSubFee, address)) {
+          const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
           this.logger.debug(annotation);
           updateTransactions.push({
             annotation: annotation,
@@ -415,42 +448,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
               [this.multiProvider.getDomainId(chainName), deployedSubFee],
             ),
           });
-        } else {
-          // Update existing sub-fee contract
-          subFeeModule = new EvmTokenFeeModule(
-            this.multiProvider,
-            {
-              addresses: {
-                deployedFee: address,
-              },
-              chain: this.chainName,
-              config,
-            },
-            this.contractVerifier,
-          );
-          const subFeeUpdateTransactions = await subFeeModule.update(config, {
-            address,
-          });
-          deployedSubFee = subFeeModule.serialize().deployedFee;
-
-          updateTransactions.push(...subFeeUpdateTransactions);
-
-          if (!eqAddress(deployedSubFee, address)) {
-            const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
-            this.logger.debug(annotation);
-            updateTransactions.push({
-              annotation: annotation,
-              chainId: this.chainId,
-              to: currentRoutingAddress,
-              data: RoutingFee__factory.createInterface().encodeFunctionData(
-                'setFeeContract(uint32,address)',
-                [this.multiProvider.getDomainId(chainName), deployedSubFee],
-              ),
-            });
-          }
         }
-      }),
-    );
+      }
+    }
 
     return updateTransactions;
   }

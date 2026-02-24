@@ -114,9 +114,14 @@ export async function isProxy(
 export function proxyAdminUpdateTxs(
   chainId: ChainId,
   proxyAddress: Address,
-  actualConfig: Readonly<{ owner: string; proxyAdmin?: DeployedOwnableConfig }>,
+  actualConfig: Readonly<{
+    owner: string;
+    ownerOverrides?: Record<string, string>;
+    proxyAdmin?: DeployedOwnableConfig;
+  }>,
   expectedConfig: Readonly<{
     owner: string;
+    ownerOverrides?: Record<string, string>;
     proxyAdmin?: DeployedOwnableConfig;
   }>,
 ): AnnotatedEV5Transaction[] {
@@ -140,11 +145,19 @@ export function proxyAdminUpdateTxs(
       ),
     });
   } else {
-    const actualOwnershipConfig = actualConfig.proxyAdmin ?? {
-      owner: actualConfig.owner,
+    const actualOwnershipConfig = {
+      ...actualConfig.proxyAdmin,
+      owner:
+        actualConfig.ownerOverrides?.proxyAdmin ??
+        actualConfig.proxyAdmin?.owner ??
+        actualConfig.owner,
     };
-    const expectedOwnershipConfig = expectedConfig.proxyAdmin ?? {
-      owner: expectedConfig.owner,
+    const expectedOwnershipConfig = {
+      ...expectedConfig.proxyAdmin,
+      owner:
+        expectedConfig.ownerOverrides?.proxyAdmin ??
+        expectedConfig.proxyAdmin?.owner ??
+        expectedConfig.owner,
     };
 
     transactions.push(

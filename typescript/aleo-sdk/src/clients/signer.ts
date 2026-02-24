@@ -129,6 +129,24 @@ export class AleoSigner
     return this.programManager.account!.address().to_string();
   }
 
+  getNetworkPrefix(): string {
+    return this.prefix;
+  }
+
+  /**
+   * Get the hook manager program ID for a given mailbox suffix.
+   * Deploys the hook_manager program if it's not already deployed.
+   *
+   * @param suffix - The mailbox suffix
+   * @returns The hook manager program ID
+   */
+  async getHookManager(suffix: string): Promise<string> {
+    const programs = await this.deployProgram('hook_manager', suffix);
+    const hookManagerProgramId = programs['hook_manager'];
+    assert(hookManagerProgramId, `hook_manager program not deployed`);
+    return hookManagerProgramId;
+  }
+
   supportsTransactionBatching(): boolean {
     return false;
   }
@@ -170,6 +188,12 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('dispatch_proxy', mailboxSuffix);
 
@@ -686,11 +710,29 @@ export class AleoSigner
     };
   }
 
+  async createProxyAdmin(
+    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
   // ### TX WARP ###
 
   async createNativeToken(
     req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
   ): Promise<AltVM.ResCreateNativeToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     const suffix = req.warpSuffix || this.warpSuffix;
 
     if (suffix) {
@@ -737,6 +779,12 @@ export class AleoSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     const suffix = req.warpSuffix || this.warpSuffix;
 
     if (suffix) {
@@ -783,6 +831,12 @@ export class AleoSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     const suffix = req.warpSuffix || this.warpSuffix;
 
     if (suffix) {
@@ -852,7 +906,8 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      ismAddress: req.ismAddress,
+      ismAddress:
+        req.ismAddress ?? '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -867,7 +922,8 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      hookAddress: req.hookAddress,
+      hookAddress:
+        req.hookAddress ?? '0x0000000000000000000000000000000000000000',
     };
   }
 

@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::program_error::ProgramError;
-use spl_type_length_value::discriminator::Discriminator;
+use spl_discriminator::ArrayDiscriminator as Discriminator;
 
 /// Instructions that a Hyperlane interchain security module is expected to process.
 /// The first 8 bytes of the encoded instruction is a discriminator that
@@ -57,17 +57,13 @@ impl InterchainSecurityModuleInstruction {
             InterchainSecurityModuleInstruction::Verify(instruction) => {
                 buf.extend_from_slice(VERIFY_DISCRIMINATOR_SLICE);
                 buf.extend_from_slice(
-                    &instruction
-                        .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                    &borsh::to_vec(&instruction).map_err(|_| ProgramError::BorshIoError)?[..],
                 );
             }
             InterchainSecurityModuleInstruction::VerifyAccountMetas(instruction) => {
                 buf.extend_from_slice(VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE);
                 buf.extend_from_slice(
-                    &instruction
-                        .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                    &borsh::to_vec(&instruction).map_err(|_| ProgramError::BorshIoError)?[..],
                 );
             }
         }
@@ -84,12 +80,12 @@ impl InterchainSecurityModuleInstruction {
             TYPE_DISCRIMINATOR_SLICE => Ok(Self::Type),
             VERIFY_DISCRIMINATOR_SLICE => {
                 let instruction = VerifyInstruction::try_from_slice(rest)
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                    .map_err(|_| ProgramError::BorshIoError)?;
                 Ok(Self::Verify(instruction))
             }
             VERIFY_ACCOUNT_METAS_DISCRIMINATOR_SLICE => {
                 let instruction = VerifyInstruction::try_from_slice(rest)
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                    .map_err(|_| ProgramError::BorshIoError)?;
                 Ok(Self::VerifyAccountMetas(instruction))
             }
             _ => Err(ProgramError::InvalidInstructionData),

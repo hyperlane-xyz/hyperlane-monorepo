@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 borsh.workspace = true
 solana-program.workspace = true
+solana-system-interface.workspace = true
+spl-discriminator.workspace = true
 spl-type-length-value.workspace = true
 
 [dev-dependencies]

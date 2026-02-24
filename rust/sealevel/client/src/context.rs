@@ -7,8 +7,8 @@ use solana_client::{
     rpc_client::RpcClient,
     rpc_config::{RpcSendTransactionConfig, RpcTransactionConfig},
 };
+use solana_commitment_config::CommitmentConfig;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
     instruction::Instruction,
     message::Message,
     pubkey::Pubkey,
@@ -50,6 +50,7 @@ pub(crate) struct InstructionWithDescription {
 struct TransactionEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     chain_name: Option<String>,
+    owner: String,
     descriptions: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message_base58: Option<String>,
@@ -112,7 +113,9 @@ impl Context {
 
     pub(crate) fn payer_signer(&self) -> Option<Box<dyn Signer>> {
         if let Some(PayerKeypair { keypair, .. }) = &self.payer_keypair {
-            Some(Box::new(Keypair::from_bytes(&keypair.to_bytes()).unwrap()))
+            Some(Box::new(
+                Keypair::try_from(&keypair.to_bytes()[..]).unwrap(),
+            ))
         } else {
             None
         }
@@ -138,6 +141,7 @@ impl Context {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
     pub(crate) fn add(self, instruction: Instruction) -> Self {
         self.add_with_optional_description(instruction, None)
@@ -248,12 +252,11 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             })
             .collect();
 
-        let is_solana = chain_name
-            .as_ref()
-            .map_or(false, |ch| ch == "solanamainnet");
+        let is_solana = chain_name.as_ref().is_some_and(|ch| ch == "solanamainnet");
 
         let new_entry = TransactionEntry {
             chain_name: chain_name.clone(),
+            owner: payer.to_string(),
             descriptions,
             message_base58: if is_solana {
                 None
@@ -372,15 +375,13 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             .unwrap();
 
         // If the commitment level set in the client is less than `finalized`,
-        // the only way to reliably read the tx is to use the deprecated
-        // `CommitmentConfig::single()` commitment...
-        #[allow(deprecated)]
+        // use `confirmed` commitment to reliably read the tx.
         client
             .get_transaction_with_config(
                 &signature,
                 RpcTransactionConfig {
                     encoding: Some(UiTransactionEncoding::Base64),
-                    commitment: Some(CommitmentConfig::single()),
+                    commitment: Some(CommitmentConfig::confirmed()),
                     ..RpcTransactionConfig::default()
                 },
             )

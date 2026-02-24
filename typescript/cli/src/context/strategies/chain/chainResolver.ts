@@ -1,16 +1,26 @@
-import { RebalancerConfig } from '@hyperlane-xyz/rebalancer';
+import {
+  RebalancerConfig,
+  getStrategyChainNames,
+} from '@hyperlane-xyz/rebalancer';
 import {
   type ChainName,
   type DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
+  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
+import { getTransactions } from '../../../config/submit.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
-import { runSingleChainSelectionStep } from '../../../utils/chains.js';
+import { readChainSubmissionStrategy } from '../../../deploy/warp.js';
+import { type ExtendedSubmissionStrategy } from '../../../submitters/types.js';
+import {
+  filterOutDisabledChains,
+  runSingleChainSelectionStep,
+} from '../../../utils/chains.js';
 import {
   getWarpConfigs,
   getWarpCoreConfigOrExit,
@@ -39,19 +49,24 @@ export async function resolveChains(
     case CommandType.WARP_READ:
       return resolveWarpReadChains(argv);
     case CommandType.WARP_APPLY:
-      return resolveWarpApplyChains(argv);
+    case CommandType.WARP_CHECK:
+      return resolveWarpConfigChains(argv);
     case CommandType.WARP_REBALANCER:
       return resolveWarpRebalancerChains(argv);
 
     case CommandType.SUBMIT:
-      return resolveWarpRouteConfigChains(argv); // Same as WARP_DEPLOY
+      return resolveSubmitChains(argv);
     case CommandType.CORE_APPLY:
       return resolveCoreApplyChains(argv);
     case CommandType.CORE_DEPLOY:
       return resolveCoreDeployChains(argv);
     case CommandType.CORE_READ:
     case CommandType.CORE_CHECK:
+    case CommandType.ISM_DEPLOY:
+    case CommandType.ISM_READ:
       return resolveChain(argv);
+    case CommandType.ICA_DEPLOY:
+      return resolveIcaDeployChains(argv);
     default:
       return resolveRelayerChains(argv);
   }
@@ -105,7 +120,7 @@ async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
   return chains;
 }
 
-async function resolveWarpApplyChains(
+async function resolveWarpConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
   const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
@@ -132,9 +147,9 @@ async function resolveWarpRebalancerChains(
   // Load rebalancer config to get the configured chains
   const rebalancerConfig = RebalancerConfig.load(argv.config);
 
-  // Extract chain names from the rebalancer config's strategy.chains
+  // Extract chain names from all strategies in the rebalancer config
   // This ensures we only create signers for chains we can actually rebalance
-  const chains = Object.keys(rebalancerConfig.strategyConfig.chains);
+  const chains = getStrategyChainNames(rebalancerConfig.strategyConfig);
 
   assert(chains.length !== 0, 'No chains configured in rebalancer config');
 
@@ -143,8 +158,9 @@ async function resolveWarpRebalancerChains(
 
 /**
  * Resolves chains for the 'send message' command.
- * If origin/destination are provided, return them (EVM-only).
- * If either is missing, return all EVM chains so interactive selection can work.
+ * Returns only explicitly provided chains (origin/destination).
+ * If either is missing, returns only the provided ones - signers for
+ * interactively selected chains will be created after selection.
  */
 async function resolveSendMessageChains(
   argv: Record<string, any>,
@@ -168,22 +184,15 @@ async function resolveSendMessageChains(
     }
   }
 
-  if (selectedChains.length === 2) {
-    return selectedChains;
-  }
-
-  return multiProvider
-    .getKnownChainNames()
-    .filter(
-      (chain: string) =>
-        ProtocolType.Ethereum === multiProvider.getProtocol(chain),
-    );
+  // Return only explicitly provided chains - signers for interactively
+  // selected chains will be created after selection
+  return selectedChains;
 }
 
 async function resolveRelayerChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const { multiProvider } = argv.context;
+  const { multiProvider, chainMetadata } = argv.context;
   const chains = new Set<ChainName>();
 
   if (argv.origin) {
@@ -194,16 +203,13 @@ async function resolveRelayerChains(
     chains.add(argv.chain);
   }
 
-  if (argv.chains) {
-    const additionalChains = argv.chains
-      .split(',')
-      .map((item: string) => item.trim());
-    return Array.from(new Set([...chains, ...additionalChains]));
+  if (argv.chains?.length) {
+    return Array.from(new Set([...chains, ...argv.chains]));
   }
 
   // If no destination is specified, return all EVM chains only
   if (!argv.destination) {
-    const chains = multiProvider.getKnownChainNames();
+    const chains = Object.keys(filterOutDisabledChains(chainMetadata));
 
     return chains.filter(
       (chain: string) =>
@@ -289,4 +295,70 @@ async function resolveCoreDeployChains(
       cause: error,
     });
   }
+}
+
+async function resolveIcaDeployChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const chains = new Set<ChainName>();
+  if (argv.origin) chains.add(argv.origin);
+  if (argv.chains?.length) argv.chains.forEach((c: ChainName) => chains.add(c));
+  assert(chains.size > 0, 'No chains provided for ICA deploy');
+  return Array.from(chains);
+}
+
+async function resolveSubmitChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  try {
+    const { multiProvider } = argv.context;
+
+    const transactionFilePath = argv.transactions;
+    assert(
+      transactionFilePath,
+      'Expected transactions file path to be provided for submit command',
+    );
+
+    const transactions = getTransactions(transactionFilePath);
+
+    const chainIds = new Set(transactions.map((tx) => tx.chainId));
+    const chains = new Set(
+      Array.from(chainIds).map((chainId) =>
+        multiProvider.getChainName(chainId),
+      ),
+    );
+
+    if (argv.strategy) {
+      const strategy = readChainSubmissionStrategy(argv.strategy);
+      for (const [destChain, config] of Object.entries(strategy)) {
+        chains.add(destChain);
+        for (const c of getSubmitterChains(config.submitter)) {
+          chains.add(c);
+        }
+      }
+    }
+
+    assert(chains.size > 0, 'No transactions found in file');
+    return Array.from(chains);
+  } catch (error) {
+    throw new Error(`Failed to resolve submit command chains`, {
+      cause: error,
+    });
+  }
+}
+
+// Recursively extracts all chain names referenced by a submitter (e.g. ICA origin, destination, nested submitters).
+export function getSubmitterChains(
+  submitter: ExtendedSubmissionStrategy['submitter'],
+): ChainName[] {
+  const chains: ChainName[] = submitter.chain ? [submitter.chain] : [];
+  if (submitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
+    if (submitter.destinationChain) chains.push(submitter.destinationChain);
+    if (submitter.internalSubmitter)
+      chains.push(...getSubmitterChains(submitter.internalSubmitter));
+  } else if (submitter.type === TxSubmitterType.TIMELOCK_CONTROLLER) {
+    if (submitter.proposerSubmitter)
+      chains.push(...getSubmitterChains(submitter.proposerSubmitter));
+  }
+  return chains;
 }

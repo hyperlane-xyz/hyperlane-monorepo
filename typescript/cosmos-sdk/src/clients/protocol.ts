@@ -8,6 +8,7 @@ import {
   type TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
 import { type IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
+import { type IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { type IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   type AnnotatedTx,
@@ -15,6 +16,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 
 import { CosmosNativeProvider } from './provider.js';
@@ -58,12 +60,34 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     return new CosmosIsmArtifactManager(rpcUrls);
   }
 
+  createHookArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
+  ): IRawHookArtifactManager {
+    const [mainRpcUrl, ...otherRpcUrls] = (chainMetadata.rpcUrls ?? []).map(
+      (rpc) => rpc.http,
+    );
+
+    assert(mainRpcUrl, 'At least one rpc url is required');
+    assert(chainMetadata.nativeToken?.denom, 'native token denom undefined');
+
+    const mailboxAddress = context?.mailbox;
+    const nativeTokenDenom = chainMetadata.nativeToken.denom;
+
+    return new CosmosHookArtifactManager({
+      rpcUrls: [mainRpcUrl, ...otherRpcUrls],
+      mailboxAddress,
+      nativeTokenDenom,
+    });
+  }
+
   getMinGas(): MinimumRequiredGasByAction {
     return {
       CORE_DEPLOY_GAS: BigInt(1e6),
       WARP_DEPLOY_GAS: BigInt(3e6),
       TEST_SEND_GAS: BigInt(3e5),
       AVS_GAS: BigInt(3e6),
+      ISM_DEPLOY_GAS: BigInt(5e5),
     };
   }
 }

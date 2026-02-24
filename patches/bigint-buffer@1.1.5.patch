@@ -1,0 +1,13 @@
+diff --git a/dist/node.js b/dist/node.js
+index 513168c89e387668a79b6beb109587b3eb41a7d0..613db0461be415b8256e5ada06701da887dd5b5c 100644
+--- a/dist/node.js
++++ b/dist/node.js
+@@ -7,7 +7,7 @@ let converter;
+         converter = require('bindings')('bigint_buffer');
+     }
+     catch (e) {
+-        console.warn('bigint: Failed to load bindings, pure JS will be used (try npm run rebuild?)');
++        // Silently fall back to pure JS implementation
+     }
+ }
+ /**

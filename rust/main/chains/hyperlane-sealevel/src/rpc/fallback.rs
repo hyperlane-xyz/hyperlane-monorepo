@@ -4,11 +4,11 @@ use async_trait::async_trait;
 use derive_new::new;
 use solana_client::rpc_config::RpcProgramAccountsConfig;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
-use solana_sdk::commitment_config::CommitmentConfig;
+use solana_commitment_config::CommitmentConfig;
 use solana_sdk::hash::Hash;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_sdk::transaction::Transaction;
+use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{account::Account, clock::Slot};
 use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
@@ -20,6 +20,7 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::client::SealevelRpcClient;
 use crate::client_builder::SealevelRpcClientBuilder;
+use crate::tx_type::SealevelTxType;
 
 /// Defines methods required to submit transactions to Sealevel chains
 #[async_trait]
@@ -53,10 +54,16 @@ pub trait SubmitSealevelRpc: Send + Sync {
         commitment: CommitmentConfig,
     ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
 
-    /// Simulates Sealevel transaction
+    /// Simulates Sealevel legacy transaction
     async fn simulate_transaction(
         &self,
         transaction: &Transaction,
+    ) -> ChainResult<RpcSimulateTransactionResult>;
+
+    /// Simulates Sealevel versioned transaction
+    async fn simulate_versioned_transaction(
+        &self,
+        transaction: &VersionedTransaction,
     ) -> ChainResult<RpcSimulateTransactionResult>;
 }
 
@@ -102,7 +109,7 @@ impl SubmitSealevelRpc for SealevelFallbackRpcClient {
             .await
     }
 
-    /// simulate a transaction
+    /// simulate a legacy transaction
     async fn simulate_transaction(
         &self,
         transaction: &Transaction,
@@ -111,6 +118,21 @@ impl SubmitSealevelRpc for SealevelFallbackRpcClient {
             .call(move |client| {
                 let transaction = transaction.clone();
                 let future = async move { client.simulate_transaction(&transaction).await };
+                Box::pin(future)
+            })
+            .await
+    }
+
+    /// simulate a versioned transaction
+    async fn simulate_versioned_transaction(
+        &self,
+        transaction: &VersionedTransaction,
+    ) -> ChainResult<RpcSimulateTransactionResult> {
+        self.fallback_provider
+            .call(move |client| {
+                let transaction = transaction.clone();
+                let future =
+                    async move { client.simulate_versioned_transaction(&transaction).await };
                 Box::pin(future)
             })
             .await
@@ -318,7 +340,7 @@ impl SealevelFallbackRpcClient {
             .await
     }
 
-    /// send transaction
+    /// send legacy transaction
     pub async fn send_transaction(
         &self,
         transaction: &Transaction,
@@ -332,6 +354,50 @@ impl SealevelFallbackRpcClient {
                 Box::pin(future)
             })
             .await
+    }
+
+    /// send versioned transaction
+    pub async fn send_versioned_transaction(
+        &self,
+        transaction: &VersionedTransaction,
+        skip_preflight: bool,
+    ) -> ChainResult<Signature> {
+        self.fallback_provider
+            .call(move |client| {
+                let transaction = transaction.clone();
+                let future = async move {
+                    client
+                        .send_versioned_transaction(&transaction, skip_preflight)
+                        .await
+                };
+                Box::pin(future)
+            })
+            .await
+    }
+
+    /// Send a transaction (dispatches based on type).
+    pub async fn send_sealevel_tx(
+        &self,
+        tx: &SealevelTxType,
+        skip_preflight: bool,
+    ) -> ChainResult<Signature> {
+        match tx {
+            SealevelTxType::Legacy(t) => self.send_transaction(t, skip_preflight).await,
+            SealevelTxType::Versioned(t) => {
+                self.send_versioned_transaction(t, skip_preflight).await
+            }
+        }
+    }
+
+    /// Simulate a transaction (dispatches based on type).
+    pub async fn simulate_sealevel_tx(
+        &self,
+        tx: &SealevelTxType,
+    ) -> ChainResult<RpcSimulateTransactionResult> {
+        match tx {
+            SealevelTxType::Legacy(t) => self.simulate_transaction(t).await,
+            SealevelTxType::Versioned(t) => self.simulate_versioned_transaction(t).await,
+        }
     }
 
     /// get statuses based on signatures

@@ -4,7 +4,6 @@ import path from 'path';
 import prompts from 'prompts';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
   ContractVerifier,
@@ -231,15 +230,6 @@ async function main() {
       contractVerifier,
       concurrentDeploy,
     );
-  } else if (module === Modules.HELLO_WORLD) {
-    const { core } = await getHyperlaneCore(environment, multiProvider);
-    config = core.getRouterConfig(envConfig.owners);
-    deployer = new HelloWorldDeployer(
-      multiProvider,
-      undefined,
-      contractVerifier,
-      concurrentDeploy,
-    );
   } else if (module === Modules.HOOK) {
     const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       getAddresses(environment, Modules.PROXY_FACTORY),
@@ -318,10 +308,15 @@ async function main() {
       });
     }
 
+    const confirmChainCount =
+      chains && chains.length > 0
+        ? chains.filter((chain) => !chainsToSkip.includes(chain)).length
+        : Object.keys(config).length;
+
     const { value: confirmed } = await prompts({
       type: 'confirm',
       name: 'value',
-      message: `Confirm you want to deploy this ${module} configuration to ${environment}? (${Object.keys(config).length} chains)`,
+      message: `Confirm you want to deploy this ${module} configuration to ${environment}? (${confirmChainCount} chains)`,
       initial: false,
     });
     if (!confirmed) {

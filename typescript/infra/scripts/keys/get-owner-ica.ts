@@ -12,6 +12,7 @@ import {
   configureRootLogger,
   eqAddress,
   isZeroishAddress,
+  mapAllSettled,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -125,8 +126,9 @@ async function main() {
   );
 
   const results: Record<string, { ICA: Address; Deployed?: string }> = {};
-  const settledResults = await Promise.allSettled(
-    getOwnerIcaChains.map(async (chain) => {
+  const { fulfilled, rejected } = await mapAllSettled(
+    getOwnerIcaChains,
+    async (chain) => {
       const icaRouter = legacyIcaChains.includes(chain)
         ? legacyEthIcaRouter
         : ownerChainInterchainAccountRouter;
@@ -156,21 +158,24 @@ async function main() {
         rootLogger.error(`Error processing chain ${chain}:`, error);
         return { chain, error };
       }
-    }),
+    },
+    (chain) => chain,
   );
 
-  settledResults.forEach((settledResult) => {
-    if (settledResult.status === 'fulfilled') {
-      const { chain, result, error } = settledResult.value;
-      if (error || !result) {
-        rootLogger.error(`Failed to process ${chain}:`, error);
-      } else {
-        results[chain] = result;
-      }
+  for (const [chain, value] of fulfilled) {
+    if ('error' in value || !value.result) {
+      rootLogger.error(
+        `Failed to process ${chain}:`,
+        'error' in value ? value.error : 'Unknown error',
+      );
     } else {
-      rootLogger.error(`Promise rejected:`, settledResult.reason);
+      results[chain] = value.result;
     }
-  });
+  }
+
+  for (const [chain, error] of rejected) {
+    rootLogger.error(`Promise rejected for ${chain}:`, error);
+  }
 
   // eslint-disable-next-line no-console
   console.table(results);

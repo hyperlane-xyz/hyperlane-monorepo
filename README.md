@@ -56,7 +56,7 @@ Check out the [Foundry Book](https://getfoundry.sh/introduction/installation/) f
 
 #### Node
 
-This repository targets v20 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
+This repository targets v24 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
 
 To install nvm
 
@@ -64,11 +64,11 @@ To install nvm
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 ```
 
-To install version 20
+To install version 24
 
 ```bash
-nvm install 20
-nvm use 20
+nvm install 24
+nvm use 24
 ```
 
 You should change versions automatically with the `.nvmrc` file.
@@ -125,12 +125,10 @@ For an alpha or beta version, follow the directions [here](https://github.com/ch
 To manually trigger Agent or Monorepo Docker builds in CI, you can use the workflows provided in the repository. Here are the steps to do so:
 
 1. **Navigate to the workflow:**
-
    - For agents, go to the [Rust Docker Workflow](https://github.com/hyperlane-xyz/hyperlane-monorepo/actions/workflows/rust-docker.yml).
    - For the monorepo, go to the [Monorepo Docker Workflow](https://github.com/hyperlane-xyz/hyperlane-monorepo/actions/workflows/monorepo-docker.yml).
 
 2. **Trigger the workflow:**
-
    - On the workflow page, click on the "Run workflow" button.
    - You may need to select a branch and decide whether to trigger builds for the `arm64` platform.
 

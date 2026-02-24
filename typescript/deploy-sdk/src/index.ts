@@ -5,13 +5,12 @@
 export { AltVMJsonRpcSubmitter } from './AltVMJsonRpcSubmitter.js';
 export { AltVMCoreModule } from './AltVMCoreModule.js';
 export { AltVMCoreReader } from './AltVMCoreReader.js';
-export { AltVMHookModule } from './AltVMHookModule.js';
-export { AltVMHookReader } from './AltVMHookReader.js';
 export { AltVMWarpModule } from './AltVMWarpModule.js';
 export { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 export { AltVMDeployer } from './AltVMWarpDeployer.js';
 export { coreModuleProvider } from './core-module.js';
-export { hookModuleProvider } from './hook-module.js';
+export { createHookReader } from './hook/hook-reader.js';
+export { HookWriter, createHookWriter } from './hook/hook-writer.js';
 export { createIsmReader } from './ism/generic-ism.js';
 export { IsmWriter, createIsmWriter } from './ism/generic-ism-writer.js';
 export {

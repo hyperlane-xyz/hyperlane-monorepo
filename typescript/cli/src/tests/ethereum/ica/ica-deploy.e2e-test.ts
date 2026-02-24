@@ -363,7 +363,7 @@ describe('hyperlane ica deploy e2e tests', async function () {
 
       const result = await hyperlaneIcaDeployRaw({
         origin: CHAIN_NAME_2,
-        destinations: [CHAIN_NAME_3],
+        chains: [CHAIN_NAME_3],
         owner: invalidOwner,
         privateKey: ANVIL_KEY,
         skipConfirmationPrompts: true,

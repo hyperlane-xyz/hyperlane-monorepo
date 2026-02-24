@@ -16,7 +16,7 @@ import { setTurnkeySignerForEvmChains } from '../../src/utils/turnkey.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-function withForce<T>(args: any) {
+function withForce(args: any) {
   return args
     .describe('force', 'Force claim even if below threshold')
     .boolean('force')
@@ -114,7 +114,7 @@ async function main() {
         const formattedBalance = formatEther(balance);
 
         // Get the threshold for this chain from config, default to 0.1 ETH if not set
-        // Fallback to 1/5th of desired balance if no threshold configured, matching fund-keys-from-deployer.ts logic
+        // Fallback to 1/5th of desired balance if no threshold configured
         let threshold: bigint;
         const thresholdStr = igpClaimThresholds[chain];
         if (thresholdStr) {
@@ -214,7 +214,9 @@ async function main() {
         try {
           const bal = await provider.getBalance(paymaster.address);
           balance = formatTo5SF(formatEther(bal));
-        } catch {}
+        } catch {
+          // Balance fetch failed, leave as N/A
+        }
 
         // Calculate threshold for display
         const thresholdStr = igpClaimThresholds[chain];

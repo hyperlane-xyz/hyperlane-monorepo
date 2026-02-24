@@ -97,6 +97,8 @@ export function getExplorerTxUrl(
     'proteustestnet',
     'radix',
     'radixtestnet',
+    'aleo',
+    'aleotestnet',
   ].includes(chainName)
     ? 'transaction'
     : 'tx';

@@ -24,6 +24,7 @@ import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../registry.js';
 
+import { getEdenCoreConfig } from './eden.js';
 import { igp } from './igp.js';
 import { DEPLOYER, ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
@@ -34,12 +35,19 @@ import { supportedChainNames } from './supportedChainNames.js';
 export const core: ChainMap<CoreConfig> = objMap(
   ethereumChainOwners,
   (local, owner) => {
+    // eden is a special case, it's only connected to celestia
+    if (local === 'eden') {
+      return getEdenCoreConfig(owner, igp['eden']);
+    }
+
     const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
       supportedChainNames
         // no reflexivity
         .filter((chain) => chain !== local)
         // exclude forma as it's not a core chain
         .filter((chain) => chain !== 'forma')
+        // exclude eden as it's only connected to celestia
+        .filter((chain) => chain !== 'eden')
         .map((origin) => [origin, defaultMultisigConfigs[origin]]),
     );
 

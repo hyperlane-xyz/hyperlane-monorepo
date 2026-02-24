@@ -2,13 +2,16 @@ import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AltVMDeployer,
-  AltVMHookModule,
   AltVMWarpModule,
+  createHookWriter,
   createIsmWriter,
   ismConfigToArtifact,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { HookConfig as ProviderHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import {
+  HookConfig as ProviderHookConfig,
+  hookConfigToArtifact,
+} from '@hyperlane-xyz/provider-sdk/hook';
 import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { WarpConfig as ProviderWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
@@ -17,6 +20,7 @@ import {
   addressToBytes32,
   assert,
   isObjEmpty,
+  mapAllSettled,
   mustGet,
   objFilter,
   objKeys,
@@ -39,7 +43,7 @@ import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
-import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
+import { EvmWarpModule } from '../token/EvmWarpModule.js';
 import { gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
@@ -130,7 +134,7 @@ export async function executeWarpDeploy(
       case ProtocolType.Ethereum: {
         const deployer = warpDeployConfig.isNft
           ? new HypERC721Deployer(multiProvider)
-          : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
+          : new HypERC20Deployer(multiProvider); // TODO: replace with EvmWarpModule
 
         const evmContracts = await deployer.deploy(protocolSpecificConfig);
         deployedContracts = {
@@ -354,19 +358,19 @@ async function createWarpHook({
     }
     default: {
       const signer = mustGet(altVmSigners, chain);
-      const hookModule = await AltVMHookModule.create({
-        chain,
-        chainLookup: multiProvider,
-        addresses: {
-          deployedHook: '',
-          mailbox: chainAddresses.mailbox,
-        },
-        // FIXME: not all Hook types are supported yet
-        config: hook as ProviderHookConfig | string,
-        signer,
+      const chainLookup = altVmChainLookup(multiProvider);
+      const metadata = multiProvider.getChainMetadata(chain);
+
+      // Deploy new hook using artifact writer with mailbox context
+      const writer = createHookWriter(metadata, chainLookup, signer, {
+        mailbox: chainAddresses.mailbox,
       });
-      const { deployedHook } = hookModule.serialize();
-      return deployedHook;
+      const artifact = hookConfigToArtifact(
+        hook as ProviderHookConfig,
+        multiProvider,
+      );
+      const [deployed] = await writer.create(artifact);
+      return deployed.deployed.address;
     }
   }
 }
@@ -400,8 +404,9 @@ export async function enrollCrossChainRouters(
   );
 
   // Process all chains in parallel since they are independent
-  const settledResults = await Promise.allSettled(
-    supportedChains.map(async (currentChain) => {
+  const { fulfilled, rejected } = await mapAllSettled(
+    supportedChains,
+    async (currentChain) => {
       const protocol = multiProvider.getProtocol(currentChain);
 
       const remoteRouters: RemoteRouters = Object.fromEntries(
@@ -445,7 +450,7 @@ export async function enrollCrossChainRouters(
             staticMessageIdWeightedMultisigIsmFactory,
           } = registryAddresses[currentChain];
 
-          const evmWarpModule = new EvmERC20WarpModule(multiProvider, {
+          const evmWarpModule = new EvmWarpModule(multiProvider, {
             chain: currentChain,
             config: resolvedConfigMap[currentChain],
             addresses: {
@@ -510,30 +515,26 @@ export async function enrollCrossChainRouters(
       );
 
       return { chain: currentChain, transactions };
-    }),
+    },
+    (chain) => chain,
   );
 
   // Process settled results and collect transactions
   const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
   const errors: string[] = [];
 
-  settledResults.forEach((result, index) => {
-    const chain = supportedChains[index];
-    if (result.status === 'fulfilled') {
-      if (result.value.transactions.length) {
-        updateTransactions[result.value.chain] = result.value.transactions;
-      }
-    } else {
-      const errorMessage =
-        result.reason instanceof Error
-          ? result.reason.message
-          : String(result.reason);
-      rootLogger.error(
-        `Failed to create enroll router transactions for chain ${chain}: ${errorMessage}`,
-      );
-      errors.push(`${chain}: ${errorMessage}`);
+  for (const [, result] of fulfilled) {
+    if (result.transactions.length) {
+      updateTransactions[result.chain] = result.transactions;
     }
-  });
+  }
+
+  for (const [chain, error] of rejected) {
+    rootLogger.error(
+      `Failed to create enroll router transactions for chain ${chain}: ${error.message}`,
+    );
+    errors.push(`${chain}: ${error.message}`);
+  }
 
   if (errors.length > 0) {
     throw new Error(

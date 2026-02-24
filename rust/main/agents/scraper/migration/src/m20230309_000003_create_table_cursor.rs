@@ -25,7 +25,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Cursor::TimeCreated)
                             .timestamp()
                             .not_null()
-                            .default("NOW()"),
+                            .default(SimpleExpr::Custom("NOW()".to_owned())),
                     )
                     .col(ColumnDef::new(Cursor::Height).big_unsigned().not_null())
                     .foreign_key(

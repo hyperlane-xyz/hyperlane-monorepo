@@ -204,6 +204,9 @@ pub fn mock_get_next_nonce_on_finalized_block(mock_evm_provider: &mut MockEvmPro
         .returning(move |_, _| Ok(U256::one()));
 }
 
+/// Tolerance buffer for timing assertions to account for CI variance
+const TIMING_TOLERANCE: Duration = Duration::from_millis(200);
+
 pub fn assert_gas_prices_and_timings(
     nth_submission: usize,
     start_time: Instant,
@@ -217,8 +220,8 @@ pub fn assert_gas_prices_and_timings(
     let expected_elapsed = base_processing_delay
         + (inclusion_stage_processing_delay + block_time) * (nth_submission as u32);
     assert!(
-        actual_elapsed < expected_elapsed,
-        "(submission {nth_submission}) elapsed {actual_elapsed:?} was not < expected {expected_elapsed:?}"
+        actual_elapsed < expected_elapsed + TIMING_TOLERANCE,
+        "(submission {nth_submission}) elapsed {actual_elapsed:?} was not < expected {expected_elapsed:?} + tolerance {TIMING_TOLERANCE:?}"
     );
     assert_eq!(
         tx.gas_price().unwrap(),

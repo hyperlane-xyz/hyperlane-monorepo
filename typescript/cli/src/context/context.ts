@@ -295,3 +295,61 @@ export async function requestAndSaveApiKeys(
 
   return apiKeys;
 }
+
+/**
+ * Ensures EVM signers are attached to multiProvider for the specified chains.
+ * This is useful for commands that do interactive chain selection after the
+ * initial signer middleware has run.
+ *
+ * Uses the same signer strategy infrastructure as the middleware, which properly
+ * handles ZkSync chains and strategy-based keys.
+ *
+ * @param context - The write command context with key, multiProvider, and multiProtocolProvider
+ * @param chains - The chains to ensure signers for
+ */
+export async function ensureEvmSignersForChains(
+  context: {
+    key: SignerKeyProtocolMap;
+    multiProvider: MultiProvider;
+    multiProtocolProvider: MultiProtocolProvider;
+    strategyPath?: string;
+  },
+  chains: ChainName[],
+): Promise<void> {
+  // Filter to only EVM chains
+  const evmChains = chains.filter(
+    (chain) =>
+      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  );
+
+  // Find chains that are missing signers
+  const missingSignerChains = evmChains.filter(
+    (chain) => !context.multiProvider.tryGetSigner(chain),
+  );
+
+  // If all signers already exist, nothing to do
+  if (missingSignerChains.length === 0) {
+    return;
+  }
+
+  // Load strategy config if provided
+  const strategyConfig = context.strategyPath
+    ? await readChainSubmissionStrategyConfig(context.strategyPath)
+    : {};
+
+  // Use MultiProtocolSignerManager to create signers properly
+  // This handles ZkSync chains and strategy-based keys
+  const signerManager = await MultiProtocolSignerManager.init(
+    strategyConfig,
+    missingSignerChains,
+    context.multiProtocolProvider,
+    { key: context.key },
+  );
+
+  // Attach the created signers to multiProvider
+  for (const chain of missingSignerChains) {
+    const signer = signerManager.getEVMSigner(chain);
+    const provider = context.multiProvider.getProvider(chain);
+    context.multiProvider.setSigner(chain, signer.connect(provider));
+  }
+}

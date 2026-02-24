@@ -30,9 +30,10 @@ import {
   getSetRoutingIsmRouteTx,
 } from './ism-tx.js';
 
-export class AleoRoutingIsmRawReader
-  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
-{
+export class AleoRoutingIsmRawReader implements ArtifactReader<
+  RawRoutingIsmArtifactConfig,
+  DeployedIsmAddress
+> {
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(
@@ -115,6 +116,14 @@ export class AleoRoutingIsmRawWriter
       const setRouteReceipt =
         await this.signer.sendAndConfirmTransaction(setRouteTransaction);
       receipts.push(setRouteReceipt);
+    }
+
+    if (!eqAddressAleo(config.owner, this.signer.getSignerAddress())) {
+      const ownerTransferTx = getSetRoutingIsmOwnerTx(ismAddress, config.owner);
+
+      const ownerReceipt =
+        await this.signer.sendAndConfirmTransaction(ownerTransferTx);
+      receipts.push(ownerReceipt);
     }
 
     const deployedArtifact: ArtifactDeployed<

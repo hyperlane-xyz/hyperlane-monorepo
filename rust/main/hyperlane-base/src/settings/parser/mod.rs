@@ -294,8 +294,10 @@ fn parse_chain(
         Some(submitter_type) => submitter_type,
         None => match connection.protocol() {
             HyperlaneDomainProtocol::Ethereum
+            | HyperlaneDomainProtocol::Aleo
             | HyperlaneDomainProtocol::Radix
-            | HyperlaneDomainProtocol::Sealevel => SubmitterType::Lander,
+            | HyperlaneDomainProtocol::Sealevel
+            | HyperlaneDomainProtocol::Tron => SubmitterType::Lander,
             _ => Default::default(),
         },
     };

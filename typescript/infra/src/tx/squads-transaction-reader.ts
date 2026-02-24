@@ -64,9 +64,7 @@ import {
   multisigIsmConfigPath,
 } from '../utils/sealevel.js';
 import {
-  SQUADS_ACCOUNT_DISCRIMINATORS,
   SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-  SquadsAccountType,
   SquadsInstructionName,
   SquadsInstructionType,
   decodePermissions,
@@ -461,8 +459,8 @@ export class SquadsTransactionReader {
       };
     }
 
-    // Read discriminator to determine instruction type
-    const discriminator = instructionData.readUInt32LE(0);
+    // Read discriminator to determine instruction type (Borsh u8 enum)
+    const discriminator = instructionData[0];
 
     try {
       switch (discriminator) {
@@ -1414,6 +1412,7 @@ export class SquadsTransactionReader {
       case SealevelMailboxInstructionName[
         SealevelMailboxInstructionType.TRANSFER_OWNERSHIP
       ]:
+      // falls through
       case SealevelMultisigIsmInstructionName[
         SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP
       ]: {

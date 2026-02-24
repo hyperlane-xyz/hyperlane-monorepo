@@ -4,13 +4,16 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { getRegistry as getMainnet3Registry } from '../config/environments/mainnet3/chains.js';
 import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
+import { resetRegistry } from '../config/registry.js';
 
 import { getArgs } from './agent-utils.js';
 
 async function main() {
-  const { environment, port } = await getArgs()
+  const { environment, port, writeMode } = await getArgs()
     .describe('port', 'port to deploy on')
-    .default({ port: 3333, environment: 'mainnet3' }).argv;
+    .describe('writeMode', 'enable write operations (disabled by default)')
+    .boolean('writeMode')
+    .default({ port: 3333, environment: 'mainnet3', writeMode: false }).argv;
 
   const environmentToRegistry: Record<string, () => Promise<IRegistry>> = {
     mainnet3: getMainnet3Registry,
@@ -20,7 +23,14 @@ async function main() {
   const getRegistry = environmentToRegistry[environment];
   assert(getRegistry, `Uninitialized registry for environment: ${environment}`);
 
-  const httpRegistryServer = await HttpServer.create(async () => getRegistry());
+  const httpRegistryServer = await HttpServer.create(
+    async () => {
+      // Reset the registry singleton to pick up new files on refresh
+      resetRegistry();
+      return getRegistry();
+    },
+    { writeMode },
+  );
   await httpRegistryServer.start(port.toString());
 }
 

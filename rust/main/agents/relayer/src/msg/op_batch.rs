@@ -395,7 +395,7 @@ mod tests {
             core_metrics.clone(),
             cache.clone(),
             base_db.clone(),
-            IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
+            IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![].into()),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
             None,
             false,

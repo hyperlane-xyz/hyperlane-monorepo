@@ -193,6 +193,12 @@ export class CosmosNativeSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Cosmos. Remove proxyAdmin from config.',
+      );
+    }
+
     const msg = await this.getCreateMailboxTransaction({
       ...req,
       signer: this.account.address,
@@ -445,6 +451,18 @@ export class CosmosNativeSigner
     return { validatorAnnounceId: '' };
   }
 
+  async createProxyAdmin(
+    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    throw new Error('ProxyAdmin is not supported on Cosmos Native');
+  }
+
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    throw new Error('ProxyAdmin is not supported on Cosmos Native');
+  }
+
   // ### TX WARP ###
 
   async createNativeToken(
@@ -456,6 +474,12 @@ export class CosmosNativeSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Cosmos Native. Remove proxyAdmin from config.',
+      );
+    }
+
     const msg = await this.getCreateCollateralTokenTransaction({
       ...req,
       signer: this.account.address,
@@ -470,6 +494,12 @@ export class CosmosNativeSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Cosmos Native. Remove proxyAdmin from config.',
+      );
+    }
+
     const msg = await this.getCreateSyntheticTokenTransaction({
       ...req,
       signer: this.account.address,
@@ -498,6 +528,10 @@ export class CosmosNativeSigner
   async setTokenIsm(
     req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
   ): Promise<AltVM.ResSetTokenIsm> {
+    assert(
+      req.ismAddress,
+      'Cosmos does not support setting ism to the default ism yet',
+    );
     const msg = await this.getSetTokenIsmTransaction({
       ...req,
       signer: this.account.address,

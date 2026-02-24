@@ -17,7 +17,7 @@ use crate::adapter::chains::aleo::AleoAdapter;
 use crate::adapter::{
     chains::{
         cosmos::CosmosAdapter, ethereum::EthereumAdapter, radix::adapter::RadixAdapter,
-        sealevel::SealevelAdapter,
+        sealevel::SealevelAdapter, tron::adapter::TronAdapter,
     },
     AdaptsChain,
 };
@@ -63,6 +63,10 @@ impl AdapterFactory {
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(connection_conf) => {
                 let adapter = AleoAdapter::from_conf(conf, core_metrics, &connection_conf)?;
+                Arc::new(adapter)
+            }
+            ChainConnectionConf::Tron(connection_conf) => {
+                let adapter = TronAdapter::from_conf(conf, core_metrics, &connection_conf)?;
                 Arc::new(adapter)
             }
         };

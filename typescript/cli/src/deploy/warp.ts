@@ -19,7 +19,7 @@ import {
   type ChainMap,
   type ChainName,
   ContractVerifier,
-  EvmERC20WarpModule,
+  EvmWarpModule,
   ExplorerLicenseType,
   HypERC20Deployer,
   IsmType,
@@ -33,6 +33,7 @@ import {
   type TrustedRelayerIsmConfig,
   type TxSubmitterBuilder,
   TxSubmitterType,
+  type TypedAnnotatedTransaction,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfigMailboxRequired,
@@ -53,6 +54,7 @@ import {
 import {
   type Address,
   assert,
+  mapAllSettled,
   mustGet,
   objFilter,
   objMap,
@@ -61,7 +63,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { type TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { type WriteCommandContext } from '../context/types.js';
 import {
@@ -160,6 +161,7 @@ export async function runWarpRouteDeploy({
 
   const initialBalances = await getBalances(context, deploymentChains);
 
+  logBlue('🚀 All systems ready, captain! Beginning deployment...');
   const { deployedContracts } = await executeDeploy(deploymentParams, apiKeys);
 
   const registryAddresses = await registry.getAddresses();
@@ -197,23 +199,16 @@ export async function runWarpRouteDeploy({
 
   // Submit EVM chains in parallel (they have independent signers)
   if (evmChains.length > 0) {
-    const evmResults = await Promise.allSettled(
-      evmChains.map((chain) => submitEnrollment(chain)),
+    const { rejected } = await mapAllSettled(
+      evmChains,
+      (chain) => submitEnrollment(chain),
+      (chain) => chain,
     );
 
-    evmResults.forEach((result, index) => {
-      const chain = evmChains[index];
-      if (result.status === 'rejected') {
-        const errorMessage =
-          result.reason instanceof Error
-            ? result.reason.message
-            : String(result.reason);
-        errorRed(
-          `Failed to enroll routers for chain ${chain}: ${errorMessage}`,
-        );
-        enrollFailures.push(chain);
-      }
-    });
+    for (const [chain, error] of rejected) {
+      errorRed(`Failed to enroll routers for chain ${chain}: ${error.message}`);
+      enrollFailures.push(chain);
+    }
   }
 
   // Submit non-EVM chains sequentially (they may share signers)
@@ -301,8 +296,6 @@ async function executeDeploy(
   deployedContracts: ChainMap<Address>;
   deployments: WarpCoreConfig;
 }> {
-  logBlue('🚀 All systems ready, captain! Beginning deployment...');
-
   const {
     warpDeployConfig,
     context: { multiProvider, altVmSigners, registry },
@@ -347,17 +340,27 @@ async function getWarpCoreConfig(
 }> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
+  // Filter deploy config to only chains with deployed contracts.
+  // During partial failures, some chains may have broken RPCs — deriveTokenMetadata
+  // would fail trying to call erc20.name()/symbol() on unreachable chains.
+  const deployedChains = Object.keys(contracts);
+  const deployedWarpConfig = objFilter(
+    params.warpDeployConfig,
+    (chain, _): _ is (typeof params.warpDeployConfig)[string] =>
+      deployedChains.includes(chain),
+  );
+
   // TODO: replace with warp read
   const tokenMetadataMap: TokenMetadataMap =
     await HypERC20Deployer.deriveTokenMetadata(
       params.context.multiProvider,
-      params.warpDeployConfig,
+      deployedWarpConfig,
     );
 
   generateTokenConfigs(
     params.context.multiProvider,
     warpCoreConfig,
-    params.warpDeployConfig,
+    deployedWarpConfig,
     contracts,
     tokenMetadataMap,
   );
@@ -497,55 +500,6 @@ export async function runWarpRouteApply(
 }
 
 /**
- * Handles the deployment and configuration of new contracts for extending a Warp route.
- * This function performs several key steps:
- * 1. Derives metadata from existing contracts and applies it to new configurations
- * 2. Deploys new contracts using the derived configurations
- * 3. Merges existing and new router configurations
- * 4. Generates an updated Warp core configuration
- */
-async function deployWarpExtensionContracts(
-  params: WarpApplyParams,
-  apiKeys: ChainMap<string>,
-  existingConfigs: WarpRouteDeployConfigMailboxRequired,
-  initialExtendedConfigs: WarpRouteDeployConfigMailboxRequired,
-  warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
-) {
-  // Deploy new contracts with derived metadata
-  const extendedConfigs = await deriveMetadataFromExisting(
-    params.context.multiProvider,
-    existingConfigs,
-    initialExtendedConfigs,
-  );
-
-  const { deployedContracts: newDeployedContracts } = await executeDeploy(
-    {
-      context: params.context,
-      warpDeployConfig: extendedConfigs,
-    },
-    apiKeys,
-  );
-
-  // Merge existing and new routers
-  const mergedRouters = mergeAllRouters(
-    existingConfigs,
-    newDeployedContracts,
-    warpCoreConfigByChain,
-  );
-
-  // Get the updated core config
-  const { warpCoreConfig: updatedWarpCoreConfig, addWarpRouteOptions } =
-    await getWarpCoreConfig(params, mergedRouters);
-  WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
-
-  return {
-    newDeployedContracts,
-    updatedWarpCoreConfig,
-    addWarpRouteOptions,
-  };
-}
-
-/**
  * Splits warp configs into existing and extended, and returns details about the extension.
  * @param warpCoreConfig The warp core config.
  * @param warpDeployConfig The warp deploy config.
@@ -638,28 +592,128 @@ export async function extendWarpRoute(
 
   logBlue(`Extending Warp Route to ${filteredExtendedChains.join(', ')}`);
 
-  // Deploy new contracts with derived metadata and merge with existing config
-  const { updatedWarpCoreConfig, addWarpRouteOptions } =
-    await deployWarpExtensionContracts(
-      params,
+  // Derive metadata once for all new chains
+  const extendedConfigs = await deriveMetadataFromExisting(
+    context.multiProvider,
+    filteredExistingConfigs,
+    filteredExtendedConfigs,
+  );
+
+  // Helper to deploy a single extension chain
+  const deployExtension = async (chain: string): Promise<ChainMap<Address>> => {
+    logBlue(`Deploying extension to ${chain}...`);
+    const { deployedContracts } = await executeDeploy(
+      {
+        context: params.context,
+        warpDeployConfig: { [chain]: extendedConfigs[chain] },
+      },
       apiKeys,
-      filteredExistingConfigs,
-      filteredExtendedConfigs,
-      filteredWarpCoreConfigByChain,
     );
+    logGreen(`Successfully deployed extension to ${chain}`);
+    return deployedContracts;
+  };
+
+  // Group chains by protocol type for appropriate parallelization
+  // EVM chains can run in parallel (each chain has an independent nonce)
+  // Non-EVM chains must run sequentially because when the same private key
+  // is used across multiple chains, parallel tx submission causes sequence
+  // number conflicts
+  const evmExtendChains = filteredExtendedChains.filter(
+    (chain) =>
+      context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  );
+  const nonEvmExtendChains = filteredExtendedChains.filter(
+    (chain) =>
+      context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+  );
+
+  let newDeployedContracts: ChainMap<Address> = {};
+  const allRejected = new Map<string, Error>();
+
+  // Deploy EVM chains in parallel
+  if (evmExtendChains.length > 0) {
+    const { fulfilled, rejected } = await mapAllSettled(
+      evmExtendChains,
+      (chain) => deployExtension(chain),
+      (chain) => chain,
+    );
+
+    for (const [, contracts] of fulfilled) {
+      newDeployedContracts = { ...newDeployedContracts, ...contracts };
+    }
+    for (const [chain, error] of rejected) {
+      errorRed(`Failed to deploy extension to ${chain}: ${error.message}`);
+      allRejected.set(chain, error);
+    }
+  }
+
+  // Deploy non-EVM chains sequentially (shared signers)
+  for (const chain of nonEvmExtendChains) {
+    try {
+      const contracts = await deployExtension(chain);
+      newDeployedContracts = { ...newDeployedContracts, ...contracts };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      errorRed(`Failed to deploy extension to ${chain}: ${message}`);
+      allRejected.set(
+        chain,
+        error instanceof Error ? error : new Error(message),
+      );
+    }
+  }
+
+  if (Object.keys(newDeployedContracts).length === 0 && allRejected.size > 0) {
+    throw new Error(
+      `Extension deployment failed for all chains: ${[...allRejected.keys()].join(', ')}. Re-run to retry.`,
+    );
+  }
+
+  const mergedRouters = mergeAllRouters(
+    filteredExistingConfigs,
+    newDeployedContracts,
+    filteredWarpCoreConfigByChain,
+  );
+
+  const { warpCoreConfig: updatedWarpCoreConfig, addWarpRouteOptions } =
+    await getWarpCoreConfig(params, mergedRouters);
+  WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
 
   // Re-add the non compatible chains to the warp core config so that expanding the config
   // to get the proper remote routers and gas config works as expected
   updatedWarpCoreConfig.tokens.push(...nonCompatibleWarpCoreConfigs);
+
+  // Preserve metadata fields from existing config that generateTokenConfigs doesn't include
+  // (e.g. logoURI, coinGeckoId, igpTokenAddressOrDenom, scale).
+  // Spread order ensures generated fields (address, decimals, connections) take precedence.
+  updatedWarpCoreConfig.tokens = updatedWarpCoreConfig.tokens.map((token) => {
+    const existingToken = warpCoreConfigByChain[token.chainName];
+    return existingToken ? { ...existingToken, ...token } : token;
+  });
+
+  // Preserve top-level options if no updates
+  if (warpCoreConfig.options) {
+    updatedWarpCoreConfig.options = {
+      ...warpCoreConfig.options,
+      ...updatedWarpCoreConfig.options,
+    };
+  }
 
   // Write the updated artifacts
   await writeDeploymentArtifacts(
     updatedWarpCoreConfig,
     context,
     params.warpRouteId
-      ? { warpRouteId: params.warpRouteId } // Use warpRouteId if provided, otherwise use the warpCoreConfig symbol
+      ? { warpRouteId: params.warpRouteId }
       : addWarpRouteOptions,
   );
+
+  // Throw after persisting successes so user can re-run for failures
+  if (allRejected.size > 0) {
+    throw new Error(
+      `Extension deployment failed for chain(s): ${[...allRejected.keys()].join(', ')}. ` +
+        `Successfully deployed chains have been saved to registry. Re-run to retry failed chains.`,
+    );
+  }
 
   return updatedWarpCoreConfig;
 }
@@ -672,8 +726,7 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, altVmProviders, altVmSigners, registry } =
-    params.context;
+  const { multiProvider, altVmSigners, registry } = params.context;
 
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
@@ -693,7 +746,6 @@ async function updateExistingWarpRoute(
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
-    altVmProviders,
     warpDeployConfig,
     deployedRoutersAddresses,
   });
@@ -716,7 +768,7 @@ async function updateExistingWarpRoute(
 
         switch (protocolType) {
           case ProtocolType.Ethereum: {
-            const evmERC20WarpModule = new EvmERC20WarpModule(
+            const evmERC20WarpModule = new EvmWarpModule(
               multiProvider,
               {
                 config: configWithMailbox,
@@ -1062,34 +1114,28 @@ async function submitWarpApplyTransactions(
 
   // Submit EVM chains in parallel (they have independent signers)
   if (evmChains.length > 0) {
-    const evmResults = await Promise.allSettled(
-      evmChains.map((chain) =>
+    const { rejected } = await mapAllSettled(
+      evmChains,
+      (chain) =>
         submitChainTransactions(
           params,
           chain,
           updateTransactions[chain],
           isExtended(chain),
         ),
-      ),
+      (chain) => chain,
     );
 
-    evmResults.forEach((result, index) => {
-      const chain = evmChains[index];
-      if (result.status === 'rejected') {
-        const errorMessage =
-          result.reason instanceof Error
-            ? result.reason.message
-            : String(result.reason);
-        rootLogger.debug(
-          `Error in submitWarpApplyTransactions for ${chain}`,
-          result.reason,
-        );
-        errorRed(
-          `Failed to submit warp apply transactions for ${chain}: ${errorMessage}`,
-        );
-        failures.push(chain);
-      }
-    });
+    for (const [chain, error] of rejected) {
+      rootLogger.debug(
+        `Error in submitWarpApplyTransactions for ${chain}`,
+        error,
+      );
+      errorRed(
+        `Failed to submit warp apply transactions for ${chain}: ${error.message}`,
+      );
+      failures.push(chain);
+    }
   }
 
   // Submit non-EVM chains sequentially (they may share signers)

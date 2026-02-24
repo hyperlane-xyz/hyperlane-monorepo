@@ -1,5 +1,6 @@
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
+import { EthJsonRpcBlockParameterTag } from '../../metadata/chainMetadataTypes.js';
 import { TokenMetadata } from '../types.js';
 
 export interface TransferParams {
@@ -72,7 +73,6 @@ export interface IMovableCollateralRouterAdapter<Tx> extends ITokenAdapter<Tx> {
     domain: Domain,
     recipient: Address,
     amount: Numberish,
-    isWarp: boolean,
   ): Promise<InterchainGasQuote[]>;
   getWrappedTokenAddress(): Promise<Address>;
 
@@ -88,7 +88,9 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getDomains(): Promise<Domain[]>;
   getRouterAddress(domain: Domain): Promise<Buffer>;
   getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>>;
-  getBridgedSupply(): Promise<bigint | undefined>;
+  getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint | undefined>;
   // Sender is only required for Sealevel origins.
   quoteTransferRemoteGas(
     params: QuoteTransferRemoteParams,

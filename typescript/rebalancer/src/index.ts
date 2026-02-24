@@ -16,17 +16,18 @@ export type {
 
 // Core rebalancing logic
 export { Rebalancer } from './core/Rebalancer.js';
-export { WithInflightGuard } from './core/WithInflightGuard.js';
-export { WithSemaphore } from './core/WithSemaphore.js';
 
 // Configuration
 export { RebalancerConfig } from './config/RebalancerConfig.js';
 export {
+  getStrategyChainConfig,
+  getStrategyChainNames,
   RebalancerBaseChainConfigSchema,
   RebalancerConfigSchema,
   RebalancerMinAmountConfigSchema,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
+  RebalancerStrategySchema,
   RebalancerWeightedChainConfigSchema,
   StrategyConfigSchema,
 } from './config/types.js';
@@ -42,6 +43,7 @@ export type {
 
 // Strategy
 export { BaseStrategy } from './strategy/BaseStrategy.js';
+export { CompositeStrategy } from './strategy/CompositeStrategy.js';
 export { WeightedStrategy } from './strategy/WeightedStrategy.js';
 export { MinAmountStrategy } from './strategy/MinAmountStrategy.js';
 export { StrategyFactory } from './strategy/StrategyFactory.js';
@@ -55,15 +57,29 @@ export { PriceGetter } from './metrics/PriceGetter.js';
 
 // Interfaces
 export type {
+  ExecutionResult,
+  IInventoryRebalancer,
+  IMovableCollateralRebalancer,
   IRebalancer,
+  InventoryExecutionResult,
+  MovableCollateralExecutionResult,
   PreparedTransaction,
+  RebalancerType,
 } from './interfaces/IRebalancer.js';
 export type {
   IStrategy,
-  RebalancingRoute,
+  InflightContext,
+  InventoryRoute,
+  MovableCollateralRoute,
   RawBalances,
+  Route,
+  StrategyRoute,
 } from './interfaces/IStrategy.js';
-export type { IMonitor } from './interfaces/IMonitor.js';
+export type {
+  ConfirmedBlockTag,
+  ConfirmedBlockTags,
+  IMonitor,
+} from './interfaces/IMonitor.js';
 export {
   MonitorEventType,
   MonitorEvent,
@@ -73,14 +89,35 @@ export {
 export type { IMetrics } from './interfaces/IMetrics.js';
 
 // Utils
-export { getBridgeConfig } from './utils/bridgeUtils.js';
+export {
+  getBridgeConfig,
+  isMovableCollateralConfig,
+  isInventoryConfig,
+} from './utils/bridgeUtils.js';
 export type {
   BridgeConfigWithOverride,
   BridgeConfig,
+  MovableCollateralBridgeConfig,
+  InventoryBridgeConfig,
 } from './utils/bridgeUtils.js';
 export { getRawBalances } from './utils/balanceUtils.js';
 export { isCollateralizedTokenEligibleForRebalancing } from './utils/tokenUtils.js';
 export { ExplorerClient } from './utils/ExplorerClient.js';
+
+// Tracking
+export { InflightContextAdapter } from './tracking/InflightContextAdapter.js';
+export type {
+  IActionTracker,
+  CreateRebalanceIntentParams,
+  CreateRebalanceActionParams,
+} from './tracking/IActionTracker.js';
+export type {
+  Transfer,
+  RebalanceIntent,
+  RebalanceAction,
+  ActionType,
+  PartialInventoryIntent,
+} from './tracking/types.js';
 
 // Factory
 export { RebalancerContextFactory } from './factories/RebalancerContextFactory.js';

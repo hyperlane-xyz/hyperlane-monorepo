@@ -2,6 +2,7 @@ import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import { Logger, pino } from 'pino';
 
 import {
+  isObjEmpty,
   raceWithContext,
   retryAsync,
   rootLogger,
@@ -24,8 +25,52 @@ import {
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
+  RpcConfigWithConnectionInfo,
   SmartProviderOptions,
 } from './types.js';
+import { parseCustomRpcHeaders } from '../../utils/provider.js';
+
+function buildRpcConnections(
+  rawUrl: string,
+  existingConnection?: utils.ConnectionInfo,
+): {
+  url: string;
+  connection?: utils.ConnectionInfo;
+  redactedConnection?: utils.ConnectionInfo;
+} {
+  const { url, headers, redactedHeaders } = parseCustomRpcHeaders(rawUrl);
+  if (isObjEmpty(headers)) {
+    return {
+      url,
+      connection: existingConnection,
+      redactedConnection: existingConnection,
+    };
+  }
+
+  const baseConnection = existingConnection ?? { url };
+  const baseUrl = baseConnection.url === rawUrl ? url : baseConnection.url;
+  const baseHeaders = baseConnection.headers ?? {};
+
+  return {
+    url,
+    connection: {
+      ...baseConnection,
+      url: baseUrl,
+      headers: {
+        ...baseHeaders,
+        ...headers,
+      },
+    },
+    redactedConnection: {
+      ...baseConnection,
+      url: baseUrl,
+      headers: {
+        ...baseHeaders,
+        ...redactedHeaders,
+      },
+    },
+  };
+}
 
 export function getSmartProviderErrorMessage(errorMsg: string): string {
   return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
@@ -41,6 +86,7 @@ const RPC_SERVER_ERRORS = [
 const RPC_BLOCKCHAIN_ERRORS = [
   EthersError.CALL_EXCEPTION,
   EthersError.INSUFFICIENT_FUNDS,
+  EthersError.INVALID_ARGUMENT, // Ethers decode failure (e.g., calling method on wrong contract type)
   EthersError.NETWORK_ERROR,
   EthersError.NONCE_EXPIRED,
   EthersError.NOT_IMPLEMENTED,
@@ -121,7 +167,23 @@ export class HyperlaneSmartProvider
 
     if (rpcUrls?.length) {
       this.rpcProviders = rpcUrls.map((rpcConfig) => {
-        const newProvider = new HyperlaneJsonRpcProvider(rpcConfig, network);
+        const existingConnection = (rpcConfig as RpcConfigWithConnectionInfo)
+          .connection;
+        const { url, connection, redactedConnection } = buildRpcConnections(
+          rpcConfig.http,
+          existingConnection,
+        );
+        const configWithRedactedHeaders: RpcConfigWithConnectionInfo = {
+          ...rpcConfig,
+          http: url,
+          connection: redactedConnection,
+        };
+        const newProvider = new HyperlaneJsonRpcProvider(
+          configWithRedactedHeaders,
+          network,
+          undefined,
+          connection,
+        );
         newProvider.supportedMethods.forEach((m) => supportedMethods.add(m));
         return newProvider;
       });
@@ -322,13 +384,30 @@ export class HyperlaneSmartProvider
         case ProviderStatus.Error: {
           providerResultErrors.push(result.error);
           // If this is a blockchain error, stop trying additional providers as it's a permanent failure
-          // Exception: CALL_EXCEPTION without revert data is likely an RPC issue, not a real revert
-          // Note: ethers sets data to "0x" when there's no actual revert data
+          // For CALL_EXCEPTION, we need to distinguish:
+          // 1. Real revert with data - permanent (has revert data like "0x08c379a0...")
+          // 2. Real revert without data - permanent (has nested error.error.code === 3 from JSON-RPC)
+          // 3. Empty return data decode failure - permanent (no nested error, ethers failed to decode "0x")
+          // 4. Actual RPC issue - transient (has nested error but not code 3)
           const errorCode = (result.error as any)?.code;
           const revertData = (result.error as any)?.data;
           const hasRevertData = !!revertData && revertData !== '0x';
+          const nestedError = (result.error as any)?.error;
+          // JSON-RPC error code 3 definitively indicates execution revert (EIP-1474)
+          // Check both nested levels as ethers wraps errors in error.error.code structure
+          const jsonRpcErrorCode =
+            nestedError?.error?.code ?? nestedError?.code;
+          const isJsonRpcRevert = jsonRpcErrorCode === 3;
+          // No nested error means ethers failed to decode empty return data - this is permanent
+          const isEmptyReturnDecodeFailure =
+            errorCode === EthersError.CALL_EXCEPTION &&
+            !hasRevertData &&
+            !nestedError;
           const isCallExceptionWithoutData =
-            errorCode === EthersError.CALL_EXCEPTION && !hasRevertData;
+            errorCode === EthersError.CALL_EXCEPTION &&
+            !hasRevertData &&
+            !isJsonRpcRevert &&
+            !isEmptyReturnDecodeFailure;
           const isPermanentBlockchainError =
             RPC_BLOCKCHAIN_ERRORS.includes(errorCode) &&
             !isCallExceptionWithoutData;
@@ -484,14 +563,21 @@ export class HyperlaneSmartProvider
 
     // Find blockchain errors, but exclude CALL_EXCEPTION without revert data (likely RPC issues)
     // Note: ethers sets data to "0x" when there's no actual revert data
-    const rpcBlockchainError = errors.find(
-      (e) =>
-        RPC_BLOCKCHAIN_ERRORS.includes(e.code) &&
-        !(
-          e.code === EthersError.CALL_EXCEPTION &&
-          (!e.data || e.data === '0x')
-        ),
-    );
+    // However, JSON-RPC error code 3 definitively indicates a contract revert (EIP-1474)
+    // Also, no nested error means ethers failed to decode empty return data - also permanent
+    const rpcBlockchainError = errors.find((e) => {
+      if (!RPC_BLOCKCHAIN_ERRORS.includes(e.code)) return false;
+      if (e.code !== EthersError.CALL_EXCEPTION) return true;
+      // For CALL_EXCEPTION, check if it's a real revert or decode failure
+      const hasRevertData = !!e.data && e.data !== '0x';
+      // Check for JSON-RPC error code 3 (nested in error.error.code by ethers)
+      // Also check shallower level as error nesting varies
+      const jsonRpcErrorCode = e.error?.error?.code ?? e.error?.code;
+      const isJsonRpcRevert = jsonRpcErrorCode === 3;
+      // No nested error means ethers failed to decode empty return data - permanent
+      const isEmptyReturnDecodeFailure = !e.error;
+      return hasRevertData || isJsonRpcRevert || isEmptyReturnDecodeFailure;
+    });
 
     const rpcServerError = errors.find((e) =>
       RPC_SERVER_ERRORS.includes(e.code),
@@ -529,7 +615,14 @@ export class HyperlaneSmartProvider
         }
       };
     } else {
-      this.logger.error(
+      this.logger.warn(
+        {
+          errors: errors.map((e) => ({
+            code: e?.code,
+            message: e?.message,
+            name: e?.name,
+          })),
+        },
         'Unhandled error case in combined provider error handler',
       );
       return class extends Error {
