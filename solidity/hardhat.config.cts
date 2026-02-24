@@ -1,17 +1,17 @@
-import "@nomicfoundation/hardhat-foundry";
-import "@nomicfoundation/hardhat-viem";
-import "hardhat-gas-reporter";
-import "hardhat-ignore-warnings";
-import "solidity-coverage";
+import '@nomicfoundation/hardhat-foundry';
+import '@nomicfoundation/hardhat-viem';
+import 'hardhat-gas-reporter';
+import 'hardhat-ignore-warnings';
+import 'solidity-coverage';
 
-import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
+import { rootHardhatConfig } from './rootHardhatConfig.cjs';
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
-    ...rootHardhatConfig,
-    gasReporter: {
-        currency: "USD",
-    },
+  ...rootHardhatConfig,
+  gasReporter: {
+    currency: 'USD',
+  },
 };
