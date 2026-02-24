@@ -253,9 +253,7 @@ export function getPostDeploymentUpdateTxs<
  * @param currentArtifactState The current on-chain warp token state
  * @returns Array of transactions to execute in order
  */
-export function getWarpTokenUpdateTxs<
-  TConfig extends RawWarpArtifactConfig,
->(
+export function getWarpTokenUpdateTxs<TConfig extends RawWarpArtifactConfig>(
   expectedArtifactState: ArtifactDeployed<TConfig, DeployedWarpAddress>,
   currentArtifactState: ArtifactDeployed<TConfig, DeployedWarpAddress>,
 ): AnnotatedAleoTransaction[] {

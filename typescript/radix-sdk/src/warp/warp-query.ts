@@ -113,7 +113,9 @@ export async function getSyntheticWarpTokenConfig(
   const syntheticResourceAddress = getResourceAddress(tokenAddress, {
     fields: resourceManagerFields,
   });
-  const metadata = await base.getMetadata({ resource: syntheticResourceAddress });
+  const metadata = await base.getMetadata({
+    resource: syntheticResourceAddress,
+  });
 
   return {
     mailbox: baseTokenData.mailbox,
