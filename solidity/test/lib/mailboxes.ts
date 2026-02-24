@@ -5,7 +5,7 @@ import {
   Hex,
   keccak256,
   parseAbiItem,
-  toBytes,
+  stringToBytes,
 } from 'viem';
 
 import {
@@ -44,9 +44,9 @@ const DISPATCH_EVENT = parseAbiItem(
 
 type MailboxLike = {
   address: string;
-  nonce(): Promise<number>;
-  VERSION(): Promise<number>;
-  localDomain(): Promise<number>;
+  nonce(): Promise<number | bigint>;
+  VERSION(): Promise<number | bigint>;
+  localDomain(): Promise<number | bigint>;
   ['dispatch(uint32,bytes32,bytes)'](
     destination: number,
     recipient: string,
@@ -78,6 +78,14 @@ export type MessageAndMetadata = {
   metadata: string;
 };
 
+function toSafeUint32(value: number | bigint, field: string): number {
+  const asBigint = typeof value === 'bigint' ? value : BigInt(value);
+  if (asBigint < 0n || asBigint > 0xffffffffn) {
+    throw new Error(`${field} value out of uint32 range: ${asBigint}`);
+  }
+  return Number(asBigint);
+}
+
 export const dispatchMessage = async (
   mailbox: MailboxLike,
   destination: number,
@@ -88,7 +96,7 @@ export const dispatchMessage = async (
   const tx = await mailbox['dispatch(uint32,bytes32,bytes)'](
     destination,
     recipient,
-    utf8 ? toBytes(messageStr) : messageStr,
+    utf8 ? stringToBytes(messageStr) : messageStr,
   );
   const receipt = (await tx.wait()) as TxReceiptLike;
 
@@ -127,7 +135,7 @@ export const dispatchMessageAndReturnProof = async (
   messageStr: string,
   utf8 = true,
 ): Promise<MessageAndProof> => {
-  const nonce = await mailbox.nonce();
+  const nonce = toSafeUint32(await mailbox.nonce(), 'nonce');
   const { message } = await dispatchMessage(
     mailbox,
     destination,
@@ -176,7 +184,7 @@ export async function dispatchMessageAndReturnMetadata(
 ): Promise<MessageAndMetadata> {
   // Checkpoint indices are 0 indexed, so we pull the count before
   // we dispatch the message.
-  const index = await mailbox.nonce();
+  const index = toSafeUint32(await mailbox.nonce(), 'nonce');
   const proofAndMessage = await dispatchMessageAndReturnProof(
     mailbox,
     merkleHook,
@@ -220,11 +228,15 @@ export const inferMessageValues = async (
   messageStr: string,
   version?: number,
 ) => {
-  const body = ensure0x(Buffer.from(toBytes(messageStr)).toString('hex'));
-  const nonce = await mailbox.nonce();
-  const localDomain = await mailbox.localDomain();
-  const message = formatMessage(
+  const body = ensure0x(Buffer.from(stringToBytes(messageStr)).toString('hex'));
+  const nonce = toSafeUint32(await mailbox.nonce(), 'nonce');
+  const localDomain = toSafeUint32(await mailbox.localDomain(), 'localDomain');
+  const messageVersion = toSafeUint32(
     version ?? (await mailbox.VERSION()),
+    'version',
+  );
+  const message = formatMessage(
+    messageVersion,
     nonce,
     localDomain,
     sender,
