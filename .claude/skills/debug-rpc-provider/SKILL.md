@@ -1,108 +1,94 @@
 ---
 name: debug-rpc-provider
-description: Debug RPC provider health issues. Use when alerts mention "RPC Provider error rate", "RPC errors", or when asked to check RPC health for a chain. Runs the debug-rpc-url-health script and presents actionable results.
+description: Debug RPC provider health issues for a chain. Use when alerts mention RPC failures, high latency, stale blocks, or provider errors. Diagnoses the issue and recommends fixes.
 ---
 
-# Debug RPC Provider Health
+# Debug RPC Provider
+
+Diagnose RPC provider health issues for a Hyperlane chain and recommend fixes.
 
 ## When to Use
 
-1. **Alert-based triggers:**
-   - Alert mentions "RPC Provider error rate > 60%" or similar RPC error thresholds
-   - Alert names containing "RPC error", "RPC provider", or "RPC health"
-   - Any alert referencing high RPC failure rates for a chain
-
-2. **User request triggers:**
-   - "Why is RPC failing on [chain]?"
-   - "Check RPC health for [chain]"
-   - "Debug RPC provider issues on [chain]"
-   - "Is [provider] healthy for [chain]?"
+1. **Alert-triggered:** RPC error rate alerts, provider timeout alerts, stale block alerts
+2. **User request:** "debug RPC for [chain]", "why are RPCs unhealthy on [chain]"
 
 ## Input Parameters
 
-| Parameter      | Required | Default    | Description                                                                                                                                                                                                                                                               |
-| -------------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `chain`        | Yes      | —          | Chain name from alert or user request (e.g., `ethereum`, `stable`, `arbitrum`)                                                                                                                                                                                            |
-| `environment`  | Inferred | `mainnet3` | `mainnet3` or `testnet4`. Infer from chain name: well-known testnets (sepolia, holesky, fuji, alfajores, bsctestnet, plumetestnet, etc.) → `testnet4`, otherwise `mainnet3`. If unsure, check `../hyperlane-registry/chains/<chain>/metadata.yaml` for `isTestnet: true`. |
-| `rpc_provider` | No       | —          | Specific provider domain from alert (e.g., `api-stable-mainnet.n.dwellir.com`). Used to highlight that provider in results.                                                                                                                                               |
-
-## Debugging Workflow
-
-### Step 1: Parse Alert / Request
-
-Extract from the alert or user message:
-
-- **chain** — the chain name
-- **environment** — infer `mainnet3` or `testnet4` per rules above
-- **rpc_provider** — optional provider domain if mentioned in alert
-
-### Step 2: Run the Debug Script
-
-```bash
-cd typescript/infra && pnpm tsx scripts/secret-rpc-urls/debug-rpc-url-health.ts -e <environment> -c <chain>
+```
+/debug-rpc-provider <chain> [environment=mainnet3]
 ```
 
-This script probes all private (secret) and registry RPCs for the chain and outputs:
+| Parameter     | Required | Default    | Description                   |
+| ------------- | -------- | ---------- | ----------------------------- |
+| `chain`       | Yes      | -          | Chain name (e.g., `ethereum`) |
+| `environment` | No       | `mainnet3` | `mainnet3` or `testnet4`      |
 
-- Per-URL health status (✅ healthy, ⚠️ stale, ❌ error)
-- Block number, block diff, staleness, latency
-- Error messages for failing URLs (with secrets redacted)
+## Workflow
 
-### Step 3: Parse and Present Results
+### Step 1: Find Monorepo Root
 
-From the script output, present a summary:
+```bash
+MONOREPO_ROOT=$(git rev-parse --show-toplevel)
+```
 
-1. **Overall health status:**
-   - **All healthy** — all RPCs returned ✅
-   - **Partial failure** — some RPCs are ❌ or ⚠️
-   - **Total failure** — all RPCs are ❌
+### Step 2: Run Debug Script
 
-2. **Per-RPC status table** — reproduce the script's table output, simplified:
-   - URL (redacted), Block #, Staleness, Health emoji, Latency, Notes
+```bash
+pnpm --dir "$MONOREPO_ROOT/typescript/infra" exec tsx scripts/secret-rpc-urls/debug-rpc-url-health.ts \
+  -e <environment> -c <chain>
+```
 
-3. **Provider highlight** — if `rpc_provider` was specified, call out that provider's specific status prominently before the full table.
+### Step 3: Analyze Results
 
-### Step 4: Actionable Summary and Next Steps
+Examine the output table and classify each RPC URL:
 
-Apply these rules to generate recommendations:
+| Condition                     | Classification            |
+| ----------------------------- | ------------------------- |
+| Health = ✅, Latency < 500ms  | Healthy                   |
+| Health = ✅, Latency >= 500ms | Slow                      |
+| Health = ⚠️                   | Stale (block age 30-120s) |
+| Health = ❌, has error        | Dead                      |
+| Health = ❌, chainId mismatch | Misconfigured             |
 
-**Counting healthy URLs:**
+### Step 4: Output Diagnosis and Recommendation
 
-- Only count private RPCs with ✅ status as "healthy URLs"
-- ⚠️ (stale) and ❌ (error/timeout) are both "unhealthy"
+Output the following structured information:
 
-**Recommendations based on health:**
+1. **Summary:** One-line description of the issue (e.g., "2 of 3 private RPCs are dead on ethereum")
 
-1. **Unhealthy URLs exist** — suggest removing them from the private RPC secret. Show the proposed new URL list (healthy URLs only, preserving original order).
+2. **Current URL status table:** For each private RPC URL, show status (healthy/slow/stale/dead) and key metrics
 
-2. **After removing unhealthy URLs, if < 3 healthy private URLs remain** — suggest adding the healthiest registry URL not already in the private set to the _end_ of the new RPC list. "Healthiest" = same block number as max block, then lowest latency. Only suggest registry URLs with ✅ status.
+3. **Proposed new URL list:** A concrete JSON array of the recommended new private RPC URLs. This should:
+   - Remove dead/misconfigured URLs
+   - Keep healthy URLs (reorder so healthiest are first)
+   - **Always backfill with healthy registry URLs** to replace removed URLs and maintain at least the original URL count. Registry URLs are free and add redundancy.
+   - Never leave the list empty
 
-3. **Only 1 healthy private URL remains** — warn that there is no redundancy. Suggest user find another RPC provider to add.
+   Format:
 
-4. **0 healthy URLs (total failure)** — this is critical. User must find at least one healthy RPC provider before the chain can function. Check if any registry RPCs are healthy as temporary alternatives.
+   ```
+   Proposed new RPC URLs for <chain> (<environment>):
+   ["https://full-url-1", "https://full-url-2"]
+   ```
 
-**Format the recommendation as a concrete action**, e.g.:
+4. **Suggested action:** Either:
+   - "No action needed" if all private RPCs are healthy
+   - "Run `/fix-rpc-urls` to apply the proposed URL changes" if URLs need updating
+   - "Investigate further" if the issue is unclear (e.g., all RPCs stale may indicate chain halt)
 
-> Suggested new private RPC set for `<chain>` (`<environment>`):
->
-> 1. `https://healthy-rpc-1.example.com/<redacted>`
-> 2. `https://healthy-rpc-2.example.com/<redacted>`
-> 3. `https://registry-rpc.example.com/` _(added from registry)_
+### Step 5: Offer to Fix (Confirmation Gate)
 
-## Prerequisites
+If you recommended URL changes in Step 4, end your response with the confirmation convention so the user gets an approve/reject button:
 
-- GCP access for secret RPC URLs (the script reads from GCP Secret Manager)
-- `pnpm build` must have been run for `typescript/infra`
+```
+[CONFIRM: Fix RPC URLs for <chain>]
+```
 
-## Example Investigation
+This MUST be the very last thing in your message. Do NOT run `/fix-rpc-urls` yourself — wait for user approval.
 
-Alert: "RPC Provider error rate > 60% on stable, provider api-stable-mainnet.n.dwellir.com"
+If all URLs are healthy and no changes are needed, skip this step.
 
-1. Parse: chain=`stable`, environment=`mainnet3`, rpc_provider=`api-stable-mainnet.n.dwellir.com`
-2. Run: `cd typescript/infra && pnpm tsx scripts/secret-rpc-urls/debug-rpc-url-health.ts -e mainnet3 -c stable`
-3. Output shows 4 private RPCs: 2 ✅, 1 ⚠️, 1 ❌ (the dwellir one)
-4. Present:
-   - "Provider `api-stable-mainnet.n.dwellir.com` is ❌ — timed out after 5000ms"
-   - Full table with all RPCs
-   - "Suggest removing 2 unhealthy URLs. 2 healthy private URLs remain (< 3), so adding healthiest registry URL."
-   - Show proposed new RPC set
+## Important Notes
+
+- Registry URLs are public and don't contain secrets.
+- If ALL RPCs (private + registry) are stale/dead, the chain itself may be halted — check block explorers before recommending URL changes.

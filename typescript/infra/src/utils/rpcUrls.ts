@@ -61,7 +61,7 @@ export async function setRpcUrlsInteractive(
   }
 }
 
-async function getAndDisplayCurrentSecrets(
+export async function getAndDisplayCurrentSecrets(
   environment: string,
   chain: string,
 ): Promise<string[]> {
@@ -243,7 +243,7 @@ async function confirmSetSecretsInteractive(
  * @param chain The chain to update the secret for
  * @param secretPayload The new secret payload to set
  */
-async function updateSecretAndDisablePrevious(
+export async function updateSecretAndDisablePrevious(
   environment: string,
   chain: string,
   secretPayload: string,
@@ -318,6 +318,36 @@ async function refreshDependentK8sResourcesInteractive(
       environment,
     );
   }
+}
+
+export function getCoreInfraManagers(
+  environment: DeployEnvironment,
+  chain: string,
+): HelmManager<any>[] {
+  const envConfig = getEnvironmentConfig(environment);
+  const coreHelmManagers: [string, HelmManager<any>][] = [];
+
+  for (const [context, agentConfig] of Object.entries(envConfig.agents)) {
+    if (agentConfig.relayer) {
+      coreHelmManagers.push([context, new RelayerHelmManager(agentConfig)]);
+    }
+
+    if (
+      agentConfig.validators &&
+      agentConfig.contextChainNames.validator?.includes(chain)
+    ) {
+      coreHelmManagers.push([
+        context,
+        new ValidatorHelmManager(agentConfig, chain),
+      ]);
+    }
+
+    if (agentConfig.scraper) {
+      coreHelmManagers.push([context, new ScraperHelmManager(agentConfig)]);
+    }
+  }
+
+  return coreHelmManagers.map(([_, m]) => m);
 }
 
 async function selectCoreInfrastructure(
@@ -531,6 +561,201 @@ async function selectCronJobs(
   return cronjobManagers
     .map(([_, m]) => m)
     .filter((_, i) => selection.includes(i));
+}
+
+export async function getWarpMonitorManagers(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<WarpRouteMonitorHelmManager[]> {
+  return WarpRouteMonitorHelmManager.getManagersForChain(environment, chain);
+}
+
+export async function getRebalancerManagers(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<RebalancerHelmManager[]> {
+  return RebalancerHelmManager.getManagersForChain(environment, chain);
+}
+
+export function getCronjobManagers(
+  environment: DeployEnvironment,
+): HelmManager<any>[] {
+  const managers: HelmManager<any>[] = [];
+  try {
+    managers.push(
+      KeyFunderHelmManager.forEnvironment(
+        environment,
+        '', // registryCommit not needed for refresh
+      ),
+    );
+  } catch {
+    // Environment may not have key funder configured
+  }
+  return managers;
+}
+
+/**
+ * Collect all K8s helm managers for a given chain, split into service managers
+ * (which need both secret and pod refresh) and cronjob managers (secrets only).
+ */
+export async function collectAllK8sHelmManagers(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<{
+  serviceManagers: HelmManager<any>[];
+  cronjobManagers: HelmManager<any>[];
+}> {
+  const coreManagers = getCoreInfraManagers(environment, chain);
+  const warpManagers = await getWarpMonitorManagers(environment, chain);
+  const rebalancerManagers = await getRebalancerManagers(environment, chain);
+  const cronjobManagers = getCronjobManagers(environment);
+
+  return {
+    serviceManagers: [...coreManagers, ...warpManagers, ...rebalancerManagers],
+    cronjobManagers,
+  };
+}
+
+/**
+ * Non-interactively set RPC URLs for a chain. Validates each URL, updates the
+ * GCP secret, and optionally refreshes dependent K8s resources.
+ */
+export async function setRpcUrls(
+  environment: string,
+  chain: string,
+  rpcUrls: string[],
+  options?: { refreshK8s?: boolean },
+): Promise<void> {
+  // Validate all URLs
+  for (const url of rpcUrls) {
+    const healthy = await testProvider(chain, url);
+    if (!healthy) {
+      throw new Error(`Provider validation failed for ${url}`);
+    }
+  }
+
+  const secretPayload = JSON.stringify(rpcUrls);
+  await updateSecretAndDisablePrevious(environment, chain, secretPayload);
+
+  if (options?.refreshK8s) {
+    const deployEnv = environment as DeployEnvironment;
+    const { serviceManagers, cronjobManagers } =
+      await collectAllK8sHelmManagers(deployEnv, chain);
+    const allManagersForSecrets = [...serviceManagers, ...cronjobManagers];
+
+    if (allManagersForSecrets.length > 0) {
+      await refreshK8sResources(
+        allManagersForSecrets,
+        K8sResourceType.SECRET,
+        environment,
+        { skipConfirmation: true },
+      );
+    }
+    if (serviceManagers.length > 0) {
+      await refreshK8sResources(
+        serviceManagers,
+        K8sResourceType.POD,
+        environment,
+        { skipConfirmation: true },
+      );
+    }
+  }
+}
+
+export interface ReleaseInfo {
+  release: string;
+  type: string;
+  refresh: 'secret+pod' | 'secret-only';
+}
+
+/**
+ * List all K8s releases affected by an RPC URL change for a chain.
+ * Returns release metadata without making any changes.
+ */
+export async function listAffectedReleases(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<ReleaseInfo[]> {
+  const { serviceManagers, cronjobManagers } = await collectAllK8sHelmManagers(
+    environment,
+    chain,
+  );
+
+  const releases: ReleaseInfo[] = [];
+
+  for (const manager of serviceManagers) {
+    let type = 'service';
+    if (manager instanceof RelayerHelmManager) type = 'relayer';
+    else if (manager instanceof ValidatorHelmManager) type = 'validator';
+    else if (manager instanceof ScraperHelmManager) type = 'scraper';
+    else if (manager instanceof WarpRouteMonitorHelmManager)
+      type = 'warp-monitor';
+    else if (manager instanceof RebalancerHelmManager) type = 'rebalancer';
+
+    releases.push({
+      release: manager.helmReleaseName,
+      type,
+      refresh: 'secret+pod',
+    });
+  }
+
+  for (const manager of cronjobManagers) {
+    releases.push({
+      release: manager.helmReleaseName,
+      type: 'cronjob',
+      refresh: 'secret-only',
+    });
+  }
+
+  return releases;
+}
+
+/**
+ * Refresh only the specified K8s releases (by helm release name).
+ * Services get secret + pod refresh; cronjobs get secret-only.
+ */
+export async function refreshSelectedReleases(
+  environment: DeployEnvironment,
+  chain: string,
+  releaseNames: string[],
+): Promise<void> {
+  const { serviceManagers, cronjobManagers } = await collectAllK8sHelmManagers(
+    environment,
+    chain,
+  );
+
+  const selectedServices = serviceManagers.filter((m) =>
+    releaseNames.includes(m.helmReleaseName),
+  );
+  const selectedCronjobs = cronjobManagers.filter((m) =>
+    releaseNames.includes(m.helmReleaseName),
+  );
+  const allForSecrets = [...selectedServices, ...selectedCronjobs];
+
+  if (allForSecrets.length === 0) {
+    console.log('No matching releases found to refresh');
+    return;
+  }
+
+  console.log(
+    `Refreshing ${allForSecrets.length} releases: ${allForSecrets.map((m) => m.helmReleaseName).join(', ')}`,
+  );
+
+  await refreshK8sResources(
+    allForSecrets,
+    K8sResourceType.SECRET,
+    environment,
+    { skipConfirmation: true },
+  );
+
+  if (selectedServices.length > 0) {
+    await refreshK8sResources(
+      selectedServices,
+      K8sResourceType.POD,
+      environment,
+      { skipConfirmation: true },
+    );
+  }
 }
 
 async function testProvider(chain: ChainName, url: string): Promise<boolean> {

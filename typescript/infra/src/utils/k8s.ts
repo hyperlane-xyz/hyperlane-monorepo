@@ -14,6 +14,7 @@ export async function refreshK8sResources(
   helmManagers: HelmManager<any>[],
   resourceType: K8sResourceType,
   namespace: string,
+  options?: { skipConfirmation?: boolean },
 ) {
   const resourceNames = (
     await Promise.all(
@@ -31,11 +32,13 @@ export async function refreshK8sResources(
 
   console.log(`Ready to delete ${resourceType}s: ${resourceNames.join(', ')}`);
 
-  const cont = await confirm({
-    message: `Proceed and delete ${resourceNames.length} ${resourceType}s?`,
-  });
-  if (!cont) {
-    throw new Error('Aborting');
+  if (!options?.skipConfirmation) {
+    const cont = await confirm({
+      message: `Proceed and delete ${resourceNames.length} ${resourceType}s?`,
+    });
+    if (!cont) {
+      throw new Error('Aborting');
+    }
   }
 
   await execCmd(
