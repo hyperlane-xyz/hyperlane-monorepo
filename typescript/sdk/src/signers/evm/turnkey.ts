@@ -24,6 +24,13 @@ export type TurnkeyViemTransactionRequest = ViemTransactionRequestLike & {
   data?: Hex;
 };
 
+type TypedDataDomainLike = Record<string, unknown>;
+type TypedDataTypesLike = Record<
+  string,
+  readonly { name: string; type: string }[]
+>;
+type TypedDataValueLike = Record<string, unknown>;
+
 /**
  * Turnkey signer for EVM transactions
  * Uses Turnkey's secure enclaves to sign transactions without exposing private keys
@@ -142,6 +149,32 @@ export class TurnkeyViemSigner {
       logTurnkeyError('Failed to sign message with Turnkey', error);
       throw error;
     }
+  }
+
+  async signTypedData(
+    domain: TypedDataDomainLike,
+    types: TypedDataTypesLike,
+    value: TypedDataValueLike,
+  ): Promise<string> {
+    const primaryType = Object.keys(types).find(
+      (key) => key !== 'EIP712Domain',
+    );
+    if (!primaryType)
+      throw new Error('Typed data types must include a primary type');
+    return this.account.signTypedData({
+      domain: domain as any,
+      types: types as any,
+      primaryType: primaryType as any,
+      message: value as any,
+    });
+  }
+
+  async _signTypedData(
+    domain: TypedDataDomainLike,
+    types: TypedDataTypesLike,
+    value: TypedDataValueLike,
+  ): Promise<string> {
+    return this.signTypedData(domain, types, value);
   }
 
   async sendTransaction(

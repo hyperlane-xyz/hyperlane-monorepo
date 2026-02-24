@@ -19,6 +19,13 @@ type RpcSendable = {
   send(method: string, params: unknown[]): Promise<unknown>;
 };
 
+type TypedDataDomainLike = Record<string, unknown>;
+type TypedDataTypesLike = Record<
+  string,
+  readonly { name: string; type: string }[]
+>;
+type TypedDataValueLike = Record<string, unknown>;
+
 function hasRpcSend(
   provider: ViemProviderLike,
 ): provider is ViemProviderLike & RpcSendable {
@@ -68,6 +75,31 @@ export class LocalAccountViemSigner {
 
   async signMessage(message: string | Uint8Array): Promise<Hex> {
     return this.account.signMessage({ message: toSignableMessage(message) });
+  }
+
+  async signTypedData(
+    domain: TypedDataDomainLike,
+    types: TypedDataTypesLike,
+    value: TypedDataValueLike,
+  ): Promise<Hex> {
+    const primaryType = Object.keys(types).find(
+      (key) => key !== 'EIP712Domain',
+    );
+    assert(primaryType, 'Typed data types must include a primary type');
+    return this.account.signTypedData({
+      domain: domain as any,
+      types: types as any,
+      primaryType: primaryType as any,
+      message: value as any,
+    });
+  }
+
+  async _signTypedData(
+    domain: TypedDataDomainLike,
+    types: TypedDataTypesLike,
+    value: TypedDataValueLike,
+  ): Promise<Hex> {
+    return this.signTypedData(domain, types, value);
   }
 
   async signTransaction(tx: LocalViemTransactionRequest): Promise<Hex> {
