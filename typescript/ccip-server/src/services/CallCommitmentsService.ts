@@ -49,7 +49,7 @@ const CommitmentRecordSchema = PostCallsSchema.extend({
 
 type ReceiptLog = { topics: readonly string[]; address: string; data: string };
 type TransactionReceiptLike = {
-  logs?: unknown[];
+  logs?: readonly unknown[] | unknown[];
   transactionHash?: string;
 };
 
@@ -493,9 +493,10 @@ export class CallCommitmentsService extends BaseService {
       destinationRouterAddress,
       this.multiProvider.getProvider(destinationDomain),
     );
-    return destinationRouter[
+    const ica = await destinationRouter[
       'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
     ](originDomain, owner, originRouter, ismAddress, salt);
+    return String(ica);
   }
 
   /**

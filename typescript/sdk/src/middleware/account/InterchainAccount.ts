@@ -38,7 +38,10 @@ import {
   HyperlaneContractsMap,
 } from '../../contracts/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import type { EvmTransactionResponseLike } from '../../providers/evmTypes.js';
+import type {
+  EvmTransactionLike,
+  EvmTransactionResponseLike,
+} from '../../providers/evmTypes.js';
 import { CallData as SdkCallData } from '../../providers/transactions/types.js';
 import { RouterApp } from '../../router/RouterApps.js';
 import { ChainMap, ChainName } from '../../types.js';
@@ -57,14 +60,6 @@ const IGP_DEFAULT_GAS = 50_000n;
 const ICA_OVERHEAD = 50_000n;
 const PER_CALL_OVERHEAD = 5_000n;
 const ICA_HANDLE_GAS_FALLBACK = 200_000n;
-
-type PopulatedTransaction = Awaited<
-  ReturnType<
-    ReturnType<
-      typeof InterchainAccountRouter__factory.connect
-    >['populateTransaction']['callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)']
-  >
->;
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   knownAccounts: Record<Address, AccountConfig | undefined>;
@@ -328,7 +323,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     innerCalls,
     config,
     hookMetadata,
-  }: GetCallRemoteSettings): Promise<PopulatedTransaction> {
+  }: GetCallRemoteSettings): Promise<EvmTransactionLike> {
     const localRouter = config.localRouter
       ? InterchainAccountRouter__factory.connect(
           config.localRouter,

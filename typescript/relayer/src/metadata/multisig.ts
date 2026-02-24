@@ -161,14 +161,17 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
       const storageLocations =
         await validatorAnnounce.getAnnouncedStorageLocations(toFetch);
+      const normalizedStorageLocations = storageLocations.map((locations) => [
+        ...locations,
+      ]);
 
       this.logger.debug({ storageLocations }, 'Fetched storage locations');
 
       // Use mapAllSettled to handle partial failures gracefully
       // Some validators may not have announced storage locations or may have invalid ones
       const { fulfilled, rejected } = await mapAllSettled(
-        storageLocations,
-        async (locations: readonly string[], index) => {
+        normalizedStorageLocations,
+        async (locations, index) => {
           const latestLocation = locations.slice(-1)[0];
           if (!latestLocation) {
             throw new Error(
@@ -397,17 +400,17 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     );
 
     const merkleTree = context.hook.address;
-    const dispatchLogs = context.dispatchTx.logs;
+    const rawDispatchLogs = context.dispatchTx.logs;
     assert(
-      dispatchLogs,
+      rawDispatchLogs,
       `No logs found in dispatch tx for message ${context.message.id}`,
     );
+    const dispatchLogs = Array.from(rawDispatchLogs).filter(isAddressedLog);
 
     // Find the merkle tree insertion event for this message
     const matchingInsertion = dispatchLogs
-      .filter(isAddressedLog)
-      .filter((log: AddressedLog) => eqAddressEvm(log.address, merkleTree))
-      .map((log: AddressedLog) => MerkleTreeInterface.parseLog(log))
+      .filter((log) => eqAddressEvm(log.address, merkleTree))
+      .map((log) => MerkleTreeInterface.parseLog(log))
       .find((event: { args: unknown }) => {
         const args = asRecord(event.args);
         return args?.messageId === context.message.id;

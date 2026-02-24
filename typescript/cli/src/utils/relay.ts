@@ -15,7 +15,7 @@ import { type ExtendedSubmissionStrategy } from '../submitters/types.js';
 
 type EvmTxReceiptLike = {
   transactionHash?: string;
-  logs?: unknown[];
+  logs?: readonly unknown[] | unknown[];
   [key: string]: unknown;
 };
 
