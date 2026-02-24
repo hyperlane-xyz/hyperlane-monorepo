@@ -31,7 +31,7 @@ use std::{
 use ethers_contract::MULTICALL_ADDRESS;
 use hyperlane_core::{PendingOperationStatus, ReorgEvent, ReprepareReason, SubmitterType};
 use logging::log;
-pub use metrics::fetch_metric;
+pub use metrics::{fetch_metric, fetch_metric_exact};
 use once_cell::sync::Lazy;
 use program::Program;
 use relayer::msg::pending_message::{INVALIDATE_CACHE_METADATA_LOG, RETRIEVED_MESSAGE_LOG};
