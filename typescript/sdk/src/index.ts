@@ -842,6 +842,8 @@ export {
   ProtocolMap,
   TypedSigner,
   IMultiProtocolSignerManager,
+  MultiProviderEvmProvider,
+  MultiProviderEvmSigner,
 } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export {

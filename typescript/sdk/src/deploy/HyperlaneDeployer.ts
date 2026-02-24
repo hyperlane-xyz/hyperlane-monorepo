@@ -41,7 +41,12 @@ import {
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
-import { ChainMap, ChainName, OwnableConfig } from '../types.js';
+import {
+  ChainMap,
+  ChainName,
+  MultiProviderEvmSigner,
+  OwnableConfig,
+} from '../types.js';
 import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 import {
@@ -66,10 +71,9 @@ type PopulatedTransaction = Awaited<
   Parameters<MultiProvider['sendTransaction']>[1]
 >;
 type TxReceipt = Awaited<ReturnType<MultiProvider['handleTx']>>;
-type EvmSigner = ReturnType<MultiProvider['getSigner']>;
 type ContractLike = {
   address: Address;
-  signer?: EvmSigner;
+  signer?: MultiProviderEvmSigner;
   interface: {
     encodeFunctionData(
       functionName: string,

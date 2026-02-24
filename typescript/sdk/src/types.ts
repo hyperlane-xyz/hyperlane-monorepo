@@ -1,4 +1,3 @@
-import type { BigNumber, Signer, ethers } from 'ethers';
 import { z } from 'zod';
 
 import type { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
@@ -20,7 +19,10 @@ export type ProtocolMap<Value> = Partial<Record<ProtocolType, Value>>;
 
 export type ChainNameOrId = ChainName | Domain;
 
-export type Connection = ethers.providers.Provider | ethers.Signer;
+export type MultiProviderEvmProvider = ReturnType<MultiProvider['getProvider']>;
+export type MultiProviderEvmSigner = ReturnType<MultiProvider['getSigner']>;
+
+export type Connection = MultiProviderEvmProvider | MultiProviderEvmSigner;
 
 export const OwnableSchema = z.object({
   owner: ZHash,
@@ -45,18 +47,18 @@ export const PausableSchema = OwnableSchema.extend({
 export type PausableConfig = z.infer<typeof PausableSchema>;
 
 export type TypedSigner<T extends ProtocolType> =
-  | Signer
+  | MultiProviderEvmSigner
   | AltVM.ISigner<ProtocolTransaction<T>, ProtocolReceipt<T>>;
 
 export interface IMultiProtocolSignerManager {
   getMultiProvider(): Promise<MultiProvider>;
 
-  getEVMSigner(chain: ChainName): Signer;
+  getEVMSigner(chain: ChainName): MultiProviderEvmSigner;
 
   getSignerAddress(chain: ChainName): Promise<Address>;
   getBalance(params: {
     address: Address;
     chain: ChainName;
     denom?: string;
-  }): Promise<BigNumber>;
+  }): Promise<Awaited<ReturnType<MultiProviderEvmProvider['getBalance']>>>;
 }
