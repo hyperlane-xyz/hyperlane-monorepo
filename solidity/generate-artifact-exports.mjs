@@ -89,7 +89,14 @@ class ArtifactGenerator {
    * @return {string[]} Array of file paths matching the glob pattern
    */
   async getArtifactPaths() {
-    return this.collectArtifactPaths(join(CONFIG.cwd, CONFIG.artifactsRootDir));
+    const rootArtifactsDir = join(CONFIG.cwd, CONFIG.artifactsRootDir);
+    try {
+      await fs.access(rootArtifactsDir);
+    } catch (error) {
+      if (error?.code === 'ENOENT') return [];
+      throw error;
+    }
+    return this.collectArtifactPaths(rootArtifactsDir);
   }
 
   /**

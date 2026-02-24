@@ -24,11 +24,13 @@ describe('MockMailbox', function () {
 
     const body = toBytes('This is a test message');
 
-    await originMailbox.write.dispatch([
+    const dispatchTx = await originMailbox.write.dispatch([
       BigInt(DESTINATION_DOMAIN),
       addressToBytes32(recipient.address),
       bytesToHex(body),
     ]);
+    await publicClient.waitForTransactionReceipt({ hash: dispatchTx });
+
     const processTx =
       await destinationMailbox.write.processNextInboundMessage();
     await publicClient.waitForTransactionReceipt({ hash: processTx });

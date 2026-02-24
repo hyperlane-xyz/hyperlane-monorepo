@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import hre from 'hardhat';
-import { pad, stringToHex, toHex } from 'viem';
+import { bytesToHex, pad, stringToHex } from 'viem';
 
 import {
   addressToBytes32,
@@ -67,7 +67,10 @@ describe('Message', async () => {
     for (const test of testCases) {
       const { origin, sender, destination, recipient, body, nonce, id } = test;
 
-      const hexBody = toHex(body as any);
+      const hexBody =
+        typeof body === 'string'
+          ? body
+          : bytesToHex(Uint8Array.from(body as number[]));
 
       const hyperlaneMessage = formatMessage(
         version,
