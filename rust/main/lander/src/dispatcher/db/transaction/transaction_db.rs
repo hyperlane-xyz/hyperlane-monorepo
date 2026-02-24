@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use hyperlane_base::db::{DbResult, HyperlaneRocksDB};
 use hyperlane_core::{Decode, Encode, HyperlaneProtocolError};
 
-use crate::transaction::{Transaction, TransactionUuid};
+use crate::transaction::{Transaction, TransactionStatus, TransactionUuid};
 
 const TRANSACTION_BY_UUID_STORAGE_PREFIX: &str = "transaction_by_uuid_";
 
@@ -67,6 +67,20 @@ pub trait TransactionDb: Send + Sync {
 
     /// Retrieve the highest transaction index
     async fn retrieve_highest_transaction_index(&self) -> DbResult<u32>;
+
+    /// Count transactions currently matching a status.
+    async fn count_transactions_by_status(&self, status: &TransactionStatus) -> DbResult<u64> {
+        let mut count = 0_u64;
+        let highest_index = self.retrieve_highest_transaction_index().await?;
+        for index in 1..=highest_index {
+            if let Some(tx) = self.retrieve_transaction_by_index(index).await? {
+                if &tx.status == status {
+                    count = count.saturating_add(1);
+                }
+            }
+        }
+        Ok(count)
+    }
 }
 
 #[async_trait]
@@ -176,7 +190,7 @@ mod tests {
     use hyperlane_core::KnownHyperlaneDomain;
 
     use crate::tests::test_utils::dummy_tx;
-    use crate::transaction::TransactionUuid;
+    use crate::transaction::{DropReason, TransactionUuid};
     use crate::{payload::FullPayload, transaction::TransactionStatus};
 
     use super::TransactionDb;
@@ -223,5 +237,35 @@ mod tests {
             let highest_index = db.retrieve_highest_transaction_index().await.unwrap();
             assert_eq!(highest_index, expected_index as u32);
         }
+    }
+
+    #[tokio::test]
+    async fn test_count_transactions_by_status() {
+        let db = tmp_db();
+        let statuses = vec![
+            TransactionStatus::PendingInclusion,
+            TransactionStatus::Finalized,
+            TransactionStatus::Included,
+            TransactionStatus::Finalized,
+            TransactionStatus::Dropped(DropReason::DroppedByChain),
+        ];
+
+        for status in statuses {
+            let payload = FullPayload::random();
+            let tx = dummy_tx(vec![payload], status);
+            db.store_transaction_by_uuid(&tx).await.unwrap();
+        }
+
+        let finalized_count = db
+            .count_transactions_by_status(&TransactionStatus::Finalized)
+            .await
+            .unwrap();
+        let included_count = db
+            .count_transactions_by_status(&TransactionStatus::Included)
+            .await
+            .unwrap();
+
+        assert_eq!(finalized_count, 2);
+        assert_eq!(included_count, 1);
     }
 }

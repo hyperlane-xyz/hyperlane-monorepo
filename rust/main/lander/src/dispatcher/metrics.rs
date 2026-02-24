@@ -39,7 +39,7 @@ pub struct DispatcherMetrics {
 
     pub transaction_submissions: IntCounterVec,
 
-    pub finalized_transactions: IntCounterVec,
+    pub finalized_transactions: IntGaugeVec,
 
     // includes a label for the error causing the retry, and a label for the type of call
     pub call_retries: IntCounterVec,
@@ -136,10 +136,10 @@ impl DispatcherMetrics {
             &["destination",],
             registry.clone()
         )?;
-        let finalized_transactions = register_int_counter_vec_with_registry!(
+        let finalized_transactions = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced("finalized_transactions"),
-                "The number of transactions finalized",
+                "The number of finalized transactions currently tracked in DB",
             ),
             &["destination",],
             registry.clone()
@@ -276,10 +276,28 @@ impl DispatcherMetrics {
             .inc();
     }
 
-    pub fn update_finalized_transactions_metric(&self, domain: &str) {
+    pub fn set_finalized_transactions_metric(&self, count: u64, domain: &str) {
+        self.finalized_transactions
+            .with_label_values(&[domain])
+            .set(count as i64);
+    }
+
+    pub fn increment_finalized_transactions_metric(&self, domain: &str) {
         self.finalized_transactions
             .with_label_values(&[domain])
             .inc();
+    }
+
+    pub fn decrement_finalized_transactions_metric(&self, domain: &str) {
+        let gauge = self.finalized_transactions.with_label_values(&[domain]);
+        if gauge.get() > 0 {
+            gauge.dec();
+            return;
+        }
+        warn!(
+            %domain,
+            "Attempted to decrement finalized_transactions gauge below zero"
+        );
     }
 
     pub fn update_call_retries_metric(&self, error_type: &str, call_type: &str, domain: &str) {

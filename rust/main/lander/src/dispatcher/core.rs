@@ -14,14 +14,14 @@ use hyperlane_base::{
     CoreMetrics,
 };
 use hyperlane_core::HyperlaneDomain;
-use tracing::{instrument, Instrument};
+use tracing::{instrument, warn, Instrument};
 
 use crate::{
     adapter::{AdapterFactory, AdaptsChain},
     dispatcher::{
         BuildingStage, BuildingStageQueue, FinalityStage, InclusionStage, PayloadDbLoader,
     },
-    transaction::Transaction,
+    transaction::{Transaction, TransactionStatus},
 };
 
 use super::{metrics::DispatcherMetrics, DispatcherState, TransactionDbLoader};
@@ -83,6 +83,23 @@ impl Dispatcher {
             tokio::sync::mpsc::channel::<Transaction>(SUBMITTER_CHANNEL_SIZE);
         let (finality_stage_sender, finality_stage_receiver) =
             tokio::sync::mpsc::channel::<Transaction>(SUBMITTER_CHANNEL_SIZE);
+
+        match self
+            .inner
+            .tx_db
+            .count_transactions_by_status(&TransactionStatus::Finalized)
+            .await
+        {
+            Ok(count) => self
+                .inner
+                .metrics
+                .set_finalized_transactions_metric(count, &self.domain),
+            Err(err) => warn!(
+                ?err,
+                domain = %self.domain,
+                "Failed to initialize finalized transaction gauge from DB"
+            ),
+        }
 
         let building_stage = BuildingStage::new(
             building_stage_queue.clone(),

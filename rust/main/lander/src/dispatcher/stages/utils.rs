@@ -59,15 +59,19 @@ pub async fn update_tx_status(
     if new_status == old_tx_status {
         return Ok(());
     }
-    // these metric updates assume a transaction can only be finalized once and dropped once.
-    // note that a transaction may be counted as `finalized` initially, and then later
-    // also counted as `dropped` if it was reorged out.
+    // Keep finalized tx gauge in sync with DB status transitions.
+    match (&old_tx_status, &tx.status) {
+        (TransactionStatus::Finalized, TransactionStatus::Finalized) => {}
+        (TransactionStatus::Finalized, _) => state
+            .metrics
+            .decrement_finalized_transactions_metric(&state.domain),
+        (_, TransactionStatus::Finalized) => state
+            .metrics
+            .increment_finalized_transactions_metric(&state.domain),
+        _ => {}
+    }
+
     match tx.status {
-        TransactionStatus::Finalized => {
-            state
-                .metrics
-                .update_finalized_transactions_metric(&state.domain);
-        }
         TransactionStatus::Dropped(ref reason) => {
             state
                 .metrics
