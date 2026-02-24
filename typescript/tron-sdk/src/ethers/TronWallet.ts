@@ -34,8 +34,13 @@ export interface TronTransactionResponse extends providers.TransactionResponse {
  * gasLimit to Tron's feeLimit using: feeLimit = gasLimit × gasPrice.
  */
 export class TronWallet extends Wallet {
-  /** Counter to ensure each transaction gets a unique expiration → unique txID */
-  private txCounter = 0;
+  /**
+   * Static counter to ensure unique txIDs across all wallet instances.
+   * Must be static because connect() creates new instances, and Tron txIDs
+   * are derived from transaction content + expiration. Without a shared counter,
+   * two instances could generate identical txIDs in the same block.
+   */
+  private static txCounter = 0;
 
   private readonly tronUrl: string;
   private tronWeb: TronWeb;
@@ -176,7 +181,7 @@ export class TronWallet extends Wallet {
   }
 
   private async makeUnique(tronTx: TronTransaction): Promise<TronTransaction> {
-    const extension = ++this.txCounter;
+    const extension = ++TronWallet.txCounter;
     const altered = await this.tronWeb.transactionBuilder.alterTransaction(
       tronTx as Types.Transaction,
       {
