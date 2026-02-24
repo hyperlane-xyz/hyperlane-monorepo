@@ -42,10 +42,11 @@ export interface RebalancerAgentConfig {
 
 /** Strategy description — either prose or structured */
 export type StrategyDescription =
-  | { type: 'prose'; text: string }
+  | { type: 'prose'; text: string; routeHints?: string }
   | {
       type: 'weighted';
       chains: Record<string, { weight: number; tolerance: number }>;
+      routeHints?: string;
     }
   | {
       type: 'minAmount';
@@ -53,6 +54,7 @@ export type StrategyDescription =
         string,
         { min: string; target: string; amountType: 'absolute' | 'relative' }
       >;
+      routeHints?: string;
     };
 
 /** Options for creating the LLM rebalancer agent */

@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
+import { resolveChainName } from '@hyperlane-xyz/rebalancer';
+
 import {
   NoOpRebalancer,
   ProductionRebalancerRunner,
@@ -10,6 +12,7 @@ import {
   SimulationEngine,
   cleanupProductionRebalancer,
   cleanupSimpleRunner,
+  deployMultiAssetSimulation,
   deployMultiDomainSimulation,
   generateTimelineHtml,
   getWarpTokenBalance,
@@ -18,7 +21,9 @@ import {
 } from '../../src/index.js';
 import type {
   ChainStrategyConfig,
+  DeployedDomain,
   IRebalancerRunner,
+  MultiDomainDeploymentResult,
   ScenarioFile,
   SimulationResult,
 } from '../../src/index.js';
@@ -26,6 +31,23 @@ import { ANVIL_DEPLOYER_KEY } from '../../src/types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const RESULTS_DIR = path.join(__dirname, '..', '..', 'results');
+
+/** Resolve bridge address for a strategy key. For "SYMBOL|chain" keys, uses per-asset bridge. */
+export function resolveBridge(
+  deployment: MultiDomainDeploymentResult,
+  key: string,
+): string {
+  const chainName = resolveChainName(key);
+  const domain: DeployedDomain | undefined = deployment.domains[chainName];
+  if (!domain) return ethers.constants.AddressZero;
+  const pipeIdx = key.indexOf('|');
+  if (pipeIdx >= 0 && domain.assets) {
+    const symbol = key.slice(0, pipeIdx);
+    const asset = domain.assets[symbol];
+    if (asset?.bridge) return asset.bridge;
+  }
+  return domain.bridge;
+}
 
 export type RebalancerType = 'simple' | 'production' | 'noop' | 'llm';
 
@@ -150,12 +172,21 @@ export async function runScenarioWithRebalancers(
     }
 
     // Deploy fresh contracts for each rebalancer run
-    const deployment = await deployMultiDomainSimulation({
-      anvilRpc: options.anvilRpc,
-      deployerKey: ANVIL_DEPLOYER_KEY,
-      chains: chainConfigs,
-      initialCollateralBalance: BigInt(file.defaultInitialCollateral),
-    });
+    const isMultiAsset = file.assets && file.assets.length > 0;
+    const deployment = isMultiAsset
+      ? await deployMultiAssetSimulation({
+          anvilRpc: options.anvilRpc,
+          deployerKey: ANVIL_DEPLOYER_KEY,
+          chains: chainConfigs,
+          initialCollateralBalance: BigInt(file.defaultInitialCollateral),
+          assets: file.assets!,
+        })
+      : await deployMultiDomainSimulation({
+          anvilRpc: options.anvilRpc,
+          deployerKey: ANVIL_DEPLOYER_KEY,
+          chains: chainConfigs,
+          initialCollateralBalance: BigInt(file.defaultInitialCollateral),
+        });
 
     // Apply initial imbalance if specified
     if (file.initialImbalance) {
@@ -185,18 +216,20 @@ export async function runScenarioWithRebalancers(
     }
 
     const strategyConfig: {
-      type: 'weighted' | 'minAmount';
+      type: 'weighted' | 'minAmount' | 'collateralDeficit';
       chains: Record<string, ChainStrategyConfig>;
+      routeHints?: string;
     } = {
       type: file.defaultStrategyConfig.type,
       chains: {},
+      routeHints: file.defaultStrategyConfig.routeHints,
     };
-    for (const [chainName, chainConfig] of Object.entries(
+    for (const [key, chainConfig] of Object.entries(
       file.defaultStrategyConfig.chains,
     )) {
-      strategyConfig.chains[chainName] = {
+      strategyConfig.chains[key] = {
         ...chainConfig,
-        bridge: deployment.domains[chainName].bridge,
+        bridge: resolveBridge(deployment, key),
       };
     }
 

@@ -391,6 +391,8 @@ export interface RebalancerSimConfig {
 export interface RebalancerStrategyConfig {
   type: 'weighted' | 'minAmount' | 'collateralDeficit';
   chains: Record<string, ChainStrategyConfig>;
+  /** Optional route hints for LLM rebalancer (describes available rebalancing routes) */
+  routeHints?: string;
 }
 
 /**
@@ -572,6 +574,8 @@ export interface SerializedBridgeConfig {
  */
 export interface SerializedStrategyConfig {
   type: 'weighted' | 'minAmount' | 'collateralDeficit';
+  /** Optional route hints for LLM rebalancer (describes available rebalancing routes) */
+  routeHints?: string;
   chains: {
     [chain: string]: {
       weighted?: {

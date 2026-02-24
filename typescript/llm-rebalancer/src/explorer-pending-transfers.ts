@@ -34,30 +34,69 @@ export interface ExplorerClientLike {
 
 export class ExplorerPendingTransferProvider implements PendingTransferProvider {
   private readonly domainToChain: Record<number, string>;
-  private readonly routersByDomain: Record<number, string>;
+  /** All routers per domain (includes all asset warp tokens for multi-asset) */
+  private readonly allRoutersByDomain: Record<number, string[]>;
 
   constructor(
     private explorerClient: ExplorerClientLike,
     private agentConfig: RebalancerAgentConfig,
   ) {
-    this.routersByDomain = {};
+    this.allRoutersByDomain = {};
     this.domainToChain = {};
     for (const [name, chain] of Object.entries(agentConfig.chains)) {
-      this.routersByDomain[chain.domainId] = chain.warpToken;
       this.domainToChain[chain.domainId] = name;
+      const routers: string[] = [chain.warpToken];
+      if (chain.assets) {
+        for (const asset of Object.values(chain.assets)) {
+          if (!routers.includes(asset.warpToken)) {
+            routers.push(asset.warpToken);
+          }
+        }
+      }
+      this.allRoutersByDomain[chain.domainId] = routers;
     }
   }
 
   async getPendingTransfers(): Promise<PendingTransfer[]> {
-    const messages = await this.explorerClient.getInflightUserTransfers(
-      {
-        routersByDomain: this.routersByDomain,
-        excludeTxSender: this.agentConfig.rebalancerAddress,
-      },
-      logger,
-    );
+    // Query for each router and merge results (explorer may only accept single router)
+    const allMessages: Array<{
+      msg_id: string;
+      origin_domain_id: number;
+      destination_domain_id: number;
+      message_body: string;
+    }> = [];
+    const seenIds = new Set<string>();
 
-    return messages.map((msg) => {
+    for (const [domainStr, routers] of Object.entries(
+      this.allRoutersByDomain,
+    )) {
+      const domain = Number(domainStr);
+      for (const router of routers) {
+        const routersByDomain: Record<number, string> = { [domain]: router };
+        try {
+          const messages = await this.explorerClient.getInflightUserTransfers(
+            {
+              routersByDomain,
+              excludeTxSender: this.agentConfig.rebalancerAddress,
+            },
+            logger,
+          );
+          for (const msg of messages) {
+            if (!seenIds.has(msg.msg_id)) {
+              seenIds.add(msg.msg_id);
+              allMessages.push(msg);
+            }
+          }
+        } catch (error) {
+          logger.warn(
+            { domain, router, error },
+            'Failed to query explorer for router',
+          );
+        }
+      }
+    }
+
+    return allMessages.map((msg) => {
       const parsed = parseWarpRouteMessage(msg.message_body);
       return {
         messageId: msg.msg_id,

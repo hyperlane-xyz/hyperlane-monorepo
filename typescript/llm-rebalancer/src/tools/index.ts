@@ -10,6 +10,7 @@ import type { PendingTransferProvider } from '../pending-transfers.js';
 import { buildGetBalancesTool } from './get-balances.js';
 import { buildGetChainMetadataTool } from './get-chain-metadata.js';
 import { buildCheckDeliveryTool } from './check-hyperlane-delivery.js';
+import { buildGetInventoryTool } from './get-inventory.js';
 import { buildGetPendingTransfersTool } from './get-pending-transfers.js';
 import { buildSaveContextTool } from './save-context.js';
 
@@ -21,6 +22,7 @@ export function buildCustomTools(
 ): ToolDefinition<any>[] {
   const tools: ToolDefinition<any>[] = [
     buildGetBalancesTool(agentConfig),
+    buildGetInventoryTool(agentConfig),
     buildGetChainMetadataTool(agentConfig),
     buildCheckDeliveryTool(agentConfig),
     buildSaveContextTool(contextStore, routeId),

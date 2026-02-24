@@ -360,4 +360,80 @@ describe('Rebalancer Simulation', function () {
       );
     }
   });
+
+  // ============================================================================
+  // MULTI-COLLATERAL SCENARIOS
+  // ============================================================================
+
+  it('mc-local-cross-asset-imbalance: same-chain swap to fix cross-asset deficit', async function () {
+    const { results, file } = await runScenarioWithRebalancers(
+      'mc-local-cross-asset-imbalance',
+      { anvilRpc: anvil.rpc },
+    );
+
+    for (const result of results) {
+      if (result.rebalancerName === 'NoOpRebalancer') continue;
+
+      if (file.expectations.minCompletionRate) {
+        expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
+          file.expectations.minCompletionRate,
+          `${result.rebalancerName} should have min completion rate`,
+        );
+      }
+      if (file.expectations.shouldTriggerRebalancing) {
+        expect(result.kpis.totalRebalances).to.be.greaterThan(
+          0,
+          `${result.rebalancerName} should trigger rebalancing`,
+        );
+      }
+    }
+  });
+
+  it('mc-remote-cross-asset-imbalance: multi-step composition (bridge + swap)', async function () {
+    const { results, file } = await runScenarioWithRebalancers(
+      'mc-remote-cross-asset-imbalance',
+      { anvilRpc: anvil.rpc },
+    );
+
+    for (const result of results) {
+      if (result.rebalancerName === 'NoOpRebalancer') continue;
+
+      if (file.expectations.minCompletionRate) {
+        expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
+          file.expectations.minCompletionRate,
+          `${result.rebalancerName} should have min completion rate`,
+        );
+      }
+      if (file.expectations.shouldTriggerRebalancing) {
+        expect(result.kpis.totalRebalances).to.be.greaterThan(
+          0,
+          `${result.rebalancerName} should trigger rebalancing`,
+        );
+      }
+    }
+  });
+
+  it('mc-mixed-traffic: handles multiple imbalance types simultaneously', async function () {
+    const { results, file } = await runScenarioWithRebalancers(
+      'mc-mixed-traffic',
+      { anvilRpc: anvil.rpc },
+    );
+
+    for (const result of results) {
+      if (result.rebalancerName === 'NoOpRebalancer') continue;
+
+      if (file.expectations.minCompletionRate) {
+        expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
+          file.expectations.minCompletionRate,
+          `${result.rebalancerName} should have min completion rate`,
+        );
+      }
+      if (file.expectations.shouldTriggerRebalancing) {
+        expect(result.kpis.totalRebalances).to.be.greaterThan(
+          0,
+          `${result.rebalancerName} should trigger rebalancing`,
+        );
+      }
+    }
+  });
 });

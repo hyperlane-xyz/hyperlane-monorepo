@@ -12,7 +12,7 @@ For simulation environments only. Calls `rebalance()` on the source chain's warp
 
 1. **Get chain metadata** via `get_chain_metadata` tool for addresses and RPC URLs.
 
-2. **Look up the bridge address** from the source chain's `bridge` field in the metadata.
+2. **Look up the bridge address** from the metadata. For multi-asset deployments, use the asset-specific bridge from `assets.<SYMBOL>.bridge` on the source chain. For single-asset, use the chain-level `bridge` field.
 
 3. **Execute rebalance** (see `submit-transaction` skill for signing):
 

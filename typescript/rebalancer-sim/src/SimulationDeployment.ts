@@ -539,6 +539,22 @@ export async function deployMultiAssetSimulation(
     }
   }
 
+  // Step 10: Fund rebalancer wallet with token inventory for same-chain swaps
+  // Give rebalancer 2x initial collateral of each token on each chain
+  const rebalancerInventory = ethers.BigNumber.from(
+    initialCollateralBalance,
+  ).mul(2);
+  for (const asset of assets) {
+    for (const chain of chains) {
+      const key = `${asset.symbol}:${chain.domainId}`;
+      const tx = await collateralTokens[key].transfer(
+        rebalancerAddress,
+        rebalancerInventory,
+      );
+      await tx.wait();
+    }
+  }
+
   // Cleanup provider
   provider.removeAllListeners();
   provider.polling = false;

@@ -120,6 +120,12 @@ export class LLMRebalancerRunner
     fs.mkdirSync(skillsDest, { recursive: true });
     this.copyDirSync(skillsSrc, skillsDest);
 
+    // Copy sim-only skills (e.g., rebalance-mock-bridge)
+    const simSkillsSrc = this.findSimSkillsDir();
+    if (simSkillsSrc && fs.existsSync(simSkillsSrc)) {
+      this.copyDirSync(simSkillsSrc, skillsDest);
+    }
+
     // Build agent config from deployment
     this.agentConfig = this.buildAgentConfig(config);
 
@@ -164,12 +170,18 @@ export class LLMRebalancerRunner
     const pendingTransferProvider: PendingTransferProvider = {
       async getPendingTransfers(): Promise<PendingTransfer[]> {
         const transfers = await tracker.getInProgressTransfers();
-        return transfers.map((t) => ({
-          messageId: t.messageId,
-          origin: domainToChain[t.origin] ?? String(t.origin),
-          destination: domainToChain[t.destination] ?? String(t.destination),
-          amount: t.amount.toString(),
-        }));
+        return transfers.map((t) => {
+          const meta = tracker.getTransferMeta(t.id);
+          return {
+            messageId: t.messageId,
+            origin: domainToChain[t.origin] ?? String(t.origin),
+            destination: domainToChain[t.destination] ?? String(t.destination),
+            amount: t.amount.toString(),
+            sourceAsset: meta?.sourceAsset,
+            destinationAsset: meta?.destinationAsset,
+            targetRouter: meta?.targetRouter,
+          };
+        });
       },
     };
 
@@ -347,6 +359,14 @@ export class LLMRebalancerRunner
     };
   }
 
+  private findSimSkillsDir(): string | null {
+    // Find sim-only skills directory from rebalancer-sim package
+    const thisDir = path.dirname(new URL(import.meta.url).pathname);
+    const candidate = path.resolve(thisDir, '..', '..', 'skills');
+    if (fs.existsSync(candidate)) return candidate;
+    return null;
+  }
+
   private findSkillsDir(): string {
     // Find skills directory from llm-rebalancer package
     try {
@@ -421,7 +441,11 @@ export class LLMRebalancerRunner
           };
         }
       }
-      return { type: 'weighted', chains };
+      return {
+        type: 'weighted',
+        chains,
+        routeHints: strategyConfig.routeHints,
+      };
     }
 
     if (strategyConfig.type === 'minAmount') {
@@ -440,13 +464,18 @@ export class LLMRebalancerRunner
           };
         }
       }
-      return { type: 'minAmount', chains };
+      return {
+        type: 'minAmount',
+        chains,
+        routeHints: strategyConfig.routeHints,
+      };
     }
 
     // Fallback: generate prose from whatever we have
     return {
       type: 'prose',
       text: `Maintain balanced collateral distribution across all chains. Strategy type: ${strategyConfig.type}.`,
+      routeHints: strategyConfig.routeHints,
     };
   }
 

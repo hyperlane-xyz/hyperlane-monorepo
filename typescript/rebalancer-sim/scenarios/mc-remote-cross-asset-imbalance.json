@@ -1,0 +1,101 @@
+{
+  "name": "mc-remote-cross-asset-imbalance",
+  "description": "Cross-asset and same-asset transfers drain both USDC and USDT from chain2. Rebalancer must bridge USDC AND deposit USDT from inventory.",
+  "expectedBehavior": "2 cross-asset transfers (50 USDT each) + 1 same-asset USDC transfer (50) all chain1→chain2.\nchain2 USDC depleted (50 transferred out). chain2 USDT depleted (100 consumed globally).\nRebalancer must: (1) bridge USDC from chain1→chain2, (2) deposit USDT from inventory.\nTests combined bridge + inventory deposit.",
+  "duration": 20000,
+  "chains": ["chain1", "chain2"],
+  "assets": [
+    { "symbol": "USDC", "decimals": 18 },
+    { "symbol": "USDT", "decimals": 18 }
+  ],
+  "transfers": [
+    {
+      "id": "mcr-000",
+      "timestamp": 0,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "50000000000000000000",
+      "user": "0x8b563f19033b6111597f5ae37a91b88591fa17d6",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mcr-001",
+      "timestamp": 500,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "50000000000000000000",
+      "user": "0x53e81e13db7f8a7f1ff614b699d36b22ba85761f",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDC"
+    },
+    {
+      "id": "mcr-002",
+      "timestamp": 1000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "50000000000000000000",
+      "user": "0xe6aa46c39443ae5c696524b2ec1b39f82942cdd8",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mcr-003",
+      "timestamp": 1500,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "50000000000000000000",
+      "user": "0x80507c3a61c9e6eede5dca9ee05d906455618ddf",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    }
+  ],
+  "defaultInitialCollateral": "50000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "routeHints": "Available routes:\n- Mock bridge: same-asset cross-chain (USDC chain1↔chain2, USDT chain1↔chain2)\n- NOT available: direct cross-asset cross-chain\nUser traffic drains both USDC and USDT from chain2.\nWhen USDT is depleted (totalBalance=0), deposit USDT from wallet inventory.\nBridge USDC from chain1→chain2 to fix USDC distribution.",
+    "chains": {
+      "USDC|chain1": {
+        "weighted": { "weight": "0.500", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      },
+      "USDC|chain2": {
+        "weighted": { "weight": "0.500", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      },
+      "USDT|chain1": {
+        "weighted": { "weight": "0.500", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      },
+      "USDT|chain2": {
+        "weighted": { "weight": "0.500", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "minCompletionRate": 0.75,
+    "shouldTriggerRebalancing": true
+  }
+}

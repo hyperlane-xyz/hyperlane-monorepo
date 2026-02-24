@@ -19,11 +19,20 @@ const logger = rootLogger.child({ module: 'MockActionTracker' });
  * this tracker via callbacks when transfers/rebalances are initiated
  * or completed.
  */
+/** Metadata for cross-asset transfers */
+export interface TransferAssetMeta {
+  sourceAsset?: string;
+  destinationAsset?: string;
+  targetRouter?: string;
+}
+
 export class MockActionTracker implements IActionTracker {
   private transfers = new Map<string, Transfer>();
   private intents = new Map<string, RebalanceIntent>();
   private actions = new Map<string, RebalanceAction>();
   private idCounter = 0;
+  /** Per-transfer asset metadata (for cross-asset tracking) */
+  private transferMeta = new Map<string, TransferAssetMeta>();
 
   async initialize(): Promise<void> {
     logger.debug('MockActionTracker initialized');
@@ -53,6 +62,7 @@ export class MockActionTracker implements IActionTracker {
     origin: Domain,
     destination: Domain,
     amount: bigint,
+    meta?: TransferAssetMeta,
   ): void {
     const now = Date.now();
     this.transfers.set(id, {
@@ -67,10 +77,18 @@ export class MockActionTracker implements IActionTracker {
       createdAt: now,
       updatedAt: now,
     });
+    if (meta) {
+      this.transferMeta.set(id, meta);
+    }
     logger.debug(
       { id, origin, destination, amount: amount.toString() },
       'Added transfer',
     );
+  }
+
+  /** Get asset metadata for a transfer */
+  getTransferMeta(id: string): TransferAssetMeta | undefined {
+    return this.transferMeta.get(id);
   }
 
   /**
@@ -78,6 +96,7 @@ export class MockActionTracker implements IActionTracker {
    */
   removeTransfer(id: string): void {
     this.transfers.delete(id);
+    this.transferMeta.delete(id);
     logger.debug({ id }, 'Transfer removed');
   }
 
@@ -277,6 +296,7 @@ export class MockActionTracker implements IActionTracker {
    */
   clear(): void {
     this.transfers.clear();
+    this.transferMeta.clear();
     this.intents.clear();
     this.actions.clear();
     this.idCounter = 0;

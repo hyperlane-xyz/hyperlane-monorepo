@@ -136,20 +136,23 @@ export class MockInfrastructureController {
     // Classify by sender — check all assets if multi-asset deployment
     let isWarp = senderLower === originDomain.warpToken.toLowerCase();
     let warpTokenScale = DEFAULT_WARP_TOKEN_SCALE;
-    if (!isWarp && originDomain.assets) {
-      for (const asset of Object.values(originDomain.assets)) {
+    let senderAssetSymbol: string | undefined;
+    if (originDomain.assets) {
+      for (const [symbol, asset] of Object.entries(originDomain.assets)) {
         if (senderLower === asset.warpToken.toLowerCase()) {
           isWarp = true;
           warpTokenScale = asset.scale;
+          senderAssetSymbol = symbol;
           break;
         }
       }
     }
     let isBridge = senderLower === originDomain.bridge.toLowerCase();
-    if (!isBridge && originDomain.assets) {
-      for (const asset of Object.values(originDomain.assets)) {
+    if (originDomain.assets) {
+      for (const [symbol, asset] of Object.entries(originDomain.assets)) {
         if (senderLower === asset.bridge.toLowerCase()) {
           isBridge = true;
+          senderAssetSymbol = symbol;
           break;
         }
       }
@@ -228,11 +231,40 @@ export class MockInfrastructureController {
         amount,
       );
 
+      // Resolve destination asset for cross-asset transfers.
+      // In MultiCollateral.transferRemoteTo, the targetRouter (destination warp token)
+      // is the Hyperlane message RECIPIENT, not in the body. Extract from message header:
+      // offset 45 = version(1) + nonce(4) + origin(4) + sender(32) + destination(4), length 32.
+      let destAssetSymbol = senderAssetSymbol;
+      const destDomain = this.domains[destChain];
+      if (destDomain?.assets && senderAssetSymbol) {
+        try {
+          const recipientHex = '0x' + message.slice(2 + 45 * 2, 2 + 77 * 2);
+          const recipientAddr = ethers.utils.getAddress(
+            '0x' + recipientHex.slice(26),
+          );
+          for (const [symbol, asset] of Object.entries(destDomain.assets)) {
+            if (asset.warpToken.toLowerCase() === recipientAddr.toLowerCase()) {
+              destAssetSymbol = symbol;
+              break;
+            }
+          }
+        } catch {
+          // Can't decode recipient — use same asset
+        }
+      }
+
       this.actionTracker?.addTransfer(
         messageId,
         this.core.multiProvider.getDomainId(originChain),
         this.core.multiProvider.getDomainId(destChain),
         amount,
+        senderAssetSymbol
+          ? {
+              sourceAsset: senderAssetSymbol,
+              destinationAsset: destAssetSymbol,
+            }
+          : undefined,
       );
     }
 

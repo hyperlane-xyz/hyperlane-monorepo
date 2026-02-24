@@ -1,0 +1,141 @@
+{
+  "name": "mc-mixed-traffic",
+  "description": "Mixed cross-asset and same-asset transfers across 3 chains. Cross-asset transfers globally deplete USDT, forcing inventory deposits alongside bridges.",
+  "expectedBehavior": "4 cross-asset transfers (USDC→USDT) of 50 each = 200 USDT demand vs 150 supply.\nBridge-only covers 3 transfers (150 USDT). 4th needs inventory deposit.\n1 same-asset USDT transfer tests standard bridging alongside depletion.\nRebalancer must handle bridge + inventory deposit across multiple chains.",
+  "duration": 20000,
+  "chains": ["chain1", "chain2", "chain3"],
+  "assets": [
+    { "symbol": "USDC", "decimals": 18 },
+    { "symbol": "USDT", "decimals": 18 }
+  ],
+  "transfers": [
+    {
+      "id": "mcm-000",
+      "timestamp": 0,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "50000000000000000000",
+      "user": "0x8b563f19033b6111597f5ae37a91b88591fa17d6",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mcm-001",
+      "timestamp": 500,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "50000000000000000000",
+      "user": "0x53e81e13db7f8a7f1ff614b699d36b22ba85761f",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mcm-002",
+      "timestamp": 1000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "50000000000000000000",
+      "user": "0xe6aa46c39443ae5c696524b2ec1b39f82942cdd8",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mcm-003",
+      "timestamp": 1500,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "50000000000000000000",
+      "user": "0x80507c3a61c9e6eede5dca9ee05d906455618ddf",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mcm-004",
+      "timestamp": 2000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "30000000000000000000",
+      "user": "0x3d8d6bb644bb6977ed12949c603941ceb5d403f8",
+      "sourceAsset": "USDT",
+      "destinationAsset": "USDT"
+    }
+  ],
+  "defaultInitialCollateral": "50000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain3": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "routeHints": "Available routes:\n- Mock bridge: same-asset cross-chain (USDC chain1↔chain2↔chain3, USDT chain1↔chain2↔chain3)\n- NOT available: direct cross-asset cross-chain\nUser traffic is mostly cross-asset (USDC in, USDT out), globally depleting USDT.\nWhen USDT is depleted (totalBalance=0), deposit USDT from wallet inventory.\nBridge same-asset collateral between chains for distribution imbalances.",
+    "chains": {
+      "USDC|chain1": {
+        "weighted": { "weight": "0.333", "tolerance": "0.10" },
+        "bridgeLockTime": 500
+      },
+      "USDC|chain2": {
+        "weighted": { "weight": "0.333", "tolerance": "0.10" },
+        "bridgeLockTime": 500
+      },
+      "USDC|chain3": {
+        "weighted": { "weight": "0.334", "tolerance": "0.10" },
+        "bridgeLockTime": 500
+      },
+      "USDT|chain1": {
+        "weighted": { "weight": "0.333", "tolerance": "0.10" },
+        "bridgeLockTime": 500
+      },
+      "USDT|chain2": {
+        "weighted": { "weight": "0.333", "tolerance": "0.10" },
+        "bridgeLockTime": 500
+      },
+      "USDT|chain3": {
+        "weighted": { "weight": "0.334", "tolerance": "0.10" },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "minCompletionRate": 0.6,
+    "shouldTriggerRebalancing": true
+  }
+}
