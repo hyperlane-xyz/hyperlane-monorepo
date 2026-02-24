@@ -1,5 +1,12 @@
 import { expect } from 'chai';
-import { encodePacked, keccak256, toBytes } from 'viem';
+import {
+  decodeEventLog,
+  encodePacked,
+  Hex,
+  keccak256,
+  parseAbiItem,
+  toBytes,
+} from 'viem';
 
 import {
   Address,
@@ -21,6 +28,20 @@ type DispatchEventLike = {
   };
 };
 
+type DispatchLogLike = {
+  data?: Hex;
+  topics?: readonly Hex[];
+};
+
+type TxReceiptLike = {
+  events?: DispatchEventLike[];
+  logs?: DispatchLogLike[];
+};
+
+const DISPATCH_EVENT = parseAbiItem(
+  'event Dispatch(address indexed sender, uint32 indexed destination, bytes32 indexed recipient, bytes message)',
+);
+
 type MailboxLike = {
   address: string;
   nonce(): Promise<number>;
@@ -33,6 +54,7 @@ type MailboxLike = {
   ): Promise<{
     wait(): Promise<{
       events?: DispatchEventLike[];
+      logs?: DispatchLogLike[];
     }>;
   }>;
 };
@@ -68,10 +90,33 @@ export const dispatchMessage = async (
     recipient,
     utf8 ? toBytes(messageStr) : messageStr,
   );
-  const receipt = await tx.wait();
-  const dispatch = receipt.events![0] as DispatchEventLike;
-  expect(dispatch.event).to.equal('Dispatch');
-  return dispatch.args!;
+  const receipt = (await tx.wait()) as TxReceiptLike;
+
+  const dispatchEvent = receipt.events?.find((event) => event.event === 'Dispatch');
+  if (dispatchEvent?.args?.message) {
+    return dispatchEvent.args;
+  }
+
+  const dispatchLog = receipt.logs
+    ?.map((log) => {
+      if (!log.data || !log.topics) return undefined;
+      try {
+        return decodeEventLog({
+          abi: [DISPATCH_EVENT],
+          data: log.data,
+          topics: log.topics,
+          strict: false,
+        });
+      } catch {
+        return undefined;
+      }
+    })
+    .find((decoded) => decoded?.eventName === 'Dispatch');
+
+  const messageArg = (dispatchLog?.args as { message?: string } | undefined)
+    ?.message;
+  expect(messageArg, 'Dispatch event not found in receipt').to.be.a('string');
+  return { message: messageArg! };
 };
 
 export const dispatchMessageAndReturnProof = async (

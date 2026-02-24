@@ -262,6 +262,32 @@ function toHexQuantity(value: unknown): Hex | undefined {
   return undefined;
 }
 
+type LogBlockTag =
+  | 'latest'
+  | 'earliest'
+  | 'pending'
+  | 'safe'
+  | 'finalized';
+
+function toLogBlockRef(value: unknown): Hex | LogBlockTag | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') {
+    if (
+      value === 'latest' ||
+      value === 'earliest' ||
+      value === 'pending' ||
+      value === 'safe' ||
+      value === 'finalized'
+    ) {
+      return value;
+    }
+    if (isHex(value)) return value as Hex;
+    if (/^[0-9]+$/.test(value)) return toHex(BigInt(value));
+    return undefined;
+  }
+  return toHexQuantity(value);
+}
+
 function toBigIntValue(value: unknown, label: string): bigint {
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number') return BigInt(value);
@@ -978,12 +1004,17 @@ export function createContractProxy<TAbi extends Abi>(
           : (filter.topics as readonly Hex[] | undefined);
 
       const resolvedFromBlock = fromBlock ?? 0n;
-      const logs = await performGetLogs(runner, {
+      const logsFilter: Record<string, unknown> = {
         address: filterAddress,
         topics,
-        fromBlock: toHexQuantity(resolvedFromBlock),
-        toBlock: toHexQuantity(toBlock),
-      });
+      };
+
+      const fromBlockRef = toLogBlockRef(resolvedFromBlock);
+      const toBlockRef = toLogBlockRef(toBlock);
+      if (fromBlockRef !== undefined) logsFilter.fromBlock = fromBlockRef;
+      if (toBlockRef !== undefined) logsFilter.toBlock = toBlockRef;
+
+      const logs = await performGetLogs(runner, logsFilter);
 
       return logs
         .map((log) => {
