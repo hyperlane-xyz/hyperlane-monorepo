@@ -4,6 +4,10 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { assert } from '@hyperlane-xyz/utils';
 
 import {
+  TypedDataDomainLike,
+  TypedDataTypesLike,
+  TypedDataValueLike,
+  getTypedDataPrimaryType,
   ViemProviderLike,
   ViemTransactionRequestLike,
   toBigIntValue,
@@ -18,13 +22,6 @@ export type LocalViemTransactionRequest = ViemTransactionRequestLike & {
 type RpcSendable = {
   send(method: string, params: unknown[]): Promise<unknown>;
 };
-
-type TypedDataDomainLike = Record<string, unknown>;
-type TypedDataTypesLike = Record<
-  string,
-  readonly { name: string; type: string }[]
->;
-type TypedDataValueLike = Record<string, unknown>;
 
 function hasRpcSend(
   provider: ViemProviderLike,
@@ -82,10 +79,7 @@ export class LocalAccountViemSigner {
     types: TypedDataTypesLike,
     value: TypedDataValueLike,
   ): Promise<Hex> {
-    const primaryType = Object.keys(types).find(
-      (key) => key !== 'EIP712Domain',
-    );
-    assert(primaryType, 'Typed data types must include a primary type');
+    const primaryType = getTypedDataPrimaryType(types);
     return this.account.signTypedData({
       domain: domain as any,
       types: types as any,
