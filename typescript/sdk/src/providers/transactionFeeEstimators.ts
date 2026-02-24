@@ -88,11 +88,22 @@ export async function estimateTransactionFeeViem({
   provider: ViemProvider;
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
-  const gasUnits = await provider.provider.estimateGas({
-    ...transaction.transaction,
-    blockNumber: undefined,
+  const request: {
+    account: `0x${string}`;
+    to?: `0x${string}` | null;
+    data?: `0x${string}`;
+    value?: bigint;
+    nonce?: number;
+    gas?: bigint;
+  } = {
     account: sender as `0x${string}`,
-  } as any); // Cast to silence overly-protective type enforcement from viem here
+    to: transaction.transaction.to ?? undefined,
+    data: transaction.transaction.input,
+    value: transaction.transaction.value,
+    nonce: transaction.transaction.nonce,
+    gas: transaction.transaction.gas,
+  };
+  const gasUnits = await provider.provider.estimateGas(request);
   const feeData = await provider.provider.estimateFeesPerGas();
   return computeEvmTxFee(
     gasUnits,

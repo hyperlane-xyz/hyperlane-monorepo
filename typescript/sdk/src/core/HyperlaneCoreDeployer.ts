@@ -270,7 +270,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   ): Promise<HyperlaneContracts<CoreFactories>> {
     if (config.remove) {
       // skip deploying to chains configured to be removed
-      return undefined as any;
+      return {} as HyperlaneContracts<CoreFactories>;
     }
 
     const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);

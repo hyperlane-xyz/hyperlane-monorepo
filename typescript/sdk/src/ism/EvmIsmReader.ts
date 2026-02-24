@@ -24,8 +24,6 @@ import {
   assert,
   concurrentMap,
   getLogLevel,
-  objMap,
-  promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -142,8 +140,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         default:
           throw new Error(`Unknown ISM ModuleType: ${moduleType}`);
       }
-    } catch (e: any) {
-      const errorMessage = `Failed to derive ISM module type ${moduleType} on ${this.chain} (${address}) :\n\t${e}`;
+    } catch (e: unknown) {
+      const errorDetails = e instanceof Error ? e.message : String(e);
+      const errorMessage = `Failed to derive ISM module type ${moduleType} on ${this.chain} (${address}) :\n\t${errorDetails}`;
       this.logger.debug(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -179,19 +178,22 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     // Extend the inner isms
     switch (config.type) {
       case IsmType.FALLBACK_ROUTING:
-      case IsmType.ROUTING:
-        config.domains = await promiseObjAll(
-          objMap(config.domains, async (_, ism: any) =>
-            this.deriveIsmConfig(ism as any),
+      case IsmType.ROUTING: {
+        const derivedDomains = await Promise.all(
+          Object.entries(config.domains).map(
+            async ([domain, ism]): Promise<[string, DerivedIsmConfig]> => [
+              domain,
+              await this.deriveIsmConfig(ism),
+            ],
           ),
         );
+        config.domains = Object.fromEntries(derivedDomains);
         break;
+      }
       case IsmType.AGGREGATION:
       case IsmType.STORAGE_AGGREGATION:
         config.modules = await Promise.all(
-          config.modules.map(async (ism: any) =>
-            this.deriveIsmConfig(ism as any),
-          ),
+          config.modules.map((ism) => this.deriveIsmConfig(ism)),
         );
         break;
       case IsmType.AMOUNT_ROUTING:
@@ -427,7 +429,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const ismConfigs = await concurrentMap(
       this.concurrency,
       [...modules],
-      async (module: any) => this.deriveIsmConfig(module as any),
+      async (module) => this.deriveIsmConfig(module),
     );
 
     // If it's a zkSync chain, it must be a StorageAggregationIsm

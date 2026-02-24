@@ -125,7 +125,9 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       throw new Error(`Unsupported hook config: ${config}`);
     }
 
-    const deployedContracts = { [config.type]: hook } as any; // partial
+    const deployedContracts = {
+      [config.type]: hook,
+    } as unknown as HyperlaneContracts<HookFactories>; // partial
     this.addDeployedContracts(chain, deployedContracts);
     return deployedContracts;
   }
