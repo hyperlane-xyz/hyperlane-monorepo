@@ -33,7 +33,7 @@ const EnvSchema = z.object({
 type ReceiptLog = { data: string; topics: readonly string[] };
 type TransactionReceiptLike = {
   transactionHash?: string;
-  logs?: unknown[];
+  logs?: readonly unknown[] | unknown[];
 };
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

@@ -278,12 +278,12 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       WithAddress<ArbL2ToL1HookConfig>
     >,
   ): Promise<ArbL2ToL1Metadata> {
-    const dispatchLogs = context.dispatchTx.logs;
+    const rawDispatchLogs = context.dispatchTx.logs;
     assert(
-      dispatchLogs,
+      rawDispatchLogs,
       `No logs found in dispatch tx for message ${context.message.id}`,
     );
-    const parsedLogs = dispatchLogs.filter(isLogLike);
+    const parsedLogs = Array.from(rawDispatchLogs).filter(isLogLike);
     const matchingL2TxEvent = findMatchingLogEvents(
       parsedLogs,
       ArbSys,

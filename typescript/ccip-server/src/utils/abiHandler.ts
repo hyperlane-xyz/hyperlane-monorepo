@@ -20,9 +20,15 @@ import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk';
 export function createAbiHandler<
   Factory extends {
     createInterface(): {
-      decodeFunctionData(functionName: string, data: string): unknown[];
-      getFunction(functionName: string): { inputs: unknown[] };
-      encodeFunctionResult(functionName: string, values: unknown[]): string;
+      decodeFunctionData(
+        functionName: string,
+        data: string,
+      ): readonly unknown[];
+      getFunction(functionName: string): { inputs: readonly unknown[] };
+      encodeFunctionResult(
+        functionName: string,
+        values: readonly unknown[],
+      ): string;
     };
   },
   F extends string,
