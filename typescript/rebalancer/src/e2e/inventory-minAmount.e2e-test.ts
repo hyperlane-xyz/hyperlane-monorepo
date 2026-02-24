@@ -224,7 +224,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     await executeCycle(context);
     await relayInProgressInventoryDeposits(context);
 
-    let partialIntents =
+    const partialIntents =
       await context.tracker.getPartiallyFulfilledInventoryIntents();
     expect(partialIntents.length).to.equal(1);
     expect(partialIntents[0].completedAmount > 0n).to.be.true;
@@ -571,7 +571,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     );
 
     await executeCycle(context);
-    let activeIntents = await context.tracker.getActiveRebalanceIntents();
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
     expect(activeIntents[0].amount).to.equal(2000000000000000000n);
