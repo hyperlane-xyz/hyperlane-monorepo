@@ -1,9 +1,10 @@
-import { Wallet } from 'ethers';
-import { $, type ProcessPromise } from 'zx';
+import { Wallet, ethers } from 'ethers';
+import { $, type ProcessOutput, type ProcessPromise } from 'zx';
 
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type ChainName,
+  HypERC20Deployer,
   type HypTokenRouterConfig,
   TokenType,
   type WarpCoreConfig,
@@ -11,14 +12,24 @@ import {
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  type Address,
+  ProtocolType,
+  randomInt,
+} from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { createAltVMSigners } from '../../../context/altvm.js';
 import { getContext } from '../../../context/context.js';
 import { type CommandContext } from '../../../context/types.js';
+import { warpRouteIdFromFileName } from '../../../deploy/utils.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  isFile,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
@@ -28,6 +39,7 @@ import {
   TEMP_PATH,
   WARP_CORE_CONFIG_PATH_2,
   getCombinedWarpRoutePath,
+  getWarpRouteId,
 } from '../consts.js';
 
 import {
@@ -35,12 +47,10 @@ import {
   getDomainId,
   localTestRunCmdPrefix,
 } from './helpers.js';
+import { syncWarpDeployConfigToRegistry } from '../../commands/warp-config-sync.js';
 
 $.verbose = true;
 
-/**
- * Creates a warp route configuration with raw parameters.
- */
 export function hyperlaneWarpInitRaw({
   warpCorePath,
   hypKey,
@@ -65,9 +75,6 @@ export function hyperlaneWarpInitRaw({
         ${skipConfirmationPrompts ? ['--yes'] : []}`;
 }
 
-/**
- * Creates a warp route configuration.
- */
 export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
   return hyperlaneWarpInitRaw({
     privateKey: ANVIL_KEY,
@@ -76,19 +83,12 @@ export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
   });
 }
 
-/**
- * Deploys the Warp route to the specified chain using the provided config.
- */
 export function hyperlaneWarpDeployRaw({
-  warpCorePath,
-  warpDeployPath,
   hypKey,
   skipConfirmationPrompts,
   privateKey,
   warpRouteId,
 }: {
-  warpCorePath?: string;
-  warpDeployPath?: string;
   hypKey?: string;
   skipConfirmationPrompts?: boolean;
   privateKey?: string;
@@ -98,42 +98,181 @@ export function hyperlaneWarpDeployRaw({
     hypKey ? ['HYP_KEY=' + hypKey] : []
   } ${localTestRunCmdPrefix()} hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
-        ${warpDeployPath ? ['--config', warpDeployPath] : []} \
-        ${warpCorePath ? ['--warp', warpCorePath] : []} \
         ${privateKey ? ['--key', privateKey] : []} \
         --verbosity debug \
-        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+        ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
         ${skipConfirmationPrompts ? ['--yes'] : []}`;
 }
 
-/**
- * Deploys the Warp route to the specified chain using the provided config.
- */
-export function hyperlaneWarpDeploy(
-  warpDeployPath: string,
-  warpRouteId?: string,
-): ProcessPromise {
-  return hyperlaneWarpDeployRaw({
-    privateKey: ANVIL_KEY,
+function hasSymbol(config: unknown): config is { symbol: string } {
+  return (
+    typeof config === 'object' &&
+    config !== null &&
+    'symbol' in config &&
+    typeof (config as { symbol?: unknown }).symbol === 'string'
+  );
+}
+
+function hasTokenAddress(config: unknown): config is { token: string } {
+  return (
+    typeof config === 'object' &&
+    config !== null &&
+    'token' in config &&
+    typeof (config as { token?: unknown }).token === 'string'
+  );
+}
+
+async function resolveWarpRouteSymbolFromConfig(
+  warpDeployConfig: WarpRouteDeployConfig,
+): Promise<string | undefined> {
+  let cachedContext: Awaited<ReturnType<typeof getContext>> | undefined;
+  const getCachedContext = async () => {
+    if (!cachedContext) {
+      cachedContext = await getContext({
+        registryUris: [REGISTRY_PATH],
+        key: ANVIL_KEY,
+      });
+    }
+    return cachedContext;
+  };
+
+  for (const config of Object.values(warpDeployConfig)) {
+    if (hasSymbol(config)) {
+      return config.symbol;
+    }
+  }
+
+  try {
+    const { multiProvider } = await getCachedContext();
+    const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+      multiProvider,
+      warpDeployConfig,
+    );
+    return tokenMetadata.getDefaultSymbol();
+  } catch (error: unknown) {
+    console.warn(
+      `[resolveWarpRouteSymbolFromConfig] token metadata derivation failed for registry "${REGISTRY_PATH}". Falling back to RPC symbol lookup.`,
+      error,
+    );
+  }
+
+  let tokenChain: string | undefined;
+  let tokenAddress: string | undefined;
+  for (const [chainName, config] of Object.entries(warpDeployConfig)) {
+    if (hasTokenAddress(config)) {
+      tokenChain = chainName;
+      tokenAddress = config.token;
+      break;
+    }
+  }
+  if (!tokenChain || !tokenAddress) {
+    return undefined;
+  }
+
+  try {
+    const { multiProvider } = await getCachedContext();
+    const provider = multiProvider.getProvider(tokenChain);
+    const erc20 = new ethers.Contract(
+      tokenAddress,
+      ['function symbol() view returns (string)'],
+      provider,
+    );
+    return await erc20.symbol();
+  } catch (error: unknown) {
+    console.warn(
+      `[resolveWarpRouteSymbolFromConfig] RPC symbol() lookup failed for chain "${tokenChain}" token "${tokenAddress}".`,
+      error,
+    );
+    return undefined;
+  }
+}
+
+type ResolveWarpRouteIdForDeployOptions = {
+  warpDeployPath?: string;
+  warpRouteId?: string;
+};
+
+export async function resolveWarpRouteIdForDeploy(
+  options: ResolveWarpRouteIdForDeployOptions,
+): Promise<string> {
+  const { warpDeployPath, warpRouteId } = options;
+  assert(
+    warpDeployPath || warpRouteId,
+    'Either warpDeployPath or warpRouteId must be provided',
+  );
+
+  if (!warpDeployPath) {
+    assert(
+      warpRouteId,
+      'warpRouteId is required when warpDeployPath is omitted',
+    );
+    return warpRouteId;
+  }
+
+  if (warpRouteId) {
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId,
+      registryPath: REGISTRY_PATH,
+    });
+    return warpRouteId;
+  }
+
+  const config = readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig;
+  const symbol = await resolveWarpRouteSymbolFromConfig(config);
+  assert(
+    symbol && symbol.length > 0,
+    `[resolveWarpRouteIdForDeploy] could not resolve token symbol from "${warpDeployPath}". Add a symbol field or pass --warp-route-id explicitly.`,
+  );
+  const resolvedWarpRouteId = warpRouteIdFromFileName(warpDeployPath, symbol);
+  syncWarpDeployConfigToRegistry({
     warpDeployPath,
-    skipConfirmationPrompts: true,
-    warpRouteId,
+    warpRouteId: resolvedWarpRouteId,
+    registryPath: REGISTRY_PATH,
   });
+  return resolvedWarpRouteId;
 }
 
 /**
- * Applies updates to the Warp route config.
+ * Deploys a warp route in e2e tests.
+ *
+ * `warpDeployPathOrWarpRouteId` is interpreted as:
+ * - deploy config path, when it points to an existing file (`isFile(...)`)
+ * - warp route ID otherwise
+ *
+ * If `warpRouteId` is provided, `warpDeployPathOrWarpRouteId` is treated as
+ * the deploy config path and synced to that explicit route ID.
  */
-export async function hyperlaneWarpApply(
-  warpDeployPath: string,
-  warpCorePath: string,
-  strategyUrl = '',
+export async function hyperlaneWarpDeploy(
+  warpDeployPathOrWarpRouteId: string,
   warpRouteId?: string,
+): Promise<ProcessOutput> {
+  const resolvedWarpRouteId = warpRouteId
+    ? await resolveWarpRouteIdForDeploy({
+        warpDeployPath: warpDeployPathOrWarpRouteId,
+        warpRouteId,
+      })
+    : isFile(warpDeployPathOrWarpRouteId)
+      ? await resolveWarpRouteIdForDeploy({
+          warpDeployPath: warpDeployPathOrWarpRouteId,
+        })
+      : await resolveWarpRouteIdForDeploy({
+          warpRouteId: warpDeployPathOrWarpRouteId,
+        });
+
+  return hyperlaneWarpDeployRaw({
+    privateKey: ANVIL_KEY,
+    skipConfirmationPrompts: true,
+    warpRouteId: resolvedWarpRouteId,
+  });
+}
+
+export async function hyperlaneWarpApply(
+  warpRouteId: string,
+  strategyUrl = '',
   relay = false,
 ) {
   return hyperlaneWarpApplyRaw({
-    warpDeployPath,
-    warpCorePath,
     strategyUrl,
     relay,
     warpRouteId,
@@ -141,24 +280,18 @@ export async function hyperlaneWarpApply(
 }
 
 export function hyperlaneWarpApplyRaw({
-  warpDeployPath,
-  warpCorePath,
   strategyUrl,
   warpRouteId,
   relay,
 }: {
-  warpDeployPath?: string;
-  warpCorePath?: string;
   strategyUrl?: string;
   warpRouteId?: string;
   relay?: boolean;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
-        ${warpDeployPath ? ['--config', warpDeployPath] : []} \
-        ${warpCorePath ? ['--warp', warpCorePath] : []} \
         ${strategyUrl ? ['--strategy', strategyUrl] : []} \
-        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+        ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
         ${relay ? ['--relay'] : []} \
@@ -169,20 +302,20 @@ export function hyperlaneWarpReadRaw({
   chain,
   warpAddress,
   outputPath,
-  symbol,
+  warpRouteId,
 }: {
   chain?: string;
-  symbol?: string;
   warpAddress?: string;
   outputPath?: string;
+  warpRouteId?: string;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp read \
         --registry ${REGISTRY_PATH} \
         ${warpAddress ? ['--address', warpAddress] : []} \
         ${chain ? ['--chain', chain] : []} \
-        ${symbol ? ['--symbol', symbol] : []} \
+        ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
         --verbosity debug \
-        ${outputPath ? ['--config', outputPath] : []}`;
+        ${outputPath ? ['--out', outputPath] : []}`;
 }
 
 export function hyperlaneWarpRead(
@@ -198,18 +331,12 @@ export function hyperlaneWarpRead(
 }
 
 export function hyperlaneWarpCheckRaw({
-  warpDeployPath,
-  symbol,
-  warpCoreConfigPath,
   warpRouteId,
   ica,
   origin,
   originOwner,
   chains,
 }: {
-  symbol?: string;
-  warpDeployPath?: string;
-  warpCoreConfigPath?: string;
   warpRouteId?: string;
   ica?: boolean;
   origin?: string;
@@ -218,33 +345,24 @@ export function hyperlaneWarpCheckRaw({
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp check \
         --registry ${REGISTRY_PATH} \
-        ${symbol ? ['--symbol', symbol] : []} \
         --verbosity debug \
-        ${warpDeployPath ? ['--config', warpDeployPath] : []} \
-        ${warpCoreConfigPath ? ['--warp', warpCoreConfigPath] : []} \
-        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+        ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
         ${ica ? ['--ica'] : []} \
         ${origin ? ['--origin', origin] : []} \
         ${originOwner ? ['--originOwner', originOwner] : []} \
         ${chains?.length ? chains.flatMap((d) => ['--chains', d]) : []}`;
 }
 
-export function hyperlaneWarpCheck(
-  warpDeployPath: string,
-  symbol: string,
-  warpCoreConfigPath?: string,
-): ProcessPromise {
+export function hyperlaneWarpCheck(warpRouteId: string): ProcessPromise {
   return hyperlaneWarpCheckRaw({
-    warpDeployPath,
-    symbol,
-    warpCoreConfigPath,
+    warpRouteId,
   });
 }
 
 export function hyperlaneWarpSendRelay({
   origin,
   destination,
-  warpCorePath,
+  warpRouteId,
   relay = true,
   value = 2,
   chains,
@@ -252,7 +370,7 @@ export function hyperlaneWarpSendRelay({
 }: {
   origin?: string;
   destination?: string;
-  warpCorePath: string;
+  warpRouteId: string;
   relay?: boolean;
   value?: number | string;
   chains?: string[];
@@ -263,7 +381,7 @@ export function hyperlaneWarpSendRelay({
         --registry ${REGISTRY_PATH} \
         ${origin ? ['--origin', origin] : []} \
         ${destination ? ['--destination', destination] : []} \
-        --warp ${warpCorePath} \
+        --warp-route-id ${warpRouteId} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes \
@@ -301,20 +419,54 @@ export function hyperlaneWarpRebalancer(
         ${amount ? ['--amount', amount] : []}`;
 }
 
-/**
- * Reads the Warp route deployment config to specified output path.
- * @param warpCorePath path to warp core
- * @param warpDeployPath path to output the resulting read
- * @returns The Warp route deployment config.
- */
+type ReadWarpConfigOptions = {
+  // Preserve chains not returned by `warp read` (which may only output the queried chain).
+  preserveExistingChains?: boolean;
+};
+
 export async function readWarpConfig(
   chain: string,
   warpCorePath: string,
   warpDeployPath: string,
+  options: ReadWarpConfigOptions = {},
 ): Promise<WarpRouteDeployConfigMailboxRequired> {
+  const { preserveExistingChains = true } = options;
+  const existingConfig =
+    preserveExistingChains && isFile(warpDeployPath)
+      ? (readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig)
+      : undefined;
   const warpAddress = getDeployedWarpAddress(chain, warpCorePath);
   await hyperlaneWarpRead(chain, warpAddress!, warpDeployPath);
-  return readYamlOrJson(warpDeployPath);
+  const freshConfig = readYamlOrJson(warpDeployPath) as WarpRouteDeployConfig;
+  const freshReadChains = Object.keys(freshConfig);
+  assert(
+    freshReadChains.length > 0,
+    `[readWarpConfig] no chains found in fresh read output at ${warpDeployPath}`,
+  );
+
+  const mergedConfig: WarpRouteDeployConfig = { ...freshConfig };
+  if (existingConfig) {
+    for (const [existingChain, config] of Object.entries(existingConfig)) {
+      if (!(existingChain in mergedConfig)) {
+        mergedConfig[existingChain] = config;
+      }
+    }
+  }
+
+  const missingMailboxChains: string[] = [];
+  for (const configChain of freshReadChains) {
+    const config = mergedConfig[configChain];
+    const mailbox = (config as { mailbox?: string }).mailbox;
+    if (!(typeof mailbox === 'string' && mailbox.length > 0)) {
+      missingMailboxChains.push(configChain);
+    }
+  }
+  assert(
+    missingMailboxChains.length === 0,
+    `[readWarpConfig] missing mailbox for chain(s) "${missingMailboxChains.join(', ')}" in ${warpDeployPath}`,
+  );
+
+  return mergedConfig as WarpRouteDeployConfigMailboxRequired;
 }
 
 type GetWarpTokenConfigByTokenTypeOptions = {
@@ -499,9 +651,6 @@ export function generateWarpConfigs(
   return configs;
 }
 
-/**
- * Updates the owner of the Warp route deployment config, and then output to a file
- */
 export async function updateWarpOwnerConfig(
   chain: string,
   owner: Address,
@@ -519,22 +668,25 @@ export async function updateWarpOwnerConfig(
   return warpDeployPath;
 }
 
-/**
- * Updates the Warp route deployment configuration with a new owner, and then applies the changes.
- */
 export async function updateOwner(
   owner: Address,
   chain: string,
-  warpConfigPath: string,
-  warpCoreConfigPath: string,
+  warpCorePath: string,
+  warpDeployPath: string,
+  warpRouteId: string,
 ) {
-  await updateWarpOwnerConfig(chain, owner, warpCoreConfigPath, warpConfigPath);
-  return hyperlaneWarpApply(warpConfigPath, warpCoreConfigPath);
+  await updateWarpOwnerConfig(chain, owner, warpCorePath, warpDeployPath);
+
+  // Sync updated config to registry deploy path before applying
+  syncWarpDeployConfigToRegistry({
+    warpDeployPath,
+    warpRouteId,
+    registryPath: REGISTRY_PATH,
+  });
+
+  return hyperlaneWarpApply(warpRouteId);
 }
 
-/**
- * Extends the Warp route deployment with a new warp config
- */
 export async function extendWarpConfig(params: {
   chain: string;
   chainToExtend: string;
@@ -542,7 +694,7 @@ export async function extendWarpConfig(params: {
   warpCorePath: string;
   warpDeployPath: string;
   strategyUrl?: string;
-  warpRouteId?: string;
+  warpRouteId: string;
 }): Promise<string> {
   const {
     chain,
@@ -559,14 +711,19 @@ export async function extendWarpConfig(params: {
     warpDeployPath,
   );
   warpDeployConfig[chainToExtend] = extendedConfig;
-  // Remove remoteRouters and destinationGas as they are written in readWarpConfig
   delete warpDeployConfig[chain].remoteRouters;
   delete warpDeployConfig[chain].destinationGas;
 
   writeYamlOrJson(warpDeployPath, warpDeployConfig);
-  await hyperlaneWarpApplyRaw({
+
+  // Sync updated config to registry deploy path before applying
+  syncWarpDeployConfigToRegistry({
     warpDeployPath,
-    warpCorePath,
+    warpRouteId,
+    registryPath: REGISTRY_PATH,
+  });
+
+  await hyperlaneWarpApplyRaw({
     strategyUrl,
     warpRouteId,
   });
@@ -574,11 +731,6 @@ export async function extendWarpConfig(params: {
   return warpDeployPath;
 }
 
-/**
- * Sets up an incomplete warp route extension for testing purposes.
- *
- * This function creates a new warp route configuration for the second chain.
- */
 export async function setupIncompleteWarpRouteExtension(
   chain2Addresses: ChainAddresses,
 ): Promise<{
@@ -588,6 +740,7 @@ export async function setupIncompleteWarpRouteExtension(
   configToExtend: HypTokenRouterConfig;
   context: CommandContext;
   combinedWarpCorePath: string;
+  combinedWarpRouteId: string;
 }> {
   const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
 
@@ -618,6 +771,17 @@ export async function setupIncompleteWarpRouteExtension(
   );
 
   warpDeployConfig[CHAIN_NAME_3] = configToExtend;
+  writeYamlOrJson(warpConfigPath, warpDeployConfig);
+
+  const combinedWarpRouteId = getWarpRouteId('ETH', [
+    CHAIN_NAME_2,
+    CHAIN_NAME_3,
+  ]);
+  syncWarpDeployConfigToRegistry({
+    warpDeployPath: warpConfigPath,
+    warpRouteId: combinedWarpRouteId,
+    registryPath: REGISTRY_PATH,
+  });
 
   const signer2 = new Wallet(
     ANVIL_KEY,
@@ -671,30 +835,23 @@ export async function setupIncompleteWarpRouteExtension(
     configToExtend,
     context,
     combinedWarpCorePath,
+    combinedWarpRouteId,
   };
 }
 
-/**
- * Performs a round-trip warp relay between two chains using the specified warp core config.
- *
- * @param chain1 - The first chain to send the warp relay from.
- * @param chain2 - The second chain to send the warp relay to and back from.
- * @param warpCoreConfigPath - The path to the warp core config file.
- * @returns A promise that resolves when the round-trip warp relay is complete.
- */
 export async function sendWarpRouteMessageRoundTrip(
   chain1: string,
   chain2: string,
-  warpCoreConfigPath: string,
+  warpRouteId: string,
 ) {
   await hyperlaneWarpSendRelay({
     origin: chain1,
     destination: chain2,
-    warpCorePath: warpCoreConfigPath,
+    warpRouteId,
   });
   return hyperlaneWarpSendRelay({
     origin: chain2,
     destination: chain1,
-    warpCorePath: warpCoreConfigPath,
+    warpRouteId,
   });
 }

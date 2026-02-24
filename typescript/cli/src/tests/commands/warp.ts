@@ -10,6 +10,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 import { readYamlOrJson } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
+import { syncWarpDeployConfigToRegistry } from './warp-config-sync.js';
 
 $.verbose = true;
 
@@ -74,12 +75,10 @@ export class HyperlaneE2EWarpTestCommands {
   public readRaw({
     chain,
     warpAddress,
-    symbol,
     outputPath,
     warpRouteId,
   }: {
     chain?: string;
-    symbol?: string;
     warpAddress?: string;
     warpRouteId?: string;
     outputPath?: string;
@@ -88,10 +87,9 @@ export class HyperlaneE2EWarpTestCommands {
             --registry ${this.registryPath} \
             ${warpAddress ? ['--address', warpAddress] : []} \
             ${chain ? ['--chain', chain] : []} \
-            ${symbol ? ['--symbol', symbol] : []} \
-            ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+            ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
             --verbosity debug \
-            ${outputPath || this.outputPath ? ['--config', outputPath || this.outputPath] : []}`;
+            ${outputPath || this.outputPath ? ['--out', outputPath || this.outputPath] : []}`;
   }
 
   public read(chain: string, warpAddress: string): ProcessPromise {
@@ -119,31 +117,28 @@ export class HyperlaneE2EWarpTestCommands {
    * Deploys the Warp route to the specified chain using the provided config.
    */
   public deployRaw({
-    warpCorePath,
-    warpDeployPath,
     hypKey,
     skipConfirmationPrompts,
     privateKey,
     warpRouteId,
+    warpDeployPath,
     extraArgs,
   }: {
-    warpCorePath?: string;
-    warpDeployPath?: string;
     hypKey?: string;
     skipConfirmationPrompts?: boolean;
     privateKey?: string;
     warpRouteId?: string;
+    warpDeployPath?: string;
     extraArgs?: string[];
   }): ProcessPromise {
+    this.syncWarpDeployConfigToRegistry(warpRouteId, warpDeployPath);
     return $`${
       hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
     } ${localTestRunCmdPrefix()} hyperlane warp deploy \
           --registry ${this.registryPath} \
-          ${warpDeployPath ? ['--config', warpDeployPath] : []} \
-          ${warpCorePath ? ['--warp', warpCorePath] : []} \
           ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
           --verbosity debug \
-          ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+          ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
           ${skipConfirmationPrompts ? ['--yes'] : []} \
           ${extraArgs ? extraArgs : []}
           `;
@@ -153,21 +148,19 @@ export class HyperlaneE2EWarpTestCommands {
    * Deploys the Warp route to the specified chain using the provided config.
    */
   public deploy(
-    warpDeployPath: string,
     privateKey: string,
-    warpRouteId?: string,
+    warpRouteId: string,
+    warpDeployPath?: string,
   ): ProcessPromise {
     return this.deployRaw({
       privateKey,
-      warpDeployPath,
       skipConfirmationPrompts: true,
       warpRouteId,
+      warpDeployPath,
     });
   }
 
   public applyRaw({
-    warpDeployPath,
-    warpCorePath,
     strategyUrl,
     warpRouteId,
     privateKey,
@@ -176,8 +169,6 @@ export class HyperlaneE2EWarpTestCommands {
     extraArgs,
     skipConfirmationPrompts,
   }: {
-    warpDeployPath?: string;
-    warpCorePath?: string;
     strategyUrl?: string;
     warpRouteId?: string;
     privateKey?: string;
@@ -190,15 +181,25 @@ export class HyperlaneE2EWarpTestCommands {
       hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
     } ${localTestRunCmdPrefix()} hyperlane warp apply \
           --registry ${this.registryPath} \
-          ${warpDeployPath ? ['--config', warpDeployPath] : []} \
-          ${warpCorePath ? ['--warp', warpCorePath] : []} \
           ${strategyUrl ? ['--strategy', strategyUrl] : []} \
-          ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+          ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
           ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
           --verbosity debug \
           ${relay ? ['--relay'] : []} \
           ${skipConfirmationPrompts ? ['--yes'] : []} \
           ${extraArgs ? extraArgs : []}
           `;
+  }
+
+  private syncWarpDeployConfigToRegistry(
+    warpRouteId?: string,
+    warpDeployPath?: string,
+  ) {
+    if (!warpRouteId || !warpDeployPath) return;
+    syncWarpDeployConfigToRegistry({
+      warpDeployPath,
+      warpRouteId,
+      registryPath: this.registryPath,
+    });
   }
 }

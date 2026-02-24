@@ -163,7 +163,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_4,
-        warpCorePath: warpCoreConfigPath,
+        warpRouteId,
         relay: true,
         value: toWei(10),
       }),
@@ -171,7 +171,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         hyperlaneWarpSendRelay({
           origin: CHAIN_NAME_3,
           destination: CHAIN_NAME_4,
-          warpCorePath: warpCoreConfigPath,
+          warpRouteId,
           relay: true,
           value: toWei(10),
         }),

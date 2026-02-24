@@ -7,11 +7,6 @@ import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
-import {
-  KeyBoardKeys,
-  type TestPromptAction,
-  handlePrompts,
-} from '../../commands/helpers.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
   CHAIN_NAME_1,
@@ -100,9 +95,9 @@ describe('hyperlane warp read e2e tests', async function () {
     writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH_1, warpConfig);
   });
 
-  describe('hyperlane warp read --config ...', () => {
+  describe('hyperlane warp read (no args)', () => {
     it('should exit early if no symbol or no chain and address', async () => {
-      await hyperlaneWarp.deploy(WARP_DEPLOY_CONFIG_PATH_1, HYP_KEY);
+      await hyperlaneWarp.deploy(HYP_KEY, WARP_DEPLOY_1_ID);
 
       const output = await hyperlaneWarp.readRaw({}).nothrow();
 
@@ -111,9 +106,10 @@ describe('hyperlane warp read e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp read --symbol ...', () => {
+  describe('hyperlane warp read --warp-route-id <symbol-only> ...', () => {
     it('should successfully read the complete warp route config from all the chains', async () => {
       const readOutputPath = `${TEMP_PATH}/warp-read-all-chain-with-symbol.yaml`;
+      const warpRouteId = 'READTEST/cosmosnative-warp-read-symbol';
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_1]: {
@@ -135,27 +131,15 @@ describe('hyperlane warp read e2e tests', async function () {
         },
       };
 
-      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH_1, warpConfig);
-      await hyperlaneWarp.deploy(WARP_DEPLOY_CONFIG_PATH_1, HYP_KEY);
+      writeYamlOrJson(WARP_CONFIG_PATH_1, warpConfig);
+      await hyperlaneWarp.deploy(HYP_KEY, warpRouteId, WARP_CONFIG_PATH_1);
 
-      const steps: TestPromptAction[] = [
-        // Select the hyp1-hyp2 HYP route from the selection prompt
-        {
-          check: (currentOutput: string) =>
-            currentOutput.includes('Select from matching warp routes'),
-          input: KeyBoardKeys.ENTER,
-        },
-      ];
-
-      const output = hyperlaneWarp
+      const finalOutput = await hyperlaneWarp
         .readRaw({
           outputPath: readOutputPath,
-          warpRouteId: 'TEST/hyp1',
+          warpRouteId: 'READTEST',
         })
-        .stdio('pipe')
         .nothrow();
-
-      const finalOutput = await handlePrompts(output, steps);
 
       expect(finalOutput.exitCode).to.equal(0);
 
@@ -169,13 +153,9 @@ describe('hyperlane warp read e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp read --chain ... --config ...', () => {
+  describe('hyperlane warp read --chain ... --warp-route-id ...', () => {
     it('should be able to read a warp route', async function () {
-      await hyperlaneWarp.deploy(
-        WARP_DEPLOY_CONFIG_PATH_1,
-        HYP_KEY,
-        WARP_DEPLOY_1_ID,
-      );
+      await hyperlaneWarp.deploy(HYP_KEY, WARP_DEPLOY_1_ID);
 
       const warpReadResult: WarpRouteDeployConfig =
         await hyperlaneWarp.readConfig(CHAIN_NAME_1, WARP_CORE_CONFIG_PATH_1);

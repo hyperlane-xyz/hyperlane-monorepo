@@ -154,7 +154,6 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
 
       await writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
       await evmWarpCommands.deploy(
-        DEFAULT_EVM_WARP_DEPLOY_PATH,
         HYP_KEY_BY_PROTOCOL.ethereum,
         DEFAULT_EVM_WARP_ID,
       );
