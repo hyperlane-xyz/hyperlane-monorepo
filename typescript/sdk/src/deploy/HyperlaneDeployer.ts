@@ -1,5 +1,4 @@
 import {
-  Contract,
   ZeroAddress,
   type ContractFactory,
   type TransactionReceipt,
@@ -271,7 +270,7 @@ export abstract class HyperlaneDeployer<
 
   protected async runIfAdmin<T>(
     chain: ChainName,
-    proxy: Contract,
+    proxy: any,
     signerAdminFn: () => Promise<T>,
     proxyAdminOwnerFn: (proxyAdmin: ProxyAdmin) => Promise<T>,
   ): Promise<T | undefined> {
@@ -453,7 +452,7 @@ export abstract class HyperlaneDeployer<
     const signer = this.multiProvider.getSigner(chain);
     const artifact = await getZKSyncArtifactByContractName(contractName);
 
-    const contract = await this.multiProvider.handleDeploy(
+    const contract: any = await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
@@ -506,7 +505,7 @@ export abstract class HyperlaneDeployer<
       }
       verificationInput = await getContractVerificationInputForZKSync({
         name: contractName,
-        contract,
+        contract: contract as any,
         constructorArgs: constructorArgs,
         artifact: artifact,
         expectedimplementation: implementationAddress,
@@ -514,7 +513,7 @@ export abstract class HyperlaneDeployer<
     } else {
       verificationInput = getContractVerificationInput({
         name: contractName,
-        contract,
+        contract: contract as any,
         bytecode: factory.bytecode,
         expectedimplementation: implementationAddress,
       });
@@ -551,9 +550,7 @@ export abstract class HyperlaneDeployer<
     contractKey: K,
     contractName: string,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    initializeArgs?: Parameters<
-      Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
-    >,
+    initializeArgs?: any[],
     shouldRecover = true,
   ): Promise<HyperlaneContracts<Factories>[K]> {
     const contract = await this.deployContractFromFactory(
@@ -621,10 +618,10 @@ export abstract class HyperlaneDeployer<
     );
   }
 
-  protected async upgradeAndInitialize<C extends Contract>(
+  protected async upgradeAndInitialize(
     chain: ChainName,
     proxy: ITransparentUpgradeableProxy,
-    implementation: C,
+    implementation: any,
     initializeArgs: any[],
   ): Promise<void> {
     const current = await (proxy as any).implementation();
@@ -661,13 +658,13 @@ export abstract class HyperlaneDeployer<
     );
   }
 
-  protected async deployProxy<C extends Contract>(
+  protected async deployProxy(
     chain: ChainName,
-    implementation: C,
+    implementation: any,
     proxyAdmin: string,
     initializeArgs?: any[],
     contractName?: string,
-  ): Promise<C> {
+  ): Promise<any> {
     const implementationAddress = this.getContractAddress(implementation);
     const isProxied = await isProxy(
       this.multiProvider.getProvider(chain),
@@ -694,7 +691,7 @@ export abstract class HyperlaneDeployer<
       implementationAddress,
     );
 
-    return implementation.attach(this.getContractAddress(proxy)) as C;
+    return implementation.attach(this.getContractAddress(proxy));
   }
 
   async deployTimelock(
@@ -747,10 +744,10 @@ export abstract class HyperlaneDeployer<
     return undefined;
   }
 
-  async recoverVerificationArtifacts<C extends Contract>(
+  async recoverVerificationArtifacts(
     chain: ChainName,
     contractName: string,
-    cachedContract: C,
+    cachedContract: any,
     constructorArgs: any[],
     initializeArgs?: any[],
   ): Promise<ContractVerificationInput[]> {
@@ -780,7 +777,7 @@ export abstract class HyperlaneDeployer<
 
     const admin = await proxyAdmin(provider, cachedContractAddress);
     const proxyArgs = proxyConstructorArgs(
-      cachedContract.attach(implementation),
+      cachedContract.attach(implementation) as any,
       admin,
       initializeArgs,
       contractName,
@@ -867,8 +864,9 @@ export abstract class HyperlaneDeployer<
           this.logger.debug(
             `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
           );
-          const estimatedGas =
-            await ownable.estimateGas.transferOwnership(owner);
+          const estimatedGas = await ownable.transferOwnership.estimateGas(
+            owner,
+          );
           return this.multiProvider.handleTx(
             chain,
             ownable.transferOwnership(owner, {
