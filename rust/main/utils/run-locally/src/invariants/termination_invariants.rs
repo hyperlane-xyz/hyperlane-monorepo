@@ -396,12 +396,15 @@ pub fn lander_metrics_invariants_met(
         return Ok(false);
     }
 
-    let expected_finalized_transactions = transaction_submissions - dropped_transactions;
-    if finalized_transactions != expected_finalized_transactions {
+    // finalized_transactions can be less than submissions - dropped because
+    // transaction_submissions counts resubmissions while finalized_transactions
+    // counts unique transactions that reached Finalized status.
+    let max_expected_finalized = transaction_submissions - dropped_transactions;
+    if finalized_transactions == 0 || finalized_transactions > max_expected_finalized {
         log!(
-            "hyperlane_lander_finalized_transactions {} count, expected {}",
+            "hyperlane_lander_finalized_transactions {} count, expected > 0 and <= {}",
             finalized_transactions,
-            expected_finalized_transactions
+            max_expected_finalized
         );
         return Ok(false);
     }
@@ -517,13 +520,13 @@ pub fn finalized_transactions_per_destination_invariants_met(
             return Ok(false);
         }
 
-        let expected_finalized_transactions = transaction_submissions - dropped_transactions;
-        if finalized_transactions != expected_finalized_transactions {
+        let max_expected_finalized = transaction_submissions - dropped_transactions;
+        if finalized_transactions == 0 || finalized_transactions > max_expected_finalized {
             log!(
-                "destination {} finalized_transactions {} != expected {}",
+                "destination {} finalized_transactions {} expected > 0 and <= {}",
                 destination,
                 finalized_transactions,
-                expected_finalized_transactions
+                max_expected_finalized
             );
             return Ok(false);
         }
