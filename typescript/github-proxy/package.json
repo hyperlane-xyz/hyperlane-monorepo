@@ -31,6 +31,6 @@
     "chai": "catalog:",
     "typescript": "catalog:",
     "vitest": "1.4.0",
-    "wrangler": "^3.74.0"
+    "wrangler": "^3.114.17"
   }
 }
