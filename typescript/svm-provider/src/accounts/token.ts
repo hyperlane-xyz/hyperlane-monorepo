@@ -145,6 +145,68 @@ function decodeHyperlaneTokenInner(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Token plugin decoders
+// Each token type stores plugin-specific data as trailing bytes in the token PDA.
+// NativePlugin:    1 byte  (native_collateral_bump)
+// SyntheticPlugin: 34 bytes (mint:32, mint_bump:1, ata_payer_bump:1)
+// CollateralPlugin:98 bytes (spl_token_program:32, mint:32, escrow:32, escrow_bump:1, ata_payer_bump:1)
+// ---------------------------------------------------------------------------
+
+export interface NativePluginData {
+  nativeCollateralBump: number;
+}
+
+export interface SyntheticPluginData {
+  mint: Address;
+  mintBump: number;
+  ataPayerBump: number;
+}
+
+export interface CollateralPluginData {
+  splTokenProgram: Address;
+  mint: Address;
+  escrow: Address;
+  escrowBump: number;
+  ataPayerBump: number;
+}
+
+export function decodeNativePlugin(pluginData: Uint8Array): NativePluginData {
+  if (pluginData.length < 1)
+    throw new Error(`NativePlugin: need 1 byte, got ${pluginData.length}`);
+  return { nativeCollateralBump: pluginData[0]! };
+}
+
+export function decodeSyntheticPlugin(
+  pluginData: Uint8Array,
+): SyntheticPluginData {
+  if (pluginData.length < 34)
+    throw new Error(`SyntheticPlugin: need 34 bytes, got ${pluginData.length}`);
+  const cursor = new ByteCursor(pluginData);
+  return {
+    mint: readAddress(cursor),
+    mintBump: cursor.readU8(),
+    ataPayerBump: cursor.readU8(),
+  };
+}
+
+export function decodeCollateralPlugin(
+  pluginData: Uint8Array,
+): CollateralPluginData {
+  if (pluginData.length < 98)
+    throw new Error(
+      `CollateralPlugin: need 98 bytes, got ${pluginData.length}`,
+    );
+  const cursor = new ByteCursor(pluginData);
+  return {
+    splTokenProgram: readAddress(cursor),
+    mint: readAddress(cursor),
+    escrow: readAddress(cursor),
+    escrowBump: cursor.readU8(),
+    ataPayerBump: cursor.readU8(),
+  };
+}
+
 function ascii8(value: string): Uint8Array {
   if (value.length !== 8)
     throw new Error(`Expected 8-char discriminator, got ${value}`);
