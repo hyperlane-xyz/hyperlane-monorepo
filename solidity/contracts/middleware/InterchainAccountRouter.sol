@@ -187,6 +187,17 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
      * approval in _dispatchMessageWithValue only approves the top-level hook, so child
      * hooks that call transferFrom (like the IGP inside an aggregation) need to be
      * pre-approved via this function.
+     *
+     * Security: Infinite approvals are safe from the ICA router because:
+     * 1. The router never holds user funds - tokens are pulled from the caller
+     *    and immediately forwarded to hooks during dispatch in a single transaction
+     * 2. Any tokens remaining in the router after a dispatch are not user funds -
+     *    they would only exist due to a bug or unexpected hook behavior
+     * 3. This is distinct from warp routes which hold collateral and therefore
+     *    must NOT grant infinite approvals to arbitrary addresses
+     * 4. The function is permissionless because restricting it provides no
+     *    additional security - the router's token balance is always ~0
+     *
      * @param _feeToken The ERC-20 fee token address.
      * @param _hook The hook address to approve for spending the fee token.
      */
