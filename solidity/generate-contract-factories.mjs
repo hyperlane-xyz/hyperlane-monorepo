@@ -2,7 +2,14 @@ import { promises as fs } from 'fs';
 import { basename, dirname, join } from 'path';
 
 const CONFIG = {
-  artifactsRoot: join(process.cwd(), 'artifacts'),
+  artifactsRoots: (
+    process.env.HYPERLANE_FACTORY_ARTIFACTS_ROOTS ??
+    'artifacts,artifacts-zk'
+  )
+    .split(',')
+    .map((path) => path.trim())
+    .filter(Boolean)
+    .map((path) => join(process.cwd(), path)),
   outputRoot: join(process.cwd(), 'core-utils/generated'),
   contractsOutputRoot: join(process.cwd(), 'core-utils/generated/contracts'),
   indexOutputPath: join(process.cwd(), 'core-utils/generated/index.ts'),
@@ -31,6 +38,15 @@ async function collectArtifactPaths(dirPath) {
   }
 
   return paths;
+}
+
+async function pathExists(path) {
+  try {
+    await fs.access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function selectArtifact(existing, candidate) {
@@ -160,7 +176,16 @@ export function getContractArtifactByName(
 }
 
 async function generate() {
-  const artifactPaths = await collectArtifactPaths(CONFIG.artifactsRoot);
+  const artifactPaths = [];
+  for (const artifactsRoot of CONFIG.artifactsRoots) {
+    if (!(await pathExists(artifactsRoot))) continue;
+    artifactPaths.push(...(await collectArtifactPaths(artifactsRoot)));
+  }
+  if (!artifactPaths.length) {
+    throw new Error(
+      `No artifact files found under: ${CONFIG.artifactsRoots.join(', ')}`,
+    );
+  }
   const artifactsByName = new Map();
 
   for (const artifactPath of artifactPaths) {
