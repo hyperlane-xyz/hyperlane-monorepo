@@ -1,10 +1,8 @@
 import {
-  Contract,
   ContractFactory,
-  ContractTransactionResponse,
-  JsonRpcProvider,
   TransactionReceipt,
   TransactionRequest,
+  JsonRpcProvider,
 } from 'ethers';
 import type { Provider as EthersProvider, Signer } from 'ethers';
 import { Logger } from 'pino';
@@ -44,6 +42,10 @@ import {
 } from './providerBuilders.js';
 
 type Provider = EthersProvider | ZKSyncProvider;
+type TransactionResponseLike = {
+  hash: string;
+  wait(confirmations?: number): Promise<TransactionReceipt | null>;
+};
 
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
@@ -385,7 +387,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const metadata = this.getChainMetadata(chainNameOrId);
     const { protocol, technicalStack } = metadata;
 
-    let contract: Contract;
+    let contract: any;
     let estimatedGas: bigint;
 
     // estimate gas for deploy
@@ -393,7 +395,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
 
-      const deployer = new ZKSyncDeployer(signer as ZKSyncWallet);
+      const deployer = new ZKSyncDeployer(signer as unknown as ZKSyncWallet);
       estimatedGas = await deployer.estimateDeployGas(artifact, params);
       contract = await deployer.deploy(artifact, params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
@@ -406,8 +408,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         protocol === ProtocolType.Tron
           ? await this.resolveTronFactory(factory)
           : factory;
-      const contractFactory = resolved.connect(signer);
-
+      const contractFactory = resolved.connect(signer as any);
       const deployTx = await contractFactory.getDeployTransaction(...params);
       estimatedGas = await signer.estimateGas(deployTx);
       contract = await contractFactory.deploy(...params, {
@@ -416,18 +417,23 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       });
       // manually wait for deploy tx to be confirmed for non-zksync chains
       const deploymentTx =
-        contract.deploymentTransaction?.() ??
+        (contract as any).deploymentTransaction?.() ??
         (contract as any).deployTransaction;
       if (!deploymentTx) {
         throw new Error(`Missing deployment transaction for ${chainNameOrId}`);
       }
-      await this.handleTx(chainNameOrId, deploymentTx);
+      await this.handleTx(
+        chainNameOrId,
+        deploymentTx as TransactionResponseLike,
+      );
     }
 
     const contractAddress =
-      contract.getAddress?.() ?? Promise.resolve((contract as any).address);
+      (contract as any).getAddress?.() ??
+      Promise.resolve((contract as any).address);
     const deploymentTx =
-      contract.deploymentTransaction?.() ?? (contract as any).deployTransaction;
+      (contract as any).deploymentTransaction?.() ??
+      (contract as any).deployTransaction;
 
     this.logger.trace(
       `Contract deployed at ${await contractAddress} on ${chainNameOrId}:`,
@@ -435,7 +441,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     );
 
     // return deployed contract
-    return contract as Awaited<ReturnType<F['deploy']>>;
+    return contract;
   }
 
   /**
@@ -470,7 +476,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async handleTx(
     chainNameOrId: ChainNameOrId,
-    tx: ContractTransactionResponse | Promise<ContractTransactionResponse>,
+    tx: TransactionResponseLike | Promise<TransactionResponseLike>,
     options?: SendTransactionOptions,
   ): Promise<TransactionReceipt> {
     const response = await tx;
@@ -508,11 +514,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.logger.info(
       `Pending ${txUrl || response.hash} (waiting ${confirmations} blocks for confirmation)`,
     );
-    const receipt = await timeout(
+    const receipt = (await timeout(
       response.wait(confirmations),
       timeoutMs,
       `Timeout (${timeoutMs}ms) waiting for ${confirmations} block confirmations for tx ${response.hash}`,
-    );
+    )) as TransactionReceipt | null;
 
     // ethers v5 can return null for wait(0) if tx is still pending.
     if (receipt) return receipt;
@@ -538,7 +544,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async waitForBlockTag(
     chainNameOrId: ChainNameOrId,
-    response: ContractTransactionResponse,
+    response: TransactionResponseLike,
     blockTag: EthJsonRpcBlockParameterTag,
     timeoutMs = DEFAULT_CONFIRMATION_TIMEOUT_MS,
   ): Promise<TransactionReceipt> {
@@ -571,7 +577,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
           `Transaction ${response.hash} not found after ${blockTag} confirmation - may have been reorged out`,
         );
       }
-      return finalReceipt;
+      return finalReceipt as unknown as TransactionReceipt;
     }
 
     const POLL_INTERVAL_MS = 2000;
@@ -593,7 +599,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
             `Transaction ${response.hash} not found after ${blockTag} confirmation - may have been reorged out`,
           );
         }
-        return finalReceipt;
+        return finalReceipt as unknown as TransactionReceipt;
       }
     }
 
@@ -659,7 +665,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const signer = this.getSigner(chainNameOrId);
     const response = await signer.sendTransaction(txReq);
     this.logger.info(`Sent tx ${response.hash}`);
-    return this.handleTx(chainNameOrId, response, options);
+    return this.handleTx(
+      chainNameOrId,
+      response as TransactionResponseLike,
+      options,
+    );
   }
 
   /**

@@ -1,8 +1,4 @@
-import {
-  Contract,
-  PopulatedTransaction,
-  constants as ethersConstants,
-} from 'ethers';
+import { Contract, TransactionRequest, ZeroAddress } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
@@ -22,6 +18,8 @@ import {
   QuoteTransferRemoteParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
+
+type PopulatedTransaction = TransactionRequest;
 
 /**
  * M0PortalLiteTokenAdapter - Adapter for M0 PortalLite token transfers
@@ -114,7 +112,7 @@ export class M0PortalLiteTokenAdapter
     const gasQuote = await this.portalContract.quoteTransfer(
       1n, // Amount doesn't affect gas quote
       destinationChainId,
-      sender || ethersConstants.AddressZero, // Recipient doesn't affect quote
+      sender || ZeroAddress, // Recipient doesn't affect quote
     );
 
     return {
@@ -144,16 +142,18 @@ export class M0PortalLiteTokenAdapter
 
     // Use Portal's transferMLikeToken function to support wrapped tokens like mUSD
     // Both source and destination use the same token address (mUSD on both chains)
-    return this.portalContract.populateTransaction.transferMLikeToken(
-      BigInt(params.weiAmountOrId.toString()),
-      this.addresses.token, // source token
-      destinationChainId,
-      this.addresses.token, // destination token (same address on both chains for mUSD)
-      params.recipient,
-      params.fromAccountOwner || ethersConstants.AddressZero, // refundAddress
-      {
-        value: gasQuote,
-      },
-    );
+    return this.portalContract
+      .getFunction('transferMLikeToken')
+      .populateTransaction(
+        BigInt(params.weiAmountOrId.toString()),
+        this.addresses.token, // source token
+        destinationChainId,
+        this.addresses.token, // destination token (same address on both chains for mUSD)
+        params.recipient,
+        params.fromAccountOwner || ZeroAddress, // refundAddress
+        {
+          value: gasQuote,
+        },
+      );
   }
 }

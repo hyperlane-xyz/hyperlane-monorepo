@@ -1,4 +1,5 @@
-import { Wallet, ethers } from 'ethers';
+import { Wallet, isHexString } from 'ethers';
+import type { Signer } from 'ethers';
 import { Wallet as ZkSyncWallet } from 'zksync-ethers';
 
 import { TronWallet } from '@hyperlane-xyz/tron-sdk';
@@ -27,7 +28,7 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
       multiProvider.getChainMetadata(chainName);
 
     assert(
-      ethers.utils.isHexString(privateKey),
+      isHexString(privateKey),
       `Private key for chain ${chainName} should be a hex string`,
     );
 
@@ -62,6 +63,6 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
       options,
     );
 
-    return res.transactionHash;
+    return res.hash;
   }
 }
