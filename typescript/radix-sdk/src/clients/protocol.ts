@@ -13,11 +13,13 @@ import { IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
 import { IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { RadixIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { RadixBase } from '../utils/base.js';
+import { RadixWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 import { NETWORKS, RadixProvider } from './provider.js';
 import { RadixSigner } from './signer.js';
@@ -157,6 +159,49 @@ export class RadixProtocolProvider implements ProtocolProvider {
       mailboxAddress,
       nativeTokenDenom,
     );
+  }
+
+  createWarpArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    _context?: { mailbox?: string },
+  ): IRawWarpArtifactManager {
+    assert(chainMetadata.gatewayUrls, 'gateway urls undefined');
+
+    const networkId = parseInt(chainMetadata.chainId.toString());
+    const gatewayUrl = chainMetadata.gatewayUrls[0]?.http;
+
+    assert(gatewayUrl, 'gateway url undefined');
+
+    let packageAddress = chainMetadata.packageAddress;
+
+    if (!packageAddress) {
+      const networkBaseConfig = NETWORKS[networkId];
+      assert(
+        networkBaseConfig,
+        `Network with id ${networkId} not supported and no packageAddress provided in chain metadata. Supported network ids: ${Object.keys(NETWORKS).join(', ')}`,
+      );
+      packageAddress = networkBaseConfig.packageAddress;
+    }
+
+    assert(
+      packageAddress,
+      `Expected package address to be defined for radix network with id ${networkId}`,
+    );
+
+    const gateway = GatewayApiClient.initialize({
+      applicationName: 'hyperlane',
+      basePath: gatewayUrl,
+      networkId,
+    });
+
+    const base = new RadixBase(
+      networkId,
+      gateway,
+      DEFAULT_GAS_MULTIPLIER,
+      packageAddress,
+    );
+
+    return new RadixWarpArtifactManager(gateway, base);
   }
 
   getMinGas(): MinimumRequiredGasByAction {
