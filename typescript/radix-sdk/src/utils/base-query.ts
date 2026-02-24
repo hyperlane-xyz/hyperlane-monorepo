@@ -194,7 +194,7 @@ function tryGetFieldPropertyFromEntityState<TKey extends keyof EntityField, T>(
         : f[property],
     );
 
-  return result && formatter ? formatter(result) : result;
+  return !isNullish(result) && formatter ? formatter(result) : result;
 }
 
 export function getFieldPropertyFromEntityState<
