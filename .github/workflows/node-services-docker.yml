@@ -16,6 +16,8 @@ on:
       - '.dockerignore'
       - '.github/workflows/node-services-docker.yml'
       - 'solidity/.foundryrc'
+      - 'typescript/Dockerfile.node-service'
+      - 'typescript/docker-bake.hcl'
   pull_request:
     paths:
       - 'typescript/rebalancer/**'
