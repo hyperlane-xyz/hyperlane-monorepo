@@ -217,10 +217,19 @@ impl ChainMetrics {
         let native_token_symbol = &native_token.denom;
 
         // Set reorg period (blocks to finality)
-        if let Ok(blocks) = reorg_period.as_blocks() {
-            self.reorg_period
-                .with(&hashmap! { "chain" => chain })
-                .set(blocks as i64);
+        match reorg_period.as_blocks() {
+            Ok(blocks) => {
+                self.reorg_period
+                    .with(&hashmap! { "chain" => chain })
+                    .set(blocks as i64);
+            }
+            Err(_) => {
+                trace!(
+                    chain,
+                    ?reorg_period,
+                    "Reorg period is not block-based; skipping chain_config_reorg_period metric"
+                );
+            }
         }
 
         // Set estimated block time in seconds
@@ -393,5 +402,133 @@ impl ChainSpecificMetricsUpdater {
                 .instrument(info_span!("MetricsUpdater")),
             )
             .expect("spawning tokio task from Builder is infallible")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyperlane_core::KnownHyperlaneDomain;
+    use prometheus::opts;
+
+    fn test_chain_metrics() -> ChainMetrics {
+        ChainMetrics {
+            block_height: IntGaugeVec::new(
+                opts!("block_height", BLOCK_HEIGHT_HELP),
+                BLOCK_HEIGHT_LABELS,
+            )
+            .unwrap(),
+            gas_price: None,
+            critical_error: IntGaugeVec::new(
+                opts!("critical_error", CRITICAL_ERROR_HELP),
+                CRITICAL_ERROR_LABELS,
+            )
+            .unwrap(),
+            reorg_period: IntGaugeVec::new(
+                opts!("chain_config_reorg_period", CHAIN_CONFIG_REORG_PERIOD_HELP),
+                CHAIN_CONFIG_REORG_PERIOD_LABELS,
+            )
+            .unwrap(),
+            estimated_block_time: GaugeVec::new(
+                opts!(
+                    "chain_config_estimated_block_time",
+                    CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_HELP
+                ),
+                CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_LABELS,
+            )
+            .unwrap(),
+            chain_config_info: IntGaugeVec::new(
+                opts!("chain_config_info", CHAIN_CONFIG_INFO_HELP),
+                CHAIN_CONFIG_INFO_LABELS,
+            )
+            .unwrap(),
+            native_token_decimals: IntGaugeVec::new(
+                opts!(
+                    "chain_config_native_token_decimals",
+                    CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_HELP
+                ),
+                CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_LABELS,
+            )
+            .unwrap(),
+        }
+    }
+
+    #[test]
+    fn test_set_chain_config_populates_metrics() {
+        let metrics = test_chain_metrics();
+
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let reorg_period = ReorgPeriod::from_blocks(15);
+        let estimated_block_time = Duration::from_secs_f64(12.5);
+        let native_token = NativeToken {
+            decimals: 18,
+            denom: "ETH".to_string(),
+        };
+
+        metrics.set_chain_config(&domain, &reorg_period, estimated_block_time, &native_token);
+
+        // Verify reorg period
+        let reorg = metrics
+            .reorg_period
+            .with(&hashmap! { "chain" => "ethereum" })
+            .get();
+        assert_eq!(reorg, 15);
+
+        // Verify estimated block time
+        let block_time = metrics
+            .estimated_block_time
+            .with(&hashmap! { "chain" => "ethereum" })
+            .get();
+        assert!((block_time - 12.5).abs() < f64::EPSILON);
+
+        // Verify chain config info gauge is set to 1
+        let info = metrics
+            .chain_config_info
+            .with(&hashmap! {
+                "chain" => "ethereum",
+                "protocol" => "ethereum",
+                "technical_stack" => "other",
+                "native_token_symbol" => "ETH",
+                "domain_id" => "1",
+            })
+            .get();
+        assert_eq!(info, 1);
+
+        // Verify native token decimals
+        let decimals = metrics
+            .native_token_decimals
+            .with(&hashmap! { "chain" => "ethereum" })
+            .get();
+        assert_eq!(decimals, 18);
+    }
+
+    #[test]
+    fn test_set_chain_config_skips_tag_based_reorg_period() {
+        let metrics = test_chain_metrics();
+
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let reorg_period = ReorgPeriod::Tag("finalized".to_string());
+        let estimated_block_time = Duration::from_secs(12);
+        let native_token = NativeToken {
+            decimals: 18,
+            denom: "ETH".to_string(),
+        };
+
+        metrics.set_chain_config(&domain, &reorg_period, estimated_block_time, &native_token);
+
+        // Reorg period should not be set for tag-based periods;
+        // querying it returns the default (0)
+        let reorg = metrics
+            .reorg_period
+            .with(&hashmap! { "chain" => "ethereum" })
+            .get();
+        assert_eq!(reorg, 0);
+
+        // Other metrics should still be set
+        let decimals = metrics
+            .native_token_decimals
+            .with(&hashmap! { "chain" => "ethereum" })
+            .get();
+        assert_eq!(decimals, 18);
     }
 }

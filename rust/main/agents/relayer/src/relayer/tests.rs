@@ -102,6 +102,48 @@ fn generate_test_chain_conf(
     }
 }
 
+fn generate_test_chain_metrics() -> ChainMetrics {
+    ChainMetrics {
+        block_height: IntGaugeVec::new(
+            opts!("block_height", BLOCK_HEIGHT_HELP),
+            BLOCK_HEIGHT_LABELS,
+        )
+        .unwrap(),
+        gas_price: None,
+        critical_error: IntGaugeVec::new(
+            opts!("critical_error", CRITICAL_ERROR_HELP),
+            CRITICAL_ERROR_LABELS,
+        )
+        .unwrap(),
+        reorg_period: IntGaugeVec::new(
+            opts!("chain_config_reorg_period", CHAIN_CONFIG_REORG_PERIOD_HELP),
+            CHAIN_CONFIG_REORG_PERIOD_LABELS,
+        )
+        .unwrap(),
+        estimated_block_time: GaugeVec::new(
+            opts!(
+                "chain_config_estimated_block_time",
+                CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_HELP
+            ),
+            CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_LABELS,
+        )
+        .unwrap(),
+        chain_config_info: IntGaugeVec::new(
+            opts!("chain_config_info", CHAIN_CONFIG_INFO_HELP),
+            CHAIN_CONFIG_INFO_LABELS,
+        )
+        .unwrap(),
+        native_token_decimals: IntGaugeVec::new(
+            opts!(
+                "chain_config_native_token_decimals",
+                CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_HELP
+            ),
+            CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_LABELS,
+        )
+        .unwrap(),
+    }
+}
+
 /// Builds a test RelayerSetting
 fn generate_test_relayer_settings(
     db_path: &Path,
@@ -193,45 +235,7 @@ async fn test_failed_build_destinations() {
 
     let registry = Registry::new();
     let core_metrics = Arc::new(CoreMetrics::new("relayer", 4000, registry).unwrap());
-    let chain_metrics = ChainMetrics {
-        block_height: IntGaugeVec::new(
-            opts!("block_height", BLOCK_HEIGHT_HELP),
-            BLOCK_HEIGHT_LABELS,
-        )
-        .unwrap(),
-        gas_price: None,
-        critical_error: IntGaugeVec::new(
-            opts!("critical_error", CRITICAL_ERROR_HELP),
-            CRITICAL_ERROR_LABELS,
-        )
-        .unwrap(),
-        reorg_period: IntGaugeVec::new(
-            opts!("chain_config_reorg_period", CHAIN_CONFIG_REORG_PERIOD_HELP),
-            CHAIN_CONFIG_REORG_PERIOD_LABELS,
-        )
-        .unwrap(),
-        estimated_block_time: GaugeVec::new(
-            opts!(
-                "chain_config_estimated_block_time",
-                CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_HELP
-            ),
-            CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_LABELS,
-        )
-        .unwrap(),
-        chain_config_info: IntGaugeVec::new(
-            opts!("chain_config_info", CHAIN_CONFIG_INFO_HELP),
-            CHAIN_CONFIG_INFO_LABELS,
-        )
-        .unwrap(),
-        native_token_decimals: IntGaugeVec::new(
-            opts!(
-                "chain_config_native_token_decimals",
-                CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_HELP
-            ),
-            CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_LABELS,
-        )
-        .unwrap(),
-    };
+    let chain_metrics = generate_test_chain_metrics();
 
     let db = DB::from_path(db_path).unwrap();
 
@@ -309,45 +313,7 @@ async fn test_failed_build_origin() {
 
     let registry = Registry::new();
     let core_metrics = CoreMetrics::new("relayer", 4000, registry).unwrap();
-    let chain_metrics = ChainMetrics {
-        block_height: IntGaugeVec::new(
-            opts!("block_height", BLOCK_HEIGHT_HELP),
-            BLOCK_HEIGHT_LABELS,
-        )
-        .unwrap(),
-        gas_price: None,
-        critical_error: IntGaugeVec::new(
-            opts!("critical_error", CRITICAL_ERROR_HELP),
-            CRITICAL_ERROR_LABELS,
-        )
-        .unwrap(),
-        reorg_period: IntGaugeVec::new(
-            opts!("chain_config_reorg_period", CHAIN_CONFIG_REORG_PERIOD_HELP),
-            CHAIN_CONFIG_REORG_PERIOD_LABELS,
-        )
-        .unwrap(),
-        estimated_block_time: GaugeVec::new(
-            opts!(
-                "chain_config_estimated_block_time",
-                CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_HELP
-            ),
-            CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_LABELS,
-        )
-        .unwrap(),
-        chain_config_info: IntGaugeVec::new(
-            opts!("chain_config_info", CHAIN_CONFIG_INFO_HELP),
-            CHAIN_CONFIG_INFO_LABELS,
-        )
-        .unwrap(),
-        native_token_decimals: IntGaugeVec::new(
-            opts!(
-                "chain_config_native_token_decimals",
-                CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_HELP
-            ),
-            CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_LABELS,
-        )
-        .unwrap(),
-    };
+    let chain_metrics = generate_test_chain_metrics();
 
     let db = DB::from_path(db_path).expect("Failed to initialize database");
     let origins =
