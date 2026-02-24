@@ -253,12 +253,12 @@ export function getPostDeploymentUpdateTxs<
  * @param currentArtifactState The current on-chain warp token state
  * @returns Array of transactions to execute in order
  */
-export async function getWarpTokenUpdateTxs<
+export function getWarpTokenUpdateTxs<
   TConfig extends RawWarpArtifactConfig,
 >(
   expectedArtifactState: ArtifactDeployed<TConfig, DeployedWarpAddress>,
   currentArtifactState: ArtifactDeployed<TConfig, DeployedWarpAddress>,
-): Promise<AnnotatedAleoTransaction[]> {
+): AnnotatedAleoTransaction[] {
   const { config: expectedConfig, deployed } = expectedArtifactState;
   const { config: currentConfig } = currentArtifactState;
   const updateTxs: AnnotatedAleoTransaction[] = [];
@@ -280,10 +280,10 @@ export async function getWarpTokenUpdateTxs<
   const newHook = expectedConfig.hook?.deployed.address;
 
   if (!eqOptionalAddress(currentHook, newHook, eqAddressAleo)) {
-    const setIsmTx = getSetTokenHookTx(deployed.address, newHook);
+    const setHookTx = getSetTokenHookTx(deployed.address, newHook);
     updateTxs.push({
       annotation: 'Updating token Hook',
-      ...setIsmTx,
+      ...setHookTx,
     });
   }
 
