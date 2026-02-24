@@ -151,9 +151,18 @@ export async function runCoreApply(params: ApplyParams) {
       if (transactions.length) {
         logGray('Updating deployed core contracts');
         for (const transaction of transactions) {
+          const txChain =
+            typeof transaction.chainId === 'number'
+              ? transaction.chainId
+              : typeof transaction.chainId === 'bigint'
+                ? Number(transaction.chainId)
+                : typeof transaction.chainId === 'string' &&
+                    /^\d+$/.test(transaction.chainId)
+                  ? Number(transaction.chainId)
+                  : chain;
           await multiProvider.sendTransaction(
             // Using the provided chain id because there might be remote chain transactions included in the batch
-            (transaction.chainId as any) ?? chain,
+            txChain,
             transaction,
           );
         }

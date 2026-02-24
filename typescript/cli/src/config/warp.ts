@@ -88,27 +88,38 @@ const TYPE_CHOICES = Object.values(TokenType)
 export async function fillDefaults(
   context: CommandContext,
   config: ChainMap<Partial<MailboxClientConfig>>,
-): Promise<ChainMap<MailboxClientConfig>> {
+): Promise<ChainMap<MailboxClientConfig>>;
+export async function fillDefaults<T extends Partial<MailboxClientConfig>>(
+  context: CommandContext,
+  config: ChainMap<T>,
+): Promise<ChainMap<T & MailboxClientConfig>>;
+export async function fillDefaults<T extends Partial<MailboxClientConfig>>(
+  context: CommandContext,
+  config: ChainMap<T>,
+): Promise<ChainMap<T & MailboxClientConfig>> {
   return promiseObjAll(
-    objMap(config, async (chain, config): Promise<MailboxClientConfig> => {
-      let mailbox = config.mailbox;
-      if (!mailbox) {
-        const addresses = await context.registry.getChainAddresses(chain);
-        assert(addresses, `No addresses found for chain ${chain}`);
-        mailbox = addresses.mailbox;
-      }
-      let owner = config.owner;
-      if (!owner) {
-        owner =
-          context.signerAddress ??
-          (await context.multiProvider.getSignerAddress(chain));
-      }
-      return {
-        owner,
-        mailbox,
-        ...config,
-      };
-    }),
+    objMap(
+      config,
+      async (chain, chainConfig): Promise<T & MailboxClientConfig> => {
+        let mailbox = chainConfig.mailbox;
+        if (!mailbox) {
+          const addresses = await context.registry.getChainAddresses(chain);
+          assert(addresses, `No addresses found for chain ${chain}`);
+          mailbox = addresses.mailbox;
+        }
+        let owner = chainConfig.owner;
+        if (!owner) {
+          owner =
+            context.signerAddress ??
+            (await context.multiProvider.getSignerAddress(chain));
+        }
+        return {
+          owner,
+          mailbox,
+          ...chainConfig,
+        };
+      },
+    ),
   );
 }
 
@@ -124,46 +135,43 @@ export async function readWarpRouteDeployConfig({
       context: CommandContext;
       filePath: string;
     }): Promise<WarpRouteDeployConfigMailboxRequired> {
-  let config =
+  let config: WarpRouteDeployConfig =
     'filePath' in args
-      ? readYamlOrJson(args.filePath)
+      ? WarpRouteDeployConfigSchema.parse(readYamlOrJson(args.filePath))
       : await context.registry.getWarpDeployConfig(args.warpRouteId);
 
   assert(config, `No warp route deploy config found!`);
 
-  config = await fillDefaults(context, config as any);
+  config = await fillDefaults(context, config);
 
-  config = objMap(
-    config as any,
-    (_chain, chainConfig: HypTokenRouterConfig) => {
-      if (chainConfig.destinationGas) {
-        chainConfig.destinationGas = resolveRouterMapConfig(
-          context.multiProvider,
-          chainConfig.destinationGas,
-        );
-      }
+  config = objMap(config, (_chain, chainConfig: HypTokenRouterConfig) => {
+    if (chainConfig.destinationGas) {
+      chainConfig.destinationGas = resolveRouterMapConfig(
+        context.multiProvider,
+        chainConfig.destinationGas,
+      );
+    }
 
-      if (chainConfig.remoteRouters) {
-        chainConfig.remoteRouters = resolveRouterMapConfig(
-          context.multiProvider,
-          chainConfig.remoteRouters,
-        );
-      }
+    if (chainConfig.remoteRouters) {
+      chainConfig.remoteRouters = resolveRouterMapConfig(
+        context.multiProvider,
+        chainConfig.remoteRouters,
+      );
+    }
 
-      if (!isMovableCollateralTokenConfig(chainConfig)) {
-        return chainConfig;
-      }
-
-      if (chainConfig.allowedRebalancingBridges) {
-        chainConfig.allowedRebalancingBridges = resolveRouterMapConfig(
-          context.multiProvider,
-          chainConfig.allowedRebalancingBridges,
-        );
-      }
-
+    if (!isMovableCollateralTokenConfig(chainConfig)) {
       return chainConfig;
-    },
-  );
+    }
+
+    if (chainConfig.allowedRebalancingBridges) {
+      chainConfig.allowedRebalancingBridges = resolveRouterMapConfig(
+        context.multiProvider,
+        chainConfig.allowedRebalancingBridges,
+      );
+    }
+
+    return chainConfig;
+  });
 
   //fillDefaults would have added a mailbox to the config if it was missing
   return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
