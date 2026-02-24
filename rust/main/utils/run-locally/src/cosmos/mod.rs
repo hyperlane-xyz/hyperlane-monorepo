@@ -522,6 +522,7 @@ fn run_locally() {
         .collect::<Vec<_>>();
 
     let chains = agent_config_out.chains.into_keys().collect::<Vec<_>>();
+    let chain_refs = chains.iter().map(String::as_str).collect::<Vec<_>>();
     let path = agent_config_path.to_str().unwrap();
 
     let hpl_rly_metrics_port = metrics_port_start + node_count + 1u32;
@@ -559,6 +560,7 @@ fn run_locally() {
             hpl_scr_metrics_port,
             dispatched_messages,
             starting_relayer_balance,
+            &chain_refs,
         )
         .unwrap_or(false)
         {

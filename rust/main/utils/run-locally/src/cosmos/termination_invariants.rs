@@ -3,7 +3,9 @@
 use maplit::hashmap;
 
 use crate::fetch_metric;
-use crate::invariants::provider_metrics_invariant_met;
+use crate::invariants::{
+    finalized_transactions_per_destination_invariants_met, provider_metrics_invariant_met,
+};
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 
@@ -12,6 +14,7 @@ pub fn termination_invariants_met(
     scraper_metrics_port: u32,
     messages_expected: u32,
     starting_relayer_balance: f64,
+    chains: &[&str],
 ) -> eyre::Result<bool> {
     let expected_gas_payments = messages_expected;
     let gas_payments_event_count = fetch_metric(
@@ -125,6 +128,13 @@ pub fn termination_invariants_met(
         messages_expected,
         &hashmap! {"chain" => "cosmostest99990", "connection" => "grpc", "status" => "success"},
         &hashmap! {"chain" => "cosmostest99990"},
+    )? {
+        return Ok(false);
+    }
+
+    if !finalized_transactions_per_destination_invariants_met(
+        &relayer_metrics_port.to_string(),
+        chains,
     )? {
         return Ok(false);
     }

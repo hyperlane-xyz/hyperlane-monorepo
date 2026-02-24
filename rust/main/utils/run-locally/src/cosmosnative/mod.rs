@@ -16,7 +16,9 @@ use tempfile::tempdir;
 use types::{AgentConfig, AgentConfigOut, Deployment};
 
 use crate::{
-    fetch_metric, log,
+    fetch_metric,
+    invariants::finalized_transactions_per_destination_invariants_met,
+    log,
     metrics::agent_balance_sum,
     program::Program,
     utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle},
@@ -314,6 +316,7 @@ fn run_locally() {
         .collect::<Vec<_>>();
 
     let chains = agent_config_out.chains.into_keys().collect::<Vec<_>>();
+    let chain_refs = chains.iter().map(String::as_str).collect::<Vec<_>>();
     let path = agent_config_path.to_str().unwrap();
 
     let hpl_rly_metrics_port = metrics_port_start + node_count;
@@ -349,6 +352,7 @@ fn run_locally() {
             hpl_scr_metrics_port,
             dispatched_messages,
             starting_relayer_balance,
+            &chain_refs,
         )
         .unwrap_or(false)
         {
@@ -376,6 +380,7 @@ fn termination_invariants_met(
     scraper_metrics_port: u32,
     messages_expected: u32,
     starting_relayer_balance: f64,
+    chains: &[&str],
 ) -> eyre::Result<bool> {
     let expected_gas_payments = messages_expected;
     let gas_payments_event_count = fetch_metric(
@@ -471,6 +476,13 @@ fn termination_invariants_met(
             delivered_messages_scraped,
             messages_expected
         );
+        return Ok(false);
+    }
+
+    if !finalized_transactions_per_destination_invariants_met(
+        &relayer_metrics_port.to_string(),
+        chains,
+    )? {
         return Ok(false);
     }
 

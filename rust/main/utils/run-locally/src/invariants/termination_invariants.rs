@@ -387,11 +387,22 @@ pub fn lander_metrics_invariants_met(
     .iter()
     .sum::<u32>();
 
-    // Checking that some transactions were finalized.
-    // Since we have batching for Ethereum with Lander, we cannot predict the exact number of
-    // finalized transactions.
-    if finalized_transactions == 0 {
-        log!("hyperlane_lander_finalized_transactions is zero, expected at least one",);
+    if dropped_transactions > transaction_submissions {
+        log!(
+            "hyperlane_lander_dropped_transactions {} count, expected <= submissions {}",
+            dropped_transactions,
+            transaction_submissions
+        );
+        return Ok(false);
+    }
+
+    let expected_finalized_transactions = transaction_submissions - dropped_transactions;
+    if finalized_transactions != expected_finalized_transactions {
+        log!(
+            "hyperlane_lander_finalized_transactions {} count, expected {}",
+            finalized_transactions,
+            expected_finalized_transactions
+        );
         return Ok(false);
     }
     if building_stage_queue_length != 0 {
@@ -464,6 +475,59 @@ pub fn lander_metrics_invariants_met(
         mismatch_nonce_count, 0,
         "Mismatch nonce count should not have incremented"
     );
+
+    Ok(true)
+}
+
+pub fn finalized_transactions_per_destination_invariants_met(
+    relayer_port: &str,
+    destinations: &[&str],
+) -> eyre::Result<bool> {
+    for destination in destinations {
+        let labels = hashmap! {"destination" => *destination};
+        let finalized_transactions = fetch_metric(
+            relayer_port,
+            "hyperlane_lander_finalized_transactions",
+            &labels,
+        )?
+        .iter()
+        .sum::<u32>();
+        let dropped_transactions = fetch_metric(
+            relayer_port,
+            "hyperlane_lander_dropped_transactions",
+            &labels,
+        )?
+        .iter()
+        .sum::<u32>();
+        let transaction_submissions = fetch_metric(
+            relayer_port,
+            "hyperlane_lander_transaction_submissions",
+            &labels,
+        )?
+        .iter()
+        .sum::<u32>();
+
+        if dropped_transactions > transaction_submissions {
+            log!(
+                "destination {} dropped_transactions {} > transaction_submissions {}",
+                destination,
+                dropped_transactions,
+                transaction_submissions
+            );
+            return Ok(false);
+        }
+
+        let expected_finalized_transactions = transaction_submissions - dropped_transactions;
+        if finalized_transactions != expected_finalized_transactions {
+            log!(
+                "destination {} finalized_transactions {} != expected {}",
+                destination,
+                finalized_transactions,
+                expected_finalized_transactions
+            );
+            return Ok(false);
+        }
+    }
 
     Ok(true)
 }
