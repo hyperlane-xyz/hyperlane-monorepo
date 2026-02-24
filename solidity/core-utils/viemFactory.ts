@@ -931,6 +931,7 @@ export function createContractProxy<TAbi extends Abi>(
   runner: RunnerLike,
 ): ViemContractLike<TAbi> {
   const iface = createInterface(abi);
+  let proxiedContract: ViemContractLike<TAbi> | undefined;
 
   const estimateGas = new Proxy(
     {},
@@ -962,7 +963,7 @@ export function createContractProxy<TAbi extends Abi>(
       get(_target, prop) {
         if (typeof prop !== 'string') return undefined;
         return (...args: unknown[]) => {
-          const method = contract[prop];
+          const method = proxiedContract?.[prop];
           if (typeof method !== 'function') {
             throw new Error(`Function ${prop} not found`);
           }
@@ -1049,7 +1050,7 @@ export function createContractProxy<TAbi extends Abi>(
     },
   } as ViemContractLike<TAbi>;
 
-  return new Proxy(contract, {
+  const contractProxy = new Proxy(contract, {
     get(target, prop, receiver) {
       if (typeof prop !== 'string') return Reflect.get(target, prop, receiver);
       if (prop in target) return Reflect.get(target, prop, receiver);
@@ -1078,6 +1079,9 @@ export function createContractProxy<TAbi extends Abi>(
       };
     },
   }) as ViemContractLike<TAbi>;
+
+  proxiedContract = contractProxy;
+  return contractProxy;
 }
 
 export class ViemContractFactory<
