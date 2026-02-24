@@ -177,7 +177,7 @@ export class TronWallet extends Wallet {
     const altered = await this.tronWeb.transactionBuilder.alterTransaction(
       tronTx as Types.Transaction,
       {
-        extension: Date.now() / 1000 + 90 + extension,
+        extension,
       },
     );
 
