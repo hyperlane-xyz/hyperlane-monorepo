@@ -40,9 +40,8 @@ export interface TronNodeInfo {
 /**
  * Starts a local Tron node using the tronbox/tre Docker image.
  *
- * Uses host networking when the requested port matches the container's
- * internal port (9090), avoiding testcontainers' hardcoded 10s port
- * binding timeout. Falls back to explicit port mapping otherwise.
+ * Always uses explicit port mapping (host networking doesn't work on
+ * Docker Desktop for macOS/Windows).
  *
  * @param chainMetadata - Test chain metadata configuration
  * @returns Container and pre-funded account private keys
@@ -52,26 +51,18 @@ export async function runTronNode(
 ): Promise<TronNodeInfo> {
   rootLogger.info(`Starting Tron node for ${chainMetadata.name}`);
 
-  const useHostNetwork = chainMetadata.port === TRE_CONTAINER_PORT;
-
   const container = await retryAsync(
     () => {
-      const gc = new GenericContainer('tronbox/tre:1.0.3').withEnvironment({
-        preapprove: 'allowTvmCompatibleEvm:1',
-        mnemonic: TRE_MNEMONIC,
-        defaultBalance: '1000000000000000000000',
-      });
-
-      if (useHostNetwork) {
-        gc.withNetworkMode('host');
-      } else {
-        gc.withExposedPorts({
+      return new GenericContainer('tronbox/tre:1.0.3')
+        .withEnvironment({
+          preapprove: 'allowTvmCompatibleEvm:1',
+          mnemonic: TRE_MNEMONIC,
+          defaultBalance: '1000000',
+        })
+        .withExposedPorts({
           container: TRE_CONTAINER_PORT,
           host: chainMetadata.port,
-        });
-      }
-
-      return gc
+        })
         .withStartupTimeout(120_000)
         .withWaitStrategy(
           Wait.forLogMessage(/TRE now listening on/).withStartupTimeout(

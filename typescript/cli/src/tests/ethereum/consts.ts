@@ -31,7 +31,10 @@ export const CHAIN_NAME_3 = 'anvil3';
 export const CHAIN_NAME_4 = 'anvil4';
 
 export const EXAMPLES_PATH = './examples';
-export const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
+export const CORE_CONFIG_PATH =
+  TEST_STACK === 'tron'
+    ? `${EXAMPLES_PATH}/tron-core-config.yaml`
+    : `${EXAMPLES_PATH}/core-config.yaml`;
 export const CORE_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config.yaml`;
 export const CORE_READ_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
 export const CORE_READ_CONFIG_PATH_3 = `${TEMP_PATH}/${CHAIN_NAME_3}/core-config-read.yaml`;

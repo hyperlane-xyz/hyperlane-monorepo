@@ -118,7 +118,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     );
   }
 
-  describe('hyperlane warp deploy --config ...', () => {
+  describe('hyperlane warp deploy --config ...', function () {
     it(`should exit early when the provided deployment file does not exist`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -197,11 +197,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
         {
           check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
             currentOutput.includes('Is this deployment plan correct?'),
           input: KeyBoardKeys.ENTER,
         },
@@ -261,11 +256,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
         {
           check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
             currentOutput.includes('Is this deployment plan correct?'),
           input: KeyBoardKeys.ENTER,
         },
@@ -316,11 +306,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
       writeYamlOrJson(warpDeployPath, warpConfig);
 
       const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
@@ -406,11 +391,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
         {
           check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
             currentOutput.includes('Is this deployment plan correct?'),
           input: KeyBoardKeys.ENTER,
         },
@@ -468,7 +448,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp deploy --config ... --yes', () => {
+  describe('hyperlane warp deploy --config ... --yes', function () {
     it(`should exit early when the provided deployment file does not exist and the skip flag is provided`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -534,11 +514,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
 
       const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
@@ -690,6 +665,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
 
     it('should send a message from origin to destination in the correct order', async function () {
+      if (IS_TRON_TEST) this.skip(); // Self-relay not supported on single TRE node
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,

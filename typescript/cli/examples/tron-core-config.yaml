@@ -1,0 +1,20 @@
+# A config to define the core contract deployments for Tron test chains
+# Uses the Tron deployer address (derived from BIP-44 m/44'/195'/0'/0/0)
+owner: '0xC8599111F29c1e1E061265b4AF93eA1F274aD78A'
+defaultIsm:
+  type: 'testIsm'
+  threshold: 1 # Number: Signatures required to approve a message
+  validators: # Array: List of validator addresses
+    - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
+defaultHook:
+  type: protocolFee
+  maxProtocolFee: '1000000000000000000' # in wei (string)
+  protocolFee: '200000000000000' # in wei (string)
+  beneficiary: '0xC8599111F29c1e1E061265b4AF93eA1F274aD78A'
+  owner: '0xC8599111F29c1e1E061265b4AF93eA1F274aD78A'
+requiredHook:
+  type: protocolFee
+  maxProtocolFee: '1000000000000000000' # in wei (string)
+  protocolFee: '200000000000000' # in wei (string)
+  beneficiary: '0xC8599111F29c1e1E061265b4AF93eA1F274aD78A'
+  owner: '0xC8599111F29c1e1E061265b4AF93eA1F274aD78A'

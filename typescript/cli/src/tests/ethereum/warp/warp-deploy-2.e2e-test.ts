@@ -3,6 +3,8 @@ import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
 
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk';
+
 import {
   type ERC20Test,
   EverclearTokenBridge__factory,
@@ -99,7 +101,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   before(async function () {
     chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
+    providerChain2 = IS_TRON_TEST
+      ? new TronJsonRpcProvider(chain2Metadata.rpcUrls[0].http)
+      : new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     ownerAddress = walletChain2.address;
 
