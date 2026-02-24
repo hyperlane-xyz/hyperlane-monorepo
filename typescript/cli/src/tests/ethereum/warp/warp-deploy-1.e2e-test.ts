@@ -665,7 +665,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
 
     it('should send a message from origin to destination in the correct order', async function () {
-      if (IS_TRON_TEST) this.skip(); // Self-relay not supported on single TRE node
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,
