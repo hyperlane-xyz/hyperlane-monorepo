@@ -57,7 +57,7 @@ export class KeypairSvmTransactionSigner implements SvmTransactionSigner {
   }
 
   async signTransaction(transaction: Transaction): Promise<Transaction> {
-    transaction.sign(this.keypair);
+    transaction.partialSign(this.keypair);
     return transaction;
   }
 }
@@ -154,11 +154,22 @@ export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
    * Sign and confirm transaction with blockhash resubmit on expiry
    */
   private async signAndConfirm(transaction: Transaction): Promise<string> {
-    // Get initial blockhash
-    const { blockhash, lastValidBlockHeight } =
-      await this.svmProvider.getLatestBlockhash(this.config.commitment);
+    let lastValidBlockHeight: number;
 
-    transaction.recentBlockhash = blockhash;
+    if (transaction.recentBlockhash) {
+      // Preserve existing blockhash (and any partial signatures)
+      const currentHeight = await this.svmProvider.getBlockHeight(
+        this.config.commitment,
+      );
+      lastValidBlockHeight = currentHeight + 150;
+    } else {
+      const latest = await this.svmProvider.getLatestBlockhash(
+        this.config.commitment,
+      );
+      transaction.recentBlockhash = latest.blockhash;
+      lastValidBlockHeight = latest.lastValidBlockHeight;
+    }
+
     const signedTx = await this.signer.signTransaction(transaction);
 
     // Send initial transaction
