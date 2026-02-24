@@ -461,14 +461,14 @@ export function getResourceAddress(
   entityAddress: string,
   entityState: EntityDetails['state'],
 ): string {
-  const origin_denom = entityState.fields.find(
+  const resourceAddress = entityState.fields.find(
     (t) => t.type_name === 'ResourceAddress',
   )?.value;
 
   assert(
-    typeof origin_denom === 'string',
+    typeof resourceAddress === 'string',
     `Expected a resource address to be defined on the state of the component at address ${entityAddress}`,
   );
 
-  return origin_denom;
+  return resourceAddress;
 }
