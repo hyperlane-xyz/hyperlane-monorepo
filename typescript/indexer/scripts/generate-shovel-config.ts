@@ -104,8 +104,8 @@ function parseArgs(): ParsedArgs {
   let out = 'local/shovel/shovel.local.json';
   let chain: string | undefined;
   let startBlock: number | undefined;
-  let batchSize = 100;
-  let concurrency = 4;
+  let batchSize = 25;
+  let concurrency = 1;
   let pollDuration = '1s';
 
   for (let i = 0; i < args.length; i += 1) {
