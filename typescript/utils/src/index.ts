@@ -24,6 +24,7 @@ export {
   eqAddress,
   eqAddressCosmos,
   eqAddressEvm,
+  eqOptionalAddress,
   eqAddressSol,
   eqAddressStarknet,
   eqAddressRadix,
