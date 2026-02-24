@@ -412,7 +412,16 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         deployableContract.deployTransaction,
         'Deploy transaction missing',
       );
-      await this.handleTx(chainNameOrId, deployableContract.deployTransaction);
+      const transaction = deployableContract.deployTransaction;
+      assert(
+        typeof transaction.hash === 'string' &&
+          typeof transaction.wait === 'function',
+        'Deploy transaction is not waitable',
+      );
+      await this.handleTx(
+        chainNameOrId,
+        transaction as EvmTransactionResponseLike,
+      );
     } else {
       const contractFactory = factory.connect(signer);
       const deployTx = contractFactory.getDeployTransaction(...params);
@@ -427,7 +436,16 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         deployableContract.deployTransaction,
         'Deploy transaction missing',
       );
-      await this.handleTx(chainNameOrId, deployableContract.deployTransaction);
+      const transaction = deployableContract.deployTransaction;
+      assert(
+        typeof transaction.hash === 'string' &&
+          typeof transaction.wait === 'function',
+        'Deploy transaction is not waitable',
+      );
+      await this.handleTx(
+        chainNameOrId,
+        transaction as EvmTransactionResponseLike,
+      );
     }
 
     const deployableContract = contract as EvmDeployableContractLike;

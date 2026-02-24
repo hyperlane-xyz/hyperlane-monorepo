@@ -1,4 +1,11 @@
-export type EvmPopulatedTransaction = Record<string, unknown>;
+export type EvmContractLike = { address?: string } & Record<string, unknown>;
+export type EvmTransactionLike = {
+  to?: string;
+  data?: string;
+  value?: unknown;
+} & Record<string, unknown>;
+
+export type EvmPopulatedTransaction = EvmTransactionLike;
 export type EvmTransactionOverrides = Record<string, unknown>;
 
 export type EvmGasAmount = bigint | { toString(): string };
@@ -63,7 +70,13 @@ export interface EvmSignerLike {
   getBalance(): Promise<unknown>;
 }
 
+export type EvmDeployTransactionLike = {
+  data: string;
+  hash?: string;
+  wait?(confirmations?: number): Promise<EvmTransactionReceiptLike | null>;
+} & Record<string, unknown>;
+
 export type EvmDeployableContractLike = {
   address: string;
-  deployTransaction?: EvmTransactionResponseLike & { data: string };
+  deployTransaction?: EvmDeployTransactionLike;
 } & Record<string, unknown>;
