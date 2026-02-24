@@ -60,8 +60,9 @@ pub async fn update_tx_status(
         return Ok(());
     }
     // Keep finalized tx gauge and DB count in sync with status transitions.
+    // Note: tx persistence (line 56) and count update are non-atomic; on crash
+    // between them the recount endpoint can reconcile the gauge from DB state.
     match (&old_tx_status, &tx.status) {
-        (TransactionStatus::Finalized, TransactionStatus::Finalized) => {}
         (TransactionStatus::Finalized, _) => {
             match state.tx_db.decrement_finalized_transaction_count().await {
                 Ok(count) => state

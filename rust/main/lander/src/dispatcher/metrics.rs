@@ -9,7 +9,7 @@ use prometheus::{
     labels, opts, register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
     Encoder, IntCounterVec, IntGauge, IntGaugeVec, Registry,
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 const METRICS_NAMESPACE: &str = "hyperlane_lander";
 
@@ -280,24 +280,6 @@ impl DispatcherMetrics {
         self.finalized_transactions
             .with_label_values(&[domain])
             .set(count as i64);
-    }
-
-    pub fn increment_finalized_transactions_metric(&self, domain: &str) {
-        self.finalized_transactions
-            .with_label_values(&[domain])
-            .inc();
-    }
-
-    pub fn decrement_finalized_transactions_metric(&self, domain: &str) {
-        let gauge = self.finalized_transactions.with_label_values(&[domain]);
-        if gauge.get() > 0 {
-            gauge.dec();
-            return;
-        }
-        warn!(
-            %domain,
-            "Attempted to decrement finalized_transactions gauge below zero"
-        );
     }
 
     pub fn update_call_retries_metric(&self, error_type: &str, call_type: &str, domain: &str) {

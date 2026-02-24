@@ -25,7 +25,7 @@ pub async fn handler(
     Json(payload): Json<RequestBody>,
 ) -> ServerResult<ServerSuccessResponse<ResponseBody>> {
     let domain_id = payload.domain_id;
-    debug!(domain_id, "Fetching chain");
+    debug!(domain_id, "Looking up dispatcher entrypoint for recount");
 
     let dispatcher_entrypoint = state.entrypoints.get(&domain_id).ok_or_else(|| {
         warn!(domain_id, "Domain does not exist");
