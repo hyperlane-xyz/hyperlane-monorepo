@@ -214,6 +214,94 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return isObject(value) ? value : undefined;
 }
 
+function extractErrorMessages(
+  error: unknown,
+  seen: Set<unknown> = new Set(),
+): string[] {
+  if (error === null || error === undefined || seen.has(error)) return [];
+  seen.add(error);
+  if (typeof error === 'string') return [error];
+  if (!isObject(error)) return [];
+
+  const record = error as Record<string, unknown>;
+  const messages: string[] = [];
+  for (const key of ['message', 'shortMessage', 'details', 'reason']) {
+    const value = record[key];
+    if (typeof value === 'string') messages.push(value);
+  }
+
+  if (Array.isArray(record.errors)) {
+    for (const nestedError of record.errors) {
+      messages.push(...extractErrorMessages(nestedError, seen));
+    }
+  }
+  messages.push(...extractErrorMessages(record.error, seen));
+  messages.push(...extractErrorMessages(record.cause, seen));
+  return messages;
+}
+
+const SEND_FALLBACK_BLOCKERS = [
+  /execution reverted/i,
+  /revert/i,
+  /insufficient funds/i,
+  /nonce too low/i,
+  /replacement transaction underpriced/i,
+  /already known/i,
+  /user rejected/i,
+  /denied/i,
+  /intrinsic gas too low/i,
+  /out of gas/i,
+  /gas required exceeds allowance/i,
+  /fee cap less than block base fee/i,
+];
+
+const SEND_FALLBACK_REASONS = [
+  /is not a function/i,
+  /not implemented/i,
+  /unsupported/i,
+  /method .* not found/i,
+  /invalid parameters were provided to the rpc method/i,
+  /invalid argument/i,
+  /invalid type:/i,
+  /expected .* string/i,
+  /missing value for required argument/i,
+  /must provide (an )?account/i,
+  /account is required/i,
+];
+
+const RECEIPT_RETRY_REASONS = [
+  /invalid hash/i,
+  /invalid transaction hash/i,
+  /invalid argument/i,
+  /invalid type:/i,
+  /expected .* string/i,
+  /missing value for required argument/i,
+  /unsupported/i,
+  /not implemented/i,
+];
+
+function shouldFallbackSend(error: unknown): boolean {
+  const messages = extractErrorMessages(error);
+  if (!messages.length) return false;
+  if (
+    messages.some((message) =>
+      SEND_FALLBACK_BLOCKERS.some((pattern) => pattern.test(message)),
+    )
+  ) {
+    return false;
+  }
+  return messages.some((message) =>
+    SEND_FALLBACK_REASONS.some((pattern) => pattern.test(message)),
+  );
+}
+
+function shouldRetryReceiptWithPositionalArgs(error: unknown): boolean {
+  const messages = extractErrorMessages(error);
+  return messages.some((message) =>
+    RECEIPT_RETRY_REASONS.some((pattern) => pattern.test(message)),
+  );
+}
+
 function getAccountAddress(account: unknown): string | undefined {
   if (typeof account === 'string') return account;
   if (isObject(account) && typeof account.address === 'string') {
@@ -832,7 +920,10 @@ async function waitForReceipt(
           }),
           hash,
         );
-      } catch {
+      } catch (error) {
+        if (!shouldRetryReceiptWithPositionalArgs(error)) {
+          throw error;
+        }
         return toReceiptLike(
           await waitForTransactionReceipt(hash, confirmations),
           hash,
@@ -904,8 +995,8 @@ async function performSend(
       try {
         const hash = await runner.writeContract(request);
         return asTxResponse(runner, hash);
-      } catch {
-        // fall through to other execution paths
+      } catch (error) {
+        if (!shouldFallbackSend(error)) throw error;
       }
     }
 
@@ -923,8 +1014,8 @@ async function performSend(
           runner.sendTransaction as (args: unknown) => Promise<unknown>
         )(request);
         return asTxResponse(runner, sent);
-      } catch {
-        // fall through to other execution paths
+      } catch (error) {
+        if (!shouldFallbackSend(error)) throw error;
       }
     }
   }
@@ -968,7 +1059,28 @@ export function createContractProxy<TAbi extends Abi>(
   runner: RunnerLike,
 ): ViemContractLike<TAbi> {
   const iface = createInterface(abi);
-  const contractRef: { current?: ViemContractLike<TAbi> } = {};
+  const callContractFunction = async (
+    functionName: string,
+    rawArgs: readonly unknown[],
+  ) => {
+    const fn = getFunctionAbi(abi, functionName);
+    if (!fn) throw new Error(`Function ${functionName} not found`);
+    const inputCount = (fn.inputs ?? []).length;
+    const { fnArgs, overrides } = splitArgsAndOverrides(rawArgs, inputCount);
+    const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
+    const stateMutability = fn.stateMutability ?? 'nonpayable';
+    if (stateMutability === 'view' || stateMutability === 'pure') {
+      return performRead(runner, address, fn, normalizedArgs);
+    }
+
+    const request = await withRunnerFrom(runner, {
+      to: address,
+      data: encodeFunctionCallData(fn, normalizedArgs),
+      ...overrides,
+    });
+    const response = await performSend(runner, request);
+    return normalizeWriteResult(response);
+  };
 
   const estimateGas = new Proxy(
     {},
@@ -1000,13 +1112,7 @@ export function createContractProxy<TAbi extends Abi>(
     {
       get(_target, prop) {
         if (typeof prop !== 'string') return undefined;
-        return (...args: unknown[]) => {
-          const method = contractRef.current?.[prop];
-          if (typeof method !== 'function') {
-            throw new Error(`Function ${prop} not found`);
-          }
-          return method(...args);
-        };
+        return (...args: unknown[]) => callContractFunction(prop, args);
       },
       has(_target, prop) {
         if (typeof prop !== 'string') return false;
@@ -1095,31 +1201,10 @@ export function createContractProxy<TAbi extends Abi>(
 
       const fn = getFunctionAbi(abi, prop);
       if (!fn) return Reflect.get(target, prop, receiver);
-
-      return async (...rawArgs: unknown[]) => {
-        const inputCount = (fn.inputs ?? []).length;
-        const { fnArgs, overrides } = splitArgsAndOverrides(
-          rawArgs,
-          inputCount,
-        );
-        const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
-        const stateMutability = fn.stateMutability ?? 'nonpayable';
-        if (stateMutability === 'view' || stateMutability === 'pure') {
-          return performRead(runner, address, fn, normalizedArgs);
-        }
-
-        const request = await withRunnerFrom(runner, {
-          to: address,
-          data: encodeFunctionCallData(fn, normalizedArgs),
-          ...overrides,
-        });
-        const response = await performSend(runner, request);
-        return normalizeWriteResult(response);
-      };
+      return (...rawArgs: unknown[]) => callContractFunction(prop, rawArgs);
     },
   }) as ViemContractLike<TAbi>;
 
-  contractRef.current = contractProxy;
   return contractProxy;
 }
 
