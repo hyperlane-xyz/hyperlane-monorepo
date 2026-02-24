@@ -15,7 +15,6 @@ import {
   PutKeyPolicyCommand,
   UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
-import { KmsEthersSigner } from 'aws-kms-ethers-signer';
 import { Logger } from 'pino';
 
 import { AgentSignerKeyType, ChainName } from '@hyperlane-xyz/sdk';
@@ -265,25 +264,10 @@ export class AgentAwsKey extends CloudAgentKey {
   }
 
   async getSigner(provider: EvmProvider): Promise<EvmSigner> {
-    this.logger.debug('Getting signer');
-    const keyId = await this.getId();
-    if (!keyId) {
-      this.logger.debug('Key ID not defined, cannot get signer');
-      throw Error('Key ID not defined');
-    }
-    this.logger.debug(`Creating KmsEthersSigner with key ID: ${keyId}`);
-    // @ts-ignore We're using a newer version of Provider than
-    // KmsEthersSigner. The return type for getFeeData for this newer
-    // type is a superset of the return type for getFeeData for the older type,
-    // which should be fine.
-    return new KmsEthersSigner(
-      {
-        keyId,
-        kmsClientConfig: {
-          region: this.region,
-        },
-      },
-      provider as any,
+    this.logger.debug('AWS key signer requested, but unsupported');
+    void provider;
+    throw new Error(
+      'AWS KMS EVM signing is not supported in infra after the ethers to viem migration. AWS keys are still supported for agent key configuration and address management.',
     );
   }
 
