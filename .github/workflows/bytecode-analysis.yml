@@ -51,12 +51,27 @@ jobs:
         run: |
           # Fetch the base reference
           git fetch origin $BASE_REF
-          # Check if BASE_REF is a commit SHA (40 hex characters) or a branch name
+
+          # Get list of contract files in base branch
           if [[ "$BASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
-            # For commit SHAs, checkout directly without origin/ prefix
+            BASE_FILES=$(git ls-tree -r --name-only $BASE_REF -- solidity/contracts)
+          else
+            BASE_FILES=$(git ls-tree -r --name-only origin/$BASE_REF -- solidity/contracts)
+          fi
+
+          # Remove contract files that don't exist in base branch
+          # This prevents compiling new HEAD contracts against old base dependencies
+          for file in $(find solidity/contracts -name '*.sol' -type f); do
+            if ! echo "$BASE_FILES" | grep -qx "$file"; then
+              echo "Removing $file (not in base branch)"
+              rm "$file"
+            fi
+          done
+
+          # Checkout base branch contracts (overwrites existing files)
+          if [[ "$BASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
             git checkout $BASE_REF -- solidity/contracts
           else
-            # For branch names, use origin/ prefix
             git checkout origin/$BASE_REF -- solidity/contracts
           fi
 
