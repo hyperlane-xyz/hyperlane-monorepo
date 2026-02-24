@@ -53,16 +53,10 @@ async function main() {
       filePath: `chains/${warpRouteId}-nonexistent-file.yaml`,
     });
 
-    try {
-      assert(results[0].output, 'No output from ESLint');
-      registry.addWarpRouteConfig(yamlParse(results[0].output), {
-        warpRouteId,
-      });
-    } catch (error) {
-      console.error(
-        chalk.red(`Failed to add warp route config for ${warpRouteId}:`, error),
-      );
-    }
+    const lintedConfig = results[0].output ?? configString;
+    registry.addWarpRouteConfig(yamlParse(lintedConfig), {
+      warpRouteId,
+    });
 
     // TODO: Use registry.getWarpRoutesPath() to dynamically generate path by removing "protected"
     console.log(
