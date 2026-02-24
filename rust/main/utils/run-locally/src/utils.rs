@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead};
+#[cfg(feature = "sealevel")]
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
@@ -203,4 +205,20 @@ pub(crate) fn download(output: &str, uri: &str, dir: &str) {
         .working_dir(dir)
         .run()
         .join();
+}
+
+/// Find N free ports by binding to port 0 and letting the OS assign them.
+/// All listeners are held open until all ports are allocated, then dropped
+/// together to avoid one allocation reusing another's just-freed port.
+///
+/// Note: There's a small race window between dropping the listeners and
+/// using the ports, but this is acceptable for test infrastructure.
+#[cfg(feature = "sealevel")]
+pub fn find_free_ports<const N: usize>() -> [u16; N] {
+    let listeners: Vec<_> = (0..N)
+        .map(|_| TcpListener::bind("127.0.0.1:0").expect("Failed to bind to free port"))
+        .collect();
+    let ports: [u16; N] = std::array::from_fn(|i| listeners[i].local_addr().unwrap().port());
+    drop(listeners);
+    ports
 }
