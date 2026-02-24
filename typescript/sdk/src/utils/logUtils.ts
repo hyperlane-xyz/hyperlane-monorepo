@@ -1,11 +1,11 @@
-import { ethers } from 'ethers';
+import { Interface, Log as EthersLog, LogDescription } from 'ethers';
 import { Log } from 'viem';
 
 export function findMatchingLogEvents(
-  logs: (ethers.providers.Log | Log<bigint, number, false>)[],
-  iface: ethers.utils.Interface,
+  logs: readonly (EthersLog | Log<bigint, number, false>)[],
+  iface: Interface,
   eventName: string,
-): ethers.utils.LogDescription[] {
+): LogDescription[] {
   return logs
     .map((log) => {
       try {
@@ -15,7 +15,6 @@ export function findMatchingLogEvents(
       }
     })
     .filter(
-      (log): log is ethers.utils.LogDescription =>
-        !!log && log.name === eventName,
+      (log): log is LogDescription => !!log && log.name === eventName,
     );
 }

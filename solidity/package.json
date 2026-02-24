@@ -3,13 +3,17 @@
     "description": "Core solidity contracts for Hyperlane",
     "version": "11.0.0",
     "devDependencies": {
-        "@hyperlane-xyz/utils": "workspace:*",
+        "@arbitrum/nitro-contracts": "catalog:",
+        "@chainlink/contracts-ccip": "catalog:",
         "@hyperlane-xyz/tsconfig": "workspace:^",
+        "@hyperlane-xyz/utils": "workspace:*",
         "@matterlabs/hardhat-zksync-solc": "1.2.5",
         "@matterlabs/hardhat-zksync-verify": "1.7.1",
-        "@nomicfoundation/hardhat-foundry": "1.2.0",
         "@nomicfoundation/hardhat-chai-matchers": "catalog:",
         "@nomicfoundation/hardhat-ethers": "catalog:",
+        "@nomicfoundation/hardhat-foundry": "1.2.0",
+        "@openzeppelin/contracts": "catalog:",
+        "@openzeppelin/contracts-upgradeable": "catalog:",
         "@typechain/ethers-v6": "catalog:",
         "@typechain/hardhat": "catalog:",
         "@types/node": "catalog:",
@@ -98,7 +102,7 @@
         "test:interface": "pnpm tsx ./test/interface.test.ts"
     },
     "peerDependencies": {
-        "ethers": "*",
-        "@types/sinon-chai": "*"
+        "@types/sinon-chai": "*",
+        "ethers": "*"
     }
 }

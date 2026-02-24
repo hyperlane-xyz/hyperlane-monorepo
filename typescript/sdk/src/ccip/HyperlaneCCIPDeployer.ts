@@ -138,9 +138,10 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     );
 
     const authorizedHook = await ccipIsm.authorizedHook();
+    const ccipIsmContractAddress = ccipIsm.target as string;
     this.logger.debug(
       'Authorized hook on ism %s: %s',
-      ccipIsm.address,
+      ccipIsmContractAddress,
       authorizedHook,
     );
 
@@ -148,7 +149,7 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     if (authorizedHook === bytes32HookAddress) {
       this.logger.info(
         'Authorized hook already set on ism %s',
-        ccipIsm.address,
+        ccipIsmContractAddress,
       );
       return;
     }
@@ -157,7 +158,7 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
       this.logger.error(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
-        ccipIsm.address,
+        ccipIsmContractAddress,
         bytes32HookAddress,
         authorizedHook,
       );
@@ -168,7 +169,7 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     this.logger.info(
       'Setting authorized hook %s on ism %s on destination %s',
       ccipHookAddress,
-      ccipIsm.address,
+      ccipIsmContractAddress,
       destination,
     );
     await this.multiProvider.handleTx(

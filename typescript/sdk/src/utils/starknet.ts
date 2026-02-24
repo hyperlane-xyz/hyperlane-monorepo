@@ -1,4 +1,4 @@
-import { utils } from 'ethers';
+import { toBeHex } from 'ethers';
 import {
   AccountInterface,
   Contract,
@@ -136,7 +136,7 @@ export function parseStarknetDispatchIdEvents(
   return parsedEvents
     .filter((event: ParsedEvent) => DISPATCH_ID_EVENT in event)
     .map((dispatchEvent: ParsedEvent) =>
-      utils.hexlify(dispatchEvent[DISPATCH_ID_EVENT].id as bigint),
+      toBeHex(dispatchEvent[DISPATCH_ID_EVENT].id as bigint),
     );
 }
 

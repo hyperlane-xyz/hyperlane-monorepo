@@ -1,5 +1,4 @@
 import './plugins/hardhat-tron-solc.cjs';
-import '@nomicfoundation/hardhat-foundry';
 import '@nomicfoundation/hardhat-ethers';
 import '@typechain/hardhat';
 import 'hardhat-ignore-warnings';

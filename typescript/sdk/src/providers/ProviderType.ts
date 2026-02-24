@@ -12,8 +12,9 @@ import type {
 } from '@solana/web3.js';
 import type {
   Contract as EV5Contract,
-  providers as EV5Providers,
-  PopulatedTransaction as EV5Transaction,
+  Provider as EV5Provider,
+  TransactionReceipt as EV5TransactionReceipt,
+  TransactionRequest as EV5Transaction,
 } from 'ethers';
 import {
   Contract as StarknetContract,
@@ -175,9 +176,9 @@ interface TypedProviderBase<T> {
   provider: T;
 }
 
-export interface EthersV5Provider extends TypedProviderBase<EV5Providers.Provider> {
+export interface EthersV5Provider extends TypedProviderBase<EV5Provider> {
   type: ProviderType.EthersV5;
-  provider: EV5Providers.Provider;
+  provider: EV5Provider;
 }
 
 export interface ViemProvider extends TypedProviderBase<PublicClient> {
@@ -411,9 +412,9 @@ interface TypedTransactionReceiptBase<T> {
   receipt: T;
 }
 
-export interface EthersV5TransactionReceipt extends TypedTransactionReceiptBase<EV5Providers.TransactionReceipt> {
+export interface EthersV5TransactionReceipt extends TypedTransactionReceiptBase<EV5TransactionReceipt> {
   type: ProviderType.EthersV5;
-  receipt: EV5Providers.TransactionReceipt;
+  receipt: EV5TransactionReceipt;
 }
 
 export interface ViemTransactionReceipt extends TypedTransactionReceiptBase<VTransactionReceipt> {

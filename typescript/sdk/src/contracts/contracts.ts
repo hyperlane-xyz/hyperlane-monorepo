@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
@@ -47,7 +47,11 @@ export function serializeContracts<F extends HyperlaneFactories>(
   contracts: HyperlaneContracts<F>,
 ): any {
   return objMap(contracts, (_, contract) =>
-    contract.address ? contract.address : serializeContracts(contract),
+    typeof (contract as any).target === 'string'
+      ? (contract as any).target
+      : typeof (contract as any).address === 'string'
+      ? (contract as any).address
+      : serializeContracts(contract as any),
   );
 }
 
@@ -81,7 +85,7 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
             `Missing address for contract "${key}" on chain ${chainName}`,
           );
           chainsWithMissingAddresses.add(chainName);
-          return constants.AddressZero;
+          return ZeroAddress;
         }
         return value;
       }),
@@ -238,7 +242,7 @@ export function connectContracts<F extends HyperlaneFactories>(
     if (!contract.connect) {
       return undefined;
     }
-    return contract.connect(connection);
+    return contract.connect(connection as any);
   });
   return Object.fromEntries(
     Object.entries(connectedContracts).filter(([_, contract]) => !!contract),
@@ -260,7 +264,7 @@ export function filterOwnableContracts(contracts: HyperlaneContracts<any>): {
 } {
   return objFilter(
     contracts,
-    (_, contract): contract is Ownable => 'owner' in contract.functions,
+    (_, contract): contract is Ownable => 'owner' in contract,
   );
 }
 

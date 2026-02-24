@@ -1,13 +1,12 @@
 import {
-  BigNumber,
   Contract,
   ContractFactory,
-  ContractReceipt,
-  ContractTransaction,
-  PopulatedTransaction,
-  Signer,
-  providers,
+  ContractTransactionResponse,
+  JsonRpcProvider,
+  TransactionReceipt,
+  TransactionRequest,
 } from 'ethers';
+import type { Provider as EthersProvider, Signer } from 'ethers';
 import { Logger } from 'pino';
 import {
   ContractFactory as ZKSyncContractFactory,
@@ -42,7 +41,7 @@ import {
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = providers.Provider | ZKSyncProvider;
+type Provider = EthersProvider | ZKSyncProvider;
 
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
@@ -128,7 +127,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
         this.providers[name] = new ZKSyncProvider('http://127.0.0.1:8011', 260);
       } else {
-        this.providers[name] = new providers.JsonRpcProvider(
+        this.providers[name] = new JsonRpcProvider(
           'http://127.0.0.1:8545',
           31337,
         );
@@ -345,7 +344,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   getTransactionOverrides(
     chainNameOrId: ChainNameOrId,
-  ): Partial<providers.TransactionRequest> {
+  ): Partial<TransactionRequest> {
     return this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
   }
 
@@ -365,7 +364,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const { technicalStack } = metadata;
 
     let contract: Contract;
-    let estimatedGas: BigNumber;
+    let estimatedGas: bigint;
 
     // estimate gas for deploy
     // deploy with buffer on gas limit
@@ -387,19 +386,30 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
           : factory;
       const contractFactory = resolved.connect(signer);
 
-      const deployTx = contractFactory.getDeployTransaction(...params);
+      const deployTx = await contractFactory.getDeployTransaction(...params);
       estimatedGas = await signer.estimateGas(deployTx);
       contract = await contractFactory.deploy(...params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
-      // manually wait for deploy tx to be confirmed
-      await this.handleTx(chainNameOrId, contract.deployTransaction);
+      // manually wait for deploy tx to be confirmed for non-zksync chains
+      const deploymentTx =
+        contract.deploymentTransaction?.() ??
+        (contract as any).deployTransaction;
+      if (!deploymentTx) {
+        throw new Error(`Missing deployment transaction for ${chainNameOrId}`);
+      }
+      await this.handleTx(chainNameOrId, deploymentTx);
     }
 
+    const contractAddress =
+      contract.getAddress?.() ?? Promise.resolve((contract as any).address);
+    const deploymentTx =
+      contract.deploymentTransaction?.() ?? (contract as any).deployTransaction;
+
     this.logger.trace(
-      `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
-      { transaction: contract.deployTransaction },
+      `Contract deployed at ${await contractAddress} on ${chainNameOrId}:`,
+      { transaction: deploymentTx },
     );
 
     // return deployed contract
@@ -438,9 +448,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async handleTx(
     chainNameOrId: ChainNameOrId,
-    tx: ContractTransaction | Promise<ContractTransaction>,
+    tx: ContractTransactionResponse | Promise<ContractTransactionResponse>,
     options?: SendTransactionOptions,
-  ): Promise<ContractReceipt> {
+  ): Promise<TransactionReceipt> {
     const response = await tx;
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
 
@@ -504,10 +514,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async waitForBlockTag(
     chainNameOrId: ChainNameOrId,
-    response: ContractTransaction,
+    response: ContractTransactionResponse,
     blockTag: EthJsonRpcBlockParameterTag,
     timeoutMs = DEFAULT_CONFIRMATION_TIMEOUT_MS,
-  ): Promise<ContractReceipt> {
+  ): Promise<TransactionReceipt> {
     const provider = this.getProvider(chainNameOrId);
     const receipt = await response.wait(1); // Wait for initial inclusion
     const txBlock = receipt.blockNumber;
@@ -569,9 +579,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async prepareTx(
     chainNameOrId: ChainNameOrId,
-    tx: PopulatedTransaction,
+    tx: TransactionRequest,
     from?: string,
-  ): Promise<providers.TransactionRequest> {
+  ): Promise<TransactionRequest> {
     const txFrom = from ?? (await this.getSignerAddress(chainNameOrId));
     const overrides = this.getTransactionOverrides(chainNameOrId);
     return {
@@ -587,9 +597,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async estimateGas(
     chainNameOrId: ChainNameOrId,
-    tx: PopulatedTransaction,
+    tx: TransactionRequest,
     from?: string,
-  ): Promise<BigNumber> {
+  ): Promise<bigint> {
     const txReq = {
       ...(await this.prepareTx(chainNameOrId, tx, from)),
       // Reset any tx request params that may have an unintended effect on gas estimation
@@ -611,7 +621,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
     options?: SendTransactionOptions,
-  ): Promise<ContractReceipt> {
+  ): Promise<TransactionReceipt> {
     const { annotation, ...tx } = await txProm;
     if (annotation) {
       this.logger.info(annotation);

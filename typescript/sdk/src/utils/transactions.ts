@@ -22,5 +22,5 @@ export function getChainIdFromTxs(
     firstTransaction.chainId,
     'Invalid PopulatedTransaction: "chainId" is required',
   );
-  return firstTransaction.chainId;
+  return Number(firstTransaction.chainId);
 }
