@@ -17,6 +17,7 @@ import {
   Address,
   Domain,
   EvmChainId,
+  type Logger,
   ProtocolType,
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
@@ -106,9 +107,7 @@ export class EvmWarpModule extends HyperlaneModule<
   HypTokenRouterConfig,
   WarpRouteAddresses
 > {
-  protected logger = rootLogger.child({
-    module: 'EvmWarpModule',
-  });
+  protected logger: Logger;
   reader: EvmWarpRouteReader;
   public readonly chainName: ChainName;
   public readonly chainId: EvmChainId;
@@ -121,6 +120,10 @@ export class EvmWarpModule extends HyperlaneModule<
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     super(args);
+    this.logger = rootLogger.child({
+      module: 'EvmWarpModule',
+      chain: args.chain,
+    });
     this.reader = new EvmWarpRouteReader(multiProvider, args.chain);
     this.chainName = this.multiProvider.getChainName(args.chain);
     this.chainId = multiProvider.getEvmChainId(args.chain);

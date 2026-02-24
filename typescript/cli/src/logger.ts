@@ -10,13 +10,45 @@ import {
   safelyAccessEnvVar,
 } from '@hyperlane-xyz/utils';
 
-let logger = rootLogger;
+import { ChainFileLogger } from './logger/chainFileLogger.js';
 
-export function configureLogger(logFormat: LogFormat, logLevel: LogLevel) {
+let logger = rootLogger;
+let chainFileLogger: ChainFileLogger | undefined;
+
+export function getChainFileLogger(): ChainFileLogger | undefined {
+  return chainFileLogger;
+}
+
+export function configureLogger(
+  logFormat: LogFormat,
+  logLevel: LogLevel,
+  logDir?: string,
+) {
   logFormat =
     logFormat || safelyAccessEnvVar('LOG_FORMAT', true) || LogFormat.Pretty;
   logLevel = logLevel || safelyAccessEnvVar('LOG_LEVEL', true) || LogLevel.Info;
-  logger = configureRootLogger(logFormat, logLevel).child({ module: 'cli' });
+
+  if (logDir) {
+    try {
+      chainFileLogger = new ChainFileLogger(logDir);
+      logger = configureRootLogger(logFormat, logLevel, [
+        chainFileLogger.createStream(),
+      ]).child({ module: 'cli' });
+      return;
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : 'Unknown file logger error';
+      configureRootLogger(logFormat, logLevel)
+        .child({ module: 'cli' })
+        .warn(
+          `Failed to initialize file logger: ${msg}. Falling back to console-only logging.`,
+        );
+    }
+  }
+
+  logger = configureRootLogger(logFormat, logLevel).child({
+    module: 'cli',
+  });
 }
 
 export const log = (msg: string, ...args: any) => logger.info(msg, ...args);
