@@ -7,6 +7,7 @@ export type EvmTransactionLike = {
 
 export type EvmPopulatedTransaction = EvmTransactionLike;
 export type EvmTransactionOverrides = Record<string, unknown>;
+export type PopulatedTxLike = EvmPopulatedTransaction;
 
 export type EvmGasAmount = bigint | { toString(): string };
 
@@ -18,12 +19,14 @@ export type EvmTransactionReceiptLike = {
   status?: number | string;
   logs?: unknown[];
 } & Record<string, unknown>;
+export type TxReceiptLike = EvmTransactionReceiptLike;
 
 export type EvmTransactionResponseLike = {
   hash: string;
   data?: string;
   wait(confirmations?: number): Promise<EvmTransactionReceiptLike | null>;
 } & Record<string, unknown>;
+export type TxResponseLike = EvmTransactionResponseLike;
 
 export interface EvmProviderLike {
   estimateGas(transaction: EvmPopulatedTransaction): Promise<EvmGasAmount>;
