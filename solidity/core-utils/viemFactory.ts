@@ -781,27 +781,47 @@ async function performRead(
   address: string,
   fn: AbiFunction,
   args: readonly unknown[],
+  overrides: Record<string, unknown> = {},
 ): Promise<unknown> {
   const readAbi = getSingleFunctionAbi(fn);
+  const from = typeof overrides.from === 'string' ? overrides.from : undefined;
+  const blockRef = toLogBlockRef(overrides.blockTag) ?? 'latest';
+  const blockTag =
+    typeof blockRef === 'string' && !isHex(blockRef) ? blockRef : undefined;
+  const blockNumber =
+    typeof blockRef === 'string' && isHex(blockRef)
+      ? BigInt(blockRef)
+      : undefined;
   const provider = getRunnerProvider(runner);
   if (provider && isObject(provider)) {
     if (
       'readContract' in provider &&
       typeof provider.readContract === 'function'
     ) {
-      return provider.readContract({
+      const readRequest: Record<string, unknown> = {
         address,
         abi: readAbi,
         functionName: fn.name,
         args: [...args],
-      });
+      };
+      if (from) readRequest.account = from;
+      if (blockTag) readRequest.blockTag = blockTag;
+      if (blockNumber !== undefined) readRequest.blockNumber = blockNumber;
+      return provider.readContract(readRequest);
     }
     if ('call' in provider && typeof provider.call === 'function') {
       const data = encodeFunctionCallData(fn, args);
-      const callResult = await provider.call({
+      const callRequest: Record<string, unknown> = {
         to: address,
         data,
-      });
+      };
+      if (from) {
+        callRequest.from = from;
+        callRequest.account = from;
+      }
+      if (blockTag) callRequest.blockTag = blockTag;
+      if (blockNumber !== undefined) callRequest.blockNumber = blockNumber;
+      const callResult = await provider.call(callRequest);
       const callResultRecord = asRecord(callResult);
       const resultHex =
         typeof callResult === 'string'
@@ -816,9 +836,11 @@ async function performRead(
   }
 
   const data = encodeFunctionCallData(fn, args);
+  const rpcCallRequest: Record<string, unknown> = { to: address, data };
+  if (from) rpcCallRequest.from = from;
   const callResult = await rpcRequest(runner, 'eth_call', [
-    { to: address, data },
-    'latest',
+    rpcCallRequest,
+    blockRef,
   ]);
   return decodeFunctionResult({
     abi: readAbi,
@@ -975,10 +997,19 @@ function asTxResponse(runner: RunnerLike, tx: unknown): SentTxLike {
   return {
     ...txRecord,
     hash,
-    wait: (confirmations?: number) =>
-      wait(confirmations).catch(() =>
-        waitForReceipt(runner, hash, confirmations),
-      ),
+    wait: async (confirmations?: number) => {
+      try {
+        return await wait(confirmations);
+      } catch (error) {
+        if (
+          !shouldRetryReceiptWithPositionalArgs(error) &&
+          !shouldFallbackSend(error)
+        ) {
+          throw error;
+        }
+        return waitForReceipt(runner, hash, confirmations);
+      }
+    },
   };
 }
 
@@ -1070,7 +1101,7 @@ export function createContractProxy<TAbi extends Abi>(
     const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
     const stateMutability = fn.stateMutability ?? 'nonpayable';
     if (stateMutability === 'view' || stateMutability === 'pure') {
-      return performRead(runner, address, fn, normalizedArgs);
+      return performRead(runner, address, fn, normalizedArgs, overrides);
     }
 
     const request = await withRunnerFrom(runner, {
