@@ -11,7 +11,7 @@ import { assertIsContractAddress } from '../../contracts/contracts.js';
 import type { ChainMetadataManager } from '../../metadata/ChainMetadataManager.js';
 import { ZBytes32String, ZHash, ZUint } from '../../metadata/customZodTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
-import type { ChainNameOrId } from '../../types.js';
+import type { ChainNameOrId, MultiProviderEvmProvider } from '../../types.js';
 
 import { GetEventLogsResponse } from './types.js';
 import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';
@@ -224,7 +224,7 @@ export class EvmEventLogsReader {
 
   private async getLogsByTopicWithStrategy(
     options: GetLogByTopicOptions,
-    provider: ReturnType<MultiProvider['getProvider']>,
+    provider: MultiProviderEvmProvider,
     logReaderStrategy: IEvmEventLogsReaderStrategy,
   ): Promise<GetEventLogsResponse[]> {
     const parsedOptions = GetLogByTopicOptionsSchema.parse(options);
