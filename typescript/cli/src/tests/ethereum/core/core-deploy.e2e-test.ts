@@ -55,7 +55,7 @@ describe('hyperlane core deploy e2e tests', async function () {
     const wallet = new Wallet(ANVIL_KEY);
     signer = wallet.connect(provider);
 
-    initialOwnerAddress = await signer.getAddress();
+    initialOwnerAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 
     const coreInputConfig: CoreConfig = readYamlOrJson(CORE_CONFIG_PATH);
     configOwnerAddress = coreInputConfig.owner;

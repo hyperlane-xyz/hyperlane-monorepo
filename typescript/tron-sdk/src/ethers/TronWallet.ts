@@ -1,4 +1,4 @@
-import { BigNumber, Wallet, providers } from 'ethers';
+import { BigNumber, Wallet, ethers, providers } from 'ethers';
 import { keccak256 as ethersKeccak256 } from 'ethers/lib/utils.js';
 import { TronWeb, Types } from 'tronweb';
 
@@ -71,7 +71,8 @@ export class TronWallet extends Wallet {
   /** Convert Tron address (base58 or 41-hex) to ethers 0x address */
   toEvmAddress(tronAddress: string): string {
     const hex = this.tronWeb.address.toHex(tronAddress);
-    return ensure0x(hex.slice(2)).toLowerCase();
+    const rawAddress = ensure0x(hex.slice(2)).toLowerCase();
+    return ethers.utils.getAddress(rawAddress);
   }
 
   /** Tron doesn't use nonces */

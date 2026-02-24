@@ -59,6 +59,7 @@ export async function runTronNode(
       const gc = new GenericContainer('tronbox/tre:1.0.3').withEnvironment({
         preapprove: 'allowTvmCompatibleEvm:1',
         mnemonic: TRE_MNEMONIC,
+        defaultBalance: '100000000',
       });
 
       if (useHostNetwork) {
