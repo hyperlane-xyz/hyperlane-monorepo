@@ -13,10 +13,10 @@ export type EvmGasAmount = EvmBigNumberish;
 export type EvmBlockLike = { number: number } & Record<string, unknown>;
 
 export type EvmTransactionReceiptLike = {
-  blockNumber?: number;
+  blockNumber?: number | bigint;
   transactionHash?: string;
   status?: number | string;
-  logs?: unknown[];
+  logs?: readonly unknown[] | unknown[];
 } & Record<string, unknown>;
 
 export type EvmTransactionResponseLike = {

@@ -15,8 +15,8 @@ import {
 } from "viem";
 import type {
     Abi,
-    ContractEventName,
     ContractFunctionName,
+    ContractFunctionReturnType,
     AbiEvent,
     AbiFunction,
     AbiParameter,
@@ -28,6 +28,14 @@ import type {
 type ReadFunctionMutability = "view" | "pure";
 type WriteFunctionMutability = "nonpayable" | "payable";
 type AnyFunctionMutability = ReadFunctionMutability | WriteFunctionMutability;
+type ReadFunctionNames<TAbi extends Abi> = ContractFunctionName<
+    TAbi,
+    ReadFunctionMutability
+>;
+type WriteFunctionNames<TAbi extends Abi> = ContractFunctionName<
+    TAbi,
+    WriteFunctionMutability
+>;
 
 type AnyFunctionNames<TAbi extends Abi> = ContractFunctionName<
     TAbi,
@@ -36,20 +44,27 @@ type AnyFunctionNames<TAbi extends Abi> = ContractFunctionName<
 
 export type TxRequestLike = Record<string, unknown>;
 
-export type ContractMethodMap<TAbi extends Abi> = {
-    [TName in AnyFunctionNames<TAbi>]: (
-        ...args: readonly unknown[]
-    ) => Promise<any>;
-} & {
-    [key: string]: (...args: readonly unknown[]) => Promise<any>;
-};
+type UnknownAsyncMethod = (...args: readonly unknown[]) => Promise<never>;
+export type ContractWriteResult = {
+    hash: string;
+    transactionHash?: string;
+    wait: (
+        confirmations?: number,
+    ) => Promise<TransactionReceipt | Record<string, unknown>>;
+} & Record<string, unknown>;
 
-export type ContractCallStaticMap<TAbi extends Abi> = {
-    [TName in AnyFunctionNames<TAbi>]: (
+export type ContractMethodMap<TAbi extends Abi> = {
+    [TName in ReadFunctionNames<TAbi>]: (
         ...args: readonly unknown[]
-    ) => Promise<any>;
+    ) => Promise<
+        ContractFunctionReturnType<TAbi, ReadFunctionMutability, TName>
+    >;
 } & {
-    [key: string]: (...args: readonly unknown[]) => Promise<any>;
+    [TName in WriteFunctionNames<TAbi>]: (
+        ...args: readonly unknown[]
+    ) => Promise<ContractWriteResult>;
+} & {
+    [key: string]: UnknownAsyncMethod;
 };
 
 export type ContractEstimateGasMap<TAbi extends Abi> = {
@@ -60,27 +75,11 @@ export type ContractEstimateGasMap<TAbi extends Abi> = {
     [key: string]: (...args: readonly unknown[]) => Promise<bigint>;
 };
 
-export type ContractPopulateTransactionMap<TAbi extends Abi> = {
-    [TName in AnyFunctionNames<TAbi>]: (
-        ...args: readonly unknown[]
-    ) => Promise<TxRequestLike>;
-} & {
-    [key: string]: (...args: readonly unknown[]) => Promise<TxRequestLike>;
-};
-
-export type ContractFilterMap<TAbi extends Abi> = {
-    [TName in ContractEventName<TAbi>]: (
-        ...args: readonly unknown[]
-    ) => Record<string, unknown>;
-} & {
-    [key: string]: (...args: readonly unknown[]) => Record<string, unknown>;
-};
-
 type InterfaceFunctionEncoder = {
     name: string;
     signature: string;
     selector: Hex;
-    inputs: any[];
+    inputs: readonly unknown[];
     encode: (args?: readonly unknown[]) => Hex;
 };
 
@@ -99,10 +98,10 @@ export interface ViemInterface {
         eventNameOrFragment: string | InterfaceEventFragment,
         args?: readonly unknown[],
     ): readonly Hex[];
-    decodeFunctionData(functionName: string, data: string): any[];
-    getFunction(functionName: string): {inputs: any[]};
-    encodeFunctionResult(functionName: string, values: any[]): string;
-    decodeFunctionResult(functionName: string, data: Hex): any;
+    decodeFunctionData(functionName: string, data: string): unknown[];
+    getFunction(functionName: string): {inputs: readonly unknown[]};
+    encodeFunctionResult(functionName: string, values: readonly unknown[]): string;
+    decodeFunctionResult(functionName: string, data: Hex): unknown;
     encodeDeploy(args?: readonly unknown[]): Hex;
     parseTransaction(tx: {data: string; value?: unknown}): {
         name: string;
@@ -110,17 +109,17 @@ export interface ViemInterface {
         sighash: string;
         functionFragment: {
             name: string;
-            inputs: any[];
+            inputs: readonly unknown[];
         };
-        args: any[];
-        value?: any;
+        args: readonly unknown[];
+        value?: unknown;
     };
     parseLog(log: {data: string; topics: readonly string[]}): {
         name: string;
         event: string;
-        args: any;
+        args: unknown;
     };
-    parseError(data: string): any;
+    parseError(data: string): unknown;
     getEventTopic(eventNameOrSignature: string): Hex;
     getSighash(functionNameOrSignature: string): Hex;
 }
@@ -165,10 +164,7 @@ export type RunnerLike =
 export interface ViemContractLike<TAbi extends Abi = Abi> {
     address: string;
     interface: ViemInterface;
-    populateTransaction: ContractPopulateTransactionMap<TAbi>;
-    callStatic: ContractCallStaticMap<TAbi>;
     estimateGas: ContractEstimateGasMap<TAbi>;
-    filters: ContractFilterMap<TAbi>;
     functions: ContractMethodMap<TAbi>;
     queryFilter: <T = Record<string, unknown>>(
         filter: Record<string, unknown>,
@@ -188,13 +184,7 @@ export interface ViemContractLike<TAbi extends Abi = Abi> {
     [key: string]: unknown;
 }
 
-type SentTxLike = {
-    hash: string;
-    transactionHash?: string;
-    wait: (
-        confirmations?: number,
-    ) => Promise<TransactionReceipt | Record<string, unknown>>;
-} & Record<string, unknown>;
+type SentTxLike = ContractWriteResult;
 
 const TX_OVERRIDE_KEYS = new Set([
     "from",
@@ -524,7 +514,7 @@ export function createInterface<TAbi extends Abi>(
                 abi: getSingleFunctionAbi(fn),
                 data: data as Hex,
             });
-            return (decoded.args ?? []) as any[];
+            return (decoded.args ?? []) as unknown[];
         },
         getFunction(functionName: string) {
             const fn = getFunctionAbi(abi, functionName);
@@ -533,7 +523,7 @@ export function createInterface<TAbi extends Abi>(
             }
             return {inputs: [...(fn.inputs ?? [])]};
         },
-        encodeFunctionResult(functionName: string, values: any[]) {
+        encodeFunctionResult(functionName: string, values: readonly unknown[]) {
             const fn = getFunctionAbi(abi, functionName);
             if (!fn) {
                 throw new Error(`Function ${functionName} not found`);
@@ -598,7 +588,7 @@ export function createInterface<TAbi extends Abi>(
                     name: parsedFn.name,
                     inputs: [...(parsedFn.inputs ?? [])],
                 },
-                args: (parsed.args ?? []) as any[],
+                args: (parsed.args ?? []) as readonly unknown[],
                 value: tx.value,
             };
         },
@@ -921,29 +911,6 @@ export function createContractProxy<TAbi extends Abi>(
 ): ViemContractLike<TAbi> {
     const iface = createInterface(abi);
 
-    const callStatic = new Proxy(
-        {},
-        {
-            get(_target, prop) {
-                if (typeof prop !== "string") return undefined;
-                return async (...rawArgs: unknown[]) => {
-                    const fn = getFunctionAbi(abi, prop);
-                    if (!fn) throw new Error(`Function ${prop} not found`);
-                    const {fnArgs} = splitArgsAndOverrides(
-                        rawArgs,
-                        fn.inputs.length,
-                    );
-                    return performRead(
-                        runner,
-                        address,
-                        fn,
-                        normalizeFunctionArgs(fn, fnArgs),
-                    );
-                };
-            },
-        },
-    ) as ContractCallStaticMap<TAbi>;
-
     const estimateGas = new Proxy(
         {},
         {
@@ -967,43 +934,6 @@ export function createContractProxy<TAbi extends Abi>(
             },
         },
     ) as ContractEstimateGasMap<TAbi>;
-
-    const populateTransaction = new Proxy(
-        {},
-        {
-            get(_target, prop) {
-                if (typeof prop !== "string") return undefined;
-                return async (...rawArgs: unknown[]) => {
-                    const fn = getFunctionAbi(abi, prop);
-                    if (!fn) throw new Error(`Function ${prop} not found`);
-                    const {fnArgs, overrides} = splitArgsAndOverrides(
-                        rawArgs,
-                        fn.inputs.length,
-                    );
-                    const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
-                    return {
-                        to: address,
-                        data: encodeFunctionCallData(fn, normalizedArgs),
-                        ...overrides,
-                    };
-                };
-            },
-        },
-    ) as ContractPopulateTransactionMap<TAbi>;
-
-    const filters = new Proxy(
-        {},
-        {
-            get(_target, prop) {
-                if (typeof prop !== "string") return undefined;
-                return (...args: unknown[]) => ({
-                    address,
-                    eventName: prop,
-                    args,
-                });
-            },
-        },
-    ) as ContractFilterMap<TAbi>;
 
     const functions = new Proxy(
         {},
@@ -1030,10 +960,7 @@ export function createContractProxy<TAbi extends Abi>(
         signer: runner,
         provider: getRunnerProvider(runner),
         interface: iface,
-        callStatic,
         estimateGas,
-        populateTransaction,
-        filters,
         functions,
         async queryFilter(
             filter: Record<string, unknown>,

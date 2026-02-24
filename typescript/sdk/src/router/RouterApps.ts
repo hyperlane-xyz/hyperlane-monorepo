@@ -83,7 +83,7 @@ export abstract class GasRouterApp<
     origin: ChainName,
     destination: ChainName,
   ): Promise<GasQuote> {
-    return this.getContracts(origin).router.quoteGasPayment(
+    return this.router(this.getContracts(origin)).quoteGasPayment(
       this.multiProvider.getDomainId(destination),
     );
   }

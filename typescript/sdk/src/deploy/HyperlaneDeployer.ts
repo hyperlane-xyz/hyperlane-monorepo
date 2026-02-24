@@ -82,6 +82,12 @@ type ContractLike = {
   [key: string]: any;
 };
 
+type ContractInitializeArgs<TContract> = TContract extends {
+  initialize: (...args: infer TArgs) => unknown;
+}
+  ? TArgs
+  : readonly unknown[];
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && (typeof value === 'object' || typeof value === 'function')
     ? (value as Record<string, unknown>)
@@ -102,6 +108,19 @@ function getFactoryBytecode(factory: HyperlaneContractFactory): string {
   }
 
   throw new Error('Factory bytecode is required for contract verification');
+}
+
+function buildContractTransaction(
+  contract: ContractLike,
+  functionName: string,
+  values: readonly unknown[] = [],
+  overrides: Record<string, unknown> = {},
+): PopulatedTransaction {
+  return {
+    to: contract.address,
+    data: contract.interface.encodeFunctionData(functionName, values),
+    ...overrides,
+  } as PopulatedTransaction;
 }
 
 export interface DeployerOptions {
@@ -291,7 +310,7 @@ export abstract class HyperlaneDeployer<
     ownable: Ownable,
     fn: () => Promise<T>,
   ): Promise<T | undefined> {
-    return this.runIf(chain, await ownable.callStatic.owner(), fn, 'owner');
+    return this.runIf(chain, await ownable.owner(), fn, 'owner');
   }
 
   protected async runIfAdmin<T>(
@@ -414,7 +433,8 @@ export abstract class HyperlaneDeployer<
         client,
         config.hook,
         (_client) => _client.hook(),
-        (_client, _hook) => _client.populateTransaction.setHook(_hook),
+        async (_client, _hook) =>
+          buildContractTransaction(_client as ContractLike, 'setHook', [_hook]),
       );
     }
 
@@ -424,8 +444,12 @@ export abstract class HyperlaneDeployer<
         client,
         config.interchainSecurityModule,
         (_client) => _client.interchainSecurityModule(),
-        (_client, _module) =>
-          _client.populateTransaction.setInterchainSecurityModule(_module),
+        async (_client, _module) =>
+          buildContractTransaction(
+            _client as ContractLike,
+            'setInterchainSecurityModule',
+            [_module],
+          ),
       );
     }
 
@@ -572,8 +596,8 @@ export abstract class HyperlaneDeployer<
     contractKey: K,
     contractName: string,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    initializeArgs?: Parameters<
-      Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
+    initializeArgs?: ContractInitializeArgs<
+      Awaited<ReturnType<Factories[K]['deploy']>>
     >,
     shouldRecover = true,
   ): Promise<HyperlaneContracts<Factories>[K]> {
@@ -593,8 +617,8 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     contractKey: K,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    initializeArgs?: Parameters<
-      Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
+    initializeArgs?: ContractInitializeArgs<
+      Awaited<ReturnType<Factories[K]['deploy']>>
     >,
     shouldRecover = true,
   ): Promise<HyperlaneContracts<Factories>[K]> {
@@ -646,7 +670,7 @@ export abstract class HyperlaneDeployer<
     implementation: C,
     initializeArgs: Parameters<C['initialize']>,
   ): Promise<void> {
-    const current = await proxy.callStatic.implementation();
+    const current = await proxy.implementation();
     if (eqAddress(implementation.address, current)) {
       this.logger.debug(`Implementation set correctly, skipping upgrade`);
       return;
@@ -683,7 +707,7 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     implementation: C,
     proxyAdmin: string,
-    initializeArgs?: Parameters<C['initialize']>,
+    initializeArgs?: ContractInitializeArgs<C>,
     contractName?: string,
   ): Promise<C> {
     const isProxied = await isProxy(
@@ -819,7 +843,7 @@ export abstract class HyperlaneDeployer<
     contractName: string,
     proxyAdmin: string,
     constructorArgs: Parameters<Factories[K]['deploy']>,
-    initializeArgs?: Parameters<HyperlaneContracts<Factories>[K]['initialize']>,
+    initializeArgs?: ContractInitializeArgs<HyperlaneContracts<Factories>[K]>,
   ): Promise<HyperlaneContracts<Factories>[K]> {
     // Try to initialize the implementation even though it may not be necessary
     const implementation = await this.deployContractWithName(

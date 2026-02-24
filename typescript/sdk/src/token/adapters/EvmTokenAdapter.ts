@@ -76,11 +76,34 @@ const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 
 type PopulatedTransaction = Record<string, unknown>;
 
+type EncodableContract = {
+  address: Address;
+  interface: {
+    encodeFunctionData(
+      functionName: string,
+      values?: readonly unknown[],
+    ): string;
+  };
+};
+
+function buildContractCallTx(
+  contract: EncodableContract,
+  functionName: string,
+  values: readonly unknown[] = [],
+  overrides: Record<string, unknown> = {},
+): PopulatedTransaction {
+  return {
+    to: contract.address,
+    data: contract.interface.encodeFunctionData(functionName, values),
+    ...overrides,
+  };
+}
+
 type ContractFactory<TContract> = {
   connect(address: Address, provider: unknown): TContract;
 };
 
-type Erc20LikeContract = {
+type Erc20LikeContract = EncodableContract & {
   balanceOf(
     address: Address,
     overrides?: Record<string, unknown>,
@@ -90,10 +113,6 @@ type Erc20LikeContract = {
   name(): Promise<string>;
   allowance(owner: Address, spender: Address): Promise<unknown>;
   totalSupply(overrides?: Record<string, unknown>): Promise<unknown>;
-  populateTransaction: {
-    approve(recipient: Address, amount: string): Promise<PopulatedTransaction>;
-    transfer(recipient: Address, amount: string): Promise<PopulatedTransaction>;
-  } & Record<string, unknown>;
   [key: string]: unknown;
 };
 
@@ -294,9 +313,11 @@ export class EvmTokenAdapter<T extends Erc20LikeContract = Erc20LikeContract>
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
-    return this.contract.populateTransaction.approve(
-      recipient,
-      weiAmountOrId.toString(),
+    return Promise.resolve(
+      buildContractCallTx(this.contract, 'approve', [
+        recipient,
+        weiAmountOrId.toString(),
+      ]),
     );
   }
 
@@ -304,9 +325,11 @@ export class EvmTokenAdapter<T extends Erc20LikeContract = Erc20LikeContract>
     weiAmountOrId,
     recipient,
   }: TransferParams): Promise<PopulatedTransaction> {
-    return this.contract.populateTransaction.transfer(
-      recipient,
-      weiAmountOrId.toString(),
+    return Promise.resolve(
+      buildContractCallTx(this.contract, 'transfer', [
+        recipient,
+        weiAmountOrId.toString(),
+      ]),
     );
   }
 
@@ -346,7 +369,7 @@ export class EvmHypSyntheticAdapter
   }
 
   getDomains(): Promise<Domain[]> {
-    return this.contract.domains();
+    return this.contract.domains().then((domains) => [...domains]);
   }
 
   async getRouterAddress(domain: Domain): Promise<Buffer> {
@@ -481,11 +504,12 @@ export class EvmHypSyntheticAdapter
     }
 
     const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
-    return this.contract.populateTransaction[
-      'transferRemote(uint32,bytes32,uint256)'
-    ](destination, recipBytes32, weiAmountOrId, {
-      value: nativeValue.toString(),
-    });
+    return buildContractCallTx(
+      this.contract,
+      'transferRemote(uint32,bytes32,uint256)',
+      [destination, recipBytes32, weiAmountOrId],
+      { value: nativeValue.toString() },
+    );
   }
 }
 
@@ -623,7 +647,7 @@ export class EvmMovableCollateralAdapter
   async isRebalancer(account: Address): Promise<boolean> {
     const rebalancers = await this.movableCollateral().allowedRebalancers();
 
-    return rebalancers.includes(account);
+    return rebalancers.includes(account as `0x${string}`);
   }
 
   async getAllowedDestination(domain: Domain): Promise<Address> {
@@ -701,13 +725,13 @@ export class EvmMovableCollateralAdapter
       0n,
     );
 
-    return this.movableCollateral().populateTransaction.rebalance(
-      domain,
-      amount,
-      bridge,
-      {
-        value,
-      },
+    return Promise.resolve(
+      buildContractCallTx(
+        this.movableCollateral(),
+        'rebalance',
+        [domain, amount, bridge],
+        { value },
+      ),
     );
   }
 }
@@ -980,20 +1004,20 @@ export class EvmHypVSXERC20LockboxAdapter
     newBufferCap: bigint,
   ): Promise<PopulatedTransaction> {
     const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.setBufferCap(
+    return buildContractCallTx(xERC20, 'setBufferCap', [
       this.addresses.token,
       newBufferCap,
-    );
+    ]);
   }
 
   async populateSetRateLimitPerSecondTx(
     newRateLimitPerSecond: bigint,
   ): Promise<PopulatedTransaction> {
     const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.setRateLimitPerSecond(
+    return buildContractCallTx(xERC20, 'setRateLimitPerSecond', [
       this.addresses.token,
       newRateLimitPerSecond,
-    );
+    ]);
   }
 
   async populateAddBridgeTx(
@@ -1001,11 +1025,13 @@ export class EvmHypVSXERC20LockboxAdapter
     rateLimitPerSecond: bigint,
   ): Promise<PopulatedTransaction> {
     const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.addBridge({
-      bufferCap,
-      rateLimitPerSecond,
-      bridge: this.addresses.token,
-    });
+    return buildContractCallTx(xERC20, 'addBridge', [
+      {
+        bufferCap,
+        rateLimitPerSecond,
+        bridge: this.addresses.token,
+      },
+    ]);
   }
 }
 
@@ -1041,20 +1067,20 @@ export class EvmHypVSXERC20Adapter
     newBufferCap: bigint,
   ): Promise<PopulatedTransaction> {
     const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.setBufferCap(
+    return buildContractCallTx(xERC20, 'setBufferCap', [
       this.addresses.token,
       newBufferCap,
-    );
+    ]);
   }
 
   async populateSetRateLimitPerSecondTx(
     newRateLimitPerSecond: bigint,
   ): Promise<PopulatedTransaction> {
     const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.setRateLimitPerSecond(
+    return buildContractCallTx(xERC20, 'setRateLimitPerSecond', [
       this.addresses.token,
       newRateLimitPerSecond,
-    );
+    ]);
   }
 
   async populateAddBridgeTx(
@@ -1062,11 +1088,13 @@ export class EvmHypVSXERC20Adapter
     rateLimitPerSecond: bigint,
   ): Promise<PopulatedTransaction> {
     const xERC20 = await this.getXERC20();
-    return xERC20.populateTransaction.addBridge({
-      bufferCap,
-      rateLimitPerSecond,
-      bridge: this.addresses.token,
-    });
+    return buildContractCallTx(xERC20, 'addBridge', [
+      {
+        bufferCap,
+        rateLimitPerSecond,
+        bridge: this.addresses.token,
+      },
+    ]);
   }
 }
 
@@ -1110,13 +1138,13 @@ export class EvmHypNativeAdapter
       BigInt(amount),
     );
 
-    return this.movableCollateral().populateTransaction.rebalance(
-      domain,
-      amount,
-      bridge,
-      {
-        value,
-      },
+    return Promise.resolve(
+      buildContractCallTx(
+        this.movableCollateral(),
+        'rebalance',
+        [domain, amount, bridge],
+        { value },
+      ),
     );
   }
 
@@ -1181,11 +1209,11 @@ export class EvmXERC20Adapter
     mint: bigint,
     burn: bigint,
   ): Promise<PopulatedTransaction> {
-    return this.xERC20.populateTransaction.setLimits(
+    return buildContractCallTx(this.xERC20, 'setLimits', [
       bridge,
       mint.toString(),
       burn.toString(),
-    );
+    ]);
   }
 }
 
@@ -1224,27 +1252,27 @@ export class EvmXERC20VSAdapter
 
   // remove bridge
   async populateRemoveBridgeTx(bridge: Address): Promise<PopulatedTransaction> {
-    return this.xERC20VS.populateTransaction.removeBridge(bridge);
+    return buildContractCallTx(this.xERC20VS, 'removeBridge', [bridge]);
   }
 
   async populateSetBufferCapTx(
     bridge: Address,
     newBufferCap: bigint,
   ): Promise<PopulatedTransaction> {
-    return this.xERC20VS.populateTransaction.setBufferCap(
+    return buildContractCallTx(this.xERC20VS, 'setBufferCap', [
       bridge,
       newBufferCap.toString(),
-    );
+    ]);
   }
 
   async populateSetRateLimitPerSecondTx(
     bridge: Address,
     newRateLimitPerSecond: bigint,
   ): Promise<PopulatedTransaction> {
-    return this.xERC20VS.populateTransaction.setRateLimitPerSecond(
+    return buildContractCallTx(this.xERC20VS, 'setRateLimitPerSecond', [
       bridge,
       newRateLimitPerSecond.toString(),
-    );
+    ]);
   }
 
   async populateAddBridgeTx(
@@ -1252,10 +1280,12 @@ export class EvmXERC20VSAdapter
     rateLimitPerSecond: bigint,
     bridge: Address,
   ): Promise<PopulatedTransaction> {
-    return this.xERC20VS.populateTransaction.addBridge({
-      bufferCap: bufferCap.toString(),
-      rateLimitPerSecond: rateLimitPerSecond.toString(),
-      bridge,
-    });
+    return buildContractCallTx(this.xERC20VS, 'addBridge', [
+      {
+        bufferCap: bufferCap.toString(),
+        rateLimitPerSecond: rateLimitPerSecond.toString(),
+        bridge,
+      },
+    ]);
   }
 }

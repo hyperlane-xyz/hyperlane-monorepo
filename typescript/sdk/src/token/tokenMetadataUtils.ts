@@ -22,6 +22,31 @@ import {
   isXERC20TokenConfig,
 } from './types.js';
 
+type AddressReaderContract = {
+  address: string;
+  interface: {
+    encodeFunctionData(functionName: string, args?: readonly unknown[]): string;
+    decodeFunctionResult(functionName: string, data: `0x${string}`): unknown;
+  };
+};
+
+async function readAddressWithCall(
+  provider: ReturnType<MultiProvider['getProvider']>,
+  contract: AddressReaderContract,
+  functionName: string,
+): Promise<string> {
+  const result = await provider.call({
+    to: contract.address,
+    data: contract.interface.encodeFunctionData(functionName),
+  });
+  return String(
+    contract.interface.decodeFunctionResult(
+      functionName,
+      result as `0x${string}`,
+    ),
+  );
+}
+
 export async function deriveTokenMetadata(
   multiProvider: MultiProvider,
   configMap: WarpRouteDeployConfig,
@@ -91,16 +116,18 @@ export async function deriveTokenMetadata(
       let token: string;
       switch (config.type) {
         case TokenType.XERC20Lockbox:
-          token = await IXERC20Lockbox__factory.connect(
-            config.token,
+          token = await readAddressWithCall(
             provider,
-          ).callStatic.ERC20();
+            IXERC20Lockbox__factory.connect(config.token, provider),
+            'ERC20',
+          );
           break;
         case TokenType.collateralVault:
-          token = await IERC4626__factory.connect(
-            config.token,
+          token = await readAddressWithCall(
             provider,
-          ).callStatic.asset();
+            IERC4626__factory.connect(config.token, provider),
+            'asset',
+          );
           break;
         default:
           token = config.token;

@@ -333,11 +333,14 @@ export class EvmIsmModule extends HyperlaneModule<
       });
 
       const domainId = this.multiProvider.getDomainId(origin);
-      const tx = await contract.populateTransaction.set(domainId, ism.address);
       updateTxs.push({
         chainId: this.chainId,
         annotation: `Setting new ISM for origin ${origin}...`,
-        ...tx,
+        to: contract.address,
+        data: contract.interface.encodeFunctionData('set', [
+          domainId,
+          ism.address,
+        ]),
       });
     }
 
@@ -349,11 +352,11 @@ export class EvmIsmModule extends HyperlaneModule<
     // Unenroll domains
     for (const origin of knownUnenrolls) {
       const domainId = this.multiProvider.getDomainId(origin);
-      const tx = await contract.populateTransaction.remove(domainId);
       updateTxs.push({
         chainId: this.chainId,
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
-        ...tx,
+        to: contract.address,
+        data: contract.interface.encodeFunctionData('remove', [domainId]),
       });
     }
 

@@ -38,6 +38,7 @@ import {
   HyperlaneContractsMap,
 } from '../../contracts/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import type { EvmTransactionResponseLike } from '../../providers/evmTypes.js';
 import { CallData as SdkCallData } from '../../providers/transactions/types.js';
 import { RouterApp } from '../../router/RouterApps.js';
 import { ChainMap, ChainName } from '../../types.js';
@@ -140,9 +141,14 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         config.ismOverride ?? (await destinationRouter.isms(originDomain)),
       ),
     );
-    const destinationAccount = await destinationRouter[
+    const destinationAccount = (await destinationRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
-    ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
+    ](
+      originDomain,
+      config.owner,
+      originRouterAddress,
+      destinationIsmAddress,
+    )) as string;
 
     // If not deploying anything, return the account address.
     if (!deployIfNotExists) {
@@ -180,7 +186,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
             gasLimit: gasWithBuffer,
             ...txOverrides,
           },
-        ),
+        ) as Promise<EvmTransactionResponseLike>,
       );
       this.logger.debug(`Interchain account deployed at ${destinationAccount}`);
     } else {
@@ -379,10 +385,10 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
 
     let quote: bigint;
     try {
-      const quoteResult = await localRouter['quoteGasPayment(uint32,uint256)'](
+      const quoteResult = (await localRouter['quoteGasPayment(uint32,uint256)'](
         remoteDomain,
         gasLimitForQuote,
-      );
+      )) as bigint | number | string | { toString(): string };
       quote = BigInt(quoteResult.toString());
     } catch {
       // Legacy ICA routers have broken quoteGasPayment that doesn't use hookMetadata.
@@ -431,17 +437,20 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       });
     }
 
-    const callEncoded = await localRouter.populateTransaction[
-      'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
-    ](
-      remoteDomain,
-      remoteRouter as Hex,
-      remoteIsm as Hex,
-      formattedCalls,
-      resolvedHookMetadata as Hex,
-      { value: quote },
-    );
-    return callEncoded;
+    return {
+      to: localRouter.address,
+      data: localRouter.interface.encodeFunctionData(
+        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)',
+        [
+          remoteDomain,
+          remoteRouter as Hex,
+          remoteIsm as Hex,
+          formattedCalls,
+          resolvedHookMetadata as Hex,
+        ],
+      ),
+      value: quote,
+    };
   }
 
   private extractGasLimitFromMetadata(metadata: string): bigint | null {

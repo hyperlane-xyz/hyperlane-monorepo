@@ -209,10 +209,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       );
 
       try {
-        allowedRebalancers = await MovableCollateralRouter__factory.connect(
-          warpRouteAddress,
-          this.provider,
-        ).allowedRebalancers();
+        allowedRebalancers = [
+          ...(await MovableCollateralRouter__factory.connect(
+            warpRouteAddress,
+            this.provider,
+          ).allowedRebalancers()),
+        ];
       } catch (error) {
         // If this crashes it probably is because the token implementation has not been updated to be a movable collateral
         this.logger.error(
@@ -315,7 +317,10 @@ export class EvmWarpRouteReader extends EvmRouterReader {
 
     return this.evmTokenFeeReader.deriveTokenFeeConfig({
       address: tokenFee,
-      routingDestinations,
+      routingDestinations:
+        routingDestinations === undefined
+          ? undefined
+          : [...routingDestinations],
     });
   }
 
@@ -493,8 +498,13 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               );
 
               // Simulate minting tokens from the warp route contract
-              await fiatToken.callStatic.mint(NON_ZERO_SENDER_ADDRESS, 1, {
+              await this.provider.call({
                 from: warpRouteAddress,
+                to: wrappedToken,
+                data: fiatToken.interface.encodeFunctionData('mint', [
+                  NON_ZERO_SENDER_ADDRESS,
+                  1,
+                ]),
               });
 
               return TokenType.collateralFiat;
@@ -512,7 +522,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
                   this.provider,
                 );
 
-              await maybeEverclearTokenBridge.callStatic.everclearAdapter();
+              await maybeEverclearTokenBridge.everclearAdapter();
 
               let everclearTokenType: TokenType = TokenType.collateralEverclear;
               try {
@@ -803,7 +813,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         cctpVersion: 'V1',
         messageTransmitter,
         tokenMessenger,
-        urls,
+        urls: [...urls],
       };
     } else if (onchainCctpVersion === 1) {
       const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
@@ -820,7 +830,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         cctpVersion: 'V2',
         messageTransmitter,
         tokenMessenger,
-        urls,
+        urls: [...urls],
         minFinalityThreshold: toNumber(minFinalityThreshold),
         maxFeeBps: toNumber(maxFeeBps),
       };
@@ -959,7 +969,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     return {
       ...config,
       type: TokenType.nativeOpL1,
-      urls,
+      urls: [...urls],
       portal,
       // assume version 1 for now
       version: 1,
@@ -1011,7 +1021,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     // Remove unset domains from the output
     const filteredOutputAssets = objFilter(
       outputAssets,
-      (_domainId, assetAddress): assetAddress is string =>
+      (_domainId, assetAddress): assetAddress is `0x${string}` =>
         !isZeroish(assetAddress),
     );
 
@@ -1034,7 +1044,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       (
         _domainId,
         feeConfig,
-      ): feeConfig is EverclearEthBridgeTokenConfig['everclearFeeParams'][number] => {
+      ): feeConfig is (typeof feeParamsByDomain)[string] => {
         // if all the fields have their default value then the fee config for the
         // current domain is unset
         return !(

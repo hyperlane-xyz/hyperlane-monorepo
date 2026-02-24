@@ -84,7 +84,11 @@ export class ForkIndexer {
 
       const mailbox = this.core.getContracts(chain).mailbox;
       const events = await mailbox.queryFilter(
-        mailbox.filters.Dispatch(),
+        {
+          address: mailbox.address,
+          eventName: 'Dispatch',
+          args: [] as const,
+        },
         lastBlock + 1,
         currentBlockNumber,
       );

@@ -44,7 +44,11 @@ export class TestCoreApp extends HyperlaneCore {
     const contracts = this.getContracts(origin);
     const outbox = contracts.mailbox as TestMailbox;
 
-    const dispatchFilter = outbox.filters.Dispatch();
+    const dispatchFilter = {
+      address: outbox.address,
+      eventName: 'Dispatch',
+      args: [] as const,
+    };
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
       const dispatchArgs = dispatch.args as unknown;

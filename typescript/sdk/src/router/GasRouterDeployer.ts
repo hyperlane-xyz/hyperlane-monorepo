@@ -6,6 +6,7 @@ import {
   HyperlaneContractsMap,
   HyperlaneFactories,
 } from '../contracts/types.js';
+import type { EvmTransactionResponseLike } from '../providers/evmTypes.js';
 import { ChainMap } from '../types.js';
 
 import { ProxiedRouterDeployer } from './ProxiedRouterDeployer.js';
@@ -56,7 +57,7 @@ export abstract class GasRouterDeployer<
         this.router(contracts)['setDestinationGas((uint32,uint256)[])'](
           remoteConfigs,
           this.multiProvider.getTransactionOverrides(chain),
-        ),
+        ) as Promise<EvmTransactionResponseLike>,
       );
     }
   }

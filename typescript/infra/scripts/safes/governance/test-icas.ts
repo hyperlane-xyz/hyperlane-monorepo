@@ -67,10 +67,11 @@ async function main() {
       continue;
     }
 
-    const call =
-      await core.contractsMap[chain].mailbox.populateTransaction[
-        'localDomain()'
-      ]();
+    const mailbox = core.contractsMap[chain].mailbox;
+    const call = {
+      to: mailbox.address,
+      data: mailbox.interface.encodeFunctionData('localDomain()'),
+    };
 
     assert(call.to, 'call.to is undefined');
     assert(call.data, 'call.data is undefined');
