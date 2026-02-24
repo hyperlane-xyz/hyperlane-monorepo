@@ -27,7 +27,11 @@ beforeEach(function () {
 });
 
 after(async function () {
-  process.env['ALEO_WARP_SUFFIX'] = warpPrefix;
+  if (warpPrefix === undefined) {
+    delete process.env['ALEO_WARP_SUFFIX'];
+  } else {
+    process.env['ALEO_WARP_SUFFIX'] = warpPrefix;
+  }
 
   this.timeout(SETUP_TIMEOUT_MS);
 
