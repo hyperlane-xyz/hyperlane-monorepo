@@ -1696,4 +1696,76 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             type(uint256).max
         );
     }
+
+    function test_approveFeeTokenForHook_notOverwrittenByDispatch() public {
+        // This test verifies that pre-approved child hook allowances are not
+        // overwritten when another user dispatches directly to that hook.
+        //
+        // Scenario:
+        // 1. Alice pre-approves IGP for use as a child hook in StaticAggregationHook
+        // 2. Bob dispatches directly to IGP (not via aggregation)
+        // 3. Alice's pre-approval should still be type(uint256).max
+
+        address alice = address(0xA11CE);
+        address bob = address(0xB0B);
+
+        // Give Alice and Bob some fee tokens
+        feeToken.transfer(alice, 10_000e18);
+        feeToken.transfer(bob, 10_000e18);
+
+        // Step 1: Alice pre-approves IGP for child hook usage
+        vm.prank(alice);
+        originErc20Router.approveFeeTokenForHook(
+            address(feeToken),
+            address(erc20Igp)
+        );
+
+        assertEq(
+            feeToken.allowance(address(originErc20Router), address(erc20Igp)),
+            type(uint256).max,
+            "Alice's pre-approval should be infinite"
+        );
+
+        // Step 2: Bob dispatches directly to IGP
+        uint256 feeQuote = originErc20Router.quoteGasPayment(
+            address(feeToken),
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+
+        vm.startPrank(bob);
+        feeToken.approve(address(originErc20Router), feeQuote);
+
+        bytes memory hookMetadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            bob,
+            address(feeToken)
+        );
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("bob_test")))
+        });
+
+        originErc20Router.callRemoteWithOverrides{value: 0}(
+            destination,
+            erc20RouterOverride,
+            ismOverride,
+            calls,
+            hookMetadata
+        );
+        vm.stopPrank();
+
+        // Step 3: Verify Alice's pre-approval is still infinite
+        // Before the fix, this would be 0 because forceApprove(_fee) would
+        // overwrite the infinite approval, and then IGP would consume it all.
+        assertEq(
+            feeToken.allowance(address(originErc20Router), address(erc20Igp)),
+            type(uint256).max,
+            "Alice's pre-approval should still be infinite after Bob's dispatch"
+        );
+    }
 }

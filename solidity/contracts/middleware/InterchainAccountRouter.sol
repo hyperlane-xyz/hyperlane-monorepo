@@ -1035,8 +1035,10 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             );
 
             // Pull fee tokens from caller and approve hook
+            // Use max approval to avoid overwriting pre-approved child hook allowances
+            // (e.g., when using StaticAggregationHook with IGP as a child)
             IERC20(_feeToken).safeTransferFrom(msg.sender, address(this), _fee);
-            IERC20(_feeToken).forceApprove(address(_hook), _fee);
+            IERC20(_feeToken).forceApprove(address(_hook), type(uint256).max);
         }
 
         return
