@@ -26,10 +26,10 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
 
     error MaxFeeTooHigh();
 
-    event MaxFeeBpsSet(uint256 maxFeeBps);
+    event MaxFeePpmSet(uint256 maxFeePpm);
 
-    bytes32 private constant MAX_FEE_BPS_SLOT =
-        keccak256("hyperlane.storage.TokenBridgeCctpV2.maxFeeBps");
+    bytes32 private constant MAX_FEE_PPM_SLOT =
+        keccak256("hyperlane.storage.TokenBridgeCctpV2.maxFeePpm");
 
     uint256 private constant MAX_FEE_DENOMINATOR = 1_000_000;
 
@@ -41,7 +41,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         address _mailbox,
         IMessageTransmitterV2 _messageTransmitter,
         ITokenMessengerV2 _tokenMessenger,
-        uint256 _maxFeeBps,
+        uint256 _maxFeePpm,
         uint32 _minFinalityThreshold
     )
         TokenBridgeCctpBase(
@@ -51,7 +51,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             _tokenMessenger
         )
     {
-        _setMaxFeeBps(_maxFeeBps);
+        _setMaxFeePpm(_maxFeePpm);
         minFinalityThreshold = _minFinalityThreshold;
     }
 
@@ -65,8 +65,8 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
      *      - 150 ppm = 1.5 bps (0.015%, Circle's typical Unichain fee)
      * @return The maximum fee rate in ppm.
      */
-    function maxFeeBps() public view returns (uint256) {
-        return MAX_FEE_BPS_SLOT.getUint256Slot().value;
+    function maxFeePpm() public view returns (uint256) {
+        return MAX_FEE_PPM_SLOT.getUint256Slot().value;
     }
 
     /**
@@ -75,16 +75,16 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
      *      - 100 ppm = 1 bps (0.01%)
      *      - 130 ppm = 1.3 bps (0.013%, Circle's typical Optimism/Arbitrum/Base fee)
      *      - 150 ppm = 1.5 bps (0.015%, Circle's typical Unichain fee)
-     * @param _maxFeeBps The new maximum fee in ppm (must be < 1_000_000).
+     * @param _maxFeePpm The new maximum fee in ppm (must be < 1_000_000).
      */
-    function setMaxFeeBps(uint256 _maxFeeBps) external onlyOwner {
-        _setMaxFeeBps(_maxFeeBps);
+    function setMaxFeePpm(uint256 _maxFeePpm) external onlyOwner {
+        _setMaxFeePpm(_maxFeePpm);
     }
 
-    function _setMaxFeeBps(uint256 _maxFeeBps) internal {
-        if (_maxFeeBps >= MAX_FEE_DENOMINATOR) revert MaxFeeTooHigh();
-        MAX_FEE_BPS_SLOT.getUint256Slot().value = _maxFeeBps;
-        emit MaxFeeBpsSet(_maxFeeBps);
+    function _setMaxFeePpm(uint256 _maxFeePpm) internal {
+        if (_maxFeePpm >= MAX_FEE_DENOMINATOR) revert MaxFeeTooHigh();
+        MAX_FEE_PPM_SLOT.getUint256Slot().value = _maxFeePpm;
+        emit MaxFeePpmSet(_maxFeePpm);
     }
 
     // ============ TokenRouter overrides ============
@@ -105,16 +105,16 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
      * The formula solves for the fee needed such that after Circle takes their percentage,
      * the recipient receives exactly `amount`:
      *
-     *   (amount + fee) * (MAX_FEE_DENOMINATOR - maxFeeBps) / MAX_FEE_DENOMINATOR = amount
+     *   (amount + fee) * (MAX_FEE_DENOMINATOR - maxFeePpm) / MAX_FEE_DENOMINATOR = amount
      *
      * Solving for fee:
-     *   fee = (amount * maxFeeBps) / (MAX_FEE_DENOMINATOR - maxFeeBps)
+     *   fee = (amount * maxFeePpm) / (MAX_FEE_DENOMINATOR - maxFeePpm)
      *
-     * Example: If amount = 100 USDC and maxFeeBps = 130 (1.3 bps = 0.013%):
+     * Example: If amount = 100 USDC and maxFeePpm = 130 (1.3 bps = 0.013%):
      *   fee = (100 * 130) / (1_000_000 - 130) = 13000 / 999870 ≈ 0.013 USDC
      *   We deposit 100.013 USDC, Circle takes up to 0.013 USDC, recipient gets exactly 100 USDC.
      *
-     * Note: maxFeeBps is stored in parts per million (ppm), where 100 ppm = 1 bps = 0.01%.
+     * Note: maxFeePpm is in parts per million (ppm), where 100 ppm = 1 bps = 0.01%.
      * This precision allows representing fractional basis points like Circle's 1.3 bps fees.
      */
     function _externalFeeAmount(
@@ -124,12 +124,12 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     ) internal view override returns (uint256 feeAmount) {
         // round up because depositForBurn maxFee is an upper bound
         // enforced offchain by the Iris attestation service without precision loss
-        uint256 _maxFeeBps = maxFeeBps();
+        uint256 _maxFeePpm = maxFeePpm();
         return
             Math.mulDiv(
                 amount,
-                _maxFeeBps,
-                MAX_FEE_DENOMINATOR - _maxFeeBps,
+                _maxFeePpm,
+                MAX_FEE_DENOMINATOR - _maxFeePpm,
                 Math.Rounding.Up
             );
     }
