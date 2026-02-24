@@ -34,7 +34,11 @@ import { deployProgram } from '../deploy/program-deployer.js';
 import { getTokenInstructionProxyEncoder } from '../generated/types/index.js';
 import type { InitProxyArgs } from '../generated/types/index.js';
 import type { SvmSigner } from '../signer.js';
-import type { AnnotatedSvmTransaction, SvmInstruction } from '../types.js';
+import type {
+  AnnotatedSvmTransaction,
+  SvmInstruction,
+  SvmReceipt,
+} from '../types.js';
 
 import {
   RENT_SYSVAR,
@@ -332,10 +336,10 @@ export class SvmSyntheticTokenWriter
   ): Promise<
     [
       ArtifactDeployed<SyntheticDeployConfigWithMetadata, DeployedWarpAddress>,
-      import('../types.js').SvmReceipt[],
+      SvmReceipt[],
     ]
   > {
-    const receipts: import('../types.js').SvmReceipt[] = [];
+    const receipts: SvmReceipt[] = [];
     const config = artifact.config;
 
     // Step 1: Deploy program

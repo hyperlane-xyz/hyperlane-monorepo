@@ -34,7 +34,11 @@ import { deployProgram } from '../deploy/program-deployer.js';
 import { getTokenInstructionProxyEncoder } from '../generated/types/index.js';
 import type { InitProxyArgs } from '../generated/types/index.js';
 import type { SvmSigner } from '../signer.js';
-import type { AnnotatedSvmTransaction, SvmInstruction } from '../types.js';
+import type {
+  AnnotatedSvmTransaction,
+  SvmInstruction,
+  SvmReceipt,
+} from '../types.js';
 
 import {
   RENT_SYSVAR,
@@ -280,10 +284,10 @@ export class SvmCollateralTokenWriter
   ): Promise<
     [
       ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>,
-      import('../types.js').SvmReceipt[],
+      SvmReceipt[],
     ]
   > {
-    const receipts: import('../types.js').SvmReceipt[] = [];
+    const receipts: SvmReceipt[] = [];
     const config = artifact.config;
 
     // Step 1: Deploy program
@@ -306,9 +310,11 @@ export class SvmCollateralTokenWriter
     const mintInfo = await this.rpc
       .getAccountInfo(collateralMint, { encoding: 'base64' })
       .send();
-    const splProgram = address(
-      mintInfo.value?.owner ?? 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    assert(
+      !isNullish(mintInfo.value),
+      `Mint account not found: ${collateralMint}`,
     );
+    const splProgram = address(mintInfo.value.owner);
 
     // Step 4: Initialize
     const initArgs = buildBaseInitArgs(

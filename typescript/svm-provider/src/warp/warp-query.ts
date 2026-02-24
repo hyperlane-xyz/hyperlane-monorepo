@@ -113,13 +113,10 @@ function unwrapHyperlaneToken<T>(
     remoteDecimals: decoded.remoteDecimals,
     owner: unwrapOption(decoded.owner),
     interchainSecurityModule: unwrapOption(decoded.interchainSecurityModule),
-    interchainGasPaymaster:
-      decoded.interchainGasPaymaster?.__option === 'Some'
-        ? [
-            decoded.interchainGasPaymaster.value.programId,
-            decoded.interchainGasPaymaster.value.accountType,
-          ]
-        : null,
+    interchainGasPaymaster: (() => {
+      const igp = unwrapOption(decoded.interchainGasPaymaster);
+      return igp ? [igp.programId, igp.accountType] : null;
+    })(),
     destinationGas: decoded.destinationGas,
     remoteRouters: decoded.remoteRouters,
     pluginData: decoded.pluginData,
@@ -327,7 +324,7 @@ export function routerHexToBytes(router: string): Uint8Array {
     bytes.length === 32,
     `Router address must be 32 bytes (64 hex chars), got ${bytes.length}`,
   );
-  return new Uint8Array(bytes);
+  return bytes;
 }
 
 /**

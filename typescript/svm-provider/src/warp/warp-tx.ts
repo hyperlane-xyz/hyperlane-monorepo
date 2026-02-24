@@ -388,16 +388,6 @@ export async function applyPostInitConfig(
     );
   }
 
-  // if (config.interchainSecurityModule?.deployed?.address) {
-  //   instructions.push(
-  //     await getSetIsmIx(
-  //       programId,
-  //       signer.address,
-  //       address(config.interchainSecurityModule.deployed.address),
-  //     ),
-  //   );
-  // }
-
   if (instructions.length === 0) {
     return undefined;
   }

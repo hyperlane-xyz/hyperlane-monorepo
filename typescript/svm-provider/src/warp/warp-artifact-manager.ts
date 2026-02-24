@@ -87,7 +87,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
         new SvmSyntheticTokenWriter(
           {
             igpProgramId: this.igpProgramId,
-            programBytes: PROGRAM_BYTES.nativeToken,
+            programBytes: PROGRAM_BYTES.syntheticToken,
           },
           this.rpc,
           signer,
@@ -97,7 +97,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
         new SvmCollateralTokenWriter(
           {
             igpProgramId: this.igpProgramId,
-            programBytes: PROGRAM_BYTES.nativeToken,
+            programBytes: PROGRAM_BYTES.collateralToken,
           },
           this.rpc,
           signer,
