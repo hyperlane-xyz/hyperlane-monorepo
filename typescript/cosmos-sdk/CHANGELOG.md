@@ -1,5 +1,15 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 25.2.0
+
+### Patch Changes
+
+- Updated dependencies [360db52]
+- Updated dependencies [ccd638d]
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/provider-sdk@1.3.3
+  - @hyperlane-xyz/cosmos-types@25.2.0
+
 ## 25.1.0
 
 ### Patch Changes
