@@ -1,4 +1,3 @@
-import '@nomicfoundation/hardhat-foundry';
 import '@nomicfoundation/hardhat-ethers';
 import '@nomicfoundation/hardhat-chai-matchers';
 import '@typechain/hardhat';
@@ -19,7 +18,6 @@ module.exports = {
   typechain: {
     outDir: './core-utils/typechain',
     target: 'ethers-v6',
-    alwaysGenerateOverloads: true,
     node16Modules: true,
   },
 };

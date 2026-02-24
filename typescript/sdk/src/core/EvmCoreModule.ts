@@ -240,7 +240,7 @@ export class EvmCoreModule extends HyperlaneModule<
       updateTransactions.push({
         annotation: `Setting default ISM for Mailbox ${mailbox} to ${deployedIsm}`,
         chainId: this.chainId,
-        to: contractToUpdate.address,
+        to: contractToUpdate.target as Address,
         data: contractToUpdate.interface.encodeFunctionData('setDefaultIsm', [
           deployedIsm,
         ]),
@@ -373,15 +373,17 @@ export class EvmCoreModule extends HyperlaneModule<
       'proxyAdmin',
       [],
     );
+    const proxyAdminAddress = await proxyAdmin.getAddress();
 
     // Deploy Mailbox
     const mailbox = await this.deployMailbox({
       config,
       coreDeployer,
-      proxyAdmin: proxyAdmin.address,
+      proxyAdmin: proxyAdminAddress,
       multiProvider,
       chain,
     });
+    const mailboxAddress = await mailbox.getAddress();
 
     // Deploy ICA ISM and Router
     const { interchainAccountRouter } = (
@@ -389,7 +391,7 @@ export class EvmCoreModule extends HyperlaneModule<
         chain: chainName,
         multiProvider: multiProvider,
         config: {
-          mailbox: mailbox.address,
+          mailbox: mailboxAddress,
           owner: await multiProvider.getSigner(chain).getAddress(),
           commitmentIsm: {
             type: IsmType.OFFCHAIN_LOOKUP,
@@ -403,15 +405,15 @@ export class EvmCoreModule extends HyperlaneModule<
 
     // Deploy Validator announce
     const validatorAnnounce = (
-      await coreDeployer.deployValidatorAnnounce(chainName, mailbox.address)
-    ).address;
+      await coreDeployer.deployValidatorAnnounce(chainName, mailboxAddress)
+    ).target as Address;
 
     // Deploy timelock controller if config.upgrade is set
     let timelockController;
     if (config.upgrade) {
       timelockController = (
         await coreDeployer.deployTimelock(chainName, config.upgrade.timelock)
-      ).address;
+      ).target as Address;
     }
 
     // Deploy Test Recipient
@@ -420,7 +422,7 @@ export class EvmCoreModule extends HyperlaneModule<
         chainName,
         await mailbox.defaultIsm(),
       )
-    ).address;
+    ).target as Address;
 
     // Obtain addresses of every contract created by the deployer
     // and extract only the merkleTreeHook and interchainGasPaymaster
@@ -440,9 +442,9 @@ export class EvmCoreModule extends HyperlaneModule<
     ) {
       await multiProvider.sendTransaction(chainName, {
         annotation: `Transferring ownership of ProxyAdmin to the configured address ${config.proxyAdmin.owner}`,
-        to: proxyAdmin.address,
+        to: proxyAdminAddress,
         data: Ownable__factory.createInterface().encodeFunctionData(
-          'transferOwnership(address)',
+          'transferOwnership',
           [config.proxyAdmin.owner],
         ),
       });
@@ -451,8 +453,8 @@ export class EvmCoreModule extends HyperlaneModule<
     // Set Core & extra addresses
     return {
       ...ismFactoryFactories,
-      proxyAdmin: proxyAdmin.address,
-      mailbox: mailbox.address,
+      proxyAdmin: proxyAdminAddress,
+      mailbox: mailboxAddress,
       interchainAccountRouter,
       validatorAnnounce,
       timelockController,
@@ -518,7 +520,7 @@ export class EvmCoreModule extends HyperlaneModule<
     const deployedDefaultIsm = await deployer.deployIsm(
       chainName,
       config.defaultIsm,
-      mailbox.address,
+      await mailbox.getAddress(),
     );
 
     // @todo refactor when 1) HookModule is ready, and 2) Hooks Config can handle strings
@@ -526,7 +528,7 @@ export class EvmCoreModule extends HyperlaneModule<
       chainName,
       config.defaultHook,
       {
-        mailbox: mailbox.address,
+        mailbox: await mailbox.getAddress(),
         proxyAdmin,
       },
     );
@@ -536,7 +538,7 @@ export class EvmCoreModule extends HyperlaneModule<
       chainName,
       config.requiredHook,
       {
-        mailbox: mailbox.address,
+        mailbox: await mailbox.getAddress(),
         proxyAdmin,
       },
     );
@@ -547,8 +549,8 @@ export class EvmCoreModule extends HyperlaneModule<
       mailbox.initialize(
         config.owner,
         deployedDefaultIsm,
-        deployedDefaultHook.address,
-        deployedRequiredHook.address,
+        deployedDefaultHook.target as Address,
+        deployedRequiredHook.target as Address,
         multiProvider.getTransactionOverrides(chain),
       ),
     );
