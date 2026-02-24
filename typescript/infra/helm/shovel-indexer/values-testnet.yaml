@@ -1,0 +1,9 @@
+# Testnet4-specific configuration for shovel-indexer
+# Usage: helm install shovel ./shovel-indexer -f values.yaml -f values-testnet.yaml
+
+hyperlane:
+  runEnv: testnet4
+  chains: 'sepolia'
+
+externalSecrets:
+  databaseUrlSecretKey: hyperlane-testnet4-indexer-db
