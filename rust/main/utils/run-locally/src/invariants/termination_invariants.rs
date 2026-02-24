@@ -510,6 +510,11 @@ pub fn finalized_transactions_per_destination_invariants_met(
         .iter()
         .sum::<u32>();
 
+        // No Lander activity for this destination — skip.
+        if transaction_submissions == 0 {
+            continue;
+        }
+
         if dropped_transactions > transaction_submissions {
             log!(
                 "destination {} dropped_transactions {} > transaction_submissions {}",
