@@ -34,6 +34,14 @@ export interface TronTransactionResponse extends providers.TransactionResponse {
  * gasLimit to Tron's feeLimit using: feeLimit = gasLimit × gasPrice.
  */
 export class TronWallet extends Wallet {
+  /**
+   * Static counter to ensure unique txIDs across all wallet instances.
+   * Must be static because connect() creates new instances, and Tron txIDs
+   * are derived from transaction content + expiration. Without a shared counter,
+   * two instances could generate identical txIDs in the same block.
+   */
+  private static txCounter = 0;
+
   private readonly tronUrl: string;
   private tronWeb: TronWeb;
   private tronAddress: string;
@@ -172,19 +180,8 @@ export class TronWallet extends Wallet {
     return response;
   }
 
-  /**
-   * Alter the transaction to ensure a unique txID.
-   *
-   * Tron has no nonces, so identical transactions in the same block produce
-   * the same txID. We use a random extension to the expiration time to ensure
-   * uniqueness.
-   *
-   * For deployments, we must recompute contract_address after altering because
-   * TronWeb's createSmartContract() already set it based on the original txID.
-   * The address formula is: '41' + keccak256(txID + ownerHex)[24:]
-   */
   private async makeUnique(tronTx: TronTransaction): Promise<TronTransaction> {
-    const extension = Math.floor(Math.random() * 1_000_000_000);
+    const extension = ++TronWallet.txCounter;
     const altered = await this.tronWeb.transactionBuilder.alterTransaction(
       tronTx as Types.Transaction,
       {
@@ -192,6 +189,8 @@ export class TronWallet extends Wallet {
       },
     );
 
+    // For deployments, recompute contract_address from the new txID.
+    // genContractAddress = '41' + keccak256(txID + ownerHex)[24:]
     if ('contract_address' in tronTx) {
       const hash = ethersKeccak256(
         Buffer.from(altered.txID + this.tronAddressHex, 'hex'),
