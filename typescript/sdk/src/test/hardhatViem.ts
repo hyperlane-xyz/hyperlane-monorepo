@@ -22,6 +22,7 @@ type ProviderLike = {
   send(method: string, params: unknown[]): Promise<unknown>;
   estimateGas(tx: unknown): Promise<unknown>;
   getBlock(tag: unknown): Promise<{ number: number } & Record<string, unknown>>;
+  getNetwork?(): Promise<{ chainId: number; name: string }>;
   getBlockNumber?(): Promise<number>;
   getBalance?(address: string): Promise<bigint>;
   getTransactionCount?(address: string, blockTag?: string): Promise<number>;
@@ -109,6 +110,11 @@ export function getHardhatProvider(): ProviderLike {
     async getBlockNumber() {
       const publicClient = await getHardhatPublicClient();
       return Number(await publicClient.getBlockNumber());
+    },
+    async getNetwork() {
+      const chainIdHex = (await sendHardhatRpc('eth_chainId', [])) as string;
+      const chainId = Number(BigInt(chainIdHex));
+      return { chainId, name: String(chainId) };
     },
     async getBalance(address: string) {
       const publicClient = await getHardhatPublicClient();
