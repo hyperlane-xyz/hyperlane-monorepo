@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use eyre::Result;
-use sea_orm::{prelude::*, ActiveValue, Insert, Order, QueryOrder, QuerySelect};
+use sea_orm::{prelude::*, ActiveValue, ConnectionTrait, Insert, Order, QueryOrder, QuerySelect};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
@@ -148,10 +148,37 @@ impl BlockCursor {
                 height: ActiveValue::Set(height as i64),
             };
             debug!(?model, "Inserting cursor");
-            if let Err(e) = Insert::one(model).exec(&self.db).await {
-                warn!(error = ?e, "Failed to update database with new cursor. When you just started this, ensure that the migrations included this domain.")
-            } else {
-                debug!(cursor = ?*inner, "Updated cursor")
+            match Insert::one(model).exec(&self.db).await {
+                Ok(_) => debug!(cursor = ?*inner, "Updated cursor"),
+                Err(e) if should_fallback_to_legacy_cursor_query(&e) => match self.cursor_kind {
+                    CursorKind::Finalized => {
+                        warn!(
+                            error = ?e,
+                            domain = self.domain,
+                            "cursor_type column missing, falling back to legacy finalized cursor insert"
+                        );
+                        if let Err(legacy_err) =
+                            insert_legacy_cursor_row(&self.db, self.domain, height).await
+                        {
+                            warn!(
+                                error = ?legacy_err,
+                                domain = self.domain,
+                                "Failed to update database with legacy finalized cursor"
+                            );
+                        } else {
+                            debug!(cursor = ?*inner, "Updated cursor via legacy insert")
+                        }
+                    }
+                    CursorKind::Tip => warn!(
+                        error = ?e,
+                        domain = self.domain,
+                        "Tip cursor persistence requires cursor_type migration; skipping tip cursor write"
+                    ),
+                },
+                Err(e) => warn!(
+                    error = ?e,
+                    "Failed to update database with new cursor. When you just started this, ensure that the migrations included this domain."
+                ),
             }
         }
     }
@@ -170,5 +197,20 @@ impl ScraperDb {
 
 fn should_fallback_to_legacy_cursor_query(err: &DbErr) -> bool {
     let msg = err.to_string().to_lowercase();
-    (msg.contains("cursor_type") && msg.contains("column")) || msg.contains("no such column")
+    msg.contains("no such column: cursor_type")
+        || msg.contains("column cursor_type does not exist")
+        || msg.contains("column \"cursor_type\" does not exist")
+        || msg.contains("unknown column 'cursor_type'")
+}
+
+async fn insert_legacy_cursor_row(
+    db: &DbConn,
+    domain: u32,
+    height: u64,
+) -> std::result::Result<(), DbErr> {
+    db.execute_unprepared(&format!(
+        r#"INSERT INTO "cursor" ("domain", "height") VALUES ({domain}, {height})"#
+    ))
+    .await
+    .map(|_| ())
 }
