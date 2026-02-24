@@ -1,0 +1,75 @@
+# Common configuration for shovel-indexer
+# Environment-specific settings should go in values-testnet.yaml or values-mainnet.yaml
+
+# Hyperlane configuration (override in environment-specific values)
+hyperlane:
+  runEnv: ''
+  registryUri: ''
+  chains: ''
+
+image:
+  repository: gcr.io/abacus-labs-dev/hyperlane-indexer
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Shovel binary configuration
+shovel:
+  # Shovel version to download (use 'main' for latest dev build)
+  version: main
+  # Batch size for block fetches (lower = more reliable with public RPCs)
+  batchSize: 25
+  # Number of concurrent sub-requests per batch
+  concurrency: 1
+  # Poll interval for new blocks
+  pollDuration: '1s'
+
+# Resource limits
+resources:
+  limits:
+    cpu: '1'
+    memory: 1Gi
+  requests:
+    cpu: '500m'
+    memory: 512Mi
+
+# Number of replicas (must be 1 - Shovel uses advisory locks per integration)
+replicaCount: 1
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# External secrets for sensitive data
+externalSecrets:
+  clusterSecretStore: external-secrets-gcp-cluster-secret-store
+  # Database connection string (stored in secret manager)
+  databaseUrlSecretKey: ''
+
+# PostgreSQL database connection
+database:
+  # Direct connection string (if not using external secrets)
+  connectionString: ''
+
+# Database migrations
+migrations:
+  # Run migrations via init container before starting shovel
+  enabled: true
+
+# Service account
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+
+# Pod annotations
+podAnnotations: {}
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

@@ -1,0 +1,152 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "shovel.fullname" . }}
+  labels:
+    {{- include "shovel.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "shovel.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "shovel.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Stakater Reloader: automatically restart pod when the referenced secret changes.
+        # Requires Stakater Reloader to be installed in the cluster.
+        # If Reloader is not available, manually run: kubectl rollout restart deployment/<name>
+        secret.reloader.stakater.com/reload: {{ include "shovel.fullname" . }}-env-var-secret
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      terminationGracePeriodSeconds: 30
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "shovel.serviceAccountName" . }}
+      {{- end }}
+      volumes:
+        - name: shovel-config
+          emptyDir: {}
+        - name: shovel-bin
+          emptyDir: {}
+      initContainers:
+        # 1. Download shovel binary
+        - name: download-shovel
+          image: curlimages/curl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+              ARCH_RAW="$(uname -m)"
+              case "${ARCH_RAW}" in
+                x86_64|amd64) ARCH="amd64" ;;
+                arm64|aarch64) ARCH="arm64" ;;
+                *) echo "Unsupported arch: ${ARCH_RAW}" >&2; exit 1 ;;
+              esac
+              URL="https://indexsupply.net/bin/{{ .Values.shovel.version }}/${OS}/${ARCH}/shovel"
+              echo "Downloading shovel {{ .Values.shovel.version }} from ${URL}"
+              curl -fL "${URL}" -o /shovel-bin/shovel
+              chmod +x /shovel-bin/shovel
+              echo "Shovel binary ready"
+          volumeMounts:
+            - name: shovel-bin
+              mountPath: /shovel-bin
+        {{- if .Values.migrations.enabled }}
+        # 2. Run database migrations
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["pnpm", "shovel:db:migrate"]
+          env:
+            {{- if .Values.database.connectionString }}
+            - name: DATABASE_URL
+              value: {{ .Values.database.connectionString }}
+            {{- end }}
+          {{- if .Values.externalSecrets.clusterSecretStore }}
+          envFrom:
+            - secretRef:
+                name: {{ include "shovel.fullname" . }}-env-var-secret
+          {{- end }}
+        {{- end }}
+        # 3. Generate shovel config (reads RPC URLs from env, writes JSON config)
+        - name: generate-config
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - pnpm
+            - shovel:config
+            - --
+            - --out
+            - /shovel-config/config.json
+            {{- if .Values.hyperlane.chains }}
+            - --chain
+            - {{ .Values.hyperlane.chains }}
+            {{- end }}
+            - --batch-size
+            - {{ .Values.shovel.batchSize | quote }}
+            - --concurrency
+            - {{ .Values.shovel.concurrency | quote }}
+            - --poll-duration
+            - {{ .Values.shovel.pollDuration | quote }}
+          env:
+            - name: DEPLOY_ENV
+              value: {{ .Values.hyperlane.runEnv }}
+            {{- if .Values.hyperlane.registryUri }}
+            - name: REGISTRY_URI
+              value: {{ .Values.hyperlane.registryUri }}
+            {{- end }}
+            {{- if .Values.hyperlane.chains }}
+            - name: INDEXED_CHAINS
+              value: {{ .Values.hyperlane.chains }}
+            {{- end }}
+          {{- if .Values.externalSecrets.clusterSecretStore }}
+          envFrom:
+            - secretRef:
+                name: {{ include "shovel.fullname" . }}-env-var-secret
+          {{- end }}
+          volumeMounts:
+            - name: shovel-config
+              mountPath: /shovel-config
+      containers:
+        - name: shovel
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              exec /shovel-bin/shovel -config /shovel-config/config.json
+          env:
+            {{- if .Values.database.connectionString }}
+            - name: DATABASE_URL
+              value: {{ .Values.database.connectionString }}
+            {{- end }}
+          {{- if .Values.externalSecrets.clusterSecretStore }}
+          envFrom:
+            - secretRef:
+                name: {{ include "shovel.fullname" . }}-env-var-secret
+          {{- end }}
+          volumeMounts:
+            - name: shovel-config
+              mountPath: /shovel-config
+              readOnly: true
+            - name: shovel-bin
+              mountPath: /shovel-bin
+              readOnly: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
