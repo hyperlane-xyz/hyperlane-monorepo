@@ -10,3 +10,13 @@ export { TronSigner } from './clients/signer.js';
 export { TronProtocolProvider } from './clients/protocol.js';
 
 export { TronReceipt } from './utils/types.js';
+
+// Testing utilities
+export {
+  enableInstamine,
+  runTronNode,
+  stopTronNode,
+  type TronNodeInfo,
+  type TronTestChainMetadata,
+} from './testing/node.js';
+export { TEST_TRON_PRIVATE_KEY } from './testing/constants.js';

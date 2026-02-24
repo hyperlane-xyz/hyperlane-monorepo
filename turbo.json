@@ -17,10 +17,6 @@
         "../typescript/tron-sdk/src/typechain/**"
       ]
     },
-    "@hyperlane-xyz/tron-sdk#build": {
-      "dependsOn": ["@hyperlane-xyz/core#build:tron", "^build"],
-      "outputs": ["dist/**", "src/abi/**", "src/typechain/**"]
-    },
     "test:ci": {
       "dependsOn": ["build", "^test:ci"]
     },
