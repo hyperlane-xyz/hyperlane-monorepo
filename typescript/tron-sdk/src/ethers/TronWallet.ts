@@ -87,7 +87,7 @@ export class TronWallet extends Wallet {
     const gasPrice = BigNumber.from(tx.gasPrice);
     const gasLimit = BigNumber.from(tx.gasLimit);
     let feeLimit = gasLimit.mul(gasPrice).toNumber() * 1.5; // Add 50% buffer to feeLimit to avoid "Out of energy" errors
-    feeLimit = Math.max(feeLimit, 1000000000); // Tron max fee is 1000000000 SUN (1000 TRX);
+    feeLimit = Math.min(feeLimit, 1000000000); // Tron max fee is 1000000000 SUN (1000 TRX)
     feeLimit = feeLimit <= 0 ? 1000000000 : feeLimit; // Ensure we have at least some fee limit
     const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
 
