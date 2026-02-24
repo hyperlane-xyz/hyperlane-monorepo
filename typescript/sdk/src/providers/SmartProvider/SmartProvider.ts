@@ -37,9 +37,9 @@ import {
   getTypedDataPrimaryType,
 } from '../../utils/typedData.js';
 import type {
-  EvmPopulatedTransaction,
   EvmProviderLike,
   EvmSignerLike,
+  EvmTransactionLike,
   EvmTransactionReceiptLike,
   EvmTransactionResponseLike,
 } from '../evmTypes.js';
@@ -632,10 +632,10 @@ export class HyperlaneSmartProvider implements IProviderMethods {
       getBalance: async () => {
         return this.getBalance(address);
       },
-      estimateGas: async (tx: EvmPopulatedTransaction) => {
+      estimateGas: async (tx: EvmTransactionLike) => {
         return this.estimateGas({ ...tx, from: address });
       },
-      sendTransaction: async (tx: EvmPopulatedTransaction) => {
+      sendTransaction: async (tx: EvmTransactionLike) => {
         const hash = await this.send<string>('eth_sendTransaction', [
           normalizeRpcTx({ ...tx, from: address }),
         ]);

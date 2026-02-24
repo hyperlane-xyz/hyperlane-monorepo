@@ -24,9 +24,9 @@ import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
   EvmDeployableContractLike,
   EvmGasAmount,
-  EvmPopulatedTransaction,
   EvmProviderLike,
   EvmSignerLike,
+  EvmTransactionLike,
   EvmTransactionReceiptLike,
   EvmTransactionResponseLike,
   EvmTransactionOverrides,
@@ -41,7 +41,7 @@ type DeployFactory<TContract = unknown> = {
   connect(signer: EvmSignerLike): {
     getDeployTransaction(
       ...params: readonly unknown[]
-    ): EvmPopulatedTransaction | Promise<EvmPopulatedTransaction>;
+    ): EvmTransactionLike | Promise<EvmTransactionLike>;
     deploy(...params: readonly unknown[]): Promise<TContract>;
   };
 };
@@ -603,7 +603,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async prepareTx(
     chainNameOrId: ChainNameOrId,
-    tx: EvmPopulatedTransaction,
+    tx: EvmTransactionLike,
     from?: string,
   ): Promise<Record<string, unknown>> {
     const txFrom = from ?? (await this.getSignerAddress(chainNameOrId));
@@ -621,7 +621,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async estimateGas(
     chainNameOrId: ChainNameOrId,
-    tx: EvmPopulatedTransaction,
+    tx: EvmTransactionLike,
     from?: string,
   ): Promise<EvmGasAmount> {
     const txReq = {
