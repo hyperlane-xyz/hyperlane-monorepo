@@ -1,5 +1,5 @@
-import '@nomiclabs/hardhat-ethers';
-import '@nomiclabs/hardhat-waffle';
+import '@nomicfoundation/hardhat-ethers';
+import '@nomicfoundation/hardhat-chai-matchers';
 
 /**
  * @type import('hardhat/config').HardhatUserConfig

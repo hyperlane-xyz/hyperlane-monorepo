@@ -1,6 +1,6 @@
 import '@nomicfoundation/hardhat-foundry';
-import '@nomiclabs/hardhat-ethers';
-import '@nomiclabs/hardhat-waffle';
+import '@nomicfoundation/hardhat-ethers';
+import '@nomicfoundation/hardhat-chai-matchers';
 import '@typechain/hardhat';
 import 'hardhat-gas-reporter';
 import 'hardhat-ignore-warnings';
@@ -18,7 +18,7 @@ module.exports = {
   },
   typechain: {
     outDir: './core-utils/typechain',
-    target: 'ethers-v5',
+    target: 'ethers-v6',
     alwaysGenerateOverloads: true,
     node16Modules: true,
   },
