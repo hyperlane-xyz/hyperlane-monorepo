@@ -62,7 +62,6 @@
     "zod-validation-error": "catalog:"
   },
   "devDependencies": {
-    "@ethersproject/constants": "*",
     "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai-as-promised": "catalog:",

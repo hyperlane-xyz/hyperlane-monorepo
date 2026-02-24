@@ -1,10 +1,10 @@
-import "./plugins/hardhat-tron-solc.cjs";
-import "@nomicfoundation/hardhat-foundry";
-import "@nomiclabs/hardhat-ethers";
-import "@typechain/hardhat";
-import "hardhat-ignore-warnings";
+import './plugins/hardhat-tron-solc.cjs';
+import '@nomicfoundation/hardhat-foundry';
+import '@nomicfoundation/hardhat-ethers';
+import '@typechain/hardhat';
+import 'hardhat-ignore-warnings';
 
-import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
+import { rootHardhatConfig } from './rootHardhatConfig.cjs';
 
 /**
  * Hardhat configuration for compiling Hyperlane contracts for Tron.
@@ -19,13 +19,13 @@ import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
 module.exports = {
   ...rootHardhatConfig,
   paths: {
-    sources: "./contracts",
-    artifacts: "./artifacts-tron",
-    cache: "./cache-tron",
+    sources: './contracts',
+    artifacts: '../typescript/tron-sdk/src/abi',
+    cache: './cache-tron',
   },
   typechain: {
-    outDir: "./artifacts-tron/typechain",
-    target: "ethers-v5",
+    outDir: '../typescript/tron-sdk/src/typechain',
+    target: 'ethers-v5',
     alwaysGenerateOverloads: true,
     node16Modules: true,
   },

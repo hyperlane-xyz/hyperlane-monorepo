@@ -1,5 +1,4 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
-import '@nomiclabs/hardhat-waffle';
+import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import { assert, expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
