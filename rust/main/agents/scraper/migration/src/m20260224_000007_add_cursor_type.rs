@@ -11,7 +11,7 @@ impl MigrationTrait for Migration {
                 Table::alter()
                     .table(Cursor::Table)
                     .add_column(
-                        ColumnDef::new(Cursor::CursorType)
+                        ColumnDef::new(Cursor::Stage)
                             .text()
                             .not_null()
                             .default("finalized"),
@@ -26,7 +26,7 @@ impl MigrationTrait for Migration {
                     .table(Cursor::Table)
                     .name("cursor_domain_type_height_idx")
                     .col(Cursor::Domain)
-                    .col(Cursor::CursorType)
+                    .col(Cursor::Stage)
                     .col(Cursor::Height)
                     .index_type(IndexType::BTree)
                     .to_owned(),
@@ -50,7 +50,7 @@ impl MigrationTrait for Migration {
             .alter_table(
                 Table::alter()
                     .table(Cursor::Table)
-                    .drop_column(Cursor::CursorType)
+                    .drop_column(Cursor::Stage)
                     .to_owned(),
             )
             .await?;
@@ -64,5 +64,6 @@ enum Cursor {
     Table,
     Domain,
     Height,
-    CursorType,
+    #[iden = "cursor_type"]
+    Stage,
 }

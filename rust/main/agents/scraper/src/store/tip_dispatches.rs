@@ -17,6 +17,12 @@ const RAW_MESSAGE_DISPATCH_TIP_LABEL: &str = "raw_message_dispatch_tip";
 ///
 /// This intentionally only stores raw dispatch rows because enriched tables are
 /// finalized-state oriented and not reorg-resilient.
+///
+/// Reorg behavior:
+/// - if a message reappears at a different block/tx, upsert updates the existing row
+/// - if a message is dropped by reorg and never re-included, a stale raw row can remain
+///
+/// Finalized/enriched tables remain the authoritative source of truth.
 #[derive(Clone, Debug)]
 pub struct TipMessageStore {
     db: ScraperDb,

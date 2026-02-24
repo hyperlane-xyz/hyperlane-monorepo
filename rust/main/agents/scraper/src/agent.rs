@@ -268,6 +268,10 @@ impl Scraper {
         info!(domain = domain.name(), "create chain scraper for domain");
         let chain_setup = settings.chain_setup(domain)?;
         let tip_chain_setup = if chain_setup.reorg_period.is_none() {
+            info!(
+                domain = domain.name(),
+                "No reorg period configured, skipping tip message indexer"
+            );
             None
         } else {
             let mut tip_chain_setup = chain_setup.clone();
@@ -399,6 +403,7 @@ impl Scraper {
             err
         })?;
 
+        // With `reorg_period = None` on `tip_chain_setup`, this returns the latest tip height.
         let tip_height = indexer.get_finalized_block_number().await.map_err(|err| {
             tracing::error!(
                 ?err,
@@ -414,6 +419,8 @@ impl Scraper {
                 finalized_store.db.clone(),
                 domain.clone(),
                 finalized_store.mailbox_address,
+                // Seed tip cursor near-head on first run for responsiveness.
+                // Finalized pipeline remains authoritative for historical backfill.
                 tip_height as u64,
                 Some(contract_sync_metrics.stored_events.clone()),
             )
