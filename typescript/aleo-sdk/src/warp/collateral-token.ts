@@ -35,6 +35,11 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
+function withErrorContext(context: string, error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`${context}: ${message}`);
+}
+
 export class AleoCollateralTokenReader implements ArtifactReader<
   RawCollateralWarpArtifactConfig,
   DeployedWarpAddress
@@ -55,7 +60,12 @@ export class AleoCollateralTokenReader implements ArtifactReader<
       address,
       this.onChainArtifactManagers.ismManagerAddress,
       this.onChainArtifactManagers.hookManagerAddress,
-    );
+    ).catch((error: unknown) => {
+      throw withErrorContext(
+        `Failed to read collateral warp token ${address} (ismManager=${this.onChainArtifactManagers.ismManagerAddress}, hookManager=${this.onChainArtifactManagers.hookManagerAddress})`,
+        error,
+      );
+    });
 
     // Convert to provider-sdk artifact format
     const { destinationGas, remoteRouters, interchainSecurityModule, hook } =
@@ -107,6 +117,7 @@ export class AleoCollateralTokenWriter
   > {
     const { config } = artifact;
     const allReceipts: AleoReceipt[] = [];
+    const signerAddress = this.signer.getSignerAddress();
 
     // Get mailbox suffix for deployment
     const { programId: mailboxProgramId } = fromAleoAddress(config.mailbox);
@@ -116,11 +127,14 @@ export class AleoCollateralTokenWriter
     const tokenSuffix = generateSuffix(SUFFIX_LENGTH_LONG);
 
     // Deploy collateral token program
-    const programs = await this.signer.deployProgram(
-      'hyp_collateral',
-      mailboxSuffix,
-      tokenSuffix,
-    );
+    const programs = await this.signer
+      .deployProgram('hyp_collateral', mailboxSuffix, tokenSuffix)
+      .catch((error: unknown) => {
+        throw withErrorContext(
+          `Failed to deployProgram(hyp_collateral) for mailbox ${config.mailbox} (signer=${signerAddress})`,
+          error,
+        );
+      });
 
     const tokenProgramId = programs['hyp_collateral'];
     assert(
@@ -134,7 +148,14 @@ export class AleoCollateralTokenWriter
       tokenProgramId,
       config.token,
     );
-    const initReceipt = await this.signer.sendAndConfirmTransaction(initTx);
+    const initReceipt = await this.signer
+      .sendAndConfirmTransaction(initTx)
+      .catch((error: unknown) => {
+        throw withErrorContext(
+          `Failed to initialize collateral warp token program ${tokenProgramId} (token=${config.token}, signer=${signerAddress})`,
+          error,
+        );
+      });
     allReceipts.push(initReceipt);
 
     const tokenAddress = toAleoAddress(tokenProgramId);
@@ -143,7 +164,14 @@ export class AleoCollateralTokenWriter
     const postDeploymentTxs = getPostDeploymentUpdateTxs(tokenAddress, config);
 
     for (const tx of postDeploymentTxs) {
-      const receipt = await this.signer.sendAndConfirmTransaction(tx);
+      const receipt = await this.signer
+        .sendAndConfirmTransaction(tx)
+        .catch((error: unknown) => {
+          throw withErrorContext(
+            `Failed post-deployment step ${tx.programName}.${tx.functionName} for collateral warp token ${tokenAddress} (signer=${signerAddress})`,
+            error,
+          );
+        });
       allReceipts.push(receipt);
     }
 
