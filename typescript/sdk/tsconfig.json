@@ -1,15 +1,15 @@
 {
-    "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
-    "compilerOptions": {
-        "outDir": "./dist",
-        "rootDir": "./src"
-    },
-    "include": ["./src/**/*"],
-    "exclude": [
-        "./src/**/*.test.ts",
-        "./src/**/*.hardhat-test.ts",
-        "./src/**/*.foundry-test.ts",
-        "./src/test/**/*",
-        "./src/**/*Test.ts"
-    ]
+  "extends": "@hyperlane-xyz/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["./src/**/*"],
+  "exclude": [
+    "./src/**/*.test.ts",
+    "./src/**/*.hardhat-test.ts",
+    "./src/**/*.foundry-test.ts",
+    "./src/test/**/*",
+    "./src/**/*Test.ts"
+  ]
 }

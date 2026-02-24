@@ -87,9 +87,12 @@ function decodeOffchainLookup(
     };
   };
 
-  const parsed = contract.interface.parseError(revertData);
-  if (parsed?.name === 'OffchainLookup') {
-    return parseArgs(parsed.args);
+  const parsed = contract.interface.parseError(revertData) as
+    | Record<string, unknown>
+    | undefined;
+  const parsedName = typeof parsed?.name === 'string' ? parsed.name : undefined;
+  if (parsedName === 'OffchainLookup') {
+    return parseArgs(parsed?.args);
   }
 
   const fallback = decodeErrorResult({
@@ -101,7 +104,7 @@ function decodeOffchainLookup(
     return parseArgs(fallback.args);
   }
 
-  throw new Error(`Unexpected error ${parsed?.name ?? fallback.errorName}`);
+  throw new Error(`Unexpected error ${parsedName ?? fallback.errorName}`);
 }
 
 type SignerLike = {

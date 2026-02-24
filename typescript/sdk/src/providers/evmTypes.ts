@@ -7,7 +7,8 @@ export type EvmTransactionLike = {
 
 export type EvmTransactionOverrides = Record<string, unknown>;
 
-export type EvmGasAmount = bigint | { toString(): string };
+export type EvmBigNumberish = string | number | bigint | { toString(): string };
+export type EvmGasAmount = EvmBigNumberish;
 
 export type EvmBlockLike = { number: number } & Record<string, unknown>;
 
@@ -27,7 +28,10 @@ export type EvmTransactionResponseLike = {
 export interface EvmProviderLike {
   estimateGas(transaction: EvmTransactionLike): Promise<EvmGasAmount>;
   getBlock(blockTag: string | number): Promise<EvmBlockLike | null>;
-  getBalance(address: string, blockTag?: string | number): Promise<unknown>;
+  getBalance(
+    address: string,
+    blockTag?: string | number,
+  ): Promise<EvmBigNumberish>;
   getBlockNumber(): Promise<number>;
   getCode(
     address: string,
@@ -59,14 +63,14 @@ export interface EvmProviderLike {
 }
 
 export interface EvmSignerLike {
-  provider?: EvmProviderLike;
-  connect(provider: EvmProviderLike): EvmSignerLike;
+  provider?: unknown;
+  connect(provider: unknown): EvmSignerLike;
   getAddress(): Promise<string>;
   estimateGas(transaction: EvmTransactionLike): Promise<EvmGasAmount>;
   sendTransaction(
     transaction: EvmTransactionLike,
   ): Promise<EvmTransactionResponseLike>;
-  getBalance(): Promise<unknown>;
+  getBalance(): Promise<EvmBigNumberish>;
 }
 
 export type EvmDeployTransactionLike = {

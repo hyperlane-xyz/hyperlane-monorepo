@@ -21,35 +21,12 @@ import {
   isObjEmpty,
   retryAsync,
   rootLogger,
+  toBigInt,
 } from '@hyperlane-xyz/utils';
 
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 
 export const DEFAULT_TIMELOCK_DELAY_SECONDS = 60 * 60 * 24 * 1; // 1 day
-
-const toBigIntValue = (value: unknown): bigint => {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number' || typeof value === 'string') {
-    return BigInt(value);
-  }
-  if (
-    value &&
-    typeof value === 'object' &&
-    'toBigInt' in value &&
-    typeof value.toBigInt === 'function'
-  ) {
-    return value.toBigInt();
-  }
-  if (
-    value &&
-    typeof value === 'object' &&
-    'toString' in value &&
-    typeof value.toString === 'function'
-  ) {
-    return BigInt(value.toString());
-  }
-  throw new Error(`Cannot convert timelock delay to bigint: ${String(value)}`);
-};
 
 export async function timelockConfigMatches({
   multiProvider,
@@ -74,7 +51,10 @@ export async function timelockConfigMatches({
 
     // Ensure the min delay is set to the expected value
     const minDelay = await timelock.getMinDelay();
-    const minDelayValue = toBigIntValue(minDelay);
+    const minDelayValue = toBigInt(
+      minDelay,
+      `Cannot convert timelock delay to bigint for ${chain}`,
+    );
     const expectedMinDelayValue = BigInt(expectedConfig.minimumDelay);
     if (minDelayValue !== expectedMinDelayValue) {
       issues.push(

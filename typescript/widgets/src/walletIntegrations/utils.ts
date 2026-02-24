@@ -1,7 +1,7 @@
 import { SendTransactionParameters } from '@wagmi/core';
 
 import { ChainMetadata, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, toBigInt } from '@hyperlane-xyz/utils';
 
 type EvmTransactionLike = {
   to?: string | null;
@@ -33,13 +33,6 @@ export function ethers5TxToWagmiTx(
       ? toBigInt(tx.maxPriorityFeePerGas)
       : undefined,
   };
-}
-
-function toBigInt(value: unknown): bigint {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number' || typeof value === 'string')
-    return BigInt(value);
-  throw new Error(`Unsupported numeric value: ${String(value)}`);
 }
 
 export function getChainsForProtocol(

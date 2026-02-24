@@ -3,6 +3,14 @@ import { Hex } from 'viem';
 import { LocalAccount } from 'viem/accounts';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
+import type {
+  EvmBigNumberish,
+  EvmGasAmount,
+  EvmProviderLike,
+  EvmTransactionReceiptLike,
+  EvmTransactionLike,
+  EvmTransactionResponseLike,
+} from '../../providers/evmTypes.js';
 
 import {
   TurnkeyClientManager,
@@ -71,6 +79,24 @@ export class TurnkeyViemSigner {
     logger.debug(`Initialized Turnkey EVM signer for key: ${this.address}`);
   }
 
+  private toViemProviderLike(
+    provider: ViemProviderLike | EvmProviderLike,
+  ): ViemProviderLike {
+    const candidate = provider as Record<string, unknown>;
+    if (
+      typeof candidate.estimateGas !== 'function' ||
+      typeof candidate.getFeeData !== 'function' ||
+      typeof candidate.getNetwork !== 'function' ||
+      typeof candidate.getTransactionCount !== 'function' ||
+      typeof candidate.sendTransaction !== 'function'
+    ) {
+      throw new Error(
+        'Provider does not satisfy TurnkeyViemSigner requirements',
+      );
+    }
+    return provider as ViemProviderLike;
+  }
+
   /**
    * Health check - delegates to manager
    */
@@ -82,7 +108,9 @@ export class TurnkeyViemSigner {
    * Get an ethers Signer connected to the provided provider
    * This returns a new instance with the provider connected
    */
-  async getSigner(provider: ViemProviderLike): Promise<TurnkeyViemSigner> {
+  async getSigner(
+    provider: ViemProviderLike | EvmProviderLike,
+  ): Promise<TurnkeyViemSigner> {
     logger.debug('Creating Turnkey EVM signer for transaction');
     return this.connect(provider);
   }
@@ -90,8 +118,11 @@ export class TurnkeyViemSigner {
   /**
    * Connect this signer to a provider (creates new instance with proper configuration)
    */
-  connect(provider: ViemProviderLike): TurnkeyViemSigner {
-    return new TurnkeyViemSigner(this.manager.getConfig(), provider);
+  connect(provider: ViemProviderLike | EvmProviderLike): TurnkeyViemSigner {
+    return new TurnkeyViemSigner(
+      this.manager.getConfig(),
+      this.toViemProviderLike(provider),
+    );
   }
 
   /**
@@ -170,13 +201,75 @@ export class TurnkeyViemSigner {
     return this.signTypedData(domain, types, value);
   }
 
+  async estimateGas(transaction: EvmTransactionLike): Promise<EvmGasAmount> {
+    if (!this.provider) throw new Error('Provider required to estimate gas');
+    const estimate = await this.provider.estimateGas(
+      transaction as TurnkeyViemTransactionRequest,
+    );
+    const asBigInt = toBigIntValue(estimate);
+    if (asBigInt !== undefined) return asBigInt;
+    return estimate as { toString(): string };
+  }
+
+  async getBalance(): Promise<EvmBigNumberish> {
+    if (!this.provider) throw new Error('Provider required to get balance');
+    if (typeof this.provider.getBalance === 'function') {
+      const balance = await this.provider.getBalance(this.address);
+      if (
+        typeof balance === 'string' ||
+        typeof balance === 'number' ||
+        typeof balance === 'bigint'
+      ) {
+        return balance;
+      }
+      if (
+        balance &&
+        typeof (balance as { toString?: unknown }).toString === 'function'
+      ) {
+        return balance as { toString(): string };
+      }
+      throw new Error('Unable to convert balance');
+    }
+    if (typeof this.provider.send === 'function') {
+      const balance = await this.provider.send('eth_getBalance', [
+        this.address,
+        'latest',
+      ]);
+      if (
+        typeof balance === 'string' ||
+        typeof balance === 'number' ||
+        typeof balance === 'bigint'
+      ) {
+        return balance;
+      }
+      if (
+        balance &&
+        typeof (balance as { toString?: unknown }).toString === 'function'
+      ) {
+        return balance as { toString(): string };
+      }
+      throw new Error('Unable to convert balance');
+    }
+    throw new Error('Provider does not support getBalance');
+  }
+
   async sendTransaction(
-    tx: TurnkeyViemTransactionRequest,
-  ): Promise<{ hash: string; wait(confirmations?: number): Promise<unknown> }> {
+    tx: EvmTransactionLike,
+  ): Promise<EvmTransactionResponseLike> {
     if (!this.provider)
       throw new Error('Provider required to send transaction');
-    const signedTransaction = await this.signTransaction(tx);
-    return this.provider.sendTransaction(signedTransaction);
+    const signedTransaction = await this.signTransaction(
+      tx as TurnkeyViemTransactionRequest,
+    );
+    const response = await this.provider.sendTransaction(signedTransaction);
+    return {
+      ...response,
+      hash: response.hash,
+      wait: async (confirmations?: number) =>
+        (await response.wait(
+          confirmations,
+        )) as EvmTransactionReceiptLike | null,
+    };
   }
 
   /**

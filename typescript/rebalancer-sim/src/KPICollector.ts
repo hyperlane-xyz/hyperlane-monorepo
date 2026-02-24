@@ -1,5 +1,6 @@
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
 import type { MultiProvider } from '@hyperlane-xyz/sdk';
+import { toBigInt } from '@hyperlane-xyz/utils';
 
 import type {
   ChainMetrics,
@@ -8,21 +9,6 @@ import type {
   SimulationKPIs,
   TransferRecord,
 } from './types.js';
-
-function toBigIntValue(value: unknown): bigint {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'toString' in value &&
-    typeof value.toString === 'function'
-  ) {
-    return BigInt(value.toString());
-  }
-  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
-}
 
 /**
  * KPICollector tracks metrics throughout a simulation run.
@@ -62,7 +48,7 @@ export class KPICollector {
       this.provider,
     );
     const balance = await token.balanceOf(domain.warpToken);
-    return toBigIntValue(balance);
+    return toBigInt(balance);
   }
 
   /**

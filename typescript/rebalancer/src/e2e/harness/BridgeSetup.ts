@@ -1,6 +1,6 @@
 import { ERC20__factory } from '@hyperlane-xyz/core';
 import { LocalAccountViemSigner, type MultiProvider } from '@hyperlane-xyz/sdk';
-import { ensure0x } from '@hyperlane-xyz/utils';
+import { ensure0x, toBigInt } from '@hyperlane-xyz/utils';
 
 export async function setupCollateralBalances(
   providers: Map<string, ReturnType<MultiProvider['getProvider']>>,
@@ -71,11 +71,4 @@ export async function getAllCollateralBalances(
     );
   }
   return balances;
-}
-
-function toBigInt(value: unknown): bigint {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  return BigInt((value as { toString(): string }).toString());
 }

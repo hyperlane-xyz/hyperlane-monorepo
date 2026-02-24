@@ -16,11 +16,20 @@ import {
   type ChainName,
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, mustGet } from '@hyperlane-xyz/utils';
+import { type Address, assert, mustGet, toBigInt } from '@hyperlane-xyz/utils';
 
 import { autoConfirm } from '../config/prompts.js';
 import { ETHEREUM_MINIMUM_GAS } from '../consts.js';
 import { logBlue, logGreen, logRed, warnYellow } from '../logger.js';
+
+async function getProviderGasPrice(
+  provider: ReturnType<MultiProvider['getProvider']>,
+): Promise<bigint> {
+  const feeData = await provider.getFeeData();
+  const gasPrice = (feeData as Record<string, unknown>).gasPrice;
+  if (gasPrice !== undefined && gasPrice !== null) return toBigInt(gasPrice);
+  return toBigInt(await provider.send('eth_gasPrice', []));
+}
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
@@ -48,7 +57,7 @@ export async function nativeBalancesAreSufficient(
         address = await multiProvider.getSignerAddress(chain);
 
         const provider = multiProvider.getProvider(chain);
-        const gasPrice = await provider.getGasPrice();
+        const gasPrice = await getProviderGasPrice(provider);
 
         requiredMinBalanceNativeDenom =
           toBigInt(gasPrice) * BigInt(ETHEREUM_MINIMUM_GAS[minGas]);
@@ -89,7 +98,10 @@ export async function nativeBalancesAreSufficient(
         );
 
         deployerBalanceNativeDenom = toBigInt(
-          await signer.getBalance({ address, denom: nativeToken.denom }),
+          await signer.getBalance({
+            address,
+            denom: nativeToken.denom,
+          }),
         );
         deployerBalance = formatUnits(
           deployerBalanceNativeDenom,
@@ -117,8 +129,4 @@ export async function nativeBalancesAreSufficient(
     );
     if (!isResume) throw new Error('Canceled deployment due to low balance');
   }
-}
-
-function toBigInt(value: bigint | number | string | { toString(): string }): bigint {
-  return typeof value === 'bigint' ? value : BigInt(value.toString());
 }

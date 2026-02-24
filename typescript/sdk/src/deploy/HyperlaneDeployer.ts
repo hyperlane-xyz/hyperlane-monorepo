@@ -7,6 +7,7 @@ import {
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
+  RunnerLike,
   TimelockController,
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
@@ -68,7 +69,7 @@ type PopulatedTransaction = Awaited<
 type TxReceipt = Awaited<ReturnType<MultiProvider['handleTx']>>;
 type ContractLike = {
   address: Address;
-  signer?: EvmSigner;
+  signer?: EvmSigner | RunnerLike;
   interface: {
     encodeFunctionData(
       functionName: string,

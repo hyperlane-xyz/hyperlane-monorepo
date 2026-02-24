@@ -25,7 +25,8 @@ describe('HyperlaneIgpDeployer', () => {
 
   const toBigInt = (value: unknown): bigint =>
     value === undefined || value === null ? 0n : BigInt(value.toString());
-  const getGasPrice = (value: any): bigint => toBigInt(value?.gasPrice ?? value?.[1]);
+  const getGasPrice = (value: any): bigint =>
+    toBigInt(value?.gasPrice ?? value?.[1]);
   const getTokenExchangeRate = (value: any): bigint =>
     toBigInt(value?.tokenExchangeRate ?? value?.[0]);
 

@@ -14,8 +14,8 @@ import { log, logGreen } from '../logger.js';
 import { type ExtendedSubmissionStrategy } from '../submitters/types.js';
 
 type EvmTxReceiptLike = {
-  cumulativeGasUsed: unknown;
-  transactionHash: string;
+  transactionHash?: string;
+  logs?: unknown[];
   [key: string]: unknown;
 };
 
@@ -63,8 +63,10 @@ export function canSelfRelay(
     };
   }
 
-  // Extremely naive way to narrow the type
-  if (!('cumulativeGasUsed' in txReceipt)) {
+  if (
+    !('transactionHash' in txReceipt) ||
+    typeof txReceipt.transactionHash !== 'string'
+  ) {
     return {
       relay: false,
     };

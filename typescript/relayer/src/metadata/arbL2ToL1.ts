@@ -22,7 +22,12 @@ import {
   IsmType,
   findMatchingLogEvents,
 } from '@hyperlane-xyz/sdk';
-import { WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  WithAddress,
+  assert,
+  rootLogger,
+  toBigInt,
+} from '@hyperlane-xyz/utils';
 
 import type {
   ArbL2ToL1MetadataBuildResult,
@@ -50,18 +55,6 @@ const ARB_L2_TO_L1_METADATA_NO_CALLVALUE_TYPES = parseAbiParameters(
   'bytes32[] proof, uint256 position, address caller, address destination, uint256 arbBlockNum, uint256 ethBlockNum, uint256 timestamp, bytes data',
 );
 
-function toBigInt(value: unknown): bigint {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  if (value && typeof value === 'object') {
-    if (typeof value.toString === 'function') {
-      return BigInt(value.toString());
-    }
-  }
-  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
-}
-
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null
     ? (value as Record<string, unknown>)
@@ -85,6 +78,48 @@ type ArbitrumBigNumberish = {
   toNumber: () => number;
   toString: () => string;
 };
+type LogLike = { data: string; topics: readonly string[] };
+
+type ChildToParentReaderProvider = ConstructorParameters<
+  typeof ChildToParentMessageReader
+>[0];
+type ArbitrumBaseProvider = ConstructorParameters<typeof ArbitrumProvider>[0];
+
+function toChildToParentReaderProvider(
+  provider: unknown,
+): ChildToParentReaderProvider {
+  const candidate = provider as Record<string, unknown> | undefined;
+  assert(
+    !!candidate &&
+      typeof candidate.getBlockNumber === 'function' &&
+      typeof candidate.getNetwork === 'function',
+    'Destination provider does not satisfy ChildToParentMessageReader requirements',
+  );
+  return provider as ChildToParentReaderProvider;
+}
+
+function toArbitrumBaseProvider(provider: unknown): ArbitrumBaseProvider {
+  const candidate = provider as Record<string, unknown> | undefined;
+  assert(
+    !!candidate &&
+      typeof candidate.send === 'function' &&
+      typeof candidate.getNetwork === 'function',
+    'Origin provider does not satisfy ArbitrumProvider requirements',
+  );
+  return provider as ArbitrumBaseProvider;
+}
+
+function isLogLike(value: unknown): value is LogLike {
+  const record = asRecord(value);
+  if (!record) return false;
+
+  const topics = record.topics;
+  return (
+    typeof record.data === 'string' &&
+    Array.isArray(topics) &&
+    topics.every((topic) => typeof topic === 'string')
+  );
+}
 
 function toReaderNumeric(value: unknown): ArbitrumBigNumberish {
   const numeric = toBigInt(value);
@@ -243,8 +278,14 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       WithAddress<ArbL2ToL1HookConfig>
     >,
   ): Promise<ArbL2ToL1Metadata> {
+    const dispatchLogs = context.dispatchTx.logs;
+    assert(
+      dispatchLogs,
+      `No logs found in dispatch tx for message ${context.message.id}`,
+    );
+    const parsedLogs = dispatchLogs.filter(isLogLike);
     const matchingL2TxEvent = findMatchingLogEvents(
-      context.dispatchTx.logs,
+      parsedLogs,
       ArbSys,
       'L2ToL1Tx',
     ).find((log) => {
@@ -285,7 +326,9 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       });
 
       const reader = new ChildToParentMessageReader(
-        this.core.multiProvider.getProvider(context.hook.destinationChain),
+        toChildToParentReaderProvider(
+          this.core.multiProvider.getProvider(context.hook.destinationChain),
+        ),
         l2ToL1TxEvent,
       );
 
@@ -300,10 +343,13 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       const baseProvider = this.core.multiProvider.getProvider(
         context.message.parsed.origin,
       );
-      const arbProvider = new ArbitrumProvider(baseProvider, {
-        name: originChainMetadata.name,
-        chainId: originChainMetadata.chainId,
-      });
+      const arbProvider = new ArbitrumProvider(
+        toArbitrumBaseProvider(baseProvider),
+        {
+          name: originChainMetadata.name,
+          chainId: originChainMetadata.chainId,
+        },
+      );
 
       const status = await this.getArbitrumBridgeStatus(reader, arbProvider);
       // need to wait for the challenge period to pass before relaying

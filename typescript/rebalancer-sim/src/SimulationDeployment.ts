@@ -12,7 +12,7 @@ import {
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
-import { ensure0x } from '@hyperlane-xyz/utils';
+import { ensure0x, toBigInt } from '@hyperlane-xyz/utils';
 
 import {
   ANVIL_BRIDGE_CONTROLLER_KEY,
@@ -38,21 +38,6 @@ type WarpTokenContract = Awaited<
 type BridgeContract = Awaited<
   ReturnType<MockValueTransferBridge__factory['deploy']>
 >;
-
-function toBigInt(value: unknown): bigint {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'toString' in value &&
-    typeof value.toString === 'function'
-  ) {
-    return BigInt(value.toString());
-  }
-  throw new Error(`Cannot convert value to bigint: ${String(value)}`);
-}
 
 /**
  * Deploys a multi-domain simulation environment on a single anvil instance.

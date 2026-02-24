@@ -129,7 +129,12 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       ];
 
       for (const check of checks) {
-        const actual = await token[check.method]();
+        const actual =
+          check.method === 'name'
+            ? await token.name()
+            : check.method === 'symbol'
+              ? await token.symbol()
+              : await token.decimals();
         const expected = config[check.method];
         if (expected !== undefined && actual !== expected) {
           const violation: TokenMismatchViolation = {

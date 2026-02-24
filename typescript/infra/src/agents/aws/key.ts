@@ -283,7 +283,7 @@ export class AgentAwsKey extends CloudAgentKey {
           region: this.region,
         },
       },
-      provider,
+      provider as any,
     );
   }
 

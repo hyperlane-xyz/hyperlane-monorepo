@@ -6,7 +6,7 @@ import {
   isAddress,
 } from 'viem';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, toBigInt } from '@hyperlane-xyz/utils';
 export {
   TypedDataDomainLike,
   TypedDataFieldLike,
@@ -33,7 +33,7 @@ export type ViemTransactionRequestLike = {
 type SupportedTransactionType = 'legacy' | 'eip2930' | 'eip1559' | undefined;
 
 export const toBigIntValue = (value: unknown): bigint | undefined =>
-  value === null || value === undefined ? undefined : BigInt(value.toString());
+  value === null || value === undefined ? undefined : toBigInt(value);
 
 export function toViemAddress(
   value: string | Address | undefined,
@@ -121,6 +121,10 @@ export function toSerializableViemTransaction(
 
 export type ViemProviderLike = {
   estimateGas(transaction: ViemTransactionRequestLike): Promise<unknown>;
+  getBalance?(
+    address: Address | string,
+    blockTag?: string | number,
+  ): Promise<unknown>;
   getFeeData(): Promise<{
     gasPrice?: unknown;
     maxFeePerGas?: unknown;

@@ -12,7 +12,7 @@ import {
   impersonateAccounts,
   setBalance,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, retryAsync } from '@hyperlane-xyz/utils';
+import { addressToBytes32, retryAsync, toBigInt } from '@hyperlane-xyz/utils';
 
 type DispatchReceipt = Awaited<
   ReturnType<ReturnType<MultiProvider['getProvider']>['getTransactionReceipt']>
@@ -188,11 +188,4 @@ export async function tryRelayMessage(
   } catch (error) {
     return { success: false, error: String(error) };
   }
-}
-
-function toBigInt(value: unknown): bigint {
-  if (typeof value === 'bigint') return value;
-  if (typeof value === 'number') return BigInt(value);
-  if (typeof value === 'string') return BigInt(value);
-  return BigInt((value as { toString(): string }).toString());
 }

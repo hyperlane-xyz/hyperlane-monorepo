@@ -397,9 +397,14 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     );
 
     const merkleTree = context.hook.address;
+    const dispatchLogs = context.dispatchTx.logs;
+    assert(
+      dispatchLogs,
+      `No logs found in dispatch tx for message ${context.message.id}`,
+    );
 
     // Find the merkle tree insertion event for this message
-    const matchingInsertion = context.dispatchTx.logs
+    const matchingInsertion = dispatchLogs
       .filter(isAddressedLog)
       .filter((log: AddressedLog) => eqAddressEvm(log.address, merkleTree))
       .map((log: AddressedLog) => MerkleTreeInterface.parseLog(log))

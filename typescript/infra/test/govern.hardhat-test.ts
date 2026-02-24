@@ -109,7 +109,9 @@ describe('ICA governance', async () => {
 
   before(async () => {
     [signer] = await getHardhatSigners();
-    multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    multiProvider = MultiProvider.createTestMultiProvider({
+      signer: signer as any,
+    });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
@@ -147,7 +149,7 @@ describe('ICA governance', async () => {
 
     accountOwner = await icaApp.deployAccount(remoteChain, accountConfig);
 
-    const recipientF = new TestRecipient__factory(signer);
+    const recipientF = new TestRecipient__factory(signer as any);
     recipient = await recipientF.deploy();
 
     const contractsMap = {

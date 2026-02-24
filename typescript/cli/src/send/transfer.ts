@@ -235,6 +235,10 @@ async function executeDelivery({
   }
 
   if (selfRelay && message) {
+    assert(
+      transferTxReceipt?.transactionHash,
+      'Transfer receipt missing transaction hash for self relay',
+    );
     return runSelfRelay({
       txReceipt: transferTxReceipt,
       multiProvider: multiProvider,

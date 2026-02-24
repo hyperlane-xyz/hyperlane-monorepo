@@ -5,6 +5,7 @@ import { LocalAccountViemSigner, impersonateAccount } from '@hyperlane-xyz/sdk';
 import { type Address, ensure0x } from '@hyperlane-xyz/utils';
 
 const ETHEREUM_ADDRESS_LENGTH = 42;
+type ImpersonatedSignerLike = { getAddress(): Promise<string> };
 
 /**
  * Retrieves a signer for the current command-context.
@@ -34,7 +35,10 @@ export async function getImpersonatedSigner({
   fromAddress?: Address;
   key?: string;
   skipConfirmation?: boolean;
-}) {
+}): Promise<{
+  impersonatedKey: Address;
+  impersonatedSigner: ImpersonatedSignerLike;
+}> {
   if (!fromAddress) {
     const { signer } = await getSigner({ key, skipConfirmation });
     fromAddress = signer.address;
@@ -66,7 +70,7 @@ export function assertSigner(signer: unknown) {
  */
 async function addressToImpersonatedSigner(
   address: Address,
-): Promise<Awaited<ReturnType<typeof impersonateAccount>>> {
+): Promise<ImpersonatedSignerLike> {
   if (!address) throw new Error('No address provided');
 
   const formattedKey = address.trim().toLowerCase();
