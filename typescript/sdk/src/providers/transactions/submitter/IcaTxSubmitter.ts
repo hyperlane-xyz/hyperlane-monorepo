@@ -126,6 +126,10 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
       ({ to, data, chainId, value }): CallData => {
         assert(chainId, 'Invalid PopulatedTransaction: "chainId" is required');
         assert(to, 'Invalid PopulatedTransaction: "to" is required');
+        assert(
+          typeof to === 'string',
+          'Invalid PopulatedTransaction: "to" must be a string',
+        );
         assert(data, 'Invalid PopulatedTransaction: "data" is required');
 
         return { data, to, value: value?.toString() };

@@ -1,4 +1,4 @@
-import { ethers, utils } from 'ethers';
+import { ZeroAddress, solidityPackedKeccak256 } from 'ethers';
 
 import {
   AbstractStorageMultisigIsm__factory,
@@ -46,6 +46,10 @@ import {
 } from './types.js';
 
 const logger = rootLogger.child({ module: 'IsmUtils' });
+
+function asModuleType(moduleType: bigint): ModuleType {
+  return Number(moduleType) as ModuleType;
+}
 
 // Determines the domains to enroll and unenroll to update the current ISM config
 // to match the target ISM config.
@@ -118,9 +122,9 @@ export async function moduleCanCertainlyVerify(
     0,
     0,
     originDomainId,
-    ethers.constants.AddressZero,
+    ZeroAddress,
     destinationDomainId,
-    ethers.constants.AddressZero,
+    ZeroAddress,
     '0x',
   );
   const provider = multiProvider.getSignerOrProvider(destination);
@@ -132,7 +136,7 @@ export async function moduleCanCertainlyVerify(
     );
 
     try {
-      const moduleType = await module.moduleType();
+      const moduleType = asModuleType(await module.moduleType());
       if (
         moduleType === ModuleType.MERKLE_ROOT_MULTISIG ||
         moduleType === ModuleType.MESSAGE_ID_MULTISIG
@@ -144,7 +148,7 @@ export async function moduleCanCertainlyVerify(
 
         const [, threshold] =
           await multisigModule.validatorsAndThreshold(message);
-        return threshold > 0;
+        return threshold > 0n;
       } else if (moduleType === ModuleType.ROUTING) {
         const routingIsm = IRoutingIsm__factory.connect(destModule, provider);
         const subModule = await routingIsm.route(message);
@@ -173,7 +177,7 @@ export async function moduleCanCertainlyVerify(
             verified += 1;
           }
         }
-        return verified >= threshold;
+        return verified >= Number(threshold);
       } else {
         throw new Error(`Unsupported module type: ${moduleType}`);
       }
@@ -212,7 +216,7 @@ export async function moduleCanCertainlyVerify(
         return verified >= destModule.threshold;
       }
       case IsmType.OP_STACK:
-        return destModule.nativeBridge !== ethers.constants.AddressZero;
+        return destModule.nativeBridge !== ZeroAddress;
       case IsmType.TEST_ISM: {
         return true;
       }
@@ -236,7 +240,7 @@ export async function moduleMatchesConfig(
 
   // If the module address is zero, it can't match any object-based config.
   // The subsequent check of what moduleType it is will throw, so we fail here.
-  if (eqAddress(moduleAddress, ethers.constants.AddressZero)) {
+  if (eqAddress(moduleAddress, ZeroAddress)) {
     return false;
   }
 
@@ -245,7 +249,7 @@ export async function moduleMatchesConfig(
     moduleAddress,
     provider,
   );
-  const actualType = await module.moduleType();
+  const actualType = asModuleType(await module.moduleType());
   if (actualType !== ismTypeToModuleType(config.type)) return false;
   let matches = true;
   switch (config.type) {
@@ -255,11 +259,9 @@ export async function moduleMatchesConfig(
       const storageMerkleRootMultisigIsm =
         AbstractStorageMultisigIsm__factory.connect(moduleAddress, provider);
       const [validators, threshold] =
-        await storageMerkleRootMultisigIsm.validatorsAndThreshold(
-          ethers.constants.AddressZero,
-        );
+        await storageMerkleRootMultisigIsm.validatorsAndThreshold(ZeroAddress);
       matches = deepEquals(
-        normalizeConfig({ validators, threshold }),
+        normalizeConfig({ validators, threshold: Number(threshold) }),
         normalizeConfig({
           validators: config.validators,
           threshold: config.threshold,
@@ -274,7 +276,7 @@ export async function moduleMatchesConfig(
           config.validators.sort(),
           config.threshold,
         );
-      matches = eqAddress(expectedAddress, module.address);
+      matches = eqAddress(expectedAddress, moduleAddress);
       break;
     }
     case IsmType.MESSAGE_ID_MULTISIG: {
@@ -284,7 +286,7 @@ export async function moduleMatchesConfig(
           config.validators.sort(),
           config.threshold,
         );
-      matches = eqAddress(expectedAddress, module.address);
+      matches = eqAddress(expectedAddress, moduleAddress);
       break;
     }
     case IsmType.AMOUNT_ROUTING: {
@@ -314,7 +316,7 @@ export async function moduleMatchesConfig(
           ),
         ),
       );
-      matches &&= threshold.eq(config.threshold);
+      matches &&= threshold === BigInt(config.threshold);
       matches &&= subModuleMatchesConfig.every(Boolean);
 
       break;
@@ -375,7 +377,7 @@ export async function moduleMatchesConfig(
       );
       const [subModules, threshold] =
         await aggregationIsm.modulesAndThreshold('0x');
-      matches &&= threshold === config.threshold;
+      matches &&= Number(threshold) === config.threshold;
       matches &&= subModules.length === config.modules.length;
 
       const configIndexMatched = new Map();
@@ -409,7 +411,7 @@ export async function moduleMatchesConfig(
     }
     case IsmType.OP_STACK: {
       const opStackIsm = OPStackIsm__factory.connect(moduleAddress, provider);
-      const type = await opStackIsm.moduleType();
+      const type = asModuleType(await opStackIsm.moduleType());
       matches &&= type === ModuleType.NULL;
       break;
     }
@@ -423,7 +425,7 @@ export async function moduleMatchesConfig(
         moduleAddress,
         provider,
       );
-      const type = await trustedRelayerIsm.moduleType();
+      const type = asModuleType(await trustedRelayerIsm.moduleType());
       matches &&= type === ModuleType.NULL;
       const relayer = await trustedRelayerIsm.trustedRelayer();
       matches &&= eqAddress(relayer, config.relayer);
@@ -431,7 +433,7 @@ export async function moduleMatchesConfig(
     }
     case IsmType.CCIP: {
       const ccipIsm = CCIPIsm__factory.connect(moduleAddress, provider);
-      const type = await ccipIsm.moduleType();
+      const type = asModuleType(await ccipIsm.moduleType());
       matches &&= type === ModuleType.NULL;
 
       // Check that the origin chain selector matches the config
@@ -460,7 +462,7 @@ export async function moduleMatchesConfig(
           config.validators.sort(),
           config.thresholdWeight,
         );
-      matches = eqAddress(expectedAddress, module.address);
+      matches = eqAddress(expectedAddress, moduleAddress);
       break;
     }
     case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG: {
@@ -469,7 +471,7 @@ export async function moduleMatchesConfig(
           config.validators.sort(),
           config.thresholdWeight,
         );
-      matches = eqAddress(expectedAddress, module.address);
+      matches = eqAddress(expectedAddress, moduleAddress);
       break;
     }
     default: {
@@ -521,7 +523,7 @@ async function domainRoutingModuleDelta(
   const routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, provider);
   const owner = await routingIsm.owner();
   const deployedDomains = (await routingIsm.domains()).map((domain) =>
-    domain.toNumber(),
+    Number(domain),
   );
 
   const delta: RoutingIsmDelta = {
@@ -676,7 +678,7 @@ export function offchainLookupRequestMessageHash(
   callData: string,
   urlTemplate: string,
 ): string {
-  return utils.solidityKeccak256(
+  return solidityPackedKeccak256(
     ['string', 'address', 'bytes', 'string'],
     ['HYPERLANE_OFFCHAINLOOKUP', sender, callData, urlTemplate],
   );

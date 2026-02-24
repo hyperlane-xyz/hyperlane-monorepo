@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { errors as EthersError, providers } from 'ethers';
 
 import {
   AllProviderMethods,
@@ -11,8 +10,18 @@ import type { HyperlaneJsonRpcProvider } from './HyperlaneJsonRpcProvider.js';
 import { BlockchainError, HyperlaneSmartProvider } from './SmartProvider.js';
 import { ProviderStatus } from './types.js';
 
+const EthersError = {
+  SERVER_ERROR: 'SERVER_ERROR',
+  CALL_EXCEPTION: 'CALL_EXCEPTION',
+  INSUFFICIENT_FUNDS: 'INSUFFICIENT_FUNDS',
+  NONCE_EXPIRED: 'NONCE_EXPIRED',
+  REPLACEMENT_UNDERPRICED: 'REPLACEMENT_UNDERPRICED',
+  TRANSACTION_REPLACED: 'TRANSACTION_REPLACED',
+  UNPREDICTABLE_GAS_LIMIT: 'UNPREDICTABLE_GAS_LIMIT',
+} as const;
+
 // Dummy provider for testing
-class MockProvider extends providers.BaseProvider implements IProviderMethods {
+class MockProvider implements IProviderMethods {
   public readonly supportedMethods = AllProviderMethods;
   public called = false;
   public callCount = 0;
@@ -41,9 +50,7 @@ class MockProvider extends providers.BaseProvider implements IProviderMethods {
     private readonly errorToThrow?: Error,
     private readonly successValue?: any,
     private readonly responseDelayMs = 0,
-  ) {
-    super({ name: 'test', chainId: 1 });
-  }
+  ) {}
 
   getBaseUrl(): string {
     return this.baseUrl;
@@ -63,11 +70,6 @@ class MockProvider extends providers.BaseProvider implements IProviderMethods {
     }
 
     return this.successValue ?? 'success';
-  }
-
-  // Required BaseProvider methods - minimal implementations
-  async detectNetwork() {
-    return { name: 'test', chainId: 1 };
   }
 }
 
@@ -281,7 +283,7 @@ describe('SmartProvider', () => {
       );
 
       // Actual connection (used for requests) has real value - last duplicate wins
-      const actualConnection = provider.rpcProviders[0].connection;
+      const actualConnection = provider.rpcProviders[0].connectionInfo;
       expect(actualConnection.headers?.['Authorization']).to.equal('second');
     });
   });

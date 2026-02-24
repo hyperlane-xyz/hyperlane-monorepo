@@ -1,4 +1,10 @@
-import { BigNumber, providers, utils } from 'ethers';
+import {
+  FetchRequest,
+  JsonRpcProvider,
+  Log,
+  Networkish,
+  toBeHex,
+} from 'ethers';
 
 import {
   chunk,
@@ -12,13 +18,26 @@ import {
   IProviderMethods,
   ProviderMethod,
 } from './ProviderMethods.js';
-import { RpcConfigWithConnectionInfo } from './types.js';
+import { RpcConfigWithConnectionInfo, RpcConnectionInfo } from './types.js';
 
 const NUM_LOG_BLOCK_RANGES_TO_QUERY = 10;
 const NUM_PARALLEL_LOG_QUERIES = 5;
 
+function getConnectionRequest(
+  rpcConfig: RpcConfigWithConnectionInfo,
+  connectionOverride?: RpcConnectionInfo,
+): string | FetchRequest {
+  const connection = connectionOverride ?? rpcConfig.connection;
+  if (!connection) return rpcConfig.http;
+  const request = new FetchRequest(connection.url);
+  for (const [key, value] of Object.entries(connection.headers ?? {})) {
+    request.setHeader(key, value);
+  }
+  return request;
+}
+
 export class HyperlaneJsonRpcProvider
-  extends providers.StaticJsonRpcProvider
+  extends JsonRpcProvider
   implements IProviderMethods
 {
   protected readonly logger = rootLogger.child({ module: 'JsonRpcProvider' });
@@ -26,33 +45,24 @@ export class HyperlaneJsonRpcProvider
 
   constructor(
     public readonly rpcConfig: RpcConfigWithConnectionInfo,
-    network: providers.Networkish,
+    network: Networkish,
     public readonly options?: { debug?: boolean },
-    connectionOverride?: utils.ConnectionInfo,
+    public readonly connectionInfo?: RpcConnectionInfo,
   ) {
-    super(
-      connectionOverride ?? rpcConfig.connection ?? rpcConfig.http,
-      network,
-    );
-  }
-
-  prepareRequest(method: string, params: any): [string, any[]] {
-    if (method === ProviderMethod.MaxPriorityFeePerGas) {
-      return ['eth_maxPriorityFeePerGas', []];
-    }
-    return super.prepareRequest(method, params);
+    super(getConnectionRequest(rpcConfig, connectionInfo), network);
   }
 
   async perform(method: string, params: any, reqId?: number): Promise<any> {
-    if (this.options?.debug)
+    if (this.options?.debug) {
       this.logger.debug(
         `HyperlaneJsonRpcProvider performing method ${method} for reqId ${reqId}`,
       );
+    }
     if (method === ProviderMethod.GetLogs) {
       return this.performGetLogs(params);
     }
 
-    const result = await super.perform(method, params);
+    const result = await this.performMethod(method as ProviderMethod, params);
     if (
       result === '0x' &&
       [
@@ -70,8 +80,52 @@ export class HyperlaneJsonRpcProvider
     return result;
   }
 
-  async performGetLogs(params: { filter: providers.Filter }): Promise<any> {
-    const superPerform = () => super.perform(ProviderMethod.GetLogs, params);
+  private performMethod(method: ProviderMethod, params: any): Promise<any> {
+    switch (method) {
+      case ProviderMethod.Call: {
+        const tx = {
+          ...(params?.transaction ?? params?.tx ?? {}),
+          blockTag: params?.blockTag,
+        };
+        return this.call(tx);
+      }
+      case ProviderMethod.EstimateGas:
+        return this.estimateGas(params?.transaction ?? params?.tx);
+      case ProviderMethod.GetBalance:
+        return this.getBalance(params?.address, params?.blockTag);
+      case ProviderMethod.GetBlock:
+        return this.getBlock(params?.blockTag ?? params?.block ?? 'latest');
+      case ProviderMethod.GetBlockNumber:
+        return this.getBlockNumber();
+      case ProviderMethod.GetCode:
+        return this.getCode(params?.address, params?.blockTag);
+      case ProviderMethod.GetStorageAt:
+        return this.getStorage(
+          params?.address,
+          params?.position ?? params?.slot,
+          params?.blockTag,
+        );
+      case ProviderMethod.GetTransaction:
+        return this.getTransaction(params?.hash ?? params?.transactionHash);
+      case ProviderMethod.GetTransactionCount:
+        return this.getTransactionCount(params?.address, params?.blockTag);
+      case ProviderMethod.GetTransactionReceipt:
+        return this.getTransactionReceipt(
+          params?.hash ?? params?.transactionHash,
+        );
+      case ProviderMethod.SendTransaction:
+        return this.broadcastTransaction(
+          params?.signedTransaction ?? params?.signedTx ?? params,
+        );
+      case ProviderMethod.MaxPriorityFeePerGas:
+        return this.send('eth_maxPriorityFeePerGas', []);
+      default:
+        throw new Error(`Unsupported method ${method}`);
+    }
+  }
+
+  async performGetLogs(params: { filter: any }): Promise<any> {
+    const superPerform = () => this.getLogs(params.filter);
 
     const paginationOptions = this.rpcConfig.pagination;
     if (!paginationOptions || !params.filter) return superPerform();
@@ -82,16 +136,13 @@ export class HyperlaneJsonRpcProvider
     if (!maxBlockRange && !maxBlockAge && isNullish(minBlockNumber))
       return superPerform();
 
-    const currentBlockNumber = await super.perform(
-      ProviderMethod.GetBlockNumber,
-      null,
-    );
+    const currentBlockNumber = await this.getBlockNumber();
 
     let endBlock: number;
     if (isNullish(toBlock) || toBlock === 'latest') {
       endBlock = currentBlockNumber;
     } else if (isBigNumberish(toBlock)) {
-      endBlock = BigNumber.from(toBlock).toNumber();
+      endBlock = Number(toBlock);
     } else {
       return superPerform();
     }
@@ -100,7 +151,7 @@ export class HyperlaneJsonRpcProvider
     if (isNullish(fromBlock) || fromBlock === 'earliest') {
       startBlock = 0;
     } else if (isBigNumberish(fromBlock)) {
-      startBlock = BigNumber.from(fromBlock).toNumber();
+      startBlock = Number(fromBlock);
     } else {
       return superPerform();
     }
@@ -141,19 +192,19 @@ export class HyperlaneJsonRpcProvider
       blockChunks.push([from, to]);
     }
 
-    let combinedResults: Array<providers.Log> = [];
+    let combinedResults: Array<Log> = [];
     const requestChunks = chunk(blockChunks, NUM_PARALLEL_LOG_QUERIES);
     for (const reqChunk of requestChunks) {
       const resultPromises = reqChunk.map(
-        (blockChunk) =>
-          super.perform(ProviderMethod.GetLogs, {
-            filter: {
+        ([from, to]) =>
+          this.send('eth_getLogs', [
+            {
               address,
               topics,
-              fromBlock: utils.hexValue(BigNumber.from(blockChunk[0])),
-              toBlock: utils.hexValue(BigNumber.from(blockChunk[1])),
+              fromBlock: toBeHex(from),
+              toBlock: toBeHex(to),
             },
-          }) as Promise<Array<providers.Log>>,
+          ]) as Promise<Array<Log>>,
       );
       const results = await Promise.all(resultPromises);
       combinedResults = [...combinedResults, ...results.flat()];
@@ -163,6 +214,6 @@ export class HyperlaneJsonRpcProvider
   }
 
   getBaseUrl(): string {
-    return this.connection.url;
+    return this.rpcConfig.http;
   }
 }

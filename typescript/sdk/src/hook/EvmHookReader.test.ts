@@ -1,6 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
-import { randomBytes } from 'ethers/lib/utils.js';
+import { randomBytes } from 'crypto';
 import sinon from 'sinon';
 
 import {
@@ -91,8 +90,8 @@ describe('EvmHookReader', () => {
     const mockContract = {
       hookType: sandbox.stub().resolves(OnchainHookType.PROTOCOL_FEE),
       owner: sandbox.stub().resolves(mockOwner),
-      MAX_PROTOCOL_FEE: sandbox.stub().resolves(ethers.BigNumber.from('1000')),
-      protocolFee: sandbox.stub().resolves(ethers.BigNumber.from('10')),
+      MAX_PROTOCOL_FEE: sandbox.stub().resolves(1000n),
+      protocolFee: sandbox.stub().resolves(10n),
       beneficiary: sandbox.stub().resolves(mockBeneficiary),
     };
     sandbox

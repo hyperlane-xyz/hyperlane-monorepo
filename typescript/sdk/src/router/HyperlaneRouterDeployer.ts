@@ -49,7 +49,7 @@ export abstract class HyperlaneRouterDeployer<
     // Routers that were deployed.
     const deployedRouters: ChainMap<Address> = objMap(
       deployedContractsMap,
-      (_, contracts) => this.router(contracts).address,
+      (_, contracts) => this.getContractAddress(this.router(contracts)),
     );
     // All routers, including those that were deployed and those with existing deployments.
     const allRouters = objMerge(deployedRouters, foreignRouters);
@@ -88,7 +88,7 @@ export abstract class HyperlaneRouterDeployer<
             `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
           );
           const router = this.router(contracts);
-          const estimatedGas = await router.estimateGas.enrollRemoteRouters(
+          const estimatedGas = await router.enrollRemoteRouters.estimateGas(
             domains,
             addresses,
           );

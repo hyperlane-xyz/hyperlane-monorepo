@@ -1,5 +1,4 @@
-import { TransactionReceipt } from '@ethersproject/providers';
-import { ContractReceipt } from 'ethers';
+import { TransactionReceipt } from 'ethers';
 import { Logger } from 'pino';
 
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -34,12 +33,10 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
         tx.chainId === submitterChainId,
         `Transaction chainId ${tx.chainId} does not match submitter chainId ${submitterChainId}`,
       );
-      const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
-        this.props.chain,
-        tx,
-      );
+      const receipt: TransactionReceipt =
+        await this.multiProvider.sendTransaction(this.props.chain, tx);
       this.logger.debug(
-        `Submitted PopulatedTransaction on ${this.props.chain}: ${receipt.transactionHash}`,
+        `Submitted PopulatedTransaction on ${this.props.chain}: ${receipt.hash}`,
       );
       receipts.push(receipt);
     }

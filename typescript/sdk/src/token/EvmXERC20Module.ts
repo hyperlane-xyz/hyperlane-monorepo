@@ -1,4 +1,4 @@
-import { PopulatedTransaction } from 'ethers';
+import { TransactionRequest } from 'ethers';
 
 import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import {
@@ -31,6 +31,8 @@ import {
 } from './adapters/EvmTokenAdapter.js';
 import { TokenType } from './config.js';
 import { XERC20Type } from './types.js';
+
+type PopulatedTransaction = TransactionRequest;
 
 /**
  * Configuration for XERC20 limits management
@@ -369,7 +371,7 @@ export class EvmXERC20Module extends HyperlaneModule<
         warpRouteConfig.token,
         provider,
       );
-      xERC20Address = await lockbox.callStatic.XERC20();
+      xERC20Address = await lockbox.XERC20.staticCall();
     }
 
     const limits: XERC20LimitsMap = {};

@@ -1,4 +1,3 @@
-import type { BigNumber } from 'ethers';
 import { Logger } from 'pino';
 
 import { GasRouter, Router } from '@hyperlane-xyz/core';
@@ -37,7 +36,7 @@ export abstract class RouterApp<
       this.multiProvider.getChainMetadata(chainName).protocol ===
       ProtocolType.Ethereum
     ) {
-      return this.router(this.contractsMap[chainName]).address;
+      return this.router(this.contractsMap[chainName]).target as Address;
     }
     return this.foreignDeployments[chainName];
   }
@@ -46,7 +45,7 @@ export abstract class RouterApp<
   override async remoteChains(chainName: string): Promise<ChainName[]> {
     const router = this.router(this.contractsMap[chainName]);
     const onchainRemoteChainNames = (await router.domains()).map((domain) => {
-      const chainName = this.multiProvider.tryGetChainName(domain);
+      const chainName = this.multiProvider.tryGetChainName(Number(domain));
       if (chainName === null) {
         throw new Error(`Chain name not found for domain: ${domain}`);
       }
@@ -79,8 +78,8 @@ export abstract class GasRouterApp<
   async quoteGasPayment(
     origin: ChainName,
     destination: ChainName,
-  ): Promise<BigNumber> {
-    return this.getContracts(origin).router.quoteGasPayment(
+  ): Promise<bigint> {
+    return this.router(this.getContracts(origin)).quoteGasPayment(
       this.multiProvider.getDomainId(destination),
     );
   }
