@@ -419,7 +419,9 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
             originChain,
             1,
           );
-          lastSeenBlock = toBlock;
+          // Include one block of startup lookback so dispatches emitted while
+          // the listener boots are still captured on first poll.
+          lastSeenBlock = Math.max(0, toBlock - 1);
         } catch {
           lastSeenBlock = 0;
         }

@@ -46,7 +46,7 @@ import type {
 
 type Networkish = number | string | { chainId: number; name?: string };
 type SmartProviderSigner = EvmSignerLike & {
-  address: string;
+  address?: string;
   provider: HyperlaneSmartProvider;
   signMessage(message: string | Uint8Array): Promise<string>;
   signTypedData(typedData: {
@@ -619,25 +619,54 @@ export class HyperlaneSmartProvider implements IProviderMethods {
     );
   }
 
-  getSigner(address: string): SmartProviderSigner {
+  private async resolveSignerAddress(
+    addressOrIndex: string | number = 0,
+  ): Promise<string> {
+    if (typeof addressOrIndex === 'string') return addressOrIndex;
+    if (!Number.isInteger(addressOrIndex) || addressOrIndex < 0) {
+      throw new Error(`Invalid signer index: ${addressOrIndex}`);
+    }
+
+    const accounts = await this.send<unknown>('eth_accounts', []);
+    if (!Array.isArray(accounts)) {
+      throw new Error('Invalid eth_accounts response');
+    }
+
+    const account = accounts[addressOrIndex];
+    if (typeof account !== 'string') {
+      throw new Error(`No account found at index ${addressOrIndex}`);
+    }
+    return account;
+  }
+
+  getSigner(addressOrIndex: string | number = 0): SmartProviderSigner {
+    const configuredAddress =
+      typeof addressOrIndex === 'string' ? addressOrIndex : undefined;
+    let resolvedAddress = configuredAddress;
+    const getSignerAddress = async () => {
+      if (resolvedAddress) return resolvedAddress;
+      resolvedAddress = await this.resolveSignerAddress(addressOrIndex);
+      return resolvedAddress;
+    };
+
     const signer: SmartProviderSigner = {
-      address,
       provider: this,
       connect: (newProvider: EvmProviderLike) => {
-        return newProvider.getSigner(address);
+        return newProvider.getSigner(addressOrIndex);
       },
       getAddress: async () => {
-        return address;
+        return getSignerAddress();
       },
       getBalance: async () => {
-        return this.getBalance(address);
+        return this.getBalance(await getSignerAddress());
       },
       estimateGas: async (tx: EvmTransactionLike) => {
-        return this.estimateGas({ ...tx, from: address });
+        return this.estimateGas({ ...tx, from: await getSignerAddress() });
       },
       sendTransaction: async (tx: EvmTransactionLike) => {
+        const from = await getSignerAddress();
         const hash = await this.send<string>('eth_sendTransaction', [
-          normalizeRpcTx({ ...tx, from: address }),
+          normalizeRpcTx({ ...tx, from }),
         ]);
         return {
           hash,
@@ -646,13 +675,14 @@ export class HyperlaneSmartProvider implements IProviderMethods {
         };
       },
       signMessage: async (message: string | Uint8Array) => {
+        const from = await getSignerAddress();
         const data =
           typeof message === 'string'
             ? message.startsWith('0x')
               ? message
               : `0x${Buffer.from(message, 'utf8').toString('hex')}`
             : `0x${Buffer.from(message).toString('hex')}`;
-        return this.send<string>('personal_sign', [data, address]);
+        return this.send<string>('personal_sign', [data, from]);
       },
       signTypedData: async (typedData: {
         domain: TypedDataDomainLike;
@@ -661,7 +691,10 @@ export class HyperlaneSmartProvider implements IProviderMethods {
         message: TypedDataValueLike;
       }) => {
         const payload = jsonStringifyWithBigInt(typedData);
-        return this.send<string>('eth_signTypedData_v4', [address, payload]);
+        return this.send<string>('eth_signTypedData_v4', [
+          await getSignerAddress(),
+          payload,
+        ]);
       },
       _signTypedData: async (
         domain: TypedDataDomainLike,
@@ -677,6 +710,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
         });
       },
     };
+    if (configuredAddress) signer.address = configuredAddress;
     return signer;
   }
 
