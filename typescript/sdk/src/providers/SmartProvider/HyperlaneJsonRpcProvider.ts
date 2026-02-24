@@ -16,6 +16,15 @@ import { RpcConfigWithConnectionInfo } from './types.js';
 
 const NUM_LOG_BLOCK_RANGES_TO_QUERY = 10;
 const NUM_PARALLEL_LOG_QUERIES = 5;
+type RpcRequestParams = Record<string, unknown> | null | undefined;
+type LogFilterParams = {
+  filter: {
+    fromBlock?: number | string;
+    toBlock?: number | string;
+    address?: string | string[];
+    topics?: Array<string | Array<string> | null>;
+  };
+};
 
 export class HyperlaneJsonRpcProvider implements IProviderMethods {
   protected readonly logger = rootLogger.child({ module: 'JsonRpcProvider' });
@@ -68,7 +77,11 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
     });
   }
 
-  prepareRequest(method: string, params: any): [string, any[]] {
+  prepareRequest(
+    method: string,
+    params: RpcRequestParams,
+  ): [string, unknown[]] {
+    const request = toRequestRecord(params);
     if (method === ProviderMethod.MaxPriorityFeePerGas) {
       return ['eth_maxPriorityFeePerGas', []];
     }
@@ -77,55 +90,66 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
         return [
           'eth_call',
           [
-            normalizeRpcTransaction(params.transaction),
-            params.blockTag ?? 'latest',
+            normalizeRpcTransaction(asRecord(request.transaction)),
+            request.blockTag ?? 'latest',
           ],
         ];
       case ProviderMethod.EstimateGas:
         return [
           'eth_estimateGas',
-          [normalizeRpcTransaction(params.transaction)],
+          [normalizeRpcTransaction(asRecord(request.transaction))],
         ];
       case ProviderMethod.GetBalance:
         return [
           'eth_getBalance',
-          [params.address, params.blockTag ?? 'latest'],
+          [request.address, request.blockTag ?? 'latest'],
         ];
       case ProviderMethod.GetBlock:
         return [
           'eth_getBlockByNumber',
-          [toBlockTag(params.blockTag), params.includeTransactions ?? false],
+          [
+            toBlockTag(request.blockTag as string | number | bigint),
+            request.includeTransactions ?? false,
+          ],
         ];
       case ProviderMethod.GetBlockNumber:
         return ['eth_blockNumber', []];
       case ProviderMethod.GetCode:
-        return ['eth_getCode', [params.address, params.blockTag ?? 'latest']];
+        return ['eth_getCode', [request.address, request.blockTag ?? 'latest']];
       case ProviderMethod.GetGasPrice:
         return ['eth_gasPrice', []];
       case ProviderMethod.GetStorageAt:
         return [
           'eth_getStorageAt',
-          [params.address, params.position, params.blockTag ?? 'latest'],
+          [request.address, request.position, request.blockTag ?? 'latest'],
         ];
       case ProviderMethod.GetTransaction:
-        return ['eth_getTransactionByHash', [params.transactionHash]];
+        return ['eth_getTransactionByHash', [request.transactionHash]];
       case ProviderMethod.GetTransactionCount:
         return [
           'eth_getTransactionCount',
-          [params.address, params.blockTag ?? 'latest'],
+          [request.address, request.blockTag ?? 'latest'],
         ];
       case ProviderMethod.GetTransactionReceipt:
-        return ['eth_getTransactionReceipt', [params.transactionHash]];
+        return ['eth_getTransactionReceipt', [request.transactionHash]];
       case ProviderMethod.GetLogs:
-        return ['eth_getLogs', [normalizeLogFilter(params.filter)]];
+        return [
+          'eth_getLogs',
+          [
+            normalizeLogFilter(
+              (asRecord(request.filter) ?? {}) as LogFilterParams['filter'] &
+                Record<string, unknown>,
+            ),
+          ],
+        ];
       case ProviderMethod.SendTransaction:
-        return ['eth_sendRawTransaction', [params.signedTransaction]];
+        return ['eth_sendRawTransaction', [request.signedTransaction]];
       default:
         throw new Error(`Unsupported method ${method}`);
     }
   }
 
-  protected async request(method: string, params: unknown[]): Promise<any> {
+  protected async request(method: string, params: unknown[]): Promise<unknown> {
     try {
       return await this.client.request({
         method,
@@ -140,13 +164,17 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
     return this.request(method, params);
   }
 
-  async perform(method: string, params: any, reqId?: number): Promise<any> {
+  async perform(
+    method: string,
+    params: RpcRequestParams,
+    reqId?: number,
+  ): Promise<unknown> {
     if (this.options?.debug)
       this.logger.debug(
         `HyperlaneJsonRpcProvider performing method ${method} for reqId ${reqId}`,
       );
     if (method === ProviderMethod.GetLogs) {
-      return this.performGetLogs(params);
+      return this.performGetLogs(toLogFilterParams(params));
     }
 
     const [rpcMethod, rpcParams] = this.prepareRequest(method, params);
@@ -167,20 +195,17 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
     return result;
   }
 
-  async performGetLogs(params: {
-    filter: {
-      fromBlock?: number | string;
-      toBlock?: number | string;
-      address?: string | string[];
-      topics?: Array<string | Array<string> | null>;
-    };
-  }): Promise<any> {
+  async performGetLogs(
+    params: LogFilterParams,
+  ): Promise<Record<string, unknown>[]> {
     const superPerform = async () => {
       const [rpcMethod, rpcParams] = this.prepareRequest(
         ProviderMethod.GetLogs,
         params,
       );
-      return this.request(rpcMethod, rpcParams);
+      return this.request(rpcMethod, rpcParams) as Promise<
+        Record<string, unknown>[]
+      >;
     };
 
     const paginationOptions = this.rpcConfig.pagination;
@@ -280,19 +305,46 @@ export class HyperlaneJsonRpcProvider implements IProviderMethods {
           },
         );
         return this.request(rpcMethod, rpcParams) as Promise<
-          typeof combinedResults
+          Record<string, unknown>[]
         >;
       });
       const results = await Promise.all(resultPromises);
-      combinedResults = [...combinedResults, ...results.flat()];
+      combinedResults = [...combinedResults, ...results.flat()] as Array<{
+        address: string;
+        blockHash: string;
+        blockNumber: number;
+        data: string;
+        logIndex: number;
+        removed: boolean;
+        topics: string[];
+        transactionHash: string;
+        transactionIndex: number;
+      }>;
     }
 
-    return combinedResults;
+    return combinedResults as Record<string, unknown>[];
   }
 
   getBaseUrl(): string {
     return this.connection?.url || this.rpcConfig.http;
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function toRequestRecord(params: RpcRequestParams): Record<string, unknown> {
+  return asRecord(params) ?? {};
+}
+
+function toLogFilterParams(params: RpcRequestParams): LogFilterParams {
+  const request = toRequestRecord(params);
+  return {
+    filter: (asRecord(request.filter) ?? {}) as LogFilterParams['filter'],
+  };
 }
 
 function toBlockTag(blockTag?: string | number | bigint): string {
