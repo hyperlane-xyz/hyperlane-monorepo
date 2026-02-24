@@ -30,6 +30,7 @@ import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { HypERC20App } from './app.js';
@@ -40,8 +41,6 @@ import {
   SyntheticTokenConfig,
   WarpRouteDeployConfigMailboxRequired,
 } from './types.js';
-
-type SignerWithAddress = { address: string; [key: string]: any };
 
 const chain = TestChainName.test1;
 
@@ -62,7 +61,7 @@ function addOverridesToConfig(
   );
 }
 describe('TokenDeployer', async () => {
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let deployer: HypERC20Deployer;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;

@@ -9,19 +9,18 @@ import { assert } from '@hyperlane-xyz/utils';
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { getHardhatSigners } from '../../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../../test/hardhatViem.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
 
 import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';
 
-type SignerWithAddress = { address: string; [key: string]: any };
-
 chai.use(chaiAsPromised);
 
 describe('RPC Utils', () => {
-  type EvmProvider = NonNullable<SignerWithAddress['provider']>;
-  let contractOwner: SignerWithAddress;
-  let tokenRecipient1: SignerWithAddress;
-  let tokenRecipient2: SignerWithAddress;
+  type EvmProvider = NonNullable<HardhatSignerWithAddress['provider']>;
+  let contractOwner: HardhatSignerWithAddress;
+  let tokenRecipient1: HardhatSignerWithAddress;
+  let tokenRecipient2: HardhatSignerWithAddress;
   let providerChainTest1: EvmProvider;
   let multiProvider: MultiProvider;
   let testContract: ERC20Test;
@@ -63,7 +62,8 @@ describe('RPC Utils', () => {
     await testContract.deployed();
     const deploymentReceipt = await testContract.deployTransaction.wait();
     const deploymentBlock =
-      testContract.deployTransaction.blockNumber ?? deploymentReceipt?.blockNumber;
+      testContract.deployTransaction.blockNumber ??
+      deploymentReceipt?.blockNumber;
     assert(
       deploymentBlock !== undefined,
       'Expected the Contract deployment block number to be defined',

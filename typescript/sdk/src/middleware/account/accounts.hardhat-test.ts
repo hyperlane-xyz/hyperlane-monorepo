@@ -22,6 +22,7 @@ import { HyperlaneIsmFactory } from '../../ism/HyperlaneIsmFactory.js';
 import { IsmType } from '../../ism/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { getHardhatSigners } from '../../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../../test/hardhatViem.js';
 import { ChainMap } from '../../types.js';
 
 import { InterchainAccount } from './InterchainAccount.js';
@@ -34,7 +35,7 @@ describe('InterchainAccounts', async () => {
   const localChain = TestChainName.test1;
   const remoteChain = TestChainName.test2;
 
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let contracts: HyperlaneContractsMap<InterchainAccountFactories>;
   let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;

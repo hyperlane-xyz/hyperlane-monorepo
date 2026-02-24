@@ -19,6 +19,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { randomAddress, testCoreConfig } from '../test/testUtils.js';
 import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
@@ -28,7 +29,7 @@ describe('EvmCoreModule', async () => {
   const CHAIN = TestChainName.test4;
   const DELAY = 1892391283182;
   let config: CoreConfig;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let multiProvider: MultiProvider;
   let evmCoreModule: EvmCoreModule;
   let proxyAdminContract: any;
@@ -121,9 +122,9 @@ describe('EvmCoreModule', async () => {
     });
 
     it('should set proxyAdmin owner to deployer', async () => {
-      expect(eqAddress(await proxyAdminContract.owner(), signer.address)).to.equal(
-        true,
-      );
+      expect(
+        eqAddress(await proxyAdminContract.owner(), signer.address),
+      ).to.equal(true);
     });
 
     it('should deploy mailbox', async () => {
@@ -169,9 +170,9 @@ describe('EvmCoreModule', async () => {
 
     it('should deploy testRecipient', async () => {
       expect(evmCoreModule.serialize().testRecipient).to.exist;
-      expect(eqAddress(await testRecipientContract.owner(), signer.address)).to.equal(
-        true,
-      );
+      expect(
+        eqAddress(await testRecipientContract.owner(), signer.address),
+      ).to.equal(true);
     });
 
     it('should deploy timelock if upgrade is set', async () => {

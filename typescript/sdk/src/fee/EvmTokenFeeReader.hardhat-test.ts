@@ -9,6 +9,7 @@ import { eqAddress } from '@hyperlane-xyz/utils';
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import { randomInt } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -26,7 +27,7 @@ export const BPS = convertToBps(MAX_FEE, HALF_AMOUNT);
 
 describe('EvmTokenFeeReader', () => {
   let multiProvider: MultiProvider;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let token: ERC20Test;
 
   const TOKEN_TOTAL_SUPPLY = '100000000000000000000';

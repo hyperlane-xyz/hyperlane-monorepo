@@ -59,6 +59,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters } from '../router/types.js';
 import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
@@ -133,7 +134,7 @@ describe('EvmWarpModule', async () => {
   let feeToken: ERC20Test;
   let everclearBridgeAdapterMockFactory: MockEverclearAdapter__factory;
   let everclearBridgeAdapterMock: MockEverclearAdapter;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let routerConfigMap: ChainMap<RouterConfig>;

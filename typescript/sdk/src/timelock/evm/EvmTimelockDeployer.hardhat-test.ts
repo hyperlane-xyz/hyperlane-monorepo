@@ -10,6 +10,7 @@ import { assert, eqAddress } from '@hyperlane-xyz/utils';
 import { TestChainName } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { getHardhatSigners } from '../../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../../test/hardhatViem.js';
 import { randomAddress } from '../../test/testUtils.js';
 import { TimelockConfig } from '../types.js';
 
@@ -26,10 +27,10 @@ chai.use(chaiAsPromised);
 describe('EvmTimelockDeployer', async () => {
   let multiProvider: MultiProvider;
   let deployer: EvmTimelockDeployer;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   const signerAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
   const otherSignerAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
-  let otherSigner: SignerWithAddress;
+  let otherSigner: HardhatSignerWithAddress;
 
   type TestCase = {
     title: string;

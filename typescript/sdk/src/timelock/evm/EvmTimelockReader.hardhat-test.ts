@@ -16,6 +16,7 @@ import { ChainMetadata } from '../../metadata/chainMetadataTypes.js';
 import { ZBytes32String } from '../../metadata/customZodTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { getHardhatSigners } from '../../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../../test/hardhatViem.js';
 import { randomAddress } from '../../test/testUtils.js';
 import { TimelockConfig, TimelockTx } from '../types.js';
 
@@ -23,18 +24,16 @@ import { EvmTimelockDeployer } from './EvmTimelockDeployer.js';
 import { EvmTimelockReader } from './EvmTimelockReader.js';
 import { EMPTY_BYTES_32 } from './constants.js';
 
-type SignerWithAddress = { address: string; [key: string]: any };
-
 chai.use(chaiAsPromised);
 
 const bytes32FromString = (value: string) =>
   pad(stringToHex(value), { size: 32 });
 
 describe(EvmTimelockReader.name, () => {
-  type EvmProvider = NonNullable<SignerWithAddress['provider']>;
-  let contractOwner: SignerWithAddress;
-  let proposer: SignerWithAddress;
-  let executor: SignerWithAddress;
+  type EvmProvider = NonNullable<HardhatSignerWithAddress['provider']>;
+  let contractOwner: HardhatSignerWithAddress;
+  let proposer: HardhatSignerWithAddress;
+  let executor: HardhatSignerWithAddress;
   let providerChainTest1: EvmProvider;
   let multiProvider: MultiProvider;
   let timelockDeployer: EvmTimelockDeployer;

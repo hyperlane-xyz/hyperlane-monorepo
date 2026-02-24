@@ -10,14 +10,13 @@ import { IcaRouterConfig } from '../ica/types.js';
 import { IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 
 import { EvmIcaModule } from './EvmIcaModule.js';
 
-type SignerWithAddress = { address: string; [key: string]: any };
-
 describe('EvmIcaModule', async () => {
   const LOCAL_DOMAIN = 1;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let multiProvider: MultiProvider;
   let mailbox: Mailbox;
 
@@ -66,7 +65,9 @@ describe('EvmIcaModule', async () => {
 
       const actual = await evmIcaModule.read();
       expect(actual.commitmentIsm.type).to.equal(config.commitmentIsm.type);
-      expect(actual.commitmentIsm.urls).to.deep.equal(config.commitmentIsm.urls);
+      expect(actual.commitmentIsm.urls).to.deep.equal(
+        config.commitmentIsm.urls,
+      );
       expect(
         eqAddress(actual.commitmentIsm.owner, config.commitmentIsm.owner),
       ).to.equal(true);

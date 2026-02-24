@@ -1,7 +1,10 @@
 import { createRequire } from 'module';
 import { toHex } from 'viem';
 
-export type HardhatSignerWithAddress = { address: string };
+export type HardhatSignerWithAddress = {
+  address: string;
+  [key: string]: any;
+};
 
 type HardhatPublicClientLike = {
   getBlock(args: {

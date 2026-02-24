@@ -13,6 +13,7 @@ import {
 } from '../../consts/testChains.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { getHardhatSigners } from '../../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../../test/hardhatViem.js';
 import { randomAddress, randomInt } from '../../test/testUtils.js';
 
 import {
@@ -21,15 +22,13 @@ import {
   EvmRpcEventLogsReader,
 } from './EvmEventLogsReader.js';
 
-type SignerWithAddress = { address: string; [key: string]: any };
-
 chai.use(chaiAsPromised);
 
 describe('EvmEventLogsReader', () => {
-  let contractOwner: SignerWithAddress;
-  let tokenRecipient1: SignerWithAddress;
-  let tokenRecipient2: SignerWithAddress;
-  type EvmProvider = NonNullable<SignerWithAddress['provider']>;
+  type EvmProvider = NonNullable<HardhatSignerWithAddress['provider']>;
+  let contractOwner: HardhatSignerWithAddress;
+  let tokenRecipient1: HardhatSignerWithAddress;
+  let tokenRecipient2: HardhatSignerWithAddress;
   let providerChainTest1: EvmProvider;
   let multiProvider: MultiProvider;
   let testContract: ERC20Test;

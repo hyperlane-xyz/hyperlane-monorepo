@@ -3,7 +3,12 @@ import { assert, expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
-import { Address, eqAddress, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  eqAddress,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -18,6 +23,7 @@ import {
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { testCoreConfig } from '../test/testUtils.js';
 import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import { ChainMap } from '../types.js';
 
 import { EvmCoreReader } from './EvmCoreReader.js';
@@ -35,7 +41,7 @@ describe('core', async () => {
   let contracts: HyperlaneContractsMap<CoreFactories>;
   let coreConfig: ChainMap<CoreConfig>;
   let ismFactory: HyperlaneIsmFactory;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
 
   before(async () => {
     [signer] = await getHardhatSigners();
