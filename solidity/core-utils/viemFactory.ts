@@ -8,6 +8,7 @@ import {
   encodeEventTopics,
   encodeFunctionData,
   encodeFunctionResult,
+  getContract,
   getAbiItem,
   isHex,
   toEventSelector,
@@ -19,6 +20,7 @@ import type {
   ContractFunctionName,
   ContractFunctionArgs,
   ContractFunctionReturnType,
+  GetContractReturnType,
   AbiEvent,
   AbiFunction,
   AbiParameter,
@@ -145,6 +147,8 @@ export interface ArtifactEntry<TAbi extends Abi = Abi> {
   readonly abi: TAbi;
   readonly bytecode: Hex;
 }
+
+type ViemGetContractClient = Parameters<typeof getContract>[0]['client'];
 
 type JsonRpcLike = {
   request: (args: {
@@ -1278,6 +1282,18 @@ export class ViemContractFactory<
     runner?: RunnerLike,
   ): unknown {
     return createContractProxy(address, this.artifact.abi, runner);
+  }
+
+  static connectViem<TAbi extends Abi, TClient extends ViemGetContractClient>(
+    this: { artifact: ArtifactEntry<TAbi> },
+    address: string,
+    client: TClient,
+  ): GetContractReturnType<TAbi, TClient> {
+    return getContract({
+      address: address as `0x${string}`,
+      abi: this.artifact.abi,
+      client,
+    }) as GetContractReturnType<TAbi, TClient>;
   }
 
   runner?: RunnerLike;
