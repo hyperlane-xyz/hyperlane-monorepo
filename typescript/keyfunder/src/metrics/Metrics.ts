@@ -9,6 +9,11 @@ export class KeyFunderMetrics {
   private jobName: string;
 
   readonly walletBalanceGauge: Gauge<string>;
+  /**
+   * Unified wallet balance gauge matching the format used by Grafana alerts.
+   * Emits hyperlane_wallet_balance with the standard wallet balance labels.
+   */
+  readonly unifiedWalletBalanceGauge: Gauge<string>;
   readonly fundingAmountGauge: Gauge<string>;
   readonly igpBalanceGauge: Gauge<string>;
   readonly sweepAmountGauge: Gauge<string>;
@@ -27,6 +32,21 @@ export class KeyFunderMetrics {
       name: 'hyperlane_keyfunder_wallet_balance',
       help: 'Current wallet balance in native token',
       labelNames,
+      registers: [this.registry],
+    });
+
+    this.unifiedWalletBalanceGauge = new Gauge({
+      name: 'hyperlane_wallet_balance',
+      help: 'Current balance of a wallet for a token',
+      labelNames: [
+        'chain',
+        'wallet_address',
+        'wallet_name',
+        'token_address',
+        'token_symbol',
+        'token_name',
+        ...Object.keys(baseLabels),
+      ],
       registers: [this.registry],
     });
 
@@ -67,6 +87,26 @@ export class KeyFunderMetrics {
   ): void {
     this.walletBalanceGauge.set(
       { chain, address, role, ...this.baseLabels },
+      balance,
+    );
+  }
+
+  recordUnifiedWalletBalance(
+    chain: string,
+    walletAddress: string,
+    walletName: string,
+    balance: number,
+  ): void {
+    this.unifiedWalletBalanceGauge.set(
+      {
+        chain,
+        wallet_address: walletAddress,
+        wallet_name: walletName,
+        token_address: 'native',
+        token_symbol: 'Native',
+        token_name: 'Native',
+        ...this.baseLabels,
+      },
       balance,
     );
   }

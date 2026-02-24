@@ -120,11 +120,13 @@ fn transaction_with_igp() -> UiTransaction {
                         program_id: "ComputeBudget111111111111111111111111111111".to_string(),
                         accounts: vec![],
                         data: "K1FDJ7".to_string(),
+                        stack_height: None,
                     })),
                     UiInstruction::Parsed(UiParsedInstruction::PartiallyDecoded(UiPartiallyDecodedInstruction {
                         program_id: "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U".to_string(),
                         accounts: vec!["11111111111111111111111111111111".to_string(), "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty".to_string(), "HBB1MxTeuRGb3C4bfXLQbu9z2Pn2LTXVQX53Hy7uyeof".to_string(), "APrjTrTeUqyQgg7n52YrQkULUa4AniaVKkxhgTXNugSg".to_string(), "GV2Qj26E43X9zLhaR9jgs44yZnmf1UPqJNyd435ca7L1".to_string(), "DrFtxirPPsfdY4HQiNZj2A9o4Ux7JaL3gELANgAoihhp".to_string(), "EBEZGxTABcfHgPH1vZZc9BnFWHjne4nzqApZZxGTCgsn".to_string()],
                         data: "6bsyHSvcBqJsshiyP1v8RNvNsiwPqsLr4LMEv8TQ2GVeoJM6uYWXFFujxHdts".to_string(),
+                        stack_height: None,
                     }))
                 ],
                 address_table_lookups: None,
@@ -145,11 +147,13 @@ fn transaction_with_alternative_igp() -> UiTransaction {
                         program_id: "ComputeBudget111111111111111111111111111111".to_string(),
                         accounts: vec![],
                         data: "K1FDJ7".to_string(),
+                        stack_height: None,
                     })),
                     UiInstruction::Parsed(UiParsedInstruction::PartiallyDecoded(UiPartiallyDecodedInstruction {
                         program_id: "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U".to_string(),
                         accounts: vec!["11111111111111111111111111111111".to_string(), "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty".to_string(), "HBB1MxTeuRGb3C4bfXLQbu9z2Pn2LTXVQX53Hy7uyeof".to_string(), "83fgCBnDRTU3ke1L9RGxkYRhT48DS8csJ6U1QDRLU96h".to_string(), "5MRsEobfsbZKrrZnE6bGCCGPLXzF56x9jJzmQ6DMDe7a".to_string(), "8EniU8dQaGQ3HWWtT77V7hrksheygvEu6TtzJ3pX1nKM".to_string(), "3A83CEaaEQtgvzdfppEt6arFY1vgkpaf9rd8Ynfoyit8".to_string()],
                         data: "6bsyHSvcBqJsshiyP1v8RNvNsiwPqsLr4LMEv8TQ2GVeoJM6uYWXFFujxHdts".to_string(),
+                        stack_height: None,
                     }))
                 ],
                 address_table_lookups: None,
@@ -170,6 +174,7 @@ fn transaction_with_native_programs_only() -> UiTransaction {
                         program_id: "ComputeBudget111111111111111111111111111111".to_string(),
                         accounts: vec![],
                         data: "K1FDJ7".to_string(),
+                        stack_height: None,
                     }))
                 ],
                 address_table_lookups: None,

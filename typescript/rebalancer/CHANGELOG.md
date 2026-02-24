@@ -1,5 +1,36 @@
 # @hyperlane-xyz/rebalancer
 
+## 2.0.0
+
+### Major Changes
+
+- c61d612: **Breaking**: `IActionTracker` interface was extended with new required query methods (`getTransfer`, `getRebalanceIntent`, `getRebalanceAction`, `getInProgressActions`) to support E2E test assertions against tracked state. External implementations of `IActionTracker` must implement these methods.
+
+  Extracted `RebalancerOrchestrator` from `RebalancerService` to separate polling orchestration from service lifecycle, improving testability. Fixed non-null assertion pattern on metrics and tightened `executeWithTracking` return type to `void`.
+
+  Added comprehensive E2E test harness with `TestRebalancer` builder, `ForkIndexer` for indexing Dispatch events from Anvil forks, and full E2E coverage for weighted, minAmount, collateral-deficit, and composite strategies.
+
+### Minor Changes
+
+- ccd638d: Improved shared RPC override handling across TypeScript services.
+
+### Patch Changes
+
+- Updated dependencies [215dff0]
+- Updated dependencies [d2f75a1]
+- Updated dependencies [360db52]
+- Updated dependencies [18ec479]
+- Updated dependencies [795d93e]
+- Updated dependencies [e143956]
+- Updated dependencies [ccd638d]
+- Updated dependencies [c61d612]
+- Updated dependencies [c2affe2]
+  - @hyperlane-xyz/sdk@25.2.0
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/metrics@0.1.5
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/provider-sdk@1.3.3
+
 ## 1.0.3
 
 ### Patch Changes

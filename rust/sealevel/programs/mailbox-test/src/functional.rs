@@ -17,15 +17,13 @@ use hyperlane_sealevel_test_send_receiver::{
     test_client::TestSendReceiverTestClient,
 };
 use hyperlane_test_utils::{
-    assert_transaction_error, clone_keypair, get_process_account_metas, get_recipient_ism,
-    initialize_mailbox, mailbox_id, new_funded_keypair, process, process_instruction,
-    process_with_accounts,
+    assert_transaction_error, get_process_account_metas, get_recipient_ism, initialize_mailbox,
+    mailbox_id, new_funded_keypair, process, process_instruction, process_with_accounts,
 };
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     rent::Rent,
-    system_program,
 };
 use solana_program_test::*;
 use solana_sdk::{
@@ -35,6 +33,7 @@ use solana_sdk::{
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
 };
+use solana_system_interface::program as system_program;
 
 use crate::utils::{
     assert_dispatched_message, assert_inbox, assert_message_not_processed, assert_outbox,
@@ -59,7 +58,19 @@ async fn setup_client() -> (
         processor!(hyperlane_sealevel_mailbox::processor::process_instruction),
     );
 
-    program_test.add_program("spl_noop", spl_noop::id(), processor!(spl_noop::noop));
+    // spl_noop just logs data and returns success - provide a simple processor
+    fn noop_processor(
+        _program_id: &Pubkey,
+        _accounts: &[solana_program::account_info::AccountInfo],
+        _instruction_data: &[u8],
+    ) -> solana_program::entrypoint::ProgramResult {
+        Ok(())
+    }
+    program_test.add_program(
+        "spl_noop",
+        account_utils::SPL_NOOP_PROGRAM_ID,
+        processor!(noop_processor),
+    );
 
     let mailbox_program_id = mailbox_id();
     program_test.add_program(
@@ -82,10 +93,10 @@ async fn setup_client() -> (
 
     let (banks_client, payer, _recent_blockhash) = program_test.start().await;
 
-    let test_ism = TestIsmTestClient::new(banks_client.clone(), clone_keypair(&payer));
+    let test_ism = TestIsmTestClient::new(banks_client.clone(), payer.insecure_clone());
 
     let mut test_send_receiver =
-        TestSendReceiverTestClient::new(banks_client.clone(), clone_keypair(&payer));
+        TestSendReceiverTestClient::new(banks_client.clone(), payer.insecure_clone());
     test_send_receiver.init().await.unwrap();
     test_send_receiver
         .set_ism(
@@ -692,7 +703,7 @@ async fn test_dispatch_returns_message_id() {
             AccountMeta::new(mailbox_accounts.outbox, false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(system_program::id(), false),
-            AccountMeta::new_readonly(spl_noop::id(), false),
+            AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new(unique_message_account_keypair.pubkey(), true),
             AccountMeta::new(dispatched_message_account_key, false),
@@ -855,7 +866,7 @@ async fn test_get_recipient_ism_errors_with_malformatted_recipient_ism_return_da
     assert!(matches!(
         result,
         Err(BanksClientError::TransactionError(
-            TransactionError::InstructionError(_, InstructionError::BorshIoError(_))
+            TransactionError::InstructionError(_, InstructionError::BorshIoError)
         ))
     ));
 }

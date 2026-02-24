@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 use solana_program::program_error::ProgramError;
-use spl_type_length_value::discriminator::Discriminator;
+use spl_discriminator::ArrayDiscriminator as Discriminator;
 
 /// Instructions that a Hyperlane message recipient is expected to process.
 /// The first 8 bytes of the encoded instruction is a discriminator that
@@ -97,17 +97,13 @@ impl MessageRecipientInstruction {
             MessageRecipientInstruction::Handle(instruction) => {
                 buf.extend_from_slice(HANDLE_DISCRIMINATOR_SLICE);
                 buf.extend_from_slice(
-                    &instruction
-                        .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                    &borsh::to_vec(&instruction).map_err(|_| ProgramError::BorshIoError)?[..],
                 );
             }
             MessageRecipientInstruction::HandleAccountMetas(instruction) => {
                 buf.extend_from_slice(HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE);
                 buf.extend_from_slice(
-                    &instruction
-                        .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                    &borsh::to_vec(&instruction).map_err(|_| ProgramError::BorshIoError)?[..],
                 );
             }
         }
@@ -127,12 +123,12 @@ impl MessageRecipientInstruction {
             }
             HANDLE_DISCRIMINATOR_SLICE => {
                 let instruction = HandleInstruction::try_from_slice(rest)
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                    .map_err(|_| ProgramError::BorshIoError)?;
                 Ok(Self::Handle(instruction))
             }
             HANDLE_ACCOUNT_METAS_DISCRIMINATOR_SLICE => {
                 let instruction = HandleInstruction::try_from_slice(rest)
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                    .map_err(|_| ProgramError::BorshIoError)?;
                 Ok(Self::HandleAccountMetas(instruction))
             }
             _ => Err(ProgramError::InvalidInstructionData),

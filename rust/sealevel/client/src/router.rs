@@ -7,12 +7,14 @@ use std::{
 };
 
 use solana_client::rpc_client::RpcClient;
-use solana_program::instruction::Instruction;
-use solana_sdk::{
-    account_utils::StateMut,
-    bpf_loader_upgradeable::{self, UpgradeableLoaderState},
-    pubkey::Pubkey,
+use solana_loader_v3_interface::{
+    instruction::set_upgrade_authority, state::UpgradeableLoaderState,
 };
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+
+/// Well-known BPF Loader Upgradeable program ID.
+const BPF_LOADER_UPGRADEABLE_ID: Pubkey =
+    solana_sdk::pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
 
 use account_utils::DiscriminatorData;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -306,7 +308,7 @@ pub(crate) fn deploy_routers<
     let existing_program_ids = read_router_program_ids(&deploy_dir);
 
     if ctx.write_instructions_enabled {
-        ctx.instructions_path = Some(deploy_dir.join("instructions.yaml"));
+        ctx.instructions_path = Some(deploy_dir.clone());
     }
 
     // Builds a HashMap of all the foreign deployments from the app config.
@@ -578,7 +580,7 @@ fn configure_upgrade_authority(
             let tx_result = ctx
                 .new_txn()
                 .add_with_description(
-                    bpf_loader_upgradeable::set_upgrade_authority(
+                    set_upgrade_authority(
                         program_id,
                         &actual_upgrade_authority,
                         expected_upgrade_authority.as_ref(),
@@ -627,31 +629,33 @@ fn get_program_upgrade_authority(
 ) -> Result<Option<Pubkey>, &'static str> {
     let program_account = client.get_account(program_id).unwrap();
     // If the program isn't upgradeable, exit
-    if program_account.owner != bpf_loader_upgradeable::id() {
+    if program_account.owner != BPF_LOADER_UPGRADEABLE_ID {
         return Err("Program is not upgradeable");
     }
 
     // The program id must actually be a program
-    let programdata_address = if let Ok(UpgradeableLoaderState::Program {
-        programdata_address,
-    }) = program_account.state()
-    {
-        programdata_address
-    } else {
-        return Err("Unable to deserialize program account");
+    // Note: UpgradeableLoaderState uses solana_pubkey::Pubkey which we convert to solana_sdk::pubkey::Pubkey
+    let programdata_address: UpgradeableLoaderState =
+        bincode::deserialize(&program_account.data)
+            .map_err(|_| "Unable to deserialize program account")?;
+    let programdata_address = match programdata_address {
+        UpgradeableLoaderState::Program {
+            programdata_address,
+        } => Pubkey::new_from_array(programdata_address.to_bytes()),
+        _ => return Err("Unable to deserialize program account"),
     };
 
     let program_data_account = client.get_account(&programdata_address).unwrap();
 
     // If the program data account somehow isn't deserializable, exit
-    let actual_upgrade_authority = if let Ok(UpgradeableLoaderState::ProgramData {
-        upgrade_authority_address,
-        slot: _,
-    }) = program_data_account.state()
-    {
-        upgrade_authority_address
-    } else {
-        return Err("Unable to deserialize program data account");
+    let program_data: UpgradeableLoaderState = bincode::deserialize(&program_data_account.data)
+        .map_err(|_| "Unable to deserialize program data account")?;
+    let actual_upgrade_authority = match program_data {
+        UpgradeableLoaderState::ProgramData {
+            upgrade_authority_address,
+            slot: _,
+        } => upgrade_authority_address.map(|p| Pubkey::new_from_array(p.to_bytes())),
+        _ => return Err("Unable to deserialize program data account"),
     };
 
     Ok(actual_upgrade_authority)

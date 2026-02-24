@@ -1,7 +1,6 @@
 //! Hyperlane Sealevel Mailbox data account layouts.
 
 use core::cell::RefMut;
-use std::io::Read;
 
 use access_control::AccessControl;
 use account_utils::{AccountData, SizedData};
@@ -131,10 +130,11 @@ impl AccessControl for Outbox {
 
 impl Outbox {
     /// Verifies that the given account is the canonical Outbox PDA and returns the deserialized inner data.
+    /// Returns Box<Outbox> to avoid stack overflow during CPI calls (Outbox is 1118 bytes).
     pub fn verify_account_and_fetch_inner(
         program_id: &Pubkey,
         outbox_account_info: &AccountInfo,
-    ) -> Result<Self, ProgramError> {
+    ) -> Result<Box<Self>, ProgramError> {
         let outbox =
             OutboxAccount::fetch(&mut &outbox_account_info.data.borrow()[..])?.into_inner();
         let expected_outbox_key = Pubkey::create_program_address(
@@ -148,7 +148,7 @@ impl Outbox {
             return Err(ProgramError::IllegalOwner);
         }
 
-        Ok(*outbox)
+        Ok(outbox)
     }
 }
 
@@ -217,7 +217,7 @@ impl BorshSerialize for DispatchedMessage {
 
 /// For tighter packing, explicit endianness, and errors on an invalid discriminator, we implement our own deserialization.
 impl BorshDeserialize for DispatchedMessage {
-    fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut discriminator = [0u8; 8];
         reader.read_exact(&mut discriminator)?;
         if &discriminator != DISPATCHED_MESSAGE_DISCRIMINATOR {
@@ -293,7 +293,7 @@ impl SizedData for ProcessedMessage {
 
 /// To error upon invalid data, we implement our own deserialization.
 impl BorshDeserialize for ProcessedMessage {
-    fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut discriminator = [0u8; 8];
         reader.read_exact(&mut discriminator)?;
         if &discriminator != PROCESSED_MESSAGE_DISCRIMINATOR {

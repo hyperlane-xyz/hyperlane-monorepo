@@ -1,5 +1,6 @@
 //! A contract for publicly announcing validator storage locations.
 
+#![allow(unexpected_cfgs)]
 #![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
