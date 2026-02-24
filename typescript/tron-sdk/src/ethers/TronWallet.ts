@@ -35,11 +35,12 @@ export interface TronTransactionResponse extends providers.TransactionResponse {
  */
 export class TronWallet extends Wallet {
   /** Counter to ensure each transaction gets a unique expiration → unique txID */
-  private static txCounter = 0;
+  private txCounter = 0;
 
   private readonly tronUrl: string;
   private tronWeb: TronWeb;
   private tronAddress: string;
+  private tronAddressHex: string;
 
   constructor(privateKey: string, tronUrl: string) {
     super(privateKey, new TronJsonRpcProvider(tronUrl));
@@ -52,6 +53,7 @@ export class TronWallet extends Wallet {
     const derivedAddress = this.tronWeb.address.fromPrivateKey(cleanKey);
     assert(derivedAddress, 'Failed to derive Tron address from private key');
     this.tronAddress = derivedAddress;
+    this.tronAddressHex = this.tronWeb.address.toHex(this.tronAddress);
     this.tronWeb.setAddress(this.tronAddress);
   }
 
@@ -174,7 +176,7 @@ export class TronWallet extends Wallet {
   }
 
   private async makeUnique(tronTx: TronTransaction): Promise<TronTransaction> {
-    const extension = ++TronWallet.txCounter;
+    const extension = ++this.txCounter;
     const altered = await this.tronWeb.transactionBuilder.alterTransaction(
       tronTx as Types.Transaction,
       {
@@ -185,8 +187,9 @@ export class TronWallet extends Wallet {
     // For deployments, recompute contract_address from the new txID.
     // genContractAddress = '41' + keccak256(txID + ownerHex)[24:]
     if ('contract_address' in tronTx) {
-      const ownerHex = this.tronWeb.address.toHex(this.tronAddress);
-      const hash = ethersKeccak256(Buffer.from(altered.txID + ownerHex, 'hex'));
+      const hash = ethersKeccak256(
+        Buffer.from(altered.txID + this.tronAddressHex, 'hex'),
+      );
       (altered as any).contract_address = '41' + hash.substring(2).slice(24);
     }
 
