@@ -110,10 +110,10 @@ export async function getSyntheticWarpTokenConfig(
     tokenState.fields.find(
       (f) => f.field_name === RADIX_WARP_TOKEN_FIELD_NAMES.RESOURCE_MANAGER,
     )?.fields ?? [];
-  const collateralTokenAddress = getResourceAddress(tokenAddress, {
+  const syntheticResourceAddress = getResourceAddress(tokenAddress, {
     fields: resourceManagerFields,
   });
-  const metadata = await base.getMetadata({ resource: collateralTokenAddress });
+  const metadata = await base.getMetadata({ resource: syntheticResourceAddress });
 
   return {
     mailbox: baseTokenData.mailbox,
