@@ -86,10 +86,8 @@ export class TronWallet extends Wallet {
     // Convert gasLimit to feeLimit in SUN (1 TRX = 1,000,000 SUN)
     const gasPrice = BigNumber.from(tx.gasPrice);
     const gasLimit = BigNumber.from(tx.gasLimit);
-    const feeLimit = gasLimit.mul(gasPrice).toNumber() * 1.5; // Add 50% buffer to feeLimit to avoid "Out of energy" errors
-    // Silly trick to add randomness to feeLimit, this helps avoid "Duplicate transaction" errors when sending multiple transactions with the same feeLimit in quick succession (common in tests)
-    let randomFeeLimit = Math.floor(feeLimit * (1 + Math.random() * 0.05)); // Add up to 5% random variance
-    randomFeeLimit = Math.max(randomFeeLimit, 1000000000); // Tron max fee is 1000000000 SUN (1000 TRX)
+    let feeLimit = gasLimit.mul(gasPrice).toNumber() * 1.5; // Add 50% buffer to feeLimit to avoid "Out of energy" errors
+    feeLimit = Math.max(feeLimit, 1000000000); // Tron max fee is 1000000000 SUN (1000 TRX);
     const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
 
     let tronTx: TronTransaction;
@@ -101,7 +99,7 @@ export class TronWallet extends Wallet {
         {
           abi: [],
           bytecode: strip0x(tx.data.toString()),
-          feeLimit: randomFeeLimit,
+          feeLimit,
           callValue,
           originEnergyLimit: gasLimit.toNumber(),
         },
@@ -114,7 +112,7 @@ export class TronWallet extends Wallet {
         tronHexTo,
         '', // Empty functionSelector since we pass raw encoded data via input
         {
-          feeLimit: randomFeeLimit,
+          feeLimit,
           callValue,
           input: strip0x(tx.data.toString()),
         },
