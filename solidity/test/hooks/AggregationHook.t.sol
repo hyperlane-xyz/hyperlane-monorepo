@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {Message} from "../../contracts/libs/Message.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {StaticAggregationHook} from "../../contracts/hooks/aggregation/StaticAggregationHook.sol";
 import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
@@ -151,6 +152,87 @@ contract AggregationHookTest is Test {
             hook.hookType(),
             uint8(IPostDispatchHook.HookTypes.AGGREGATION)
         );
+    }
+
+    function test_postDispatch_feeToken_forwardsZeroValue(uint8 _hooks) public {
+        uint256 fee = PER_HOOK_GAS_AMOUNT;
+        address[] memory hooksDeployed = deployHooks(_hooks, fee);
+
+        address feeToken = address(0xBEEF);
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            0,
+            address(this),
+            feeToken
+        );
+
+        // Each child should be called with {value: 0} when feeToken is set
+        for (uint256 i = 0; i < hooksDeployed.length; i++) {
+            vm.expectCall(
+                hooksDeployed[i],
+                0, // zero native value
+                abi.encodeCall(
+                    TestPostDispatchHook(hooksDeployed[i]).postDispatch,
+                    (metadata, "hello world")
+                )
+            );
+        }
+        hook.postDispatch{value: 0}(metadata, "hello world");
+    }
+
+    function test_postDispatch_feeToken_refundsNativeValue(
+        uint8 _hooks,
+        bytes calldata body
+    ) public {
+        uint256 fee = PER_HOOK_GAS_AMOUNT;
+        deployHooks(_hooks, fee);
+
+        address feeToken = address(0xBEEF);
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            0,
+            address(this),
+            feeToken
+        );
+
+        bytes memory message = Message.formatMessage(
+            1,
+            0,
+            1,
+            address(this).addressToBytes32(),
+            2,
+            address(this).addressToBytes32(),
+            body
+        );
+
+        uint256 nativeValue = 1 ether;
+        uint256 initialBalance = address(this).balance;
+
+        // Any native value sent should be fully refunded
+        hook.postDispatch{value: nativeValue}(metadata, message);
+
+        assertEq(address(hook).balance, 0);
+        assertEq(address(this).balance, initialBalance);
+    }
+
+    function test_quoteDispatch_feeToken_stillReturnsFeeSum(
+        uint8 _hooks
+    ) public {
+        uint256 fee = PER_HOOK_GAS_AMOUNT;
+        address[] memory hooksDeployed = deployHooks(_hooks, fee);
+
+        address feeToken = address(0xBEEF);
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            0,
+            address(this),
+            feeToken
+        );
+
+        // quoteDispatch should still return the sum of children's fees
+        // (denomination is determined by the metadata context)
+        uint256 totalQuote = hook.quoteDispatch(metadata, "hello world");
+        assertEq(totalQuote, hooksDeployed.length * fee);
     }
 
     receive() external payable {}

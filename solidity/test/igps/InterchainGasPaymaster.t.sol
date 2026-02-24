@@ -759,6 +759,38 @@ contract InterchainGasPaymasterTest is Test {
         igp.postDispatch{value: 0}(metadata, testEncodedMessage);
     }
 
+    function testPostDispatch_withTokenFee_reverts_nativeValueSent() public {
+        setTokenRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+
+        uint256 totalGas = igp.destinationGasLimit(
+            testDestinationDomain,
+            testGasLimit
+        );
+        uint256 quote = igp.quoteGasPayment(
+            address(feeToken),
+            testDestinationDomain,
+            totalGas
+        );
+
+        // Approve IGP to spend fee tokens
+        feeToken.approve(address(igp), quote);
+
+        bytes memory metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            testGasLimit,
+            testRefundAddress,
+            address(feeToken)
+        );
+
+        // Sending msg.value alongside ERC20 fee should revert
+        vm.expectRevert("IGP: native value not accepted with ERC20 fee");
+        igp.postDispatch{value: 1}(metadata, testEncodedMessage);
+    }
+
     function testQuoteDispatch_withTokenFee() public {
         setTokenRemoteGasData(
             testDestinationDomain,
