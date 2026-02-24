@@ -1,7 +1,7 @@
 import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
-import { providers } from 'ethers';
+import { Networkish, Provider } from 'ethers';
 import { RpcProvider as StarknetRpcProvider } from 'starknet';
 import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
@@ -151,7 +151,7 @@ export function defaultStarknetJsProviderBuilder(
 
 export function defaultZKSyncProviderBuilder(
   rpcUrls: RpcUrl[],
-  network: providers.Networkish,
+  network: Networkish,
 ): ZKSyncProvider {
   assert(rpcUrls.length, 'No RPC URLs provided');
   const url = rpcUrls[0].http;
@@ -210,7 +210,7 @@ export function defaultTronProviderBuilder(
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
-): providers.Provider {
+): Provider {
   return defaultEthersV5ProviderBuilder(rpcUrls, _network).provider;
 }
 

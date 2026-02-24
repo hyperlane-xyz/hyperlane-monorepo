@@ -17,7 +17,6 @@ module.exports = {
   typechain: {
     outDir: './src/types',
     target: 'ethers-v6',
-    alwaysGenerateOverloads: true,
     node16Modules: true,
     tsNocheck: true,
   },

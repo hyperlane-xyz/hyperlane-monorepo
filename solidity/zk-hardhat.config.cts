@@ -1,5 +1,4 @@
 import '@matterlabs/hardhat-zksync-solc';
-import '@nomicfoundation/hardhat-foundry';
 import '@nomicfoundation/hardhat-ethers';
 import 'hardhat-ignore-warnings';
 

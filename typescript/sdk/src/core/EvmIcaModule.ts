@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ZeroHash } from 'ethers';
 
 import {
   IERC20__factory,
@@ -163,7 +163,7 @@ export class EvmIcaModule extends HyperlaneModule<
     for (const domainId of routesToEnroll) {
       domainsToEnroll.push(domainId);
       remoteDomainIca.push(addressToBytes32(expectedConfig[domainId].address));
-      remoteIsm.push(ethers.utils.hexZeroPad('0x', 32));
+      remoteIsm.push(ZeroHash);
     }
 
     const remoteTransactions: AnnotatedEV5Transaction[] = domainsToEnroll.map(
@@ -172,7 +172,7 @@ export class EvmIcaModule extends HyperlaneModule<
         chainId: this.multiProvider.getEvmChainId(domainId),
         to: expectedConfig[domainId].address,
         data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
-          'enrollRemoteRouter(uint32,bytes32)',
+          'enrollRemoteRouter',
           [
             this.domainId,
             addressToBytes32(this.args.addresses.interchainAccountRouter),
@@ -186,7 +186,7 @@ export class EvmIcaModule extends HyperlaneModule<
       chainId: this.chainId,
       to: this.args.addresses.interchainAccountRouter,
       data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
-        'enrollRemoteRouterAndIsms(uint32[],bytes32[],bytes32[])',
+        'enrollRemoteRouterAndIsms',
         [domainsToEnroll, remoteDomainIca, remoteIsm],
       ),
     });
@@ -222,7 +222,7 @@ export class EvmIcaModule extends HyperlaneModule<
       chainId: this.chainId,
       to: this.args.addresses.interchainAccountRouter,
       data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
-        'unenrollRemoteRouters(uint32[])',
+        'unenrollRemoteRouters',
         [routesToUnenroll],
       ),
     });
@@ -233,7 +233,7 @@ export class EvmIcaModule extends HyperlaneModule<
         chainId: this.multiProvider.getEvmChainId(domainId),
         to: bytes32ToAddress(actualConfig[domainId].address),
         data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
-          'unenrollRemoteRouter(uint32)',
+          'unenrollRemoteRouter',
           [this.domainId],
         ),
       }),
