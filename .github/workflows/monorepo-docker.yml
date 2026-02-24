@@ -2,6 +2,25 @@ name: Build and Push Monorepo Image to GCR
 on:
   push:
     branches: [main]
+    paths:
+      # Dockerfile and build config
+      - 'Dockerfile'
+      - 'docker-entrypoint.sh'
+      - '.dockerignore'
+      - '.github/workflows/monorepo-docker.yml'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.registryrc'
+      - 'solidity/.foundryrc'
+      - 'turbo.json'
+      - 'package.json'
+      - 'patches/**'
+      # Source directories COPYd into the image
+      - 'typescript/**'
+      - 'solidity/**'
+      - 'solhint-plugin/**'
+      - 'starknet/**'
+    # Tag pushes always build (no paths filter — tags have no changed-file set)
     tags:
       - '**'
   pull_request:
