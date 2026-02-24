@@ -111,13 +111,10 @@ export class CosmosCollateralTokenWriter
     const signerAddress = this.signer.getSignerAddress();
 
     // Create collateral token
-    const createTx = getCreateCollateralTokenTx(
-      signerAddress,
-      {
-        mailboxAddress: config.mailbox,
-        collateralDenom: config.token,
-      },
-    );
+    const createTx = getCreateCollateralTokenTx(signerAddress, {
+      mailboxAddress: config.mailbox,
+      collateralDenom: config.token,
+    });
 
     const createReceipt = await this.signer
       .sendAndConfirmTransaction(createTx)
