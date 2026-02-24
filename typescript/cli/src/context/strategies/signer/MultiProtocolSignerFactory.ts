@@ -5,7 +5,8 @@ import {
   ChainTechnicalStack,
   type MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { TronWallet } from '@hyperlane-xyz/tron-sdk';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   BaseMultiProtocolSigner,
@@ -31,11 +32,16 @@ class EvmSignerStrategy extends BaseMultiProtocolSigner {
   async getSigner(config: SignerConfig): Promise<Signer> {
     const { privateKey } = await this.getPrivateKey(config);
 
-    const { technicalStack } = this.multiProtocolProvider.getChainMetadata(
-      config.chain,
-    );
+    const { technicalStack, rpcUrls } =
+      this.multiProtocolProvider.getChainMetadata(config.chain);
+
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       return new ZKSyncWallet(privateKey);
+    }
+
+    if (technicalStack === ChainTechnicalStack.Tron) {
+      assert(rpcUrls.length > 0, `No RPC URLs for Tron chain ${config.chain}`);
+      return new TronWallet(privateKey, rpcUrls[0].http);
     }
 
     return new Wallet(privateKey);

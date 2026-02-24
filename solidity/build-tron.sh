@@ -35,7 +35,7 @@ trap restore_files EXIT
 backup_files
 
 # Patch Create2.sol with Tron-specific version (0x41 prefix)
-cp overwrites/tron/Create2.sol "$OZ_CREATE2"
+cp overrides/tron/Create2.sol "$OZ_CREATE2"
 
 # Patch isContract() calls → address.code.length > 0
 # Uses Node script to handle nested parentheses correctly

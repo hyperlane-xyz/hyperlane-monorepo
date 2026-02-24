@@ -8,3 +8,5 @@ re-use
 superseed
 pris
 towords
+tre
+copys
