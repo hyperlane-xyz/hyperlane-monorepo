@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
@@ -21,8 +20,11 @@ import {
   MonitorPollingError,
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
-import type { IRebalancer, RebalanceRoute } from '../interfaces/IRebalancer.js';
-import type { IStrategy } from '../interfaces/IStrategy.js';
+import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  IStrategy,
+  MovableCollateralRoute,
+} from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { Monitor } from '../monitor/Monitor.js';
 
@@ -168,15 +170,6 @@ export class RebalancerService {
     // Create strategy
     this.strategy = await this.contextFactory.createStrategy(this.metrics);
 
-    // Create rebalancer (unless in monitor-only mode)
-    if (!this.config.monitorOnly) {
-      this.rebalancer = this.contextFactory.createRebalancer(this.metrics);
-    } else {
-      this.logger.warn(
-        'Running in monitorOnly mode: no transactions will be executed.',
-      );
-    }
-
     // Create or use provided ActionTracker for tracking inflight actions
     if (this.config.actionTracker) {
       // Use externally provided ActionTracker (e.g., for simulation/testing)
@@ -196,17 +189,27 @@ export class RebalancerService {
       this.logger.info('ActionTracker initialized');
     }
 
+    // Create rebalancer (unless in monitor-only mode)
+    if (!this.config.monitorOnly) {
+      this.rebalancer = this.contextFactory.createRebalancer(
+        this.actionTracker!,
+        this.metrics,
+      );
+    } else {
+      this.logger.warn(
+        'Running in monitorOnly mode: no transactions will be executed.',
+      );
+    }
+
     this.orchestrator = new RebalancerOrchestrator({
       strategy: this.strategy!,
-      rebalancer: this.rebalancer,
+      rebalancers: this.rebalancer ? [this.rebalancer] : [],
       actionTracker: this.actionTracker,
       inflightContextAdapter: this.inflightContextAdapter,
-      multiProvider: this.multiProvider,
       rebalancerConfig: this.rebalancerConfig,
       logger: this.logger,
       metrics: this.metrics,
     });
-
     this.logger.info(
       {
         warpRouteId: this.rebalancerConfig.warpRouteId,
@@ -266,11 +269,11 @@ export class RebalancerService {
       originConfig.override?.[destination]?.bridge ?? originConfig.bridge;
 
     try {
-      const route: RebalanceRoute = {
-        intentId: randomUUID(),
+      const route: MovableCollateralRoute = {
         origin,
         destination,
         amount: BigInt(toWei(amount, originToken.decimals)),
+        executionType: 'movableCollateral',
         bridge,
       };
       await this.rebalancer.rebalance([route]);

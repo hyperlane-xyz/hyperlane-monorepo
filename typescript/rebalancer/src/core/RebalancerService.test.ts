@@ -10,7 +10,10 @@ import { RebalancerStrategyOptions } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import { MonitorEventType } from '../interfaces/IMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
-import type { IStrategy } from '../interfaces/IStrategy.js';
+import type {
+  IStrategy,
+  MovableCollateralRoute,
+} from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { TEST_ADDRESSES, getTestAddress } from '../test/helpers.js';
@@ -52,7 +55,10 @@ function createMockRebalancerConfig(): RebalancerConfig {
 function createMockMultiProvider(): MultiProvider {
   return {
     getDomainId: Sinon.stub().callsFake((chain: string) => {
-      const domains: Record<string, number> = { ethereum: 1, arbitrum: 42161 };
+      const domains: Record<string, number> = {
+        ethereum: 1,
+        arbitrum: 42161,
+      };
       return domains[chain] ?? 0;
     }),
     getSigner: Sinon.stub().returns({
@@ -85,6 +91,7 @@ function createMockWarpCore(): WarpCore {
 
 function createMockRebalancer(): IRebalancer & { rebalance: Sinon.SinonStub } {
   return {
+    rebalancerType: 'movableCollateral',
     rebalance: Sinon.stub().resolves([]),
   };
 }
@@ -233,7 +240,15 @@ async function setupDaemonTest(
   rebalancer.rebalance.resolves(options.rebalanceResults);
 
   const strategy = createMockStrategy();
-  strategy.getRebalancingRoutes.returns(options.strategyRoutes);
+  strategy.getRebalancingRoutes.returns(
+    options.strategyRoutes.map(
+      (route) =>
+        ({
+          ...route,
+          executionType: 'movableCollateral',
+        }) as MovableCollateralRoute,
+    ),
+  );
 
   const inflightAdapter = createMockInflightContextAdapter();
 
@@ -300,7 +315,11 @@ describe('RebalancerService', () => {
       const rebalancer = createMockRebalancer();
       rebalancer.rebalance.resolves([
         {
-          route: { origin: 'ethereum', destination: 'arbitrum', amount: 1000n },
+          route: {
+            origin: 'ethereum',
+            destination: 'arbitrum',
+            amount: 1000n,
+          },
           success: true,
           messageId:
             '0x1111111111111111111111111111111111111111111111111111111111111111',
@@ -634,6 +653,7 @@ describe('RebalancerService', () => {
           origin: 'ethereum',
           destination: 'arbitrum',
           amount: 1000n,
+          executionType: 'movableCollateral',
           bridge: TEST_ADDRESSES.bridge,
         },
       ]);
@@ -726,6 +746,7 @@ describe('RebalancerService', () => {
           origin: 'ethereum',
           destination: 'arbitrum',
           amount: 1000n,
+          executionType: 'movableCollateral',
           bridge: TEST_ADDRESSES.bridge,
         },
       ]);
@@ -793,7 +814,7 @@ describe('RebalancerService', () => {
       expect(recordRebalancerFailure.called).to.be.false;
     });
 
-    it('should record failure metric when rebalance has mixed results', async () => {
+    it('should record both success and failure metrics for mixed results', async () => {
       const rebalancer = createMockRebalancer();
       rebalancer.rebalance.resolves([
         {
@@ -829,12 +850,14 @@ describe('RebalancerService', () => {
           origin: 'ethereum',
           destination: 'arbitrum',
           amount: 1000n,
+          executionType: 'movableCollateral',
           bridge: TEST_ADDRESSES.bridge,
         },
         {
           origin: 'arbitrum',
           destination: 'ethereum',
           amount: 500n,
+          executionType: 'movableCollateral',
           bridge: TEST_ADDRESSES.bridge,
         },
       ]);
@@ -899,12 +922,12 @@ describe('RebalancerService', () => {
       });
 
       expect(recordRebalancerFailure.calledOnce).to.be.true;
-      expect(recordRebalancerSuccess.called).to.be.false;
+      expect(recordRebalancerSuccess.calledOnce).to.be.true;
     });
   });
 
   describe('daemon mode intent tracking', () => {
-    it('should call failRebalanceIntent with correct intentId when route fails', async () => {
+    it('should delegate intent failure tracking to the concrete rebalancer', async () => {
       const { actionTracker, triggerCycle } = await setupDaemonTest(sandbox, {
         intentIds: ['intent-123'],
         rebalanceResults: [
@@ -932,16 +955,11 @@ describe('RebalancerService', () => {
 
       await triggerCycle();
 
-      expect((actionTracker.failRebalanceIntent as Sinon.SinonStub).calledOnce)
-        .to.be.true;
-      expect(
-        (actionTracker.failRebalanceIntent as Sinon.SinonStub).calledWith(
-          'intent-123',
-        ),
-      ).to.be.true;
+      expect((actionTracker.failRebalanceIntent as Sinon.SinonStub).called).to
+        .be.false;
     });
 
-    it('should call createRebalanceAction with correct intentId when route succeeds', async () => {
+    it('should delegate action creation tracking to the concrete rebalancer', async () => {
       const { actionTracker, triggerCycle } = await setupDaemonTest(sandbox, {
         intentIds: ['intent-456'],
         rebalanceResults: [
@@ -972,15 +990,11 @@ describe('RebalancerService', () => {
 
       await triggerCycle();
 
-      expect(
-        (actionTracker.createRebalanceAction as Sinon.SinonStub).calledOnce,
-      ).to.be.true;
-      const callArgs = (actionTracker.createRebalanceAction as Sinon.SinonStub)
-        .firstCall.args[0];
-      expect(callArgs.intentId).to.equal('intent-456');
+      expect((actionTracker.createRebalanceAction as Sinon.SinonStub).called).to
+        .be.false;
     });
 
-    it('should handle mixed success/failure results with correct intent mapping', async () => {
+    it('should not directly map intent IDs in the service layer', async () => {
       const { actionTracker, triggerCycle } = await setupDaemonTest(sandbox, {
         intentIds: ['intent-1', 'intent-2'],
         rebalanceResults: [
@@ -1028,26 +1042,13 @@ describe('RebalancerService', () => {
 
       await triggerCycle();
 
-      // Verify createRebalanceAction called for intent-1 (success)
-      expect(
-        (actionTracker.createRebalanceAction as Sinon.SinonStub).calledOnce,
-      ).to.be.true;
-      expect(
-        (actionTracker.createRebalanceAction as Sinon.SinonStub).firstCall
-          .args[0].intentId,
-      ).to.equal('intent-1');
-
-      // Verify failRebalanceIntent called for intent-2 (failure)
-      expect((actionTracker.failRebalanceIntent as Sinon.SinonStub).calledOnce)
-        .to.be.true;
-      expect(
-        (actionTracker.failRebalanceIntent as Sinon.SinonStub).calledWith(
-          'intent-2',
-        ),
-      ).to.be.true;
+      expect((actionTracker.createRebalanceAction as Sinon.SinonStub).called).to
+        .be.false;
+      expect((actionTracker.failRebalanceIntent as Sinon.SinonStub).called).to
+        .be.false;
     });
 
-    it('should assign intentId from createRebalanceIntent to route before calling rebalancer', async () => {
+    it('should pass normalized strategy routes directly to rebalancer', async () => {
       const { rebalancer, triggerCycle } = await setupDaemonTest(sandbox, {
         intentIds: ['generated-intent-id'],
         rebalanceResults: [
@@ -1076,12 +1077,12 @@ describe('RebalancerService', () => {
 
       await triggerCycle();
 
-      // Verify rebalancer.rebalance was called with routes that have intentId
       expect(rebalancer.rebalance.calledOnce).to.be.true;
       const routesPassedToRebalancer = rebalancer.rebalance.firstCall.args[0];
       expect(routesPassedToRebalancer).to.have.lengthOf(1);
-      expect(routesPassedToRebalancer[0].intentId).to.equal(
-        'generated-intent-id',
+      expect(routesPassedToRebalancer[0].intentId).to.be.undefined;
+      expect(routesPassedToRebalancer[0].executionType).to.equal(
+        'movableCollateral',
       );
     });
   });
