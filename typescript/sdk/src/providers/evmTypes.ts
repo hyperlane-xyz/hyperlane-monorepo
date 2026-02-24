@@ -5,9 +5,7 @@ export type EvmTransactionLike = {
   value?: unknown;
 } & Record<string, unknown>;
 
-export type EvmPopulatedTransaction = EvmTransactionLike;
 export type EvmTransactionOverrides = Record<string, unknown>;
-export type PopulatedTxLike = EvmPopulatedTransaction;
 
 export type EvmGasAmount = bigint | { toString(): string };
 
@@ -19,17 +17,15 @@ export type EvmTransactionReceiptLike = {
   status?: number | string;
   logs?: unknown[];
 } & Record<string, unknown>;
-export type TxReceiptLike = EvmTransactionReceiptLike;
 
 export type EvmTransactionResponseLike = {
   hash: string;
   data?: string;
   wait(confirmations?: number): Promise<EvmTransactionReceiptLike | null>;
 } & Record<string, unknown>;
-export type TxResponseLike = EvmTransactionResponseLike;
 
 export interface EvmProviderLike {
-  estimateGas(transaction: EvmPopulatedTransaction): Promise<EvmGasAmount>;
+  estimateGas(transaction: EvmTransactionLike): Promise<EvmGasAmount>;
   getBlock(blockTag: string | number): Promise<EvmBlockLike | null>;
   getBalance(address: string, blockTag?: string | number): Promise<unknown>;
   getBlockNumber(): Promise<number>;
@@ -45,7 +41,7 @@ export interface EvmProviderLike {
   getLogs(filter: Record<string, unknown>): Promise<Record<string, unknown>[]>;
   getFeeData(): Promise<Record<string, unknown>>;
   call(
-    transaction: EvmPopulatedTransaction,
+    transaction: EvmTransactionLike,
     blockTag?: string | number,
   ): Promise<string>;
   getTransaction(
@@ -66,9 +62,9 @@ export interface EvmSignerLike {
   provider?: EvmProviderLike;
   connect(provider: EvmProviderLike): EvmSignerLike;
   getAddress(): Promise<string>;
-  estimateGas(transaction: EvmPopulatedTransaction): Promise<EvmGasAmount>;
+  estimateGas(transaction: EvmTransactionLike): Promise<EvmGasAmount>;
   sendTransaction(
-    transaction: EvmPopulatedTransaction,
+    transaction: EvmTransactionLike,
   ): Promise<EvmTransactionResponseLike>;
   getBalance(): Promise<unknown>;
 }

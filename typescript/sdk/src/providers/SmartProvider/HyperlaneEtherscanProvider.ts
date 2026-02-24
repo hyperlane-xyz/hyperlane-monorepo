@@ -15,7 +15,7 @@ type EtherscanFilter = {
   address?: string;
   topics?: Array<string | null>;
 };
-type EtherscanRequestParams = Record<string, string | number>;
+type EtherscanRequestParams = Record<string, string>;
 type EtherscanResponseLike = {
   status?: string;
   message?: string;
@@ -55,12 +55,12 @@ export class HyperlaneEtherscanProvider implements IProviderMethods {
   }
 
   getUrl(module: string, params: EtherscanRequestParams): string {
-    const combinedParams = Object.fromEntries(
-      Object.entries(params).filter(([k, v]) => !!k && v !== undefined),
-    ) as EtherscanRequestParams;
-    combinedParams['module'] = module;
-    if (this.apiKey) combinedParams['apikey'] = this.apiKey;
-    const parsedParams = new URLSearchParams(toStringParams(combinedParams));
+    const combinedParams: EtherscanRequestParams = {
+      ...params,
+      module,
+      ...(this.apiKey ? { apikey: this.apiKey } : {}),
+    };
+    const parsedParams = new URLSearchParams(combinedParams);
     return `${this.getBaseUrl()}/api?${parsedParams.toString()}`;
   }
 
@@ -103,11 +103,11 @@ export class HyperlaneEtherscanProvider implements IProviderMethods {
       post
         ? {
             method: 'POST',
-            body: new URLSearchParams(toStringParams(params)),
+            body: new URLSearchParams(params),
           }
         : undefined,
     );
-    const json = (await response.json()) as EtherscanResponseLike;
+    const json = parseEtherscanResponse(await response.json());
     if (json.status === '0' && json.message !== 'No records found') {
       throw new Error(
         `Etherscan request failed: ${json.result ?? json.message ?? 'Unknown error'}`,
@@ -138,9 +138,9 @@ export class HyperlaneEtherscanProvider implements IProviderMethods {
   async performGetLogs(params: EtherscanGetLogsParams): Promise<unknown> {
     const args: EtherscanRequestParams = { action: 'getLogs' };
     if (params.filter.fromBlock)
-      args.fromBlock = checkLogTag(params.filter.fromBlock);
+      args.fromBlock = String(checkLogTag(params.filter.fromBlock));
     if (params.filter.toBlock)
-      args.toBlock = checkLogTag(params.filter.toBlock);
+      args.toBlock = String(checkLogTag(params.filter.toBlock));
     if (params.filter.address) args.address = params.filter.address;
     const topics = params.filter.topics;
     if (topics?.length) {
@@ -160,24 +160,50 @@ export class HyperlaneEtherscanProvider implements IProviderMethods {
 }
 
 function toGetLogsParams(params: unknown): EtherscanGetLogsParams {
-  if (
-    params &&
-    typeof params === 'object' &&
-    'filter' in params &&
-    params.filter &&
-    typeof params.filter === 'object'
-  ) {
-    return params as EtherscanGetLogsParams;
+  if (!params || typeof params !== 'object') {
+    throw new Error('Invalid getLogs params');
   }
-  throw new Error('Invalid getLogs params');
+  const paramsRecord = params as Record<string, unknown>;
+  const filter = paramsRecord.filter;
+  if (!filter || typeof filter !== 'object') {
+    throw new Error('Invalid getLogs params');
+  }
+  const filterRecord = filter as Record<string, unknown>;
+  return {
+    filter: {
+      fromBlock:
+        typeof filterRecord.fromBlock === 'number' ||
+        typeof filterRecord.fromBlock === 'string'
+          ? filterRecord.fromBlock
+          : undefined,
+      toBlock:
+        typeof filterRecord.toBlock === 'number' ||
+        typeof filterRecord.toBlock === 'string'
+          ? filterRecord.toBlock
+          : undefined,
+      address:
+        typeof filterRecord.address === 'string'
+          ? filterRecord.address
+          : undefined,
+      topics: Array.isArray(filterRecord.topics)
+        ? filterRecord.topics.filter(
+            (t): t is string | null => t === null || typeof t === 'string',
+          )
+        : undefined,
+    },
+  };
 }
 
-function toStringParams(
-  params: EtherscanRequestParams,
-): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(params).map(([k, v]) => [k, String(v)]),
-  );
+function parseEtherscanResponse(value: unknown): EtherscanResponseLike {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  const record = value as Record<string, unknown>;
+  return {
+    status: typeof record.status === 'string' ? record.status : undefined,
+    message: typeof record.message === 'string' ? record.message : undefined,
+    result: record.result,
+  };
 }
 
 // From ethers/providers/src.ts/providers/etherscan-provider.ts
