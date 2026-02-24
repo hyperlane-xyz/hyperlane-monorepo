@@ -206,7 +206,7 @@ export type RawWarpArtifactConfig = RawWarpArtifactConfigs[WarpType];
  * Describes the configuration of deployed Warp artifact without nested config expansion
  */
 export type DeployedRawWarpArtifact = ArtifactDeployed<
-  ConfigOnChain<RawWarpArtifactConfig>,
+  RawWarpArtifactConfig,
   DeployedWarpAddress
 >;
 
@@ -240,6 +240,7 @@ export interface IRawWarpArtifactManager extends IArtifactManager<
  * @param config The warp configuration using Config API format
  * @param chainLookup Chain lookup interface for resolving chain names to domain IDs
  * @param ismArtifact Optional ISM artifact if ISM is configured
+ * @param hookArtifact Optional hook artifact if hook is configured
  * @param logger Logger for warnings
  * @returns Artifact wrapper around WarpArtifactConfig suitable for artifact writers
  */
@@ -247,6 +248,7 @@ export function warpConfigToArtifact(
   config: WarpConfig,
   chainLookup: ChainLookup,
   ismArtifact?: Artifact<IsmArtifactConfig, DeployedIsmAddress>,
+  hookArtifact?: Artifact<HookArtifactConfig, DeployedHookAddress>,
   logger?: Logger,
 ): ArtifactNew<WarpArtifactConfig> {
   // Convert remoteRouters from chain names to domain IDs
@@ -281,10 +283,25 @@ export function warpConfigToArtifact(
     }
   }
 
+  if (!isNullish(config.interchainSecurityModule)) {
+    assert(
+      !isNullish(ismArtifact),
+      'Expected ISM artifact when interchainSecurityModule is configured',
+    );
+  }
+
+  if (!isNullish(config.hook)) {
+    assert(
+      !isNullish(hookArtifact),
+      'Expected hook artifact when hook is configured',
+    );
+  }
+
   const baseArtifactConfig = {
     owner: config.owner,
     mailbox: config.mailbox,
     interchainSecurityModule: ismArtifact,
+    hook: hookArtifact,
     remoteRouters,
     destinationGas,
   };
