@@ -45,6 +45,7 @@ describe('Radix Warp Tokens (e2e)', function () {
 
   const DOMAIN_1 = 42;
   const DOMAIN_2 = 96;
+  const ZERO_ADDRESS = '0000000000000000000000000000000000000000';
 
   before(async () => {
     const rpcUrls =
@@ -617,7 +618,6 @@ describe('Radix Warp Tokens (e2e)', function () {
             .true;
 
           // Update to zero address (should unset ISM)
-          const zeroAddress = '0000000000000000000000000000000000000000';
           const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
             ...deployedToken,
             config: {
@@ -625,7 +625,7 @@ describe('Radix Warp Tokens (e2e)', function () {
               interchainSecurityModule: {
                 artifactState: ArtifactState.UNDERIVED,
                 deployed: {
-                  address: zeroAddress,
+                  address: ZERO_ADDRESS,
                 },
               },
             },
@@ -662,7 +662,7 @@ describe('Radix Warp Tokens (e2e)', function () {
               interchainSecurityModule: {
                 artifactState: ArtifactState.UNDERIVED,
                 deployed: {
-                  address: '0x0000000000000000000000000000000000000000',
+                  address: ZERO_ADDRESS,
                 },
               },
             },
