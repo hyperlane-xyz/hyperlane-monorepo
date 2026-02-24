@@ -22,25 +22,27 @@ import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
+  EvmDeployableContractLike,
+  EvmGasAmount,
+  EvmPopulatedTransaction,
+  EvmProviderLike,
+  EvmSignerLike,
+  EvmTransactionReceiptLike,
+  EvmTransactionResponseLike,
+  EvmTransactionOverrides,
+} from './evmTypes.js';
+import {
   ProviderBuilderFn,
   defaultProviderBuilder,
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = any;
-type EvmSigner = any;
-type ContractTransaction = any;
-type ContractReceipt = any;
-type PopulatedTransaction = Record<string, unknown>;
-type TransactionOverrides = Record<string, unknown>;
-type GasAmount = any;
-type DeployableContract = any;
-type DeployFactory = {
-  connect(signer: EvmSigner): {
+type DeployFactory<TContract = unknown> = {
+  connect(signer: EvmSignerLike): {
     getDeployTransaction(
       ...params: readonly unknown[]
-    ): PopulatedTransaction | Promise<PopulatedTransaction>;
-    deploy(...params: readonly unknown[]): Promise<DeployableContract>;
+    ): EvmPopulatedTransaction | Promise<EvmPopulatedTransaction>;
+    deploy(...params: readonly unknown[]): Promise<TContract>;
   };
 };
 
@@ -49,9 +51,9 @@ const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
 
 export interface MultiProviderOptions {
   logger?: Logger;
-  providers?: ChainMap<Provider>;
-  providerBuilder?: ProviderBuilderFn<Provider>;
-  signers?: ChainMap<EvmSigner>;
+  providers?: ChainMap<EvmProviderLike>;
+  providerBuilder?: ProviderBuilderFn<EvmProviderLike>;
+  signers?: ChainMap<EvmSignerLike>;
 }
 
 export interface SendTransactionOptions {
@@ -72,9 +74,9 @@ export interface SendTransactionOptions {
  * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
  */
 export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
-  readonly providers: ChainMap<Provider>;
-  readonly providerBuilder: ProviderBuilderFn<Provider>;
-  signers: ChainMap<EvmSigner>;
+  readonly providers: ChainMap<EvmProviderLike>;
+  readonly providerBuilder: ProviderBuilderFn<EvmProviderLike>;
+  signers: ChainMap<EvmSignerLike>;
   useSharedSigner = false; // A single signer to be used for all chains
   readonly logger: Logger;
 
@@ -117,7 +119,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   /**
    * Get an Ethers provider for a given chain name or domain id
    */
-  tryGetProvider(chainNameOrId: ChainNameOrId): Provider | null {
+  tryGetProvider(chainNameOrId: ChainNameOrId): EvmProviderLike | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
     const { name, chainId, rpcUrls, technicalStack } = metadata;
@@ -157,7 +159,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get an Ethers provider for a given chain name or domain id
    * @throws if chain's metadata has not been set
    */
-  getProvider(chainNameOrId: ChainNameOrId): Provider {
+  getProvider(chainNameOrId: ChainNameOrId): EvmProviderLike {
     const provider = this.tryGetProvider(chainNameOrId);
     if (!provider)
       throw new Error(`No chain metadata set for ${chainNameOrId}`);
@@ -168,7 +170,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Sets an Ethers provider for a given chain name or domain id
    * @throws if chain's metadata has not been set
    */
-  setProvider(chainNameOrId: ChainNameOrId, provider: Provider): Provider {
+  setProvider(
+    chainNameOrId: ChainNameOrId,
+    provider: EvmProviderLike,
+  ): EvmProviderLike {
     const chainName = this.getChainName(chainNameOrId);
     this.providers[chainName] = provider;
     const signer = this.signers[chainName];
@@ -182,7 +187,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Sets Ethers providers for a set of chains
    * @throws if chain's metadata has not been set
    */
-  setProviders(providers: ChainMap<Provider>): void {
+  setProviders(providers: ChainMap<EvmProviderLike>): void {
     for (const chain of Object.keys(providers)) {
       const chainName = this.getChainName(chain);
       this.providers[chainName] = providers[chain];
@@ -193,7 +198,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get an Ethers signer for a given chain name or domain id
    * If signer is not yet connected, it will be connected
    */
-  tryGetSigner(chainNameOrId: ChainNameOrId): EvmSigner | null {
+  tryGetSigner(chainNameOrId: ChainNameOrId): EvmSignerLike | null {
     const chainName = this.tryGetChainName(chainNameOrId);
     if (!chainName) return null;
     const signer = this.signers[chainName];
@@ -210,7 +215,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * If signer is not yet connected, it will be connected
    * @throws if chain's metadata or signer has not been set
    */
-  getSigner(chainNameOrId: ChainNameOrId): EvmSigner {
+  getSigner(chainNameOrId: ChainNameOrId): EvmSignerLike {
     const signer = this.tryGetSigner(chainNameOrId);
     if (!signer) throw new Error(`No chain signer set for ${chainNameOrId}`);
     return signer;
@@ -230,7 +235,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Sets an Ethers Signer for a given chain name or domain id
    * @throws if chain's metadata has not been set or shared signer has already been set
    */
-  setSigner(chainNameOrId: ChainNameOrId, signer: EvmSigner): EvmSigner {
+  setSigner(
+    chainNameOrId: ChainNameOrId,
+    signer: EvmSignerLike,
+  ): EvmSignerLike {
     if (this.useSharedSigner) {
       throw new Error('MultiProvider already set to use a shared signer');
     }
@@ -246,7 +254,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Sets Ethers Signers for a set of chains
    * @throws if chain's metadata has not been set or shared signer has already been set
    */
-  setSigners(signers: ChainMap<EvmSigner>): void {
+  setSigners(signers: ChainMap<EvmSignerLike>): void {
     if (this.useSharedSigner) {
       throw new Error('MultiProvider already set to use a shared signer');
     }
@@ -261,7 +269,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   tryGetSignerOrProvider(
     chainNameOrId: ChainNameOrId,
-  ): EvmSigner | Provider | null {
+  ): EvmSignerLike | EvmProviderLike | null {
     return (
       this.tryGetSigner(chainNameOrId) || this.tryGetProvider(chainNameOrId)
     );
@@ -271,7 +279,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Gets the Signer if it's been set, otherwise the provider
    * @throws if chain metadata has not been set
    */
-  getSignerOrProvider(chainNameOrId: ChainNameOrId): EvmSigner | Provider {
+  getSignerOrProvider(
+    chainNameOrId: ChainNameOrId,
+  ): EvmSignerLike | EvmProviderLike {
     return this.tryGetSigner(chainNameOrId) || this.getProvider(chainNameOrId);
   }
 
@@ -280,7 +290,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Any subsequent calls to getSigner will return given signer
    * Setting sharedSigner to null clears all signers
    */
-  setSharedSigner(sharedSigner: EvmSigner | null): EvmSigner | null {
+  setSharedSigner(sharedSigner: EvmSignerLike | null): EvmSignerLike | null {
     if (!sharedSigner) {
       this.useSharedSigner = false;
       this.signers = {};
@@ -337,6 +347,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     rangeSize = this.getMaxBlockRange(chainNameOrId),
   ): Promise<{ fromBlock: number; toBlock: number }> {
     const toBlock = await this.getProvider(chainNameOrId).getBlock('latest');
+    assert(toBlock, `Unable to fetch latest block for ${chainNameOrId}`);
     const fromBlock = Math.max(toBlock.number - rangeSize, 0);
     return { fromBlock, toBlock: toBlock.number };
   }
@@ -345,10 +356,12 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get the transaction overrides for a given chain name or domain id
    * @throws if chain's metadata has not been set
    */
-  getTransactionOverrides(chainNameOrId: ChainNameOrId): TransactionOverrides {
+  getTransactionOverrides(
+    chainNameOrId: ChainNameOrId,
+  ): EvmTransactionOverrides {
     return (
       (this.getChainMetadata(chainNameOrId)?.transactionOverrides as
-        | TransactionOverrides
+        | EvmTransactionOverrides
         | undefined) ?? {}
     );
   }
@@ -357,19 +370,19 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Wait for deploy tx to be confirmed
    * @throws if chain's metadata or signer has not been set or tx fails
    */
-  async handleDeploy(
+  async handleDeploy<TContract>(
     chainNameOrId: ChainNameOrId,
-    factory: DeployFactory,
+    factory: DeployFactory<TContract>,
     params: readonly unknown[],
     artifact?: ZKSyncArtifact,
-  ): Promise<DeployableContract> {
+  ): Promise<TContract> {
     const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
     const metadata = this.getChainMetadata(chainNameOrId);
     const { technicalStack } = metadata;
 
-    let contract: DeployableContract;
-    let estimatedGas: GasAmount;
+    let contract: TContract;
+    let estimatedGas: EvmGasAmount;
 
     // estimate gas for deploy
     // deploy with buffer on gas limit
@@ -389,27 +402,38 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         ...params,
         deploymentOverrides,
       );
-      estimatedGas = await signer.estimateGas(deployTx);
+      estimatedGas = await signer.estimateGas(await deployTx);
       contract = await contractFactory.deploy(...params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...deploymentOverrides,
       });
-      await this.handleTx(chainNameOrId, contract.deployTransaction);
+      const deployableContract = contract as EvmDeployableContractLike;
+      assert(
+        deployableContract.deployTransaction,
+        'Deploy transaction missing',
+      );
+      await this.handleTx(chainNameOrId, deployableContract.deployTransaction);
     } else {
       const contractFactory = factory.connect(signer);
       const deployTx = contractFactory.getDeployTransaction(...params);
-      estimatedGas = await signer.estimateGas(deployTx);
+      estimatedGas = await signer.estimateGas(await deployTx);
       contract = await contractFactory.deploy(...params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
       // manually wait for deploy tx to be confirmed for non-zksync chains
-      await this.handleTx(chainNameOrId, contract.deployTransaction);
+      const deployableContract = contract as EvmDeployableContractLike;
+      assert(
+        deployableContract.deployTransaction,
+        'Deploy transaction missing',
+      );
+      await this.handleTx(chainNameOrId, deployableContract.deployTransaction);
     }
 
+    const deployableContract = contract as EvmDeployableContractLike;
     this.logger.trace(
-      `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
-      { transaction: contract.deployTransaction },
+      `Contract deployed at ${deployableContract.address} on ${chainNameOrId}:`,
+      { transaction: deployableContract.deployTransaction },
     );
 
     // return deployed contract
@@ -423,9 +447,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async handleTx(
     chainNameOrId: ChainNameOrId,
-    tx: ContractTransaction | Promise<ContractTransaction>,
+    tx: EvmTransactionResponseLike | Promise<EvmTransactionResponseLike>,
     options?: SendTransactionOptions,
-  ): Promise<ContractReceipt> {
+  ): Promise<EvmTransactionReceiptLike> {
     const response = await tx;
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
 
@@ -473,11 +497,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.logger.info(
       `Pending ${txUrl || response.hash} (wait(0) returned pending, waiting for initial inclusion)`,
     );
-    return timeout(
+    const inclusionReceipt = await timeout(
       response.wait(1),
       timeoutMs,
       `Timeout (${timeoutMs}ms) waiting for initial inclusion for tx ${response.hash}`,
     );
+    assert(inclusionReceipt, `Transaction ${response.hash} was not included`);
+    return inclusionReceipt;
   }
 
   /**
@@ -489,12 +515,17 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async waitForBlockTag(
     chainNameOrId: ChainNameOrId,
-    response: ContractTransaction,
+    response: EvmTransactionResponseLike,
     blockTag: EthJsonRpcBlockParameterTag,
     timeoutMs = DEFAULT_CONFIRMATION_TIMEOUT_MS,
-  ): Promise<ContractReceipt> {
+  ): Promise<EvmTransactionReceiptLike> {
     const provider = this.getProvider(chainNameOrId);
     const receipt = await response.wait(1); // Wait for initial inclusion
+    assert(receipt, `Transaction ${response.hash} was not included`);
+    assert(
+      typeof receipt.blockNumber === 'number',
+      `Receipt missing block number for tx ${response.hash}`,
+    );
     const txBlock = receipt.blockNumber;
 
     // Check if block tag is supported on first call
@@ -554,7 +585,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async prepareTx(
     chainNameOrId: ChainNameOrId,
-    tx: PopulatedTransaction,
+    tx: EvmPopulatedTransaction,
     from?: string,
   ): Promise<Record<string, unknown>> {
     const txFrom = from ?? (await this.getSignerAddress(chainNameOrId));
@@ -572,9 +603,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async estimateGas(
     chainNameOrId: ChainNameOrId,
-    tx: PopulatedTransaction,
+    tx: EvmPopulatedTransaction,
     from?: string,
-  ): Promise<GasAmount> {
+  ): Promise<EvmGasAmount> {
     const txReq = {
       ...(await this.prepareTx(chainNameOrId, tx, from)),
       // Reset any tx request params that may have an unintended effect on gas estimation
@@ -596,7 +627,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
     options?: SendTransactionOptions,
-  ): Promise<ContractReceipt> {
+  ): Promise<EvmTransactionReceiptLike> {
     const { annotation, ...tx } = await txProm;
     if (annotation) {
       this.logger.info(annotation);
@@ -613,8 +644,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   static createTestMultiProvider(
     params: {
-      signer?: EvmSigner;
-      provider?: Provider;
+      signer?: EvmSignerLike;
+      provider?: EvmProviderLike;
     } = {},
     chains: ChainName[] = testChains,
   ): MultiProvider {
@@ -625,7 +656,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     }
     const _provider = provider || signer?.provider;
     if (_provider) {
-      const providerMap: ChainMap<Provider> = {};
+      const providerMap: ChainMap<EvmProviderLike> = {};
       chains.forEach((t) => (providerMap[t] = _provider));
       mp.setProviders(providerMap);
     }

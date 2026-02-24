@@ -40,7 +40,8 @@ import {
   ProtocolType,
 } from '@hyperlane-xyz/utils';
 
-type EvmProviderLike = any;
+import type { EvmProviderLike } from './evmTypes.js';
+
 type EvmContractLike = { address?: string } & Record<string, unknown>;
 type EvmTransactionLike = {
   to?: string;

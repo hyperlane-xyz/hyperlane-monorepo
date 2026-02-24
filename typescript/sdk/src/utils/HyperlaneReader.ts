@@ -20,8 +20,8 @@ export class HyperlaneReader {
    * @param level - The log level to set, e.g. 'debug', 'info', 'warn', 'error'.
    */
   protected setSmartProviderLogLevel(level: LevelWithSilentOrString): void {
-    if ('setLogLevel' in this.provider) {
-      (this.provider as HyperlaneSmartProvider).setLogLevel(level);
+    if (this.provider instanceof HyperlaneSmartProvider) {
+      this.provider.setLogLevel(level);
     }
   }
 }

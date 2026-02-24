@@ -36,6 +36,7 @@ import { DerivedHookConfig } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { DerivedIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import type { EvmTransactionResponseLike } from '../providers/evmTypes.js';
 import { RouterConfig } from '../router/types.js';
 import { ChainMap, ChainName, OwnableConfig } from '../types.js';
 import { estimateHandleGasForRecipient } from '../utils/gas.js';
@@ -53,7 +54,7 @@ type EventLike = {
   args?: unknown;
   blockNumber?: number | bigint;
   getTransactionReceipt?: () => Promise<unknown>;
-  getTransaction?: () => Promise<{ hash?: string }>;
+  getTransaction?: () => Promise<EvmTransactionResponseLike>;
   log?: { blockNumber?: number | bigint; transactionHash?: string };
   transaction?: { hash?: string };
   transactionHash?: string;

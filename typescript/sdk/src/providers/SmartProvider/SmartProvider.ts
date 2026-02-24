@@ -34,8 +34,31 @@ import {
   type TypedDataTypesLike,
   getTypedDataPrimaryType,
 } from '../../utils/typedData.js';
+import type {
+  EvmPopulatedTransaction,
+  EvmProviderLike,
+  EvmSignerLike,
+  EvmTransactionReceiptLike,
+  EvmTransactionResponseLike,
+} from '../evmTypes.js';
 
 type Networkish = number | string | { chainId: number; name?: string };
+type SmartProviderSigner = EvmSignerLike & {
+  address: string;
+  provider: HyperlaneSmartProvider;
+  signMessage(message: string | Uint8Array): Promise<string>;
+  signTypedData(typedData: {
+    domain: Record<string, unknown>;
+    types: Record<string, unknown>;
+    primaryType: string;
+    message: Record<string, unknown>;
+  }): Promise<string>;
+  _signTypedData(
+    domain: Record<string, unknown>,
+    types: Record<string, unknown>,
+    value: Record<string, unknown>,
+  ): Promise<string>;
+};
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object'
@@ -312,14 +335,14 @@ export class HyperlaneSmartProvider implements IProviderMethods {
     return this.detectNetwork();
   }
 
-  async send(method: string, params: unknown[]): Promise<unknown> {
+  async send<T = unknown>(method: string, params: unknown[]): Promise<T> {
     if (!this.rpcProviders.length)
       throw new Error('No RPC providers available');
 
     const errors: unknown[] = [];
     for (const [providerIndex, provider] of this.rpcProviders.entries()) {
       try {
-        return await provider.send(method, params);
+        return (await provider.send(method, params)) as T;
       } catch (error) {
         errors.push(error);
         this.logger.debug(
@@ -452,18 +475,28 @@ export class HyperlaneSmartProvider implements IProviderMethods {
     return rpcHexToNumber(result);
   }
 
-  async getLogs(filter: Record<string, unknown>): Promise<unknown[]> {
+  async getLogs(
+    filter: Record<string, unknown>,
+  ): Promise<Record<string, unknown>[]> {
     return (await this.perform(ProviderMethod.GetLogs, {
       filter,
-    })) as unknown[];
+    })) as Record<string, unknown>[];
+  }
+
+  async getTransaction(
+    transactionHash: string,
+  ): Promise<Record<string, unknown> | null> {
+    return (await this.perform(ProviderMethod.GetTransaction, {
+      transactionHash,
+    })) as Record<string, unknown> | null;
   }
 
   async getTransactionReceipt(
     transactionHash: string,
-  ): Promise<Record<string, unknown> | null> {
+  ): Promise<EvmTransactionReceiptLike | null> {
     const result = (await this.perform(ProviderMethod.GetTransactionReceipt, {
       transactionHash,
-    })) as Record<string, unknown> | null;
+    })) as EvmTransactionReceiptLike | null;
     if (!result) return null;
     const status = normalizeReceiptStatus(result.status);
     const transactionIndex = rpcHexToNumberOrUndefined(result.transactionIndex);
@@ -498,7 +531,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
 
   async sendTransaction(
     signedTransaction: string,
-  ): Promise<{ hash: string; wait(confirmations?: number): Promise<unknown> }> {
+  ): Promise<EvmTransactionResponseLike> {
     let hash: string;
     try {
       hash = (await this.perform(ProviderMethod.SendTransaction, {
@@ -559,7 +592,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
     hash: string,
     confirmations = 1,
     timeoutMs = 120_000,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<EvmTransactionReceiptLike> {
     const started = Date.now();
     let receipt = await this.getTransactionReceipt(hash);
     while (!receipt) {
@@ -584,47 +617,26 @@ export class HyperlaneSmartProvider implements IProviderMethods {
     );
   }
 
-  getSigner(address: string): {
-    address: string;
-    provider: HyperlaneSmartProvider;
-    connect(
-      provider: HyperlaneSmartProvider,
-    ): ReturnType<HyperlaneSmartProvider['getSigner']>;
-    getAddress(): Promise<string>;
-    estimateGas(tx: Record<string, unknown>): Promise<bigint>;
-    sendTransaction(tx: Record<string, unknown>): Promise<{
-      hash: string;
-      wait(confirmations?: number): Promise<unknown>;
-    }>;
-    signMessage(message: string | Uint8Array): Promise<string>;
-    signTypedData(typedData: {
-      domain: Record<string, unknown>;
-      types: Record<string, unknown>;
-      primaryType: string;
-      message: Record<string, unknown>;
-    }): Promise<string>;
-    _signTypedData(
-      domain: Record<string, unknown>,
-      types: Record<string, unknown>,
-      value: Record<string, unknown>,
-    ): Promise<string>;
-  } {
-    const signer = {
+  getSigner(address: string): SmartProviderSigner {
+    const signer: SmartProviderSigner = {
       address,
       provider: this,
-      connect: (newProvider: HyperlaneSmartProvider) => {
+      connect: (newProvider: EvmProviderLike) => {
         return newProvider.getSigner(address);
       },
       getAddress: async () => {
         return address;
       },
-      estimateGas: async (tx: Record<string, unknown>) => {
+      getBalance: async () => {
+        return this.getBalance(address);
+      },
+      estimateGas: async (tx: EvmPopulatedTransaction) => {
         return this.estimateGas({ ...tx, from: address });
       },
-      sendTransaction: async (tx: Record<string, unknown>) => {
-        const hash = (await this.send('eth_sendTransaction', [
+      sendTransaction: async (tx: EvmPopulatedTransaction) => {
+        const hash = await this.send<string>('eth_sendTransaction', [
           normalizeRpcTx({ ...tx, from: address }),
-        ])) as string;
+        ]);
         return {
           hash,
           wait: (confirmations = 1) =>
@@ -638,7 +650,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
               ? message
               : `0x${Buffer.from(message, 'utf8').toString('hex')}`
             : `0x${Buffer.from(message).toString('hex')}`;
-        return this.send('personal_sign', [data, address]) as Promise<string>;
+        return this.send<string>('personal_sign', [data, address]);
       },
       signTypedData: async (typedData: {
         domain: Record<string, unknown>;
@@ -647,10 +659,7 @@ export class HyperlaneSmartProvider implements IProviderMethods {
         message: Record<string, unknown>;
       }) => {
         const payload = jsonStringifyWithBigInt(typedData);
-        return this.send('eth_signTypedData_v4', [
-          address,
-          payload,
-        ]) as Promise<string>;
+        return this.send<string>('eth_signTypedData_v4', [address, payload]);
       },
       _signTypedData: async (
         domain: Record<string, unknown>,

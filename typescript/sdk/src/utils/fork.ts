@@ -185,14 +185,14 @@ export async function increaseTime(
 export async function snapshot(
   provider: MultiProviderEvmProvider,
 ): Promise<string> {
-  return provider.send(ANVIL_RPC_METHODS.SNAPSHOT, []);
+  return provider.send<string>(ANVIL_RPC_METHODS.SNAPSHOT, []);
 }
 
 export async function revertToSnapshot(
   provider: MultiProviderEvmProvider,
   snapshotId: string,
 ): Promise<boolean> {
-  return provider.send(ANVIL_RPC_METHODS.REVERT, [snapshotId]);
+  return provider.send<boolean>(ANVIL_RPC_METHODS.REVERT, [snapshotId]);
 }
 
 export async function impersonateAccounts(

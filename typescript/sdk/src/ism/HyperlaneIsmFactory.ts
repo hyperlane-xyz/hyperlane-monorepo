@@ -621,7 +621,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         receipt = await this.multiProvider.handleTx(destination, tx);
 
         // TODO: Break this out into a generalized function
-        const dispatchLogs = receipt.logs
+        const dispatchLogs = (receipt.logs ?? [])
           .map((log: any) => {
             try {
               return domainRoutingIsmFactory.interface.parseLog(log);

@@ -26,6 +26,18 @@ function toNumber(value: unknown, field: string): number {
   throw new Error(`Unable to convert ${field} to number`);
 }
 
+function toString(value: unknown, field: string): string {
+  if (typeof value === 'string') return value;
+  throw new Error(`Unable to convert ${field} to string`);
+}
+
+function toStringArray(value: unknown, field: string): string[] {
+  if (Array.isArray(value) && value.every((v) => typeof v === 'string')) {
+    return value;
+  }
+  throw new Error(`Unable to convert ${field} to string[]`);
+}
+
 // calling getCode until the creation block is found
 export async function getContractCreationBlockFromRpc(
   chain: ChainNameOrId,
@@ -105,12 +117,12 @@ export async function getLogsFromRpc({
 
   return logs.map((rawLog): GetEventLogsResponse => {
     return {
-      address: rawLog.address,
+      address: toString(rawLog.address, 'address'),
       blockNumber: toNumber(rawLog.blockNumber, 'blockNumber'),
-      data: rawLog.data,
+      data: toString(rawLog.data, 'data'),
       logIndex: toNumber(rawLog.logIndex, 'logIndex'),
-      topics: rawLog.topics,
-      transactionHash: rawLog.transactionHash,
+      topics: toStringArray(rawLog.topics, 'topics'),
+      transactionHash: toString(rawLog.transactionHash, 'transactionHash'),
       transactionIndex: toNumber(rawLog.transactionIndex, 'transactionIndex'),
     };
   });
