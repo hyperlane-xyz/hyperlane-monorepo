@@ -8,4 +8,4 @@ re-use
 superseed
 pris
 towords
-COPYs
+copys
