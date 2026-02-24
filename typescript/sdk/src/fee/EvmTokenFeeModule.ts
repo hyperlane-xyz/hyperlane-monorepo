@@ -1,4 +1,4 @@
-import { constants } from 'ethers';
+import { MaxUint256, ZeroAddress } from 'ethers';
 
 import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
@@ -114,7 +114,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       multiProvider,
       {
         addresses: {
-          deployedFee: constants.AddressZero,
+          deployedFee: ZeroAddress,
         },
         chain,
         config,
@@ -129,7 +129,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       config,
     });
     module.args.addresses.deployedFee =
-      contracts[chainName][config.type].address;
+      contracts[chainName][config.type].target as Address;
 
     return module;
   }
@@ -224,8 +224,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         type: TokenFeeType.RoutingFee,
         token,
         owner,
-        maxFee: constants.MaxUint256.toBigInt(),
-        halfAmount: constants.MaxUint256.toBigInt(),
+        maxFee: MaxUint256,
+        halfAmount: MaxUint256,
         feeContracts,
       };
     } else {
@@ -355,7 +355,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         contractVerifier: this.contractVerifier,
       });
       this.args.addresses.deployedFee =
-        contracts[this.chainName][normalizedTargetConfig.type].address;
+        contracts[this.chainName][normalizedTargetConfig.type].target as Address;
 
       return [];
     }
@@ -412,7 +412,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           chainId: this.chainId,
           to: currentRoutingAddress,
           data: RoutingFee__factory.createInterface().encodeFunctionData(
-            'setFeeContract(uint32,address)',
+            'setFeeContract',
             [this.multiProvider.getDomainId(chainName), deployedSubFee],
           ),
         });
@@ -444,7 +444,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
             chainId: this.chainId,
             to: currentRoutingAddress,
             data: RoutingFee__factory.createInterface().encodeFunctionData(
-              'setFeeContract(uint32,address)',
+              'setFeeContract',
               [this.multiProvider.getDomainId(chainName), deployedSubFee],
             ),
           });

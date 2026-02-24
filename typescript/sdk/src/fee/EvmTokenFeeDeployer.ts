@@ -64,7 +64,9 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
         for (const [_, contract] of Object.entries(
           routingFeeResult.subFeeContracts,
         )) {
-          const onchainFeeType: OnchainTokenFeeType = await contract.feeType();
+          const onchainFeeType = Number(
+            await contract.feeType(),
+          ) as OnchainTokenFeeType;
           const feeType = onChainTypeToTokenFeeTypeMap[onchainFeeType];
           deployedContract[feeType] = contract;
         }
@@ -129,7 +131,7 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
           chain,
           routingFee.setFeeContract(
             this.multiProvider.getChainId(destinationChain),
-            deployedFeeContract.address,
+            deployedFeeContract.target as string,
             this.multiProvider.getTransactionOverrides(chain),
           ),
         );
