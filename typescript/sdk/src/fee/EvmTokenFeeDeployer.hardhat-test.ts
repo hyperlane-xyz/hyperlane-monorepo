@@ -8,6 +8,7 @@ import { addressToBytes32, eqAddress, randomInt } from '@hyperlane-xyz/utils';
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { BPS, HALF_AMOUNT, MAX_FEE } from './EvmTokenFeeReader.hardhat-test.js';
@@ -28,7 +29,7 @@ describe('EvmTokenFeeDeployer', () => {
   let multiProvider: MultiProvider;
   let deployer: EvmTokenFeeDeployer;
   let token: ERC20Test;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
 
   type TestCase = {
     title: string;
@@ -90,12 +91,12 @@ describe('EvmTokenFeeDeployer', () => {
         const tokenFeeContract =
           deployedContracts[TestChainName.test2][config.type];
 
-        expect(eqAddress(await tokenFeeContract.owner(), config.owner)).to.equal(
-          true,
-        );
-        expect(eqAddress(await tokenFeeContract.token(), config.token)).to.equal(
-          true,
-        );
+        expect(
+          eqAddress(await tokenFeeContract.owner(), config.owner),
+        ).to.equal(true);
+        expect(
+          eqAddress(await tokenFeeContract.token(), config.token),
+        ).to.equal(true);
 
         if (config.type === TokenFeeType.LinearFee)
           expect(
@@ -243,12 +244,12 @@ describe('EvmTokenFeeDeployer', () => {
     const actualLinearFeeAddress = await routingFeeContract.feeContracts(
       multiProvider.getChainId(TestChainName.test2),
     );
-    expect(eqAddress(actualLinearFeeAddress, linearFeeContract.address)).to.equal(
-      true,
-    );
-    expect(eqAddress(await linearFeeContract.owner(), otherSigner.address)).to.equal(
-      true,
-    );
+    expect(
+      eqAddress(actualLinearFeeAddress, linearFeeContract.address),
+    ).to.equal(true);
+    expect(
+      eqAddress(await linearFeeContract.owner(), otherSigner.address),
+    ).to.equal(true);
   });
 
   it('should deploy RoutingFee and transfer ownership when owner differs from signer (no fee contracts)', async () => {
@@ -267,9 +268,9 @@ describe('EvmTokenFeeDeployer', () => {
     const routingFeeContract =
       deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee];
 
-    expect(eqAddress(await routingFeeContract.owner(), otherSigner.address)).to.equal(
-      true,
-    );
+    expect(
+      eqAddress(await routingFeeContract.owner(), otherSigner.address),
+    ).to.equal(true);
     expect(eqAddress(await routingFeeContract.token(), token.address)).to.equal(
       true,
     );

@@ -23,6 +23,7 @@ import {
   getHardhatSigners,
   getImpersonatedHardhatSigner,
 } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import {
   DEFAULT_TOKEN_DECIMALS,
   hookTypesToFilter,
@@ -47,8 +48,6 @@ import {
   ProtocolFeeHookConfig,
 } from './types.js';
 
-type SignerWithAddress = { address: string; [key: string]: any };
-
 const hookTypes = Object.values(HookType);
 
 describe('EvmHookModule', async () => {
@@ -56,8 +55,8 @@ describe('EvmHookModule', async () => {
 
   let multiProvider: MultiProvider;
   let coreAddresses: CoreAddresses;
-  let signer: SignerWithAddress;
-  let funder: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
+  let funder: HardhatSignerWithAddress;
   let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
   let exampleRoutingConfig: DomainRoutingHookConfig | FallbackRoutingHookConfig;

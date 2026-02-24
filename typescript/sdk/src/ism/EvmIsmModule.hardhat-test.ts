@@ -15,6 +15,7 @@ import {
   getHardhatSigners,
   getImpersonatedHardhatSigner,
 } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import {
   randomAddress,
   randomIsmConfig,
@@ -34,13 +35,11 @@ import {
   TrustedRelayerIsmConfig,
 } from './types.js';
 
-type SignerWithAddress = { address: string; [key: string]: any };
-
 describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
   let exampleRoutingConfig: DomainRoutingIsmConfig;
   let mailboxAddress: Address;
-  let fundingAccount: SignerWithAddress;
+  let fundingAccount: HardhatSignerWithAddress;
 
   const chain = TestChainName.test4;
   let factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;

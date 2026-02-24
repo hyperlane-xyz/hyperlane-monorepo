@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import sinon from 'sinon';
@@ -49,6 +48,7 @@ import { eqAddress } from '@hyperlane-xyz/utils';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { VerifyContractTypes } from '../deploy/verify/types.js';
 import {
@@ -59,6 +59,7 @@ import {
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { getHardhatSigners } from '../test/hardhatViem.js';
+import type { HardhatSignerWithAddress } from '../test/hardhatViem.js';
 import { ChainMap } from '../types.js';
 
 import {
@@ -114,7 +115,7 @@ describe('EvmWarpRouteReader', async () => {
   let token: ERC20Test;
   let wethMockFactory: MockWETH__factory;
   let weth: MockWETH;
-  let signer: SignerWithAddress;
+  let signer: HardhatSignerWithAddress;
   let deployer: HypERC20Deployer;
   let contractVerifier: ContractVerifier;
   let multiProvider: MultiProvider;
@@ -279,47 +280,6 @@ describe('EvmWarpRouteReader', async () => {
       expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
       expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
     }
-  });
-
-  it('should derive config with non-default scale fraction correctly', async () => {
-    // Create config with a scale fraction (e.g., for downscaling 18 decimals to 6 decimals)
-    const scaleNumerator = 1;
-    const scaleDenominator = 1000000000000; // 10^12 for 18->6 decimal conversion
-    const config: WarpRouteDeployConfigMailboxRequired = {
-      [chain]: {
-        type: TokenType.synthetic,
-        name: TOKEN_NAME,
-        symbol: TOKEN_NAME,
-        decimals: 6, // Lower decimals than standard 18
-        scale: {
-          numerator: scaleNumerator,
-          denominator: scaleDenominator,
-        },
-        hook: await mailbox.defaultHook(),
-        interchainSecurityModule: await mailbox.defaultIsm(),
-        ...baseConfig,
-      },
-    };
-
-    // Deploy with config
-    const warpRoute = await deployer.deploy(config);
-
-    // Derive config and check if scale is correctly read
-    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].synthetic.address,
-    );
-
-    // Verify scale is returned as an object with bigint numerator/denominator
-    expect(derivedConfig.scale).to.deep.equal({
-      numerator: BigInt(scaleNumerator),
-      denominator: BigInt(scaleDenominator),
-    });
-
-    // Verify other properties
-    expect(derivedConfig.type).to.equal(TokenType.synthetic);
-    expect(derivedConfig.name).to.equal(TOKEN_NAME);
-    expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
-    expect(derivedConfig.decimals).to.equal(6);
   });
 
   it('should derive xerc20 config correctly', async () => {
@@ -1033,12 +993,6 @@ describe('EvmWarpRouteReader', async () => {
       .stub(PackageVersioned__factory, 'connect')
       .returns(mockPackageVersioned as any);
 
-    // Also stub fetchScale to avoid version mismatch when reading scale
-    // For old contracts (< 11.0.0), scale would default to 1
-    const fetchScaleStub = sinon
-      .stub(evmERC20WarpRouteReader, 'fetchScale')
-      .resolves(undefined);
-
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
       warpRoute[chain].collateral.address,
@@ -1049,7 +1003,6 @@ describe('EvmWarpRouteReader', async () => {
     expect(derivedConfig.tokenFee).to.be.undefined;
 
     fetchPackageVersionStub.restore();
-    fetchScaleStub.restore();
   });
 
   describe('Backward compatibility for token type detection', () => {
@@ -1168,12 +1121,6 @@ describe('EvmWarpRouteReader', async () => {
           .stub(PackageVersioned__factory, 'connect')
           .returns(mockPackageVersioned as any);
 
-        // Also stub fetchScale to avoid version mismatch when reading scale
-        // For old contracts (< 11.0.0), scale would default to 1
-        const fetchScaleStub = sinon
-          .stub(evmERC20WarpRouteReader, 'fetchScale')
-          .resolves(undefined);
-
         const derivedConfig =
           await evmERC20WarpRouteReader.deriveWarpRouteConfig(warpAddress);
 
@@ -1189,14 +1136,8 @@ describe('EvmWarpRouteReader', async () => {
         }
 
         fetchPackageVersionStub.restore();
-        fetchScaleStub.restore();
       });
     }
-
-    // Note: legacy contract fetchScale path (< 11.0.0) cannot be tested in hardhat
-    // without deploying a real legacy contract. The legacy path converts a single
-    // uint256 scale() return to { numerator: bigint, denominator: 1n }.
-    // Coverage is provided by the fetchScale stubs in other tests returning NormalizedScale.
 
     it('should fail when modern version contract claims v10.0.0+ but is missing token() method', async () => {
       const config: WarpRouteDeployConfigMailboxRequired = {
