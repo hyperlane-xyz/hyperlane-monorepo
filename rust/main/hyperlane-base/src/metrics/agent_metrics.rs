@@ -10,6 +10,8 @@ use hyperlane_core::metrics::agent::u256_as_scaled_f64;
 use hyperlane_core::metrics::agent::METRICS_SCRAPE_INTERVAL;
 use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::HyperlaneProvider;
+use hyperlane_core::NativeToken;
+use hyperlane_core::ReorgPeriod;
 use maplit::hashmap;
 use prometheus::GaugeVec;
 use prometheus::IntGaugeVec;
@@ -49,6 +51,36 @@ pub const CRITICAL_ERROR_LABELS: &[&str] = &["chain"];
 /// Help string for the metric.
 pub const CRITICAL_ERROR_HELP: &str =
     "Boolean marker for critical errors on a chain, signalling loss of liveness";
+
+/// Expected label names for the `chain_config_reorg_period` metric.
+pub const CHAIN_CONFIG_REORG_PERIOD_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const CHAIN_CONFIG_REORG_PERIOD_HELP: &str =
+    "Configured reorg period (finality blocks) for the chain";
+
+/// Expected label names for the `chain_config_estimated_block_time` metric.
+pub const CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_HELP: &str =
+    "Configured estimated block time for the chain, in seconds";
+
+/// Expected label names for the `chain_config_info` metric.
+pub const CHAIN_CONFIG_INFO_LABELS: &[&str] = &[
+    "chain",
+    "protocol",
+    "technical_stack",
+    "native_token_symbol",
+    "domain_id",
+];
+/// Help string for the metric.
+pub const CHAIN_CONFIG_INFO_HELP: &str =
+    "Static chain configuration info, always set to 1. Labels expose string configuration values.";
+
+/// Expected label names for the `chain_config_native_token_decimals` metric.
+pub const CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_HELP: &str =
+    "Configured native token decimals for the chain";
 
 /// Agent-specific metrics
 #[derive(Clone, Debug)]
@@ -96,6 +128,19 @@ pub struct ChainMetrics {
 
     /// Boolean marker for critical errors on a chain, signalling loss of liveness.
     pub critical_error: IntGaugeVec,
+
+    /// Configured reorg period (finality blocks) for the chain.
+    pub reorg_period: IntGaugeVec,
+
+    /// Configured estimated block time for the chain, in seconds.
+    pub estimated_block_time: GaugeVec,
+
+    /// Static chain configuration info gauge (always 1).
+    /// Labels: chain, protocol, technical_stack, native_token_symbol, domain_id.
+    pub chain_config_info: IntGaugeVec,
+
+    /// Configured native token decimals for the chain.
+    pub native_token_decimals: IntGaugeVec,
 }
 
 impl ChainMetrics {
@@ -106,10 +151,34 @@ impl ChainMetrics {
         let gas_price_metrics = metrics.new_gauge("gas_price", GAS_PRICE_HELP, GAS_PRICE_LABELS)?;
         let critical_error_metrics =
             metrics.new_int_gauge("critical_error", CRITICAL_ERROR_HELP, CRITICAL_ERROR_LABELS)?;
+        let reorg_period_metrics = metrics.new_int_gauge(
+            "chain_config_reorg_period",
+            CHAIN_CONFIG_REORG_PERIOD_HELP,
+            CHAIN_CONFIG_REORG_PERIOD_LABELS,
+        )?;
+        let estimated_block_time_metrics = metrics.new_gauge(
+            "chain_config_estimated_block_time",
+            CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_HELP,
+            CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_LABELS,
+        )?;
+        let chain_config_info_metrics = metrics.new_int_gauge(
+            "chain_config_info",
+            CHAIN_CONFIG_INFO_HELP,
+            CHAIN_CONFIG_INFO_LABELS,
+        )?;
+        let native_token_decimals_metrics = metrics.new_int_gauge(
+            "chain_config_native_token_decimals",
+            CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_HELP,
+            CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_LABELS,
+        )?;
         let chain_metrics = ChainMetrics {
             block_height: block_height_metrics,
             gas_price: Some(gas_price_metrics),
             critical_error: critical_error_metrics,
+            reorg_period: reorg_period_metrics,
+            estimated_block_time: estimated_block_time_metrics,
+            chain_config_info: chain_config_info_metrics,
+            native_token_decimals: native_token_decimals_metrics,
         };
         Ok(chain_metrics)
     }
@@ -132,6 +201,49 @@ impl ChainMetrics {
             .with(&hashmap! { "chain" => chain })
             .set(is_critical as i64);
     }
+
+    /// Set the static chain configuration metrics. Should be called once per chain.
+    pub(crate) fn set_chain_config(
+        &self,
+        domain: &HyperlaneDomain,
+        reorg_period: &ReorgPeriod,
+        estimated_block_time: Duration,
+        native_token: &NativeToken,
+    ) {
+        let chain = domain.name();
+        let protocol = domain.domain_protocol().to_string();
+        let technical_stack = domain.domain_technical_stack().to_string();
+        let domain_id = domain.id().to_string();
+        let native_token_symbol = &native_token.denom;
+
+        // Set reorg period (blocks to finality)
+        if let Ok(blocks) = reorg_period.as_blocks() {
+            self.reorg_period
+                .with(&hashmap! { "chain" => chain })
+                .set(blocks as i64);
+        }
+
+        // Set estimated block time in seconds
+        self.estimated_block_time
+            .with(&hashmap! { "chain" => chain })
+            .set(estimated_block_time.as_secs_f64());
+
+        // Set chain config info gauge (always 1, metadata in labels)
+        self.chain_config_info
+            .with(&hashmap! {
+                "chain" => chain,
+                "protocol" => protocol.as_str(),
+                "technical_stack" => technical_stack.as_str(),
+                "native_token_symbol" => native_token_symbol.as_str(),
+                "domain_id" => domain_id.as_str(),
+            })
+            .set(1);
+
+        // Set native token decimals
+        self.native_token_decimals
+            .with(&hashmap! { "chain" => chain })
+            .set(native_token.decimals as i64);
+    }
 }
 
 /// Configuration for the prometheus middleware. This can be loaded via serde.
@@ -148,6 +260,15 @@ pub struct AgentMetricsConf {
 
     /// Name of the agent the metrics are about
     pub name: String,
+
+    /// The reorg period of the chain
+    pub reorg_period: ReorgPeriod,
+
+    /// The estimated block time
+    pub estimated_block_time: Duration,
+
+    /// Native token info (decimals and symbol/denom)
+    pub native_token: NativeToken,
 }
 
 /// Utility struct to update various metrics using a standalone tokio task
@@ -169,6 +290,14 @@ impl ChainSpecificMetricsUpdater {
     ) -> Result<Self> {
         let agent_metrics_conf = chain_conf.agent_metrics_conf(agent_name).await?;
         let provider = chain_conf.build_provider(&core_metrics).await?;
+
+        // Set static chain configuration metrics once on initialization
+        chain_metrics.set_chain_config(
+            &agent_metrics_conf.domain,
+            &agent_metrics_conf.reorg_period,
+            agent_metrics_conf.estimated_block_time,
+            &agent_metrics_conf.native_token,
+        );
 
         Ok(Self {
             agent_metrics,

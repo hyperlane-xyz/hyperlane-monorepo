@@ -21,7 +21,7 @@ use url::Url;
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod, SubmitterType,
+    HyperlaneDomainTechnicalStack, IndexMode, NativeToken, ReorgPeriod, SubmitterType,
 };
 
 use crate::settings::{
@@ -267,6 +267,21 @@ fn parse_chain(
         .parse_bool()
         .unwrap_or(false);
 
+    let native_token_decimals = chain
+        .chain(&mut err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("decimals")
+        .parse_u32()
+        .unwrap_or(18);
+
+    let native_token_denom = chain
+        .chain(&mut err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("denom")
+        .parse_string()
+        .unwrap_or("")
+        .to_owned();
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -321,6 +336,10 @@ fn parse_chain(
             mode,
         },
         ignore_reorg_reports,
+        native_token: NativeToken {
+            decimals: native_token_decimals,
+            denom: native_token_denom,
+        },
     })
 }
 

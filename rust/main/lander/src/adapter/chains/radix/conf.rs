@@ -53,6 +53,7 @@ mod tests {
             },
             index: IndexSettings::default(),
             ignore_reorg_reports: false,
+            native_token: Default::default(),
         }
     }
 

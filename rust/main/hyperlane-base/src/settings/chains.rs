@@ -13,7 +13,7 @@ use hyperlane_core::{
     config::OpSubmissionConfig, AggregationIsm, CcipReadIsm, ChainResult, ContractLocator,
     HyperlaneAbi, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider,
     IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
+    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, NativeToken, ReorgPeriod, RoutingIsm,
     SequenceAwareIndexer, SubmitterType, ValidatorAnnounce, H256,
 };
 use hyperlane_metric::prometheus_metric::ChainInfo;
@@ -94,6 +94,8 @@ pub struct ChainConf {
     /// Whether to ignore reorg reports from this chain
     /// when it is the origin of a message.
     pub ignore_reorg_reports: bool,
+    /// The native token denomination and decimal places
+    pub native_token: NativeToken,
 }
 
 /// A sequence-aware indexer for messages
@@ -1386,6 +1388,9 @@ impl ChainConf {
             address: chain_signer_address,
             domain: self.domain.clone(),
             name: agent_name,
+            reorg_period: self.reorg_period.clone(),
+            estimated_block_time: self.estimated_block_time,
+            native_token: self.native_token.clone(),
         })
     }
 
