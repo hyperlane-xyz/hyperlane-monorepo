@@ -14,6 +14,7 @@ const TRANSACTION_BY_UUID_STORAGE_PREFIX: &str = "transaction_by_uuid_";
 const TRANSACTION_INDEX_BY_UUID_STORAGE_PREFIX: &str = "tx_index_by_uuid_";
 const TRANSACTION_UUID_BY_INDEX_STORAGE_PREFIX: &str = "tx_uuid_by_index_";
 const HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX: &str = "highest_tx_index_";
+const FINALIZED_TRANSACTION_COUNT_STORAGE_PREFIX: &str = "finalized_tx_count_";
 
 #[async_trait]
 pub trait TransactionDb: Send + Sync {
@@ -68,6 +69,16 @@ pub trait TransactionDb: Send + Sync {
     /// Retrieve the highest transaction index
     async fn retrieve_highest_transaction_index(&self) -> DbResult<u32>;
 
+    /// Retrieve persisted finalized transaction count.
+    async fn retrieve_finalized_transaction_count(&self) -> DbResult<Option<u64>> {
+        Ok(None)
+    }
+
+    /// Persist finalized transaction count.
+    async fn store_finalized_transaction_count(&self, _count: u64) -> DbResult<()> {
+        Ok(())
+    }
+
     /// Count transactions currently matching a status.
     async fn count_transactions_by_status(&self, status: &TransactionStatus) -> DbResult<u64> {
         let mut count = 0_u64;
@@ -79,6 +90,37 @@ pub trait TransactionDb: Send + Sync {
                 }
             }
         }
+        Ok(count)
+    }
+
+    /// Recount finalized transactions from DB and persist the value.
+    async fn recount_finalized_transaction_count(&self) -> DbResult<u64> {
+        let count = self
+            .count_transactions_by_status(&TransactionStatus::Finalized)
+            .await?;
+        self.store_finalized_transaction_count(count).await?;
+        Ok(count)
+    }
+
+    /// Increment persisted finalized transaction count.
+    async fn increment_finalized_transaction_count(&self) -> DbResult<u64> {
+        let count = self
+            .retrieve_finalized_transaction_count()
+            .await?
+            .unwrap_or_default()
+            .saturating_add(1);
+        self.store_finalized_transaction_count(count).await?;
+        Ok(count)
+    }
+
+    /// Decrement persisted finalized transaction count.
+    async fn decrement_finalized_transaction_count(&self) -> DbResult<u64> {
+        let count = self
+            .retrieve_finalized_transaction_count()
+            .await?
+            .unwrap_or_default()
+            .saturating_sub(1);
+        self.store_finalized_transaction_count(count).await?;
         Ok(count)
     }
 }
@@ -152,6 +194,18 @@ impl TransactionDb for HyperlaneRocksDB {
         // return the default value (0) if no index has been stored yet
         self.retrieve_value_by_key(HIGHEST_TRANSACTION_INDEX_STORAGE_PREFIX, &bool::default())
             .map(|index| index.unwrap_or_default())
+    }
+
+    async fn retrieve_finalized_transaction_count(&self) -> DbResult<Option<u64>> {
+        self.retrieve_value_by_key(FINALIZED_TRANSACTION_COUNT_STORAGE_PREFIX, &bool::default())
+    }
+
+    async fn store_finalized_transaction_count(&self, count: u64) -> DbResult<()> {
+        self.store_value_by_key(
+            FINALIZED_TRANSACTION_COUNT_STORAGE_PREFIX,
+            &bool::default(),
+            &count,
+        )
     }
 }
 
@@ -267,5 +321,45 @@ mod tests {
 
         assert_eq!(finalized_count, 2);
         assert_eq!(included_count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_recount_finalized_transaction_count_persists_value() {
+        let db = tmp_db();
+        for status in [
+            TransactionStatus::Finalized,
+            TransactionStatus::Included,
+            TransactionStatus::Finalized,
+        ] {
+            let payload = FullPayload::random();
+            let tx = dummy_tx(vec![payload], status);
+            db.store_transaction_by_uuid(&tx).await.unwrap();
+        }
+
+        let recounted = db.recount_finalized_transaction_count().await.unwrap();
+        let stored = db.retrieve_finalized_transaction_count().await.unwrap();
+        assert_eq!(recounted, 2);
+        assert_eq!(stored, Some(2));
+    }
+
+    #[tokio::test]
+    async fn test_increment_and_decrement_finalized_transaction_count() {
+        let db = tmp_db();
+        assert_eq!(
+            db.retrieve_finalized_transaction_count().await.unwrap(),
+            None
+        );
+
+        let c1 = db.increment_finalized_transaction_count().await.unwrap();
+        let c2 = db.increment_finalized_transaction_count().await.unwrap();
+        let c3 = db.decrement_finalized_transaction_count().await.unwrap();
+        let c4 = db.decrement_finalized_transaction_count().await.unwrap();
+        let c5 = db.decrement_finalized_transaction_count().await.unwrap();
+
+        assert_eq!((c1, c2, c3, c4, c5), (1, 2, 1, 0, 0));
+        assert_eq!(
+            db.retrieve_finalized_transaction_count().await.unwrap(),
+            Some(0)
+        );
     }
 }

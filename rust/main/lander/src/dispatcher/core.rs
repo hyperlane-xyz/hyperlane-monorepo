@@ -21,7 +21,7 @@ use crate::{
     dispatcher::{
         BuildingStage, BuildingStageQueue, FinalityStage, InclusionStage, PayloadDbLoader,
     },
-    transaction::{Transaction, TransactionStatus},
+    transaction::Transaction,
 };
 
 use super::{metrics::DispatcherMetrics, DispatcherState, TransactionDbLoader};
@@ -84,22 +84,36 @@ impl Dispatcher {
         let (finality_stage_sender, finality_stage_receiver) =
             tokio::sync::mpsc::channel::<Transaction>(SUBMITTER_CHANNEL_SIZE);
 
-        match self
+        let finalized_count = match self
             .inner
             .tx_db
-            .count_transactions_by_status(&TransactionStatus::Finalized)
+            .retrieve_finalized_transaction_count()
             .await
         {
-            Ok(count) => self
-                .inner
-                .metrics
-                .set_finalized_transactions_metric(count, &self.domain),
-            Err(err) => warn!(
-                ?err,
-                domain = %self.domain,
-                "Failed to initialize finalized transaction gauge from DB"
-            ),
-        }
+            Ok(Some(count)) => count,
+            Ok(None) => match self.inner.tx_db.recount_finalized_transaction_count().await {
+                Ok(count) => count,
+                Err(err) => {
+                    warn!(
+                        ?err,
+                        domain = %self.domain,
+                        "Failed to initialize finalized transaction gauge from DB"
+                    );
+                    0
+                }
+            },
+            Err(err) => {
+                warn!(
+                    ?err,
+                    domain = %self.domain,
+                    "Failed to retrieve finalized transaction count from DB"
+                );
+                0
+            }
+        };
+        self.inner
+            .metrics
+            .set_finalized_transactions_metric(finalized_count, &self.domain);
 
         let building_stage = BuildingStage::new(
             building_stage_queue.clone(),

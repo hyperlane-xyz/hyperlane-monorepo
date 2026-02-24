@@ -1,4 +1,5 @@
 pub mod overwrite_upper_nonce;
+pub mod recount_finalized_transactions;
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -18,6 +19,10 @@ impl ServerState {
             .route(
                 "/evm/overwrite_upper_nonce",
                 post(overwrite_upper_nonce::handler),
+            )
+            .route(
+                "/evm/recount_finalized_transactions",
+                post(recount_finalized_transactions::handler),
             )
             .with_state(self)
     }

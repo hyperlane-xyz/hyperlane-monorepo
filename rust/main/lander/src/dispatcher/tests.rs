@@ -101,6 +101,42 @@ async fn test_dispatcher_initializes_finalized_tx_gauge_from_db() {
 
 #[tracing_test::traced_test]
 #[tokio::test]
+async fn test_dispatcher_initializes_finalized_tx_gauge_from_persisted_counter() {
+    let setup_payload = FullPayload::random();
+    let adapter = Arc::new(mock_adapter_methods(MockAdapter::new(), setup_payload));
+    let (_entrypoint, dispatcher) = mock_entrypoint_and_dispatcher(adapter).await;
+    let metrics = dispatcher.inner.metrics.clone();
+    let domain = dispatcher.inner.domain.clone();
+
+    dispatcher
+        .inner
+        .tx_db
+        .store_finalized_transaction_count(7)
+        .await
+        .unwrap();
+
+    let _payload_dispatcher = tokio::spawn(async move { dispatcher.spawn().await });
+
+    let mut initialized = false;
+    for _ in 0..20 {
+        let finalized_txs = metrics
+            .finalized_transactions
+            .with_label_values(&[&domain])
+            .get();
+        if finalized_txs == 7 {
+            initialized = true;
+            break;
+        }
+        sleep(Duration::from_millis(25)).await;
+    }
+    assert!(
+        initialized,
+        "finalized transactions gauge did not initialize from persisted counter"
+    );
+}
+
+#[tracing_test::traced_test]
+#[tokio::test]
 async fn test_entrypoint_send_is_finalized_by_dispatcher() {
     let payload = FullPayload::random();
 

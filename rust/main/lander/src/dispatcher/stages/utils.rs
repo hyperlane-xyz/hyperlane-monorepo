@@ -1,7 +1,7 @@
 use std::{future::Future, time::Duration};
 
 use tokio::time::sleep;
-use tracing::{error, info, instrument};
+use tracing::{error, info, instrument, warn};
 
 use crate::{
     dispatcher::metrics::DispatcherMetrics,
@@ -59,15 +59,41 @@ pub async fn update_tx_status(
     if new_status == old_tx_status {
         return Ok(());
     }
-    // Keep finalized tx gauge in sync with DB status transitions.
+    // Keep finalized tx gauge and DB count in sync with status transitions.
     match (&old_tx_status, &tx.status) {
         (TransactionStatus::Finalized, TransactionStatus::Finalized) => {}
-        (TransactionStatus::Finalized, _) => state
-            .metrics
-            .decrement_finalized_transactions_metric(&state.domain),
-        (_, TransactionStatus::Finalized) => state
-            .metrics
-            .increment_finalized_transactions_metric(&state.domain),
+        (TransactionStatus::Finalized, _) => {
+            match state.tx_db.decrement_finalized_transaction_count().await {
+                Ok(count) => state
+                    .metrics
+                    .set_finalized_transactions_metric(count, &state.domain),
+                Err(err) => {
+                    warn!(
+                        ?err,
+                        "Failed to persist finalized transaction count decrement"
+                    );
+                    state
+                        .metrics
+                        .decrement_finalized_transactions_metric(&state.domain);
+                }
+            }
+        }
+        (_, TransactionStatus::Finalized) => {
+            match state.tx_db.increment_finalized_transaction_count().await {
+                Ok(count) => state
+                    .metrics
+                    .set_finalized_transactions_metric(count, &state.domain),
+                Err(err) => {
+                    warn!(
+                        ?err,
+                        "Failed to persist finalized transaction count increment"
+                    );
+                    state
+                        .metrics
+                        .increment_finalized_transactions_metric(&state.domain);
+                }
+            }
+        }
         _ => {}
     }
 
