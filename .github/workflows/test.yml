@@ -387,8 +387,8 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: CLI ${{ matrix.stack || 'ethereum' }} e2e tests (${{ matrix.test }})
-        run: pnpm -C typescript/cli test:${{ matrix.stack || 'ethereum' }}:e2e
+      - name: CLI e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:ethereum:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
