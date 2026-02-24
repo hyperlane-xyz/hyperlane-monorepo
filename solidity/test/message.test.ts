@@ -31,7 +31,7 @@ describe('Message', async () => {
     if (!sender?.account || !recipient?.account) {
       throw new Error('Expected configured hardhat wallet accounts');
     }
-    const body = pad(stringToHex('message'), { size: 32 });
+    const body = pad(stringToHex('message'), { dir: 'right', size: 32 });
 
     const message = formatMessage(
       version,
