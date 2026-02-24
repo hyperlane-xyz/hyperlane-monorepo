@@ -226,7 +226,7 @@ export function getPostDeploymentUpdateTxs<
     config.remoteRouters,
   )) {
     const domainId = parseInt(domainIdStr);
-    const gas = config.destinationGas[domainId] || '0';
+    const gas = config.destinationGas[domainId] ?? '0';
 
     const enrollTx = getEnrollRemoteRouterTx(
       tokenAddress,
@@ -311,9 +311,9 @@ export async function getWarpTokenUpdateTxs<
     expectedConfig.remoteRouters,
   )) {
     const domainId = parseInt(domainIdStr);
-    const gas = expectedConfig.destinationGas[domainId] || '0';
+    const gas = expectedConfig.destinationGas[domainId] ?? '0';
     const currentRouter = currentConfig.remoteRouters[domainId];
-    const currentGas = currentConfig.destinationGas[domainId] || '0';
+    const currentGas = currentConfig.destinationGas[domainId] ?? '0';
 
     const needsUpdate =
       !currentRouter ||
