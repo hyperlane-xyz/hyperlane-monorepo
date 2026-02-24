@@ -30,6 +30,11 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
+function withErrorContext(context: string, error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`${context}: ${message}`);
+}
+
 export class CosmosCollateralTokenReader implements ArtifactReader<
   RawCollateralWarpArtifactConfig,
   DeployedWarpAddress
@@ -41,7 +46,15 @@ export class CosmosCollateralTokenReader implements ArtifactReader<
   ): Promise<
     ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
   > {
-    const tokenConfig = await getCollateralWarpTokenConfig(this.query, address);
+    const tokenConfig = await getCollateralWarpTokenConfig(
+      this.query,
+      address,
+    ).catch((error: unknown) => {
+      throw withErrorContext(
+        `Failed to read collateral warp token config for ${address}`,
+        error,
+      );
+    });
 
     const config: RawCollateralWarpArtifactConfig = {
       type: AltVM.TokenType.collateral,
@@ -95,17 +108,25 @@ export class CosmosCollateralTokenWriter
   > {
     const { config } = artifact;
     const allReceipts: DeliverTxResponse[] = [];
+    const signerAddress = this.signer.getSignerAddress();
 
     // Create collateral token
     const createTx = getCreateCollateralTokenTx(
-      this.signer.getSignerAddress(),
+      signerAddress,
       {
         mailboxAddress: config.mailbox,
         collateralDenom: config.token,
       },
     );
 
-    const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
+    const createReceipt = await this.signer
+      .sendAndConfirmTransaction(createTx)
+      .catch((error: unknown) => {
+        throw withErrorContext(
+          `Failed to create collateral warp token (mailbox=${config.mailbox}, token=${config.token}, signer=${signerAddress})`,
+          error,
+        );
+      });
     allReceipts.push(createReceipt);
 
     // Get the deployed token address from the receipt
@@ -113,11 +134,18 @@ export class CosmosCollateralTokenWriter
 
     // Set ISM if provided
     if (config.interchainSecurityModule?.deployed.address) {
-      const setIsmTx = getSetTokenIsmTx(this.signer.getSignerAddress(), {
+      const setIsmTx = getSetTokenIsmTx(signerAddress, {
         tokenAddress,
         ismAddress: config.interchainSecurityModule.deployed.address,
       });
-      const ismReceipt = await this.signer.sendAndConfirmTransaction(setIsmTx);
+      const ismReceipt = await this.signer
+        .sendAndConfirmTransaction(setIsmTx)
+        .catch((error: unknown) => {
+          throw withErrorContext(
+            `Failed to set ISM for collateral warp token ${tokenAddress} (ism=${config.interchainSecurityModule?.deployed.address}, signer=${signerAddress})`,
+            error,
+          );
+        });
       allReceipts.push(ismReceipt);
     }
 
@@ -129,15 +157,21 @@ export class CosmosCollateralTokenWriter
     );
 
     for (const { domainId, gas, routerAddress } of toEnroll) {
-      const enrollTx = getEnrollRemoteRouterTx(this.signer.getSignerAddress(), {
+      const enrollTx = getEnrollRemoteRouterTx(signerAddress, {
         tokenAddress,
         remoteDomainId: domainId,
         remoteRouterAddress: routerAddress,
         gas,
       });
 
-      const enrollReceipt =
-        await this.signer.sendAndConfirmTransaction(enrollTx);
+      const enrollReceipt = await this.signer
+        .sendAndConfirmTransaction(enrollTx)
+        .catch((error: unknown) => {
+          throw withErrorContext(
+            `Failed to enroll remote router for collateral warp token ${tokenAddress} (domain=${domainId}, router=${routerAddress}, signer=${signerAddress})`,
+            error,
+          );
+        });
       allReceipts.push(enrollReceipt);
     }
 

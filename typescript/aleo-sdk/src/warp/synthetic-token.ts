@@ -35,6 +35,11 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
+function withErrorContext(context: string, error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`${context}: ${message}`);
+}
+
 export class AleoSyntheticTokenReader implements ArtifactReader<
   RawSyntheticWarpArtifactConfig,
   DeployedWarpAddress
@@ -55,7 +60,12 @@ export class AleoSyntheticTokenReader implements ArtifactReader<
       address,
       this.onChainArtifactManagers.ismManagerAddress,
       this.onChainArtifactManagers.hookManagerAddress,
-    );
+    ).catch((error: unknown) => {
+      throw withErrorContext(
+        `Failed to read synthetic warp token ${address} (ismManager=${this.onChainArtifactManagers.ismManagerAddress}, hookManager=${this.onChainArtifactManagers.hookManagerAddress})`,
+        error,
+      );
+    });
 
     // Convert to provider-sdk artifact format
     const { destinationGas, remoteRouters, interchainSecurityModule, hook } =
@@ -105,6 +115,7 @@ export class AleoSyntheticTokenWriter
   > {
     const { config } = artifact;
     const allReceipts: AleoReceipt[] = [];
+    const signerAddress = this.signer.getSignerAddress();
 
     // Get mailbox suffix for deployment
     const { programId: mailboxProgramId } = fromAleoAddress(config.mailbox);
@@ -114,11 +125,14 @@ export class AleoSyntheticTokenWriter
     const tokenSuffix = generateSuffix(SUFFIX_LENGTH_LONG);
 
     // Deploy synthetic token program
-    const programs = await this.signer.deployProgram(
-      'hyp_synthetic',
-      mailboxSuffix,
-      tokenSuffix,
-    );
+    const programs = await this.signer
+      .deployProgram('hyp_synthetic', mailboxSuffix, tokenSuffix)
+      .catch((error: unknown) => {
+        throw withErrorContext(
+          `Failed to deployProgram(hyp_synthetic) for mailbox ${config.mailbox} (signer=${signerAddress})`,
+          error,
+        );
+      });
 
     const tokenProgramId = programs['hyp_synthetic'];
     assert(
@@ -133,7 +147,14 @@ export class AleoSyntheticTokenWriter
       config.symbol,
       config.decimals,
     );
-    const initReceipt = await this.signer.sendAndConfirmTransaction(initTx);
+    const initReceipt = await this.signer
+      .sendAndConfirmTransaction(initTx)
+      .catch((error: unknown) => {
+        throw withErrorContext(
+          `Failed to initialize synthetic warp token program ${tokenProgramId} (signer=${signerAddress})`,
+          error,
+        );
+      });
     allReceipts.push(initReceipt);
 
     const tokenAddress = toAleoAddress(tokenProgramId);
@@ -142,7 +163,14 @@ export class AleoSyntheticTokenWriter
     const postDeploymentTxs = getPostDeploymentUpdateTxs(tokenAddress, config);
 
     for (const tx of postDeploymentTxs) {
-      const receipt = await this.signer.sendAndConfirmTransaction(tx);
+      const receipt = await this.signer
+        .sendAndConfirmTransaction(tx)
+        .catch((error: unknown) => {
+          throw withErrorContext(
+            `Failed post-deployment step ${tx.programName}.${tx.functionName} for synthetic warp token ${tokenAddress} (signer=${signerAddress})`,
+            error,
+          );
+        });
       allReceipts.push(receipt);
     }
 
