@@ -557,6 +557,8 @@ export { EvmHookModule } from './hook/EvmHookModule.js';
 export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
+  FeeTokenApproval,
+  FeeTokenApprovalSchema,
   IcaRouterConfig,
   IcaRouterConfigSchema,
   IcaRouterConfig as InterchainAccountConfig,
