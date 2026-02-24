@@ -1,4 +1,5 @@
 import { BigNumber, Wallet, providers } from 'ethers';
+import { keccak256 as ethersKeccak256 } from 'ethers/lib/utils.js';
 import { TronWeb, Types } from 'tronweb';
 
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
@@ -33,6 +34,9 @@ export interface TronTransactionResponse extends providers.TransactionResponse {
  * gasLimit to Tron's feeLimit using: feeLimit = gasLimit × gasPrice.
  */
 export class TronWallet extends Wallet {
+  /** Counter to ensure each transaction gets a unique expiration → unique txID */
+  private static txCounter = 0;
+
   private readonly tronUrl: string;
   private tronWeb: TronWeb;
   private tronAddress: string;
@@ -134,6 +138,10 @@ export class TronWallet extends Wallet {
       );
     }
 
+    // Ensure unique txID by extending expiration with a counter.
+    // Tron has no nonces, so identical txs in the same block produce the same txID.
+    tronTx = await this.makeUnique(tronTx);
+
     // Sign and broadcast
     const signedTx = await this.tronWeb.trx.sign(tronTx);
     const broadcastResult = await this.tronWeb.trx.sendRawTransaction(signedTx);
@@ -162,5 +170,25 @@ export class TronWallet extends Wallet {
     };
 
     return response;
+  }
+
+  private async makeUnique(tronTx: TronTransaction): Promise<TronTransaction> {
+    const extension = ++TronWallet.txCounter;
+    const altered = await this.tronWeb.transactionBuilder.alterTransaction(
+      tronTx as Types.Transaction,
+      {
+        extension: tronTx.raw_data.expiration + extension,
+      },
+    );
+
+    // For deployments, recompute contract_address from the new txID.
+    // genContractAddress = '41' + keccak256(txID + ownerHex)[24:]
+    if ('contract_address' in tronTx) {
+      const ownerHex = this.tronWeb.address.toHex(this.tronAddress);
+      const hash = ethersKeccak256(Buffer.from(altered.txID + ownerHex, 'hex'));
+      (altered as any).contract_address = '41' + hash.substring(2).slice(24);
+    }
+
+    return altered as TronTransaction;
   }
 }
