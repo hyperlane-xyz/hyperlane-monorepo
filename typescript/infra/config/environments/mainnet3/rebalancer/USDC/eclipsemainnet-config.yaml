@@ -36,10 +36,10 @@ strategy:
 
     polygon:
       weighted:
-        weight: 10
-        tolerance: 5
+        weight: 5
+        tolerance: 3
       bridgeLockTime: 1800
-      bridgeMinAcceptedAmount: 3500
+      bridgeMinAcceptedAmount: 2500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
 
     unichain:
@@ -48,4 +48,12 @@ strategy:
         tolerance: 5
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+
+    ink:
+      weighted:
+        weight: 5
+        tolerance: 3
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 2500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'

@@ -44,23 +44,19 @@ async function main() {
 
     console.log(`Linting Warp config for ${warpRouteId}`);
     // Convert the object to a YAML string for linting
-    const configString = yamlStringify(registryConfig);
+    const configString = yamlStringify(registryConfig, (_key, value) =>
+      typeof value === 'bigint' ? value.toString() : value,
+    );
     const results = await eslint.lintText(configString, {
       // The `filePath` is required for ESLint to work with in-memory text
       // This filepath does not need to exist. It simply matches one of the filepaths pattern in the eslint config
       filePath: `chains/${warpRouteId}-nonexistent-file.yaml`,
     });
 
-    try {
-      assert(results[0].output, 'No output from ESLint');
-      registry.addWarpRouteConfig(yamlParse(results[0].output), {
-        warpRouteId,
-      });
-    } catch (error) {
-      console.error(
-        chalk.red(`Failed to add warp route config for ${warpRouteId}:`, error),
-      );
-    }
+    const lintedConfig = results[0].output ?? configString;
+    registry.addWarpRouteConfig(yamlParse(lintedConfig), {
+      warpRouteId,
+    });
 
     // TODO: Use registry.getWarpRoutesPath() to dynamically generate path by removing "protected"
     console.log(
