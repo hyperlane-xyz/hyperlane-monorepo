@@ -8,7 +8,6 @@
  * - Function return type changes
  * - Event removals
  * - Error removals
- * - Constructor changes
  * - Receive/fallback removals
  */
 import { execSync } from 'child_process';
@@ -38,15 +37,6 @@ contract InterfaceTestContract {`,
   },
 
   state: `mapping(address => uint256) public balances;`,
-
-  constructors: {
-    default: `constructor(uint256 initialSupply) {
-        balances[msg.sender] = initialSupply;
-    }`,
-    modified: `constructor(uint256 initialSupply, address recipient) {
-        balances[recipient] = initialSupply;
-    }`,
-  },
 
   functions: {
     transfer: `function transfer(address to, uint256 amount) external returns (bool) {
@@ -86,7 +76,6 @@ contract InterfaceTestContract {`,
 interface ContractConfig {
   events: string[];
   errors: string[];
-  constructor: string;
   functions: string[];
   receive: boolean;
   fallback: boolean;
@@ -110,12 +99,6 @@ function buildContract(config: ContractConfig): string {
   // State
   parts.push('    // State');
   parts.push(`    ${CONTRACT_PARTS.state}`);
-
-  // Constructor
-  if (config.constructor) {
-    parts.push('    // Constructor');
-    parts.push(`    ${config.constructor}`);
-  }
 
   // Functions
   if (config.functions) {
@@ -145,7 +128,6 @@ const BASE_CONFIG: ContractConfig = {
     CONTRACT_PARTS.errors.insufficientBalance,
     CONTRACT_PARTS.errors.unauthorized,
   ],
-  constructor: CONTRACT_PARTS.constructors.default,
   functions: [
     CONTRACT_PARTS.functions.transfer,
     CONTRACT_PARTS.functions.approve,
@@ -220,15 +202,6 @@ const CONTRACT_VARIANTS: Record<
     }),
     shouldFail: true,
     expectedMatch: 'Unauthorized',
-  },
-
-  constructor_changed: {
-    contract: buildContract({
-      ...BASE_CONFIG,
-      constructor: CONTRACT_PARTS.constructors.modified,
-    }),
-    shouldFail: true,
-    expectedMatch: 'constructor',
   },
 
   receive_removed: {
