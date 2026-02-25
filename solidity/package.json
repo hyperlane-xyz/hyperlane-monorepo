@@ -66,7 +66,7 @@
     ],
     "license": "Apache-2.0",
     "scripts": {
-        "deps:soldeer": "forge soldeer install --quiet",
+        "deps:soldeer": "forge soldeer install --quiet || echo 'Warning: soldeer install failed, assuming dependencies are already present'",
         "build": "pnpm version:update && pnpm hardhat-esm compile && tsc && ./exportBuildArtifact.sh",
         "build:zk": "pnpm hardhat-zk compile && tsc && node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
         "build:tron": "./build-tron.sh",
