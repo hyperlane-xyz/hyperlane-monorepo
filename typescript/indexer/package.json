@@ -1,8 +1,8 @@
 {
   "name": "@hyperlane-xyz/indexer",
-  "description": "Ponder-based indexer for Hyperlane protocol events",
   "version": "0.1.0",
   "private": true,
+  "description": "Ponder-based indexer for Hyperlane protocol events",
   "type": "module",
   "scripts": {
     "dev": "ponder dev --disable-ui --log-level error",
@@ -17,7 +17,12 @@
     "test": "mocha --config .mocharc.json './test/**/*.test.ts' --exit",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:compare": "tsx scripts/compare.ts",
-    "db:comparison": "tsx scripts/db-comparison.ts"
+    "db:comparison": "tsx scripts/db-comparison.ts",
+    "shovel:db:migrate": "tsx scripts/migrate-shovel.ts",
+    "shovel:config": "tsx scripts/generate-shovel-config.ts",
+    "shovel:compare": "tsx scripts/compare-shovel.ts",
+    "shovel:download": "bash scripts/download-shovel.sh",
+    "shovel:run": "bash scripts/run-shovel-local.sh"
   },
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "catalog:",
