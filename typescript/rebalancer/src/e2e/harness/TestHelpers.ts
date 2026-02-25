@@ -109,6 +109,7 @@ export async function relayInProgressInventoryDeposits(
       destination,
     });
 
+    // eslint-disable-next-line no-unused-expressions
     expect(
       relayResult.success,
       `Inventory deposit relay should succeed: ${relayResult.error}`,
