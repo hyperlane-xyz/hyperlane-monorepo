@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 
 import type { HyperlaneCore } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { parseMessage, rootLogger } from '@hyperlane-xyz/utils';
 
 import { KPICollector } from './KPICollector.js';
 import { MockActionTracker } from './runners/MockActionTracker.js';
@@ -83,27 +83,23 @@ export class MockInfrastructureController {
     // Listen for Dispatch events on all mailboxes
     for (const chainName of this.core.multiProvider.getKnownChainNames()) {
       const mailbox = this.core.getContracts(chainName).mailbox;
-      void mailbox.on(
-        mailbox.filters.Dispatch(),
-        (
-          sender: string,
-          destination: bigint,
-          _recipient: string,
-          message: string,
-        ) => {
-          this.onDispatch(
-            chainName,
-            sender,
-            Number(destination),
-            message,
-          ).catch((error: unknown) => {
-            logger.error(
-              { origin: chainName, error },
-              'Unhandled error in onDispatch',
-            );
-          });
-        },
-      );
+      await mailbox.on(mailbox.filters.Dispatch(), (...args: unknown[]) => {
+        const { sender, message } = this.extractDispatchArgs(args);
+        if (!sender || !message) {
+          logger.error(
+            { origin: chainName, argsLength: args.length },
+            'Failed to parse Dispatch event args',
+          );
+          return;
+        }
+
+        this.onDispatch(chainName, sender, message).catch((error: unknown) => {
+          logger.error(
+            { origin: chainName, error },
+            'Unhandled error in onDispatch',
+          );
+        });
+      });
     }
 
     // Start processing loop
@@ -116,9 +112,19 @@ export class MockInfrastructureController {
   private async onDispatch(
     originChain: string,
     sender: string,
-    destinationDomainId: number,
     message: string,
   ): Promise<void> {
+    let destinationDomainId: number;
+    try {
+      destinationDomainId = parseMessage(message).destination;
+    } catch (error) {
+      logger.error(
+        { originChain, sender, error },
+        'Failed to parse dispatched message',
+      );
+      return;
+    }
+
     const destChain =
       this.core.multiProvider.tryGetChainName(destinationDomainId);
     if (!destChain) {
@@ -222,6 +228,52 @@ export class MockInfrastructureController {
     this.pendingMessages.push(pending);
   }
 
+  private extractDispatchArgs(args: unknown[]): {
+    sender?: string;
+    message?: string;
+  } {
+    if (
+      typeof args[0] === 'string' &&
+      ethers.isAddress(args[0]) &&
+      typeof args[3] === 'string' &&
+      args[3].startsWith('0x')
+    ) {
+      return { sender: args[0], message: args[3] };
+    }
+
+    for (const arg of args) {
+      if (!arg || typeof arg !== 'object' || !('args' in arg)) continue;
+      const eventArgs = (arg as { args?: unknown }).args as
+        | { sender?: unknown; message?: unknown; [key: number]: unknown }
+        | undefined;
+      if (!eventArgs) continue;
+
+      const senderCandidate = eventArgs.sender ?? eventArgs[0];
+      const messageCandidate = eventArgs.message ?? eventArgs[3];
+      if (
+        typeof senderCandidate === 'string' &&
+        ethers.isAddress(senderCandidate) &&
+        typeof messageCandidate === 'string' &&
+        messageCandidate.startsWith('0x')
+      ) {
+        return { sender: senderCandidate, message: messageCandidate };
+      }
+    }
+
+    // Fallback: scan direct callback args only.
+    let sender: string | undefined;
+    let message: string | undefined;
+    for (const value of args) {
+      if (typeof value !== 'string') continue;
+      if (!sender && ethers.isAddress(value)) sender = value;
+      if (!message && value.startsWith('0x') && value.length > 2 + 160) {
+        message = value;
+      }
+    }
+
+    return { sender, message };
+  }
+
   /**
    * Async processing loop — delivers ready messages, sleeps between iterations.
    * Retries indefinitely; waitForAllDeliveries handles the timeout.
@@ -303,7 +355,7 @@ export class MockInfrastructureController {
     }
 
     for (const chainName of this.core.multiProvider.getKnownChainNames()) {
-      void this.core.getContracts(chainName).mailbox.removeAllListeners();
+      await this.core.getContracts(chainName).mailbox.removeAllListeners();
     }
   }
 

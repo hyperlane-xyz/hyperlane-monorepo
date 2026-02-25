@@ -183,15 +183,6 @@ export class ProductionRebalancerRunner
     );
     multiProvider.setSharedSigner(wallet);
 
-    // Set fast polling interval and disable automatic polling on all internal providers
-    for (const chainName of multiProvider.getKnownChainNames()) {
-      const chainProvider = multiProvider.tryGetProvider(chainName);
-      if (chainProvider && 'pollingInterval' in chainProvider) {
-        const jsonRpcProvider = chainProvider as { pollingInterval: number };
-        jsonRpcProvider.pollingInterval = 100;
-      }
-    }
-
     // Create MultiProtocolProvider
     const multiProtocolProvider =
       MultiProtocolProvider.fromMultiProvider(multiProvider);
