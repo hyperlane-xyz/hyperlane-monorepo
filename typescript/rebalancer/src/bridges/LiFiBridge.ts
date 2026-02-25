@@ -31,41 +31,6 @@ import type {
 const LIFI_API_BASE = 'https://li.quest/v1';
 
 /**
- * LiFi quote response structure (partial, only fields we need).
- */
-export interface LiFiQuoteResponse {
-  id: string;
-  tool: string;
-  action: {
-    fromAmount: string;
-    toAmount?: string;
-  };
-  estimate: {
-    fromAmount: string;
-    toAmount: string;
-    toAmountMin: string;
-    executionDuration: number;
-    gasCosts?: Array<{
-      type: string;
-      amount: string;
-      token: {
-        address: string;
-        symbol: string;
-      };
-    }>;
-    feeCosts?: Array<{
-      name: string;
-      amount: string;
-      included: boolean;
-      token: {
-        address: string;
-        symbol: string;
-      };
-    }>;
-  };
-}
-
-/**
  * Known chains for viem - add more as needed.
  * TODO: can we think of a cleaner way to do this?
  */
@@ -166,9 +131,7 @@ export class LiFiBridge implements IExternalBridge {
    *
    * Returns route data ready for execution.
    */
-  async quote(
-    params: BridgeQuoteParams,
-  ): Promise<BridgeQuote<LiFiQuoteResponse>> {
+  async quote(params: BridgeQuoteParams): Promise<BridgeQuote<LiFiStep>> {
     this.initialize();
 
     // Validate that exactly one of fromAmount or toAmount is provided
@@ -195,7 +158,7 @@ export class LiFiBridge implements IExternalBridge {
    */
   private async quoteBySpendingAmount(
     params: BridgeQuoteParams,
-  ): Promise<BridgeQuote<LiFiQuoteResponse>> {
+  ): Promise<BridgeQuote<LiFiStep>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by spending amount');
 
     const quote = await getQuote({
@@ -211,9 +174,7 @@ export class LiFiBridge implements IExternalBridge {
       order: 'RECOMMENDED',
     });
 
-    const { gasCosts, feeCosts } = this.extractCosts(
-      quote as unknown as LiFiQuoteResponse,
-    );
+    const { gasCosts, feeCosts } = this.extractCosts(quote);
 
     this.logger.info(
       {
@@ -249,7 +210,7 @@ export class LiFiBridge implements IExternalBridge {
    */
   private async quoteByReceivingAmount(
     params: BridgeQuoteParams,
-  ): Promise<BridgeQuote<LiFiQuoteResponse>> {
+  ): Promise<BridgeQuote<LiFiStep>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by receiving amount');
 
     const queryParams = new URLSearchParams({
@@ -285,7 +246,7 @@ export class LiFiBridge implements IExternalBridge {
       );
     }
 
-    const quote: LiFiQuoteResponse = await response.json();
+    const quote: LiFiStep = await response.json();
     const { gasCosts, feeCosts } = this.extractCosts(quote);
 
     this.logger.info(
@@ -321,7 +282,7 @@ export class LiFiBridge implements IExternalBridge {
    * - gasCosts: Sum of all gas costs (transaction fees)
    * - feeCosts: Sum of non-included fee costs (protocol fees not deducted from amount)
    */
-  private extractCosts(quote: LiFiQuoteResponse): {
+  private extractCosts(quote: LiFiStep): {
     gasCosts: bigint;
     feeCosts: bigint;
   } {
@@ -356,13 +317,13 @@ export class LiFiBridge implements IExternalBridge {
    * @param privateKey - Private key hex string (0x-prefixed) for signing the transaction
    */
   async execute(
-    quote: BridgeQuote<LiFiQuoteResponse>,
+    quote: BridgeQuote<LiFiStep>,
     privateKey: string,
   ): Promise<BridgeTransferResult> {
     this.initialize();
 
     // Convert quote to route for execution
-    const route = convertQuoteToRoute(quote.route as LiFiStep);
+    const route = convertQuoteToRoute(quote.route);
 
     this.validateRouteAgainstRequest(route, quote.requestParams);
 
