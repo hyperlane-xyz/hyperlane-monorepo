@@ -24,7 +24,7 @@ describe('Contracts', () => {
       '100000000000000000000',
       18,
     );
-    await contract.deployed();
+    await contract.waitForDeployment();
   });
   describe('isAddressActive', async () => {
     it('should return false for AddressZero', async () => {

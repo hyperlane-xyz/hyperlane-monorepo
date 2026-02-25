@@ -35,7 +35,7 @@ describe('EvmTokenFeeReader', () => {
 
     const factory = new ERC20Test__factory(signer);
     token = await factory.deploy('fake', 'FAKE', TOKEN_TOTAL_SUPPLY, 18);
-    await token.deployed();
+    await token.waitForDeployment();
   });
 
   describe('LinearFee', () => {

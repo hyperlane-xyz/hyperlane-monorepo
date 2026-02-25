@@ -43,7 +43,7 @@ describe('EvmTokenFeeDeployer', () => {
     deployer = new EvmTokenFeeDeployer(multiProvider, TestChainName.test2);
     const factory = new ERC20Test__factory(signer);
     token = await factory.deploy('fake', 'FAKE', '100000000000000000000', 18);
-    await token.deployed();
+    await token.waitForDeployment();
   });
 
   describe('basic config', () => {

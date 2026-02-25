@@ -36,7 +36,7 @@ describe('EvmTokenFeeModule', () => {
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const factory = new ERC20Test__factory(signer);
     token = await factory.deploy('fake', 'FAKE', '100000000000000000000', 18);
-    await token.deployed();
+    await token.waitForDeployment();
 
     config = {
       type: TokenFeeType.LinearFee,
@@ -367,7 +367,7 @@ describe('EvmTokenFeeModule', () => {
     it('should expand config for zero-supply token using safe fallback', async () => {
       const factory = new ERC20Test__factory(signer);
       const zeroSupplyToken = await factory.deploy('ZeroSupply', 'ZERO', 0, 18);
-      await zeroSupplyToken.deployed();
+      await zeroSupplyToken.waitForDeployment();
 
       const inputConfig: ResolvedTokenFeeConfigInput = {
         type: TokenFeeType.LinearFee,
@@ -401,7 +401,7 @@ describe('EvmTokenFeeModule', () => {
     it('should expand nested RoutingFee config for zero-supply token', async () => {
       const factory = new ERC20Test__factory(signer);
       const zeroSupplyToken = await factory.deploy('ZeroSupply', 'ZERO', 0, 18);
-      await zeroSupplyToken.deployed();
+      await zeroSupplyToken.waitForDeployment();
 
       const inputConfig: ResolvedTokenFeeConfigInput = {
         type: TokenFeeType.RoutingFee,
