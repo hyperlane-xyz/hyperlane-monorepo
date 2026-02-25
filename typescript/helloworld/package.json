@@ -71,8 +71,8 @@
     "typescript": "catalog:"
   },
   "peerDependencies": {
-    "ethers": "*",
     "@types/node": "*",
-    "@types/sinon-chai": "*"
+    "@types/sinon-chai": "*",
+    "ethers": "*"
   }
 }

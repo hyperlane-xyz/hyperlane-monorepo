@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { utils } from 'ethers';
+import { hexlify, toUtf8Bytes } from 'ethers';
 
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
@@ -20,22 +20,24 @@ describe('MockMailbox', function () {
     const testRecipientFactory = new TestRecipient__factory(signer);
     const originMailbox = await mailboxFactory.deploy(ORIGIN_DOMAIN);
     const destinationMailbox = await mailboxFactory.deploy(DESTINATION_DOMAIN);
+    const destinationMailboxAddress = await destinationMailbox.getAddress();
     await originMailbox.addRemoteMailbox(
       DESTINATION_DOMAIN,
-      destinationMailbox.address,
+      destinationMailboxAddress,
     );
     const recipient = await testRecipientFactory.deploy();
+    const recipientAddress = await recipient.getAddress();
 
-    const body = utils.toUtf8Bytes('This is a test message');
+    const body = toUtf8Bytes('This is a test message');
 
     await originMailbox['dispatch(uint32,bytes32,bytes)'](
       DESTINATION_DOMAIN,
-      addressToBytes32(recipient.address),
+      addressToBytes32(recipientAddress),
       body,
     );
     await destinationMailbox.processNextInboundMessage();
 
     const dataReceived = await recipient.lastData();
-    expect(dataReceived).to.eql(utils.hexlify(body));
+    expect(dataReceived).to.eql(hexlify(body));
   });
 });

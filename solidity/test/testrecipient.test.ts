@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { utils } from 'ethers';
+import { hexlify, toUtf8Bytes } from 'ethers';
 
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
@@ -7,7 +7,7 @@ import { TestRecipient, TestRecipient__factory } from '../core-utils/typechain';
 
 import { getSigner } from './signer';
 
-const testData = utils.hexlify(utils.toUtf8Bytes('test'));
+const testData = hexlify(toUtf8Bytes('test'));
 describe('TestRecipient', () => {
   let recipient: TestRecipient;
   let signerAddress: string;
