@@ -1,5 +1,5 @@
 import { confirm } from '@inquirer/prompts';
-import { type ethers } from 'ethers';
+import type { Signer } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
 import {
@@ -230,7 +230,7 @@ async function getSignerKeyMap(
  * @param customChains Custom chains specified by the user
  * @returns a new MultiProvider
  */
-async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
+async function getMultiProvider(registry: IRegistry, signer?: Signer) {
   const chainMetadata = await registry.getMetadata();
   const multiProvider = new MultiProvider(chainMetadata);
   if (signer) multiProvider.setSharedSigner(signer);
@@ -350,6 +350,6 @@ export async function ensureEvmSignersForChains(
   for (const chain of missingSignerChains) {
     const signer = signerManager.getEVMSigner(chain);
     const provider = context.multiProvider.getProvider(chain);
-    context.multiProvider.setSigner(chain, signer.connect(provider));
+    context.multiProvider.setSigner(chain, signer.connect(provider as any));
   }
 }

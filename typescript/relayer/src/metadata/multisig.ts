@@ -550,10 +550,10 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     const { signatureOffset: offset, ...values } = prefix;
 
     const signatures: SignatureLike[] = [];
-    for (let i = 0; this.signatureAt(metadata, offset, i); i++) {
-      const parsedSignature = Signature.from(
-        this.signatureAt(metadata, offset, i)!,
-      );
+    for (let i = 0; ; i++) {
+      const signature = this.signatureAt(metadata, offset, i);
+      if (!signature) break;
+      const parsedSignature = Signature.from(signature);
       signatures.push({
         r: parsedSignature.r,
         s: parsedSignature.s,

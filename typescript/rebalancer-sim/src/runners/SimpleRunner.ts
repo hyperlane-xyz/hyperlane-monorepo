@@ -32,7 +32,7 @@ export async function cleanupSimpleRunner(): Promise<void> {
   }
 
   if (currentSimpleProvider) {
-    currentSimpleProvider.removeAllListeners();
+    void currentSimpleProvider.removeAllListeners();
     currentSimpleProvider = null;
   }
 
@@ -347,7 +347,7 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
 
     // Clean up provider
     if (this.provider) {
-      this.provider.removeAllListeners();
+      void this.provider.removeAllListeners();
       if (currentSimpleProvider === this.provider) {
         currentSimpleProvider = null;
       }

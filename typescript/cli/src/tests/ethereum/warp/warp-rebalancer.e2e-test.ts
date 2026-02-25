@@ -1030,7 +1030,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       recipient: Address;
       amount: bigint;
     }>((resolve) => {
-      bridgeContract.on(
+      void bridgeContract.on(
         bridgeContract.filters.SentTransferRemote(),
         (origin, destination, recipient, amount) => {
           resolve({
@@ -1040,7 +1040,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
             amount: amount.toBigInt(),
           });
 
-          bridgeContract.removeAllListeners();
+          void bridgeContract.removeAllListeners();
         },
       );
     });
@@ -1289,7 +1289,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         recipient: Address;
         amount: bigint;
       }>((resolve) => {
-        bridgeContract.on(
+        void bridgeContract.on(
           bridgeContract.filters.SentTransferRemote(),
           (origin, destination, recipient, amount) => {
             resolve({
@@ -1299,7 +1299,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               amount: amount.toBigInt(),
             });
 
-            bridgeContract.removeAllListeners();
+            void bridgeContract.removeAllListeners();
           },
         );
       });

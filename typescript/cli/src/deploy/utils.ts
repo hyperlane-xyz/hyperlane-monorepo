@@ -1,5 +1,5 @@
 import { confirm } from '@inquirer/prompts';
-import { BigNumber, ethers } from 'ethers';
+import { formatEther } from 'ethers';
 import path from 'path';
 
 import { type GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
@@ -155,9 +155,9 @@ export async function getBalances(
   context: WriteCommandContext,
   chains: ChainName[],
   userAddress?: Address,
-): Promise<Record<string, BigNumber>> {
+): Promise<Record<string, bigint>> {
   const { multiProvider } = context;
-  const balances: Record<string, BigNumber> = {};
+  const balances: Record<string, bigint> = {};
 
   for (const chain of chains) {
     const { nativeToken, protocol } = multiProvider.getChainMetadata(chain);
@@ -175,7 +175,7 @@ export async function getBalances(
 
       const signer = mustGet(context.altVmSigners, chain);
       const address = userAddress ?? signer.getSignerAddress();
-      balances[chain] = BigNumber.from(
+      balances[chain] = BigInt(
         await signer.getBalance({
           address,
           denom: nativeToken?.denom ?? '',
@@ -190,7 +190,7 @@ export async function getBalances(
 export async function completeDeploy(
   context: WriteCommandContext,
   command: string,
-  initialBalances: Record<string, BigNumber>,
+  initialBalances: Record<string, bigint>,
   userAddress: Address | null,
   chains: ChainName[],
 ) {
@@ -200,10 +200,10 @@ export async function completeDeploy(
   for (const chain of chains) {
     const { nativeToken } = multiProvider.getChainMetadata(chain);
     const currentBalances = await getBalances(context, [chain]);
-    const balanceDelta = initialBalances[chain].sub(currentBalances[chain]);
+    const balanceDelta = initialBalances[chain] - currentBalances[chain];
 
     logPink(
-      `\t- Gas required for ${command} deploy on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
+      `\t- Gas required for ${command} deploy on ${chain}: ${formatEther(balanceDelta)} ${
         nativeToken?.symbol ?? 'UNKNOWN SYMBOL'
       }`,
     );

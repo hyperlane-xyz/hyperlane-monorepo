@@ -231,7 +231,7 @@ export async function deployMultiDomainSimulation(
   // CRITICAL: Clean up the deployment provider to prevent accumulation
   // Each deployment creates a provider with 100ms polling that was never cleaned up
   // After multiple test runs, these accumulate and overwhelm anvil
-  provider.removeAllListeners();
+  void provider.removeAllListeners();
 
   // Build result
   const domains: Record<string, DeployedDomain> = {};

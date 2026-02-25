@@ -134,11 +134,11 @@ export async function setProxyAdminConfig(
     };
   } catch (error) {
     rootLogger.error(
-      `Failed to read owner address from ProxyAdmin contract at ${proxy.address} on chain ${chain}.`,
+      `Failed to read owner address from ProxyAdmin contract at ${proxy.target} on chain ${chain}.`,
       error,
     );
     throw new Error(
-      `Failed to read owner address from ProxyAdmin contract at ${proxy.address}. Are you sure this is a ProxyAdmin contract?`,
+      `Failed to read owner address from ProxyAdmin contract at ${proxy.target}. Are you sure this is a ProxyAdmin contract?`,
     );
   }
 }

@@ -1,4 +1,4 @@
-import { type Wallet } from 'ethers';
+import { type HDNodeWallet, type Wallet } from 'ethers';
 
 import {
   ECDSAStakeRegistry__factory,
@@ -66,7 +66,7 @@ export const checkValidatorAvsSetup = async (
 
   const topLevelErrors: string[] = [];
 
-  let operatorWallet: Wallet | undefined;
+  let operatorWallet: Wallet | HDNodeWallet | undefined;
   if (operatorKeyPath) {
     operatorWallet = await readOperatorFromEncryptedJson(operatorKeyPath);
   }
@@ -126,7 +126,10 @@ const getAvsOperators = async (
     return avsOperators;
   }
 
-  const filter = ecdsaStakeRegistry.filters.SigningKeyUpdate(null, null);
+  const filter = ecdsaStakeRegistry.filters.SigningKeyUpdate(
+    undefined,
+    undefined,
+  );
   const provider = multiProvider.getProvider(chain);
   const latestBlock = await provider.getBlockNumber();
   const blockLimit = 50000; // 50k blocks per query
@@ -175,7 +178,7 @@ const getAVSMetadataURI = async (
 
   const filter = delegationManager.filters.OperatorMetadataURIUpdated(
     operatorAddress,
-    null,
+    undefined,
   );
 
   const provider = multiProvider.getProvider(chain);
@@ -193,7 +196,9 @@ const getAVSMetadataURI = async (
 
     if (logs.length > 0) {
       const event = delegationManager.interface.parseLog(logs[0]);
-      return event.args.metadataURI;
+      if (event) {
+        return event.args.metadataURI;
+      }
     }
 
     fromBlock = toBlock + 1;

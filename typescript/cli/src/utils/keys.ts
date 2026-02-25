@@ -1,5 +1,11 @@
 import { input } from '@inquirer/prompts';
-import { ethers, type providers } from 'ethers';
+import {
+  Wallet,
+  isHexString,
+  type HDNodeWallet,
+  type JsonRpcSigner,
+  type Signer,
+} from 'ethers';
 
 import { impersonateAccount } from '@hyperlane-xyz/sdk';
 import { type Address, ensure0x } from '@hyperlane-xyz/utils';
@@ -49,8 +55,8 @@ export async function getImpersonatedSigner({
  * Verifies the specified signer is valid.
  * @param signer the signer to verify
  */
-export function assertSigner(signer: ethers.Signer) {
-  if (!signer || !ethers.Signer.isSigner(signer))
+export function assertSigner(signer: Signer | undefined) {
+  if (!signer || typeof (signer as Signer).getAddress !== 'function')
     throw new Error('Signer is invalid');
 }
 
@@ -61,13 +67,13 @@ export function assertSigner(signer: ethers.Signer) {
  */
 async function addressToImpersonatedSigner(
   address: Address,
-): Promise<providers.JsonRpcSigner> {
+): Promise<JsonRpcSigner> {
   if (!address) throw new Error('No address provided');
 
   const formattedKey = address.trim().toLowerCase();
   if (address.length != ETHEREUM_ADDRESS_LENGTH)
     throw new Error('Invalid address length.');
-  else if (ethers.utils.isHexString(ensure0x(formattedKey)))
+  else if (isHexString(ensure0x(formattedKey)))
     return impersonateAccount(address);
   else throw new Error('Invalid address format');
 }
@@ -77,14 +83,14 @@ async function addressToImpersonatedSigner(
  * @param key a private key
  * @returns a signer for the private key
  */
-function privateKeyToSigner(key: string): ethers.Wallet {
+function privateKeyToSigner(key: string): Wallet | HDNodeWallet {
   if (!key) throw new Error('No private key provided');
 
   const formattedKey = key.trim().toLowerCase();
-  if (ethers.utils.isHexString(ensure0x(formattedKey)))
-    return new ethers.Wallet(ensure0x(formattedKey));
+  if (isHexString(ensure0x(formattedKey)))
+    return new Wallet(ensure0x(formattedKey));
   else if (formattedKey.split(' ').length >= 6)
-    return ethers.Wallet.fromMnemonic(formattedKey);
+    return Wallet.fromPhrase(formattedKey);
   else throw new Error('Invalid private key format');
 }
 

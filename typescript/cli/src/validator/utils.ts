@@ -13,7 +13,7 @@ export const getLatestMerkleTreeCheckpointIndex = async (
 ): Promise<number | undefined> => {
   try {
     const [_, latestCheckpointIndex] = await merkleTreeHook.latestCheckpoint();
-    return latestCheckpointIndex;
+    return Number(latestCheckpointIndex);
   } catch (err) {
     const debugMessage = `Failed to get latest checkpoint index from merkleTreeHook contract ${
       chainName ? `on ${chainName}` : ''

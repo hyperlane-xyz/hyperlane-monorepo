@@ -84,7 +84,7 @@ export class HyperlaneJsonRpcProvider
     switch (method) {
       case ProviderMethod.Call: {
         const tx = {
-          ...(params?.transaction ?? params?.tx ?? {}),
+          ...(params?.transaction ?? params?.tx),
           blockTag: params?.blockTag,
         };
         return this.call(tx);
