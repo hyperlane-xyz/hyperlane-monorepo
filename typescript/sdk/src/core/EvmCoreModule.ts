@@ -73,14 +73,28 @@ export class EvmCoreModule extends HyperlaneModule<
   public readonly chainId: EvmChainId;
   public readonly domainId: Domain;
 
+  private isDerivedIsmConfig(
+    config: IsmConfig | DerivedIsmConfig,
+  ): config is DerivedIsmConfig {
+    return (
+      typeof config === 'object' &&
+      config !== null &&
+      'address' in config &&
+      typeof config.address === 'string'
+    );
+  }
+
   private getDerivedIsmAddress(config: IsmConfig | DerivedIsmConfig): Address {
     if (typeof config === 'string') return config;
-    const address = (config as { address?: unknown }).address;
     assert(
-      typeof address === 'string',
+      this.isDerivedIsmConfig(config),
       `Missing derived ISM address for chain ${this.chainName}`,
     );
-    return address;
+    assert(
+      typeof config.address === 'string',
+      `Missing derived ISM address for chain ${this.chainName}`,
+    );
+    return config.address;
   }
 
   constructor(
