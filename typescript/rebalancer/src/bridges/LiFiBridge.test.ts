@@ -3,12 +3,14 @@ import chaiAsPromised from 'chai-as-promised';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
+import type { LiFiStep } from '@lifi/sdk';
+
 import type {
   BridgeQuote,
   BridgeQuoteParams,
   ExternalBridgeConfig,
 } from '../interfaces/IExternalBridge.js';
-import { LiFiBridge, type LiFiQuoteResponse } from './LiFiBridge.js';
+import { LiFiBridge } from './LiFiBridge.js';
 
 chai.use(chaiAsPromised);
 
@@ -27,10 +29,10 @@ const SENDER_ADDR = '0x9876543210987654321098765432109876543210';
 const BAD_ADDR = '0x1111111111111111111111111111111111111111';
 
 /**
- * Creates a raw LiFi quote response object that convertQuoteToRoute can consume.
+ * Creates a LiFiStep object that convertQuoteToRoute can consume.
  * The SDK's convertQuoteToRoute reads action.fromToken.chainId, action.toToken.chainId, etc.
  */
-function createLiFiQuoteResponse(overrides?: {
+function createLiFiStep(overrides?: {
   fromChainId?: number;
   toChainId?: number;
   fromTokenAddress?: string;
@@ -38,7 +40,7 @@ function createLiFiQuoteResponse(overrides?: {
   toAddress?: string;
   fromAmount?: string;
   fromAddress?: string;
-}) {
+}): LiFiStep {
   const fromChainId = overrides?.fromChainId ?? 42161;
   const toChainId = overrides?.toChainId ?? 1399811149;
   const fromTokenAddress = overrides?.fromTokenAddress ?? TOKEN_ADDR;
@@ -51,6 +53,8 @@ function createLiFiQuoteResponse(overrides?: {
     id: 'quote-123',
     type: 'lifi' as const,
     tool: 'across',
+    toolDetails: { key: 'across', name: 'Across', logoURI: '' },
+    includedSteps: [],
     action: {
       fromToken: {
         chainId: fromChainId,
@@ -76,6 +80,7 @@ function createLiFiQuoteResponse(overrides?: {
       slippage: 0.005,
     },
     estimate: {
+      tool: 'across',
       fromAmount,
       fromAmountUSD: '10000',
       toAmount: '9950000000',
@@ -85,7 +90,10 @@ function createLiFiQuoteResponse(overrides?: {
       executionDuration: 300,
       gasCosts: [
         {
-          type: 'SEND',
+          type: 'SEND' as const,
+          price: '50',
+          estimate: '21000',
+          limit: '26250',
           amount: '50000000',
           amountUSD: '5',
           token: {
@@ -103,13 +111,13 @@ function createLiFiQuoteResponse(overrides?: {
 }
 
 /**
- * Creates a BridgeQuote with matching requestParams for the default LiFi quote response.
+ * Creates a BridgeQuote with matching requestParams for the default LiFi step.
  */
 function createTestQuote(
-  routeOverrides?: Parameters<typeof createLiFiQuoteResponse>[0],
+  routeOverrides?: Parameters<typeof createLiFiStep>[0],
   paramOverrides?: Partial<BridgeQuoteParams>,
-): BridgeQuote<LiFiQuoteResponse> {
-  const lifiQuote = createLiFiQuoteResponse(routeOverrides);
+): BridgeQuote<LiFiStep> {
+  const lifiStep = createLiFiStep(routeOverrides);
 
   const defaultParams: BridgeQuoteParams = {
     fromChain: 42161,
@@ -130,7 +138,7 @@ function createTestQuote(
     executionDuration: 300,
     gasCosts: 50000000n,
     feeCosts: 0n,
-    route: lifiQuote,
+    route: lifiStep,
     requestParams: { ...defaultParams, ...paramOverrides },
   };
 }
