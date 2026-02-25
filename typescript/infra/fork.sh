@@ -10,11 +10,27 @@ if [ -z "$ENVIRONMENT" ] || [ -z "$MODULE" ] || [ -z "$CHAIN" ]; then
   exit 1
 fi
 
-# kill all child processes on exit
-trap 'jobs -p | xargs -r kill 2>/dev/null || true' EXIT
+kill_local_anvil() {
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -ti tcp:8545 | xargs -r kill 2>/dev/null || true
+  elif command -v fuser >/dev/null 2>&1; then
+    fuser -k 8545/tcp >/dev/null 2>&1 || true
+  fi
+}
+
+cleanup() {
+  jobs -p | xargs -r kill 2>/dev/null || true
+  kill_local_anvil
+}
+
+# kill all child processes on exit and clean any orphaned local anvil
+trap cleanup EXIT
 
 # exit 1 on any subsequent failures
 set -e
+
+# avoid stale anvil from prior retry attempts in the same CI runner
+kill_local_anvil
 
 LOG_LEVEL=error pnpm tsx ./scripts/run-anvil.ts -e $ENVIRONMENT -c $CHAIN &
 ANVIL_PID=$!
