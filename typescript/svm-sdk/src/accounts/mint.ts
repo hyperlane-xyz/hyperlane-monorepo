@@ -86,13 +86,14 @@ export function decodeMetadataPointerAddress(
  */
 export function decodeTokenMetadataFields(
   data: Uint8Array,
-): { name: string; symbol: string } | null {
+): { name: string; symbol: string; uri: string } | null {
   try {
     // Skip updateAuthority(32) + mint(32) = 64 bytes.
     const cursor = new ByteCursor(data.slice(64));
     const name = cursor.readString().trim();
     const symbol = cursor.readString().trim();
-    return { name, symbol };
+    const uri = cursor.readString().trim();
+    return { name, symbol, uri };
   } catch {
     return null;
   }
@@ -129,7 +130,7 @@ export function decodeMetaplexMetadata(data: Uint8Array): {
 export async function fetchMintMetadata(
   rpc: SvmRpc,
   mintAddress: string,
-): Promise<{ name: string; symbol: string; decimals: number }> {
+): Promise<{ name: string; symbol: string; decimals: number; uri?: string }> {
   const account = await fetchEncodedAccount(rpc, parseAddress(mintAddress));
   if (!account.exists)
     throw new Error(`Mint account not found: ${mintAddress}`);
@@ -181,10 +182,10 @@ export async function fetchMintMetadata(
     });
     const metaAccount = await fetchEncodedAccount(rpc, metadataPDA);
     if (metaAccount.exists) {
-      const { name, symbol } = decodeMetaplexMetadata(
+      const { name, symbol, uri } = decodeMetaplexMetadata(
         metaAccount.data as Uint8Array,
       );
-      if (name && symbol) return { name, symbol, decimals };
+      if (name && symbol) return { name, symbol, decimals, uri };
     }
   } catch {
     // Fall through to unknown.
