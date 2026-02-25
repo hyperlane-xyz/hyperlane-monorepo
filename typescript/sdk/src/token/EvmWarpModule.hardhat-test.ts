@@ -1196,11 +1196,10 @@ describe('EvmWarpModule', async () => {
           evmERC20WarpModule.serialize().deployedTokenRoute,
           signer,
         );
-        const check =
-          await warpTokenInstance.callStatic.allowedBridges(domainId);
+        const check = await warpTokenInstance.allowedBridges(domainId);
         expect(check[0]).to.eql(allowedBridgeToAdd);
 
-        const allowance = await feeToken.callStatic.allowance(
+        const allowance = await feeToken.allowance(
           evmERC20WarpModule.serialize().deployedTokenRoute,
           allowedBridgeToAdd,
         );
@@ -1251,8 +1250,7 @@ describe('EvmWarpModule', async () => {
           signer,
         );
 
-        const allowedBridges =
-          await warpTokenInstance.callStatic.allowedBridges(domainId);
+        const allowedBridges = await warpTokenInstance.allowedBridges(domainId);
         expect(allowedBridges).to.be.empty;
       });
 

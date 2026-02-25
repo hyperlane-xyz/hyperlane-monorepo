@@ -113,7 +113,7 @@ describe('hyperlane warp check e2e tests', async function () {
         chain2Addresses.mailbox,
         signer,
       );
-      const hookAddress = await mailboxInstance.callStatic.defaultHook();
+      const hookAddress = await mailboxInstance.defaultHook();
 
       const warpDeployPath = combinedWarpCoreConfigPath.replace(
         '-config.yaml',
@@ -167,9 +167,7 @@ describe('hyperlane warp check e2e tests', async function () {
         chain2Addresses.mailbox,
         signer,
       );
-      const hookAddress = (
-        await mailboxInstance.callStatic.defaultHook()
-      ).toLowerCase();
+      const hookAddress = (await mailboxInstance.defaultHook()).toLowerCase();
 
       const warpDeployConfig = await deployAndExportWarpRoute();
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
