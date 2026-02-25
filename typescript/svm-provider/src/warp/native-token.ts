@@ -86,6 +86,7 @@ export class SvmNativeTokenReader implements ArtifactReader<
         : undefined,
       remoteRouters,
       destinationGas,
+      decimals: token.decimals,
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
     };
 
@@ -133,11 +134,12 @@ export class SvmNativeTokenWriter
     const { address: nativeCollateralPda } =
       await deriveNativeCollateralPda(programAddress);
 
+    const localDecimals = tokenConfig.decimals ?? SOL_DECIMALS;
     const initData = buildBaseInitData(
       tokenConfig,
       this.config.igpProgramId,
-      SOL_DECIMALS,
-      scaleToRemoteDecimals(SOL_DECIMALS, tokenConfig.scale),
+      localDecimals,
+      scaleToRemoteDecimals(localDecimals, tokenConfig.scale),
     );
 
     // Build init instruction manually to include the native-collateral PDA
