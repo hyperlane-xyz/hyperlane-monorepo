@@ -9,7 +9,7 @@ displayName: Tron Local 4
 protocol: ethereum
 technicalStack: tron
 rpcUrls:
-    - http: http://127.0.0.1:9090
+    - http: http://127.0.0.1:9090/jsonrpc
 nativeToken:
     name: TRX
     symbol: TRX

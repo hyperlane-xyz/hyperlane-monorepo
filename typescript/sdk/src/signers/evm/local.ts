@@ -108,6 +108,40 @@ function toViemProviderLike(
   return provider as ViemProviderLike;
 }
 
+function isMissingRpcMethodError(error: unknown, method: string): boolean {
+  const methodLower = method.toLowerCase();
+  const snippets: string[] = [];
+
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>;
+    const message = record.message;
+    const reason = record.reason;
+    const nestedError = record.error;
+    const cause = record.cause;
+
+    if (typeof message === 'string') snippets.push(message);
+    if (typeof reason === 'string') snippets.push(reason);
+
+    if (nestedError && typeof nestedError === 'object') {
+      const nestedMessage = (nestedError as Record<string, unknown>).message;
+      if (typeof nestedMessage === 'string') snippets.push(nestedMessage);
+    }
+
+    if (cause && typeof cause === 'object') {
+      const causeMessage = (cause as Record<string, unknown>).message;
+      if (typeof causeMessage === 'string') snippets.push(causeMessage);
+    }
+  }
+
+  const haystack = snippets.join(' ').toLowerCase();
+  return (
+    haystack.includes(methodLower) &&
+    (haystack.includes('does not exist') ||
+      haystack.includes('not available') ||
+      haystack.includes('method not found'))
+  );
+}
+
 export class LocalAccountViemSigner {
   public readonly account: ReturnType<typeof privateKeyToAccount>;
   public readonly address: string;
@@ -285,10 +319,19 @@ export class LocalAccountViemSigner {
     tx.from ||= this.address;
 
     if (tx.nonce == null) {
-      tx.nonce = await this.provider.getTransactionCount(
-        this.address,
-        'pending',
-      );
+      try {
+        tx.nonce = await this.provider.getTransactionCount(
+          this.address,
+          'pending',
+        );
+      } catch (error) {
+        // Tron JSON-RPC does not expose eth_getTransactionCount; treat nonce as 0.
+        if (isMissingRpcMethodError(error, 'eth_getTransactionCount')) {
+          tx.nonce = 0;
+        } else {
+          throw error;
+        }
+      }
     }
 
     if (tx.chainId == null) {

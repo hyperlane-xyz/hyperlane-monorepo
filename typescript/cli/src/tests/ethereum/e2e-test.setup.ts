@@ -1,5 +1,8 @@
 import fs from 'fs';
 
+import { type ChainMetadata } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
+
 import {
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
@@ -7,6 +10,7 @@ import {
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
 import { runEvmNode, runTronNode } from '../nodes.js';
+import { readYamlOrJson } from '../../utils/files.js';
 
 import { IS_TRON_TEST, REGISTRY_PATH as OLD_REGISTRY_PATH } from './consts.js';
 
@@ -18,13 +22,17 @@ before(async function () {
 
   if (process.env.CLI_E2E_EXTERNAL_NODES !== '1') {
     if (IS_TRON_TEST) {
-      const tronMetadata =
-        TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
+      const tronChainName = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
+      const tronMetadataPath = `${OLD_REGISTRY_PATH}/chains/${tronChainName}/metadata.yaml`;
+      const tronMetadata: ChainMetadata = readYamlOrJson(tronMetadataPath);
+      const tronRpcUrl = tronMetadata.rpcUrls[0]?.http;
+      assert(tronRpcUrl, `Missing Tron RPC URL in ${tronMetadataPath}`);
+
       await runTronNode({
         name: tronMetadata.name,
         chainId: tronMetadata.chainId,
         domainId: tronMetadata.domainId,
-        port: tronMetadata.rpcPort,
+        port: parseInt(new URL(tronRpcUrl).port),
       });
     } else {
       await Promise.all([
