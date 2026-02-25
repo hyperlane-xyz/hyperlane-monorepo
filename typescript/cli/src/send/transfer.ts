@@ -166,28 +166,6 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
-  if (!skipValidation) {
-    const errors = await warpCore.validateTransfer({
-      originTokenAmount: token.amount(amount),
-      destination,
-      recipient,
-      sender: signerAddress,
-    });
-    if (errors) {
-      logRed('Error validating transfer', JSON.stringify(errors));
-      throw new Error('Error validating transfer');
-    }
-  }
-
-  if (predicateApiKey || attestation) {
-    if (token.isNative()) {
-      throw new Error(
-        'Predicate compliance is not supported for native token warp routes. ' +
-          'Only ERC20 collateral and synthetic routes support Predicate attestations.',
-      );
-    }
-  }
-
   let finalAttestation: PredicateAttestation | undefined;
 
   if (attestation) {
@@ -245,6 +223,29 @@ async function executeDelivery({
 
     finalAttestation = response.attestation;
     logGreen('Predicate attestation obtained successfully');
+  }
+
+  if (!skipValidation) {
+    const errors = await warpCore.validateTransfer({
+      originTokenAmount: token.amount(amount),
+      destination,
+      recipient,
+      sender: signerAddress,
+      attestation: finalAttestation,
+    });
+    if (errors) {
+      logRed('Error validating transfer', JSON.stringify(errors));
+      throw new Error('Error validating transfer');
+    }
+  }
+
+  if (predicateApiKey || attestation) {
+    if (token.isNative()) {
+      throw new Error(
+        'Predicate compliance is not supported for native token warp routes. ' +
+          'Only ERC20 collateral and synthetic routes support Predicate attestations.',
+      );
+    }
   }
 
   // TODO: override hook address for self-relay

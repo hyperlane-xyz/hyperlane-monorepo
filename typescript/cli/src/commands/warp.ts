@@ -342,6 +342,7 @@ const send: CommandModuleWithWriteContext<
     relay,
     symbol,
     warp,
+    warpRouteId,
     amount,
     recipient,
     roundTrip,
@@ -353,6 +354,7 @@ const send: CommandModuleWithWriteContext<
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
       warp,
+      warpRouteId,
       context,
     });
     let chains = chainsArg?.length ? chainsArg : [];

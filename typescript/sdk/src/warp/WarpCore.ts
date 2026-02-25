@@ -225,6 +225,7 @@ export class WarpCore {
     senderPubKey,
     interchainFee,
     tokenFeeQuote,
+    attestation,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
@@ -232,6 +233,7 @@ export class WarpCore {
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
+    attestation?: PredicateAttestation;
   }): Promise<TransactionFeeEstimate> {
     this.logger.debug(`Estimating local transfer gas to ${destination}`);
     const originMetadata = this.multiProvider.getChainMetadata(
@@ -263,6 +265,7 @@ export class WarpCore {
       recipient,
       interchainFee,
       tokenFeeQuote,
+      attestation,
     });
 
     // Starknet does not support gas estimation without starknet account
@@ -320,6 +323,7 @@ export class WarpCore {
     senderPubKey,
     interchainFee,
     tokenFeeQuote,
+    attestation,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
@@ -327,6 +331,7 @@ export class WarpCore {
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
+    attestation?: PredicateAttestation;
   }): Promise<TokenAmount> {
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
@@ -346,6 +351,7 @@ export class WarpCore {
       senderPubKey,
       interchainFee,
       tokenFeeQuote,
+      attestation,
     });
 
     // Get the local gas token. This assumes the chain's native token will pay for local gas
@@ -492,6 +498,7 @@ export class WarpCore {
         transactions.push(approveTx);
       }
     }
+
     const transferTxReq = await hypAdapter.populateTransferRemoteTx({
       weiAmountOrId: amount.toString(),
       destination: destinationDomainId,
@@ -523,12 +530,14 @@ export class WarpCore {
     recipient,
     sender,
     senderPubKey,
+    attestation,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
+    attestation?: PredicateAttestation;
   }): Promise<WarpCoreFeeEstimate> {
     this.logger.debug('Fetching remote transfer fee estimates');
 
@@ -549,6 +558,7 @@ export class WarpCore {
       senderPubKey,
       interchainFee: igpQuote,
       tokenFeeQuote,
+      attestation,
     });
 
     return {
@@ -728,12 +738,14 @@ export class WarpCore {
     recipient,
     sender,
     senderPubKey,
+    attestation,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
+    attestation?: PredicateAttestation;
   }): Promise<Record<string, string> | null> {
     const chainError = this.validateChains(
       originTokenAmount.token.chainName,
@@ -773,6 +785,7 @@ export class WarpCore {
       sender,
       recipient,
       senderPubKey,
+      attestation,
     );
     if (balancesError) return balancesError;
 
@@ -892,6 +905,7 @@ export class WarpCore {
     sender: Address,
     recipient: Address,
     senderPubKey?: HexString,
+    attestation?: PredicateAttestation,
   ): Promise<Record<string, string> | null> {
     const { token: originToken, amount } = originTokenAmount;
 
@@ -945,6 +959,7 @@ export class WarpCore {
       senderPubKey,
       interchainFee: interchainQuote,
       tokenFeeQuote,
+      attestation,
     });
 
     const feeEstimate = { interchainQuote, localQuote };
