@@ -269,8 +269,34 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       this.provider,
     );
+    const canUseIcaRouting = async (): Promise<boolean> => {
+      try {
+        await icaRouter.CCIP_READ_ISM();
+        return true;
+      } catch {
+        this.logger.debug(
+          'Error accessing CCIP_READ_ISM property, attempting legacy ICA routing detection.',
+          address,
+        );
+      }
+
+      try {
+        // Older ICA routing deployments may not expose CCIP_READ_ISM; probe isms(domain).
+        if (domainIds.length > 0) {
+          await icaRouter.isms(domainIds[0]);
+        } else {
+          await icaRouter.owner();
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     try {
-      await icaRouter.CCIP_READ_ISM();
+      if (!(await canUseIcaRouting())) {
+        throw new Error('Not an ICA routing contract');
+      }
 
       return {
         type: IsmType.INTERCHAIN_ACCOUNT_ROUTING,
@@ -286,7 +312,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       };
     } catch {
       this.logger.debug(
-        `Error accessing CCIP_READ_ISM property, implying that this is not a InterchainAccountRouterIsm.`,
+        `Error deriving as InterchainAccountRouterIsm.`,
         address,
       );
     }
@@ -333,6 +359,18 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     };
   }
 
+  private async deriveNestedIsmOrAddress(
+    moduleAddress: Address,
+  ): Promise<IsmConfig> {
+    return this.deriveIsmConfig(moduleAddress).catch((error) => {
+      this.logger.debug(
+        `Failed deriving nested ISM on ${this.chain} (${moduleAddress}); preserving address.`,
+        error,
+      );
+      return moduleAddress;
+    });
+  }
+
   private async deriveRemoteIsmConfigs(
     domainIds: readonly bigint[],
     contractInstance: AbstractRoutingIsm,
@@ -369,7 +407,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         return [
           chainName,
           deriveConfig
-            ? await this.deriveIsmConfig(moduleAddress)
+            ? await this.deriveNestedIsmOrAddress(moduleAddress)
             : moduleAddress,
         ];
       },
@@ -413,8 +451,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return {
       type: IsmType.AMOUNT_ROUTING,
       address,
-      lowerIsm: await this.deriveIsmConfig(lowerIsm),
-      upperIsm: await this.deriveIsmConfig(upperIsm),
+      lowerIsm: await this.deriveNestedIsmOrAddress(lowerIsm),
+      upperIsm: await this.deriveNestedIsmOrAddress(upperIsm),
       threshold: Number(threshold),
     };
   }
