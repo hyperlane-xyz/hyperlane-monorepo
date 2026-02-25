@@ -41,7 +41,7 @@ export const dispatchMessage = async (
   const tx = await mailbox['dispatch(uint32,bytes32,bytes)'](
     destination,
     recipient,
-    utf8 ? ethers.utils.toUtf8Bytes(messageStr) : messageStr,
+    utf8 ? ethers.toUtf8Bytes(messageStr) : messageStr,
   );
   const receipt = await tx.wait();
   const dispatch = receipt.events![0] as DispatchEvent;
@@ -138,11 +138,10 @@ export function getCommitment(
   threshold: number,
   validators: Address[],
 ): string {
-  const packed = ethers.utils.solidityPack(
+  return ethers.solidityPackedKeccak256(
     ['uint8', 'address[]'],
     [threshold, validators],
   );
-  return ethers.utils.solidityKeccak256(['bytes'], [packed]);
 }
 
 export const inferMessageValues = async (
@@ -154,7 +153,7 @@ export const inferMessageValues = async (
   version?: number,
 ) => {
   const body = ensure0x(
-    Buffer.from(ethers.utils.toUtf8Bytes(messageStr)).toString('hex'),
+    Buffer.from(ethers.toUtf8Bytes(messageStr)).toString('hex'),
   );
   const nonce = await mailbox.nonce();
   const localDomain = await mailbox.localDomain();

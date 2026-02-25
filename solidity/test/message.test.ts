@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { utils } from 'ethers';
+import { encodeBytes32String, hexlify } from 'ethers';
 
 import {
   addressToBytes32,
@@ -38,7 +38,7 @@ describe('Message', async () => {
 
   it('Returns fields from a message', async () => {
     const [sender, recipient] = await getSigners();
-    const body = utils.formatBytes32String('message');
+    const body = encodeBytes32String('message');
 
     const message = formatMessage(
       version,
@@ -70,7 +70,7 @@ describe('Message', async () => {
     for (const test of testCases) {
       const { origin, sender, destination, recipient, body, nonce, id } = test;
 
-      const hexBody = utils.hexlify(body);
+      const hexBody = hexlify(Uint8Array.from(body));
 
       const hyperlaneMessage = formatMessage(
         version,

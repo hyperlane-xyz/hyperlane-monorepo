@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { utils } from 'ethers';
+import { hashMessage } from 'ethers';
 
 import merkleTestCases from '../../vectors/merkle.json' with { type: 'json' };
 import {
@@ -24,7 +24,7 @@ describe('Merkle', async () => {
 
         //insert the leaves
         for (const leaf of leaves) {
-          const leafHash = utils.hashMessage(leaf);
+          const leafHash = hashMessage(leaf);
           await merkle.insert(leafHash);
         }
       });
