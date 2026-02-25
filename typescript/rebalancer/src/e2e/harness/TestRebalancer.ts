@@ -10,6 +10,7 @@ import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
+  DEFAULT_INTENT_TTL_MS,
   ExternalBridgeType,
   type StrategyConfig,
   getStrategyChainNames,
@@ -268,6 +269,7 @@ export class TestRebalancerBuilder {
       rebalancerConfig = new RebalancerConfig(
         NATIVE_MONITORED_ROUTE_ID,
         this.strategyConfig,
+        DEFAULT_INTENT_TTL_MS,
         inventorySignerAddress,
         { lifi: { integrator: 'test' } },
       );
@@ -278,6 +280,7 @@ export class TestRebalancerBuilder {
       rebalancerConfig = new RebalancerConfig(
         MONITORED_ROUTE_ID,
         this.strategyConfig,
+        DEFAULT_INTENT_TTL_MS,
       );
       warpCoreConfig = buildWarpRouteConfig(
         deployedAddresses as DeployedAddresses,
@@ -502,6 +505,7 @@ export class TestRebalancerBuilder {
         origin_tx_recipient: monitoredRoute[params.from],
         is_delivered: false,
         message_body: encodeWarpRouteMessageBody(warpRecipient, params.amount),
+        send_occurred_at: null,
       };
 
       userTransfers.push(mockTransfer);

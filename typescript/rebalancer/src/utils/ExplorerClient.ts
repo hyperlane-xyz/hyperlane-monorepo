@@ -32,6 +32,7 @@ export type ExplorerMessage = {
   origin_tx_recipient: string;
   is_delivered: boolean;
   message_body: string;
+  send_occurred_at: string | null;
 };
 
 export interface IExplorerClient {
@@ -72,6 +73,7 @@ export class ExplorerClient implements IExplorerClient {
       origin_tx_recipient: normalizeHex(msg.origin_tx_recipient),
       is_delivered: msg.is_delivered,
       message_body: normalizeHex(msg.message_body),
+      send_occurred_at: msg.send_occurred_at ?? null,
     };
   }
 
@@ -242,6 +244,7 @@ export class ExplorerClient implements IExplorerClient {
           origin_tx_recipient
           is_delivered
           message_body
+          send_occurred_at
         }
       }`;
 
@@ -350,6 +353,7 @@ export class ExplorerClient implements IExplorerClient {
           origin_tx_recipient
           is_delivered
           message_body
+          send_occurred_at
         }
       }`;
 

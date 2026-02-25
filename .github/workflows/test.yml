@@ -209,7 +209,7 @@ jobs:
   pnpm-test-run:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
-    timeout-minutes: 10
+    timeout-minutes: 20
     if: needs.change-detection.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v6
@@ -805,6 +805,7 @@ jobs:
           fetch-depth: 0
 
       - uses: actions/setup-node@v6
+        if: matrix.e2e-type == 'evm'
         with:
           node-version-file: .nvmrc
 
@@ -901,7 +902,7 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: pnpm-build
-        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        if: matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Install system dependencies
@@ -911,7 +912,7 @@ jobs:
           sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
 
       - name: Install OpenSSL 1.1 for Solana toolchain
-        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        if: matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true'
         run: |
           wget -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
           sudo dpkg -i libssl1.1.deb

@@ -1,5 +1,7 @@
 # @hyperlane-xyz/tsconfig
 
+## 25.3.0
+
 ## 25.2.0
 
 ## 25.1.0

@@ -20,6 +20,8 @@ export { Rebalancer } from './core/Rebalancer.js';
 // Configuration
 export { RebalancerConfig } from './config/RebalancerConfig.js';
 export {
+  DEFAULT_INTENT_TTL_MS,
+  DEFAULT_INTENT_TTL_S,
   getStrategyChainConfig,
   getStrategyChainNames,
   RebalancerBaseChainConfigSchema,
