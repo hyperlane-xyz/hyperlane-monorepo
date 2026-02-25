@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { utils } from 'ethers';
+import { parseUnits } from 'ethers';
 import hre from 'hardhat';
 
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
@@ -43,20 +43,20 @@ describe('HyperlaneIgpDeployer', () => {
       testConfig[local].oracleConfig![remote],
     );
 
-    expect(
-      deployedConfig.gasPrice.eq(expected.gasPrice),
+    expect(deployedConfig.gasPrice).to.equal(
+      expected.gasPrice,
       `gasPrice mismatch: expected ${expected.gasPrice.toString()}, got ${deployedConfig.gasPrice.toString()}`,
-    ).to.be.true;
-    expect(
-      deployedConfig.tokenExchangeRate.eq(expected.tokenExchangeRate),
+    );
+    expect(deployedConfig.tokenExchangeRate).to.equal(
+      expected.tokenExchangeRate,
       `tokenExchangeRate mismatch: expected ${expected.tokenExchangeRate.toString()}, got ${deployedConfig.tokenExchangeRate.toString()}`,
-    ).to.be.true;
+    );
   });
 
   it('should configure new oracle config', async () => {
     testConfig[local].oracleConfig![remote] = {
-      tokenExchangeRate: utils.parseUnits('2', 'gwei').toString(),
-      gasPrice: utils.parseUnits('3', 'gwei').toString(),
+      tokenExchangeRate: parseUnits('2', 'gwei').toString(),
+      gasPrice: parseUnits('3', 'gwei').toString(),
       tokenDecimals: 18,
     };
 
@@ -71,13 +71,13 @@ describe('HyperlaneIgpDeployer', () => {
       testConfig[local].oracleConfig![remote],
     );
 
-    expect(
-      modifiedConfig.gasPrice.eq(expected.gasPrice),
+    expect(modifiedConfig.gasPrice).to.equal(
+      expected.gasPrice,
       `gasPrice mismatch: expected ${expected.gasPrice.toString()}, got ${modifiedConfig.gasPrice.toString()}`,
-    ).to.be.true;
-    expect(
-      modifiedConfig.tokenExchangeRate.eq(expected.tokenExchangeRate),
+    );
+    expect(modifiedConfig.tokenExchangeRate).to.equal(
+      expected.tokenExchangeRate,
       `tokenExchangeRate mismatch: expected ${expected.tokenExchangeRate.toString()}, got ${modifiedConfig.tokenExchangeRate.toString()}`,
-    ).to.be.true;
+    );
   });
 });
