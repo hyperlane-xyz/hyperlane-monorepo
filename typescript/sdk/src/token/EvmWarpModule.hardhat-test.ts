@@ -1313,11 +1313,11 @@ describe('EvmWarpModule', async () => {
           proxyFactoryFactories: ismFactoryAddresses,
         });
 
-        const expectedRemoteOuputToken = randomAddress();
+        const expectedRemoteOutputToken = randomAddress();
         const txs = await evmERC20WarpModule.update({
           ...config,
           outputAssets: {
-            [domainId]: expectedRemoteOuputToken,
+            [domainId]: expectedRemoteOutputToken,
           },
         });
 
@@ -1331,7 +1331,7 @@ describe('EvmWarpModule', async () => {
           `Expected token of type ${tokenType}`,
         );
         expect(currentConfig.outputAssets[domainId]).to.equal(
-          addressToBytes32(expectedRemoteOuputToken),
+          addressToBytes32(expectedRemoteOutputToken),
         );
       });
 
