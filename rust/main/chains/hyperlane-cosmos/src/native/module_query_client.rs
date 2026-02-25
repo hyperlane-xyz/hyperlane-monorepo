@@ -42,7 +42,7 @@ impl BuildableQueryClient for ModuleQueryClient {
         Ok(Self { grpc })
     }
 
-    // the tx is either a MsgPorcessMessage on the destination or a MsgRemoteTransfer on the origin
+    // the tx is either a MsgProcessMessage on the destination or a MsgRemoteTransfer on the origin
     // we check for both tx types, if both are missing or an error occurred while parsing we return the error
     fn parse_tx_message_recipient(&self, tx: &Tx, _hash: &H512) -> ChainResult<H256> {
         // first check for the process message

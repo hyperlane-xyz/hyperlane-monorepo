@@ -93,7 +93,7 @@ impl CwInterchainGasPaymasterIndexer {
         }
     }
 
-    // TODO: this can be simplified heavily if we create a construct that autoamtically converts to base64 & ensures all keys are present
+    // TODO: this can be simplified heavily if we create a construct that automatically converts to base64 & ensures all keys are present
     fn interchain_gas_payment_parser(
         attrs: &[EventAttribute],
     ) -> ChainResult<ParsedEvent<InterchainGasPayment>> {

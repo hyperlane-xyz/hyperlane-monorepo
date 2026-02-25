@@ -1,0 +1,98 @@
+# Spell checker configuration for typos (https://github.com/crate-ci/typos)
+
+[files]
+extend-exclude = [
+  # Lock files and build artifacts
+  "pnpm-lock.yaml",
+  "Cargo.lock",
+  "**/dist/",
+  "**/build-info/",
+  "cache/",
+  "out/",
+
+  # Generated / vendored code
+  "typescript/cosmos-types/",
+  "solidity/lib/",
+  "solidity/dependencies/",
+  "patches/",
+  "typescript/helloworld/",
+
+  # JSON config, fixtures, and ABIs (full of hashes/addresses that trigger false positives)
+  "rust/main/config/",
+  "rust/main/chains/hyperlane-fuel/abis/",
+  "rust/main/chains/hyperlane-sealevel/src/log_meta_composer/*.json",
+  "rust/main/chains/hyperlane-sealevel/src/provider/recipient/*.json",
+  "rust/main/chains/hyperlane-aleo/src/indexer/mock_responses/",
+  "rust/main/chains/hyperlane-aleo/src/provider/mock_responses/",
+  "rust/main/chains/hyperlane-starknet/abis/",
+  "rust/main/lander/src/adapter/chains/aleo/adapter/status/test_fixtures/",
+  "rust/sealevel/environments/",
+  "compose.yaml",
+
+  # Changelogs (contain commit hashes that look like typos)
+  "**/CHANGELOG.md",
+]
+
+[default]
+# Skip hex addresses (0x...) and base58 strings (32+ alphanum chars) that
+# fragment into short "words" when typos splits on casing boundaries.
+extend-ignore-identifiers-re = [
+  # Ethereum-style hex addresses/hashes
+  "0x[0-9a-fA-F]{8,}",
+  # Base58 public keys / addresses (32+ alphanumeric, mixed case)
+  "[1-9A-HJ-NP-Za-km-z]{32,}",
+  # Short test/mock values with mixed case (e.g. "valUE d")
+  "val[A-Z]{2,}",
+]
+
+[default.extend-words]
+# Chain / token names
+superseed = "superseed"
+Superseed = "Superseed"
+SUPERSEED = "SUPERSEED"
+# WRON = Wrapped RON (Ronin token)
+WRON = "WRON"
+
+# Crypto domain terms
+# TGE = Token Generation Event
+TGE = "TGE"
+# TRE = Tron Runtime Environment
+TRE = "TRE"
+
+# Acceptable / intentional spellings
+# "transferrable" is acceptable British English
+transferrable = "transferrable"
+# Solana processed-message discriminator (fixed 8-byte value)
+PROCESSD = "PROCESSD"
+# Fuel ABI field name (external API)
+configurables = "configurables"
+# "Datas" used as a type name suffix
+Datas = "Datas"
+# GraphQL _nin operator (Hasura "not in" filter)
+nin = "nin"
+# "REST-ful" split by typos into "ful"
+ful = "ful"
+# Domain substring in 5afe.dev
+afe = "afe"
+# Short Rust variable names / destructuring
+ba = "ba"
+
+# External API field names that cannot be changed
+# Etherscan API uses "constructorArguements" (their typo)
+Arguements = "Arguements"
+# Tron API error code
+BANDWITH = "BANDWITH"
+# tron_rs library type "BlockExtention"
+Extention = "Extention"
+
+# Solidity public function names (changing would break ABI)
+# ECDSAStakeRegistry.getLastestOperatorSigningKey()
+Lastest = "Lastest"
+
+# Database column name in scraper migration (changing breaks existing DBs)
+receipient = "receipient"
+# Cosmos proto field name
+leafs = "leafs"
+
+# SDK exported type (changing breaks downstream consumers)
+Lifecyle = "Lifecyle"
