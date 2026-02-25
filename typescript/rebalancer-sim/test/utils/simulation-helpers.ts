@@ -130,7 +130,9 @@ export async function runScenarioWithRebalancers(
     if (file.initialImbalance) {
       const { ERC20Test__factory } = await import('@hyperlane-xyz/core');
       const provider = new ethers.JsonRpcProvider(options.anvilRpc);
-      const deployer = new ethers.Wallet(ANVIL_DEPLOYER_KEY, provider);
+      const deployer = new ethers.NonceManager(
+        new ethers.Wallet(ANVIL_DEPLOYER_KEY, provider),
+      );
 
       for (const [chainName, extraAmount] of Object.entries(
         file.initialImbalance,
