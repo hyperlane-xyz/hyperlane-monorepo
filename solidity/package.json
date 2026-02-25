@@ -47,12 +47,16 @@
         "./buildArtifact.js": "./dist/buildArtifact.js",
         "./buildArtifact.json": "./dist/buildArtifact.json",
         "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
+        "./tron/abi/*": "./artifacts-tron/*",
+        "./tron/typechain": "./dist/tron/typechain/index.js",
+        "./tron/typechain/*": "./dist/tron/typechain/*",
         "./contracts": "./contracts"
     },
     "types": "./dist/index.d.ts",
     "files": [
         "/dist",
         "/contracts",
+        "/artifacts-tron",
         "/dependencies"
     ],
     "engines": {
@@ -71,7 +75,7 @@
         "build:zk": "pnpm hardhat-zk compile && tsc && node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
         "build:tron": "./build-tron.sh",
         "test:tron": "FOUNDRY_PROFILE=tron forge test --match-contract TronCreate2Test -vvv",
-        "prepublishOnly": "pnpm build && pnpm build:zk",
+        "prepublishOnly": "pnpm build && pnpm build:zk && pnpm build:tron",
         "lint": "solhint contracts/**/*.sol && eslint -c ./eslint.config.mjs",
         "clean": "pnpm hardhat-esm clean && pnpm hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./cache-tron ./artifacts-tron ./types ./coverage ./out ./forge-cache ./fixtures",
         "coverage": "pnpm fixtures && ./coverage.sh",

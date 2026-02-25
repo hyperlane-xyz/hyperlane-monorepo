@@ -29,9 +29,9 @@
   },
   "scripts": {
     "build": "rm -rf ./dist && tsc",
-    "format": "oxfmt --write src/**/*.ts !src/typechain !src/abi",
+    "format": "oxfmt --write src/**/*.ts",
     "lint": "eslint -c ./eslint.config.mjs",
-    "clean": "rm -rf ./dist ./cache ./src/typechain ./src/abi ./coverage",
+    "clean": "rm -rf ./dist ./cache ./coverage",
     "dev": "tsc --watch",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
     "coverage": "c8 pnpm test"
@@ -39,6 +39,7 @@
   "dependencies": {
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
+    "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/utils": "workspace:*",
@@ -48,7 +49,6 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
-    "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
