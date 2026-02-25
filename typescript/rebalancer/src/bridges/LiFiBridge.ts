@@ -1,5 +1,7 @@
 import {
   EVM,
+  type LiFiStep,
+  type Route,
   type RouteExtended,
   convertQuoteToRoute,
   createConfig,
@@ -31,7 +33,7 @@ const LIFI_API_BASE = 'https://li.quest/v1';
 /**
  * LiFi quote response structure (partial, only fields we need).
  */
-interface LiFiQuoteResponse {
+export interface LiFiQuoteResponse {
   id: string;
   tool: string;
   action: {
@@ -111,7 +113,7 @@ function getViemChain(chainId: number, rpcUrl?: string): Chain {
  */
 export class LiFiBridge implements IExternalBridge {
   private static readonly NATIVE_TOKEN_ADDRESS =
-    '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+    '0x0000000000000000000000000000000000000000';
 
   readonly externalBridgeId = 'lifi';
   readonly logger: Logger;
@@ -164,7 +166,9 @@ export class LiFiBridge implements IExternalBridge {
    *
    * Returns route data ready for execution.
    */
-  async quote(params: BridgeQuoteParams): Promise<BridgeQuote> {
+  async quote(
+    params: BridgeQuoteParams,
+  ): Promise<BridgeQuote<LiFiQuoteResponse>> {
     this.initialize();
 
     // Validate that exactly one of fromAmount or toAmount is provided
@@ -191,7 +195,7 @@ export class LiFiBridge implements IExternalBridge {
    */
   private async quoteBySpendingAmount(
     params: BridgeQuoteParams,
-  ): Promise<BridgeQuote> {
+  ): Promise<BridgeQuote<LiFiQuoteResponse>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by spending amount');
 
     const quote = await getQuote({
@@ -235,6 +239,7 @@ export class LiFiBridge implements IExternalBridge {
       gasCosts,
       feeCosts,
       route: quote, // Store full quote for conversion to route
+      requestParams: params,
     };
   }
 
@@ -244,7 +249,7 @@ export class LiFiBridge implements IExternalBridge {
    */
   private async quoteByReceivingAmount(
     params: BridgeQuoteParams,
-  ): Promise<BridgeQuote> {
+  ): Promise<BridgeQuote<LiFiQuoteResponse>> {
     this.logger.debug({ params }, 'Requesting LiFi quote by receiving amount');
 
     const queryParams = new URLSearchParams({
@@ -307,6 +312,7 @@ export class LiFiBridge implements IExternalBridge {
       gasCosts,
       feeCosts,
       route: quote, // Store full quote for conversion to route
+      requestParams: params,
     };
   }
 
@@ -350,15 +356,15 @@ export class LiFiBridge implements IExternalBridge {
    * @param privateKey - Private key hex string (0x-prefixed) for signing the transaction
    */
   async execute(
-    quote: BridgeQuote,
+    quote: BridgeQuote<LiFiQuoteResponse>,
     privateKey: string,
   ): Promise<BridgeTransferResult> {
     this.initialize();
 
     // Convert quote to route for execution
-    const route = convertQuoteToRoute(
-      quote.route as Parameters<typeof convertQuoteToRoute>[0],
-    );
+    const route = convertQuoteToRoute(quote.route as LiFiStep);
+
+    this.validateRouteAgainstRequest(route, quote.requestParams);
 
     const fromChain = route.fromChainId;
     const toChain = route.toChainId;
@@ -478,6 +484,60 @@ export class LiFiBridge implements IExternalBridge {
     };
   }
 
+  /**
+   * Validate that the route returned by LiFi matches the original request parameters.
+   * Prevents execution against wrong chains, tokens, or recipients if the bridge API
+   * returns a route that diverges from what was originally requested.
+   */
+  private validateRouteAgainstRequest(
+    route: Route,
+    requestParams: BridgeQuoteParams,
+  ): void {
+    if (route.fromChainId !== requestParams.fromChain) {
+      throw new Error(
+        `Route fromChainId ${route.fromChainId} does not match requested ${requestParams.fromChain}`,
+      );
+    }
+    if (route.toChainId !== requestParams.toChain) {
+      throw new Error(
+        `Route toChainId ${route.toChainId} does not match requested ${requestParams.toChain}`,
+      );
+    }
+    if (
+      route.fromToken.address.toLowerCase() !==
+      requestParams.fromToken.toLowerCase()
+    ) {
+      throw new Error(
+        `Route fromToken ${route.fromToken.address} does not match requested ${requestParams.fromToken}`,
+      );
+    }
+    if (
+      route.toToken.address.toLowerCase() !==
+      requestParams.toToken.toLowerCase()
+    ) {
+      throw new Error(
+        `Route toToken ${route.toToken.address} does not match requested ${requestParams.toToken}`,
+      );
+    }
+    const expectedToAddress = (
+      requestParams.toAddress ?? requestParams.fromAddress
+    ).toLowerCase();
+    if (route.toAddress?.toLowerCase() !== expectedToAddress) {
+      throw new Error(
+        `Route toAddress ${route.toAddress} does not match requested ${expectedToAddress}`,
+      );
+    }
+    if (requestParams.fromAmount) {
+      if (route.fromAmount !== requestParams.fromAmount.toString()) {
+        throw new Error(
+          `Route fromAmount ${route.fromAmount} does not match requested ${requestParams.fromAmount}`,
+        );
+      }
+    }
+    if (BigInt(route.fromAmount) <= 0n) {
+      throw new Error('Route fromAmount must be positive');
+    }
+  }
   /**
    * Get the status of a bridge transfer.
    * Uses SDK's built-in status tracking.
