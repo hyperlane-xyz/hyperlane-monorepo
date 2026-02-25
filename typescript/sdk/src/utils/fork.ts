@@ -6,6 +6,13 @@ import type { ChainName, EvmProvider, EvmSigner } from '../types.js';
 
 const ENDPOINT_PREFIX = 'http';
 const DEFAULT_ANVIL_ENDPOINT = 'http://127.0.0.1:8545';
+const LOCAL_FORK_SMART_PROVIDER_OPTIONS = {
+  // Local anvil fork can block on upstream state fetches for first-touch calls.
+  // Use a larger fallback window to avoid false timeout failures in CI.
+  fallbackStaggerMs: 7_000,
+  maxRetries: 1,
+  baseRetryDelayMs: 250,
+} as const;
 
 export enum ANVIL_RPC_METHODS {
   RESET = 'anvil_reset',
@@ -140,7 +147,11 @@ export const getLocalProvider = ({
 
   const url = urlOverride ?? envUrl ?? DEFAULT_ANVIL_ENDPOINT;
 
-  return HyperlaneSmartProvider.fromRpcUrl(31337, url);
+  return HyperlaneSmartProvider.fromRpcUrl(
+    31337,
+    url,
+    LOCAL_FORK_SMART_PROVIDER_OPTIONS,
+  );
 };
 
 export async function setBalance(
