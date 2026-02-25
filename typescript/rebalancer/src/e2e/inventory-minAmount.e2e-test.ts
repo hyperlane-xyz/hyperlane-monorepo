@@ -19,7 +19,12 @@ import {
 } from './fixtures/routes.js';
 import { MockExternalBridge } from './harness/MockExternalBridge.js';
 import { NativeLocalDeploymentManager } from './harness/NativeLocalDeploymentManager.js';
-import { getFirstMonitorEvent } from './harness/TestHelpers.js';
+import {
+  chainFromDomain,
+  classifyChains,
+  getFirstMonitorEvent,
+  getRouterBalances,
+} from './harness/TestHelpers.js';
 import {
   TestRebalancerBuilder,
   type TestRebalancerContext,
@@ -41,14 +46,6 @@ describe('InventoryMinAmountStrategy E2E', function () {
     .address;
   const oneEth = BigNumber.from('1000000000000000000');
   const twoEth = BigNumber.from('2000000000000000000');
-
-  function chainFromDomain(domain: number): string {
-    const found = Object.entries(DOMAIN_IDS).find(([, d]) => d === domain);
-    if (!found) {
-      throw new Error(`Unknown domain: ${domain}`);
-    }
-    return found[0];
-  }
 
   async function executeCycle(context: TestRebalancerContext): Promise<void> {
     const monitor = context.createMonitor(0);
@@ -173,6 +170,11 @@ describe('InventoryMinAmountStrategy E2E', function () {
       .withExecutionMode('execute')
       .build();
 
+    const initialBalances = await getRouterBalances(
+      localProviders,
+      nativeDeployedAddresses,
+    );
+
     await executeCycle(context);
 
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
@@ -197,6 +199,31 @@ describe('InventoryMinAmountStrategy E2E', function () {
       activeIntents[0].id,
     );
     expect(completedIntent!.status).to.equal('complete');
+
+    const finalBalances = await getRouterBalances(
+      localProviders,
+      nativeDeployedAddresses,
+    );
+
+    const { surplusChain, neutralChain } = classifyChains(
+      'anvil2',
+      depositAction!,
+    );
+
+    expect(
+      finalBalances.anvil2.gt(initialBalances.anvil2),
+      'Destination router balance should increase',
+    ).to.be.true;
+    expect(
+      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      `Surplus router (${surplusChain}) balance should decrease`,
+    ).to.be.true;
+    if (neutralChain) {
+      expect(
+        finalBalances[neutralChain].eq(initialBalances[neutralChain]),
+        'Uninvolved router balance should remain unchanged',
+      ).to.be.true;
+    }
   });
 
   it('handles partial deposit, bridges inventory, then completes final deposit', async function () {
@@ -216,9 +243,15 @@ describe('InventoryMinAmountStrategy E2E', function () {
       .withExecutionMode('execute')
       .build();
 
+    // TODO: this should be handled by the TestRebalancerBuilder
     await setInventorySignerBalance(
       'anvil2',
       BigNumber.from('500000000000000000'),
+    );
+
+    const initialBalances = await getRouterBalances(
+      localProviders,
+      nativeDeployedAddresses,
     );
 
     await executeCycle(context);
@@ -229,15 +262,27 @@ describe('InventoryMinAmountStrategy E2E', function () {
     expect(partialIntents.length).to.equal(1);
     expect(partialIntents[0].completedAmount > 0n).to.be.true;
     expect(partialIntents[0].remaining > 0n).to.be.true;
+    // TODO: 2000000000000000000n should be a const from the presets
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
     ).to.equal(2000000000000000000n);
     expect(partialIntents[0].intent.amount).to.equal(2000000000000000000n);
     expect(partialIntents[0].intent.destination).to.equal(DOMAIN_IDS.anvil2);
 
-    await setInventorySignerBalance('anvil2', BigNumber.from(0));
+    const deposits = await context.tracker.getActionsForIntent(
+      partialIntents[0].intent.id,
+    );
+    expect(deposits.length).to.equal(1);
+    expect(deposits[0].type).to.equal('inventory_deposit');
+    expect(deposits[0].origin).to.equal(DOMAIN_IDS.anvil2);
+    expect(deposits[0].amount).to.equal(partialIntents[0].completedAmount);
 
     await executeCycle(context);
+
+    // executeCycle calls syncActionTracker at the START of each cycle, so
+    // bridge actions created DURING the cycle above aren't synced yet.
+    // In production the next cycle's sync picks them up; in tests we
+    // sync manually to assert against the results between cycles.
     await context.tracker.syncInventoryMovementActions({
       [ExternalBridgeType.LiFi]: mockBridge,
     });
@@ -246,13 +291,15 @@ describe('InventoryMinAmountStrategy E2E', function () {
     const actionsAfterBridge = await context.tracker.getActionsForIntent(
       activeIntent.id,
     );
-    const completedMovementActions = actionsAfterBridge.filter(
-      (a) => a.type === 'inventory_movement' && a.status === 'complete',
+    expect(actionsAfterBridge.length).to.equal(2);
+    const movementAction = actionsAfterBridge.find(
+      (a) => a.type === 'inventory_movement',
     );
-    expect(completedMovementActions.length).to.equal(1);
-    expect(completedMovementActions[0].origin).to.equal(DOMAIN_IDS.anvil1);
-    expect(completedMovementActions[0].destination).to.equal(DOMAIN_IDS.anvil2);
-    expect(completedMovementActions[0].status).to.equal('complete');
+    expect(movementAction).to.exist;
+    expect(movementAction!.origin).to.equal(DOMAIN_IDS.anvil1);
+    expect(movementAction!.destination).to.equal(DOMAIN_IDS.anvil2);
+    expect(movementAction!.status).to.equal('complete');
+    expect(movementAction!.amount >= partialIntents[0].remaining).to.be.true;
 
     await executeCycle(context);
     await relayInProgressInventoryDeposits(context);
@@ -261,6 +308,41 @@ describe('InventoryMinAmountStrategy E2E', function () {
       activeIntent.id,
     );
     expect(completedIntent!.status).to.equal('complete');
+    const finalActions = await context.tracker.getActionsForIntent(
+      activeIntent.id,
+    );
+    expect(finalActions.length).to.equal(3);
+    const allDeposits = finalActions.filter(
+      (a) => a.type === 'inventory_deposit',
+    );
+    expect(allDeposits.length).to.equal(2);
+    const totalDeposited = allDeposits.reduce((sum, a) => sum + a.amount, 0n);
+    expect(totalDeposited).to.equal(activeIntent.amount);
+
+    const finalBalances = await getRouterBalances(
+      localProviders,
+      nativeDeployedAddresses,
+    );
+
+    const { surplusChain, neutralChain } = classifyChains(
+      'anvil2',
+      allDeposits[0],
+    );
+
+    expect(
+      finalBalances.anvil2.gt(initialBalances.anvil2),
+      'Destination router balance should increase',
+    ).to.be.true;
+    expect(
+      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      `Surplus router (${surplusChain}) balance should decrease`,
+    ).to.be.true;
+    if (neutralChain) {
+      expect(
+        finalBalances[neutralChain].eq(initialBalances[neutralChain]),
+        'Uninvolved router balance should remain unchanged',
+      ).to.be.true;
+    }
   });
 
   it('loops across multiple cycles with partial fills before final completion', async function () {
