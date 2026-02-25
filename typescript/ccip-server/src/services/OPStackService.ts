@@ -1,238 +1,211 @@
-import {BedrockCrossChainMessageProof} from "@eth-optimism/core-utils";
-import {CoreCrossChainMessage, CrossChainMessenger} from "@eth-optimism/sdk";
-import {Router} from "express";
-import {Logger} from "pino";
-import {keccak256} from "viem";
-import {z} from "zod";
+import type { BedrockCrossChainMessageProof } from '@eth-optimism/core-utils';
+import { Router } from 'express';
+import { Logger } from 'pino';
+import { isHex, keccak256 } from 'viem';
+import { z } from 'zod';
 
-import {OpL2toL1Service__factory} from "@hyperlane-xyz/core";
+import { OpL2toL1Service__factory } from '@hyperlane-xyz/core';
 
-import {createAbiHandler} from "../utils/abiHandler.js";
+import { createAbiHandler } from '../utils/abiHandler.js';
 
-import {BaseService, ServiceConfig} from "./BaseService.js";
-import {HyperlaneService} from "./HyperlaneService.js";
+import { BaseService, ServiceConfig } from './BaseService.js';
+import { HyperlaneService } from './HyperlaneService.js';
+import {
+  OpStackCoreCrossChainMessage,
+  OpStackL2TransactionReceipt,
+  OpStackMessengerLite,
+} from './OpStackMessengerLite.js';
 
 const EnvSchema = z.object({
-    HYPERLANE_EXPLORER_API: z.string().url(),
-    RPC_ADDRESS: z.string().url(),
-    CHAIN_ID: z.string(),
-    L2_RPC_ADDRESS: z.string().url(),
-    L2_CHAIN_ID: z.string(),
-    L1_ADDRESS_MANAGER: z.string(),
-    L1_CROSS_DOMAIN_MESSENGER: z.string(),
-    L1_STANDARD_BRIDGE: z.string(),
-    L1_STATE_COMMITMENT_CHAIN: z.string(),
-    L1_CANONICAL_TRANSACTION_CHAIN: z.string(),
-    L1_BOND_MANAGER: z.string(),
-    L1_OPTIMISM_PORTAL: z.string(),
-    L2_OUTPUT_ORACLE: z.string(),
+  HYPERLANE_EXPLORER_API: z.string().url(),
+  RPC_ADDRESS: z.string().url(),
+  L2_RPC_ADDRESS: z.string().url(),
+  L2_CHAIN_ID: z.coerce.number().int().positive(),
+  L1_CROSS_DOMAIN_MESSENGER: z.string(),
+  L2_OUTPUT_ORACLE: z.string(),
+  L2_CROSS_DOMAIN_MESSENGER: z.string().optional(),
+  L2_TO_L1_MESSAGE_PASSER: z.string().optional(),
 });
-
-type L2TransactionReceipt = Awaited<
-    ReturnType<CrossChainMessenger["l2Provider"]["getTransactionReceipt"]>
->;
 
 // Service that requests proofs from Succinct and RPC Provider
 export class OPStackService extends BaseService {
-    // External Services
-    public readonly router: Router;
-    private crossChainMessenger: CrossChainMessenger;
-    private hyperlaneService: HyperlaneService;
+  // External Services
+  public readonly router: Router;
+  private crossChainMessenger: OpStackMessengerLite;
+  private hyperlaneService: HyperlaneService;
 
-    static async create(serviceName: string): Promise<OPStackService> {
-        return new OPStackService({serviceName});
+  static async create(serviceName: string): Promise<OPStackService> {
+    return new OPStackService({ serviceName });
+  }
+
+  constructor(config: ServiceConfig) {
+    super(config);
+    const env = EnvSchema.parse(process.env);
+    // Read configs from environment
+    const hyperlaneConfig = { url: env.HYPERLANE_EXPLORER_API };
+    this.crossChainMessenger = new OpStackMessengerLite({
+      l1RpcUrl: env.RPC_ADDRESS,
+      l2RpcUrl: env.L2_RPC_ADDRESS,
+      l2ChainId: env.L2_CHAIN_ID,
+      l1CrossDomainMessenger: env.L1_CROSS_DOMAIN_MESSENGER,
+      l2OutputOracle: env.L2_OUTPUT_ORACLE,
+      l2CrossDomainMessenger: env.L2_CROSS_DOMAIN_MESSENGER,
+      l2ToL1MessagePasser: env.L2_TO_L1_MESSAGE_PASSER,
+    });
+
+    this.hyperlaneService = new HyperlaneService(
+      this.config.serviceName,
+      hyperlaneConfig.url,
+    );
+    this.router = Router();
+    // CCIP-read spec: GET /getWithdrawalProof/:sender/:callData.json
+    this.router.get(
+      '/getWithdrawalProof/:sender/:callData.json',
+      createAbiHandler(
+        OpL2toL1Service__factory,
+        'getWithdrawalProof',
+        this.getWithdrawalProof.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: POST /getWithdrawalProof
+    this.router.post(
+      '/getWithdrawalProof',
+      createAbiHandler(
+        OpL2toL1Service__factory,
+        'getWithdrawalProof',
+        this.getWithdrawalProof.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: GET /getFinalizeWithdrawalTx/:sender/:callData.json
+    this.router.get(
+      '/getFinalizeWithdrawalTx/:sender/:callData.json',
+      createAbiHandler(
+        OpL2toL1Service__factory,
+        'getFinalizeWithdrawalTx',
+        this.getFinalizeWithdrawalTx.bind(this),
+      ),
+    );
+
+    // CCIP-read spec: POST /getFinalizeWithdrawalTx
+    this.router.post(
+      '/getFinalizeWithdrawalTx',
+      createAbiHandler(
+        OpL2toL1Service__factory,
+        'getFinalizeWithdrawalTx',
+        this.getFinalizeWithdrawalTx.bind(this),
+      ),
+    );
+  }
+
+  async getWithdrawalTransactionFromReceipt(
+    receipt: OpStackL2TransactionReceipt,
+  ): Promise<OpStackCoreCrossChainMessage> {
+    const resolved =
+      await this.crossChainMessenger.toCrossChainMessage(receipt);
+
+    return this.crossChainMessenger.toLowLevelMessage(resolved);
+  }
+
+  async getWithdrawalAndProofFromMessage(
+    message: `0x${string}`,
+    logger: Logger,
+  ): Promise<[OpStackCoreCrossChainMessage, BedrockCrossChainMessageProof]> {
+    const messageId: string = keccak256(message);
+    logger.info({ messageId }, 'Getting withdrawal and proof for message');
+
+    const txHash =
+      await this.hyperlaneService.getOriginTransactionHashByMessageId(
+        messageId,
+        logger,
+      );
+
+    if (!txHash) {
+      throw new Error(`Invalid transaction hash: ${txHash}`);
+    }
+    if (!isHex(txHash)) {
+      throw new Error(`Invalid transaction hash format: ${txHash}`);
     }
 
-    constructor(config: ServiceConfig) {
-        super(config);
-        const env = EnvSchema.parse(process.env);
-        // Read configs from environment
-        const hyperlaneConfig = {url: env.HYPERLANE_EXPLORER_API};
-        const l1RpcConfig = {
-            url: env.RPC_ADDRESS,
-            chainId: env.CHAIN_ID,
-        };
-        const l2RpcConfig = {
-            url: env.L2_RPC_ADDRESS,
-            chainId: env.L2_CHAIN_ID,
-        };
-        const opContracts = {
-            l1: {
-                AddressManager: env.L1_ADDRESS_MANAGER,
-                L1CrossDomainMessenger: env.L1_CROSS_DOMAIN_MESSENGER,
-                L1StandardBridge: env.L1_STANDARD_BRIDGE,
-                StateCommitmentChain: env.L1_STATE_COMMITMENT_CHAIN,
-                CanonicalTransactionChain: env.L1_CANONICAL_TRANSACTION_CHAIN,
-                BondManager: env.L1_BOND_MANAGER,
-                OptimismPortal: env.L1_OPTIMISM_PORTAL,
-                L2OutputOracle: env.L2_OUTPUT_ORACLE,
-            },
-        };
+    logger.info({ txHash }, 'Found tx');
 
-        this.crossChainMessenger = new CrossChainMessenger({
-            bedrock: true,
-            l1ChainId: l1RpcConfig.chainId,
-            l2ChainId: l2RpcConfig.chainId,
-            l1SignerOrProvider: l1RpcConfig.url,
-            l2SignerOrProvider: l2RpcConfig.url,
-            // May need to provide these if not already registered into the SDK
-            contracts: opContracts,
-        });
+    const receipt =
+      await this.crossChainMessenger.getL2TransactionReceipt(txHash);
+    const resolved =
+      await this.crossChainMessenger.toCrossChainMessage(receipt);
 
-        this.hyperlaneService = new HyperlaneService(
-            this.config.serviceName,
-            hyperlaneConfig.url,
-        );
-        this.router = Router();
-        // CCIP-read spec: GET /getWithdrawalProof/:sender/:callData.json
-        this.router.get(
-            "/getWithdrawalProof/:sender/:callData.json",
-            createAbiHandler(
-                OpL2toL1Service__factory,
-                "getWithdrawalProof",
-                this.getWithdrawalProof.bind(this),
-            ),
-        );
+    return Promise.all([
+      this.crossChainMessenger.toLowLevelMessage(resolved),
+      this.crossChainMessenger.getBedrockMessageProof(resolved),
+    ]);
+  }
 
-        // CCIP-read spec: POST /getWithdrawalProof
-        this.router.post(
-            "/getWithdrawalProof",
-            createAbiHandler(
-                OpL2toL1Service__factory,
-                "getWithdrawalProof",
-                this.getWithdrawalProof.bind(this),
-            ),
-        );
+  /**
+   * Gets the account and single storage proof from eth_getProof
+   * @param transactionHash Transaction containing the MessagePassed event
+   * @param logger Logger for request context
+   * @returns The encoded
+   */
+  async getWithdrawalProof([message]: [`0x${string}`], logger: Logger) {
+    const log = this.addLoggerServiceContext(logger);
+    log.info('getWithdrawalProof');
+    const [withdrawal, proof] = await this.getWithdrawalAndProofFromMessage(
+      message,
+      logger,
+    );
 
-        // CCIP-read spec: GET /getFinalizeWithdrawalTx/:sender/:callData.json
-        this.router.get(
-            "/getFinalizeWithdrawalTx/:sender/:callData.json",
-            createAbiHandler(
-                OpL2toL1Service__factory,
-                "getFinalizeWithdrawalTx",
-                this.getFinalizeWithdrawalTx.bind(this),
-            ),
-        );
+    const args = [
+      [
+        withdrawal.messageNonce,
+        withdrawal.sender,
+        withdrawal.target,
+        withdrawal.value,
+        withdrawal.minGasLimit,
+        withdrawal.message,
+      ],
+      proof.l2OutputIndex,
+      [
+        proof.outputRootProof.version,
+        proof.outputRootProof.stateRoot,
+        proof.outputRootProof.messagePasserStorageRoot,
+        proof.outputRootProof.latestBlockhash,
+      ],
+      proof.withdrawalProof,
+    ];
 
-        // CCIP-read spec: POST /getFinalizeWithdrawalTx
-        this.router.post(
-            "/getFinalizeWithdrawalTx",
-            createAbiHandler(
-                OpL2toL1Service__factory,
-                "getFinalizeWithdrawalTx",
-                this.getFinalizeWithdrawalTx.bind(this),
-            ),
-        );
-    }
+    return [...args];
+  }
 
-    async getWithdrawalTransactionFromReceipt(
-        receipt: L2TransactionReceipt,
-    ): Promise<CoreCrossChainMessage> {
-        const resolved =
-            await this.crossChainMessenger.toCrossChainMessage(receipt);
+  /**
+   * Gets the account and single storage proof from eth_getProof
+   * @param transactionHash Transaction containing the MessagePassed event
+   * @param logger Logger for request context
+   * @returns The encoded
+   */
+  async getFinalizeWithdrawalTx([message]: [`0x${string}`], logger: Logger) {
+    const log = this.addLoggerServiceContext(logger);
+    log.info('getFinalizeWithdrawalTx');
+    const [withdrawal] = await this.getWithdrawalAndProofFromMessage(
+      message,
+      logger,
+    );
 
-        return this.crossChainMessenger.toLowLevelMessage(resolved);
-    }
+    const args = [
+      [
+        withdrawal.messageNonce,
+        withdrawal.sender,
+        withdrawal.target,
+        withdrawal.value,
+        withdrawal.minGasLimit,
+        withdrawal.message,
+      ],
+    ];
 
-    async getWithdrawalAndProofFromMessage(
-        message: `0x${string}`,
-        logger: Logger,
-    ): Promise<[CoreCrossChainMessage, BedrockCrossChainMessageProof]> {
-        const messageId: string = keccak256(message);
-        logger.info({messageId}, "Getting withdrawal and proof for message");
+    return [...args];
+  }
 
-        const txHash =
-            await this.hyperlaneService.getOriginTransactionHashByMessageId(
-                messageId,
-                logger,
-            );
-
-        if (!txHash) {
-            throw new Error(`Invalid transaction hash: ${txHash}`);
-        }
-
-        logger.info({txHash}, "Found tx");
-
-        const receipt =
-            await this.crossChainMessenger.l2Provider.getTransactionReceipt(
-                txHash,
-            );
-
-        if (!receipt) {
-            throw new Error("Transaction not yet mined");
-        }
-
-        return Promise.all([
-            this.getWithdrawalTransactionFromReceipt(receipt),
-            this.crossChainMessenger.getBedrockMessageProof(receipt),
-        ]);
-    }
-
-    /**
-     * Gets the account and single storage proof from eth_getProof
-     * @param transactionHash Transaction containing the MessagePassed event
-     * @param logger Logger for request context
-     * @returns The encoded
-     */
-    async getWithdrawalProof([message]: [`0x${string}`], logger: Logger) {
-        const log = this.addLoggerServiceContext(logger);
-        log.info("getWithdrawalProof");
-        const [withdrawal, proof] = await this.getWithdrawalAndProofFromMessage(
-            message,
-            logger,
-        );
-
-        const args = [
-            [
-                withdrawal.messageNonce,
-                withdrawal.sender,
-                withdrawal.target,
-                withdrawal.value,
-                withdrawal.minGasLimit,
-                withdrawal.message,
-            ],
-            proof.l2OutputIndex,
-            [
-                proof.outputRootProof.version,
-                proof.outputRootProof.stateRoot,
-                proof.outputRootProof.messagePasserStorageRoot,
-                proof.outputRootProof.latestBlockhash,
-            ],
-            proof.withdrawalProof,
-        ] as const;
-
-        return [...args];
-    }
-
-    /**
-     * Gets the account and single storage proof from eth_getProof
-     * @param transactionHash Transaction containing the MessagePassed event
-     * @param logger Logger for request context
-     * @returns The encoded
-     */
-    async getFinalizeWithdrawalTx([message]: [`0x${string}`], logger: Logger) {
-        const log = this.addLoggerServiceContext(logger);
-        log.info("getFinalizeWithdrawalTx");
-        const [withdrawal] = await this.getWithdrawalAndProofFromMessage(
-            message,
-            logger,
-        );
-
-        const args = [
-            [
-                withdrawal.messageNonce,
-                withdrawal.sender,
-                withdrawal.target,
-                withdrawal.value,
-                withdrawal.minGasLimit,
-                withdrawal.message,
-            ],
-        ] as const;
-
-        return [...args];
-    }
-
-    forceRelayerRecheck(): void {
-        throw new Error("Proof is not ready");
-    }
+  forceRelayerRecheck(): void {
+    throw new Error('Proof is not ready');
+  }
 }
