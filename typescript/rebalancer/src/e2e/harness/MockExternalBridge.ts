@@ -310,8 +310,13 @@ export class MockExternalBridge implements IExternalBridge {
         return amount;
       }
       return BigInt(String(amount));
-    } catch {
-      return 0n;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        { txHash: receipt.transactionHash, error: message },
+        'Failed to parse transferRemote amount from tx',
+      );
+      throw new Error(`Failed to parse transferred amount: ${message}`);
     }
   }
 }

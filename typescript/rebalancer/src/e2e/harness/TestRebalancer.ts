@@ -27,7 +27,6 @@ import type { IActionTracker } from '../../tracking/IActionTracker.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
 import {
   ANVIL_TEST_PRIVATE_KEY,
-  ANVIL_USER_PRIVATE_KEY,
   BALANCE_PRESETS,
   DOMAIN_IDS,
   type DeployedAddresses,
@@ -382,8 +381,15 @@ export class TestRebalancerBuilder {
           this.inventoryConfig.nativeDeployedAddresses.monitoredRoute[
             chain as TestChain
           ];
-        if (!provider || !monitoredRouteAddress) {
-          continue;
+        if (!provider) {
+          throw new Error(
+            `Missing local provider for inventory chain ${chain}`,
+          );
+        }
+        if (!monitoredRouteAddress) {
+          throw new Error(
+            `Missing monitored route address for inventory chain ${chain}`,
+          );
         }
 
         await provider.send('anvil_setBalance', [
@@ -456,8 +462,13 @@ export class TestRebalancerBuilder {
 
     for (const [chain, balance] of Object.entries(balances)) {
       const provider = localProviders.get(chain);
-      if (!provider || balance === undefined) {
+      if (balance === undefined) {
         continue;
+      }
+      if (!provider) {
+        throw new Error(
+          `Missing local provider for inventory signer chain ${chain}`,
+        );
       }
 
       await provider.send('anvil_setBalance', [
@@ -529,7 +540,14 @@ export class TestRebalancerBuilder {
     localProviders: Map<string, ethers.providers.JsonRpcProvider>,
   ): Promise<MultiProvider> {
     const inventoryMultiProvider = this.multiProvider.extendChainMetadata({});
-    const inventoryWallet = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
+    if (!this.inventoryConfig) {
+      throw new Error(
+        'Inventory config is required to create inventory MultiProvider',
+      );
+    }
+    const inventoryWallet = new ethers.Wallet(
+      this.inventoryConfig.inventorySignerKey,
+    );
 
     for (const chain of TEST_CHAINS) {
       const provider = localProviders.get(chain);
