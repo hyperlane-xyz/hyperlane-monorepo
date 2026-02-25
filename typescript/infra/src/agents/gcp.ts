@@ -8,6 +8,7 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import {
   HexString,
   ProtocolType,
+  base58ToBuffer,
   rootLogger,
   strip0x,
 } from '@hyperlane-xyz/utils';
@@ -160,10 +161,10 @@ export class AgentGCPKey extends CloudAgentKey {
         ).publicKey.toBase58();
       case ProtocolType.Starknet:
         // Assumes that the address is base58 encoded in secrets manager
-        return ethers.utils.hexlify(ethers.utils.base58.decode(this.address));
+        return ethers.hexlify(base58ToBuffer(this.address));
       case ProtocolType.Cosmos:
       case ProtocolType.CosmosNative: {
-        const compressedPubkey = ethers.utils.computePublicKey(
+        const compressedPubkey = ethers.SigningKey.computePublicKey(
           this.privateKey,
           true,
         );
@@ -208,7 +209,7 @@ export class AgentGCPKey extends CloudAgentKey {
       return Keypair.fromSeed(Buffer.from(strip0x(this.privateKey), 'hex'))
         .secretKey;
     } else if (protocol === ProtocolType.Starknet) {
-      return ethers.utils.hexlify(ethers.utils.base58.decode(this.privateKey));
+      return ethers.hexlify(base58ToBuffer(this.privateKey));
     } else {
       return this.privateKey;
     }
@@ -283,7 +284,7 @@ export class AgentGCPKey extends CloudAgentKey {
   }
 
   async getSigner(
-    provider: ethers.providers.Provider | ZkProvider,
+    provider: ethers.Provider | ZkProvider,
   ): Promise<ethers.Signer | ZkWallet> {
     this.logger.debug('Getting signer');
     if (!this.remoteKey.fetched) {

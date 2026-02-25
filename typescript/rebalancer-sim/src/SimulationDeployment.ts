@@ -18,6 +18,15 @@ import {
   type SimulatedChainConfig,
 } from './types.js';
 
+type MockMailboxContract = ReturnType<typeof MockMailbox__factory.connect>;
+type ERC20TestContract = ReturnType<typeof ERC20Test__factory.connect>;
+type HypERC20CollateralContract = ReturnType<
+  typeof HypERC20Collateral__factory.connect
+>;
+type MockValueTransferBridgeContract = ReturnType<
+  typeof MockValueTransferBridge__factory.connect
+>;
+
 // Collateral multiplication factor: 100x the initial balance
 // 1x for warp liquidity, 99x for deployer to execute test transfers
 const COLLATERAL_MULTIPLIER = 100;
@@ -50,11 +59,9 @@ export async function deployMultiDomainSimulation(
     options.mailboxProcessorKey || ANVIL_MAILBOX_PROCESSOR_KEY;
 
   // Create fresh provider with no caching
-  const provider = new ethers.providers.JsonRpcProvider(anvilRpc);
+  const provider = new ethers.JsonRpcProvider(anvilRpc);
   // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
   provider.pollingInterval = 100;
-  // Disable automatic polling - we don't need event subscriptions during deployment
-  provider.polling = false;
 
   const deployer = new ethers.Wallet(deployerKey, provider);
   const deployerAddress = await deployer.getAddress();
@@ -72,12 +79,12 @@ export async function deployMultiDomainSimulation(
   const mailboxProcessorAddress = await mailboxProcessorWallet.getAddress();
 
   // Step 1: Deploy MockMailboxes for each domain
-  const mailboxes: Record<number, ethers.Contract> = {};
+  const mailboxes: Record<number, MockMailboxContract> = {};
   for (const chain of chains) {
     const mailbox = await new MockMailbox__factory(deployer).deploy(
       chain.domainId,
     );
-    await mailbox.deployed();
+    await mailbox.waitForDeployment();
     mailboxes[chain.domainId] = mailbox;
   }
 
@@ -88,45 +95,41 @@ export async function deployMultiDomainSimulation(
       if (chain.domainId !== otherChain.domainId) {
         await mailbox.addRemoteMailbox(
           otherChain.domainId,
-          mailboxes[otherChain.domainId].address,
+          await mailboxes[otherChain.domainId].getAddress(),
         );
       }
     }
   }
 
   // Step 3: Deploy collateral tokens for each domain
-  const totalMint = ethers.BigNumber.from(initialCollateralBalance).mul(
-    COLLATERAL_MULTIPLIER,
-  );
-  const collateralTokens: Record<number, ethers.Contract> = {};
+  const totalMint = initialCollateralBalance * BigInt(COLLATERAL_MULTIPLIER);
+  const collateralTokens: Record<number, ERC20TestContract> = {};
   for (const chain of chains) {
     const token = await new ERC20Test__factory(deployer).deploy(
       tokenName,
       tokenSymbol,
-      totalMint.toString(),
+      totalMint,
       tokenDecimals,
     );
-    await token.deployed();
+    await token.waitForDeployment();
     collateralTokens[chain.domainId] = token;
   }
 
   // Step 4: Deploy HypERC20Collateral warp tokens for each domain
-  const warpTokens: Record<number, ethers.Contract> = {};
+  const warpTokens: Record<number, HypERC20CollateralContract> = {};
   for (const chain of chains) {
-    const scaleNumerator = ethers.BigNumber.from(10).pow(tokenDecimals);
-    const scaleDenominator = ethers.BigNumber.from(1);
+    const scale = 10n ** BigInt(tokenDecimals);
     const warpToken = await new HypERC20Collateral__factory(deployer).deploy(
-      collateralTokens[chain.domainId].address,
-      scaleNumerator,
-      scaleDenominator,
-      mailboxes[chain.domainId].address,
+      await collateralTokens[chain.domainId].getAddress(),
+      scale,
+      await mailboxes[chain.domainId].getAddress(),
     );
-    await warpToken.deployed();
+    await warpToken.waitForDeployment();
 
     // Initialize the warp token
     await warpToken.initialize(
-      ethers.constants.AddressZero, // hook
-      ethers.constants.AddressZero, // ISM
+      ethers.ZeroAddress, // hook
+      ethers.ZeroAddress, // ISM
       deployerAddress, // owner
     );
 
@@ -143,7 +146,10 @@ export async function deployMultiDomainSimulation(
       if (chain.domainId !== otherChain.domainId) {
         remoteDomains.push(otherChain.domainId);
         remoteRouters.push(
-          ethers.utils.hexZeroPad(warpTokens[otherChain.domainId].address, 32),
+          ethers.zeroPadValue(
+            await warpTokens[otherChain.domainId].getAddress(),
+            32,
+          ),
         );
       }
     }
@@ -153,18 +159,18 @@ export async function deployMultiDomainSimulation(
   }
 
   // Step 6: Deploy MockValueTransferBridge for each domain (now extends Router)
-  const bridges: Record<number, ethers.Contract> = {};
+  const bridges: Record<number, MockValueTransferBridgeContract> = {};
   for (const chain of chains) {
     const bridge = await new MockValueTransferBridge__factory(deployer).deploy(
-      collateralTokens[chain.domainId].address,
-      mailboxes[chain.domainId].address,
+      await collateralTokens[chain.domainId].getAddress(),
+      await mailboxes[chain.domainId].getAddress(),
     );
-    await bridge.deployed();
+    await bridge.waitForDeployment();
 
     // Initialize the bridge (Router requires initialization)
     await bridge.initialize(
-      ethers.constants.AddressZero, // hook
-      ethers.constants.AddressZero, // ISM
+      ethers.ZeroAddress, // hook
+      ethers.ZeroAddress, // ISM
       deployerAddress, // owner
     );
 
@@ -181,7 +187,10 @@ export async function deployMultiDomainSimulation(
       if (chain.domainId !== otherChain.domainId) {
         remoteDomains.push(otherChain.domainId);
         remoteRouters.push(
-          ethers.utils.hexZeroPad(bridges[otherChain.domainId].address, 32),
+          ethers.zeroPadValue(
+            await bridges[otherChain.domainId].getAddress(),
+            32,
+          ),
         );
       }
     }
@@ -196,7 +205,7 @@ export async function deployMultiDomainSimulation(
       if (chain.domainId !== otherChain.domainId) {
         await warpToken.addBridge(
           otherChain.domainId,
-          bridges[chain.domainId].address,
+          await bridges[chain.domainId].getAddress(),
         );
       }
     }
@@ -213,7 +222,7 @@ export async function deployMultiDomainSimulation(
     const token = collateralTokens[chain.domainId];
     const warpToken = warpTokens[chain.domainId];
     const tx = await token.transfer(
-      warpToken.address,
+      await warpToken.getAddress(),
       initialCollateralBalance,
     );
     await tx.wait();
@@ -223,7 +232,6 @@ export async function deployMultiDomainSimulation(
   // Each deployment creates a provider with 100ms polling that was never cleaned up
   // After multiple test runs, these accumulate and overwhelm anvil
   provider.removeAllListeners();
-  provider.polling = false;
 
   // Build result
   const domains: Record<string, DeployedDomain> = {};
@@ -231,10 +239,12 @@ export async function deployMultiDomainSimulation(
     domains[chain.chainName] = {
       chainName: chain.chainName,
       domainId: chain.domainId,
-      mailbox: mailboxes[chain.domainId].address as Address,
-      warpToken: warpTokens[chain.domainId].address as Address,
-      collateralToken: collateralTokens[chain.domainId].address as Address,
-      bridge: bridges[chain.domainId].address as Address,
+      mailbox: (await mailboxes[chain.domainId].getAddress()) as Address,
+      warpToken: (await warpTokens[chain.domainId].getAddress()) as Address,
+      collateralToken: (await collateralTokens[
+        chain.domainId
+      ].getAddress()) as Address,
+      bridge: (await bridges[chain.domainId].getAddress()) as Address,
     };
   }
 
@@ -284,11 +294,11 @@ export function createSimulationChainMetadata(
  * Gets the current collateral balance for a warp token
  */
 export async function getWarpTokenBalance(
-  provider: ethers.providers.JsonRpcProvider,
+  provider: ethers.JsonRpcProvider,
   warpTokenAddress: Address,
   collateralTokenAddress: Address,
 ): Promise<bigint> {
   const token = ERC20Test__factory.connect(collateralTokenAddress, provider);
   const balance = await token.balanceOf(warpTokenAddress);
-  return balance.toBigInt();
+  return balance;
 }

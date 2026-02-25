@@ -41,15 +41,13 @@ export const DEFAULT_TIMING: SimulationTiming = {
  * with rebalancer monitoring and KPI collection.
  */
 export class SimulationEngine {
-  private provider: ethers.providers.JsonRpcProvider;
+  private provider: ethers.JsonRpcProvider;
   private isRunning = false;
 
   constructor(private readonly deployment: MultiDomainDeploymentResult) {
-    this.provider = new ethers.providers.JsonRpcProvider(deployment.anvilRpc);
+    this.provider = new ethers.JsonRpcProvider(deployment.anvilRpc);
     // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
     this.provider.pollingInterval = 100;
-    // Disable automatic polling (event subscriptions) but keep pollingInterval for tx.wait()
-    this.provider.polling = false;
   }
 
   /**
@@ -151,7 +149,6 @@ export class SimulationEngine {
 
       // Clean up provider to release connections
       this.provider.removeAllListeners();
-      this.provider.polling = false;
     }
   }
 
@@ -208,7 +205,7 @@ export class SimulationEngine {
         const gasPayment = await warpToken.quoteGasPayment(destDomain.domainId);
 
         // Transfer remote
-        const recipientBytes32 = ethers.utils.hexZeroPad(transfer.user, 32);
+        const recipientBytes32 = ethers.zeroPadValue(transfer.user, 32);
         const transferTx = await warpToken.transferRemote(
           destDomain.domainId,
           recipientBytes32,
@@ -302,7 +299,7 @@ export class SimulationEngine {
     for (const chainName of multiProvider.getKnownChainNames()) {
       const p = multiProvider.tryGetProvider(chainName);
       if (p && 'pollingInterval' in p) {
-        (p as ethers.providers.JsonRpcProvider).pollingInterval = 100;
+        (p as { pollingInterval: number }).pollingInterval = 100;
       }
     }
 

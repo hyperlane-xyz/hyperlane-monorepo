@@ -1,4 +1,4 @@
-import { providers } from 'ethers';
+import type { Provider } from 'ethers';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
@@ -69,9 +69,7 @@ export const defaultRetry: ProviderRetryOptions = {
   baseRetryDelayMs: 50,
 };
 
-export async function fetchProvider(
-  chainName: ChainName,
-): Promise<providers.Provider> {
+export async function fetchProvider(chainName: ChainName): Promise<Provider> {
   const chainMetadata = getChain(chainName);
   if (!chainMetadata) {
     throw Error(`Unsupported chain: ${chainName}`);

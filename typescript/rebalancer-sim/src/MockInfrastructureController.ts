@@ -87,18 +87,21 @@ export class MockInfrastructureController {
         mailbox.filters.Dispatch(),
         (
           sender: string,
-          destination: number,
+          destination: bigint,
           _recipient: string,
           message: string,
         ) => {
-          this.onDispatch(chainName, sender, destination, message).catch(
-            (error: unknown) => {
-              logger.error(
-                { origin: chainName, error },
-                'Unhandled error in onDispatch',
-              );
-            },
-          );
+          this.onDispatch(
+            chainName,
+            sender,
+            Number(destination),
+            message,
+          ).catch((error: unknown) => {
+            logger.error(
+              { origin: chainName, error },
+              'Unhandled error in onDispatch',
+            );
+          });
         },
       );
     }
@@ -148,16 +151,16 @@ export class MockInfrastructureController {
     const type = isWarp ? 'user-transfer' : 'bridge-transfer';
 
     // Compute real messageId
-    const messageId = ethers.utils.keccak256(message);
+    const messageId = ethers.keccak256(message);
 
     const body = '0x' + message.slice(2 + MESSAGE_BODY_OFFSET * 2);
     let amount = 0n;
     try {
-      const decoded = ethers.utils.defaultAbiCoder.decode(
+      const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
         ['bytes32', 'uint256'],
         body,
       );
-      const scaledAmount = decoded[1].toBigInt();
+      const scaledAmount = decoded[1] as bigint;
       // Warp tokens use scale = 10^decimals, bridge Router uses scale = 1 (no scaling)
       amount =
         type === 'user-transfer'
@@ -235,7 +238,7 @@ export class MockInfrastructureController {
 
         // Static call pre-check
         try {
-          await mailbox.callStatic.process('0x', msg.message);
+          await mailbox.process.staticCall('0x', msg.message);
         } catch (error) {
           logger.debug(
             {

@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
+import { ethers } from 'ethers';
 
 import {
   ChainName,
@@ -250,12 +250,12 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
         // Apply 2x buffer to quote to handle gas price fluctuations between tx creation and execution
         // only when the hook metadata includes a refundable address.
         const bufferedValue = callRemote.value
-          ? BigNumber.from(callRemote.value).mul(shouldBuffer ? 2 : 1)
+          ? ethers.toBigInt(callRemote.value) * BigInt(shouldBuffer ? 2 : 1)
           : undefined;
 
         // Create a new combined call that represents all the grouped calls
         const combinedCall: AnnotatedCallData = {
-          to: callRemote.to!,
+          to: callRemote.to as string,
           data: callRemote.data!,
           value: bufferedValue,
           description: `Combined ${groupedCalls.length} ICA calls`,

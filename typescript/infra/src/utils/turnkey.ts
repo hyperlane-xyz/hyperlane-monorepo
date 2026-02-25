@@ -1,3 +1,5 @@
+import type { Provider as EthersProvider } from 'ethers';
+
 import {
   MultiProvider,
   TurnkeyConfig,
@@ -107,7 +109,9 @@ export async function setTurnkeySignerForEvmChains(
         acc.push(
           (async () => {
             const provider = multiProvider.getProvider(chain);
-            const signer = await turnkeySigner.getSigner(provider);
+            const signer = await turnkeySigner.getSigner(
+              provider as unknown as EthersProvider,
+            );
             multiProvider.setSigner(chain, signer);
           })(),
         );

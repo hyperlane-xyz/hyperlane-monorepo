@@ -1,4 +1,3 @@
-import { JsonRpcSigner } from '@ethersproject/providers';
 import SafeApiKit, {
   SafeMultisigTransactionListResponse,
 } from '@safe-global/api-kit';
@@ -9,8 +8,7 @@ import {
   SafeTransaction,
 } from '@safe-global/safe-core-sdk-types';
 import chalk from 'chalk';
-import { BigNumber, ethers } from 'ethers';
-import { formatUnits } from 'ethers/lib/utils.js';
+import { ethers, formatUnits } from 'ethers';
 import { Hex, decodeFunctionData, getAddress, isHex, parseAbi } from 'viem';
 
 import { ISafe__factory } from '@hyperlane-xyz/core';
@@ -197,7 +195,7 @@ export async function executeTx(
   const balance = await multiProvider
     .getProvider(chain)
     .getBalance(safeAddress);
-  if (balance.lt(estimate.safeTxGas)) {
+  if (balance < ethers.toBigInt(estimate.safeTxGas)) {
     throw new Error(
       `Safe ${safeAddress} on ${chain} has insufficient balance (${balance.toString()}) for estimated gas (${
         estimate.safeTxGas
@@ -387,7 +385,7 @@ export async function deleteSafeTx(
       },
     };
 
-    const signature = await (signer as JsonRpcSigner)._signTypedData(
+    const signature = await signer.signTypedData(
       typedData.domain,
       { DeleteRequest: typedData.types.DeleteRequest },
       typedData.message,
@@ -566,7 +564,7 @@ async function createSwapOwnerTransactions(
     transactions.push({
       to: safeAddress,
       data,
-      value: BigNumber.from(0),
+      value: ethers.toBigInt(0),
       description: `Swap safe owner ${oldOwner} with ${newOwner} (prevOwner: ${prevOwner})`,
     });
   }
@@ -592,7 +590,7 @@ async function createThresholdTransaction(
   return {
     to: thresholdTxData.to,
     data: thresholdTxData.data,
-    value: BigNumber.from(thresholdTxData.value),
+    value: ethers.toBigInt(thresholdTxData.value),
     description: `Change safe threshold to ${newThreshold}`,
   };
 }
@@ -782,8 +780,11 @@ export async function getPendingTxsForChains(
 export function parseSafeTx(tx: AnnotatedEV5Transaction) {
   const decoded = ISafe__factory.createInterface().parseTransaction({
     data: tx.data ?? '0x',
-    value: tx.value,
+    value: tx.value ?? undefined,
   });
+  if (!decoded) {
+    throw new Error('Unable to parse Safe transaction');
+  }
 
   return decoded;
 }

@@ -21,7 +21,7 @@ const safeOwners: ChainMap<Address> = {
 export const getAppChainBaseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero; // Use the default ISM
+  const ISM_CONFIG: IsmConfig = ethers.ZeroAddress; // Use the default ISM
 
   const appchain: HypTokenRouterConfig = {
     mailbox: routerConfig.appchain.mailbox,

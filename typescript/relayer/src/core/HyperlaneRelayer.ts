@@ -1,4 +1,4 @@
-import { ethers, providers } from 'ethers';
+import { type TransactionReceipt } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -167,9 +167,9 @@ export class HyperlaneRelayer {
   }
 
   async relayAll(
-    dispatchTx: providers.TransactionReceipt,
+    dispatchTx: TransactionReceipt,
     messages = HyperlaneCore.getDispatchedMessages(dispatchTx),
-  ): Promise<ChainMap<ethers.ContractReceipt[]>> {
+  ): Promise<ChainMap<TransactionReceipt[]>> {
     const destinationMap: ChainMap<DispatchedMessage[]> = {};
     messages.forEach((message) => {
       destinationMap[message.parsed.destination] ??= [];
@@ -179,7 +179,7 @@ export class HyperlaneRelayer {
     // parallelize relaying to different destinations
     return promiseObjAll(
       objMap(destinationMap, async (_destination, messages) => {
-        const receipts: ethers.ContractReceipt[] = [];
+        const receipts: TransactionReceipt[] = [];
         // serially relay messages to the same destination
         for (const message of messages) {
           try {
@@ -199,10 +199,10 @@ export class HyperlaneRelayer {
   }
 
   async relayMessage(
-    dispatchTx: providers.TransactionReceipt,
+    dispatchTx: TransactionReceipt,
     messageIndex = 0,
     message = HyperlaneCore.getDispatchedMessages(dispatchTx)[messageIndex],
-  ): Promise<ethers.ContractReceipt> {
+  ): Promise<TransactionReceipt> {
     const originChain = this.core.getOrigin(message);
     const destinationChain = this.core.getDestination(message);
 
@@ -357,8 +357,16 @@ export class HyperlaneRelayer {
         const dispatchReceipt = await this.multiProvider
           .getProvider(parsed.origin)
           .getTransactionReceipt(dispatchTx);
+        assert(
+          dispatchReceipt,
+          `Dispatch receipt not found for tx ${dispatchTx}`,
+        );
 
-        await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
+        await this.relayMessage(
+          dispatchReceipt as TransactionReceipt,
+          undefined,
+          dispatchMsg,
+        );
       } catch {
         const newAttempts = attempts + 1;
         this.logger.error(

@@ -19,7 +19,7 @@ export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig
     routerConfig: ChainMap<RouterConfigWithoutOwner>,
     abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   ): Promise<ChainMap<HypTokenRouterConfig>> => {
-    const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero;
+    const ISM_CONFIG: IsmConfig = ethers.ZeroAddress;
 
     const arbitrum: HypTokenRouterConfig = {
       ...routerConfig.arbitrum,

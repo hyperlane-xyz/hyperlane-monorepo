@@ -1,4 +1,4 @@
-import { utils } from 'ethers';
+import { getBytes, hexlify } from 'ethers';
 
 import { AbstractCcipReadIsm__factory } from '@hyperlane-xyz/core';
 import {
@@ -46,10 +46,10 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
     }
 
     const parsed = contract.interface.parseError(revertData);
-    if (parsed.name !== 'OffchainLookup') {
-      throw new Error(`Unexpected error ${parsed.name}`);
+    if (!parsed || parsed.name !== 'OffchainLookup') {
+      throw new Error(`Unexpected error ${parsed?.name ?? 'unknown'}`);
     }
-    const [sender, urls, callData] = parsed.args as [
+    const [sender, urls, callData] = parsed.args as unknown as [
       string,
       string[],
       Uint8Array,
@@ -61,7 +61,7 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       urls,
     };
 
-    const callDataHex = utils.hexlify(callData);
+    const callDataHex = hexlify(callData);
 
     const signer = this.core.multiProvider.getSigner(
       message.parsed.destination,
@@ -78,7 +78,7 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
           res = await fetch(url);
         } else {
           const signature = await signer.signMessage(
-            utils.arrayify(
+            getBytes(
               offchainLookupRequestMessageHash(
                 sender,
                 callDataHex,

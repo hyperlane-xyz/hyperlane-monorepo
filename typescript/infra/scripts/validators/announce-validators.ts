@@ -91,7 +91,7 @@ async function main() {
                 {
                   localDomain,
                   address: validatorBaseConfig.address,
-                  mailbox: contracts.mailbox.address,
+                  mailbox: contracts.mailbox.target as string,
                 },
                 validatorBaseConfig.checkpointSyncer,
               );
@@ -130,13 +130,15 @@ async function main() {
       );
       const announced = announcedLocations[0].includes(location);
       if (!announced) {
-        const signature = ethers.utils.joinSignature(announcement.signature);
+        const signature = ethers.Signature.from(
+          announcement.signature,
+        ).serialized;
         console.log(
           chalk.bold(
             `[${chain}] Announcing ${address} checkpoints at ${location}`,
           ),
         );
-        const estimatedGas = await validatorAnnounce.estimateGas.announce(
+        const estimatedGas = await validatorAnnounce.announce.estimateGas(
           address,
           location,
           signature,

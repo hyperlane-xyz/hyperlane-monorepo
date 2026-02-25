@@ -1,6 +1,6 @@
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
+import { ethers } from 'ethers';
 import hre from 'hardhat';
 
 import {
@@ -111,7 +111,9 @@ describe('ICA governance', async () => {
   before(async () => {
     // @ts-ignore
     [signer] = await hre.ethers.getSigners();
-    multiProvider = MultiProvider.createTestMultiProvider({ signer });
+    multiProvider = MultiProvider.createTestMultiProvider({
+      signer: signer as any,
+    });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(
       await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
@@ -143,13 +145,13 @@ describe('ICA governance', async () => {
     accountConfig = {
       origin: TestChainName.test1,
       owner: signer.address,
-      localRouter: local.address,
-      routerOverride: remote.address,
+      localRouter: local.target as string,
+      routerOverride: remote.target as string,
     };
 
     accountOwner = await icaApp.deployAccount(remoteChain, accountConfig);
 
-    const recipientF = new TestRecipient__factory(signer);
+    const recipientF = new TestRecipient__factory(signer as any);
     recipient = await recipientF.deploy();
 
     const contractsMap = {
@@ -181,12 +183,12 @@ describe('ICA governance', async () => {
     const newIsm = randomAddress();
     await governor.checkChain(TestChainName.test2);
     const call = {
-      to: recipient.address,
+      to: recipient.target as string,
       data: recipient.interface.encodeFunctionData(
         'setInterchainSecurityModule',
         [newIsm],
       ),
-      value: BigNumber.from(0),
+      value: ethers.toBigInt(0),
       description: 'Setting ISM on the test recipient',
     };
     governor.mockPushCall(remoteChain, call);
@@ -207,11 +209,11 @@ describe('ICA governance', async () => {
 
     // arrange
     const call = {
-      to: recipient.address,
+      to: recipient.target as string,
       data: recipient.interface.encodeFunctionData('transferOwnership', [
         signer.address,
       ]),
-      value: BigNumber.from(0),
+      value: ethers.toBigInt(0),
       description: 'Transfer ownership',
     };
     governor.mockPushCall(remoteChain, call);

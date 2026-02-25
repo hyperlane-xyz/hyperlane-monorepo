@@ -111,8 +111,8 @@ async function main() {
     origin: ownerChain,
     owner: originOwner,
   };
-  const ownerChainInterchainAccountRouter =
-    ica.contractsMap[ownerChain].interchainAccountRouter.address;
+  const ownerChainInterchainAccountRouter = ica.contractsMap[ownerChain]
+    .interchainAccountRouter.target as string;
 
   if (isZeroishAddress(ownerChainInterchainAccountRouter)) {
     rootLogger.error(`Interchain account router address is zero`);

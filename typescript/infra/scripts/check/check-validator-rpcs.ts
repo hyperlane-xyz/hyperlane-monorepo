@@ -36,13 +36,13 @@ async function main() {
     }
     publicRpcs.push(
       ...chainMetadata.rpcUrls.map((rpc) =>
-        ethers.utils.solidityKeccak256(['string'], [rpc.http]),
+        ethers.solidityPackedKeccak256(['string'], [rpc.http]),
       ),
     );
     if (chainMetadata.grpcUrls)
       publicRpcs.push(
         ...chainMetadata.grpcUrls.map((rpc) =>
-          ethers.utils.solidityKeccak256(['string'], [rpc.http]),
+          ethers.solidityPackedKeccak256(['string'], [rpc.http]),
         ),
       );
   }

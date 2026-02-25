@@ -1,4 +1,4 @@
-import type { providers } from 'ethers';
+import type { TransactionReceipt } from 'ethers';
 
 import type {
   ChainName,
@@ -27,7 +27,7 @@ export interface MetadataContext<
   HookContext = DerivedHookConfig,
 > {
   message: DispatchedMessage;
-  dispatchTx: providers.TransactionReceipt;
+  dispatchTx: TransactionReceipt;
   ism: IsmContext;
   hook: HookContext;
 }

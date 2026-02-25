@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import {
@@ -44,12 +44,12 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
         return {
           chain: beneficiaryViolation.chain,
           call: {
-            to: beneficiaryViolation.contract.address,
+            to: beneficiaryViolation.contract.target as string,
             data: beneficiaryViolation.contract.interface.encodeFunctionData(
               'setBeneficiary',
               [beneficiaryViolation.expected],
             ),
-            value: BigNumber.from(0),
+            value: ethers.toBigInt(0),
             description: `Set IGP beneficiary to ${beneficiaryViolation.expected}`,
           },
         };
@@ -75,12 +75,12 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
         return {
           chain: gasOraclesViolation.chain,
           call: {
-            to: gasOraclesViolation.contract.address,
+            to: gasOraclesViolation.contract.target as string,
             data: gasOraclesViolation.contract.interface.encodeFunctionData(
               'setDestinationGasConfigs',
               [configs],
             ),
-            value: BigNumber.from(0),
+            value: ethers.toBigInt(0),
             description: `Setting ${Object.keys(gasOraclesViolation.expected)
               .map((remoteStr) => {
                 const remote = remoteStr as ChainName;
@@ -100,20 +100,20 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
           remoteDomain: this.checker.multiProvider.getDomainId(remote),
           // TODO: fix to use the retrieved gas oracle
           config: {
-            gasOracle: ethers.constants.AddressZero,
-            gasOverhead: BigNumber.from(gasOverhead),
+            gasOracle: ethers.ZeroAddress,
+            gasOverhead: ethers.toBigInt(gasOverhead as ethers.BigNumberish),
           },
         }));
 
         return {
           chain: violation.chain,
           call: {
-            to: overheadViolation.contract.address,
+            to: overheadViolation.contract.target as string,
             data: overheadViolation.contract.interface.encodeFunctionData(
               'setDestinationGasConfigs',
               [configs],
             ),
-            value: BigNumber.from(0),
+            value: ethers.toBigInt(0),
             description: `Setting ${Object.keys(violation.expected)
               .map((remoteStr) => {
                 const remote = remoteStr as ChainName;

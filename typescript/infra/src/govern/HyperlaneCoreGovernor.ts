@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
+import { ethers } from 'ethers';
 
 import {
   CheckerViolation,
@@ -44,7 +44,7 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
             destination: violation.chain,
             config: violation.expected,
           });
-          ismAddress = ism.address;
+          ismAddress = ism.target as string;
         } else if (typeof violation.expected === 'string') {
           ismAddress = violation.expected;
         } else {
@@ -54,12 +54,12 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
         return {
           chain: violation.chain,
           call: {
-            to: violation.contract.address,
+            to: violation.contract.target as string,
             data: violation.contract.interface.encodeFunctionData(
               'setDefaultIsm',
               [ismAddress],
             ),
-            value: BigNumber.from(0),
+            value: ethers.toBigInt(0),
             description: `Set ${violation.chain} Mailbox default ISM to ${ismAddress}`,
           },
         };
