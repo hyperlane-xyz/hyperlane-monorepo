@@ -68,10 +68,18 @@ describe(EvmTimelockReader.name, () => {
       config,
     );
 
-    timelockAddress = TimelockController.address;
+    timelockAddress =
+      (await TimelockController.getAddress?.()) ??
+      (TimelockController.target as string);
 
+    const deploymentTx =
+      TimelockController.deploymentTransaction?.() ??
+      (TimelockController as any).deployTransaction;
+    assert(deploymentTx, 'Expected Timelock deployment transaction');
+
+    const deploymentReceipt = await deploymentTx.wait();
     assert(
-      TimelockController.deployTransaction.blockNumber,
+      deploymentReceipt?.blockNumber,
       'Expected the Timelock deployment block number to be defined',
     );
 
@@ -91,7 +99,7 @@ describe(EvmTimelockReader.name, () => {
       });
 
       expect(reader).to.be.instanceOf(EvmTimelockReader);
-      expect(reader['timelockInstance'].address).to.equal(timelockAddress);
+      expect(reader['timelockInstance'].target).to.equal(timelockAddress);
       expect(reader['chain']).to.equal(TestChainName.test1);
     });
 
@@ -215,10 +223,6 @@ describe(EvmTimelockReader.name, () => {
           for (let i = 0; i < timelockTx.data.length; i++) {
             expect(normalizeAddressEvm(scheduledTx.data[i].to)).to.equal(
               normalizeAddressEvm(timelockTx.data[i].to),
-            );
-            assert(
-              scheduledTx.data[i].value,
-              'Expected value to be defined when reading from Timelock',
             );
             expect(scheduledTx.data[i].value?.toString()).to.equal(
               timelockTx.data[i].value?.toString() ?? '0',
