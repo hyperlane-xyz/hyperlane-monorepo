@@ -49,7 +49,10 @@ export async function detectWarpTokenType(
 
   const len = token.pluginData.length;
   if (len === 1) return SvmWarpTokenType.Native;
-  if (len === 34) return SvmWarpTokenType.Synthetic;
+  // Current SyntheticPlugin: 34 bytes (mint:32 + mint_bump:1 + ata_payer_bump:1).
+  // Legacy SyntheticPlugin: 66 bytes (mint:32 + ata_payer:32 + mint_bump:1 + ata_payer_bump:1).
+  // decodeSyntheticPlugin reads only the first 34 bytes in both cases.
+  if (len === 34 || len === 66) return SvmWarpTokenType.Synthetic;
   if (len >= 98) return SvmWarpTokenType.Collateral;
 
   throw new Error(
