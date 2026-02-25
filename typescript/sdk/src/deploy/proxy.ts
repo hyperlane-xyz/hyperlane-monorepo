@@ -6,7 +6,7 @@ import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { Address, ChainId, eqAddress } from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { DeployedOwnableConfig } from '../types.js';
 
 export type EthersLikeProvider = Provider | ZKSyncProvider;
@@ -138,8 +138,8 @@ export function proxyAdminUpdateTxs(
     ownerOverrides?: Record<string, string>;
     proxyAdmin?: DeployedOwnableConfig;
   }>,
-): AnnotatedEV5Transaction[] {
-  const transactions: AnnotatedEV5Transaction[] = [];
+): AnnotatedEvmTransaction[] {
+  const transactions: AnnotatedEvmTransaction[] = [];
 
   const parsedChainId =
     typeof chainId === 'string' ? parseInt(chainId) : chainId;

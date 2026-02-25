@@ -5,7 +5,7 @@ import { Address, deepCopy, eqAddress } from '@hyperlane-xyz/utils';
 import { CCIPContractCache } from '../ccip/utils.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { HypTokenRouterConfig } from '../token/types.js';
 import { ChainName } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
@@ -33,7 +33,7 @@ type UpdateHookParams = {
 export async function getEvmHookUpdateTransactions(
   clientContractAddress: string,
   updateHookParams: Readonly<UpdateHookParams>,
-): Promise<AnnotatedEV5Transaction[]> {
+): Promise<AnnotatedEvmTransaction[]> {
   const {
     actualConfig: actualHookConfig,
     evmChainName,

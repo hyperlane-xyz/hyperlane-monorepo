@@ -1,11 +1,14 @@
 import { expect } from 'chai';
-import { type PopulatedTransaction as EV5Transaction, ethers } from 'ethers';
+import {
+  type PopulatedTransaction as EthersV6Transaction,
+  ethers,
+} from 'ethers';
 
 import { type XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
 import { type Address, randomInt } from '@hyperlane-xyz/utils';
 
-import { EV5FileSubmitter } from '../../../submitters/EV5FileSubmitter.js';
+import { EvmFileSubmitter } from '../../../submitters/EvmFileSubmitter.js';
 import { CustomTxSubmitterType } from '../../../submitters/types.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployXERC20VSToken, hyperlaneSubmit } from '../commands/helpers.js';
@@ -22,7 +25,7 @@ async function getMintOnlyOwnerTransaction(
   address: Address,
   amount: number,
   chainId: number,
-): Promise<EV5Transaction> {
+): Promise<EthersV6Transaction> {
   const owner = await xerc20.owner();
   const xerc20Address = await xerc20.getAddress();
   const iface = new ethers.Interface(XERC20VSTest__factory.abi);
@@ -212,11 +215,11 @@ describe('hyperlane submit', function () {
 
     it('should serialize parallel writes to the same file', async () => {
       const outputTransactionPath = `${TEMP_PATH}/transactions_${randomInt(0, 1_000_000)}.json`;
-      const submitterA = new EV5FileSubmitter({
+      const submitterA = new EvmFileSubmitter({
         chain: CHAIN_NAME_2,
         filepath: outputTransactionPath,
       });
-      const submitterB = new EV5FileSubmitter({
+      const submitterB = new EvmFileSubmitter({
         chain: CHAIN_NAME_3,
         filepath: outputTransactionPath,
       });

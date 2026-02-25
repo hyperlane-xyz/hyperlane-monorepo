@@ -13,7 +13,7 @@ import { Hex, decodeFunctionData, getAddress, isHex, parseAbi } from 'viem';
 
 import { ISafe__factory } from '@hyperlane-xyz/core';
 import {
-  AnnotatedEV5Transaction,
+  AnnotatedEvmTransaction,
   ChainName,
   ChainNameOrId,
   MultiProvider,
@@ -777,7 +777,7 @@ export async function getPendingTxsForChains(
   );
 }
 
-export function parseSafeTx(tx: AnnotatedEV5Transaction) {
+export function parseSafeTx(tx: AnnotatedEvmTransaction) {
   const decoded = ISafe__factory.createInterface().parseTransaction({
     data: tx.data ?? '0x',
     value: tx.value ?? undefined,

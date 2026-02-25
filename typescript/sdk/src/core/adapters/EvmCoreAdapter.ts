@@ -30,7 +30,7 @@ export class EvmCoreAdapter extends BaseEvmAdapter implements ICoreAdapter {
       [chainName]: {
         mailbox: Mailbox__factory.connect(
           addresses.mailbox,
-          multiProvider.getEthersV5Provider(chainName),
+          multiProvider.getEthersV6Provider(chainName),
         ),
       },
     } as HyperlaneContractsMap<CoreFactories>; // Core only uses mailbox so cast to keep adapter interface simple
@@ -44,7 +44,7 @@ export class EvmCoreAdapter extends BaseEvmAdapter implements ICoreAdapter {
     sourceTx: TypedTransactionReceipt,
   ): Array<{ messageId: string; destination: ChainName }> {
     if (
-      sourceTx.type !== ProviderType.EthersV5 &&
+      sourceTx.type !== ProviderType.EthersV6 &&
       sourceTx.type !== ProviderType.Tron
     ) {
       throw new Error(

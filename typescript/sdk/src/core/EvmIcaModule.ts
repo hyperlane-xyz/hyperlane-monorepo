@@ -23,7 +23,7 @@ import { InterchainAccountConfig } from '../index.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
 import {
@@ -65,10 +65,10 @@ export class EvmIcaModule extends HyperlaneModule<
 
   public async update(
     expectedConfig: InterchainAccountConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     const actualConfig = await this.read();
 
-    const transactions: AnnotatedEV5Transaction[] = [
+    const transactions: AnnotatedEvmTransaction[] = [
       ...(await this.updateRemoteRoutersEnrollment(
         actualConfig.remoteRouters,
         expectedConfig.remoteRouters,
@@ -82,8 +82,8 @@ export class EvmIcaModule extends HyperlaneModule<
   private async updateRemoteRoutersEnrollment(
     actualConfig: DerivedIcaRouterConfig['remoteRouters'],
     expectedConfig: InterchainAccountConfig['remoteRouters'] = {},
-  ): Promise<AnnotatedEV5Transaction[]> {
-    const transactions: AnnotatedEV5Transaction[] = [
+  ): Promise<AnnotatedEvmTransaction[]> {
+    const transactions: AnnotatedEvmTransaction[] = [
       ...(await this.getEnrollRemoteRoutersTxs(actualConfig, expectedConfig)),
       ...(await this.getUnenrollRemoteRoutersTxs(actualConfig, expectedConfig)),
     ];
@@ -138,12 +138,12 @@ export class EvmIcaModule extends HyperlaneModule<
   private async getEnrollRemoteRoutersTxs(
     actualConfig: Readonly<DerivedIcaRouterConfig['remoteRouters']>,
     expectedConfig: Readonly<InterchainAccountConfig['remoteRouters']> = {},
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     if (!actualConfig) {
       return [];
     }
 
-    const transactions: AnnotatedEV5Transaction[] = [];
+    const transactions: AnnotatedEvmTransaction[] = [];
 
     const routesToEnroll = Array.from(
       difference(
@@ -166,7 +166,7 @@ export class EvmIcaModule extends HyperlaneModule<
       remoteIsm.push(ZeroHash);
     }
 
-    const remoteTransactions: AnnotatedEV5Transaction[] = domainsToEnroll.map(
+    const remoteTransactions: AnnotatedEvmTransaction[] = domainsToEnroll.map(
       (domainId) => ({
         annotation: `Enrolling InterchainAccountRouter on domain ${this.domainId} on InterchainAccountRouter at ${expectedConfig[domainId].address} on domain ${domainId}`,
         chainId: this.multiProvider.getEvmChainId(domainId),
@@ -199,12 +199,12 @@ export class EvmIcaModule extends HyperlaneModule<
   private async getUnenrollRemoteRoutersTxs(
     actualConfig: Readonly<DerivedIcaRouterConfig['remoteRouters']>,
     expectedConfig: Readonly<InterchainAccountConfig['remoteRouters']> = {},
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     if (!actualConfig) {
       return [];
     }
 
-    const transactions: AnnotatedEV5Transaction[] = [];
+    const transactions: AnnotatedEvmTransaction[] = [];
 
     const routesToUnenroll = Array.from(
       difference(
@@ -227,7 +227,7 @@ export class EvmIcaModule extends HyperlaneModule<
       ),
     });
 
-    const remoteTransactions: AnnotatedEV5Transaction[] = routesToUnenroll.map(
+    const remoteTransactions: AnnotatedEvmTransaction[] = routesToUnenroll.map(
       (domainId) => ({
         annotation: `Removing InterchainAccountRouter on domain ${this.domainId} from InterchainAccountRouter at ${actualConfig[domainId].address} on domain ${domainId}`,
         chainId: this.multiProvider.getEvmChainId(domainId),

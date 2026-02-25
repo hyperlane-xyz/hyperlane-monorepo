@@ -24,7 +24,7 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
-  AnnotatedEV5Transaction,
+  AnnotatedEvmTransaction,
   ChainMap,
   ChainName,
   CoreConfig,
@@ -402,7 +402,7 @@ export class GovernTransactionReader {
 
   async read(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     // If it's an Ownable transaction
     if (await this.isOwnableTransaction(tx)) {
@@ -502,7 +502,7 @@ export class GovernTransactionReader {
 
   private async isFeeTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<boolean> {
     if (!tx.to || !tx.data) return false;
     const selector = tx.data.slice(0, 10).toLowerCase();
@@ -517,7 +517,7 @@ export class GovernTransactionReader {
 
   private async readFeeTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     assert(tx.data, 'No data in fee transaction');
     assert(tx.to, 'No to address in fee transaction');
@@ -554,7 +554,7 @@ export class GovernTransactionReader {
   private async parseFeeTransactionData(
     chain: ChainName,
     feeTypeName: TokenFeeType,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<{
     decoded: ethers.TransactionDescription;
     insight?: string;
@@ -634,7 +634,7 @@ export class GovernTransactionReader {
 
   private isErc20Transaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): boolean {
     if (!tx.to || !tx.data) {
       return false;
@@ -663,7 +663,7 @@ export class GovernTransactionReader {
 
   private async readErc20Transaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('No data in ERC20 transaction');
@@ -729,13 +729,13 @@ export class GovernTransactionReader {
     };
   }
 
-  private isNativeTokenTransfer(tx: AnnotatedEV5Transaction): boolean {
+  private isNativeTokenTransfer(tx: AnnotatedEvmTransaction): boolean {
     return !tx.data && !!tx.value && !!tx.to;
   }
 
   private async readNativeTokenTransfer(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     const { symbol } = await this.multiProvider.getNativeToken(chain);
     const numTokens = ethers.formatEther(tx.value ?? 0n);
@@ -747,7 +747,7 @@ export class GovernTransactionReader {
 
   private isTimelockControllerTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): boolean {
     const isNewTimelock =
       this.timelocks[chain] !== undefined &&
@@ -761,7 +761,7 @@ export class GovernTransactionReader {
 
   private async readTimelockControllerTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('No data in TimelockController transaction');
@@ -849,7 +849,7 @@ export class GovernTransactionReader {
 
   private isManagedLockboxTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): boolean {
     if (!tx.to) return false;
     const lockboxes = {
@@ -864,7 +864,7 @@ export class GovernTransactionReader {
 
   private readManagedLockboxTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): GovernTransaction {
     if (!tx.data) {
       throw new Error('No data in Managed Lockbox transaction');
@@ -915,7 +915,7 @@ export class GovernTransactionReader {
 
   private async isXERC20Transaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<XERC20Metadata | undefined> {
     if (!tx.to) return undefined;
     const lowerTo = (tx.to as string).toLowerCase();
@@ -924,7 +924,7 @@ export class GovernTransactionReader {
 
   private async readXERC20Transaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
     metadata: XERC20Metadata,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
@@ -1020,7 +1020,7 @@ export class GovernTransactionReader {
 
   private isWarpModuleTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): boolean {
     return (
       tx.to !== undefined &&
@@ -1031,7 +1031,7 @@ export class GovernTransactionReader {
 
   private async readWarpModuleTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('No data in Warp Module transaction');
@@ -1313,7 +1313,7 @@ export class GovernTransactionReader {
 
   private async readIcaTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('No data in ICA transaction');
@@ -1432,7 +1432,7 @@ export class GovernTransactionReader {
 
   private async readMailboxTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('⚠️ No data in mailbox transaction');
@@ -1467,7 +1467,7 @@ export class GovernTransactionReader {
 
   private async readProxyAdminTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('⚠️ No data in proxyAdmin transaction');
@@ -1750,7 +1750,7 @@ export class GovernTransactionReader {
 
   private async readMultisendTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<MultiSendGovernTransactions> {
     if (!tx.data) {
       throw new Error('No data in multisend transaction');
@@ -1764,7 +1764,7 @@ export class GovernTransactionReader {
         try {
           const decoded = await this.read(
             chain,
-            metaTransactionDataToEV5Transaction(multisend),
+            metaTransactionDataToEvmTransaction(multisend),
           );
           return {
             chain,
@@ -1804,7 +1804,7 @@ export class GovernTransactionReader {
 
   private async readOwnableTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('⚠️ No data in Ownable transaction');
@@ -1837,7 +1837,7 @@ export class GovernTransactionReader {
     };
   }
 
-  isIcaTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
+  isIcaTransaction(chain: ChainName, tx: AnnotatedEvmTransaction): boolean {
     if (tx.to === undefined) return false;
 
     const isCurrentRouter = eqAddress(
@@ -1853,7 +1853,7 @@ export class GovernTransactionReader {
     return isCurrentRouter || isLegacyEthRouter;
   }
 
-  isLegacyEthIcaRouter(tx: AnnotatedEV5Transaction): boolean {
+  isLegacyEthIcaRouter(tx: AnnotatedEvmTransaction): boolean {
     return (
       tx.to !== undefined &&
       eqAddress(
@@ -1863,7 +1863,7 @@ export class GovernTransactionReader {
     );
   }
 
-  isMailboxTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
+  isMailboxTransaction(chain: ChainName, tx: AnnotatedEvmTransaction): boolean {
     return (
       tx.to !== undefined &&
       eqAddress(tx.to as string, this.chainAddresses[chain].mailbox)
@@ -1872,7 +1872,7 @@ export class GovernTransactionReader {
 
   async isProxyAdminTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<boolean> {
     if (tx.to === undefined) {
       return false;
@@ -1889,7 +1889,7 @@ export class GovernTransactionReader {
     );
   }
 
-  async isMultisendTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
+  async isMultisendTransaction(tx: AnnotatedEvmTransaction): Promise<boolean> {
     if (tx.to === undefined) {
       return false;
     }
@@ -1903,14 +1903,14 @@ export class GovernTransactionReader {
     );
   }
 
-  async isOwnableTransaction(tx: AnnotatedEV5Transaction): Promise<boolean> {
+  async isOwnableTransaction(tx: AnnotatedEvmTransaction): Promise<boolean> {
     if (!tx.to || !tx.data) return false;
     return ownableFunctionSelectors.includes(tx.data.substring(0, 10));
   }
 
   private isSafeTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): boolean {
     return (
       tx.to !== undefined &&
@@ -1922,7 +1922,7 @@ export class GovernTransactionReader {
 
   private async readSafeTransaction(
     chain: ChainName,
-    tx: AnnotatedEV5Transaction,
+    tx: AnnotatedEvmTransaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
       throw new Error('No data in Safe transaction');
@@ -2085,9 +2085,9 @@ export class GovernTransactionReader {
   }
 }
 
-function metaTransactionDataToEV5Transaction(
+function metaTransactionDataToEvmTransaction(
   metaTransactionData: MetaTransactionData,
-): AnnotatedEV5Transaction {
+): AnnotatedEvmTransaction {
   return {
     to: metaTransactionData.to,
     value: ethers.toBigInt(metaTransactionData.value),

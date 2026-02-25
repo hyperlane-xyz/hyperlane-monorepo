@@ -1,7 +1,7 @@
 import type { Logger } from 'pino';
 
 import {
-  type AnnotatedEV5Transaction,
+  type AnnotatedEvmTransaction,
   type ChainName,
   type InterchainGasQuote,
   type MultiProvider,
@@ -92,13 +92,13 @@ export async function estimateTransferRemoteGas(
     // Gas cost is independent of transfer size (just a require check in _transferFromSender),
     // and using minimal amount prevents eth_estimateGas from failing when account balance < requested amount
     // Note: getHypAdapter returns IHypTokenAdapter<unknown> for protocol-agnostic support.
-    // For EVM chains (which inventory rebalancing uses), the actual type is AnnotatedEV5Transaction.
+    // For EVM chains (which inventory rebalancing uses), the actual type is AnnotatedEvmTransaction.
     const populatedTx = (await adapter.populateTransferRemoteTx({
       destination: destinationDomain,
       recipient: inventorySigner,
       weiAmountOrId: 1n,
       interchainGas: gasQuote,
-    })) as AnnotatedEV5Transaction;
+    })) as AnnotatedEvmTransaction;
 
     // Estimate gas using the provider
     const provider = multiProvider.getProvider(originChain);

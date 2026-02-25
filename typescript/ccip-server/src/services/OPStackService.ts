@@ -243,7 +243,7 @@ export class OPStackService extends BaseService {
     throw new Error('Proof is not ready');
   }
 
-  // OP SDK still expects v5-shaped receipts in these calls.
+  // OP SDK still expects this legacy receipt shape in these calls.
   private toOptimismReceipt(receipt: TransactionReceipt) {
     return {
       ...receipt,

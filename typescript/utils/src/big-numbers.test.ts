@@ -7,12 +7,12 @@ import {
   BigNumberMin,
   bigToFixed,
   fixedToBig,
-  isBigNumberish,
+  isNumberish,
   isZeroish,
   mulBigAndFixed,
 } from './big-numbers.js';
 
-describe('isBigNumberish', () => {
+describe('isNumberish', () => {
   const testCases = [
     { expect: false, context: 'invalid number', case: 'invalidNumber' },
     { expect: false, context: 'NaN', case: NaN },
@@ -30,7 +30,7 @@ describe('isBigNumberish', () => {
   ];
   testCases.forEach((tc) => {
     it(`returns ${tc.expect} for ${tc.case}`, () => {
-      expect(isBigNumberish(tc.case!)).to.equal(tc.expect);
+      expect(isNumberish(tc.case!)).to.equal(tc.expect);
     });
   });
 });
