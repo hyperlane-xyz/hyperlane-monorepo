@@ -6,7 +6,7 @@ import {
   EventArgs,
 } from '@arbitrum/sdk';
 import { L2ToL1TxEvent } from '@arbitrum/sdk/dist/lib/abi/ArbSys.js';
-import { BigNumber, BytesLike, providers, utils } from 'ethers';
+import { AbiCoder, JsonRpcProvider, type BytesLike } from 'ethers';
 
 import {
   AbstractMessageIdAuthorizedIsm__factory,
@@ -160,7 +160,9 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       };
 
       const reader = new ChildToParentMessageReader(
-        this.core.multiProvider.getProvider(context.hook.destinationChain),
+        this.core.multiProvider.getProvider(
+          context.hook.destinationChain,
+        ) as any,
         l2ToL1TxEvent,
       );
 
@@ -172,10 +174,10 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
           `Invalid chainId for ${originChainMetadata.name}: ${originChainMetadata.chainId}`,
         );
       }
-      const baseProvider = new providers.JsonRpcProvider(
+      const baseProvider = new JsonRpcProvider(
         originChainMetadata.rpcUrls[0].http,
       );
-      const arbProvider = new ArbitrumProvider(baseProvider, {
+      const arbProvider = new ArbitrumProvider(baseProvider as any, {
         name: originChainMetadata.name,
         chainId: originChainMetadata.chainId,
       });
@@ -216,16 +218,17 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
   async getWaitingBlocksUntilReady(
     reader: ChildToParentMessageReader,
     provider: ArbitrumProvider,
-  ): Promise<BigNumber> {
+  ): Promise<bigint> {
     const firstBlock = await reader.getFirstExecutableBlock(provider);
     if (!firstBlock) {
       throw new Error('No first executable block found');
     }
-    const currentBlock = BigNumber.from(await provider.getBlockNumber());
-    if (currentBlock.gt(firstBlock)) {
+    const firstBlockNumber = BigInt(firstBlock.toString());
+    const currentBlock = BigInt(await provider.getBlockNumber());
+    if (currentBlock > firstBlockNumber) {
       throw new Error('First executable block is in the past');
     }
-    const waitingPeriod = firstBlock.sub(currentBlock);
+    const waitingPeriod = firstBlockNumber - currentBlock;
 
     return waitingPeriod;
   }
@@ -234,14 +237,14 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     reader: ChildToParentMessageReader,
     provider: ArbitrumProvider,
   ): Promise<ChildToParentMessageStatus> {
-    return reader.status(provider);
+    return reader.status(provider as any);
   }
 
   async getArbitrumOutboxProof(
     reader: ChildToParentMessageReader,
     provider: ArbitrumProvider,
   ): Promise<string[]> {
-    const proof = (await reader.getOutboxProof(provider)) ?? [];
+    const proof = (await reader.getOutboxProof(provider as any)) ?? [];
     if (!proof) {
       throw new Error('No outbox proof found');
     }
@@ -252,12 +255,10 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
     metadata: string,
     _: MetadataContext<WithAddress<ArbL2ToL1IsmConfig>>,
   ): ArbL2ToL1Metadata {
-    const abiCoder = new utils.AbiCoder();
+    const abiCoder = new AbiCoder();
     const outboxInterface = IOutbox__factory.createInterface();
     const executeTransactionInputs =
-      outboxInterface.functions[
-        'executeTransaction(bytes32[],uint256,address,address,uint256,uint256,uint256,uint256,bytes)'
-      ].inputs;
+      outboxInterface.getFunction('executeTransaction').inputs;
     const executeTransactionTypes = executeTransactionInputs
       .map((input) => input.type)
       .filter((_, index, array) => index !== array.length - 2); // remove callvalue from types (because the ArbL2ToL1Ism doesn't allow it)
@@ -269,12 +270,10 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
   }
 
   static encodeArbL2ToL1Metadata(metadata: ArbL2ToL1Metadata): string {
-    const abiCoder = new utils.AbiCoder();
+    const abiCoder = new AbiCoder();
     const outboxInterface = IOutbox__factory.createInterface();
     const executeTransactionInputs =
-      outboxInterface.functions[
-        'executeTransaction(bytes32[],uint256,address,address,uint256,uint256,uint256,uint256,bytes)'
-      ].inputs;
+      outboxInterface.getFunction('executeTransaction').inputs;
     const executeTransactionTypes = executeTransactionInputs.map(
       (input) => input.type,
     );

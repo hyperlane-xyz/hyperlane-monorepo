@@ -195,7 +195,7 @@ export async function writeAgentConfig(
         const mailbox = contracts.mailbox;
         try {
           const deployedBlock = await mailbox.deployedBlock();
-          return deployedBlock.toNumber();
+          return Number(deployedBlock);
         } catch (err) {
           rootLogger.error(
             'Failed to get deployed block, defaulting to 0. Chain:',

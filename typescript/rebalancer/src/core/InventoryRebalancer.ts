@@ -916,7 +916,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         {
           origin,
           destination,
-          txHash: receipt.transactionHash,
+          txHash: receipt.hash,
           intentId: intent.id,
         },
         'TransferRemote transaction sent but no messageId found in logs',
@@ -927,7 +927,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       {
         origin,
         destination,
-        txHash: receipt.transactionHash,
+        txHash: receipt.hash,
         messageId,
         intentId: intent.id,
       },
@@ -941,7 +941,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination: destinationDomain,
       amount,
       type: 'inventory_deposit',
-      txHash: receipt.transactionHash,
+      txHash: receipt.hash,
       messageId,
     });
 

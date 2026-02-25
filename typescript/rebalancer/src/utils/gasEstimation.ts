@@ -1,4 +1,3 @@
-import { BigNumber } from 'ethers';
 import type { Logger } from 'pino';
 
 import {
@@ -218,15 +217,13 @@ export async function calculateTransferCosts(
     inventorySigner,
     logger,
   );
-  const bufferedGasLimit = addBufferToGasLimit(
-    BigNumber.from(estimatedGasLimit.toString()),
-  );
+  const bufferedGasLimit = addBufferToGasLimit(estimatedGasLimit);
 
   // Get gas price and calculate cost
   const provider = multiProvider.getProvider(originChain);
   const feeData = await provider.getFeeData();
   const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
-  const gasCost = bufferedGasLimit.toBigInt() * BigInt(gasPrice.toString());
+  const gasCost = bufferedGasLimit * gasPrice;
 
   const totalCost = igpCost + gasCost + tokenFeeCost;
 

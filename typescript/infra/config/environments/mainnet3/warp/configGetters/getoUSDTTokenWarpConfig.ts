@@ -537,7 +537,7 @@ function generateHookConfig(
   amountRoutingThreshold: number,
 ): HookConfig {
   if (!isCCIPChain(origin)) {
-    return ethers.constants.AddressZero;
+    return ethers.ZeroAddress;
   }
 
   const entries = deploymentChains

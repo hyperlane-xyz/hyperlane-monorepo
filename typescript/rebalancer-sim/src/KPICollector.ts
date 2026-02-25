@@ -1,4 +1,4 @@
-import type { ethers } from 'ethers';
+import type { JsonRpcProvider } from 'ethers';
 
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
 
@@ -21,7 +21,7 @@ export class KPICollector {
   private initialBalances: Record<string, bigint> = {};
 
   constructor(
-    private readonly provider: ethers.providers.JsonRpcProvider,
+    private readonly provider: JsonRpcProvider,
     private readonly domains: Record<string, DeployedDomain>,
   ) {}
 
@@ -48,7 +48,7 @@ export class KPICollector {
       this.provider,
     );
     const balance = await token.balanceOf(domain.warpToken);
-    return balance.toBigInt();
+    return balance;
   }
 
   /**

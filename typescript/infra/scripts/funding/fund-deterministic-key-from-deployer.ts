@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { ethers } from 'ethers';
 import { format } from 'util';
 
 import { promiseObjAll, rootLogger } from '@hyperlane-xyz/utils';
@@ -68,14 +68,17 @@ async function main() {
       const provider = multiProvider.getProvider(chain);
       const overrides = multiProvider.getTransactionOverrides(chain);
       const actual = await provider.getBalance(address);
-      const gasPrice = BigNumber.from(
+      const feeData = await provider.getFeeData();
+      const gasPrice = ethers.toBigInt(
         await (overrides.gasPrice ||
           overrides.maxFeePerGas ||
-          provider.getGasPrice()),
+          feeData.gasPrice ||
+          feeData.maxFeePerGas ||
+          0n),
       );
-      const desired = gasPrice.mul(argv.gasAmount!);
-      const value = desired.sub(actual);
-      if (value.gt(0)) {
+      const desired = gasPrice * BigInt(argv.gasAmount!);
+      const value = desired - actual;
+      if (value > 0n) {
         logger.info(
           `Funding ${address} on chain '${chain}' with ${value} native tokens`,
         );

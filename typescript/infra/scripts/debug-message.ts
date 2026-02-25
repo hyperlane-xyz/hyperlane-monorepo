@@ -45,7 +45,10 @@ async function main() {
   const dispatchReceipt = await originProvider.getTransactionReceipt(
     argv.txHash,
   );
-  const dispatchedMessages = core.getDispatchedMessages(dispatchReceipt);
+  if (!dispatchReceipt) {
+    throw new Error(`No receipt found for tx ${argv.txHash}`);
+  }
+  const dispatchedMessages = core.getDispatchedMessages(dispatchReceipt as any);
 
   // 1 indexed for human friendly logs
   let currentMessage = 1;
@@ -121,26 +124,26 @@ async function checkMessage(
   );
 
   try {
-    await recipient.estimateGas.handle(
+    await recipient.handle.estimateGas(
       message.parsed.origin,
       message.parsed.sender,
       message.parsed.body,
-      { from: destinationMailbox.address },
+      { from: destinationMailbox.target as string },
     );
     console.log(
       'Calling recipient `handle` function from the inbox does not revert',
     );
   } catch (err: any) {
     const data = (
-      await recipient.populateTransaction.handle(
+      await recipient.handle.populateTransaction(
         message.parsed.origin,
         message.parsed.sender,
         message.parsed.body,
       )
     ).data;
     console.log('Simulated call', {
-      from: destinationMailbox.address,
-      to: recipient.address,
+      from: destinationMailbox.target as string,
+      to: recipient.target as string,
       data,
     });
     console.error(`Error calling recipient \`handle\` function from the inbox`);
