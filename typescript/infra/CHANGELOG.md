@@ -1,5 +1,52 @@
 # @hyperlane-xyz/infra
 
+## 25.2.0
+
+### Minor Changes
+
+- ccd638d: Improved shared RPC override handling across TypeScript services.
+
+### Patch Changes
+
+- Updated dependencies [215dff0]
+- Updated dependencies [d668dcd]
+- Updated dependencies [d2f75a1]
+- Updated dependencies [360db52]
+- Updated dependencies [18ec479]
+- Updated dependencies [795d93e]
+- Updated dependencies [e143956]
+- Updated dependencies [c61d612]
+- Updated dependencies [ccd638d]
+- Updated dependencies [c61d612]
+- Updated dependencies [c2affe2]
+  - @hyperlane-xyz/sdk@25.2.0
+  - @hyperlane-xyz/keyfunder@0.1.0
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/rebalancer@2.0.0
+  - @hyperlane-xyz/relayer@1.1.0
+  - @hyperlane-xyz/http-registry-server@25.2.0
+  - @hyperlane-xyz/metrics@0.1.5
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/deploy-sdk@1.3.3
+  - @hyperlane-xyz/provider-sdk@1.3.3
+
+## 25.1.0
+
+### Patch Changes
+
+- Updated dependencies [b930534]
+- Updated dependencies [a18d0e6]
+  - @hyperlane-xyz/sdk@25.1.0
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/http-registry-server@25.1.0
+  - @hyperlane-xyz/keyfunder@0.0.4
+  - @hyperlane-xyz/metrics@0.1.4
+  - @hyperlane-xyz/rebalancer@1.0.3
+  - @hyperlane-xyz/relayer@1.0.2
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/deploy-sdk@1.3.2
+  - @hyperlane-xyz/provider-sdk@1.3.2
+
 ## 25.0.0
 
 ### Patch Changes

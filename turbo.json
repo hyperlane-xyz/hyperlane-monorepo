@@ -9,6 +9,14 @@
       "dependsOn": ["build"],
       "outputs": ["dist/**", "artifacts-zk/**", "cache-zk/**"]
     },
+    "build:tron": {
+      "dependsOn": ["build"],
+      "outputs": [
+        "cache-tron/**",
+        "../typescript/tron-sdk/src/abi/**",
+        "../typescript/tron-sdk/src/typechain/**"
+      ]
+    },
     "test:ci": {
       "dependsOn": ["build", "^test:ci"]
     },

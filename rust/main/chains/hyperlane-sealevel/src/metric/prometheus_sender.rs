@@ -1,10 +1,9 @@
 use std::time::{Duration, Instant};
 
 use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
-use solana_client::{
-    client_error::ClientError,
+use solana_client::{client_error::ClientError, rpc_request::RpcRequest};
+use solana_rpc_client::{
     http_sender::HttpSender,
-    rpc_request::RpcRequest,
     rpc_sender::{RpcSender, RpcTransportStats},
 };
 use url::Url;

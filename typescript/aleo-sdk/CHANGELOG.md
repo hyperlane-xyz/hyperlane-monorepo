@@ -1,5 +1,26 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 25.2.0
+
+### Minor Changes
+
+- 6091a31: Fix USAD getBridgedSupply query
+
+### Patch Changes
+
+- Updated dependencies [360db52]
+- Updated dependencies [ccd638d]
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/provider-sdk@1.3.3
+
+## 25.1.0
+
+### Patch Changes
+
+- Updated dependencies [b930534]
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/provider-sdk@1.3.2
+
 ## 25.0.0
 
 ### Patch Changes

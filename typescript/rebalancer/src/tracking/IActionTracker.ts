@@ -1,8 +1,17 @@
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 
+import type { ExternalBridgeType } from '../config/types.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 
-import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
+import type {
+  ActionType,
+  ExecutionMethod,
+  PartialInventoryIntent,
+  RebalanceAction,
+  RebalanceIntent,
+  Transfer,
+} from './types.js';
 
 export interface CreateRebalanceIntentParams {
   origin: Domain;
@@ -11,6 +20,8 @@ export interface CreateRebalanceIntentParams {
   bridge?: Address;
   priority?: number;
   strategyType?: string;
+  executionMethod?: ExecutionMethod;
+  externalBridge?: ExternalBridgeType;
 }
 
 export interface CreateRebalanceActionParams {
@@ -18,8 +29,11 @@ export interface CreateRebalanceActionParams {
   origin: Domain;
   destination: Domain;
   amount: bigint;
-  messageId: string;
+  type: ActionType; // Required - type of action being created
+  messageId?: string; // Optional - not needed for inventory_movement
   txHash?: string;
+  externalBridgeTransferId?: string; // Optional - for inventory_movement (external transfer bridge ID)
+  externalBridgeId?: ExternalBridgeType; // Optional - for inventory_movement (e.g., 'lifi')
 }
 
 /**
@@ -56,7 +70,24 @@ export interface IActionTracker {
    */
   syncRebalanceActions(confirmedBlockTags?: ConfirmedBlockTags): Promise<void>;
 
+  /**
+   * Sync inventory_movement actions by checking their status via external bridge API.
+   * This is separate from syncRebalanceActions because inventory_movement actions
+   * don't use Hyperlane messages and need to query the bridge's status API.
+   *
+   * @param externalBridgeRegistry - Bridge registry to query for status
+   * @returns Count of completed and failed actions
+   */
+  syncInventoryMovementActions(
+    externalBridgeRegistry: Partial<ExternalBridgeRegistry>,
+  ): Promise<{ completed: number; failed: number }>;
+
   // === Transfer Queries ===
+
+  /**
+   * Get a single transfer by ID.
+   */
+  getTransfer(id: string): Promise<Transfer | undefined>;
 
   /**
    * Get all transfers currently in progress.
@@ -71,6 +102,11 @@ export interface IActionTracker {
   // === RebalanceIntent Queries ===
 
   /**
+   * Get a single rebalance intent by ID.
+   */
+  getRebalanceIntent(id: string): Promise<RebalanceIntent | undefined>;
+
+  /**
    * Get all active rebalance intents (not_started + in_progress).
    */
   getActiveRebalanceIntents(): Promise<RebalanceIntent[]>;
@@ -81,6 +117,13 @@ export interface IActionTracker {
   getRebalanceIntentsByDestination(
     destination: Domain,
   ): Promise<RebalanceIntent[]>;
+
+  /**
+   * Get inventory intents that are in_progress but not fully fulfilled,
+   * and have no in-flight actions (safe to continue).
+   * Returns enriched data with computed values derived from action states.
+   */
+  getPartiallyFulfilledInventoryIntents(): Promise<PartialInventoryIntent[]>;
 
   // === RebalanceIntent Management ===
 
@@ -109,20 +152,49 @@ export interface IActionTracker {
    */
   failRebalanceIntent(id: string): Promise<void>;
 
-  // === RebalanceAction Management ===
+  // === RebalanceAction Queries ===
 
   /**
-   * Create a new rebalance action.
-   * Initial status: 'in_progress'
-   * Also transitions parent intent from 'not_started' to 'in_progress'.
+   * Get actions filtered by type.
+   * @param type - Action type to filter by
    */
+  getActionsByType(type: ActionType): Promise<RebalanceAction[]>;
+
+  /**
+   * Get all actions associated with a specific intent.
+   * @param intentId - ID of the intent
+   */
+  getActionsForIntent(intentId: string): Promise<RebalanceAction[]>;
+
+  /**
+   * Get total inflight inventory movement amount from a specific chain.
+   * Returns the sum of amounts for all in_progress inventory_movement actions
+   * that originate from the specified domain.
+   *
+   * @param origin - Domain ID of the origin chain
+   * @returns Total amount being moved out via inventory movements
+   */
+  getInflightInventoryMovements(origin: Domain): Promise<bigint>;
+
+  /**
+   * Get a single rebalance action by ID.
+   */
+  getRebalanceAction(id: string): Promise<RebalanceAction | undefined>;
+
+  /**
+   * Get all rebalance actions currently in progress.
+   */
+  getInProgressActions(): Promise<RebalanceAction[]>;
+
+  // === RebalanceAction Management ===
+
   createRebalanceAction(
     params: CreateRebalanceActionParams,
   ): Promise<RebalanceAction>;
 
   /**
    * Mark a rebalance action as complete.
-   * Updates parent intent's fulfilledAmount.
+   * Checks if parent intent is now fully fulfilled and marks it complete if so.
    */
   completeRebalanceAction(id: string): Promise<void>;
 

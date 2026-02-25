@@ -16,6 +16,7 @@ use solana_program::{
     rent::Rent,
     sysvar::{self, Sysvar},
 };
+use solana_system_interface::program as system_program;
 use spl_associated_token_account::{
     get_associated_token_address_with_program_id,
     instruction::create_associated_token_account_idempotent,
@@ -214,7 +215,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
             // Grant ownership to the system program so that the ATA program
             // can call into the system program with the ATA payer as the
             // payer.
-            &solana_program::system_program::id(),
+            &system_program::ID,
             system_program,
             ata_payer_account_info,
             hyperlane_token_ata_payer_pda_seeds!(ata_payer_bump),

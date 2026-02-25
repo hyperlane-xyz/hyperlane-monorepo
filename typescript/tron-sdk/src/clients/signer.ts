@@ -3,8 +3,8 @@ import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
-import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
-import TransparentUpgradeableProxyAbi from '../abi/TransparentUpgradeableProxy.json' with { type: 'json' };
+import HypNativeAbi from '../abi/contracts/token/HypNative.sol/HypNative.json' with { type: 'json' };
+import TransparentUpgradeableProxyAbi from '../abi/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json' with { type: 'json' };
 import {
   getCreateOracleTx,
   getInitIgpTx,

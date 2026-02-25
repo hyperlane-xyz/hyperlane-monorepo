@@ -1,5 +1,25 @@
 # @hyperlane-xyz/cli
 
+## 25.2.0
+
+### Minor Changes
+
+- 9d38b07: Warp route extension deployments were changed to run per-chain in parallel. Successful deployments are now written to the registry before reporting failures, making `warp apply` resumable — re-running after a partial failure skips already-deployed chains.
+
+### Patch Changes
+
+- 176b684: Fixed `hl submit` with ICA/timelock strategies failing with missing chain signer errors by extracting all referenced chains from the strategy file in `resolveSubmitChains`.
+
+## 25.1.0
+
+### Minor Changes
+
+- cae845c: Added top-level `xerc20 read` and `xerc20 apply` commands for viewing and managing XERC20 mint/burn limits.
+
+### Patch Changes
+
+- b930534: Added oxlint as a fast first-pass linter and converted imports to type-only where appropriate to resolve import cycle warnings.
+
 ## 25.0.0
 
 ### Patch Changes

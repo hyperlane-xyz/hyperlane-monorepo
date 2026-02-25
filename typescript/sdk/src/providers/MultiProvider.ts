@@ -21,6 +21,7 @@ import {
   addBufferToGasLimit,
   pick,
   rootLogger,
+  timeout,
 } from '@hyperlane-xyz/utils';
 
 import { testChainMetadata, testChains } from '../consts/testChains.js';
@@ -37,10 +38,14 @@ import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
   ProviderBuilderFn,
   defaultProviderBuilder,
+  defaultTronEthersProviderBuilder,
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
 type Provider = providers.Provider | ZKSyncProvider;
+
+const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
+const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
 
 export interface MultiProviderOptions {
   logger?: Logger;
@@ -56,8 +61,8 @@ export interface SendTransactionOptions {
    */
   waitConfirmations?: number | EthJsonRpcBlockParameterTag;
   /**
-   * Timeout in ms when waiting for a block tag (default: 300000 = 5 min).
-   * Only applies when waitConfirmations is a block tag.
+   * Timeout in ms when waiting for confirmations.
+   * Default: max(2 × confirmations × estimateBlockTime, 30s) when available, otherwise 300000 (5 min).
    */
   timeoutMs?: number;
 }
@@ -131,6 +136,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     } else if (rpcUrls.length) {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
         this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
+      } else if (technicalStack === ChainTechnicalStack.Tron) {
+        this.providers[name] = defaultTronEthersProviderBuilder(
+          rpcUrls,
+          chainId,
+        );
       } else {
         this.providers[name] = this.providerBuilder(rpcUrls, chainId);
       }
@@ -371,17 +381,19 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       // no need to `handleTx` for zkSync as the zksync deployer itself
       // will wait for the deploy tx to be confirmed before returning
     } else {
-      const contractFactory = factory.connect(signer);
+      const resolved =
+        technicalStack === ChainTechnicalStack.Tron
+          ? await this.resolveTronFactory(factory)
+          : factory;
+      const contractFactory = resolved.connect(signer);
+
       const deployTx = contractFactory.getDeployTransaction(...params);
       estimatedGas = await signer.estimateGas(deployTx);
-      contract = await contractFactory.deploy(
-        ...params,
-        {
-          gasLimit: addBufferToGasLimit(estimatedGas),
-          ...overrides,
-        },
-      );
-      // manually wait for deploy tx to be confirmed for non-zksync chains
+      contract = await contractFactory.deploy(...params, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
+        ...overrides,
+      });
+      // manually wait for deploy tx to be confirmed
       await this.handleTx(chainNameOrId, contract.deployTransaction);
     }
 
@@ -392,6 +404,31 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     // return deployed contract
     return contract as Awaited<ReturnType<F['deploy']>>;
+  }
+
+  /**
+   * Resolve a core typechain factory to its Tron-compiled equivalent
+   * wrapped with TronContractFactory for deployment.
+   *
+   * @hyperlane-xyz/tron-sdk exports typechain factories with class names identical to
+   * @hyperlane-xyz/core (e.g. Mailbox__factory), generated from the same Solidity source.
+   * They share the same ABIs and deploy signatures, differing only in TVM bytecode.
+   *
+   * Looks up the tron factory by factory.constructor.name and wraps it
+   * with TronContractFactory to handle Tron's deployment flow.
+   * @throws if no matching Tron factory is found
+   */
+  async resolveTronFactory<F extends ContractFactory>(factory: F): Promise<F> {
+    const TronSdk = await import('@hyperlane-xyz/tron-sdk');
+    const TronFactory = (TronSdk as Record<string, any>)[
+      factory.constructor.name
+    ];
+    if (!TronFactory) {
+      throw new Error(
+        `No Tron-compiled factory found for ${factory.constructor.name}`,
+      );
+    }
+    return new TronSdk.TronContractFactory(new TronFactory()) as unknown as F;
   }
 
   /**
@@ -407,11 +444,20 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const response = await tx;
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
 
+    const metadata = this.getChainMetadata(chainNameOrId);
     // Use provided waitConfirmations, or fall back to chain metadata confirmations
     const confirmations =
-      options?.waitConfirmations ??
-      this.getChainMetadata(chainNameOrId).blocks?.confirmations ??
-      1;
+      options?.waitConfirmations ?? metadata.blocks?.confirmations ?? 1;
+
+    const estimateBlockTime = metadata.blocks?.estimateBlockTime;
+    const dynamicTimeout =
+      typeof confirmations === 'number' && estimateBlockTime
+        ? Math.max(
+            confirmations * estimateBlockTime * 1000 * 2,
+            MIN_CONFIRMATION_TIMEOUT_MS,
+          )
+        : DEFAULT_CONFIRMATION_TIMEOUT_MS;
+    const timeoutMs = options?.timeoutMs ?? dynamicTimeout;
 
     // Handle string block tags (e.g., "finalized", "safe")
     if (typeof confirmations === 'string') {
@@ -422,7 +468,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         chainNameOrId,
         response,
         confirmations,
-        options?.timeoutMs,
+        timeoutMs,
       );
     }
 
@@ -430,7 +476,23 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.logger.info(
       `Pending ${txUrl || response.hash} (waiting ${confirmations} blocks for confirmation)`,
     );
-    return response.wait(confirmations);
+    const receipt = await timeout(
+      response.wait(confirmations),
+      timeoutMs,
+      `Timeout (${timeoutMs}ms) waiting for ${confirmations} block confirmations for tx ${response.hash}`,
+    );
+
+    // ethers v5 can return null for wait(0) if tx is still pending.
+    if (receipt) return receipt;
+
+    this.logger.info(
+      `Pending ${txUrl || response.hash} (wait(0) returned pending, waiting for initial inclusion)`,
+    );
+    return timeout(
+      response.wait(1),
+      timeoutMs,
+      `Timeout (${timeoutMs}ms) waiting for initial inclusion for tx ${response.hash}`,
+    );
   }
 
   /**
@@ -444,7 +506,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     response: ContractTransaction,
     blockTag: EthJsonRpcBlockParameterTag,
-    timeoutMs = 300000,
+    timeoutMs = DEFAULT_CONFIRMATION_TIMEOUT_MS,
   ): Promise<ContractReceipt> {
     const provider = this.getProvider(chainNameOrId);
     const receipt = await response.wait(1); // Wait for initial inclusion

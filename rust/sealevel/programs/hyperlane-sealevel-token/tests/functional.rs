@@ -47,6 +47,8 @@ use solana_sdk::{
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
 };
+use solana_system_interface::program as system_program;
+use spl_token_2022::extension::metadata_pointer::instruction as metadata_pointer_instruction;
 use spl_token_2022::instruction::initialize_mint2;
 use std::collections::HashMap;
 
@@ -71,19 +73,26 @@ async fn setup_client() -> (BanksClient, Keypair) {
         processor!(process_instruction),
     );
 
-    program_test.add_program(
-        "spl_token_2022",
-        spl_token_2022::id(),
-        processor!(spl_token_2022::processor::Processor::process),
-    );
+    // Use the bundled BPF programs for SPL Token 2022 and ATA instead of processor!-based ones.
+    // The processor!-based approach doesn't work because spl-token-2022 v10 and spl-associated-token-account v8
+    // use solana_cpi::invoke which bypasses ProgramTest's syscall stubs.
+    // The bundled BPF programs (spl_token_2022-8.0.0.so, spl_associated_token_account-1.1.1.so)
+    // are actual compiled programs that use proper syscalls.
+    // Note: We don't call add_program for these - ProgramTest automatically loads them.
 
+    // spl_noop just logs data and returns success - provide a simple processor
+    fn noop_processor(
+        _program_id: &Pubkey,
+        _accounts: &[solana_program::account_info::AccountInfo],
+        _instruction_data: &[u8],
+    ) -> solana_program::entrypoint::ProgramResult {
+        Ok(())
+    }
     program_test.add_program(
-        "spl_associated_token_account",
-        spl_associated_token_account::id(),
-        processor!(spl_associated_token_account::processor::process_instruction),
+        "spl_noop",
+        account_utils::SPL_NOOP_PROGRAM_ID,
+        processor!(noop_processor),
     );
-
-    program_test.add_program("spl_noop", spl_noop::id(), processor!(spl_noop::noop));
 
     let mailbox_program_id = mailbox_id();
     program_test.add_program(
@@ -172,7 +181,7 @@ async fn initialize_hyperlane_token(
                     // 3. `[signer]` The payer.
                     // 4. `[writable]` The mint / mint authority PDA account.
                     // 5. `[writable]` The ATA payer PDA account.
-                    AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                    AccountMeta::new_readonly(system_program::ID, false),
                     AccountMeta::new(token_account_key, false),
                     AccountMeta::new(dispatch_authority_key, false),
                     AccountMeta::new_readonly(payer.pubkey(), true),
@@ -180,6 +189,15 @@ async fn initialize_hyperlane_token(
                     AccountMeta::new(ata_payer_account_key, false),
                 ],
             ),
+            // Initialize MetadataPointer extension before InitializeMint2
+            // Required because MINT_ACCOUNT_SIZE (234) was calculated for MetadataPointer
+            metadata_pointer_instruction::initialize(
+                &spl_token_2022::id(),
+                &mint_account_key,
+                Some(mint_account_key), // authority
+                Some(mint_account_key), // metadata_address (points to self)
+            )
+            .unwrap(),
             initialize_mint2(
                 &spl_token_2022::id(),
                 &mint_account_key,
@@ -239,7 +257,7 @@ async fn enroll_remote_router(
             .encode()
             .unwrap(),
             vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new(*token_account, false),
                 AccountMeta::new_readonly(payer.pubkey(), true),
             ],
@@ -273,7 +291,7 @@ async fn set_destination_gas_config(
             .encode()
             .unwrap(),
             vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new(*token_account, false),
                 AccountMeta::new_readonly(payer.pubkey(), true),
             ],
@@ -624,7 +642,7 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
                     hyperlane_token_accounts.mailbox_process_authority,
                     false,
                 ),
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
                 AccountMeta::new_readonly(recipient_pubkey, false),
                 AccountMeta::new_readonly(spl_token_2022::id(), false),
@@ -749,8 +767,8 @@ async fn test_transfer_remote() {
             // 15. `[writeable]` The mint / mint authority PDA account.
             // 16. `[writeable]` The token sender's associated token account, from which tokens will be burned.
             vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
-                AccountMeta::new_readonly(spl_noop::id(), false),
+                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                 AccountMeta::new_readonly(hyperlane_token_accounts.token, false),
                 AccountMeta::new_readonly(mailbox_accounts.program, false),
                 AccountMeta::new(mailbox_accounts.outbox, false),
@@ -933,7 +951,7 @@ async fn test_enroll_remote_router_errors_if_not_signed_by_owner() {
             .encode()
             .unwrap(),
             vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new(hyperlane_token_accounts.token, false),
                 AccountMeta::new_readonly(payer.pubkey(), false),
             ],
@@ -1034,7 +1052,7 @@ async fn test_set_destination_gas_configs_errors_if_not_signed_by_owner() {
             .encode()
             .unwrap(),
             vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new(hyperlane_token_accounts.token, false),
                 AccountMeta::new_readonly(payer.pubkey(), false),
             ],

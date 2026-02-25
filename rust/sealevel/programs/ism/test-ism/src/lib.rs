@@ -1,6 +1,8 @@
 //! Interchain Security Module that unconditionally approves.
 //! **NOT INTENDED FOR USE IN PRODUCTION**
 
+// Allow cfg values used by solana_program::entrypoint! macro
+#![allow(unexpected_cfgs)]
 #![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_code)]

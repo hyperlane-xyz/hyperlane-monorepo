@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/utils",
-  "version": "25.0.0",
+  "version": "25.2.0",
   "description": "General utilities and types for the Hyperlane network",
   "keywords": [
     "Hyperlane",
@@ -20,6 +20,9 @@
     "*": {
       "fs": [
         "./dist/fs/index.d.ts"
+      ],
+      "anvil": [
+        "./dist/anvil/index.d.ts"
       ],
       "eslint-rules": [
         "./dist/eslint-rules/index.d.ts"

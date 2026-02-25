@@ -9,6 +9,7 @@ import { Provider as ZKProvider } from 'zksync-ethers';
 import { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk';
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
@@ -30,6 +31,7 @@ import {
 } from './ProviderType.js';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
 import { ProviderRetryOptions } from './SmartProvider/types.js';
+import { parseCustomRpcHeaders } from '../utils/provider.js';
 
 export type ProviderBuilderFn<P> = (
   rpcUrls: ChainMetadata['rpcUrls'],
@@ -137,8 +139,11 @@ export function defaultCosmJsNativeProviderBuilder(
 export function defaultStarknetJsProviderBuilder(
   rpcUrls: RpcUrl[],
 ): StarknetJsProvider {
+  assert(rpcUrls.length, 'No RPC URLs provided');
+  const { url, headers } = parseCustomRpcHeaders(rpcUrls[0].http);
   const provider = new StarknetRpcProvider({
-    nodeUrl: rpcUrls[0].http,
+    nodeUrl: url,
+    headers,
   });
   return { provider, type: ProviderType.Starknet };
 }
@@ -175,6 +180,18 @@ export function defaultAleoProviderBuilder(
     network,
   );
   return { provider, type: ProviderType.Aleo };
+}
+
+/**
+ * Returns an ethers-compatible TronJsonRpcProvider for use in MultiProvider.
+ * This handles Tron's missing eth_getTransactionCount and returns the raw provider.
+ */
+export function defaultTronEthersProviderBuilder(
+  rpcUrls: RpcUrl[],
+  _network: number | string,
+): providers.Provider {
+  assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
+  return new TronJsonRpcProvider(rpcUrls[0].http);
 }
 
 // Kept for backwards compatibility

@@ -1,1 +1,10 @@
-dist/
+.env
+dist
+cache
+cache-tron
+artifacts-tron
+forge-cache
+out
+src/typechain
+src/abi
+coverage
