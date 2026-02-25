@@ -106,12 +106,15 @@ pub fn download_radix_contracts() -> (PathBuf, PathBuf) {
 }
 
 fn wait_for_radix_localnet() {
-    use ureq::get;
+    use ureq::post;
 
     const MAX_ATTEMPTS: u32 = 60;
-    let url = "http://localhost:3333/status/network-configuration";
+    let url = "http://localhost:3333/core/status/network-configuration";
     for attempt in 1..=MAX_ATTEMPTS {
-        if let Ok(resp) = get(url).call() {
+        if let Ok(resp) = post(url)
+            .set("Content-Type", "application/json")
+            .send_string("{}")
+        {
             if resp.status() == 200 {
                 log!("Radix localnet ready after {} attempts", attempt);
                 return;

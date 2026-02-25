@@ -197,18 +197,13 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     let sealevel_path = get_sealevel_path(&workspace_path);
     let sealevel_programs = concat_path(sealevel_path, "programs");
 
-    // build programs in parallel
-    let handles: Vec<_> = SOLANA_HYPERLANE_PROGRAMS
-        .iter()
-        .map(|&path| {
-            build_sbf
-                .clone()
-                .working_dir(concat_path(&sealevel_programs, path))
-                .run()
-        })
-        .collect();
-    for handle in handles {
-        handle.join();
+    // build programs sequentially (cargo-build-sbf downloads shared platform-tools on first run)
+    for &path in SOLANA_HYPERLANE_PROGRAMS {
+        build_sbf
+            .clone()
+            .working_dir(concat_path(&sealevel_programs, path))
+            .run()
+            .join();
     }
     log!("All hyperlane solana programs built successfully");
     out_path
