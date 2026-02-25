@@ -38,11 +38,11 @@ import { setupAnvilTestSuite } from '../utils/anvil.js';
 
 describe('Multi-Domain Deployment', function () {
   const anvil = setupAnvilTestSuite(this);
-  let provider: ethers.providers.JsonRpcProvider;
+  let provider: ethers.JsonRpcProvider;
 
   beforeEach(async () => {
     // Create provider after anvil starts (rpc is set in beforeEach)
-    provider = new ethers.providers.JsonRpcProvider(anvil.rpc);
+    provider = new ethers.JsonRpcProvider(anvil.rpc);
   });
 
   /**
