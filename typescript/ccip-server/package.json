@@ -23,7 +23,6 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.13.2",
-    "@eth-optimism/sdk": "catalog:",
     "@google-cloud/pino-logging-gcp-config": "catalog:",
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/metrics": "workspace:*",
