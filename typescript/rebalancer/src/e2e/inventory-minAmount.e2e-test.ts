@@ -135,6 +135,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     expect(activeIntents[0].amount).to.equal(expectedDeficit);
 
     const inProgressActions = await context.tracker.getInProgressActions();
+    expect(inProgressActions.length).to.equal(1);
     const depositAction = inProgressActions.find(
       (a) => a.type === 'inventory_deposit',
     );
@@ -235,6 +236,14 @@ describe('InventoryMinAmountStrategy E2E', function () {
 
     await executeCycle(context);
 
+    const preSync = await context.tracker.getInProgressActions();
+    expect(preSync.length).to.equal(1);
+    const preSyncMovement = preSync.find(
+      (a) => a.type === 'inventory_movement',
+    );
+    expect(preSyncMovement).to.exist;
+    expect(preSyncMovement!.status).to.equal('in_progress');
+
     // executeCycle calls syncActionTracker at the START of each cycle, so
     // bridge actions created DURING the cycle above aren't synced yet.
     // In production the next cycle's sync picks them up; in tests we
@@ -242,6 +251,11 @@ describe('InventoryMinAmountStrategy E2E', function () {
     await context.tracker.syncInventoryMovementActions({
       [ExternalBridgeType.LiFi]: mockBridge,
     });
+
+    const movementState = await context.tracker.getRebalanceAction(
+      preSyncMovement!.id,
+    );
+    expect(movementState?.status).to.equal('complete');
 
     const activeIntent = partialIntents[0].intent;
     const actionsAfterBridge = await context.tracker.getActionsForIntent(
@@ -269,6 +283,10 @@ describe('InventoryMinAmountStrategy E2E', function () {
       activeIntent.id,
     );
     expect(completedIntent!.status).to.equal('complete');
+
+    const partialAfterFinalCycle =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partialAfterFinalCycle.length).to.equal(0);
     const finalActions = await context.tracker.getActionsForIntent(
       activeIntent.id,
     );
@@ -389,6 +407,9 @@ describe('InventoryMinAmountStrategy E2E', function () {
     expect(actions.length).to.equal(3);
     expect(movementActions.length).to.equal(2);
     expect(depositActions.length).to.equal(1);
+    const origins = new Set(movementActions.map((a) => a.origin));
+    expect(origins.has(DOMAIN_IDS.anvil1)).to.be.true;
+    expect(origins.has(DOMAIN_IDS.anvil3)).to.be.true;
     movementActions.forEach((a) => {
       expect(a.destination).to.equal(DOMAIN_IDS.anvil2);
       expect(a.status).to.equal('complete');
@@ -441,6 +462,11 @@ describe('InventoryMinAmountStrategy E2E', function () {
       .withInventorySignerBalances('SIGNER_FUNDED_ANVIL1')
       .withExecutionMode('execute')
       .build();
+
+    const initialBalances = await getRouterBalances(
+      localProviders,
+      nativeDeployedAddresses,
+    );
 
     // Cycle 1: Bridge fails — intent created but stays not_started, no actions
     mockBridge.failNextExecute();
@@ -515,6 +541,30 @@ describe('InventoryMinAmountStrategy E2E', function () {
       (a) => a.type === 'inventory_deposit',
     );
     expect(depositAction).to.exist;
+
+    const finalBalances = await getRouterBalances(
+      localProviders,
+      nativeDeployedAddresses,
+    );
+    const { surplusChain, neutralChain } = classifyChains(
+      'anvil2',
+      depositAction!,
+    );
+
+    expect(
+      finalBalances.anvil2.gt(initialBalances.anvil2),
+      'Destination router balance should increase',
+    ).to.be.true;
+    expect(
+      finalBalances[surplusChain].lt(initialBalances[surplusChain]),
+      `Surplus router (${surplusChain}) balance should decrease`,
+    ).to.be.true;
+    if (neutralChain) {
+      expect(
+        finalBalances[neutralChain].eq(initialBalances[neutralChain]),
+        'Uninvolved router balance should remain unchanged',
+      ).to.be.true;
+    }
   });
 
   it('enforces single active inventory intent when multiple deficit chains exist', async function () {
@@ -533,6 +583,11 @@ describe('InventoryMinAmountStrategy E2E', function () {
       .withInventoryBalances('INVENTORY_MULTI_DEFICIT')
       .withExecutionMode('execute')
       .build();
+
+    const initialBalances = await getRouterBalances(
+      localProviders,
+      nativeDeployedAddresses,
+    );
 
     await executeCycle(context);
 
@@ -568,6 +623,31 @@ describe('InventoryMinAmountStrategy E2E', function () {
     const completedFirstIntent =
       await context.tracker.getRebalanceIntent(firstIntentId);
     expect(completedFirstIntent!.status).to.equal('complete');
+
+    const depositAction = actions.find((a) => a.type === 'inventory_deposit');
+    const midBalances = await getRouterBalances(
+      localProviders,
+      nativeDeployedAddresses,
+    );
+    const { surplusChain, neutralChain } = classifyChains(
+      'anvil2',
+      depositAction!,
+    );
+
+    expect(
+      midBalances.anvil2.gt(initialBalances.anvil2),
+      'Deficit router (anvil2) balance should increase',
+    ).to.be.true;
+    expect(
+      midBalances[surplusChain].lt(initialBalances[surplusChain]),
+      `Surplus router (${surplusChain}) balance should decrease`,
+    ).to.be.true;
+    if (neutralChain) {
+      expect(
+        midBalances[neutralChain].eq(initialBalances[neutralChain]),
+        'Uninvolved router balance should remain unchanged',
+      ).to.be.true;
+    }
 
     await executeCycle(context);
     activeIntents = await context.tracker.getActiveRebalanceIntents();
