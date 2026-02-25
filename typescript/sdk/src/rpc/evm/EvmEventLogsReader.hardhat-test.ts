@@ -1,8 +1,7 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
+import { JsonRpcProvider, ethers } from 'ethers';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { ethers } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 

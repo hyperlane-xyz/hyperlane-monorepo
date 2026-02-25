@@ -1,6 +1,4 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
-import { Wallet } from 'ethers';
-import { parseUnits } from 'ethers/lib/utils.js';
+import { JsonRpcProvider, Wallet, parseUnits } from 'ethers';
 
 import {
   type ERC20Test,
