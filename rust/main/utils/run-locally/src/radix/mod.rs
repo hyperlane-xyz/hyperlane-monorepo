@@ -414,7 +414,7 @@ pub async fn run_locally() {
     let hpl_scr = launch_radix_scraper(path.to_owned(), chains.clone());
 
     // give things a chance to fully start.
-    sleep(Duration::from_secs(10));
+    sleep(Duration::from_secs(20));
 
     let relayer_metrics_port: u32 = RELAYER_METRICS_PORT
         .parse()
