@@ -31,9 +31,11 @@ import type { SvmSigner } from '../signer.js';
 import type { AnnotatedSvmTransaction, SvmRpc, SvmReceipt } from '../types.js';
 
 import {
-  buildBaseInitData,
   applyPostInitConfig,
+  buildBaseInitData,
   computeWarpTokenUpdateInstructions,
+  remoteDecimalsToScale,
+  scaleToRemoteDecimals,
 } from './warp-tx.js';
 import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
 import type { SvmWarpTokenConfig } from './types.js';
@@ -84,6 +86,7 @@ export class SvmNativeTokenReader implements ArtifactReader<
         : undefined,
       remoteRouters,
       destinationGas,
+      scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
     };
 
     return {
@@ -134,7 +137,7 @@ export class SvmNativeTokenWriter
       tokenConfig,
       this.config.igpProgramId,
       SOL_DECIMALS,
-      SOL_DECIMALS,
+      scaleToRemoteDecimals(SOL_DECIMALS, tokenConfig.scale),
     );
 
     // Build init instruction manually to include the native-collateral PDA

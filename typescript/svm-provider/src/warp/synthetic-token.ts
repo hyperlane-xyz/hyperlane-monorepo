@@ -51,6 +51,8 @@ import {
   applyPostInitConfig,
   buildBaseInitData,
   computeWarpTokenUpdateInstructions,
+  remoteDecimalsToScale,
+  scaleToRemoteDecimals,
 } from './warp-tx.js';
 import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
 import type { SvmWarpTokenConfig } from './types.js';
@@ -206,6 +208,8 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
       name: metadata.name,
       symbol: metadata.symbol,
       decimals: token.decimals,
+      metadataUri: metadata.uri,
+      scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
     };
 
     return {
@@ -215,11 +219,6 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
     };
   }
 }
-
-/** Synthetic config extended with optional metadata URI for deployment. */
-export type SyntheticDeployConfig = RawSyntheticWarpArtifactConfig & {
-  metadataUri?: string;
-};
 
 export class SvmSyntheticTokenWriter
   extends SvmSyntheticTokenReader
@@ -234,12 +233,19 @@ export class SvmSyntheticTokenWriter
   }
 
   async create(
-    artifact: ArtifactNew<SyntheticDeployConfig>,
+    artifact: ArtifactNew<RawSyntheticWarpArtifactConfig>,
   ): Promise<
-    [ArtifactDeployed<SyntheticDeployConfig, DeployedWarpAddress>, SvmReceipt[]]
+    [
+      ArtifactDeployed<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>,
+      SvmReceipt[],
+    ]
   > {
     const receipts: SvmReceipt[] = [];
     const tokenConfig = artifact.config;
+    assert(
+      tokenConfig.metadataUri !== undefined,
+      'metadataUri is required for Solana synthetic token deployments',
+    );
 
     const { programAddress, receipts: deployReceipts } = await resolveProgram(
       this.config.program,
@@ -258,7 +264,7 @@ export class SvmSyntheticTokenWriter
       tokenConfig,
       this.config.igpProgramId,
       tokenConfig.decimals,
-      tokenConfig.decimals,
+      scaleToRemoteDecimals(tokenConfig.decimals, tokenConfig.scale),
     );
 
     // Init instruction: base accounts + mintPda + ataPayerPda.
@@ -304,7 +310,7 @@ export class SvmSyntheticTokenWriter
       );
     }
 
-    // Initialize Token 2022 metadata if name/symbol are provided.
+    // Initialize Token 2022 metadata.
     if (tokenConfig.name && tokenConfig.symbol) {
       // Fund mint account to cover metadata account rent.
       const fundMintIx: SvmInstruction = buildInstruction(
@@ -323,7 +329,7 @@ export class SvmSyntheticTokenWriter
         this.svmSigner.signer,
         tokenConfig.name,
         tokenConfig.symbol,
-        tokenConfig.metadataUri ?? '',
+        tokenConfig.metadataUri,
       );
 
       receipts.push(

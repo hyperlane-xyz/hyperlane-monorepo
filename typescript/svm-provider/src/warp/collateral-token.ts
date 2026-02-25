@@ -16,7 +16,7 @@ import { ZERO_ADDRESS_HEX_32, assert, isNullish } from '@hyperlane-xyz/utils';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import { RENT_SYSVAR_ADDRESS, SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { decodeCollateralPlugin } from '../accounts/token.js';
-import { fetchMintMetadata } from '../accounts/mint.js';
+import { fetchMintMetadata, getMintDecimals } from '../accounts/mint.js';
 import { encodeTokenProgramInstruction } from '../instructions/token.js';
 import {
   buildInstruction,
@@ -37,6 +37,8 @@ import {
   applyPostInitConfig,
   buildBaseInitData,
   computeWarpTokenUpdateInstructions,
+  remoteDecimalsToScale,
+  scaleToRemoteDecimals,
 } from './warp-tx.js';
 import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
 import type { SvmWarpTokenConfig } from './types.js';
@@ -95,6 +97,8 @@ export class SvmCollateralTokenReader implements ArtifactReader<
         : undefined,
       remoteRouters,
       destinationGas,
+      // token.decimals holds the local decimals stored at init time.
+      scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
     };
 
     return {
@@ -152,12 +156,14 @@ export class SvmCollateralTokenWriter
       `Mint account not found: ${collateralMint}`,
     );
     const splProgram = parseAddress(mintInfo.value.owner);
+    const mintRawData = Buffer.from(mintInfo.value.data[0] as string, 'base64');
+    const localDecimals = getMintDecimals(mintRawData);
 
     const initData = buildBaseInitData(
       tokenConfig,
       this.config.igpProgramId,
-      9, // Rust program reads actual decimals from the mint at init time.
-      9,
+      localDecimals,
+      scaleToRemoteDecimals(localDecimals, tokenConfig.scale),
     );
 
     const initIx = buildInstruction(
