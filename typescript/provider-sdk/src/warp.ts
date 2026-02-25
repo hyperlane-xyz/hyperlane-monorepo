@@ -76,8 +76,8 @@ export type WarpConfig =
 export interface BaseDerivedWarpConfig {
   owner: string;
   mailbox: string;
-  interchainSecurityModule?: DerivedIsmConfig | string;
-  hook?: DerivedHookConfig | string;
+  interchainSecurityModule: DerivedIsmConfig | string;
+  hook: DerivedHookConfig | string;
   remoteRouters: RemoteRouters;
   destinationGas: DestinationGas;
 }
@@ -405,7 +405,7 @@ export function warpArtifactToDerivedConfig(
   );
   let ismConfig: DerivedWarpConfig['interchainSecurityModule'];
   if (isNullish(config.interchainSecurityModule)) {
-    ismConfig = config.interchainSecurityModule;
+    ismConfig = '';
   } else if (isArtifactDeployed(config.interchainSecurityModule)) {
     ismConfig = ismArtifactToDerivedConfig(
       config.interchainSecurityModule,
@@ -422,7 +422,7 @@ export function warpArtifactToDerivedConfig(
   );
   let hookConfig: DerivedWarpConfig['hook'];
   if (isNullish(config.hook)) {
-    hookConfig = config.hook;
+    hookConfig = '';
   } else if (isArtifactDeployed(config.hook)) {
     hookConfig = hookArtifactToDerivedConfig(config.hook, chainLookup);
   } else {
