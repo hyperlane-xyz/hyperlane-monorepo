@@ -718,7 +718,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory.getAddress(sorted, threshold);
+    // Ethers v6 contracts expose BaseContract#getAddress(); use explicit ABI selector for factory view.
+    const address = await factory
+      .getFunction('getAddress(address[],uint8)')
+      .staticCall(sorted, threshold);
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -761,7 +764,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   ): Promise<Address> {
     const sorted = [...values].sort();
 
-    const address = await factory.getAddress(sorted, thresholdWeight);
+    // Ethers v6 contracts expose BaseContract#getAddress(); use explicit ABI selector for factory view.
+    const address = await factory
+      .getFunction('getAddress')
+      .staticCall(sorted, thresholdWeight);
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
