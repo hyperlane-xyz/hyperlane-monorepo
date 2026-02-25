@@ -182,12 +182,55 @@ export const BALANCE_PRESETS: Record<string, Record<TestChain, string>> = {
     anvil2: '0',
     anvil3: '3000000000000000000',
   },
+  INVENTORY_MULTI_DEFICIT: {
+    anvil1: '6000000000000000000', // 6 ETH - sole surplus source
+    anvil2: '0', // deficit
+    anvil3: '0', // deficit
+  },
   INVENTORY_WEIGHTED_IMBALANCED: {
     anvil1: '7000000000000000000',
     anvil2: '2000000000000000000',
     anvil3: '1000000000000000000',
   },
 };
+
+// Inventory signer balance presets (ETH balances for the inventory signer wallet)
+export const INVENTORY_SIGNER_PRESETS: Record<
+  string,
+  Partial<Record<TestChain, string>>
+> = {
+  SIGNER_PARTIAL_ANVIL2: {
+    anvil2: '500000000000000000', // 0.5 ETH — forces partial deposit on anvil2
+  },
+  SIGNER_LOW_ALL: {
+    anvil1: '1000000000000000000', // 1 ETH
+    anvil2: '300000000000000000', // 0.3 ETH
+    anvil3: '1000000000000000000', // 1 ETH
+  },
+  SIGNER_ONLY_ANVIL1: {
+    anvil1: '2000000000000000000', // 2 ETH
+    anvil2: '0',
+    anvil3: '0',
+  },
+  SIGNER_SPLIT_SOURCES: {
+    anvil1: '1200000000000000000', // 1.2 ETH
+    anvil2: '0',
+    anvil3: '1200000000000000000', // 1.2 ETH
+  },
+  SIGNER_FUNDED_ANVIL1: {
+    anvil1: '5000000000000000000', // 5 ETH — enough for bridge + gas
+    anvil2: '0',
+    anvil3: '0',
+  },
+};
+
+// The min/target values used by buildInventoryMinAmountStrategyConfig below.
+// Exported so tests can derive expected deficit amounts instead of hardcoding.
+export const INVENTORY_MIN_AMOUNT_MIN = '1';
+export const INVENTORY_MIN_AMOUNT_TARGET = '2';
+export const INVENTORY_MIN_AMOUNT_TARGET_WEI = BigNumber.from(
+  INVENTORY_MIN_AMOUNT_TARGET,
+).mul(BigNumber.from('1000000000000000000'));
 
 export function buildInventoryMinAmountStrategyConfig(
   _addresses: NativeDeployedAddresses,
@@ -198,8 +241,8 @@ export function buildInventoryMinAmountStrategyConfig(
       chains: {
         anvil1: {
           minAmount: {
-            min: '1',
-            target: '2',
+            min: INVENTORY_MIN_AMOUNT_MIN,
+            target: INVENTORY_MIN_AMOUNT_TARGET,
             type: RebalancerMinAmountType.Absolute,
           },
           executionType: ExecutionType.Inventory,
@@ -207,8 +250,8 @@ export function buildInventoryMinAmountStrategyConfig(
         },
         anvil2: {
           minAmount: {
-            min: '1',
-            target: '2',
+            min: INVENTORY_MIN_AMOUNT_MIN,
+            target: INVENTORY_MIN_AMOUNT_TARGET,
             type: RebalancerMinAmountType.Absolute,
           },
           executionType: ExecutionType.Inventory,
@@ -216,8 +259,8 @@ export function buildInventoryMinAmountStrategyConfig(
         },
         anvil3: {
           minAmount: {
-            min: '1',
-            target: '2',
+            min: INVENTORY_MIN_AMOUNT_MIN,
+            target: INVENTORY_MIN_AMOUNT_TARGET,
             type: RebalancerMinAmountType.Absolute,
           },
           executionType: ExecutionType.Inventory,

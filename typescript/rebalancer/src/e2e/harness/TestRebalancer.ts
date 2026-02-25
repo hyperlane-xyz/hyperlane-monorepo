@@ -31,6 +31,7 @@ import {
   BALANCE_PRESETS,
   DOMAIN_IDS,
   type DeployedAddresses,
+  INVENTORY_SIGNER_PRESETS,
   MONITORED_ROUTE_ID,
   NATIVE_MONITORED_ROUTE_ID,
   type NativeDeployedAddresses,
@@ -83,6 +84,10 @@ type BalancePreset = keyof typeof BALANCE_PRESETS;
 type BalanceConfig = BalancePreset | Record<string, BigNumber>;
 type InventoryBalancePreset = keyof typeof BALANCE_PRESETS;
 type ExecutionMode = 'propose' | 'execute';
+type InventorySignerPreset = keyof typeof INVENTORY_SIGNER_PRESETS;
+type InventorySignerBalanceConfig =
+  | InventorySignerPreset
+  | Partial<Record<string, BigNumber>>;
 
 type TestInventoryConfig = {
   inventorySignerKey: string;
@@ -98,6 +103,9 @@ export class TestRebalancerBuilder {
   private inventoryConfig: TestInventoryConfig | undefined;
   private mockExternalBridge: MockExternalBridge | undefined;
   private readonly logger: Logger;
+  private inventorySignerBalanceConfig:
+    | InventorySignerBalanceConfig
+    | undefined;
 
   constructor(
     private readonly deploymentManager: BaseLocalDeploymentManager<any>,
@@ -148,6 +156,11 @@ export class TestRebalancerBuilder {
     preset: InventoryBalancePreset | Record<string, BigNumber>,
   ): this {
     this.balanceConfig = preset;
+    return this;
+  }
+
+  withInventorySignerBalances(config: InventorySignerBalanceConfig): this {
+    this.inventorySignerBalanceConfig = config;
     return this;
   }
 
@@ -390,6 +403,7 @@ export class TestRebalancerBuilder {
         },
         'Inventory balances configured on monitored routes',
       );
+      await this.setupInventorySignerBalances(localProviders);
       return;
     }
 
@@ -413,6 +427,48 @@ export class TestRebalancerBuilder {
         ),
       },
       'Collateral balances configured',
+    );
+  }
+
+  private async setupInventorySignerBalances(
+    localProviders: Map<string, ethers.providers.JsonRpcProvider>,
+  ): Promise<void> {
+    if (!this.inventorySignerBalanceConfig || !this.inventoryConfig) {
+      return;
+    }
+
+    const signerAddress = new ethers.Wallet(
+      this.inventoryConfig.inventorySignerKey,
+    ).address;
+
+    let balances: Partial<Record<string, string>>;
+    if (typeof this.inventorySignerBalanceConfig === 'string') {
+      balances = INVENTORY_SIGNER_PRESETS[this.inventorySignerBalanceConfig];
+    } else {
+      balances = Object.fromEntries(
+        Object.entries(this.inventorySignerBalanceConfig)
+          .filter(
+            (entry): entry is [string, BigNumber] => entry[1] !== undefined,
+          )
+          .map(([chain, val]) => [chain, val.toString()]),
+      );
+    }
+
+    for (const [chain, balance] of Object.entries(balances)) {
+      const provider = localProviders.get(chain);
+      if (!provider || balance === undefined) {
+        continue;
+      }
+
+      await provider.send('anvil_setBalance', [
+        signerAddress,
+        ethers.utils.hexValue(BigNumber.from(balance)),
+      ]);
+    }
+
+    this.logger.info(
+      { balances, signer: signerAddress },
+      'Inventory signer balances configured',
     );
   }
 

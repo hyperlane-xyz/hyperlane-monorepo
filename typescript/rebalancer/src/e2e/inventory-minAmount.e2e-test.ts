@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber, ethers, providers } from 'ethers';
+import { ethers, providers } from 'ethers';
 
 import {
   HyperlaneCore,
@@ -13,6 +13,7 @@ import { ExternalBridgeType } from '../config/types.js';
 import {
   ANVIL_USER_PRIVATE_KEY,
   DOMAIN_IDS,
+  INVENTORY_MIN_AMOUNT_TARGET_WEI,
   type NativeDeployedAddresses,
   TEST_CHAINS,
   buildInventoryMinAmountStrategyConfig,
@@ -44,24 +45,14 @@ describe('InventoryMinAmountStrategy E2E', function () {
 
   const inventorySignerAddress = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY)
     .address;
-  const oneEth = BigNumber.from('1000000000000000000');
-  const twoEth = BigNumber.from('2000000000000000000');
+  // Expected deficit when a chain's router balance is 0:
+  // target (from strategy config) - 0 = target.
+  const expectedDeficit = INVENTORY_MIN_AMOUNT_TARGET_WEI.toBigInt();
 
   async function executeCycle(context: TestRebalancerContext): Promise<void> {
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
     await context.orchestrator.executeCycle(event);
-  }
-
-  async function setInventorySignerBalance(
-    chain: string,
-    balance: BigNumber,
-  ): Promise<void> {
-    const provider = localProviders.get(chain)!;
-    await provider.send('anvil_setBalance', [
-      inventorySignerAddress,
-      ethers.utils.hexValue(balance),
-    ]);
   }
 
   async function relayInProgressInventoryDeposits(
@@ -180,7 +171,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
-    expect(activeIntents[0].amount).to.equal(twoEth.toBigInt());
+    expect(activeIntents[0].amount).to.equal(expectedDeficit);
 
     const inProgressActions = await context.tracker.getInProgressActions();
     const depositAction = inProgressActions.find(
@@ -240,14 +231,9 @@ describe('InventoryMinAmountStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withInventorySignerBalances('SIGNER_PARTIAL_ANVIL2')
       .withExecutionMode('execute')
       .build();
-
-    // TODO: this should be handled by the TestRebalancerBuilder
-    await setInventorySignerBalance(
-      'anvil2',
-      BigNumber.from('500000000000000000'),
-    );
 
     const initialBalances = await getRouterBalances(
       localProviders,
@@ -262,11 +248,10 @@ describe('InventoryMinAmountStrategy E2E', function () {
     expect(partialIntents.length).to.equal(1);
     expect(partialIntents[0].completedAmount > 0n).to.be.true;
     expect(partialIntents[0].remaining > 0n).to.be.true;
-    // TODO: 2000000000000000000n should be a const from the presets
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(2000000000000000000n);
-    expect(partialIntents[0].intent.amount).to.equal(2000000000000000000n);
+    ).to.equal(expectedDeficit);
+    expect(partialIntents[0].intent.amount).to.equal(expectedDeficit);
     expect(partialIntents[0].intent.destination).to.equal(DOMAIN_IDS.anvil2);
 
     const deposits = await context.tracker.getActionsForIntent(
@@ -359,15 +344,9 @@ describe('InventoryMinAmountStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withInventorySignerBalances('SIGNER_LOW_ALL')
       .withExecutionMode('execute')
       .build();
-
-    await setInventorySignerBalance('anvil1', oneEth);
-    await setInventorySignerBalance(
-      'anvil2',
-      BigNumber.from('300000000000000000'),
-    );
-    await setInventorySignerBalance('anvil3', oneEth);
 
     await executeCycle(context);
     await context.tracker.syncInventoryMovementActions({
@@ -378,7 +357,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     let activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
-    expect(activeIntents[0].amount).to.equal(2000000000000000000n);
+    expect(activeIntents[0].amount).to.equal(expectedDeficit);
     const targetIntentId = activeIntents[0].id;
 
     let partialIntents =
@@ -388,7 +367,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     expect(partialIntents[0].remaining > 0n).to.be.true;
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(2000000000000000000n);
+    ).to.equal(expectedDeficit);
     const c0Amount = partialIntents[0].completedAmount;
 
     let actions = await context.tracker.getActionsForIntent(targetIntentId);
@@ -413,11 +392,12 @@ describe('InventoryMinAmountStrategy E2E', function () {
     expect(partialIntents.length).to.equal(1);
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(2000000000000000000n);
+    ).to.equal(expectedDeficit);
 
     actions = await context.tracker.getActionsForIntent(targetIntentId);
     movementActions = actions.filter((a) => a.type === 'inventory_movement');
     depositActions = actions.filter((a) => a.type === 'inventory_deposit');
+    // TODO: why are there 2 or 3 actions?
     expect(actions.length === 2 || actions.length === 3).to.be.true;
     expect(movementActions.length >= 1).to.be.true;
     expect(depositActions.length >= 1).to.be.true;
@@ -439,7 +419,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     expect(partialIntents.length).to.equal(1);
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(2000000000000000000n);
+    ).to.equal(expectedDeficit);
 
     actions = await context.tracker.getActionsForIntent(targetIntentId);
     movementActions = actions.filter((a) => a.type === 'inventory_movement');
@@ -463,7 +443,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     expect(partialIntents.length).to.equal(1);
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(2000000000000000000n);
+    ).to.equal(expectedDeficit);
 
     actions = await context.tracker.getActionsForIntent(targetIntentId);
     movementActions = actions.filter((a) => a.type === 'inventory_movement');
@@ -497,7 +477,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     expect(finalIntent!.status).to.equal('complete');
   });
 
-  it('retries after bridge execution failure and bridge status failure', async function () {
+  it('retries after bridge execution failure', async function () {
     const context = await new TestRebalancerBuilder(
       deploymentManager,
       multiProvider,
@@ -511,60 +491,50 @@ describe('InventoryMinAmountStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withInventorySignerBalances('SIGNER_FUNDED_ANVIL1')
       .withExecutionMode('execute')
       .build();
 
-    await setInventorySignerBalance('anvil1', twoEth);
-    await setInventorySignerBalance('anvil2', BigNumber.from(0));
-    await setInventorySignerBalance('anvil3', BigNumber.from(0));
-
+    // Cycle 1: Bridge fails — intent created but stays not_started, no actions
     mockBridge.failNextExecute();
     await executeCycle(context);
 
-    expect((await context.tracker.getActiveRebalanceIntents()).length).to.equal(
-      0,
-    );
-
-    for (let i = 0; i < 12; i++) {
-      await executeCycle(context);
-      expect(
-        (await context.tracker.getActiveRebalanceIntents()).length,
-      ).to.equal(0);
-    }
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(0);
 
     const partialIntents =
       await context.tracker.getPartiallyFulfilledInventoryIntents();
     expect(partialIntents.length).to.equal(1);
+    expect(partialIntents[0].intent.status).to.equal('not_started');
     expect(partialIntents[0].completedAmount).to.equal(0n);
-    expect(partialIntents[0].remaining).to.equal(2000000000000000000n);
-    expect(
-      partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(2000000000000000000n);
+    expect(partialIntents[0].remaining).to.equal(expectedDeficit);
 
     const intentId = partialIntents[0].intent.id;
+    const actionsAfterFailure =
+      await context.tracker.getActionsForIntent(intentId);
+    expect(actionsAfterFailure.length).to.equal(0);
 
-    for (let i = 0; i < 8; i++) {
+    // Cycle 2+: Bridge succeeds — picks up the same intent, completes it
+    for (let i = 0; i < 5; i++) {
       await executeCycle(context);
       await context.tracker.syncInventoryMovementActions({
         [ExternalBridgeType.LiFi]: mockBridge,
       });
-      const actions = await context.tracker.getActionsForIntent(intentId);
-      expect(actions.length).to.equal(0);
-      expect(
-        actions.filter((a) => a.type === 'inventory_movement').length,
-      ).to.equal(0);
-      expect(
-        actions.filter((a) => a.type === 'inventory_deposit').length,
-      ).to.equal(0);
+      await relayInProgressInventoryDeposits(context);
     }
 
-    const actionsAfterSearch =
-      await context.tracker.getActionsForIntent(intentId);
-    const movementActions = actionsAfterSearch.filter(
+    const completedIntent = await context.tracker.getRebalanceIntent(intentId);
+    expect(completedIntent!.status).to.equal('complete');
+
+    const finalActions = await context.tracker.getActionsForIntent(intentId);
+    const movementAction = finalActions.find(
       (a) => a.type === 'inventory_movement',
     );
-    expect(movementActions.length).to.equal(0);
-    return;
+    expect(movementAction).to.exist;
+    const depositAction = finalActions.find(
+      (a) => a.type === 'inventory_deposit',
+    );
+    expect(depositAction).to.exist;
   });
 
   it('enforces single active inventory intent when multiple deficit chains exist', async function () {
@@ -580,11 +550,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
         nativeDeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances({
-        anvil1: BigNumber.from('6000000000000000000'),
-        anvil2: BigNumber.from(0),
-        anvil3: BigNumber.from(0),
-      })
+      .withInventoryBalances('INVENTORY_MULTI_DEFICIT')
       .withExecutionMode('execute')
       .build();
 
@@ -593,7 +559,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     let activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
-    expect(activeIntents[0].amount).to.equal(2000000000000000000n);
+    expect(activeIntents[0].amount).to.equal(expectedDeficit);
     const firstIntentId = activeIntents[0].id;
 
     const partialIntents =
@@ -622,7 +588,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
-    expect(activeIntents[0].amount).to.equal(2000000000000000000n);
+    expect(activeIntents[0].amount).to.equal(expectedDeficit);
   });
 
   it('uses multiple bridge movements from different sources before completing deposit', async function () {
@@ -639,24 +605,15 @@ describe('InventoryMinAmountStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withInventorySignerBalances('SIGNER_SPLIT_SOURCES')
       .withExecutionMode('execute')
       .build();
-
-    await setInventorySignerBalance(
-      'anvil1',
-      BigNumber.from('1200000000000000000'),
-    );
-    await setInventorySignerBalance('anvil2', BigNumber.from(0));
-    await setInventorySignerBalance(
-      'anvil3',
-      BigNumber.from('1200000000000000000'),
-    );
 
     await executeCycle(context);
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
     expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
-    expect(activeIntents[0].amount).to.equal(2000000000000000000n);
+    expect(activeIntents[0].amount).to.equal(expectedDeficit);
     const intentId = activeIntents[0].id;
 
     await context.tracker.syncInventoryMovementActions({
@@ -669,7 +626,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     expect(partialIntents[0].completedAmount).to.equal(0n);
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(2000000000000000000n);
+    ).to.equal(expectedDeficit);
 
     let actions = await context.tracker.getActionsForIntent(intentId);
     let movementActions = actions.filter(
@@ -695,6 +652,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     actions = await context.tracker.getActionsForIntent(intentId);
     movementActions = actions.filter((a) => a.type === 'inventory_movement');
     depositActions = actions.filter((a) => a.type === 'inventory_deposit');
+    // TODO: why are there 2 or 3 actions?
     expect(actions.length === 2 || actions.length === 3).to.be.true;
     expect(movementActions.length).to.equal(1);
     expect(depositActions.length).to.equal(1);
@@ -711,7 +669,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
     expect(partialIntents[0].completedAmount > 0n).to.be.true;
     expect(
       partialIntents[0].completedAmount + partialIntents[0].remaining,
-    ).to.equal(2000000000000000000n);
+    ).to.equal(expectedDeficit);
     actions = await context.tracker.getActionsForIntent(intentId);
     movementActions = actions.filter((a) => a.type === 'inventory_movement');
     depositActions = actions.filter((a) => a.type === 'inventory_deposit');
