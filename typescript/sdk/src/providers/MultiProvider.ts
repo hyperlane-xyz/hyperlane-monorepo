@@ -387,7 +387,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     } else {
       const resolved =
         technicalStack === ChainTechnicalStack.Tron
-          ? await this.resolveTronFactory(factory)
+          ? await this.resolveTronFactory(factory as unknown as ContractFactory)
           : factory;
       const contractFactory = resolved.connect(signer as any);
       const deployTx = await contractFactory.getDeployTransaction(...params);
@@ -437,7 +437,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * with TronContractFactory to handle Tron's deployment flow.
    * @throws if no matching Tron factory is found
    */
-  async resolveTronFactory<F extends ContractFactory>(factory: F): Promise<F> {
+  async resolveTronFactory(factory: ContractFactory): Promise<ContractFactory> {
     const TronSdk = await import('@hyperlane-xyz/tron-sdk');
     const TronFactory = (TronSdk as Record<string, any>)[
       factory.constructor.name
@@ -447,7 +447,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         `No Tron-compiled factory found for ${factory.constructor.name}`,
       );
     }
-    return new TronSdk.TronContractFactory(new TronFactory()) as unknown as F;
+    return new TronSdk.TronContractFactory(
+      new TronFactory(),
+    ) as unknown as ContractFactory;
   }
 
   /**

@@ -1,4 +1,4 @@
-import { providers } from 'ethers';
+import { BlockTag, FeeData, JsonRpcProvider, Networkish } from 'ethers';
 
 /**
  * TronJsonRpcProvider extends ethers JsonRpcProvider for Tron's JSON-RPC API.
@@ -10,8 +10,8 @@ import { providers } from 'ethers';
  *
  * This provider handles these gaps by returning appropriate defaults.
  */
-export class TronJsonRpcProvider extends providers.JsonRpcProvider {
-  constructor(url: string, network?: providers.Networkish) {
+export class TronJsonRpcProvider extends JsonRpcProvider {
+  constructor(url: string, network?: Networkish) {
     // Ensure we're pointing to the /jsonrpc endpoint
     const jsonRpcUrl = url.endsWith('/jsonrpc') ? url : `${url}/jsonrpc`;
     super(jsonRpcUrl, network);
@@ -22,7 +22,7 @@ export class TronJsonRpcProvider extends providers.JsonRpcProvider {
    */
   async getTransactionCount(
     _addressOrName: string,
-    _blockTag?: providers.BlockTag,
+    _blockTag?: BlockTag,
   ): Promise<number> {
     return 0;
   }
@@ -30,13 +30,8 @@ export class TronJsonRpcProvider extends providers.JsonRpcProvider {
   /**
    * Return legacy gas pricing only - Tron doesn't support EIP-1559.
    */
-  async getFeeData(): Promise<providers.FeeData> {
-    const gasPrice = await this.getGasPrice();
-    return {
-      gasPrice,
-      maxFeePerGas: null,
-      maxPriorityFeePerGas: null,
-      lastBaseFeePerGas: null,
-    };
+  async getFeeData(): Promise<FeeData> {
+    const { gasPrice } = await super.getFeeData();
+    return new FeeData(gasPrice ?? 0n, null, null);
   }
 }

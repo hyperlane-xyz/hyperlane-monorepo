@@ -14,6 +14,8 @@ catalog:
   # === Production dependencies ===
 
   # Ethereum/EVM
+  '@arbitrum/nitro-contracts': ^3.2.0
+  '@chainlink/contracts-ccip': 1.5.1-beta.2
   ethers: ^6.16.0
   viem: ^2.21.45
   zksync-ethers: ^6.21.1
@@ -35,7 +37,6 @@ catalog:
   dotenv: ^10.0.0
   asn1.js: ^5.4.1
   uuid: ^10.0.0
-  bs58: ^6.0.0
 
   # Starknet
   starknet: ^7.4.0
