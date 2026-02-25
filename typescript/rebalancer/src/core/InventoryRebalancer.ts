@@ -913,7 +913,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination: destinationDomain,
       amount,
       type: 'inventory_deposit',
-      txHash: receipt.transactionHash,
+      txHash: receipt.transactionHash ?? undefined,
       messageId,
     });
 

@@ -119,6 +119,21 @@ interface WarpApplyParams extends DeployParams {
   warpRouteId?: string;
 }
 
+type SubmitterTransaction = Parameters<
+  TxSubmitterBuilder<ProtocolType>['submit']
+>[number];
+
+function toSubmitterTransaction(
+  tx: TypedAnnotatedTransaction,
+): SubmitterTransaction {
+  if (!('input' in tx)) return tx;
+  return {
+    ...tx,
+    to: tx.to ?? undefined,
+    data: tx.input,
+  };
+}
+
 export async function runWarpRouteDeploy({
   context,
   warpDeployConfig,
@@ -202,7 +217,8 @@ export async function runWarpRouteDeploy({
       chain,
       context: context,
     });
-    await submitter.submit(...enrollTxs[chain]);
+    const submitterTxs = enrollTxs[chain].map(toSubmitterTransaction);
+    await submitter.submit(...submitterTxs);
   };
 
   // Submit EVM chains in parallel (they have independent signers)
@@ -1051,7 +1067,8 @@ async function submitChainTransactions(
         strategyUrl: params.strategyUrl,
         isExtendedChain,
       });
-      const transactionReceipts = await submitter.submit(...transactions);
+      const submitterTxs = transactions.map(toSubmitterTransaction);
+      const transactionReceipts = await submitter.submit(...submitterTxs);
 
       if (protocol !== ProtocolType.Ethereum) {
         return;

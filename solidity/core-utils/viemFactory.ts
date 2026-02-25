@@ -242,6 +242,8 @@ const TX_OVERRIDE_KEYS = new Set([
   'blockTag',
 ]);
 
+const RECEIPT_POLL_INTERVAL_MS = 1_000;
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object';
 }
@@ -407,6 +409,54 @@ function toHexQuantity(value: unknown): Hex | undefined {
     if (/^[0-9]+$/.test(value)) return toHex(BigInt(value));
   }
   return undefined;
+}
+
+function normalizeTxRequest(
+  request: TxRequestLike,
+  options: { includeAccountFromFrom?: boolean } = {},
+): TxRequestLike {
+  const { gasLimit, ...rest } = request;
+  const normalized: TxRequestLike = {
+    ...rest,
+    value: toHexQuantity(rest.value),
+    gas: toHexQuantity(rest.gas ?? gasLimit),
+    gasPrice: toHexQuantity(rest.gasPrice),
+    maxFeePerGas: toHexQuantity(rest.maxFeePerGas),
+    maxPriorityFeePerGas: toHexQuantity(rest.maxPriorityFeePerGas),
+    nonce: toHexQuantity(rest.nonce),
+  };
+  if (
+    options.includeAccountFromFrom &&
+    !('account' in normalized) &&
+    typeof rest.from === 'string'
+  ) {
+    normalized.account = rest.from;
+  }
+  return normalized;
+}
+
+function toOptionalBigIntValue(value: unknown): bigint | undefined {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return toBigIntValue(value, 'blockNumber');
+  } catch {
+    return undefined;
+  }
+}
+
+function toRequiredConfirmations(confirmations?: number): bigint {
+  if (
+    confirmations === undefined ||
+    !Number.isFinite(confirmations) ||
+    confirmations <= 1
+  ) {
+    return 1n;
+  }
+  return BigInt(Math.floor(confirmations));
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 type LogBlockTag =
@@ -910,7 +960,9 @@ async function performEstimateGas(
       typeof provider.estimateGas === 'function'
     ) {
       try {
-        const estimate = await provider.estimateGas(request);
+        const estimate = await provider.estimateGas(
+          normalizeTxRequest(request, { includeAccountFromFrom: true }),
+        );
         return toBigIntValue(estimate, 'estimateGas');
       } catch (error) {
         if (!shouldFallbackSend(error)) throw error;
@@ -918,15 +970,7 @@ async function performEstimateGas(
     }
   }
   const estimated = await rpcRequest(runner, 'eth_estimateGas', [
-    {
-      ...request,
-      value: toHexQuantity(request.value),
-      gas: toHexQuantity(request.gas ?? request.gasLimit),
-      gasPrice: toHexQuantity(request.gasPrice),
-      maxFeePerGas: toHexQuantity(request.maxFeePerGas),
-      maxPriorityFeePerGas: toHexQuantity(request.maxPriorityFeePerGas),
-      nonce: toHexQuantity(request.nonce),
-    },
+    normalizeTxRequest(request),
   ]);
   return toBigIntValue(estimated, 'eth_estimateGas');
 }
@@ -1009,11 +1053,30 @@ async function waitForReceipt(
     }
   }
 
-  const receipt = await rpcRequest(runner, 'eth_getTransactionReceipt', [hash]);
-  if (!receipt) {
-    throw new Error(`Transaction receipt not found for ${hash}`);
+  const requiredConfirmations = toRequiredConfirmations(confirmations);
+  while (true) {
+    const receipt = await rpcRequest(runner, 'eth_getTransactionReceipt', [hash]);
+    if (receipt) {
+      if (requiredConfirmations <= 1n) {
+        return toReceiptLike(receipt, hash);
+      }
+      const receiptRecord = asRecord(receipt);
+      const receiptBlock = toOptionalBigIntValue(receiptRecord?.blockNumber);
+      if (receiptBlock === undefined) {
+        return toReceiptLike(receipt, hash);
+      }
+      const latestBlock = toBigIntValue(
+        await rpcRequest(runner, 'eth_blockNumber', []),
+        'eth_blockNumber',
+      );
+      const observedConfirmations =
+        latestBlock >= receiptBlock ? latestBlock - receiptBlock + 1n : 0n;
+      if (observedConfirmations >= requiredConfirmations) {
+        return toReceiptLike(receipt, hash);
+      }
+    }
+    await sleep(RECEIPT_POLL_INTERVAL_MS);
   }
-  return toReceiptLike(receipt, hash);
 }
 
 function asTxResponse(runner: RunnerLike, tx: unknown): SentTxLike {
@@ -1088,7 +1151,7 @@ async function performSend(
       try {
         const sent = await (
           runner.sendTransaction as (args: unknown) => Promise<unknown>
-        )(request);
+        )(normalizeTxRequest(request, { includeAccountFromFrom: true }));
         return asTxResponse(runner, sent);
       } catch (error) {
         if (!shouldFallbackSend(error)) throw error;
@@ -1096,16 +1159,11 @@ async function performSend(
     }
   }
 
+  const rpcRequestPayload = normalizeTxRequest(
+    await withRunnerFrom(runner, request),
+  );
   const hash = await rpcRequest(runner, 'eth_sendTransaction', [
-    await withRunnerFrom(runner, {
-      ...request,
-      value: toHexQuantity(request.value),
-      gas: toHexQuantity(request.gas ?? request.gasLimit),
-      gasPrice: toHexQuantity(request.gasPrice),
-      maxFeePerGas: toHexQuantity(request.maxFeePerGas),
-      maxPriorityFeePerGas: toHexQuantity(request.maxPriorityFeePerGas),
-      nonce: toHexQuantity(request.nonce),
-    }),
+    rpcRequestPayload,
   ]);
   return asTxResponse(runner, hash);
 }

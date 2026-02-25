@@ -14,8 +14,8 @@ import { log, logGreen } from '../logger.js';
 import { type ExtendedSubmissionStrategy } from '../submitters/types.js';
 
 type EvmTxReceiptLike = {
-  transactionHash?: string;
-  logs?: readonly unknown[] | unknown[];
+  transactionHash?: string | null;
+  logs?: readonly unknown[] | unknown[] | null;
   [key: string]: unknown;
 };
 

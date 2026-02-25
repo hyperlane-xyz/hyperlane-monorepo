@@ -5,6 +5,7 @@ import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
+import { isAddress, isHex } from 'viem';
 
 import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 
@@ -88,17 +89,15 @@ export async function estimateTransactionFeeViem({
   provider: ViemProvider;
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
-  const request: {
-    account: `0x${string}`;
-    to?: `0x${string}` | null;
-    data?: `0x${string}`;
-    value?: bigint;
-    nonce?: number;
-    gas?: bigint;
-  } = {
-    account: sender as `0x${string}`,
-    to: transaction.transaction.to ?? undefined,
-    data: transaction.transaction.input,
+  assertViemAddress(sender, 'sender');
+  const to = transaction.transaction.to ?? undefined;
+  if (to) assertViemAddress(to, 'transaction.to');
+  const data = transaction.transaction.input ?? undefined;
+  if (data) assertViemHex(data, 'transaction.input');
+  const request = {
+    account: sender,
+    to,
+    data,
     value: transaction.transaction.value,
     nonce: transaction.transaction.nonce,
     gas: transaction.transaction.gas,
@@ -132,6 +131,20 @@ function computeEvmTxFee(
     gasPrice: estGasPrice,
     fee: gasUnits * estGasPrice,
   };
+}
+
+function assertViemAddress(
+  value: string,
+  fieldName: string,
+): asserts value is `0x${string}` {
+  assert(isAddress(value), `Invalid EVM address in ${fieldName}: ${value}`);
+}
+
+function assertViemHex(
+  value: string,
+  fieldName: string,
+): asserts value is `0x${string}` {
+  assert(isHex(value), `Invalid hex in ${fieldName}: ${value}`);
 }
 
 export async function estimateTransactionFeeSolanaWeb3({

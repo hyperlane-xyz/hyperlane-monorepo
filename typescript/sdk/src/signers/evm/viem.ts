@@ -112,7 +112,7 @@ function toAddress(value: unknown): `0x${string}` | undefined {
   if (typeof value !== 'string') {
     throw new Error(`Invalid EVM address: ${String(value)}`);
   }
-  assert(isAddress(value), `Invalid EVM address: ${value}`);
+  assertViemAddress(value);
   return value;
 }
 
@@ -121,7 +121,7 @@ function toHex(value: unknown): Hex | undefined {
   if (typeof value !== 'string') {
     throw new Error(`Invalid hex value: ${String(value)}`);
   }
-  assert(isHex(value), `Invalid hex value: ${value}`);
+  assertViemHex(value);
   return value;
 }
 
@@ -134,4 +134,12 @@ function toNumber(value: unknown): number | undefined {
     return Number(value.toString());
   }
   return undefined;
+}
+
+function assertViemAddress(value: string): asserts value is `0x${string}` {
+  assert(isAddress(value), `Invalid EVM address: ${value}`);
+}
+
+function assertViemHex(value: string): asserts value is Hex {
+  assert(isHex(value), `Invalid hex value: ${value}`);
 }
