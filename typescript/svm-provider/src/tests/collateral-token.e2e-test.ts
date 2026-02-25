@@ -1,6 +1,4 @@
 import type { Address } from '@solana/kit';
-import { createMint } from '@solana/spl-token';
-import { Connection, Keypair } from '@solana/web3.js';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as fs from 'fs';
 import { after, before, describe, it } from 'mocha';
@@ -23,6 +21,7 @@ import {
   PROGRAM_BINARIES,
   TEST_PROGRAM_IDS,
   airdropSol,
+  createSplMint,
   getPreloadedPrograms,
 } from '../testing/setup.js';
 import {
@@ -104,11 +103,7 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
     });
 
     // Create a collateral SPL mint for the test.
-    const seed = Buffer.from(TEST_PRIVATE_KEY.slice(2), 'hex');
-    const payer = Keypair.fromSeed(seed);
-    const connection = new Connection(solana.rpcUrl, 'confirmed');
-    const mint = await createMint(connection, payer, payer.publicKey, null, 9);
-    collateralMint = mint.toBase58() as Address;
+    collateralMint = await createSplMint(rpc, signer, 9);
 
     const collateralTokenBytes = fs.readFileSync(
       `${DEFAULT_PROGRAMS_PATH}/${PROGRAM_BINARIES.tokenCollateral}`,
@@ -118,7 +113,6 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
       { program: { programBytes: collateralTokenBytes }, igpProgramId },
       rpc,
       signer,
-      solana.rpcUrl,
     );
   });
 

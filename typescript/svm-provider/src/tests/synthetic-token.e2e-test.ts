@@ -108,7 +108,6 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       { program: { programBytes: syntheticTokenBytes }, igpProgramId },
       rpc,
       signer,
-      solana.rpcUrl,
     );
   });
 

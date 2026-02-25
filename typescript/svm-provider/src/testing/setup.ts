@@ -17,7 +17,10 @@ import {
   writableAccount,
 } from '../instructions/utils.js';
 import type { SvmSigner } from '../signer.js';
-import { RENT_SYSVAR_ADDRESS } from '../constants.js';
+import {
+  RENT_SYSVAR_ADDRESS,
+  SPL_TOKEN_PROGRAM_ADDRESS,
+} from '../constants.js';
 import type { SvmRpc } from '../types.js';
 
 import type { PreloadedProgram } from './solana-container.js';
@@ -109,8 +112,6 @@ export async function createSplMint(
   signer: SvmSigner,
   decimals: number,
 ): Promise<Address> {
-  const SPL_TOKEN_PROGRAM =
-    'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as Address;
   /** SPL Token mint account size in bytes. */
   const MINT_SIZE = 82n;
 
@@ -122,7 +123,7 @@ export async function createSplMint(
     newAccount: mintSigner,
     lamports: rent,
     space: MINT_SIZE,
-    programAddress: SPL_TOKEN_PROGRAM,
+    programAddress: SPL_TOKEN_PROGRAM_ADDRESS,
   });
 
   // SPL Token InitializeMint2 (discriminator 20):
@@ -134,7 +135,7 @@ export async function createSplMint(
   initMintData.set(addrEncoder.encode(signer.signer.address), 2);
   initMintData[34] = 0; // freeze authority: None
   const initMintIx = buildInstruction(
-    SPL_TOKEN_PROGRAM,
+    SPL_TOKEN_PROGRAM_ADDRESS,
     [writableAccount(mintSigner.address), readonlyAccount(RENT_SYSVAR_ADDRESS)],
     initMintData,
   );
