@@ -1,4 +1,4 @@
-import { ZeroAddress, type BigNumberish } from 'ethers';
+import { ZeroAddress } from 'ethers';
 
 import {
   AbstractCcipReadIsm__factory,
@@ -336,19 +336,19 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   private async deriveRemoteIsmConfigs(
     domainIds: readonly bigint[],
     contractInstance: AbstractRoutingIsm,
-    addressDeriveFunc: (domain: BigNumberish) => Promise<string>,
+    addressDeriveFunc: (domain: bigint) => Promise<string>,
     deriveConfig: true,
   ): Promise<ChainMap<IsmConfig>>;
   private async deriveRemoteIsmConfigs(
     domainIds: readonly bigint[],
     contractInstance: AbstractRoutingIsm,
-    addressDeriveFunc: (domain: BigNumberish) => Promise<string>,
+    addressDeriveFunc: (domain: bigint) => Promise<string>,
     deriveConfig: false,
   ): Promise<ChainMap<string>>;
   private async deriveRemoteIsmConfigs(
     domainIds: readonly bigint[],
     contractInstance: AbstractRoutingIsm,
-    addressDeriveFunc: (domain: BigNumberish) => Promise<string>,
+    addressDeriveFunc: (domain: bigint) => Promise<string>,
     deriveConfig: boolean,
   ): Promise<ChainMap<IsmConfig>> {
     const res = await concurrentMap(

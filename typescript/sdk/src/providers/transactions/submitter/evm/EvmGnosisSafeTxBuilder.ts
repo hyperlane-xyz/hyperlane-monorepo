@@ -3,11 +3,11 @@ import Safe from '@safe-global/protocol-kit';
 import { SafeTransactionData } from '@safe-global/safe-core-sdk-types';
 
 import { MultiProvider } from '../../../MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
+import { AnnotatedEvmTransaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
-import { EV5GnosisSafeTxSubmitter } from './EV5GnosisSafeTxSubmitter.js';
-import { EV5GnosisSafeTxBuilderProps } from './types.js';
+import { EvmGnosisSafeTxSubmitter } from './EvmGnosisSafeTxSubmitter.js';
+import { EvmGnosisSafeTxBuilderProps } from './types.js';
 
 // TODO: Use this return type in submit()
 export interface GnosisTransactionBuilderPayload {
@@ -21,13 +21,13 @@ export interface GnosisTransactionBuilderPayload {
  * This class is used to create a Safe Transaction Builder compatible object.
  * It is not a true Submitter because it does not submits any transactions.
  */
-export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
+export class EvmGnosisSafeTxBuilder extends EvmGnosisSafeTxSubmitter {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.GNOSIS_TX_BUILDER;
 
   constructor(
     public readonly multiProvider: MultiProvider,
-    public readonly props: EV5GnosisSafeTxBuilderProps,
+    public readonly props: EvmGnosisSafeTxBuilderProps,
     safe: Safe.default,
     safeService: SafeApiKit.default,
   ) {
@@ -36,16 +36,16 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
 
   static async create(
     multiProvider: MultiProvider,
-    props: EV5GnosisSafeTxBuilderProps,
-  ): Promise<EV5GnosisSafeTxBuilder> {
+    props: EvmGnosisSafeTxBuilderProps,
+  ): Promise<EvmGnosisSafeTxBuilder> {
     const { chain, safeAddress } = props;
     const { safe, safeService } =
-      await EV5GnosisSafeTxSubmitter.initSafeAndService(
+      await EvmGnosisSafeTxSubmitter.initSafeAndService(
         chain,
         multiProvider,
         safeAddress,
       );
-    return new EV5GnosisSafeTxBuilder(multiProvider, props, safe, safeService);
+    return new EvmGnosisSafeTxBuilder(multiProvider, props, safe, safeService);
   }
 
   // No requirement to get the next nonce from the Safe service.
@@ -60,11 +60,11 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
    *
    * @param txs - An array of populated transactions
    */
-  public async submit(...txs: AnnotatedEV5Transaction[]): Promise<any> {
+  public async submit(...txs: AnnotatedEvmTransaction[]): Promise<any> {
     const chainId = this.multiProvider.getChainId(this.props.chain);
     const transactions: SafeTransactionData[] = await Promise.all(
       txs.map(
-        async (tx: AnnotatedEV5Transaction) =>
+        async (tx: AnnotatedEvmTransaction) =>
           (await this.createSafeTransaction(tx)).data,
       ),
     );

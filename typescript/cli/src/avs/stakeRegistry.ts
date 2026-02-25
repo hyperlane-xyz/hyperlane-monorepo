@@ -1,6 +1,5 @@
 import { password } from '@inquirer/prompts';
 import {
-  type BigNumberish,
   type BytesLike,
   Signature,
   Wallet,
@@ -28,7 +27,7 @@ import { avsAddresses } from './config.js';
 export type SignatureWithSaltAndExpiryStruct = {
   signature: BytesLike;
   salt: BytesLike;
-  expiry: BigNumberish;
+  expiry: string;
 };
 
 export async function registerOperatorWithSignature({

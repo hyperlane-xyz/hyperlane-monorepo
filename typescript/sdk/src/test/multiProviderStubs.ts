@@ -12,7 +12,7 @@ export function stubMultiProtocolProvider(
   multiProvider: MultiProtocolProvider,
 ): sinon.SinonSandbox {
   const sandbox = sinon.createSandbox();
-  sandbox.stub(multiProvider, 'getEthersV5Provider').returns({
+  sandbox.stub(multiProvider, 'getEthersV6Provider').returns({
     getBalance: async () => '100',
   } as any);
   sandbox.stub(multiProvider, 'getCosmJsProvider').returns({

@@ -56,7 +56,7 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { RemoteRouters } from '../router/types.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
@@ -119,7 +119,7 @@ describe('EvmWarpModule', async () => {
     expect(await deployedToken.owner()).to.equal(signer.address);
   }
 
-  async function sendTxs(txs: AnnotatedEV5Transaction[]) {
+  async function sendTxs(txs: AnnotatedEvmTransaction[]) {
     for (const tx of txs) {
       await multiProvider.sendTransaction(chain, tx);
     }

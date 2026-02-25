@@ -226,7 +226,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
       case ProtocolType.Tron:
       case ProtocolType.Ethereum: {
         try {
-          const provider = this.multiProtocolProvider.getEthersV5Provider(
+          const provider = this.multiProtocolProvider.getEthersV6Provider(
             params.chain,
           );
           const balance = await provider.getBalance(params.address);

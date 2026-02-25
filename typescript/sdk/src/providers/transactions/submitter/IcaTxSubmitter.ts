@@ -13,14 +13,14 @@ import {
 import { ChainMap } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 import {
-  AnnotatedEV5Transaction,
+  AnnotatedEvmTransaction,
   ProtocolTypedReceipt,
 } from '../../ProviderType.js';
 import { CallData } from '../types.js';
 
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
-import { EvmIcaTxSubmitterProps } from './ethersV5/types.js';
+import { EvmIcaTxSubmitterProps } from './evm/types.js';
 import { getSubmitter } from './submitterBuilderGetter.js';
 
 type EvmIcaTxSubmitterConstructorConfig = Omit<
@@ -87,7 +87,7 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
   }
 
   async submit(
-    ...txs: AnnotatedEV5Transaction[]
+    ...txs: AnnotatedEvmTransaction[]
   ): Promise<
     | void
     | ProtocolTypedReceipt<ProtocolType.Ethereum>['receipt']

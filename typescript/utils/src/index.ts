@@ -107,7 +107,7 @@ export {
   BigNumberMin,
   bigToFixed,
   fixedToBig,
-  isBigNumberish,
+  isNumberish,
   isZeroish,
   mulBigAndFixed,
 } from './big-numbers.js';

@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { ethers } from 'ethers';
 import yargs from 'yargs';
 
-import { AnnotatedEV5Transaction } from '@hyperlane-xyz/sdk';
+import { AnnotatedEvmTransaction } from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
   LogLevel,
@@ -76,7 +76,7 @@ async function main() {
           chalk.gray.italic(`Reading tx ${fullTxHash} on ${chain}`),
         );
         const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
-        const tx: AnnotatedEV5Transaction = {
+        const tx: AnnotatedEvmTransaction = {
           to: safeTx.to,
           data: safeTx.data,
           value: ethers.toBigInt(safeTx.value),

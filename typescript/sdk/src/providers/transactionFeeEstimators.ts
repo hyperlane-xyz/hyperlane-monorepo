@@ -5,11 +5,6 @@ import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
-import type {
-  providers as EV5Providers,
-  PopulatedTransaction as EV5Transaction,
-} from 'ethers';
-
 import {
   Address,
   HexString,
@@ -30,7 +25,8 @@ import {
   CosmJsTransaction,
   CosmJsWasmProvider,
   CosmJsWasmTransaction,
-  EthersV5Provider,
+  EthersV6Provider,
+  EthersV6Transaction,
   ProviderType,
   RadixProvider,
   RadixTransaction,
@@ -50,31 +46,31 @@ export interface TransactionFeeEstimate {
   fee: number | bigint;
 }
 
-export async function estimateTransactionFeeEthersV5({
+export async function estimateTransactionFeeEthersV6({
   transaction,
   provider,
   sender,
 }: {
-  transaction: EV5Transaction;
-  provider: EV5Providers.Provider;
+  transaction: EthersV6Transaction;
+  provider: EthersV6Provider;
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
-  const gasUnits = await provider.estimateGas({
-    ...transaction,
+  const gasUnits = await provider.provider.estimateGas({
+    ...transaction.transaction,
     from: sender,
   });
-  return estimateTransactionFeeEthersV5ForGasUnits({
-    provider,
+  return estimateTransactionFeeEthersV6ForGasUnits({
+    provider: provider.provider,
     gasUnits: BigInt(gasUnits.toString()),
   });
 }
 
 // Separating out inner function to allow WarpCore to reuse logic
-export async function estimateTransactionFeeEthersV5ForGasUnits({
+export async function estimateTransactionFeeEthersV6ForGasUnits({
   provider,
   gasUnits,
 }: {
-  provider: EthersV5Provider['provider'];
+  provider: EthersV6Provider['provider'];
   gasUnits: bigint;
 }): Promise<TransactionFeeEstimate> {
   const feeData = await provider.getFeeData();
@@ -314,14 +310,10 @@ export function estimateTransactionFee({
   senderPubKey?: HexString;
 }): Promise<TransactionFeeEstimate> {
   if (
-    transaction.type === ProviderType.EthersV5 &&
-    provider.type === ProviderType.EthersV5
+    transaction.type === ProviderType.EthersV6 &&
+    provider.type === ProviderType.EthersV6
   ) {
-    return estimateTransactionFeeEthersV5({
-      transaction: transaction.transaction,
-      provider: provider.provider,
-      sender,
-    });
+    return estimateTransactionFeeEthersV6({ transaction, provider, sender });
   } else if (
     transaction.type === ProviderType.Viem &&
     provider.type === ProviderType.Viem
@@ -402,11 +394,17 @@ export function estimateTransactionFee({
     transaction.type === ProviderType.Tron &&
     provider.type === ProviderType.Tron
   ) {
-    // Tron is EVM-compatible; its typed transaction/provider use EthersV5 underlying types
+    // Tron is EVM-compatible; estimate with ethers-compatible gas APIs.
     sender = convertToProtocolAddress(sender, ProtocolType.Ethereum);
-    return estimateTransactionFeeEthersV5({
-      transaction: transaction.transaction,
-      provider: provider.provider,
+    return estimateTransactionFeeEthersV6({
+      transaction: {
+        type: ProviderType.EthersV6,
+        transaction: transaction.transaction,
+      },
+      provider: {
+        type: ProviderType.EthersV6,
+        provider: provider.provider,
+      },
       sender,
     });
   } else {

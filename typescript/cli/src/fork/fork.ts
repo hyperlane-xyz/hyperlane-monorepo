@@ -273,7 +273,7 @@ function assertRevert(
   },
 ) {
   // If contract call reverts, then there should be a reason
-  // https://github.com/ethers-io/ethers.js/blob/v5.7/packages/providers/src.ts/json-rpc-provider.ts#L79
+  // Based on ethers JsonRpcProvider revert formatting behavior.
   if (error.reason !== revertAssertion.reason) {
     throw new Error(
       `Expected revert: ${revertAssertion.reason} does not match ${error.reason}`,

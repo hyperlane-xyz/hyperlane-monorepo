@@ -3,7 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 import { type CommandModule } from 'yargs';
 
 import {
-  type AnnotatedEV5Transaction,
+  type AnnotatedEvmTransaction,
   type ChainName,
   EvmXERC20Module,
   type WarpCoreConfig,
@@ -113,7 +113,7 @@ const apply: CommandModuleWithWriteContext<
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
-    const transactions: AnnotatedEV5Transaction[] = [];
+    const transactions: AnnotatedEvmTransaction[] = [];
 
     for (const chainName of Object.keys(filteredConfig)) {
       const chainConfig = filteredConfig[chainName];
@@ -258,7 +258,7 @@ function getWarpRouteAddress(
 
 async function submitTransactions(
   context: WriteCommandContext,
-  transactions: AnnotatedEV5Transaction[],
+  transactions: AnnotatedEvmTransaction[],
   strategy: string | undefined,
   receipts: string,
 ): Promise<void> {

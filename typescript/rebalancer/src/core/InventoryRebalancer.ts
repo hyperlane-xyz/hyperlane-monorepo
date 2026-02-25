@@ -2,7 +2,7 @@ import type { Logger } from 'pino';
 import { Wallet, type ContractReceipt } from 'ethers';
 
 import {
-  type AnnotatedEV5Transaction,
+  type AnnotatedEvmTransaction,
   type ChainName,
   type EthJsonRpcBlockParameterTag,
   HyperlaneCore,
@@ -895,7 +895,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       const isTransfer = tx.category === WarpTxCategory.Transfer;
       receipt = await signingProvider.sendTransaction(
         origin,
-        tx.transaction as AnnotatedEV5Transaction,
+        tx.transaction as AnnotatedEvmTransaction,
         isTransfer
           ? {
               waitConfirmations: reorgPeriod as

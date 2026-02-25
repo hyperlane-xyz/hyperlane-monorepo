@@ -11,7 +11,7 @@ import {
   MultiProvider,
   SendTransactionOptions,
 } from '../../providers/MultiProvider.js';
-import { EthersV5Transaction } from '../../providers/ProviderType.js';
+import { EthersV6Transaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
 
@@ -54,7 +54,7 @@ export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<Proto
   }
 
   async sendAndConfirmTransaction(
-    tx: EthersV5Transaction,
+    tx: EthersV6Transaction,
     options?: SendTransactionOptions,
   ): Promise<string> {
     const res = await this.multiProvider.sendTransaction(

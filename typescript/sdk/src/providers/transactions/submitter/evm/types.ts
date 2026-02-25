@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Address } from '@hyperlane-xyz/utils';
 
 import {
-  ZBigNumberish,
+  ZBigIntish,
   ZBytes32String,
   ZChainName,
   ZHash,
@@ -12,47 +12,47 @@ import { ChainName } from '../../../../types.js';
 import { isCompliant } from '../../../../utils/schemas.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
-export const EV5GnosisSafeTxSubmitterPropsSchema = z.object({
+export const EvmGnosisSafeTxSubmitterPropsSchema = z.object({
   chain: ZChainName,
   safeAddress: ZHash,
 });
 
-export type EV5GnosisSafeTxSubmitterProps = z.infer<
-  typeof EV5GnosisSafeTxSubmitterPropsSchema
+export type EvmGnosisSafeTxSubmitterProps = z.infer<
+  typeof EvmGnosisSafeTxSubmitterPropsSchema
 >;
 
-export const EV5GnosisSafeTxBuilderPropsSchema = z.object({
+export const EvmGnosisSafeTxBuilderPropsSchema = z.object({
   version: z.string().default('1.0'),
   chain: ZChainName,
   safeAddress: ZHash,
 });
 
-export type EV5GnosisSafeTxBuilderProps = z.infer<
-  typeof EV5GnosisSafeTxBuilderPropsSchema
+export type EvmGnosisSafeTxBuilderProps = z.infer<
+  typeof EvmGnosisSafeTxBuilderPropsSchema
 >;
 
-export const EV5JsonRpcTxSubmitterPropsSchema = z.object({
+export const EvmJsonRpcTxSubmitterPropsSchema = z.object({
   chain: ZChainName,
   userAddress: ZHash.optional(),
   privateKey: ZHash.optional(),
   extraParams: z.record(z.string(), z.string()).optional(),
 });
 
-export type EV5JsonRpcTxSubmitterProps = z.infer<
-  typeof EV5JsonRpcTxSubmitterPropsSchema
+export type EvmJsonRpcTxSubmitterProps = z.infer<
+  typeof EvmJsonRpcTxSubmitterPropsSchema
 >;
 
 export const isJsonRpcSubmitterConfig = isCompliant(
-  EV5JsonRpcTxSubmitterPropsSchema,
+  EvmJsonRpcTxSubmitterPropsSchema,
 );
 
-export const EV5ImpersonatedAccountTxSubmitterPropsSchema =
-  EV5JsonRpcTxSubmitterPropsSchema.extend({
+export const EvmImpersonatedAccountTxSubmitterPropsSchema =
+  EvmJsonRpcTxSubmitterPropsSchema.extend({
     userAddress: ZHash,
   });
 
-export type EV5ImpersonatedAccountTxSubmitterProps = z.infer<
-  typeof EV5ImpersonatedAccountTxSubmitterPropsSchema
+export type EvmImpersonatedAccountTxSubmitterProps = z.infer<
+  typeof EvmImpersonatedAccountTxSubmitterPropsSchema
 >;
 
 export type EvmIcaTxSubmitterProps = {
@@ -67,7 +67,7 @@ export type EvmIcaTxSubmitterProps = {
 };
 
 // @ts-expect-error due to zod3 type inference logic even if the
-// EV5GnosisSafeTxBuilderPropsSchema defines the version field with a default value
+// EvmGnosisSafeTxBuilderPropsSchema defines the version field with a default value
 // it is inferred recursively as an optional field making typescript complain that
 // EvmSubmitterMetadataSchema can't be used here.
 export const EvmIcaTxSubmitterPropsSchema: z.ZodSchema<EvmIcaTxSubmitterProps> =
@@ -102,7 +102,7 @@ export const EvmTimelockControllerSubmitterPropsSchema: z.ZodSchema<EvmTimelockC
       chain: ZChainName,
       timelockAddress: ZHash,
       salt: ZBytes32String.optional(),
-      delay: ZBigNumberish.optional(),
+      delay: ZBigIntish.optional(),
       predecessor: ZBytes32String.optional(),
       proposerSubmitter: EvmSubmitterMetadataSchema,
     }),
@@ -111,19 +111,19 @@ export const EvmTimelockControllerSubmitterPropsSchema: z.ZodSchema<EvmTimelockC
 export const EvmSubmitterMetadataSchema = z.union([
   z.object({
     type: z.literal(TxSubmitterType.JSON_RPC),
-    ...EV5JsonRpcTxSubmitterPropsSchema.shape,
+    ...EvmJsonRpcTxSubmitterPropsSchema.shape,
   }),
   z.object({
     type: z.literal(TxSubmitterType.IMPERSONATED_ACCOUNT),
-    ...EV5ImpersonatedAccountTxSubmitterPropsSchema.shape,
+    ...EvmImpersonatedAccountTxSubmitterPropsSchema.shape,
   }),
   z.object({
     type: z.literal(TxSubmitterType.GNOSIS_SAFE),
-    ...EV5GnosisSafeTxSubmitterPropsSchema.shape,
+    ...EvmGnosisSafeTxSubmitterPropsSchema.shape,
   }),
   z.object({
     type: z.literal(TxSubmitterType.GNOSIS_TX_BUILDER),
-    ...EV5GnosisSafeTxBuilderPropsSchema.shape,
+    ...EvmGnosisSafeTxBuilderPropsSchema.shape,
   }),
   EvmIcaTxSubmitterPropsSchema,
   EvmTimelockControllerSubmitterPropsSchema,
