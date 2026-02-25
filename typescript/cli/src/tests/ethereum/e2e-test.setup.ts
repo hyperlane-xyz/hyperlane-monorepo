@@ -17,11 +17,22 @@ before(async function () {
   );
 
   if (process.env.CLI_E2E_EXTERNAL_NODES !== '1') {
-    await Promise.all([
-      runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2),
-      runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3),
-      runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_4),
-    ]);
+    if (IS_TRON_TEST) {
+      const tronMetadata =
+        TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
+      await runTronNode({
+        name: tronMetadata.name,
+        chainId: tronMetadata.chainId,
+        domainId: tronMetadata.domainId,
+        port: tronMetadata.rpcPort,
+      });
+    } else {
+      await Promise.all([
+        runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2),
+        runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3),
+        runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_4),
+      ]);
+    }
   }
 
   // Clean up existing chain addresses
