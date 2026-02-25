@@ -466,6 +466,15 @@ function getTimeout(connection: RpcConfigWithConnectionInfo['connection']) {
   if (typeof timeout === 'number' && Number.isFinite(timeout)) {
     return timeout;
   }
+  const url = connection?.url;
+  if (
+    typeof url === 'string' &&
+    (url.includes('127.0.0.1') || url.includes('localhost'))
+  ) {
+    // Local fork nodes can stall on first uncached reads from upstream RPCs.
+    // Keep a longer timeout for local endpoints to avoid transient CI flakes.
+    return 30_000;
+  }
   return undefined;
 }
 
