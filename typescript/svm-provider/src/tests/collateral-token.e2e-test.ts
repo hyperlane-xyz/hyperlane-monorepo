@@ -1,8 +1,8 @@
 import type { Address } from '@solana/kit';
-// eslint-disable-next-line import/no-nodejs-modules
-import * as fs from 'fs';
 import { after, before, describe, it } from 'mocha';
 import { expect } from 'chai';
+
+import { PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
@@ -17,7 +17,6 @@ import { deriveOverheadIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { type SvmSigner, createSigner } from '../signer.js';
 import {
-  DEFAULT_PROGRAMS_PATH,
   PROGRAM_BINARIES,
   TEST_PROGRAM_IDS,
   airdropSol,
@@ -105,12 +104,11 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
     // Create a collateral SPL mint for the test.
     collateralMint = await createSplMint(rpc, signer, 9);
 
-    const collateralTokenBytes = fs.readFileSync(
-      `${DEFAULT_PROGRAMS_PATH}/${PROGRAM_BINARIES.tokenCollateral}`,
-    );
-
     writer = new SvmCollateralTokenWriter(
-      { program: { programBytes: collateralTokenBytes }, igpProgramId },
+      {
+        program: { programBytes: PROGRAM_BYTES.tokenCollateral },
+        igpProgramId,
+      },
       rpc,
       signer,
     );

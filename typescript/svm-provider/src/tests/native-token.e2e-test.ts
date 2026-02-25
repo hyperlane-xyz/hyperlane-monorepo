@@ -1,7 +1,7 @@
 import type { Address } from '@solana/kit';
-// eslint-disable-next-line import/no-nodejs-modules
-import * as fs from 'fs';
 import { after, before, describe } from 'mocha';
+
+import { PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
@@ -16,7 +16,6 @@ import { deriveOverheadIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { type SvmSigner, createSigner } from '../signer.js';
 import {
-  DEFAULT_PROGRAMS_PATH,
   PROGRAM_BINARIES,
   TEST_PROGRAM_IDS,
   airdropSol,
@@ -99,12 +98,8 @@ describe('SVM Native Warp Token E2E Tests', function () {
       config: ismConfig,
     });
 
-    const nativeTokenBytes = fs.readFileSync(
-      `${DEFAULT_PROGRAMS_PATH}/${PROGRAM_BINARIES.tokenNative}`,
-    );
-
     writer = new SvmNativeTokenWriter(
-      { program: { programBytes: nativeTokenBytes }, igpProgramId },
+      { program: { programBytes: PROGRAM_BYTES.tokenNative }, igpProgramId },
       rpc,
       signer,
     );
