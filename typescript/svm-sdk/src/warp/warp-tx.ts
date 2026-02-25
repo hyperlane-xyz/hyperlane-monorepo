@@ -1,8 +1,4 @@
-import {
-  type Address,
-  address as parseAddress,
-  type TransactionSigner,
-} from '@solana/kit';
+import { type Address, address as parseAddress } from '@solana/kit';
 
 import {
   computeRemoteRoutersUpdates,
@@ -99,7 +95,7 @@ export async function applyPostInitConfig(
     instructions.push(
       await getTokenEnrollRemoteRoutersInstruction(
         programId,
-        signer.signer,
+        signer.signer.address,
         routerEntries.map(([domain, router]) => ({
           domain: parseInt(domain),
           router: routerHexToBytes(router.address),
@@ -112,7 +108,7 @@ export async function applyPostInitConfig(
       instructions.push(
         await getTokenSetDestinationGasConfigsInstruction(
           programId,
-          signer.signer,
+          signer.signer.address,
           gasEntries.map(([domain, gas]) => ({
             domain: parseInt(domain),
             gas: BigInt(gas),
@@ -134,7 +130,7 @@ export async function computeWarpTokenUpdateInstructions(
   current: RawWarpArtifactConfig,
   expected: RawWarpArtifactConfig,
   programId: Address,
-  signerAccount: TransactionSigner,
+  ownerAddress: Address,
   igpProgramId?: Address,
 ): Promise<SvmInstruction[]> {
   const instructions: SvmInstruction[] = [];
@@ -146,7 +142,7 @@ export async function computeWarpTokenUpdateInstructions(
     instructions.push(
       await getTokenSetInterchainSecurityModuleInstruction(
         programId,
-        signerAccount,
+        ownerAddress,
         expectedIsm ? parseAddress(expectedIsm) : null,
       ),
     );
@@ -171,7 +167,7 @@ export async function computeWarpTokenUpdateInstructions(
     instructions.push(
       await getTokenSetInterchainGasPaymasterInstruction(
         programId,
-        signerAccount,
+        ownerAddress,
         igpValue,
       ),
     );
@@ -194,7 +190,7 @@ export async function computeWarpTokenUpdateInstructions(
     instructions.push(
       await getTokenEnrollRemoteRoutersInstruction(
         programId,
-        signerAccount,
+        ownerAddress,
         diff.toUnenroll.map((domain) => ({ domain, router: null })),
       ),
     );
@@ -204,7 +200,7 @@ export async function computeWarpTokenUpdateInstructions(
     instructions.push(
       await getTokenEnrollRemoteRoutersInstruction(
         programId,
-        signerAccount,
+        ownerAddress,
         diff.toEnroll.map((e) => ({
           domain: e.domainId,
           router: routerHexToBytes(e.routerAddress),
@@ -214,7 +210,7 @@ export async function computeWarpTokenUpdateInstructions(
     instructions.push(
       await getTokenSetDestinationGasConfigsInstruction(
         programId,
-        signerAccount,
+        ownerAddress,
         diff.toEnroll.map((e) => ({
           domain: e.domainId,
           gas: BigInt(e.gas),
@@ -228,7 +224,7 @@ export async function computeWarpTokenUpdateInstructions(
     instructions.push(
       await getTokenTransferOwnershipInstruction(
         programId,
-        signerAccount,
+        ownerAddress,
         expected.owner ? parseAddress(expected.owner) : null,
       ),
     );
