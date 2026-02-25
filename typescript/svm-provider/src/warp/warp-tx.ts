@@ -25,6 +25,32 @@ import type { SvmInstruction, SvmReceipt } from '../types.js';
 import { routerHexToBytes } from './warp-query.js';
 
 /**
+ * Derives `remoteDecimals` from `localDecimals` and the optional `scale` factor.
+ * scale = 10^(remoteDecimals - localDecimals), so
+ * remoteDecimals = localDecimals + log10(scale).
+ * Falls back to localDecimals when scale is absent or 1.
+ */
+export function scaleToRemoteDecimals(
+  localDecimals: number,
+  scale?: number,
+): number {
+  if (!scale || scale === 1) return localDecimals;
+  return localDecimals + Math.round(Math.log10(scale));
+}
+
+/**
+ * Derives the `scale` factor from on-chain `localDecimals` and `remoteDecimals`.
+ * Returns undefined when there is no scaling (remoteDecimals === localDecimals).
+ */
+export function remoteDecimalsToScale(
+  localDecimals: number,
+  remoteDecimals: number,
+): number | undefined {
+  const diff = remoteDecimals - localDecimals;
+  return diff === 0 ? undefined : Math.pow(10, diff);
+}
+
+/**
  * Builds the TokenInitInstructionData shared by all warp token types.
  * The caller is responsible for passing the token-type-specific decimals.
  */
