@@ -750,7 +750,7 @@ export class TestRebalancerBuilder {
     for (const chain of TEST_CHAINS) {
       const provider = ctx.providers.get(chain);
       if (provider) {
-        rebalancerMultiProvider.setSigner(chain, wallet.connect(provider as any));
+        rebalancerMultiProvider.setSigner(chain, wallet.connect(provider));
       }
     }
 

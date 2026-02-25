@@ -14,7 +14,7 @@ export async function setupCollateralBalances(
     if (!provider) throw new Error(`No provider for chain ${chain}`);
 
     const deployer = new LocalAccountViemSigner(ensure0x(deployerKey)).connect(
-      provider as any,
+      provider,
     );
     const token = ERC20__factory.connect(tokensByChain[chain], deployer);
 
