@@ -40,9 +40,13 @@ backup_files() {
 
 # Restore all files from backups
 restore_files() {
-  mv "$OZ_CREATE2.bak" "$OZ_CREATE2"
+  if [ -e "$OZ_CREATE2.bak" ]; then
+    mv "$OZ_CREATE2.bak" "$OZ_CREATE2"
+  fi
   for f in $ISCONTRACT_FILES; do
-    mv "$f.bak" "$f"
+    if [ -e "$f.bak" ]; then
+      mv "$f.bak" "$f"
+    fi
   done
 }
 
