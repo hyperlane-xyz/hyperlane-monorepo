@@ -2,6 +2,10 @@
 set -e
 cd "$(dirname "$0")"
 
+# Ensure deterministic outputs for turbo cache: hardhat/typechain can emit
+# partial trees when incremental cache is reused against cleaned output dirs.
+rm -rf ./cache-tron ../typescript/tron-sdk/src/abi ../typescript/tron-sdk/src/typechain
+
 # Soldeer dependencies are already installed by the turbo deps:soldeer task
 # (build:tron depends on build, which depends on deps:soldeer).
 # This call is a safety net for standalone invocations; allow it to fail
