@@ -6,11 +6,10 @@ source "$(dirname "$0")/ensure-venv.sh"
 BASE="${1:-main}"
 
 MERGE_BASE="$(git merge-base "$BASE" HEAD)"
-FILES="$(git diff --name-only --diff-filter=d "$MERGE_BASE" HEAD)"
 
-if [ -z "$FILES" ]; then
+if ! git diff --name-only --diff-filter=d "$MERGE_BASE" HEAD | grep -q .; then
   echo "No changed files vs $BASE."
   exit 0
 fi
 
-echo "$FILES" | xargs "$CODESPELL" --config="$CODESPELL_CONFIG"
+git diff --name-only -z --diff-filter=d "$MERGE_BASE" HEAD | xargs -0 "$CODESPELL" --config="$CODESPELL_CONFIG"
