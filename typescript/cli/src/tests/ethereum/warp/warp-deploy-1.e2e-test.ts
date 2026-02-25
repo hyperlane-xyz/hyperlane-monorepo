@@ -1,7 +1,6 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
+import { JsonRpcProvider, Wallet } from 'ethers';
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { Wallet } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 

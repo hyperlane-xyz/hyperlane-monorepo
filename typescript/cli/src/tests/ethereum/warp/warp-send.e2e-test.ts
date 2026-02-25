@@ -1,7 +1,5 @@
-import { JsonRpcProvider } from '@ethersproject/providers';
+import { JsonRpcProvider, Wallet, ethers, parseEther } from 'ethers';
 import { expect } from 'chai';
-import { Wallet, ethers } from 'ethers';
-import { parseEther } from 'ethers/lib/utils.js';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
