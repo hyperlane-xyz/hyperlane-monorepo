@@ -41,6 +41,7 @@ describe('hyperlane warp check e2e tests', async function () {
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let token: ERC20Test;
+  let tokenAddress: Address;
   let tokenSymbol: string;
   let ownerAddress: Address;
   let combinedWarpCoreConfigPath: string;
@@ -59,6 +60,7 @@ describe('hyperlane warp check e2e tests', async function () {
     signer = new Wallet(ANVIL_KEY).connect(provider);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+    tokenAddress = await token.getAddress();
     tokenSymbol = await token.symbol();
 
     combinedWarpCoreConfigPath = getCombinedWarpRoutePath(tokenSymbol, [
@@ -91,7 +93,7 @@ describe('hyperlane warp check e2e tests', async function () {
     warpConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
       },

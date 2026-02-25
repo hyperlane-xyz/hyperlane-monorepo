@@ -95,7 +95,7 @@ describe('hyperlane warp apply with submitters', async function () {
     DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
   );
 
-  function formatTimelockStrategyFile(
+  async function formatTimelockStrategyFile(
     proposerSubmitter?: SubmissionStrategy['submitter'],
   ) {
     // Update the submitter config to use the deployed timelock address
@@ -114,7 +114,7 @@ describe('hyperlane warp apply with submitters', async function () {
     );
 
     chain3SubmissionStrategy.submitter.timelockAddress =
-      timelockInstance.address;
+      await timelockInstance.getAddress();
     if (proposerSubmitter) {
       chain3SubmissionStrategy.submitter.proposerSubmitter = proposerSubmitter;
     }
@@ -169,13 +169,13 @@ describe('hyperlane warp apply with submitters', async function () {
       chain2Signer,
     );
 
-    chain3IcaAddress = await chain2IcaRouter.callStatic[
-      'getRemoteInterchainAccount(address,address,address)'
-    ](
-      initialOwnerAddress,
-      chain3Addresses.interchainAccountRouter,
-      ethers.ZeroAddress,
-    );
+    chain3IcaAddress = await chain2IcaRouter
+      .getFunction('getRemoteInterchainAccount(address,address,address)')
+      .staticCall(
+        initialOwnerAddress,
+        chain3Addresses.interchainAccountRouter,
+        ethers.ZeroAddress,
+      );
 
     // Deploy the timelock and set both the owner address and the ICA
     // as proposers and executors to avoid having to deploy a new timelock
@@ -193,7 +193,7 @@ describe('hyperlane warp apply with submitters', async function () {
     const mockSafe = await new MockSafe__factory()
       .connect(chain3Signer)
       .deploy([initialOwnerAddress], 1);
-    safeAddress = mockSafe.address;
+    safeAddress = await mockSafe.getAddress();
 
     // Configure ICA connections by enrolling the ICAs with each other
     const [coreConfigChain2, coreConfigChain3]: DerivedCoreConfig[] =
@@ -234,7 +234,7 @@ describe('hyperlane warp apply with submitters', async function () {
   beforeEach(async function () {
     fixture.restoreConfigs();
 
-    formatTimelockStrategyFile();
+    await formatTimelockStrategyFile();
   });
 
   function getTimelockExecuteTxFile(logs: string): CallData {
@@ -259,7 +259,7 @@ describe('hyperlane warp apply with submitters', async function () {
       const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
         TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
-      ].owner = timelockInstance.address;
+      ].owner = await timelockInstance.getAddress();
       await deployAndExportWarpRoute();
 
       const expectedUpdatedGasValue = '900';
@@ -298,11 +298,11 @@ describe('hyperlane warp apply with submitters', async function () {
       const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
         TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
-      ].owner = timelockInstance.address;
+      ].owner = await timelockInstance.getAddress();
       await deployAndExportWarpRoute();
 
       // Set the timelock to use the ICA to propose txs
-      formatTimelockStrategyFile({
+      await formatTimelockStrategyFile({
         type: TxSubmitterType.INTERCHAIN_ACCOUNT,
         chain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
         destinationChain: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,

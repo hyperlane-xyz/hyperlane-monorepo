@@ -64,6 +64,8 @@ describe('hyperlane warp apply owner update tests', async function () {
 
   let tokenChain2: ERC20Test;
   let everclearBridgeAdapterMock: MockEverclearAdapter;
+  let tokenChain2Address: string;
+  let everclearBridgeAdapterMockAddress: string;
 
   let providerChain2: JsonRpcProvider;
 
@@ -106,6 +108,9 @@ describe('hyperlane warp apply owner update tests', async function () {
       HYP_KEY_BY_PROTOCOL.ethereum,
       TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
       REGISTRY_PATH,
+    );
+    [tokenChain2Address, everclearBridgeAdapterMockAddress] = await Promise.all(
+      [tokenChain2.getAddress(), everclearBridgeAdapterMock.getAddress()],
     );
 
     await Promise.all([
@@ -247,9 +252,9 @@ describe('hyperlane warp apply owner update tests', async function () {
       { type: typeof TokenType.collateralEverclear }
     > = {
       type: TokenType.collateralEverclear,
-      token: tokenChain2.address,
+      token: tokenChain2Address,
       owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
-      everclearBridgeAddress: everclearBridgeAdapterMock.address,
+      everclearBridgeAddress: everclearBridgeAdapterMockAddress,
       everclearFeeParams: {
         [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3]: {
           deadline: Date.now(),
@@ -327,13 +332,13 @@ describe('hyperlane warp apply owner update tests', async function () {
     const onChainEverclearBridgeAdapterAddress =
       await movableToken.everclearAdapter();
     expect(onChainEverclearBridgeAdapterAddress).to.equal(
-      everclearBridgeAdapterMock.address,
+      everclearBridgeAdapterMockAddress,
     );
 
     const [fee, deadline, signature] =
       await movableToken.feeParams(chain3DomainId);
-    expect(deadline.toNumber()).to.equal(expectedFeeSettings.deadline);
-    expect(fee.toNumber()).to.equal(expectedFeeSettings.fee);
+    expect(Number(deadline)).to.equal(expectedFeeSettings.deadline);
+    expect(Number(fee)).to.equal(expectedFeeSettings.fee);
     expect(signature).to.equal(expectedFeeSettings.signature);
 
     const outputAssetAddress = await movableToken.outputAssets(chain3DomainId);
