@@ -120,17 +120,6 @@ Strategy keys are \`SYMBOL|chain\` — evaluate each independently.
 3. **Same-asset distribution imbalance** — surplus on one chain, deficit on another.
 A DEPLETED asset means system is NOT balanced — do NOT save status=balanced.
 
-### Tools
-- \`rebalance_collateral\` — move router collateral directly between chains (same-asset). **Preferred** for distribution imbalances when surplus exists elsewhere.
-- \`supply_collateral\` — supply collateral to a router from your wallet inventory (same-asset). Use when router collateral is depleted or insufficient. Specify source (where your wallet has tokens) and destination (which router needs collateral).
-- \`get_inventory\` — check your wallet balances before supplying.
-- Inventory bridge skills (if available) — convert between assets in your wallet. Check \`.pi/skills/\` for available bridges.
-
-### Decision Tree
-1. Same-asset surplus on another chain? → \`rebalance_collateral\` (direct, preferred)
-2. Wallet has the right asset? → \`supply_collateral\` (from wallet to router)
-3. Need a different asset? → Use inventory bridge skill to convert, then \`supply_collateral\`
-
 `
     : '';
 
@@ -149,10 +138,26 @@ ${contextSection}## Strategy
 
 ${formatStrategy(strategy)}
 ${multiAssetSection}
-## Skills
+## Rebalancing Tools
 
-Inventory bridge skills (for cross-asset conversion) are in \`.pi/skills/\`. Read them when you need to convert between assets in your wallet (e.g., swap USDC for USDT via LiFi, then \`supply_collateral\`).
-For standard operations (same-asset rebalance, supplying collateral), use \`rebalance_collateral\` and \`supply_collateral\` tools directly.
+Three execution paths for collateral rebalancing:
+
+### 1. \`rebalance_collateral\` — On-chain bridge rebalance
+Move router collateral directly between chains via configured on-chain bridges (MovableCollateralRouter). Same-asset only. Preferred when bridges are configured. Fastest path.
+
+### 2. \`supply_collateral\` — Use wallet inventory to increase router collateral
+Two modes:
+- **With destination** (cross-chain reverse rebalance): Calls \`transferRemote\` FROM the deficit chain. Tokens locked as collateral on source, released to your wallet on destination. **Inventory preserved.** Amount capped to min(requested, sourceInventory, destRouterCollateral).
+- **Without destination** (direct deposit): Transfers tokens from your wallet directly to the source router. **Inventory decreases.** Use ONLY when the asset is globally depleted (totalBalance=0 system-wide) and there's no surplus chain to reverse-rebalance against.
+
+### 3. Inventory bridge skills — Move wallet tokens between chains
+Skills in \`.pi/skills/\` (e.g., LiFi, CCTP). Only moves wallet inventory — does NOT affect router collateral directly. Use when your inventory is on the wrong chain or in the wrong asset, then follow with \`supply_collateral\`.
+
+### Decision Tree
+1. **Distribution imbalance (one chain surplus, another deficit)?** → Try \`rebalance_collateral\` first (if bridge configured). If no bridge or it fails, use \`supply_collateral(source=deficit, destination=surplus)\` — inventory preserved.
+2. **Asset globally depleted (totalBalance=0)?** → Use \`supply_collateral(source=deficit)\` WITHOUT destination — direct deposit from wallet. Check \`get_inventory\` first.
+3. **Need inventory on a specific chain?** → Use inventory bridge skill to move it, then \`supply_collateral\`.
+4. **Need a different asset?** → Use inventory bridge skill to convert (e.g., USDC→USDT), then \`supply_collateral\`.
 
 ## Loop
 
@@ -162,7 +167,10 @@ For standard operations (same-asset rebalance, supplying collateral), use \`reba
    b. If any asset is DEPLETED (totalBalance=0), NOT balanced — supply collateral from inventory.
    c. Weights within tolerance for all assets.
    Only if ALL pass → \`save_context\` with status=balanced.
-3. If imbalanced: use \`rebalance_collateral\` (preferred for same-asset surplus) or \`supply_collateral\` (for depleted assets or when no surplus exists). For cross-asset: use inventory bridge skill first if needed.
+3. If blocked transfer or imbalanced:
+   a. **Blocked transfer?** → Try \`rebalance_collateral\` from a chain with surplus collateral to the blocked destination. If no bridge or it fails, use \`supply_collateral\`.
+   b. **Distribution imbalance?** → Use decision tree above.
+   c. If action fails, note error in context.
 4. If action returns a messageId, save it in context for delivery verification.
 
 ## Rules
@@ -170,7 +178,7 @@ For standard operations (same-asset rebalance, supplying collateral), use \`reba
 - MUST call \`save_context\` at end of every cycle.
 - Never rebalance more than surplus. Account for inflight amounts.
 - If action fails, note in context, don't retry immediately.
-- Prefer \`rebalance_collateral\` over \`supply_collateral\` (direct router movement > consuming wallet inventory).
+- \`supply_collateral\` with destination: preserves inventory (source collateral ↑, destination collateral ↓). Without destination: direct deposit (inventory decreases, collateral ↑). Only omit destination when asset is globally depleted.
 - \`save_context\` summary format: FULL messageIds (66 hex chars) for pending. status=balanced or status=pending. Keep under 500 chars. No prose — just facts.
 - All amounts are in the token's smallest unit. Check \`get_chain_metadata\` for decimals (e.g., 6 for USDC/USDT, 18 for ETH).
 `;
