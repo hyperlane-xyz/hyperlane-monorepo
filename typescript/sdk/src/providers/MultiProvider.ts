@@ -1,5 +1,6 @@
 import {
   ContractFactory,
+  NonceManager,
   TransactionReceipt,
   TransactionRequest,
   JsonRpcProvider,
@@ -210,19 +211,25 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (!chainName) return null;
     const signer = this.signers[chainName];
     if (!signer) return null;
-    if (signer.provider) return signer;
+    let connectedSigner = signer;
     // Auto-connect the signer for convenience
-    const provider = this.tryGetProvider(chainName);
-    if (!provider) return signer;
-    const connected = signer.connect(provider);
-    // Only cache when not using a shared signer. In shared-signer mode,
-    // caching pins the signer to this provider; setProvider() skips
-    // reconnection when useSharedSigner is true, so the cached signer
-    // would go stale after a provider swap.
-    if (!this.useSharedSigner) {
-      this.signers[chainName] = connected;
+    if (!connectedSigner.provider) {
+      const provider = this.tryGetProvider(chainName);
+      if (!provider) return connectedSigner;
+      connectedSigner = connectedSigner.connect(provider);
     }
-    return connected;
+
+    const metadata = this.getChainMetadata(chainName);
+    const useNonceManager = metadata.protocol === ProtocolType.Ethereum;
+
+    if (useNonceManager && !(connectedSigner instanceof NonceManager)) {
+      connectedSigner = new NonceManager(connectedSigner);
+    }
+
+    if (!this.useSharedSigner) {
+      this.signers[chainName] = connectedSigner;
+    }
+    return connectedSigner;
   }
 
   /**

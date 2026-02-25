@@ -522,6 +522,18 @@ describe('SmartProvider', () => {
       expect(provider2.called).to.be.true;
     });
 
+    it('does not fan out sendTransaction on stagger timeout', async () => {
+      const provider1 = MockProvider.success('success1', 100);
+      const provider2 = MockProvider.success('success2');
+      const provider = new TestableSmartProvider([provider1, provider2]);
+
+      const result = await provider.simplePerform('sendTransaction', 1);
+
+      expect(result).to.deep.equal('success1');
+      expect(provider1.called).to.be.true;
+      expect(provider2.called).to.be.false;
+    });
+
     it('both providers timeout, first provider ultimately returns result (waitForProviderSuccess)', async () => {
       const provider1 = MockProvider.success('success1', 120); // 120ms delay
       const provider2 = MockProvider.success('success2', 200); // 200ms delay

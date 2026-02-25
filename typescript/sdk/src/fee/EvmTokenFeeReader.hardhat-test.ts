@@ -1,6 +1,6 @@
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { constants } from 'ethers';
+import { MaxUint256 } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
@@ -26,6 +26,7 @@ describe('EvmTokenFeeReader', () => {
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;
   let token: ERC20Test;
+  let tokenAddress: string;
 
   const TOKEN_TOTAL_SUPPLY = '100000000000000000000';
 
@@ -36,6 +37,7 @@ describe('EvmTokenFeeReader', () => {
     const factory = new ERC20Test__factory(signer);
     token = await factory.deploy('fake', 'FAKE', TOKEN_TOTAL_SUPPLY, 18);
     await token.waitForDeployment();
+    tokenAddress = await token.getAddress();
   });
 
   describe('LinearFee', () => {
@@ -45,7 +47,7 @@ describe('EvmTokenFeeReader', () => {
         maxFee: MAX_FEE,
         halfAmount: HALF_AMOUNT,
         bps: BPS,
-        token: token.address,
+        token: tokenAddress,
         owner: signer.address,
       });
       const deployer = new EvmTokenFeeDeployer(
@@ -59,7 +61,7 @@ describe('EvmTokenFeeReader', () => {
       const tokenFee =
         deployedContracts[TestChainName.test2][TokenFeeType.LinearFee];
       const onchainConfig = await reader.deriveTokenFeeConfig({
-        address: tokenFee.address,
+        address: await tokenFee.getAddress(),
       });
       expect(normalizeConfig(onchainConfig)).to.deep.equal(
         normalizeConfig({
@@ -78,7 +80,7 @@ describe('EvmTokenFeeReader', () => {
       const config = {
         type: TokenFeeType.LinearFee,
         owner: signer.address,
-        token: token.address,
+        token: tokenAddress,
         maxFee,
         halfAmount,
         bps: convertToBps(maxFee, halfAmount),
@@ -115,9 +117,7 @@ describe('EvmTokenFeeReader', () => {
       expect(maxFee > 0n).to.be.true;
       expect(halfAmount > 0n).to.be.true;
 
-      const expectedMaxFee =
-        BigInt(constants.MaxUint256.toString()) /
-        ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
+      const expectedMaxFee = MaxUint256 / ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
       expect(maxFee).to.equal(expectedMaxFee);
 
       const convertedBps = convertToBps(maxFee, halfAmount);
@@ -137,13 +137,13 @@ describe('EvmTokenFeeReader', () => {
       const routingFeeConfig: TokenFeeConfig = {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
-        token: token.address,
-        maxFee: constants.MaxUint256.toBigInt(),
-        halfAmount: constants.MaxUint256.toBigInt(),
+        token: tokenAddress,
+        maxFee: MaxUint256,
+        halfAmount: MaxUint256,
         feeContracts: {
           [TestChainName.test2]: {
             owner: signer.address,
-            token: token.address,
+            token: tokenAddress,
             type: TokenFeeType.LinearFee,
             maxFee: MAX_FEE,
             halfAmount: HALF_AMOUNT,
@@ -151,7 +151,7 @@ describe('EvmTokenFeeReader', () => {
           },
           [TestChainName.test3]: {
             owner: signer.address,
-            token: token.address,
+            token: tokenAddress,
             type: TokenFeeType.LinearFee,
             maxFee: MAX_FEE,
             halfAmount: HALF_AMOUNT,
@@ -175,8 +175,9 @@ describe('EvmTokenFeeReader', () => {
       ];
       const routingFee = await reader.deriveTokenFeeConfig({
         address:
-          deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee]
-            .address,
+          await deployedContracts[TestChainName.test2][
+            TokenFeeType.RoutingFee
+          ].getAddress(),
         routingDestinations: destinations,
       });
       expect(normalizeConfig(routingFee)).to.deep.equal(
@@ -188,11 +189,11 @@ describe('EvmTokenFeeReader', () => {
       const routingFeeConfig = TokenFeeConfigSchema.parse({
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
-        token: token.address,
+        token: tokenAddress,
         feeContracts: {
           [TestChainName.test2]: {
             owner: signer.address,
-            token: token.address,
+            token: tokenAddress,
             type: TokenFeeType.LinearFee,
             maxFee: MAX_FEE,
             halfAmount: HALF_AMOUNT,
@@ -211,13 +212,14 @@ describe('EvmTokenFeeReader', () => {
       const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
       const routingFee = await reader.deriveTokenFeeConfig({
         address:
-          deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee]
-            .address,
+          await deployedContracts[TestChainName.test2][
+            TokenFeeType.RoutingFee
+          ].getAddress(),
       });
 
       expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
       expect(routingFee.owner).to.equal(signer.address);
-      expect(routingFee.token).to.equal(token.address);
+      expect(routingFee.token).to.equal(tokenAddress);
       expect(
         Object.keys((routingFee as any).feeContracts ?? {}),
       ).to.have.length(0);
