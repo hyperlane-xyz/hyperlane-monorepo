@@ -19,12 +19,20 @@ export interface RadixContractArtifacts {
  * Downloads a file from a URL and returns it as a Uint8Array
  */
 async function downloadFile(url: string): Promise<Uint8Array> {
-  const response = await fetch(url);
-  if (!response.ok || !response.body) {
-    throw new Error(`Failed to download ${url}: ${response.statusText}`);
-  }
+  return retryAsync(
+    async () => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to download ${url}: ${response.status} ${response.statusText}`,
+        );
+      }
 
-  return new Uint8Array(await response.arrayBuffer());
+      return new Uint8Array(await response.arrayBuffer());
+    },
+    5, // attempts
+    2000, // base retry delay (2 seconds)
+  );
 }
 
 /**
