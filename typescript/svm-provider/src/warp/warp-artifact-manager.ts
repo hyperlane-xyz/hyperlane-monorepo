@@ -27,6 +27,7 @@ import {
   SvmSyntheticTokenWriter,
 } from './synthetic-token.js';
 import { detectWarpTokenType } from './warp-query.js';
+import { PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
   constructor(
@@ -76,8 +77,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
         new SvmNativeTokenWriter(
           {
             igpProgramId: this.igpProgramId,
-            // FIXME: add proper program bytecode
-            program: { programBytes: new Uint8Array() },
+            program: { programBytes: PROGRAM_BYTES.tokenNative },
           },
           this.rpc,
           signer,
@@ -86,8 +86,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
         new SvmSyntheticTokenWriter(
           {
             igpProgramId: this.igpProgramId,
-            // FIXME: add proper program bytecode
-            program: { programBytes: new Uint8Array() },
+            program: { programBytes: PROGRAM_BYTES.token },
           },
           this.rpc,
           signer,
@@ -96,8 +95,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
         new SvmCollateralTokenWriter(
           {
             igpProgramId: this.igpProgramId,
-            // FIXME: add proper program bytecode
-            program: { programBytes: new Uint8Array() },
+            program: { programBytes: PROGRAM_BYTES.tokenCollateral },
           },
           this.rpc,
           signer,
