@@ -2,7 +2,7 @@ import type { Address } from '@solana/kit';
 import { after, before, describe, it } from 'mocha';
 import { expect } from 'chai';
 
-import { PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
@@ -106,7 +106,7 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
 
     writer = new SvmCollateralTokenWriter(
       {
-        program: { programBytes: PROGRAM_BYTES.tokenCollateral },
+        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral },
         igpProgramId,
       },
       rpc,
