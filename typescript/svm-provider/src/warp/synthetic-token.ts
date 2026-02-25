@@ -383,7 +383,7 @@ export class SvmSyntheticTokenWriter
       current.config,
       artifact.config,
       programId,
-      this.svmSigner.signer,
+      parseAddress(current.config.owner),
       this.config.igpProgramId,
     );
 
