@@ -17,7 +17,7 @@ pub fn termination_invariants_met(
     let gas_payments_event_count = fetch_metric_exact(
         &relayer_metrics_port.to_string(),
         "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "gas_payment"},
+        &hashmap! {"data_type" => "gas_payments"},
     )?
     .iter()
     .sum::<u32>();

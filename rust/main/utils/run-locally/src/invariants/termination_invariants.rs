@@ -256,18 +256,30 @@ pub fn scraper_termination_invariants_met(
         return Ok(false);
     }
 
-    // Check raw message dispatches (stored without RPC dependencies for CCTP availability)
-    let raw_dispatches_scraped = fetch_metric_exact(
+    // Check raw message dispatches (stored without RPC dependencies for CCTP availability).
+    // Tip and finalized stages both write to the same raw table; whichever stage inserts first
+    // gets the counter increment, the other stage may only upsert existing rows.
+    let raw_dispatches_scraped_finalized = fetch_metric_exact(
         SCRAPER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "raw_message_dispatch"},
     )?
     .iter()
     .sum::<u32>();
+    let raw_dispatches_scraped_tip = fetch_metric_exact(
+        SCRAPER_METRICS_PORT,
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "raw_message_dispatch_tip"},
+    )?
+    .iter()
+    .sum::<u32>();
+    let raw_dispatches_scraped = raw_dispatches_scraped_finalized + raw_dispatches_scraped_tip;
     if raw_dispatches_scraped != total_messages_dispatched {
         log!(
-            "Scraper has scraped {} raw message dispatches, expected {}",
+            "Scraper has scraped {} raw message dispatches (finalized={}, tip={}), expected {}",
             raw_dispatches_scraped,
+            raw_dispatches_scraped_finalized,
+            raw_dispatches_scraped_tip,
             total_messages_dispatched,
         );
         return Ok(false);
