@@ -43,6 +43,7 @@ import {
   buildInstruction,
   readonlyAccount,
   readonlySigner,
+  readonlySignerAddress,
   writableAccount,
 } from './utils.js';
 import {
@@ -266,13 +267,13 @@ export async function getTokenInitInstruction(
 
 export async function getTokenTransferOwnershipInstruction(
   programAddress: Address,
-  owner: TransactionSigner,
+  owner: Address,
   newOwner: Address | null,
 ): Promise<Instruction> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
   return buildInstruction(
     programAddress,
-    [writableAccount(tokenPda), readonlySigner(owner)],
+    [writableAccount(tokenPda), readonlySignerAddress(owner)],
     encodeTokenProgramInstruction({
       kind: 'transferOwnership',
       value: newOwner,
@@ -282,13 +283,13 @@ export async function getTokenTransferOwnershipInstruction(
 
 export async function getTokenSetInterchainSecurityModuleInstruction(
   programAddress: Address,
-  owner: TransactionSigner,
+  owner: Address,
   newIsm: Address | null,
 ): Promise<Instruction> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
   return buildInstruction(
     programAddress,
-    [writableAccount(tokenPda), readonlySigner(owner)],
+    [writableAccount(tokenPda), readonlySignerAddress(owner)],
     encodeTokenProgramInstruction({
       kind: 'setInterchainSecurityModule',
       value: newIsm,
@@ -298,20 +299,20 @@ export async function getTokenSetInterchainSecurityModuleInstruction(
 
 export async function getTokenSetInterchainGasPaymasterInstruction(
   programAddress: Address,
-  owner: TransactionSigner,
+  owner: Address,
   value: [Address, InterchainGasPaymasterType] | null,
 ): Promise<Instruction> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
   return buildInstruction(
     programAddress,
-    [writableAccount(tokenPda), readonlySigner(owner)],
+    [writableAccount(tokenPda), readonlySignerAddress(owner)],
     encodeTokenProgramInstruction({ kind: 'setInterchainGasPaymaster', value }),
   );
 }
 
 export async function getTokenEnrollRemoteRoutersInstruction(
   programAddress: Address,
-  owner: TransactionSigner,
+  owner: Address,
   routers: RemoteRouterConfig[],
 ): Promise<Instruction> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
@@ -320,7 +321,7 @@ export async function getTokenEnrollRemoteRoutersInstruction(
     [
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
       writableAccount(tokenPda),
-      readonlySigner(owner),
+      readonlySignerAddress(owner),
     ],
     encodeTokenProgramInstruction({
       kind: 'enrollRemoteRouters',
@@ -331,7 +332,7 @@ export async function getTokenEnrollRemoteRoutersInstruction(
 
 export async function getTokenSetDestinationGasConfigsInstruction(
   programAddress: Address,
-  owner: TransactionSigner,
+  owner: Address,
   gasConfigs: GasRouterConfig[],
 ): Promise<Instruction> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
@@ -340,7 +341,7 @@ export async function getTokenSetDestinationGasConfigsInstruction(
     [
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
       writableAccount(tokenPda),
-      readonlySigner(owner),
+      readonlySignerAddress(owner),
     ],
     encodeTokenProgramInstruction({
       kind: 'setDestinationGasConfigs',

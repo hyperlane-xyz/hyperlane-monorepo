@@ -24,6 +24,16 @@ export function readonlySigner(
   return { address: signer.address, role: AccountRole.READONLY_SIGNER, signer };
 }
 
+/**
+ * Marks an address as a required readonly signer without embedding a keypair.
+ * Use this for update instructions where signing is deferred to the caller.
+ */
+export function readonlySignerAddress(
+  address: Address,
+): InstructionAccountMeta {
+  return { address, role: AccountRole.READONLY_SIGNER };
+}
+
 export function writableSigner(
   signer: TransactionSigner,
 ): InstructionAccountMeta {
