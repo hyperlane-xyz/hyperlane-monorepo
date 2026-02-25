@@ -6,6 +6,7 @@ import { Contexts } from '../../contexts.js';
 import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 
 import desiredRebalancerBalances from './balances/desiredRebalancerBalances.json' with { type: 'json' };
+import desiredInventoryRebalancerBalances from './balances/desiredInventoryRebalancerBalances.json' with { type: 'json' };
 import desiredRelayerBalances from './balances/desiredRelayerBalances.json' with { type: 'json' };
 import lowUrgencyKeyFunderBalances from './balances/lowUrgencyKeyFunderBalance.json' with { type: 'json' };
 import { environment } from './chains.js';
@@ -24,6 +25,13 @@ const desiredRebalancerBalancePerChain = objMap(
   desiredRebalancerBalances,
   (_, balance) => balance.toString(),
 ) as Record<DesiredRebalancerBalanceChains, string>;
+
+type DesiredInventoryRebalancerBalanceChains =
+  keyof typeof desiredInventoryRebalancerBalances;
+const desiredInventoryRebalancerBalancePerChain = objMap(
+  desiredInventoryRebalancerBalances,
+  (_, balance) => balance.toString(),
+) as Record<DesiredInventoryRebalancerBalanceChains, string>;
 
 type LowUrgencyKeyFunderBalanceChains =
   keyof typeof lowUrgencyKeyFunderBalances;
@@ -48,7 +56,11 @@ export const keyFunderConfig: KeyFunderConfig<
     'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
-    [Contexts.Hyperlane]: [Role.Relayer, Role.Rebalancer],
+    [Contexts.Hyperlane]: [
+      Role.Relayer,
+      Role.Rebalancer,
+      Role.InventoryRebalancer,
+    ],
     [Contexts.ReleaseCandidate]: [Role.Relayer],
   },
   chainsToSkip: [],
@@ -56,6 +68,8 @@ export const keyFunderConfig: KeyFunderConfig<
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // desired rebalancer balance config
   desiredRebalancerBalancePerChain,
+  // desired inventory rebalancer balance config
+  desiredInventoryRebalancerBalancePerChain,
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
     ancient8: '0.1',

@@ -52,7 +52,7 @@ export class PriceGetter extends CoinGeckoTokenPriceGetter {
     const coinGeckoId = token.coinGeckoId;
 
     if (!coinGeckoId) {
-      this.logger.warn(
+      this.logger.debug(
         {
           tokenSymbol: token.symbol,
           chain: token.chainName,

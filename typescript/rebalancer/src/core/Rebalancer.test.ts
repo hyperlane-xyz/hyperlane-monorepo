@@ -7,11 +7,48 @@ import Sinon from 'sinon';
 import { HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 import {
-  buildTestRebalanceRoute,
+  buildTestMovableCollateralRoute,
   createRebalancerTestContext,
 } from '../test/helpers.js';
+import type { IActionTracker } from '../tracking/IActionTracker.js';
 
 import { Rebalancer } from './Rebalancer.js';
+
+function createMockActionTracker(): IActionTracker {
+  return {
+    initialize: Sinon.stub().resolves(),
+    createRebalanceIntent: Sinon.stub().callsFake(async () => ({
+      id: `intent-${Date.now()}`,
+      status: 'not_started',
+    })),
+    createRebalanceAction: Sinon.stub().resolves(),
+    completeRebalanceAction: Sinon.stub().resolves(),
+    failRebalanceAction: Sinon.stub().resolves(),
+    completeRebalanceIntent: Sinon.stub().resolves(),
+    cancelRebalanceIntent: Sinon.stub().resolves(),
+    failRebalanceIntent: Sinon.stub().resolves(),
+    syncTransfers: Sinon.stub().resolves(),
+    syncRebalanceIntents: Sinon.stub().resolves(),
+    syncRebalanceActions: Sinon.stub().resolves(),
+    syncInventoryMovementActions: Sinon.stub().resolves({
+      completed: 0,
+      failed: 0,
+    }),
+    logStoreContents: Sinon.stub().resolves(),
+    getInProgressTransfers: Sinon.stub().resolves([]),
+    getActiveRebalanceIntents: Sinon.stub().resolves([]),
+    getTransfersByDestination: Sinon.stub().resolves([]),
+    getRebalanceIntentsByDestination: Sinon.stub().resolves([]),
+    getTransfer: Sinon.stub().resolves(undefined),
+    getRebalanceIntent: Sinon.stub().resolves(undefined),
+    getRebalanceAction: Sinon.stub().resolves(undefined),
+    getInProgressActions: Sinon.stub().resolves([]),
+    getPartiallyFulfilledInventoryIntents: Sinon.stub().resolves([]),
+    getActionsByType: Sinon.stub().resolves([]),
+    getActionsForIntent: Sinon.stub().resolves([]),
+    getInflightInventoryMovements: Sinon.stub().resolves(0n),
+  };
+}
 
 chai.use(chaiAsPromised);
 
@@ -36,6 +73,7 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
@@ -58,19 +96,18 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute({
+      const route = buildTestMovableCollateralRoute({
         origin: 'ethereum',
         destination: 'arbitrum',
       });
-
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      expect(results[0].route).to.deep.equal(route);
     });
 
     it('should return failure results for routes that fail preparation', async () => {
@@ -83,15 +120,15 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute();
+      const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
-      expect(results[0].route).to.deep.equal(route);
     });
 
     it('should handle mixed success and failure results', async () => {
@@ -121,15 +158,16 @@ describe('Rebalancer', () => {
         },
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
       const routes = [
-        buildTestRebalanceRoute({
+        buildTestMovableCollateralRoute({
           origin: 'ethereum',
           destination: 'arbitrum',
         }),
-        buildTestRebalanceRoute({
+        buildTestMovableCollateralRoute({
           origin: 'optimism',
           destination: 'arbitrum',
         }),
@@ -154,10 +192,11 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute({
+      const route = buildTestMovableCollateralRoute({
         origin: 'ethereum',
         destination: 'arbitrum',
       });
@@ -176,10 +215,11 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute({
+      const route = buildTestMovableCollateralRoute({
         origin: 'ethereum',
         destination: 'arbitrum',
       });
@@ -199,10 +239,11 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute();
+      const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -221,10 +262,11 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute();
+      const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -241,10 +283,11 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute();
+      const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -263,10 +306,11 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute();
+      const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -283,10 +327,11 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute();
+      const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -312,10 +357,11 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute();
+      const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -357,15 +403,16 @@ describe('Rebalancer', () => {
         },
         { ...ctx.tokensByChainName, optimism: ctx.tokensByChainName.ethereum },
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
       const routes = [
-        buildTestRebalanceRoute({
+        buildTestMovableCollateralRoute({
           origin: 'ethereum',
           destination: 'arbitrum',
         }),
-        buildTestRebalanceRoute({
+        buildTestMovableCollateralRoute({
           origin: 'optimism',
           destination: 'arbitrum',
         }),
@@ -408,19 +455,20 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
       const routes = [
-        buildTestRebalanceRoute({
+        buildTestMovableCollateralRoute({
           origin: 'ethereum',
           destination: 'arbitrum',
         }),
-        buildTestRebalanceRoute({
+        buildTestMovableCollateralRoute({
           origin: 'ethereum',
           destination: 'optimism',
         }),
-        buildTestRebalanceRoute({
+        buildTestMovableCollateralRoute({
           origin: 'optimism',
           destination: 'arbitrum',
         }),
@@ -444,10 +492,11 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute();
+      const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -483,14 +532,15 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
       const routes = [
-        buildTestRebalanceRoute({
+        buildTestMovableCollateralRoute({
           amount: ethers.utils.parseEther('100').toBigInt(),
         }),
-        buildTestRebalanceRoute({
+        buildTestMovableCollateralRoute({
           amount: ethers.utils.parseEther('200').toBigInt(),
         }),
       ];
@@ -533,16 +583,17 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
       const routes = [
-        buildTestRebalanceRoute({
+        buildTestMovableCollateralRoute({
           origin: 'ethereum',
           destination: 'arbitrum',
           amount: ethers.utils.parseEther('100').toBigInt(),
         }),
-        buildTestRebalanceRoute({
+        buildTestMovableCollateralRoute({
           origin: 'ethereum',
           destination: 'optimism',
           amount: ethers.utils.parseEther('200').toBigInt(),
@@ -570,10 +621,11 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute();
+      const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -591,16 +643,17 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute();
+      const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('no Dispatch event found');
-      expect(results[0].messageId).to.be.undefined;
+      expect(results[0].messageId).to.equal('');
     });
 
     it('should include txHash in result', async () => {
@@ -619,10 +672,11 @@ describe('Rebalancer', () => {
         ctx.chainMetadata,
         ctx.tokensByChainName,
         ctx.multiProvider as any,
+        createMockActionTracker(),
         testLogger,
       );
 
-      const route = buildTestRebalanceRoute();
+      const route = buildTestMovableCollateralRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);

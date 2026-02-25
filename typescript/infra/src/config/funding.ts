@@ -38,6 +38,7 @@ export interface KeyFunderConfig<
   cyclesBetweenEthereumMessages?: number;
   desiredBalancePerChain: Record<SupportedChains[number], string>;
   desiredRebalancerBalancePerChain: ChainMap<string>;
+  desiredInventoryRebalancerBalancePerChain?: ChainMap<string>;
   igpClaimThresholdPerChain: ChainMap<string>;
   chainsToSkip: ChainName[];
   // Per-chain overrides for automatic sweep of excess funds to Safes

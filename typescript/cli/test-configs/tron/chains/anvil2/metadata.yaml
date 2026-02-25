@@ -1,0 +1,15 @@
+# Tron test chain aliased as anvil2 for test compatibility
+# Uses protocol: ethereum with technicalStack: tron since TVM is EVM-compatible
+---
+chainId: 3360022319
+domainId: 3360022318
+name: anvil2
+displayName: Tron Local 2
+protocol: ethereum
+technicalStack: tron
+rpcUrls:
+    - http: http://127.0.0.1:9090
+nativeToken:
+    name: TRX
+    symbol: TRX
+    decimals: 6

@@ -21,8 +21,10 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  IS_TRON_TEST,
   REGISTRY_PATH,
   TEMP_PATH,
+  TRON_KEY_1,
 } from './consts.js';
 
 const TEST_REGISTRY_PATH = './test-configs/test-registry';
@@ -32,9 +34,11 @@ describe('hyperlane send message e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   before(async () => {
+    // Use different keys for Tron to avoid nonce collisions on single node
+    const chain3Key = IS_TRON_TEST ? TRON_KEY_1 : ANVIL_KEY;
     await Promise.all([
-      hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH),
-      hyperlaneCoreDeploy(CHAIN_NAME_3, CORE_CONFIG_PATH),
+      hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
+      hyperlaneCoreDeploy(CHAIN_NAME_3, CORE_CONFIG_PATH, chain3Key),
     ]);
   });
 
@@ -102,7 +106,8 @@ describe('hyperlane send message e2e tests', async function () {
   });
 
   describe('interactive chain selection', () => {
-    it('should prompt for key and allow interactive chain selection', async () => {
+    it('should prompt for key and allow interactive chain selection', async function () {
+      if (IS_TRON_TEST) this.skip(); // Interactive prompts not reliable on Tron
       const steps: TestPromptAction[] = [
         SETUP_CHAIN_SIGNER_MANUALLY_STEP(ANVIL_KEY),
         SELECT_MAINNET_CHAIN_TYPE_STEP,

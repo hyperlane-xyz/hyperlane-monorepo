@@ -262,6 +262,8 @@ export class KeyFunderHelmManager extends HelmManager {
           DeployEnvironment,
           Record<Contexts, string>
         >;
+      case Role.InventoryRebalancer:
+        return undefined;
       default:
         return undefined;
     }
@@ -276,6 +278,8 @@ export class KeyFunderHelmManager extends HelmManager {
         return this.config.desiredBalancePerChain[chain];
       case Role.Rebalancer:
         return this.config.desiredRebalancerBalancePerChain?.[chain];
+      case Role.InventoryRebalancer:
+        return this.config.desiredInventoryRebalancerBalancePerChain?.[chain];
       default:
         return undefined;
     }

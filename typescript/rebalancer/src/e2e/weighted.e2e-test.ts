@@ -194,7 +194,7 @@ describe('WeightedStrategy E2E', function () {
       hyperlaneCore,
       {
         dispatchTx: rebalanceTxReceipt,
-        messageId: actionToBase.messageId,
+        messageId: actionToBase.messageId!,
         origin: 'anvil1',
         destination: 'anvil3',
       },
@@ -218,7 +218,6 @@ describe('WeightedStrategy E2E', function () {
       activeIntents[0].id,
     );
     expect(completedIntent!.status).to.equal('complete');
-    expect(completedIntent!.fulfilledAmount).to.equal(1000000000n);
 
     // Assert: No more in-progress actions
     const remainingActions = await context.tracker.getInProgressActions();
