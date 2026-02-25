@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { ContractFactory } from 'ethers';
+import { Wallet } from 'ethers';
 
 import {
   Mailbox__factory,
@@ -66,6 +67,23 @@ describe('MultiProvider Tron factory resolution', () => {
 });
 
 describe('MultiProvider', () => {
+  it('caches auto-connected signer instance', () => {
+    const chainMetadata = {
+      [TestChainName.test1]: test1,
+      [TestChainName.test2]: test2,
+    };
+    const mp = new MultiProvider(chainMetadata);
+    const signer = Wallet.createRandom();
+
+    mp.setSigner(TestChainName.test1, signer);
+
+    const connected1 = mp.getSigner(TestChainName.test1);
+    const connected2 = mp.getSigner(TestChainName.test1);
+
+    expect(connected1.provider).to.not.equal(null);
+    expect(connected2).to.equal(connected1);
+  });
+
   describe('handleTx', () => {
     let multiProvider: MultiProvider;
 

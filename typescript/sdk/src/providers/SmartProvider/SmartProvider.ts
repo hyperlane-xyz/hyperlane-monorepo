@@ -326,7 +326,8 @@ export class HyperlaneSmartProvider
     this.requestCount += 1;
     const reqId = this.requestCount;
 
-    // SendTransaction must not be retried - it could cause duplicate submissions
+    // Do not retry tx broadcast; retries can re-submit the same signed tx
+    // and trigger nonce errors on providers that don't return "already known".
     if (method === ProviderMethod.SendTransaction) {
       return this.performWithFallback(
         method,
