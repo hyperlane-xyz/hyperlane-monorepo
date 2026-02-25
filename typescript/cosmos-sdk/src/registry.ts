@@ -340,6 +340,15 @@ export const COSMOS_MODULE_MESSAGE_REGISTRY: CosmosModuleMessageRegistry = {
       type: 'hyperlane/warp/v1/MsgCreateSyntheticToken' as const,
     },
   },
+  MsgCreateNativeSyntheticToken: {
+    proto: {
+      type: '/hyperlane.warp.v1.MsgCreateNativeSyntheticToken' as const,
+      converter: types.warpTx.MsgCreateNativeSyntheticToken,
+    },
+    amino: {
+      type: 'hyperlane/warp/v1/MsgCreateNativeSyntheticToken' as const,
+    },
+  },
   MsgCreateSyntheticTokenResponse: {
     proto: {
       type: '/hyperlane.warp.v1.MsgCreateSyntheticTokenResponse' as const,
