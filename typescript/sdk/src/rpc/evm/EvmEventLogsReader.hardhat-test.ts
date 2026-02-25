@@ -61,7 +61,7 @@ describe('EvmEventLogsReader', () => {
       18,
     );
 
-    await testContract.deployed();
+    await testContract.waitForDeployment();
     assert(
       testContract.deployTransaction.blockNumber,
       'Expected the Contract deployment block number to be defined',

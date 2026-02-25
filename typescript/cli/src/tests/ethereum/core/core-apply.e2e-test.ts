@@ -96,7 +96,7 @@ describe('hyperlane core apply e2e tests', async function () {
 
     const proxyFactory = new ProxyAdmin__factory().connect(signer);
     const deployTx = await proxyFactory.deploy();
-    const newProxyAdmin = await deployTx.deployed();
+    const newProxyAdmin = await deployTx.waitForDeployment();
     coreConfig.proxyAdmin!.address = newProxyAdmin.address;
 
     writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);

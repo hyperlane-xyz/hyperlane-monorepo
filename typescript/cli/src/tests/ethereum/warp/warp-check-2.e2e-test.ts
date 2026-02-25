@@ -187,7 +187,7 @@ describe('hyperlane warp check e2e tests', async function () {
         chain2Addresses.mailbox,
       );
 
-      const deployedContract = await tx.deployed();
+      const deployedContract = await tx.waitForDeployment();
       const tx2 = await deployedContract.initialize(
         zeroAddress,
         zeroAddress,
