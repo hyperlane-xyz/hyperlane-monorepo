@@ -15,6 +15,8 @@ catalog:
   # === Production dependencies ===
 
   # Ethereum/EVM
+  '@arbitrum/nitro-contracts': ^3.2.0
+  '@chainlink/contracts-ccip': 1.5.1-beta.2
   ethers: ^6.16.0
   viem: ^2.21.45
   zksync-ethers: ^6.21.1
