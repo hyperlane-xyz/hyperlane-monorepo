@@ -87,6 +87,57 @@ pnpm lint
 pnpm prettier
 ```
 
+## Shovel Local (Database-Native Pipeline)
+
+This repo now supports local Shovel ingestion into `hl_*` raw tables with SQL trigger/procedure projection into scraper-shaped `shovel_*` tables.
+
+### 1. Set database connection
+
+```bash
+export DATABASE_URL=postgresql://<user>:<pass>@<host>:<port>/<db>
+```
+
+### 2. Apply shovel pipeline schema
+
+```bash
+pnpm shovel:db:migrate
+```
+
+This creates:
+
+- raw integration tables: `hl_mailbox_dispatch`, `hl_mailbox_dispatch_id`, `hl_mailbox_process_id`, `hl_igp_gas_payment`, `hl_merkle_insert`
+- scraper-parity tables: `shovel_block`, `shovel_transaction`, `shovel_message`, `shovel_delivered_message`, `shovel_gas_payment`, `shovel_raw_message_dispatch`
+- history table for reorg deletes: `shovel_orphaned_event`
+
+### 3. Generate Shovel config
+
+```bash
+export DEPLOY_ENV=testnet4
+export INDEXED_CHAINS=sepolia
+pnpm shovel:config --out local/shovel/shovel.local.json
+```
+
+Optional:
+
+- RPC URLs come from registry by default.
+- `HYP_RPCS_<CHAIN>` comma-separated RPC list (e.g. `HYP_RPCS_SEPOLIA=url1,url2`)
+- `HYP_RPC_<CHAIN>` single RPC override (e.g. `HYP_RPC_SEPOLIA=https://your-rpc`)
+- `CHAIN_RPC_URLS` JSON map override (e.g. `{"sepolia":"https://your-rpc"}`)
+- `HYP_WS_<CHAIN>` websocket URL
+
+### 4. Download and run Shovel
+
+```bash
+pnpm shovel:download
+pnpm shovel:run
+```
+
+### 5. Compare shovel vs scraper
+
+```bash
+pnpm shovel:compare
+```
+
 ## Deployment
 
 See Helm chart at `typescript/infra/helm/indexer/`.
