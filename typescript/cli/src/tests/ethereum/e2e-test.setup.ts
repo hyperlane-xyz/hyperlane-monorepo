@@ -10,13 +10,13 @@ import {
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
 import { runEvmNode, runTronNode } from '../nodes.js';
+import { readYamlOrJson } from '../../utils/files.js';
 
 import {
   CHAIN_2_METADATA_PATH,
   IS_TRON_TEST,
   REGISTRY_PATH as OLD_REGISTRY_PATH,
 } from './consts.js';
-import { readYamlOrJson } from '../../utils/files.js';
 
 const SKIP_EVM_TESTCONTAINERS = process.env.SKIP_EVM_TESTCONTAINERS === '1';
 
