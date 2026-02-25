@@ -6,6 +6,7 @@ import type {
   EvmBigNumberish,
   EvmGasAmount,
   EvmProviderLike,
+  EvmTransactionLike,
   EvmTransactionReceiptLike,
   EvmTransactionResponseLike,
 } from '../../providers/evmTypes.js';
@@ -54,6 +55,42 @@ function toChainId(value: unknown): number | undefined {
   if (typeof value === 'bigint') return Number(value);
   if (typeof value === 'string') return Number(BigInt(value));
   return undefined;
+}
+
+function toNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') return Number(BigInt(value));
+  if (
+    value &&
+    typeof value === 'object' &&
+    'toString' in value &&
+    typeof value.toString === 'function'
+  ) {
+    return Number(BigInt(value.toString()));
+  }
+  return undefined;
+}
+
+function toLocalViemTransactionRequest(
+  tx: EvmTransactionLike,
+): LocalViemTransactionRequest {
+  const request: LocalViemTransactionRequest = {
+    to: tx.to,
+    from: tx.from,
+    value: tx.value,
+    gas: tx.gas,
+    gasLimit: tx.gasLimit,
+    gasPrice: tx.gasPrice,
+    maxFeePerGas: tx.maxFeePerGas,
+    maxPriorityFeePerGas: tx.maxPriorityFeePerGas,
+    chainId: toChainId(tx.chainId),
+    nonce: toNumber(tx.nonce),
+    type:
+      toNumber(tx.type) ?? (typeof tx.type === 'string' ? tx.type : undefined),
+    data: isHex(tx.data) ? tx.data : undefined,
+  };
+  return request;
 }
 
 function toViemProviderLike(
@@ -144,11 +181,12 @@ export class LocalAccountViemSigner {
     throw new Error('Provider does not support getBalance');
   }
 
-  async estimateGas(tx: LocalViemTransactionRequest): Promise<EvmGasAmount> {
+  async estimateGas(tx: EvmTransactionLike): Promise<EvmGasAmount> {
     if (!this.provider) throw new Error('Provider required to estimate gas');
+    const request = toLocalViemTransactionRequest(tx);
     const estimated = await this.provider.estimateGas({
-      ...tx,
-      from: tx.from || this.address,
+      ...request,
+      from: request.from || this.address,
     });
     const asBigInt = toBigIntValue(estimated);
     if (asBigInt !== undefined) return asBigInt;
@@ -202,12 +240,14 @@ export class LocalAccountViemSigner {
   }
 
   async sendTransaction(
-    tx: LocalViemTransactionRequest,
+    tx: EvmTransactionLike,
   ): Promise<EvmTransactionResponseLike> {
     if (!this.provider)
       throw new Error('Provider required to send transaction');
     return this.withSendLock(async () => {
-      const signedTransaction = await this.signTransaction(tx);
+      const signedTransaction = await this.signTransaction(
+        toLocalViemTransactionRequest(tx),
+      );
       const response = await this.provider!.sendTransaction(signedTransaction);
       return {
         ...response,
