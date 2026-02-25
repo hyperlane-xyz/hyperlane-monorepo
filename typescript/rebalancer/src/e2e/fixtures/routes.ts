@@ -1,5 +1,3 @@
-import { BigNumber } from 'ethers';
-
 import { TokenStandard, type WarpCoreConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -160,7 +158,7 @@ export const ANVIL_USER_PRIVATE_KEY =
 
 export const TEST_TIMEOUT_MS = 300000;
 
-export const DEFAULT_TRANSFER_AMOUNT = BigNumber.from('600000000');
+export const DEFAULT_TRANSFER_AMOUNT = 600000000n;
 
 export const BALANCE_PRESETS: Record<string, Record<TestChain, string>> = {
   DEFICIT_ARB: {

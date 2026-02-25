@@ -42,7 +42,7 @@ describe('StrategyFactory', () => {
             weight: 100n,
             tolerance: 0n,
           },
-          bridge: ethers.constants.AddressZero,
+          bridge: ethers.ZeroAddress,
           bridgeLockTime: 1,
         },
         [chain2]: {
@@ -50,7 +50,7 @@ describe('StrategyFactory', () => {
             weight: 100n,
             tolerance: 0n,
           },
-          bridge: ethers.constants.AddressZero,
+          bridge: ethers.ZeroAddress,
           bridgeLockTime: 1,
         },
       };
@@ -77,7 +77,7 @@ describe('StrategyFactory', () => {
             target: 10,
             type: RebalancerMinAmountType.Absolute,
           },
-          bridge: ethers.constants.AddressZero,
+          bridge: ethers.ZeroAddress,
           bridgeLockTime: 1,
         },
         [chain2]: {
@@ -86,7 +86,7 @@ describe('StrategyFactory', () => {
             target: 10,
             type: RebalancerMinAmountType.Absolute,
           },
-          bridge: ethers.constants.AddressZero,
+          bridge: ethers.ZeroAddress,
           bridgeLockTime: 1,
         },
       };
