@@ -5,6 +5,7 @@ import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
 
+import { DEFAULT_INTENT_TTL_MS } from '../config/types.js';
 import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 
 import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
@@ -71,6 +72,7 @@ describe('ActionTracker', () => {
       },
       bridges: ['0xbridge1', '0xbridge2'],
       rebalancerAddress: '0xrebalancer',
+      intentTTL: DEFAULT_INTENT_TTL_MS,
     };
 
     tracker = new ActionTracker(
@@ -99,6 +101,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -128,6 +131,102 @@ describe('ActionTracker', () => {
       expect(actions[0].messageId).to.equal('0xmsg1');
     });
 
+    it('should use send_occurred_at for createdAt when available', async () => {
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: '2024-01-15T12:30:45',
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.initialize();
+
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents).to.have.lengthOf(1);
+      // Hasura timestamps are UTC without 'Z'; recoverAction appends 'Z' before parsing
+      const expectedMs = new Date('2024-01-15T12:30:45Z').getTime();
+      expect(intents[0].createdAt).to.equal(expectedMs);
+
+      const actions = await rebalanceActionStore.getAll();
+      expect(actions[0].createdAt).to.equal(expectedMs);
+    });
+
+    it('should fall back to Date.now() when send_occurred_at is null', async () => {
+      const before = Date.now();
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.initialize();
+      const after = Date.now();
+
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents[0].createdAt).to.be.at.least(before);
+      expect(intents[0].createdAt).to.be.at.most(after);
+    });
+
+    it('should skip action with invalid send_occurred_at timestamp', async () => {
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: 'garbage',
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.initialize();
+
+      // Invalid timestamp is caught by recoverAction's catch block, so the action is skipped
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents).to.have.lengthOf(0);
+      const actions = await rebalanceActionStore.getAll();
+      expect(actions).to.have.lengthOf(0);
+    });
+
     it('should skip creating action if it already exists', async () => {
       const inflightMessages: ExplorerMessage[] = [
         {
@@ -142,6 +241,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -189,6 +289,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -232,6 +333,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -330,6 +432,61 @@ describe('ActionTracker', () => {
 
       await rebalanceIntentStore.save(intent);
       await rebalanceActionStore.save(action);
+
+      await tracker.syncRebalanceIntents();
+
+      const updated = await rebalanceIntentStore.get('intent-1');
+      expect(updated?.status).to.equal('in_progress');
+    });
+
+    it('should mark unfulfilled intents as failed when TTL exceeded', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS - 1,
+        updatedAt: Date.now(),
+      };
+
+      const action: RebalanceAction = {
+        id: 'action-1',
+        type: 'rebalance_message',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 50n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
+
+      await tracker.syncRebalanceIntents();
+
+      const updatedIntent = await rebalanceIntentStore.get('intent-1');
+      expect(updatedIntent?.status).to.equal('failed');
+
+      const updatedAction = await rebalanceActionStore.get('action-1');
+      expect(updatedAction?.status).to.equal('failed');
+    });
+
+    it('should not expire intents within TTL', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS + 60_000,
+        updatedAt: Date.now(),
+      };
+
+      await rebalanceIntentStore.save(intent);
 
       await tracker.syncRebalanceIntents();
 

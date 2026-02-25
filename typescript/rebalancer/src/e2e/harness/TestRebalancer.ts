@@ -10,6 +10,7 @@ import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
+  DEFAULT_INTENT_TTL_MS,
   type StrategyConfig,
   getStrategyChainNames,
 } from '../../config/types.js';
@@ -203,6 +204,7 @@ export class TestRebalancerBuilder {
     const rebalancerConfig = new RebalancerConfig(
       MONITORED_ROUTE_ID,
       this.strategyConfig,
+      DEFAULT_INTENT_TTL_MS,
     );
 
     const registry = this.deploymentManager.getRegistry();
@@ -325,6 +327,7 @@ export class TestRebalancerBuilder {
         origin_tx_recipient: deployedAddresses.monitoredRoute[params.from],
         is_delivered: false,
         message_body: encodeWarpRouteMessageBody(warpRecipient, params.amount),
+        send_occurred_at: null,
       };
 
       userTransfers.push(mockTransfer);
