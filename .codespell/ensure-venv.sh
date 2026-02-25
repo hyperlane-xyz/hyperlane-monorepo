@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Ensures the codespell venv exists. Sources into the calling script.
 # After sourcing, $CODESPELL is the path to the codespell binary.
 set -euo pipefail
