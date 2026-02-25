@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
+import { BigNumber, Contract, ContractFactory } from 'ethers';
 
 import {
   TronNodeInfo,
@@ -7,8 +7,7 @@ import {
   runTronNode,
   stopTronNode,
 } from '../testing/node.js';
-import { TestStorage } from '@hyperlane-xyz/core/tron/typechain/contracts/test/TestStorage.js';
-import { TestStorage__factory } from '@hyperlane-xyz/core/tron/typechain/factories/contracts/test/TestStorage__factory.js';
+import TestStorageArtifact from '../abi/contracts/test/TestStorage.sol/TestStorage.json' with { type: 'json' };
 
 import { TronContractFactory } from './TronContractFactory.js';
 import { TronWallet } from './TronWallet.js';
@@ -25,12 +24,24 @@ describe('TronWallet Integration Tests', function () {
 
   let node: TronNodeInfo;
   let wallet: TronWallet;
+  let storageFactory: TronContractFactory<ContractFactory>;
+
+  const createStorageFactory = (signer: TronWallet) =>
+    new ContractFactory(
+      TestStorageArtifact.abi,
+      TestStorageArtifact.bytecode,
+      signer,
+    );
 
   before(async () => {
     node = await runTronNode(TEST_CHAIN);
 
     const tronUrl = `http://127.0.0.1:${TEST_CHAIN.port}`;
     wallet = new TronWallet(node.privateKeys[0], tronUrl);
+    storageFactory = new TronContractFactory(
+      createStorageFactory(wallet),
+      wallet,
+    );
   });
 
   after(async () => {
@@ -83,18 +94,13 @@ describe('TronWallet Integration Tests', function () {
   });
 
   describe('TronContractFactory', () => {
-    let contract: TestStorage;
+    let contract: Contract;
 
     const INITIAL_VALUE = 100;
 
     it('should get deploy transaction and estimate gas', async () => {
-      const factory = new TronContractFactory(
-        new TestStorage__factory(),
-        wallet,
-      );
-
       // Get deploy transaction (pure ethers, no network call)
-      const deployTx = factory.getDeployTransaction(
+      const deployTx = storageFactory.getDeployTransaction(
         INITIAL_VALUE,
         wallet.address,
       );
@@ -107,22 +113,21 @@ describe('TronWallet Integration Tests', function () {
     });
 
     it('should deploy with gas limit override (like handleDeploy)', async () => {
-      const factory = new TronContractFactory(
-        new TestStorage__factory(),
-        wallet,
-      );
-
       // Simulate handleDeploy flow: estimate then deploy with buffered gas limit
-      const deployTx = factory.getDeployTransaction(
+      const deployTx = storageFactory.getDeployTransaction(
         INITIAL_VALUE,
         wallet.address,
       );
       const estimatedGas = await wallet.estimateGas(deployTx);
       const bufferedGasLimit = estimatedGas.mul(120).div(100); // 20% buffer
 
-      const deployed = await factory.deploy(INITIAL_VALUE, wallet.address, {
-        gasLimit: bufferedGasLimit,
-      });
+      const deployed = await storageFactory.deploy(
+        INITIAL_VALUE,
+        wallet.address,
+        {
+          gasLimit: bufferedGasLimit,
+        },
+      );
 
       expect(deployed.address).to.be.a('string');
       expect(deployed.address).to.match(/^0x[a-fA-F0-9]{40}$/);
@@ -133,11 +138,7 @@ describe('TronWallet Integration Tests', function () {
     });
 
     it('should deploy a contract with constructor args', async () => {
-      const factory = new TronContractFactory(
-        new TestStorage__factory(),
-        wallet,
-      );
-      contract = await factory.deploy(INITIAL_VALUE, wallet.address);
+      contract = await storageFactory.deploy(INITIAL_VALUE, wallet.address);
 
       expect(contract.address).to.be.a('string');
       expect(contract.address).to.match(/^0x[a-fA-F0-9]{40}$/);
