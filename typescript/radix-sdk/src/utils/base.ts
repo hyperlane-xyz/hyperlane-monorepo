@@ -142,14 +142,16 @@ export class RadixBase {
         },
       });
 
-    assert(
-      !(response.receipt as any).error_message,
-      `${(response.receipt as any).error_message}`,
-    );
+    const receipt = response.receipt as {
+      error_message?: string;
+      fee_summary: FeeSummary;
+      costing_parameters: CostingParameters;
+    };
 
-    const fee_summary: FeeSummary = (response.receipt as any).fee_summary;
-    const costing_parameters: CostingParameters = (response.receipt as any)
-      .costing_parameters;
+    assert(!receipt.error_message, `${receipt.error_message}`);
+
+    const fee_summary: FeeSummary = receipt.fee_summary;
+    const costing_parameters: CostingParameters = receipt.costing_parameters;
 
     const gasUnits =
       BigInt(fee_summary.execution_cost_units_consumed) +
@@ -182,26 +184,21 @@ export class RadixBase {
     const details =
       await this.gateway.state.getEntityDetailsVaultAggregated(resource);
 
-    const result = {
-      name:
-        (
-          details.metadata.items.find((i) => i.key === 'name')?.value
-            ?.typed as any
-        )?.value ?? '',
-      symbol:
-        (
-          details.metadata.items.find((i) => i.key === 'symbol')?.value
-            ?.typed as any
-        )?.value ?? '',
-      description:
-        (
-          details.metadata.items.find((i) => i.key === 'description')?.value
-            ?.typed as any
-        )?.value ?? '',
-      decimals: (details.details as any).divisibility as number,
-    };
+    const typedName = details.metadata.items.find((i) => i.key === 'name')
+      ?.value?.typed as { value?: string } | undefined;
+    const typedSymbol = details.metadata.items.find((i) => i.key === 'symbol')
+      ?.value?.typed as { value?: string } | undefined;
+    const typedDescription = details.metadata.items.find(
+      (i) => i.key === 'description',
+    )?.value?.typed as { value?: string } | undefined;
+    const detailsValue = details.details as { divisibility?: number };
 
-    return result;
+    return {
+      name: typedName?.value ?? '',
+      symbol: typedSymbol?.value ?? '',
+      description: typedDescription?.value ?? '',
+      decimals: detailsValue.divisibility ?? 0,
+    };
   }
 
   public async getXrdMetadata(): Promise<{
@@ -265,7 +262,10 @@ export class RadixBase {
     const { decimals } = await this.getMetadata({ resource });
 
     return BigInt(
-      new BigNumber((details.details as any).total_supply)
+      new BigNumber(
+        (details.details as { total_supply?: string | number }).total_supply ??
+          0,
+      )
         .times(new BigNumber(10).exponentiatedBy(decimals))
         .toFixed(0),
     );
@@ -357,9 +357,13 @@ export class RadixBase {
     const r = receipt.transaction.receipt;
     assert(r, `found no receipt on transaction: ${receipt.transactionHash}`);
 
-    const newGlobalGenericComponent = (
-      r.state_updates as any
-    ).new_global_entities.find(
+    const stateUpdates = r.state_updates as {
+      new_global_entities: Array<{
+        entity_type: string;
+        entity_address: string;
+      }>;
+    };
+    const newGlobalGenericComponent = stateUpdates.new_global_entities.find(
       (entity: { entity_type: string }) =>
         entity.entity_type === 'GlobalGenericComponent',
     );
