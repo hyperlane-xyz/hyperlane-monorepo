@@ -79,6 +79,16 @@ function buildRpcConnections(
   };
 }
 
+function stringifyWithBigInt(value: unknown): string {
+  try {
+    return JSON.stringify(value, (_key, v) =>
+      typeof v === 'bigint' ? `${v}n` : v,
+    );
+  } catch {
+    return String(value);
+  }
+}
+
 export function getSmartProviderErrorMessage(errorMsg: string): string {
   return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
 }
@@ -403,7 +413,7 @@ export class HyperlaneSmartProvider
       const providerMetadata = {
         providerIndex: pIndex,
         rpcUrl: provider.getBaseUrl(),
-        method: `${method}(${JSON.stringify(params)})`,
+        method: `${method}(${stringifyWithBigInt(params)})`,
         chainId: this.network.chainId,
       };
 
@@ -490,7 +500,7 @@ export class HyperlaneSmartProvider
         providerResultErrors,
         `All providers failed on chain ${
           this.network.name
-        } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+        } for method ${method} and params ${stringifyWithBigInt(params)}`,
       );
       throw new CombinedError();
     }
@@ -518,7 +528,7 @@ export class HyperlaneSmartProvider
           [result.error, ...providerResultErrors],
           `All providers failed on chain ${
             this.network.name
-          } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
+          } for method ${method} and params ${stringifyWithBigInt(params)}`,
         );
         throw new CombinedError();
       }

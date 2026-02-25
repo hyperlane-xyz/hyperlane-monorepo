@@ -87,6 +87,25 @@ export class MockActionTracker implements IActionTracker {
     amount: bigint,
   ): void {
     const now = Date.now();
+
+    const existing = this.transfers.get(id);
+    if (existing) {
+      // Transfer may be discovered from multiple sources (tx receipt fallback
+      // + mailbox Dispatch listener). Keep the larger amount to avoid
+      // overwriting canonical wei amounts with scaled/decoded values.
+      existing.origin = origin;
+      existing.destination = destination;
+      existing.amount = existing.amount >= amount ? existing.amount : amount;
+      existing.status = 'in_progress';
+      existing.updatedAt = now;
+
+      logger.debug(
+        { id, origin, destination, amount: existing.amount.toString() },
+        'Updated transfer',
+      );
+      return;
+    }
+
     this.transfers.set(id, {
       id,
       origin,

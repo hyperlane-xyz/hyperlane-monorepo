@@ -366,36 +366,54 @@ export class MockInfrastructureController {
   /**
    * Wait for all pending messages to be delivered
    */
-  async waitForAllDeliveries(timeoutMs: number = 30000): Promise<void> {
+  async waitForAllDeliveries(
+    timeoutMs: number = 30000,
+    settleMs: number = 1000,
+  ): Promise<void> {
     const startTime = Date.now();
+    const deadline = startTime + timeoutMs;
+    let lastSeenPendingTime = startTime;
 
-    while (this.hasPendingMessages()) {
-      if (Date.now() - startTime > timeoutMs) {
-        const remaining = this.pendingMessages.length;
-        logger.warn(
-          { remaining },
-          'Timeout waiting for deliveries - marking failures',
-        );
+    while (Date.now() <= deadline) {
+      const pendingCount = this.pendingMessages.length;
+      const now = Date.now();
+      if (pendingCount > 0) {
+        lastSeenPendingTime = now;
+      }
 
-        for (const msg of this.pendingMessages) {
-          if (msg.type === 'user-transfer') {
-            this.kpiCollector.recordTransferFailed(msg.messageId);
-            this.actionTracker?.removeTransfer(msg.messageId);
-          } else if (msg.type === 'bridge-transfer') {
-            this.kpiCollector.recordRebalanceFailed(msg.messageId);
-            if (this.actionTracker && msg.amount > 0n) {
-              this.actionTracker.failRebalanceByRoute(
-                this.core.multiProvider.getDomainId(msg.origin),
-                this.core.multiProvider.getDomainId(msg.destination),
-                msg.amount,
-              );
-            }
-          }
-        }
-        this.pendingMessages = [];
-        break;
+      // Require a short quiet period with no pending messages to avoid races
+      // where async event polling has not yet populated pendingMessages.
+      if (
+        pendingCount === 0 &&
+        now - startTime >= settleMs &&
+        now - lastSeenPendingTime >= settleMs
+      ) {
+        return;
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+
+    const remaining = this.pendingMessages.length;
+    logger.warn(
+      { remaining },
+      'Timeout waiting for deliveries - marking failures',
+    );
+
+    for (const msg of this.pendingMessages) {
+      if (msg.type === 'user-transfer') {
+        this.kpiCollector.recordTransferFailed(msg.messageId);
+        this.actionTracker?.removeTransfer(msg.messageId);
+      } else if (msg.type === 'bridge-transfer') {
+        this.kpiCollector.recordRebalanceFailed(msg.messageId);
+        if (this.actionTracker && msg.amount > 0n) {
+          this.actionTracker.failRebalanceByRoute(
+            this.core.multiProvider.getDomainId(msg.origin),
+            this.core.multiProvider.getDomainId(msg.destination),
+            msg.amount,
+          );
+        }
+      }
+    }
+    this.pendingMessages = [];
   }
 }
