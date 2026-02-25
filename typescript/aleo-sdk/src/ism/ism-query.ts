@@ -13,6 +13,17 @@ import {
 import { fromAleoAddress } from '../utils/helper.js';
 import { AleoIsmType } from '../utils/types.js';
 
+function asObjectRecord(
+  raw: unknown,
+  context: string,
+): Record<string, unknown> {
+  assert(
+    typeof raw === 'object' && !isNullish(raw),
+    `Expected ${context} to be an object but got ${typeof raw}`,
+  );
+  return raw as Record<string, unknown>;
+}
+
 /**
  * Type guard to check if a number is a valid AleoIsmType
  */
@@ -95,12 +106,9 @@ function formatIsmMultisigInfo(raw: unknown): {
   validators: string[];
   threshold: number;
 } {
-  assert(
-    typeof raw === 'object' && !isNullish(raw),
-    `Expected multisig config to be an object but got ${typeof raw}`,
-  );
-
-  const { validators, threshold } = raw as any;
+  const parsed = asObjectRecord(raw, 'multisig config');
+  const validators = parsed.validators;
+  const threshold = parsed.threshold;
 
   assert(
     Array.isArray(validators),
@@ -119,11 +127,14 @@ function formatIsmMultisigInfo(raw: unknown): {
     // addresses
     validators: validators
       .map((v) => {
+        const parsedValidator = asObjectRecord(v, 'validator');
+        const bytes = parsedValidator.bytes;
+        assert(Array.isArray(bytes), 'Expected validator bytes to be an array');
         assert(
-          Array.isArray(v.bytes),
-          'Expected validator bytes to be an array',
+          bytes.every((b) => typeof b === 'number'),
+          'Expected validator bytes to contain numbers',
         );
-        return ensure0x(Buffer.from(v.bytes).toString('hex'));
+        return ensure0x(Buffer.from(bytes as number[]).toString('hex'));
       })
       // Remove any unset validator from the result array
       .filter((validatorAddress) => !isZeroishAddress(validatorAddress)),
@@ -172,12 +183,8 @@ export async function getMessageIdMultisigIsmConfig(
 }
 
 function formatRoutingIsmData(raw: unknown): { owner: string } {
-  assert(
-    typeof raw === 'object' && !isNullish(raw),
-    `Expected routing ISM data to be an object but got ${typeof raw}`,
-  );
-
-  const { ism_owner } = raw as any;
+  const routingIsmData = asObjectRecord(raw, 'routing ISM data');
+  const ism_owner = routingIsmData.ism_owner;
 
   assert(
     typeof ism_owner === 'string',

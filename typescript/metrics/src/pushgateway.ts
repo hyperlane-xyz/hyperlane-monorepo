@@ -60,7 +60,7 @@ export async function submitMetrics(
 
   const statusCode =
     typeof resp == 'object' && resp != null && 'statusCode' in resp
-      ? (resp as any).statusCode
+      ? (resp as { statusCode?: unknown }).statusCode
       : 'unknown';
   log.info('Prometheus metrics pushed to PushGateway', { statusCode });
 }

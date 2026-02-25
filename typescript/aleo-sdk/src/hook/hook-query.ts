@@ -107,6 +107,43 @@ interface AleoIgpData {
   hook_owner: string;
 }
 
+interface AleoDestinationGasConfigData {
+  exchange_rate: { toString(): string };
+  gas_price: { toString(): string };
+  gas_overhead: { toString(): string };
+}
+
+function parseDestinationGasConfig(raw: unknown): AleoDestinationGasConfigData {
+  assert(
+    typeof raw === 'object' && raw !== null,
+    `Expected destination gas config to be an object but got ${typeof raw}`,
+  );
+
+  const config = raw as Record<string, unknown>;
+  const exchangeRate = config.exchange_rate;
+  const gasPrice = config.gas_price;
+  const gasOverhead = config.gas_overhead;
+
+  const hasToStringFn = (value: unknown): value is { toString(): string } =>
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof (value as { toString?: unknown }).toString === 'function';
+
+  assert(
+    hasToStringFn(exchangeRate) &&
+      hasToStringFn(gasPrice) &&
+      hasToStringFn(gasOverhead),
+    'Invalid destination gas config structure',
+  );
+
+  return {
+    exchange_rate: exchangeRate,
+    gas_price: gasPrice,
+    gas_overhead: gasOverhead,
+  };
+}
+
 /**
  * Query the configuration for an IGP (Interchain Gas Paymaster) hook.
  *
@@ -186,7 +223,7 @@ export async function getIgpHookConfig(
       programId,
       'destination_gas_configs',
       gasConfigKey.toString(),
-      (raw) => raw as any,
+      parseDestinationGasConfig,
     );
 
     // This is necessary because `destination_gas_config_iter` maintains keys for all destination domain entries,
