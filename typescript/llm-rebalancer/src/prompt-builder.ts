@@ -151,8 +151,8 @@ ${formatStrategy(strategy)}
 ${multiAssetSection}
 ## Skills
 
-Inventory bridge skills (for cross-asset conversion) are in \`.pi/skills/\`. Check when you need to convert between assets.
-For standard operations (same-asset rebalance, supplying collateral), use the tools directly — no skill reading needed.
+Inventory bridge skills (for cross-asset conversion) are in \`.pi/skills/\`. Read them when you need to convert between assets in your wallet (e.g., swap USDC for USDT via LiFi, then \`supply_collateral\`).
+For standard operations (same-asset rebalance, supplying collateral), use \`rebalance_collateral\` and \`supply_collateral\` tools directly.
 
 ## Loop
 
@@ -172,6 +172,6 @@ For standard operations (same-asset rebalance, supplying collateral), use the to
 - If action fails, note in context, don't retry immediately.
 - Prefer \`rebalance_collateral\` over \`supply_collateral\` (direct router movement > consuming wallet inventory).
 - \`save_context\` summary format: FULL messageIds (66 hex chars) for pending. status=balanced or status=pending. Keep under 500 chars. No prose — just facts.
-- All amounts in wei (18 decimals).
+- All amounts are in the token's smallest unit. Check \`get_chain_metadata\` for decimals (e.g., 6 for USDC/USDT, 18 for ETH).
 `;
 }

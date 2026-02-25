@@ -49,8 +49,8 @@ export async function createRebalancerSession(
   const authStorage = AuthStorage.create();
   const modelRegistry = new ModelRegistry(authStorage);
 
-  const provider = opts.provider ?? 'anthropic';
-  const modelId = opts.model ?? 'claude-haiku-4-5';
+  const provider = opts.provider ?? 'opencode';
+  const modelId = opts.model ?? 'gpt-5.1-codex-mini';
   const model = modelRegistry.find(provider, modelId);
   if (!model) {
     throw new Error(`Model not found: ${provider}/${modelId}`);
@@ -87,9 +87,11 @@ export async function createRebalancerSession(
 }
 
 const CYCLE_PROMPT = `New cycle. Execute your loop — do NOT narrate or explain. Call tools immediately, no preamble.
-If no pending actions and balanced: call get_balances then save_context. Two tool calls, done.
-If imbalanced: get_balances, execute rebalance, save_context. Minimal text output.
-When you need multiple independent checks (e.g. check_hyperlane_delivery + get_balances), call them in parallel.`;
+ALWAYS start with get_balances — it returns BOTH balances AND pending user transfers.
+If pendingUserTransfers exist: check the DESTINATION ASSET has sufficient collateral on the destination chain. If not, act to supply it.
+If balanced AND no pending transfers: save_context with status=balanced.
+If imbalanced OR pending transfers blocked: rebalance/supply, then save_context with status=pending.
+Minimal text output. When you need multiple independent checks (e.g. check_hyperlane_delivery + get_balances), call them in parallel.`;
 
 export interface CycleResult {
   status: 'balanced' | 'pending' | 'unknown';

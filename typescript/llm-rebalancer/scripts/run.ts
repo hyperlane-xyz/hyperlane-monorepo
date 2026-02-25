@@ -3,12 +3,16 @@
  * Production entry point for the LLM rebalancer.
  *
  * Usage:
- *   REBALANCER_KEY=0x... ANTHROPIC_API_KEY=sk-... tsx scripts/run.ts config.json
+ *   REBALANCER_KEY=0x... OPENCODE_API_KEY=... tsx scripts/run.ts config.json
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import { RebalancerAgent } from '../src/agent.js';
 import type {
@@ -16,6 +20,11 @@ import type {
   RebalancerAgentConfig,
 } from '../src/config.js';
 import { SqliteContextStore } from '../src/context-store.js';
+import {
+  ExplorerPendingTransferProvider,
+  type ExplorerClientLike,
+} from '../src/explorer-pending-transfers.js';
+import type { PendingTransferProvider } from '../src/pending-transfers.js';
 import { buildAgentsPrompt } from '../src/prompt-builder.js';
 import { buildCustomTools } from '../src/tools/index.js';
 
@@ -27,6 +36,63 @@ interface ConfigFile {
   model?: string;
   provider?: string;
   dbPath?: string;
+  explorerUrl?: string;
+}
+
+/** Minimal GraphQL client satisfying ExplorerClientLike */
+function createExplorerClient(baseUrl: string): ExplorerClientLike {
+  const toBytea = (addr: string) => addr.replace(/^0x/i, '\\x').toLowerCase();
+  const normalizeHex = (hex: string) =>
+    hex?.startsWith('\\x') ? '0x' + hex.slice(2) : hex;
+
+  return {
+    async getInflightTransfers(params, _logger) {
+      const routers = Object.values(params.routersByDomain);
+      const domains = Object.keys(params.routersByDomain).map(Number);
+      const query = `
+        query InflightTransfers(
+          $senders: [bytea!], $recipients: [bytea!],
+          $originDomains: [Int!], $destDomains: [Int!],
+          $limit: Int = 100
+        ) {
+          message_view(
+            where: { _and: [
+              { is_delivered: { _eq: false } },
+              { sender: { _in: $senders } },
+              { recipient: { _in: $recipients } },
+              { origin_domain_id: { _in: $originDomains } },
+              { destination_domain_id: { _in: $destDomains } }
+            ] }
+            order_by: { origin_tx_id: desc }
+            limit: $limit
+          ) { msg_id origin_domain_id destination_domain_id message_body }
+        }`;
+
+      const res = await fetch(baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          variables: {
+            senders: routers.map(toBytea),
+            recipients: routers.map(toBytea),
+            originDomains: domains,
+            destDomains: domains,
+            limit: params.limit ?? 100,
+          },
+        }),
+      });
+
+      if (!res.ok) throw new Error(`Explorer query failed: ${res.status}`);
+      const json = await res.json();
+      return (json?.data?.message_view ?? []).map((msg: any) => ({
+        msg_id: normalizeHex(msg.msg_id),
+        origin_domain_id: msg.origin_domain_id,
+        destination_domain_id: msg.destination_domain_id,
+        message_body: normalizeHex(msg.message_body),
+      }));
+    },
+  };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -62,16 +128,31 @@ async function main() {
   // Set up working directory
   const workDir = process.cwd();
 
-  // Import rebalancer key into foundry keystore
+  // Import rebalancer key into foundry keystore (skip if already exists)
   const keystoreDir = path.join(workDir, 'keystore');
   if (!fs.existsSync(keystoreDir)) {
     fs.mkdirSync(keystoreDir, { recursive: true });
   }
-  execSync(
-    `cast wallet import rebalancer --private-key ${rebalancerKey} --keystore-dir ${keystoreDir} --unsafe-password ''`,
-    { stdio: 'pipe' },
-  );
-  console.log('Imported rebalancer key into foundry keystore');
+  const keystoreFile = path.join(keystoreDir, 'rebalancer');
+  if (fs.existsSync(keystoreFile)) {
+    console.log('Rebalancer keystore already exists, skipping import');
+  } else {
+    execSync(
+      `cast wallet import rebalancer --private-key ${rebalancerKey} --keystore-dir ${keystoreDir} --unsafe-password ''`,
+      { stdio: 'pipe' },
+    );
+    console.log('Imported rebalancer key into foundry keystore');
+  }
+
+  // Ensure skills are discoverable by the Pi agent
+  const skillsSource = path.resolve(__dirname, '..', 'skills');
+  const piDir = path.join(workDir, '.pi');
+  const piSkillsLink = path.join(piDir, 'skills');
+  if (fs.existsSync(skillsSource) && !fs.existsSync(piSkillsLink)) {
+    if (!fs.existsSync(piDir)) fs.mkdirSync(piDir, { recursive: true });
+    fs.symlinkSync(skillsSource, piSkillsLink);
+    console.log(`Symlinked skills: ${piSkillsLink} → ${skillsSource}`);
+  }
 
   // Write config (sans key) for the agent to read
   const configForFile = {
@@ -83,7 +164,23 @@ async function main() {
     JSON.stringify(configForFile, null, 2),
   );
 
-  const customTools = buildCustomTools(agentConfig, contextStore, routeId);
+  // Wire up explorer-based pending transfer provider if URL configured
+  let pendingTransferProvider: PendingTransferProvider | undefined;
+  if (config.explorerUrl) {
+    const explorerClient = createExplorerClient(config.explorerUrl);
+    pendingTransferProvider = new ExplorerPendingTransferProvider(
+      explorerClient,
+      agentConfig,
+    );
+    console.log(`Explorer pending transfers enabled: ${config.explorerUrl}`);
+  }
+
+  const customTools = buildCustomTools(
+    agentConfig,
+    contextStore,
+    routeId,
+    pendingTransferProvider,
+  );
   const pollingIntervalMs = config.pollingIntervalMs ?? 30_000;
 
   console.log(

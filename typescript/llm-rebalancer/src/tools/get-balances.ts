@@ -8,6 +8,7 @@ import { ethers } from 'ethers';
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 
 import type { ChainConfig, RebalancerAgentConfig } from '../config.js';
+import type { PendingTransferProvider } from '../pending-transfers.js';
 
 const parameters = Type.Object({
   chains: Type.Optional(
@@ -42,13 +43,15 @@ async function getBalance(
 
 export function buildGetBalancesTool(
   agentConfig: RebalancerAgentConfig,
+  pendingTransferProvider?: PendingTransferProvider,
 ): ToolDefinition<typeof parameters> {
   return {
     name: 'get_balances',
     label: 'Get Balances',
     description:
-      'Get current collateral balances for warp route chains. ' +
-      'Returns balance per chain/asset with share percentages.',
+      'Get current collateral balances AND pending user transfers. ' +
+      'Returns balance per chain/asset with share percentages, plus any inflight transfers awaiting delivery. ' +
+      'If pendingUserTransfers is non-empty, check that destination chains have enough collateral for the destination asset.',
     parameters,
     async execute(_toolCallId: string, params: Params) {
       try {
@@ -60,6 +63,7 @@ export function buildGetBalancesTool(
       if (isMultiAsset) {
         // Multi-asset: each asset is an independent liquidity pool with its own total
         const assetBalances: Record<string, Record<string, ethers.BigNumber>> = {};
+        const assetDecimals: Record<string, number> = {};
 
         await Promise.all(
           chainNames.map(async (chainName: string) => {
@@ -70,6 +74,7 @@ export function buildGetBalancesTool(
             await Promise.all(
               Object.entries(chain.assets).map(async ([symbol, asset]) => {
                 if (!assetBalances[symbol]) assetBalances[symbol] = {};
+                if (!assetDecimals[symbol]) assetDecimals[symbol] = asset.decimals;
                 assetBalances[symbol][chainName] = await getBalance(provider, asset.collateralToken, asset.warpToken);
               }),
             );
@@ -77,18 +82,20 @@ export function buildGetBalancesTool(
         );
 
         // Build per-asset output with independent totals
-        const assets: Record<string, { totalBalance: string; chains: Record<string, { balance: string; share: string }> }> = {};
+        const assets: Record<string, { totalBalance: string; decimals: number; chains: Record<string, { balance: string; formatted: string; share: string }> }> = {};
         for (const [symbol, chainBals] of Object.entries(assetBalances)) {
           let assetTotal = ethers.BigNumber.from(0);
+          const decimals = assetDecimals[symbol] ?? 18;
           for (const bal of Object.values(chainBals)) {
             assetTotal = assetTotal.add(bal);
           }
-          const chains: Record<string, { balance: string; share: string }> = {};
+          const chains: Record<string, { balance: string; formatted: string; share: string }> = {};
           for (const chainName of chainNames) {
             const bal = chainBals[chainName];
             if (!bal) continue;
             chains[chainName] = {
               balance: bal.toString(),
+              formatted: ethers.utils.formatUnits(bal, decimals) + ' ' + symbol,
               share: assetTotal.isZero()
                 ? 'N/A (depleted)'
                 : bal.mul(10000).div(assetTotal).toNumber() / 100 + '%',
@@ -96,12 +103,23 @@ export function buildGetBalancesTool(
           }
           assets[symbol] = {
             totalBalance: assetTotal.toString(),
+            decimals,
             ...(assetTotal.isZero() ? { status: 'DEPLETED — swap from another asset to create collateral' } : {}),
             chains,
           };
         }
 
-        const text = JSON.stringify({ assets }, null, 2);
+        // Include pending transfers so LLM always sees them
+        const pending = pendingTransferProvider
+          ? await pendingTransferProvider.getPendingTransfers()
+          : [];
+        const output: any = { assets };
+        if (pending.length > 0) {
+          output.pendingUserTransfers = pending;
+          output.WARNING = `${pending.length} user transfer(s) awaiting delivery — check destination asset collateral is sufficient`;
+        }
+
+        const text = JSON.stringify(output, null, 2);
         return { content: [{ type: 'text' as const, text }], details: undefined };
       }
 
@@ -134,7 +152,17 @@ export function buildGetBalancesTool(
         results[chainName] = { balance: bal.toString(), share };
       }
 
-      const text = JSON.stringify({ totalBalance: totalBalance.toString(), chains: results }, null, 2);
+      // Include pending transfers so LLM always sees them
+      const pending = pendingTransferProvider
+        ? await pendingTransferProvider.getPendingTransfers()
+        : [];
+      const output: any = { totalBalance: totalBalance.toString(), chains: results };
+      if (pending.length > 0) {
+        output.pendingUserTransfers = pending;
+        output.WARNING = `${pending.length} user transfer(s) awaiting delivery — check destination collateral is sufficient`;
+      }
+
+      const text = JSON.stringify(output, null, 2);
       return { content: [{ type: 'text' as const, text }], details: undefined };
       } catch (error) {
         const text = `Error fetching balances: ${error instanceof Error ? error.message : String(error)}`;

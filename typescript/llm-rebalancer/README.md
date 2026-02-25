@@ -143,7 +143,7 @@ Extended timeouts and timing are applied when `REBALANCERS=llm`:
 ### Running in sim
 
 ```bash
-# Requires ANTHROPIC_API_KEY or ANTHROPIC_TEST_API_KEY in environment
+# Requires OPENCODE_API_KEY (preferred), ANTHROPIC_API_KEY, or ANTHROPIC_TEST_API_KEY in environment
 REBALANCERS=llm pnpm -C typescript/rebalancer-sim test --grep "extreme-drain"
 
 # Compare against coded rebalancers
@@ -156,7 +156,7 @@ REBALANCERS=simple,production,llm pnpm -C typescript/rebalancer-sim test --grep 
 
 - [Foundry](https://book.getfoundry.sh/) installed (`cast` CLI available)
 - Node.js 18+
-- An Anthropic API key
+- An LLM API key (OpenCode Zen preferred, Anthropic also supported)
 
 ### Setup
 
@@ -164,7 +164,9 @@ REBALANCERS=simple,production,llm pnpm -C typescript/rebalancer-sim test --grep 
 
 ```bash
 export REBALANCER_KEY=0x...        # Private key for the rebalancer wallet
-export ANTHROPIC_API_KEY=sk-...    # Anthropic API key for the LLM
+export OPENCODE_API_KEY=...        # OpenCode Zen API key (default provider)
+# OR
+export ANTHROPIC_API_KEY=sk-...    # Anthropic API key (use with LLM_PROVIDER=anthropic LLM_MODEL=claude-haiku-4-5)
 ```
 
 2. **Run**:

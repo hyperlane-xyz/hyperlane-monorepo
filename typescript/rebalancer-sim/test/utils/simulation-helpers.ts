@@ -58,15 +58,19 @@ export function getEnabledRebalancers(): RebalancerType[] {
     .filter((r): r is RebalancerType => {
       if (r === 'llm') {
         const apiKey =
-          process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_TEST_API_KEY;
+          process.env.OPENCODE_API_KEY ||
+          process.env.ANTHROPIC_API_KEY ||
+          process.env.ANTHROPIC_TEST_API_KEY;
         if (!apiKey) {
           console.warn(
-            'Skipping LLM rebalancer: ANTHROPIC_API_KEY or ANTHROPIC_TEST_API_KEY not set',
+            'Skipping LLM rebalancer: OPENCODE_API_KEY, ANTHROPIC_API_KEY, or ANTHROPIC_TEST_API_KEY not set',
           );
           return false;
         }
-        // Ensure Pi SDK can find the key
-        if (!process.env.ANTHROPIC_API_KEY) {
+        // Ensure Pi SDK can find the key for the default provider
+        if (process.env.OPENCODE_API_KEY) {
+          // opencode provider — key already in env
+        } else if (!process.env.ANTHROPIC_API_KEY) {
           process.env.ANTHROPIC_API_KEY = apiKey;
         }
         return true;

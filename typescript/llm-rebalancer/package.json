@@ -33,7 +33,8 @@
     "@sinclair/typebox": "^0.34.41",
     "better-sqlite3": "catalog:",
     "ethers": "catalog:",
-    "pino": "catalog:"
+    "pino": "catalog:",
+    "undici": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/tsconfig": "workspace:^",

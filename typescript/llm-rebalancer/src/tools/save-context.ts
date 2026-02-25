@@ -7,6 +7,7 @@ import { Type, type Static } from '@sinclair/typebox';
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 
 import type { ContextStore } from '../context-store.js';
+import type { PendingTransferProvider } from '../pending-transfers.js';
 
 const parameters = Type.Object({
   status: Type.Union([Type.Literal('balanced'), Type.Literal('pending')]),
@@ -18,6 +19,7 @@ type Params = Static<typeof parameters>;
 export function buildSaveContextTool(
   contextStore: ContextStore,
   routeId: string,
+  pendingTransferProvider?: PendingTransferProvider,
 ): ToolDefinition<typeof parameters> {
   return {
     name: 'save_context',
@@ -30,7 +32,21 @@ export function buildSaveContextTool(
     async execute(_toolCallId: string, params: Params) {
       const summary = params.summary.slice(0, 4000);
       await contextStore.set(routeId, JSON.stringify({ status: params.status, summary }));
-      const text = `Context saved (status: ${params.status}, ${summary.length} chars).`;
+
+      // Validate: warn if saving balanced while transfers are pending
+      let warning = '';
+      if (params.status === 'balanced' && pendingTransferProvider) {
+        try {
+          const pending = await pendingTransferProvider.getPendingTransfers();
+          if (pending.length > 0) {
+            warning = ` WARNING: ${pending.length} user transfer(s) still pending — status should be "pending", not "balanced". Call get_balances to check.`;
+          }
+        } catch {
+          // ignore errors in validation
+        }
+      }
+
+      const text = `Context saved (status: ${params.status}, ${summary.length} chars).${warning}`;
       return { content: [{ type: 'text' as const, text }], details: undefined };
     },
   };

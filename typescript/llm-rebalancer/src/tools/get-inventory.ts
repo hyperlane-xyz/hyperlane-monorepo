@@ -56,7 +56,7 @@ export function buildGetInventoryTool(
                   const bal: ethers.BigNumber = await erc20.balanceOf(
                     agentConfig.rebalancerAddress,
                   );
-                  results[chainName][symbol] = bal.toString();
+                  results[chainName][symbol] = `${bal.toString()} (${ethers.utils.formatUnits(bal, asset.decimals)} ${symbol})`;
                 }),
               );
             } else {

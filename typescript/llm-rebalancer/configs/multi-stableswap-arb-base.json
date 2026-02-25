@@ -1,0 +1,66 @@
+{
+  "chains": {
+    "arbitrum": {
+      "chainName": "arbitrum",
+      "domainId": 42161,
+      "rpcUrl": "https://arb1.arbitrum.io/rpc",
+      "mailbox": "0x979Ca5202784112f4738403dBec5D0F3B9daabB9",
+      "warpToken": "0xBDCC7E7eCb1e39b387b0314567363e305D04f49d",
+      "collateralToken": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "bridge": "0xBDCC7E7eCb1e39b387b0314567363e305D04f49d",
+      "assets": {
+        "USDC": {
+          "symbol": "USDC",
+          "decimals": 6,
+          "warpToken": "0xBDCC7E7eCb1e39b387b0314567363e305D04f49d",
+          "collateralToken": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+          "bridge": "0xBDCC7E7eCb1e39b387b0314567363e305D04f49d"
+        },
+        "USDT": {
+          "symbol": "USDT",
+          "decimals": 6,
+          "warpToken": "0xf6e899999f3177350AF29d21FE2a1297b194792e",
+          "collateralToken": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+          "bridge": "0xf6e899999f3177350AF29d21FE2a1297b194792e"
+        }
+      }
+    },
+    "base": {
+      "chainName": "base",
+      "domainId": 8453,
+      "rpcUrl": "https://mainnet.base.org",
+      "mailbox": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
+      "warpToken": "0xCA2Bc586D7ae29872cC33D0C2020F94d17328C94",
+      "collateralToken": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "bridge": "0xCA2Bc586D7ae29872cC33D0C2020F94d17328C94",
+      "assets": {
+        "USDC": {
+          "symbol": "USDC",
+          "decimals": 6,
+          "warpToken": "0xCA2Bc586D7ae29872cC33D0C2020F94d17328C94",
+          "collateralToken": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "bridge": "0xCA2Bc586D7ae29872cC33D0C2020F94d17328C94"
+        },
+        "USDT": {
+          "symbol": "USDT",
+          "decimals": 6,
+          "warpToken": "0x43402011892D43208ecB3d7fa36A416811ea1D81",
+          "collateralToken": "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+          "bridge": "0x43402011892D43208ecB3d7fa36A416811ea1D81"
+        }
+      }
+    }
+  },
+  "rebalancerAddress": "0xEA2117b24F7947647Bec60527B68f4244AE40c01",
+  "strategy": {
+    "type": "prose",
+    "text": "Maintain balanced distribution of collateral across chains for each asset independently. Each chain should hold roughly equal share of each asset's total supply.",
+    "routeHints": "This is a MultiCollateral warp route. Each asset (USDC, USDT) has its own warp token and bridge per chain. The warp token IS the bridge — use it for transferRemote. For same-chain cross-asset swaps, use transferRemoteTo on the source warp token with the target warp token as the destination router. See .pi/skills/ for detailed instructions.",
+    "policyProse": "Amounts are small (< $5 total). Prioritize unblocking pending user transfers over perfect balance. If an asset is depleted on a chain, supply from wallet inventory immediately."
+  },
+  "pollingIntervalMs": 30000,
+  "model": "gpt-5.1-codex-mini",
+  "provider": "opencode",
+  "dbPath": "multi-stableswap-context.db",
+  "explorerUrl": "https://explorer4.hasura.app/v1/graphql"
+}

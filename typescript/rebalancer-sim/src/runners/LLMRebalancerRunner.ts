@@ -34,11 +34,7 @@ import type {
 } from '@hyperlane-xyz/llm-rebalancer';
 
 import type { KPICollector } from '../KPICollector.js';
-import {
-  buildMockLifiSwapTool,
-  buildRebalanceCollateralTool,
-  buildSupplyCollateralTool,
-} from './rebalancing-tools.js';
+import { buildMockLifiSwapTool } from './rebalancing-tools.js';
 
 import type {
   IRebalancerRunner,
@@ -109,8 +105,8 @@ export class LLMRebalancerRunner
     maxToolCallsPerCycle?: number;
   }) {
     super();
-    this.provider = opts?.provider ?? 'anthropic';
-    this.model = opts?.model ?? 'claude-haiku-4-5';
+    this.provider = opts?.provider ?? 'opencode';
+    this.model = opts?.model ?? 'gpt-5.1-codex-mini';
     this.adaptivePolling = opts?.adaptivePolling;
     this.cycleTimeoutMs = opts?.cycleTimeoutMs;
     this.maxToolCallsPerCycle = opts?.maxToolCallsPerCycle;
@@ -209,12 +205,6 @@ export class LLMRebalancerRunner
       this.contextStore,
       this.routeId,
       pendingTransferProvider,
-    );
-
-    // Register structured rebalancing tools (all scenarios)
-    customTools.push(buildRebalanceCollateralTool(this.agentConfig));
-    customTools.push(
-      buildSupplyCollateralTool(this.agentConfig, this.kpiCollector),
     );
 
     // Register mock_lifi_swap for multi-asset deployments

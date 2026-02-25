@@ -54,7 +54,7 @@
       "lodash": "^4.17.21",
       "recursive-readdir": "^2.2.3",
       "underscore": "^1.13",
-      "undici": "^5.11",
+      "undici": "^7.22.0",
       "@babel/parser": "^7.22.7",
       "@typechain/ethers-v5": "11.1.2",
       "xmlhttprequest-ssl": "4.0.0"

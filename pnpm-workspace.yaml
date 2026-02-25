@@ -95,6 +95,7 @@ catalog:
   typechain: 8.3.2
   typescript: 5.8.3
   typescript-eslint: ^8.54.0
+  undici: ^7.22.0
   uuid: ^10.0.0
   viem: ^2.21.45
   yaml: 2.4.5

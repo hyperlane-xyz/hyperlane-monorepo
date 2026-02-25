@@ -12,7 +12,9 @@ import { buildGetChainMetadataTool } from './get-chain-metadata.js';
 import { buildCheckDeliveryTool } from './check-hyperlane-delivery.js';
 import { buildGetInventoryTool } from './get-inventory.js';
 import { buildGetPendingTransfersTool } from './get-pending-transfers.js';
+import { buildRebalanceCollateralTool } from './rebalance-collateral.js';
 import { buildSaveContextTool } from './save-context.js';
+import { buildSupplyCollateralTool } from './supply-collateral.js';
 
 export function buildCustomTools(
   agentConfig: RebalancerAgentConfig,
@@ -21,11 +23,13 @@ export function buildCustomTools(
   pendingTransferProvider?: PendingTransferProvider,
 ): ToolDefinition<any>[] {
   const tools: ToolDefinition<any>[] = [
-    buildGetBalancesTool(agentConfig),
+    buildGetBalancesTool(agentConfig, pendingTransferProvider),
     buildGetInventoryTool(agentConfig),
     buildGetChainMetadataTool(agentConfig),
     buildCheckDeliveryTool(agentConfig),
-    buildSaveContextTool(contextStore, routeId),
+    buildSaveContextTool(contextStore, routeId, pendingTransferProvider),
+    buildRebalanceCollateralTool(agentConfig),
+    buildSupplyCollateralTool(agentConfig),
   ];
 
   if (pendingTransferProvider) {

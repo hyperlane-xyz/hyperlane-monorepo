@@ -15,10 +15,9 @@ import type {
 const logger = rootLogger.child({ module: 'ExplorerPendingTransfers' });
 
 export interface ExplorerClientLike {
-  getInflightUserTransfers(
+  getInflightTransfers(
     params: {
       routersByDomain: Record<number, string>;
-      excludeTxSender: string;
       limit?: number;
     },
     logger: typeof rootLogger,
@@ -39,7 +38,7 @@ export class ExplorerPendingTransferProvider implements PendingTransferProvider 
 
   constructor(
     private explorerClient: ExplorerClientLike,
-    private agentConfig: RebalancerAgentConfig,
+    agentConfig: RebalancerAgentConfig,
   ) {
     this.allRoutersByDomain = {};
     this.domainToChain = {};
@@ -74,11 +73,8 @@ export class ExplorerPendingTransferProvider implements PendingTransferProvider 
       for (const router of routers) {
         const routersByDomain: Record<number, string> = { [domain]: router };
         try {
-          const messages = await this.explorerClient.getInflightUserTransfers(
-            {
-              routersByDomain,
-              excludeTxSender: this.agentConfig.rebalancerAddress,
-            },
+          const messages = await this.explorerClient.getInflightTransfers(
+            { routersByDomain },
             logger,
           );
           for (const msg of messages) {
