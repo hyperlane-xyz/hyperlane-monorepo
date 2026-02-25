@@ -35,6 +35,7 @@ import type {
 
 import type { KPICollector } from '../KPICollector.js';
 import {
+  buildMockLifiSwapTool,
   buildRebalanceCollateralTool,
   buildSupplyCollateralTool,
 } from './rebalancing-tools.js';
@@ -215,6 +216,16 @@ export class LLMRebalancerRunner
     customTools.push(
       buildSupplyCollateralTool(this.agentConfig, this.kpiCollector),
     );
+
+    // Register mock_lifi_swap for multi-asset deployments
+    const isMultiAsset = Object.values(this.agentConfig.chains).some(
+      (c) => c.assets,
+    );
+    if (isMultiAsset) {
+      customTools.push(
+        buildMockLifiSwapTool(this.agentConfig, this.kpiCollector),
+      );
+    }
 
     // Overwrite skill files with tool-redirect stubs so the LLM uses
     // tools instead of constructing raw cast transactions
@@ -539,15 +550,6 @@ export class LLMRebalancerRunner
         'Call the `supply_collateral` tool with `source` (where your wallet inventory is),',
         '`destination` (which router to supply), and `amount`.',
         'The tool handles approvals, encoding, and bridge calls. Do NOT use `cast send`.',
-      ].join('\n'),
-      'submit-transaction': [
-        '---',
-        'name: submit-transaction',
-        '---',
-        '# Disabled — use tools for all operations',
-        '',
-        'Use `rebalance_collateral` or `supply_collateral` tools.',
-        'Do NOT construct raw `cast send` transactions.',
       ].join('\n'),
     };
 

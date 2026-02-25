@@ -199,6 +199,152 @@ export function buildRebalanceCollateralTool(
  * Supply collateral to a router from the rebalancer's wallet inventory.
  * Same-asset only. Same-chain is instant; cross-chain goes through bridge.
  */
+// ---------------------------------------------------------------------------
+// Tool 3: mock_lifi_swap (sim-only inventory bridge)
+// ---------------------------------------------------------------------------
+
+const BURN_FROM_ABI = ['function burnFrom(address, uint256)'];
+const MINT_TO_ABI = ['function mintTo(address, uint256)'];
+
+/**
+ * Mock LiFi/DEX swap — converts one asset to another in the rebalancer's wallet.
+ * Sim-only: uses ERC20Test.burnFrom() + mintTo() (both public, no access control).
+ * In production, this would be a skill calling the LiFi API.
+ */
+export function buildMockLifiSwapTool(
+  agentConfig: RebalancerAgentConfig,
+  kpiCollector?: KPICollector,
+): any {
+  return {
+    name: 'mock_lifi_swap',
+    label: 'Mock LiFi Swap',
+    description:
+      'Inventory bridge: swap tokens in your wallet from one asset to another on the same chain. ' +
+      'Simulates LiFi/DEX. 1:1 stablecoin rate. Same-chain only. ' +
+      'Use when you need asset X but only have asset Y in wallet. ' +
+      'After swapping, use supply_collateral to deposit into a router.',
+    parameters: {
+      type: 'object',
+      required: ['chain', 'sourceAsset', 'destinationAsset', 'amount'],
+      properties: {
+        chain: { type: 'string', description: 'Chain name' },
+        sourceAsset: {
+          type: 'string',
+          description: 'Source asset symbol to sell (e.g., USDC)',
+        },
+        destinationAsset: {
+          type: 'string',
+          description: 'Destination asset symbol to buy (e.g., USDT)',
+        },
+        amount: { type: 'string', description: 'Amount in wei' },
+      },
+    },
+    async execute(
+      _toolCallId: string,
+      params: {
+        chain: string;
+        sourceAsset: string;
+        destinationAsset: string;
+        amount: string;
+      },
+    ) {
+      try {
+        const chainCfg = agentConfig.chains[params.chain];
+        if (!chainCfg) throw new Error(`Unknown chain "${params.chain}"`);
+        if (!chainCfg.assets)
+          throw new Error(`No multi-asset config for chain "${params.chain}"`);
+        if (params.sourceAsset === params.destinationAsset) {
+          return textResult(
+            `mock_lifi_swap: source and destination are the same asset (${params.sourceAsset}). No swap needed.`,
+          );
+        }
+
+        const srcAsset = chainCfg.assets[params.sourceAsset];
+        const dstAsset = chainCfg.assets[params.destinationAsset];
+        if (!srcAsset)
+          throw new Error(
+            `Unknown asset "${params.sourceAsset}" on ${params.chain}`,
+          );
+        if (!dstAsset)
+          throw new Error(
+            `Unknown asset "${params.destinationAsset}" on ${params.chain}`,
+          );
+
+        const amount = ethers.BigNumber.from(params.amount);
+        const provider = new ethers.providers.JsonRpcProvider(chainCfg.rpcUrl);
+        const wallet = new ethers.Wallet(agentConfig.rebalancerKey, provider);
+
+        // Check source balance
+        const srcToken = new ethers.Contract(
+          srcAsset.collateralToken,
+          [...ERC20_ABI, ...BURN_FROM_ABI],
+          wallet,
+        );
+        const balance: ethers.BigNumber = await srcToken.balanceOf(
+          agentConfig.rebalancerAddress,
+        );
+        if (balance.lt(amount)) {
+          return textResult(
+            `Insufficient ${params.sourceAsset} wallet balance on ${params.chain}: ${balance.toString()} < ${params.amount}`,
+          );
+        }
+
+        // Burn source tokens from rebalancer wallet
+        const burnTx = await srcToken.burnFrom(
+          agentConfig.rebalancerAddress,
+          amount,
+        );
+        await burnTx.wait();
+
+        // Mint destination tokens to rebalancer wallet
+        const dstToken = new ethers.Contract(
+          dstAsset.collateralToken,
+          MINT_TO_ABI,
+          wallet,
+        );
+        const mintTx = await dstToken.mintTo(
+          agentConfig.rebalancerAddress,
+          amount,
+        );
+        await mintTx.wait();
+
+        // Record KPI (instant, same-chain)
+        if (kpiCollector) {
+          const rid = kpiCollector.recordRebalanceStart(
+            params.chain,
+            params.chain,
+            amount.toBigInt(),
+            0n,
+          );
+          const syntheticId = `swap-${Date.now()}`;
+          kpiCollector.linkBridgeTransfer(syntheticId, rid);
+          kpiCollector.recordRebalanceComplete(syntheticId);
+        }
+
+        return textResult(
+          JSON.stringify({
+            status: 'ok',
+            action: 'mock_lifi_swap',
+            chain: params.chain,
+            sourceAsset: params.sourceAsset,
+            destinationAsset: params.destinationAsset,
+            amount: params.amount,
+            delivery: 'instant',
+          }),
+        );
+      } catch (error) {
+        return textResult(
+          `mock_lifi_swap failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tool 2: supply_collateral
+// ---------------------------------------------------------------------------
+
 export function buildSupplyCollateralTool(
   agentConfig: RebalancerAgentConfig,
   kpiCollector?: KPICollector,

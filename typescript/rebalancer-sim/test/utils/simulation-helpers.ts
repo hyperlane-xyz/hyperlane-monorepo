@@ -175,6 +175,11 @@ export async function runScenarioWithRebalancers(
 
     // Deploy fresh contracts for each rebalancer run
     const isMultiAsset = file.assets && file.assets.length > 0;
+    const walletInventory = file.walletInventory
+      ? Object.fromEntries(
+          Object.entries(file.walletInventory).map(([k, v]) => [k, BigInt(v)]),
+        )
+      : undefined;
     const deployment = isMultiAsset
       ? await deployMultiAssetSimulation({
           anvilRpc: options.anvilRpc,
@@ -182,6 +187,7 @@ export async function runScenarioWithRebalancers(
           chains: chainConfigs,
           initialCollateralBalance: BigInt(file.defaultInitialCollateral),
           assets: file.assets!,
+          walletInventory,
         })
       : await deployMultiDomainSimulation({
           anvilRpc: options.anvilRpc,

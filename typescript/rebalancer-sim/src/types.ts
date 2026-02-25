@@ -201,6 +201,9 @@ export interface AssetDefinition {
 export interface MultiAssetDeploymentOptions extends MultiDomainDeploymentOptions {
   /** Assets to deploy per chain */
   assets: AssetDefinition[];
+  /** Per-asset wallet inventory for the rebalancer (keyed by symbol, wei string).
+   *  If omitted, defaults to 2x initialCollateralBalance per asset per chain. */
+  walletInventory?: Record<string, bigint>;
 }
 
 /**
@@ -509,6 +512,10 @@ export interface ScenarioFile {
 
   /** Default initial collateral balance in wei, applied to all chains (as string for JSON) */
   defaultInitialCollateral: string;
+
+  /** Per-asset wallet inventory for the rebalancer (keyed by symbol, wei string).
+   *  If omitted, defaults to 2x defaultInitialCollateral per asset per chain. */
+  walletInventory?: Record<string, string>;
 
   /** Default timing configuration */
   defaultTiming: SimulationTiming;

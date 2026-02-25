@@ -436,4 +436,28 @@ describe('Rebalancer Simulation', function () {
       }
     }
   });
+
+  it('mc-wallet-swap: inventory bridge swap then supply collateral', async function () {
+    const { results, file } = await runScenarioWithRebalancers(
+      'mc-wallet-swap',
+      { anvilRpc: anvil.rpc },
+    );
+
+    for (const result of results) {
+      if (result.rebalancerName === 'NoOpRebalancer') continue;
+
+      if (file.expectations.minCompletionRate) {
+        expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
+          file.expectations.minCompletionRate,
+          `${result.rebalancerName} should have min completion rate`,
+        );
+      }
+      if (file.expectations.shouldTriggerRebalancing) {
+        expect(result.kpis.totalRebalances).to.be.greaterThan(
+          0,
+          `${result.rebalancerName} should trigger rebalancing`,
+        );
+      }
+    }
+  });
 });
