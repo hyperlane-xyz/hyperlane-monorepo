@@ -1,12 +1,4 @@
 import { address as parseAddress } from '@solana/kit';
-import {
-  TOKEN_2022_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
-  getMetadataPointerState,
-  getMint,
-  getTokenMetadata,
-} from '@solana/spl-token';
-import { Connection, PublicKey } from '@solana/web3.js';
 
 import {
   type ArtifactDeployed,
@@ -24,6 +16,7 @@ import { ZERO_ADDRESS_HEX_32, assert, isNullish } from '@hyperlane-xyz/utils';
 import { resolveProgram } from '../deploy/resolve-program.js';
 import { RENT_SYSVAR_ADDRESS, SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import { decodeCollateralPlugin } from '../accounts/token.js';
+import { fetchMintMetadata } from '../accounts/mint.js';
 import { encodeTokenProgramInstruction } from '../instructions/token.js';
 import {
   buildInstruction,
@@ -48,93 +41,11 @@ import {
 import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
 import type { SvmWarpTokenConfig } from './types.js';
 
-/**
- * Decodes name, symbol, uri from a Metaplex metadata account.
- * Layout: key(1) + updateAuthority(32) + mint(32), then Borsh strings.
- */
-function decodeMetaplexMetadata(data: Uint8Array): {
-  name: string;
-  symbol: string;
-  uri: string;
-} {
-  let offset = 65; // skip key(1) + updateAuthority(32) + mint(32)
-  const view = new DataView(data.buffer, data.byteOffset);
-
-  function readString(): string {
-    const len = view.getUint32(offset, true);
-    offset += 4;
-    const bytes = data.subarray(offset, offset + len);
-    offset += len;
-    return new TextDecoder().decode(bytes).replace(/\0/g, '').trim();
-  }
-
-  return { name: readString(), symbol: readString(), uri: readString() };
-}
-
-async function fetchCollateralMetadata(
-  rpcUrl: string,
-  mintAddress: string,
-): Promise<{ name: string; symbol: string; decimals: number }> {
-  const connection = new Connection(rpcUrl, 'confirmed');
-  const mintPubkey = new PublicKey(mintAddress);
-
-  const mintInfo = await getMint(
-    connection,
-    mintPubkey,
-    'confirmed',
-    TOKEN_2022_PROGRAM_ID,
-  ).catch(() => getMint(connection, mintPubkey, 'confirmed', TOKEN_PROGRAM_ID));
-
-  const decimals = mintInfo.decimals;
-
-  // Try Token 2022 metadata pointer first.
-  try {
-    const metadataPointer = getMetadataPointerState(mintInfo);
-    if (metadataPointer?.metadataAddress) {
-      const metadata = await getTokenMetadata(
-        connection,
-        mintPubkey,
-        'confirmed',
-        TOKEN_2022_PROGRAM_ID,
-      );
-      if (metadata?.name && metadata?.symbol) {
-        return { name: metadata.name, symbol: metadata.symbol, decimals };
-      }
-    }
-  } catch {
-    // Fall through to Metaplex.
-  }
-
-  // Try Metaplex metadata account.
-  try {
-    const METAPLEX_PROGRAM_ID = new PublicKey(
-      'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s',
-    );
-    const [metadataPDA] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('metadata'),
-        METAPLEX_PROGRAM_ID.toBuffer(),
-        mintPubkey.toBuffer(),
-      ],
-      METAPLEX_PROGRAM_ID,
-    );
-    const accountInfo = await connection.getAccountInfo(metadataPDA);
-    if (!accountInfo) throw new Error('Metaplex metadata account not found');
-    const { name, symbol } = decodeMetaplexMetadata(accountInfo.data);
-    return { name, symbol, decimals };
-  } catch {
-    return { name: 'Unknown Token', symbol: 'UNKNOWN', decimals };
-  }
-}
-
 export class SvmCollateralTokenReader implements ArtifactReader<
   RawCollateralWarpArtifactConfig,
   DeployedWarpAddress
 > {
-  constructor(
-    protected readonly rpc: SvmRpc,
-    protected readonly rpcUrl: string,
-  ) {}
+  constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
@@ -160,7 +71,7 @@ export class SvmCollateralTokenReader implements ArtifactReader<
       destinationGas[domain] = gas.toString();
     }
 
-    const metadata = await fetchCollateralMetadata(this.rpcUrl, plugin.mint);
+    const metadata = await fetchMintMetadata(this.rpc, plugin.mint);
 
     const config: RawCollateralWarpArtifactConfig = {
       type: 'collateral',
@@ -203,9 +114,8 @@ export class SvmCollateralTokenWriter
     private readonly config: SvmWarpTokenConfig,
     rpc: SvmRpc,
     private readonly svmSigner: SvmSigner,
-    rpcUrl: string,
   ) {
-    super(rpc, rpcUrl);
+    super(rpc);
   }
 
   async create(
@@ -279,7 +189,7 @@ export class SvmCollateralTokenWriter
     const check = await fetchTokenAccount(this.rpc, programAddress);
     if (!check) {
       throw new Error(
-        `Init failed — token account not found at ${programAddress}`,
+        `Init failed - token account not found at ${programAddress}`,
       );
     }
 

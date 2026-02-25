@@ -1,8 +1,24 @@
-import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
+import {
+  type Address,
+  type Rpc,
+  type SolanaRpcApi,
+  generateKeyPairSigner,
+  getAddressEncoder,
+} from '@solana/kit';
+import { getCreateAccountInstruction } from '@solana-program/system';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as fs from 'fs';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path';
+
+import {
+  buildInstruction,
+  readonlyAccount,
+  writableAccount,
+} from '../instructions/utils.js';
+import type { SvmSigner } from '../signer.js';
+import { RENT_SYSVAR_ADDRESS } from '../constants.js';
+import type { SvmRpc } from '../types.js';
 
 import type { PreloadedProgram } from './solana-container.js';
 
@@ -82,4 +98,52 @@ export async function getBalance(
 ): Promise<number> {
   const result = await rpc.getBalance(address).send();
   return Number(result.value) / 1_000_000_000;
+}
+
+/**
+ * Creates a new SPL Token (v1) mint account using only @solana/kit primitives.
+ * The signer becomes the mint authority. No freeze authority is set.
+ */
+export async function createSplMint(
+  rpc: SvmRpc,
+  signer: SvmSigner,
+  decimals: number,
+): Promise<Address> {
+  const SPL_TOKEN_PROGRAM =
+    'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as Address;
+  /** SPL Token mint account size in bytes. */
+  const MINT_SIZE = 82n;
+
+  const mintSigner = await generateKeyPairSigner();
+  const rent = await rpc.getMinimumBalanceForRentExemption(MINT_SIZE).send();
+
+  const createAccountIx = getCreateAccountInstruction({
+    payer: signer.signer,
+    newAccount: mintSigner,
+    lamports: rent,
+    space: MINT_SIZE,
+    programAddress: SPL_TOKEN_PROGRAM,
+  });
+
+  // SPL Token InitializeMint2 (discriminator 20):
+  //   decimals(1) + mintAuthority(32) + freezeAuthorityOption(1 = None)
+  const addrEncoder = getAddressEncoder();
+  const initMintData = new Uint8Array(35);
+  initMintData[0] = 20; // InitializeMint2 discriminator
+  initMintData[1] = decimals;
+  initMintData.set(addrEncoder.encode(signer.signer.address), 2);
+  initMintData[34] = 0; // freeze authority: None
+  const initMintIx = buildInstruction(
+    SPL_TOKEN_PROGRAM,
+    [writableAccount(mintSigner.address), readonlyAccount(RENT_SYSVAR_ADDRESS)],
+    initMintData,
+  );
+
+  await signer.send({
+    instructions: [createAccountIx, initMintIx],
+    additionalSigners: [mintSigner],
+    skipPreflight: true,
+  });
+
+  return mintSigner.address;
 }

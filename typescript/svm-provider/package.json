@@ -37,7 +37,8 @@
     "test:hook": "mocha --require tsx --timeout 300000 'src/tests/hook.e2e-test.ts'",
     "test:native-token": "mocha --require tsx --timeout 300000 'src/tests/native-token.e2e-test.ts'",
     "test:synthetic-token": "mocha --require tsx --timeout 300000 'src/tests/synthetic-token.e2e-test.ts'",
-    "test:collateral-token": "mocha --require tsx --timeout 300000 'src/tests/collateral-token.e2e-test.ts'"
+    "test:collateral-token": "mocha --require tsx --timeout 300000 'src/tests/collateral-token.e2e-test.ts'",
+    "test:read-token": "mocha --require tsx --timeout 300000 'src/tests/read-token.e2e-test.ts'"
   },
   "dependencies": {
     "@hyperlane-xyz/provider-sdk": "workspace:*",
@@ -45,9 +46,7 @@
     "@noble/hashes": "^1.7.1",
     "@solana-program/loader-v3": "^0.3.0",
     "@solana-program/system": "^0.12.0",
-    "@solana/kit": "^6.1.0",
-    "@solana/spl-token": "catalog:",
-    "@solana/web3.js": "catalog:"
+    "@solana/kit": "^6.1.0"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",

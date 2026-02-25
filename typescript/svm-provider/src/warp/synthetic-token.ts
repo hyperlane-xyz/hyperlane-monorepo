@@ -5,14 +5,6 @@ import {
   type TransactionSigner,
 } from '@solana/kit';
 import {
-  TOKEN_2022_PROGRAM_ID,
-  getMetadataPointerState,
-  getMint,
-  getTokenMetadata,
-} from '@solana/spl-token';
-import { Connection, PublicKey } from '@solana/web3.js';
-
-import {
   type ArtifactDeployed,
   type ArtifactNew,
   type ArtifactReader,
@@ -26,9 +18,14 @@ import type {
 import { ZERO_ADDRESS_HEX_32, assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { resolveProgram } from '../deploy/resolve-program.js';
-import { RENT_SYSVAR_ADDRESS, SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
+import {
+  RENT_SYSVAR_ADDRESS,
+  SYSTEM_PROGRAM_ADDRESS,
+  TOKEN_2022_PROGRAM_ADDRESS,
+} from '../constants.js';
 import { concatBytes, u8, u32le } from '../codecs/binary.js';
 import { encodeTokenProgramInstruction } from '../instructions/token.js';
+import { fetchMintMetadata } from '../accounts/mint.js';
 import {
   buildInstruction,
   readonlyAccount,
@@ -57,9 +54,6 @@ import {
 } from './warp-tx.js';
 import { fetchTokenAccount, routerBytesToHex } from './warp-query.js';
 import type { SvmWarpTokenConfig } from './types.js';
-
-const TOKEN_2022_PROGRAM_ADDRESS =
-  'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' as Address;
 
 // Borsh discriminator for the Token 2022 InitializeTokenMetadata instruction.
 const METADATA_INITIALIZE_DISCRIMINATOR = new Uint8Array([
@@ -160,43 +154,11 @@ function createInitializeMetadataInstruction(
   );
 }
 
-async function fetchTokenMetadata(
-  rpcUrl: string,
-  mintAddress: Address,
-): Promise<{ name: string; symbol: string; uri: string } | null> {
-  try {
-    const connection = new Connection(rpcUrl, 'confirmed');
-    const mintPubkey = new PublicKey(mintAddress);
-    const mintInfo = await getMint(
-      connection,
-      mintPubkey,
-      'confirmed',
-      TOKEN_2022_PROGRAM_ID,
-    );
-    const metadataPointer = getMetadataPointerState(mintInfo);
-    if (!metadataPointer?.metadataAddress) return null;
-    const metadata = await getTokenMetadata(
-      connection,
-      metadataPointer.metadataAddress,
-      'confirmed',
-      TOKEN_2022_PROGRAM_ID,
-    );
-    return metadata
-      ? { name: metadata.name, symbol: metadata.symbol, uri: metadata.uri }
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export class SvmSyntheticTokenReader implements ArtifactReader<
   RawSyntheticWarpArtifactConfig,
   DeployedWarpAddress
 > {
-  constructor(
-    protected readonly rpc: SvmRpc,
-    protected readonly rpcUrl: string,
-  ) {}
+  constructor(protected readonly rpc: SvmRpc) {}
 
   async read(
     programAddress: string,
@@ -221,7 +183,7 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
     }
 
     const { address: mintPda } = await deriveSyntheticMintPda(programId);
-    const metadata = await fetchTokenMetadata(this.rpcUrl, mintPda);
+    const metadata = await fetchMintMetadata(this.rpc, mintPda);
 
     const config: RawSyntheticWarpArtifactConfig = {
       type: 'synthetic',
@@ -241,8 +203,8 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
         : undefined,
       remoteRouters,
       destinationGas,
-      name: metadata?.name ?? 'Unknown',
-      symbol: metadata?.symbol ?? 'UNK',
+      name: metadata.name,
+      symbol: metadata.symbol,
       decimals: token.decimals,
     };
 
@@ -267,9 +229,8 @@ export class SvmSyntheticTokenWriter
     private readonly config: SvmWarpTokenConfig,
     rpc: SvmRpc,
     private readonly svmSigner: SvmSigner,
-    rpcUrl: string,
   ) {
-    super(rpc, rpcUrl);
+    super(rpc);
   }
 
   async create(
