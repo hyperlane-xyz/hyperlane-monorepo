@@ -1,10 +1,11 @@
 import { address, type Address } from '@solana/kit';
-// eslint-disable-next-line import/no-nodejs-modules
-import * as fs from 'fs';
 import { after, before, describe } from 'mocha';
+
+import { PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
+import { SvmSigner } from '../clients/signer.js';
 import {
   DEFAULT_IGP_CONTEXT,
   SvmIgpHookWriter,
@@ -14,18 +15,16 @@ import {
 import { SvmTestIsmWriter, type SvmTestIsmConfig } from '../ism/test-ism.js';
 import { deriveOverheadIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
-import { SvmSigner } from '../clients/signer.js';
 import {
-  DEFAULT_PROGRAMS_PATH,
   PROGRAM_BINARIES,
   TEST_PROGRAM_IDS,
   airdropSol,
   getPreloadedPrograms,
 } from '../testing/setup.js';
 import {
-  type SolanaTestValidator,
   startSolanaTestValidator,
   waitForRpcReady,
+  type SolanaTestValidator,
 } from '../testing/solana-container.js';
 import { SvmNativeTokenWriter } from '../warp/native-token.js';
 
@@ -102,12 +101,8 @@ describe('SVM Native Warp Token E2E Tests', function () {
       config: ismConfig,
     });
 
-    const nativeTokenBytes = fs.readFileSync(
-      `${DEFAULT_PROGRAMS_PATH}/${PROGRAM_BINARIES.tokenNative}`,
-    );
-
     writer = new SvmNativeTokenWriter(
-      { program: { programBytes: nativeTokenBytes }, igpProgramId },
+      { program: { programBytes: PROGRAM_BYTES.tokenNative }, igpProgramId },
       rpc,
       signer,
     );
