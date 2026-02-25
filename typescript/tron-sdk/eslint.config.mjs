@@ -9,7 +9,15 @@ export default [
     files: ['src/**/*.ts'],
   },
   {
-    ignores: ['src/tests/**/*.ts', 'src/abi/**', 'scripts/*'],
+    ignores: [
+      'src/**/*.test.ts',
+      'src/**/*.integration.test.ts',
+      'src/**/*.e2e-test.ts',
+      'src/tests/**',
+      'src/typechain/**',
+      'src/abi/**',
+      'scripts/*',
+    ],
   },
   {
     files: ['src/**/*.ts'],
