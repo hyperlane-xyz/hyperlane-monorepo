@@ -57,6 +57,24 @@ export type ContractWriteResult = {
   ) => Promise<TransactionReceipt | Record<string, unknown>>;
 } & Record<string, unknown>;
 
+type WidenCompatLike<T> = T extends `0x${string}`
+  ? string
+  : T extends bigint
+    ? bigint | number | string
+    : T extends number
+      ? number | bigint | string
+  : T extends readonly (infer U)[]
+    ? readonly WidenCompatLike<U>[]
+    : T extends (infer U)[]
+      ? WidenCompatLike<U>[]
+      : T extends object
+        ? { [K in keyof T]: WidenCompatLike<T[K]> }
+        : T;
+
+type WidenHexArgs<TArgs extends readonly unknown[]> = {
+  [TIndex in keyof TArgs]: WidenCompatLike<TArgs[TIndex]>;
+};
+
 type ContractMethodArgs<
   TAbi extends Abi,
   TMutability extends AnyFunctionMutability,
@@ -67,7 +85,7 @@ type ContractMethodArgs<
     TMutability,
     TName
   > extends infer TArgs extends readonly unknown[]
-    ? [...TArgs, TxRequestLike?]
+    ? [...WidenHexArgs<TArgs>, TxRequestLike?]
     : readonly unknown[];
 
 export type ContractMethodMap<TAbi extends Abi> = {
@@ -184,6 +202,7 @@ export interface ViemContractLike<TAbi extends Abi = Abi> {
   interface: ViemInterface;
   estimateGas: ContractEstimateGasMap<TAbi>;
   functions: ContractMethodMap<TAbi>;
+  [key: string]: unknown;
   queryFilter: <T = Record<string, unknown>>(
     filter: Record<string, unknown>,
     fromBlock?: unknown,
