@@ -20,12 +20,14 @@ import {
 } from '@hyperlane-xyz/core';
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  LocalAccountViemSigner,
+  ChainTechnicalStack,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
+import { TronWallet } from '@hyperlane-xyz/tron-sdk';
 import { type Address, assert, ensure0x, inCIMode } from '@hyperlane-xyz/utils';
+import { ethers } from 'ethers';
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -183,7 +185,11 @@ function setSignerForChain(
 ): void {
   const { technicalStack, rpcUrls } = multiProvider.getChainMetadata(chain);
   if (technicalStack === ChainTechnicalStack.Tron) {
-    multiProvider.setSigner(chain, new TronWallet(privateKey, rpcUrls[0].http));
+    const rpcUrl = rpcUrls[0].http;
+    const tronBaseUrl = rpcUrl.endsWith('/jsonrpc')
+      ? rpcUrl.slice(0, -'/jsonrpc'.length)
+      : rpcUrl;
+    multiProvider.setSigner(chain, new TronWallet(privateKey, tronBaseUrl));
   } else {
     multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
   }
@@ -202,11 +208,7 @@ export async function deployToken(
     key: privateKey,
   });
 
-  // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(
-    chain,
-    new LocalAccountViemSigner(ensure0x(privateKey)),
-  );
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
   const token = await new ERC20Test__factory(
     multiProvider.getSigner(chain),
@@ -228,10 +230,7 @@ export async function deployFiatToken(
     key: privateKey,
   });
 
-  multiProvider.setSigner(
-    chain,
-    new LocalAccountViemSigner(ensure0x(privateKey)),
-  );
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
   const token = await new FiatTokenTest__factory(
     multiProvider.getSigner(chain),
@@ -251,11 +250,7 @@ export async function deploy4626Vault(
     key: privateKey,
   });
 
-  // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(
-    chain,
-    new LocalAccountViemSigner(ensure0x(privateKey)),
-  );
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
   const vault = await new ERC4626Test__factory(
     multiProvider.getSigner(chain),
@@ -276,11 +271,7 @@ export async function deployXERC20VSToken(
     key: privateKey,
   });
 
-  // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(
-    chain,
-    new LocalAccountViemSigner(ensure0x(privateKey)),
-  );
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
   const token = await new XERC20VSTest__factory(
     multiProvider.getSigner(chain),
@@ -305,11 +296,7 @@ export async function deployXERC20LockboxToken(
     key: privateKey,
   });
 
-  // Future works: make signer compatible with protocol/chain stack
-  multiProvider.setSigner(
-    chain,
-    new LocalAccountViemSigner(ensure0x(privateKey)),
-  );
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
   const [tokenSymbol, tokenName, tokenDecimals, tokenTotalSupply] =
     await Promise.all([
@@ -343,10 +330,7 @@ export async function deployTestOffchainLookupISM(
     key: privateKey,
   });
 
-  multiProvider.setSigner(
-    chain,
-    new LocalAccountViemSigner(ensure0x(privateKey)),
-  );
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
   const testIsm = await new TestCcipReadIsm__factory(
     multiProvider.getSigner(chain),
@@ -369,10 +353,7 @@ export async function deployEverclearBridgeAdapter(
     key: privateKey,
   });
 
-  multiProvider.setSigner(
-    chain,
-    new LocalAccountViemSigner(ensure0x(privateKey)),
-  );
+  setSignerForChain(multiProvider, chain, ensure0x(privateKey));
 
   const adapter = await new MockEverclearAdapter__factory(
     multiProvider.getSigner(chain),
