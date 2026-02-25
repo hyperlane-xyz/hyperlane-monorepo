@@ -2,10 +2,10 @@ import { TronWeb } from 'tronweb';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import InterchainGasPaymasterAbi from '../abi/contracts/hooks/igp/InterchainGasPaymaster.sol/InterchainGasPaymaster.json' with { type: 'json' };
-import MerkleTreeHookAbi from '../abi/contracts/hooks/MerkleTreeHook.sol/MerkleTreeHook.json' with { type: 'json' };
-import StorageGasOracleAbi from '../abi/contracts/hooks/igp/StorageGasOracle.sol/StorageGasOracle.json' with { type: 'json' };
-import TransparentUpgradeableProxyAbi from '../abi/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json' with { type: 'json' };
+import InterchainGasPaymasterAbi from '@hyperlane-xyz/core/tron/abi/contracts/hooks/igp/InterchainGasPaymaster.sol/InterchainGasPaymaster.json' with { type: 'json' };
+import MerkleTreeHookAbi from '@hyperlane-xyz/core/tron/abi/contracts/hooks/MerkleTreeHook.sol/MerkleTreeHook.json' with { type: 'json' };
+import StorageGasOracleAbi from '@hyperlane-xyz/core/tron/abi/contracts/hooks/igp/StorageGasOracle.sol/StorageGasOracle.json' with { type: 'json' };
+import TransparentUpgradeableProxyAbi from '@hyperlane-xyz/core/tron/abi/@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json' with { type: 'json' };
 import { createDeploymentTransaction } from '../utils/index.js';
 import { TronTransaction } from '../utils/types.js';
 

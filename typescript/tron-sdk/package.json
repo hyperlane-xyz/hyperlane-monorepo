@@ -28,11 +28,10 @@
     }
   },
   "scripts": {
-    "sync:generated": "node ./scripts/sync-generated-from-solidity.mjs",
-    "build": "pnpm sync:generated && rm -rf ./dist && tsc",
-    "format": "oxfmt --write src/**/*.ts !src/typechain !src/abi",
+    "build": "rm -rf ./dist && tsc",
+    "format": "oxfmt --write src/**/*.ts",
     "lint": "eslint -c ./eslint.config.mjs",
-    "clean": "rm -rf ./dist ./cache ./src/typechain ./src/abi ./coverage",
+    "clean": "rm -rf ./dist ./cache ./coverage",
     "dev": "tsc --watch",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
     "coverage": "c8 pnpm test"
