@@ -21,10 +21,6 @@ pub const SOLANA_AGENT_BIN_PATH: &str = "target/debug";
 pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "3.0.14";
 pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
 
-/// Solana version used by mainnet validators
-pub const SOLANA_NETWORK_CLI_VERSION: &str = "3.0.14";
-pub const SOLANA_NETWORK_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
-
 const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
     "https://github.com/hyperlane-xyz/solana-program-library/releases/download/2024-08-23/spl.tar.gz";
 

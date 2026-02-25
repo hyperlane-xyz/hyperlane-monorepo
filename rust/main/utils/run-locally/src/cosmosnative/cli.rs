@@ -81,12 +81,13 @@ impl SimApp {
 
         // Speed up block times for faster E2E tests
         let config_path = format!("{}/config/config.toml", self.home);
-        if let Ok(contents) = std::fs::read_to_string(&config_path) {
-            if let Ok(mut doc) = contents.parse::<toml_edit::Document>() {
-                doc["consensus"]["timeout_commit"] = toml_edit::value("1s");
-                std::fs::write(&config_path, doc.to_string()).ok();
-            }
-        }
+        let contents =
+            std::fs::read_to_string(&config_path).expect("Failed to read config.toml after init");
+        let mut doc = contents
+            .parse::<toml_edit::Document>()
+            .expect("Failed to parse config.toml");
+        doc["consensus"]["timeout_commit"] = toml_edit::value("1s");
+        std::fs::write(&config_path, doc.to_string()).expect("Failed to write config.toml");
     }
 
     pub fn start(&mut self) -> AgentHandles {
