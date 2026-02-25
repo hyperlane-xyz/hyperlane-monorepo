@@ -62,6 +62,13 @@ export class MockExternalBridge implements IExternalBridge {
     const amount = params.fromAmount ?? params.toAmount!;
     const toAddress = params.toAddress ?? params.fromAddress;
 
+    const gasCosts = await this.estimateGasCosts(
+      params.fromChain,
+      params.toChain,
+      toAddress,
+      params.fromAddress,
+    );
+
     const route: MockBridgeRoute = {
       fromChain: params.fromChain,
       toChain: params.toChain,
@@ -77,7 +84,7 @@ export class MockExternalBridge implements IExternalBridge {
       toAmount: amount,
       toAmountMin: amount,
       executionDuration: 1,
-      gasCosts: 0n,
+      gasCosts,
       feeCosts: 0n,
       route,
     };
@@ -192,6 +199,47 @@ export class MockExternalBridge implements IExternalBridge {
   reset(): void {
     this.failStatusOverrides.clear();
     this._failNextExecute = false;
+  }
+
+  /**
+   * Estimates gas costs for a transferRemote call on the bridge route.
+   * Uses a small amount (1 wei) to avoid balance-related estimation failures.
+   */
+  private async estimateGasCosts(
+    fromChain: number,
+    toChain: number,
+    toAddress: string,
+    fromAddress: string,
+  ): Promise<bigint> {
+    const fromChainName = this.resolveChainName(fromChain);
+    const toChainName = this.resolveChainName(toChain);
+
+    const bridgeRouteAddress =
+      this.nativeDeployedAddresses.bridgeRoute[fromChainName];
+    const destinationDomain = this.multiProvider.getDomainId(toChainName);
+    const provider = this.multiProvider.getProvider(fromChainName);
+
+    const bridgeRoute = HypNative__factory.connect(
+      bridgeRouteAddress,
+      provider,
+    );
+
+    const recipientBytes32 = ethers.utils.hexZeroPad(
+      ethers.utils.hexlify(toAddress),
+      32,
+    );
+
+    // Use 1 wei for estimation — gas usage doesn't depend on transfer amount
+    const estimateAmount = 1n;
+    const gasEstimate = await bridgeRoute.estimateGas.transferRemote(
+      destinationDomain,
+      recipientBytes32,
+      estimateAmount,
+      { value: estimateAmount, from: fromAddress },
+    );
+
+    const gasPrice = await provider.getGasPrice();
+    return gasEstimate.mul(gasPrice).toBigInt();
   }
 
   private parseRoute(route: unknown): MockBridgeRoute {
