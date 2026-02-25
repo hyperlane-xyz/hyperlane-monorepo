@@ -473,7 +473,7 @@ function getTimeout(connection: RpcConfigWithConnectionInfo['connection']) {
   ) {
     // Local fork nodes can stall on first uncached reads from upstream RPCs.
     // Keep a longer timeout for local endpoints to avoid transient CI flakes.
-    return 30_000;
+    return 120_000;
   }
   return undefined;
 }
