@@ -2,6 +2,10 @@ name: Build and Push Agent Image to GCR
 on:
   push:
     branches: [main]
+    paths:
+      - 'rust/**'
+      - '.dockerignore'
+      - '.github/workflows/rust-docker.yml'
     tags:
       - 'agents-*'
   pull_request:
