@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import yargs from 'yargs';
 
-import { AnnotatedEV5Transaction } from '@hyperlane-xyz/sdk';
+import { AnnotatedEvmTransaction } from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
   LogLevel,
@@ -78,7 +78,7 @@ async function main() {
         salt,
       }): Promise<[string, GovernTransaction]> => {
         rootLogger.info(chalk.gray.italic(`Reading tx ${id} on ${chain}`));
-        const tx: AnnotatedEV5Transaction = {
+        const tx: AnnotatedEvmTransaction = {
           to: timelockAddress,
           data: executeTransactionData,
         };

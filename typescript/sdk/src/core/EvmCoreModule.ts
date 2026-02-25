@@ -46,7 +46,7 @@ import { DerivedIsmConfig, IsmConfig, IsmType } from '../ism/types.js';
 import { isStaticDeploymentSupported } from '../ism/utils.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
@@ -112,11 +112,11 @@ export class EvmCoreModule extends HyperlaneModule<
    */
   public async update(
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    const transactions: AnnotatedEV5Transaction[] = [
+    const transactions: AnnotatedEvmTransaction[] = [
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
     ];
 
@@ -173,7 +173,7 @@ export class EvmCoreModule extends HyperlaneModule<
     setHookFunctionName: CoreConfigHookFieldKey,
     actualConfig: DerivedHookConfig,
     expectedConfig: HookConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     return getEvmHookUpdateTransactions(this.args.addresses.mailbox, {
       actualConfig: actualConfig,
       expectedConfig: expectedConfig,
@@ -211,8 +211,8 @@ export class EvmCoreModule extends HyperlaneModule<
   async createDefaultIsmUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
+  ): Promise<AnnotatedEvmTransaction[]> {
+    const updateTransactions: AnnotatedEvmTransaction[] = [];
 
     const actualDefaultIsmConfig = actualConfig.defaultIsm as DerivedIsmConfig;
 
@@ -259,7 +259,7 @@ export class EvmCoreModule extends HyperlaneModule<
     expectDefaultIsmConfig: IsmConfig,
   ): Promise<{
     deployedIsm: Address;
-    ismUpdateTxs: AnnotatedEV5Transaction[];
+    ismUpdateTxs: AnnotatedEvmTransaction[];
   }> {
     const { mailbox } = this.serialize();
 
@@ -291,7 +291,7 @@ export class EvmCoreModule extends HyperlaneModule<
   createMailboxOwnerUpdateTxs(
     actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
-  ): AnnotatedEV5Transaction[] {
+  ): AnnotatedEvmTransaction[] {
     return transferOwnershipTransactions(
       this.chainId,
       this.args.addresses.mailbox,

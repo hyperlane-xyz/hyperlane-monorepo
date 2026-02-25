@@ -2,7 +2,7 @@ import { toUtf8Bytes } from 'ethers';
 
 import {
   ChainName,
-  EthersV5Transaction,
+  EthersV6Transaction,
   EvmRouterAdapter,
   MultiProtocolProvider,
   ProviderType,
@@ -30,7 +30,7 @@ export class EvmHelloWorldAdapter
     message: string,
     value: string,
     sender: Address,
-  ): Promise<EthersV5Transaction> {
+  ): Promise<EthersV6Transaction> {
     const contract = this.getConnectedContract();
     const toDomain = this.multiProvider.getDomainId(destination);
     const { transactionOverrides } = this.multiProvider.getChainMetadata(
@@ -62,7 +62,7 @@ export class EvmHelloWorldAdapter
         value: totalValue,
       },
     );
-    return { transaction: tx, type: ProviderType.EthersV5 };
+    return { transaction: tx, type: ProviderType.EthersV6 };
   }
 
   async sentStat(destination: ChainName): Promise<number> {

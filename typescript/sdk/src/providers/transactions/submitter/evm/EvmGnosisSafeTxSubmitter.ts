@@ -16,13 +16,13 @@ import {
   getSafeService,
 } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
+import { AnnotatedEvmTransaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
-import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
-import { EV5GnosisSafeTxSubmitterProps } from './types.js';
+import { EvmTxSubmitterInterface } from './EvmTxSubmitterInterface.js';
+import { EvmGnosisSafeTxSubmitterProps } from './types.js';
 
-export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
+export class EvmGnosisSafeTxSubmitter implements EvmTxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.GNOSIS_SAFE;
 
@@ -32,7 +32,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
 
   constructor(
     public readonly multiProvider: MultiProvider,
-    public readonly props: EV5GnosisSafeTxSubmitterProps,
+    public readonly props: EvmGnosisSafeTxSubmitterProps,
     protected safe: Safe.default,
     protected safeService: SafeApiKit.default,
   ) {}
@@ -57,8 +57,8 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
 
   static async create(
     multiProvider: MultiProvider,
-    props: EV5GnosisSafeTxSubmitterProps,
-  ): Promise<EV5GnosisSafeTxSubmitter> {
+    props: EvmGnosisSafeTxSubmitterProps,
+  ): Promise<EvmGnosisSafeTxSubmitter> {
     const { chain, safeAddress } = props;
 
     const signer = multiProvider.getSigner(chain);
@@ -83,14 +83,14 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       'Signer must have a private key to propose Safe transactions',
     );
     const { safe, safeService } =
-      await EV5GnosisSafeTxSubmitter.initSafeAndService(
+      await EvmGnosisSafeTxSubmitter.initSafeAndService(
         chain,
         multiProvider,
         safeAddress,
         safeSignerKey,
       );
 
-    return new EV5GnosisSafeTxSubmitter(
+    return new EvmGnosisSafeTxSubmitter(
       multiProvider,
       props,
       safe,
@@ -109,29 +109,29 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   }
 
   public async createSafeTransaction(
-    ...transactions: AnnotatedEV5Transaction[]
+    ...transactions: AnnotatedEvmTransaction[]
   ): Promise<SafeTransaction> {
     const nextNonce = await this.getNextNonce();
     const submitterChainId = this.multiProvider.getChainId(this.props.chain);
 
     const safeTransactionData = transactions.map(
       ({ to, data, value, chainId }): MetaTransactionData => {
-        assert(chainId, 'Invalid AnnotatedEV5Transaction: chainId is required');
+        assert(chainId, 'Invalid AnnotatedEvmTransaction: chainId is required');
         assert(
           chainId === submitterChainId,
-          `Invalid AnnotatedEV5Transaction: Cannot submit tx for chain ID ${chainId} to submitter for chain ID ${submitterChainId}.`,
+          `Invalid AnnotatedEvmTransaction: Cannot submit tx for chain ID ${chainId} to submitter for chain ID ${submitterChainId}.`,
         );
         assert(
           data,
-          `Invalid AnnotatedEV5Transaction: calldata is required for gnosis safe transaction on chain with ID ${submitterChainId}`,
+          `Invalid AnnotatedEvmTransaction: calldata is required for gnosis safe transaction on chain with ID ${submitterChainId}`,
         );
         assert(
           to,
-          `Invalid AnnotatedEV5Transaction: target address is required for gnosis safe transaction on chain with ID ${submitterChainId}`,
+          `Invalid AnnotatedEvmTransaction: target address is required for gnosis safe transaction on chain with ID ${submitterChainId}`,
         );
         assert(
           typeof to === 'string',
-          'Invalid AnnotatedEV5Transaction: target address must be a string',
+          'Invalid AnnotatedEvmTransaction: target address must be a string',
         );
         return { to, data, value: value?.toString() ?? '0' };
       },
@@ -149,7 +149,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     return safeTransaction;
   }
 
-  public async submit(...txs: AnnotatedEV5Transaction[]): Promise<void> {
+  public async submit(...txs: AnnotatedEvmTransaction[]): Promise<void> {
     const safeTransaction = await this.createSafeTransaction(...txs);
     return this.proposeSafeTransaction(safeTransaction);
   }

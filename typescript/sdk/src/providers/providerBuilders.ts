@@ -19,7 +19,7 @@ import {
   CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
-  EthersV5Provider,
+  EthersV6Provider,
   KnownProtocolType,
   ProviderType,
   RadixProvider,
@@ -45,18 +45,18 @@ const DEFAULT_RETRY_OPTIONS: ProviderRetryOptions = {
   baseRetryDelayMs: 250,
 };
 
-export function defaultEthersV5ProviderBuilder(
+export function defaultEthersV6ProviderBuilder(
   rpcUrls: RpcUrl[],
   network: number | string,
   retryOverride?: ProviderRetryOptions,
-): EthersV5Provider {
+): EthersV6Provider {
   const provider = new HyperlaneSmartProvider(
     network,
     rpcUrls,
     undefined,
     retryOverride || DEFAULT_RETRY_OPTIONS,
   );
-  return { type: ProviderType.EthersV5, provider };
+  return { type: ProviderType.EthersV6, provider };
 }
 
 export function defaultViemProviderBuilder(
@@ -95,7 +95,7 @@ export function defaultSolProviderBuilder(
 export function defaultFuelProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
-): EthersV5Provider {
+): EthersV6Provider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
   throw new Error('TODO fuel support');
 }
@@ -199,7 +199,7 @@ export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
 ): Provider {
-  return defaultEthersV5ProviderBuilder(rpcUrls, _network).provider;
+  return defaultEthersV6ProviderBuilder(rpcUrls, _network).provider;
 }
 
 export function defaultZKProviderBuilder(
@@ -214,8 +214,8 @@ export type ProviderBuilderMap = Record<
   ProviderBuilderFn<TypedProvider>
 >;
 export const defaultProviderBuilderMap: ProviderBuilderMap = {
-  [ProviderType.EthersV5]: defaultEthersV5ProviderBuilder,
-  [ProviderType.GnosisTxBuilder]: defaultEthersV5ProviderBuilder,
+  [ProviderType.EthersV6]: defaultEthersV6ProviderBuilder,
+  [ProviderType.GnosisTxBuilder]: defaultEthersV6ProviderBuilder,
   [ProviderType.Viem]: defaultViemProviderBuilder,
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
@@ -231,7 +231,7 @@ export const protocolToDefaultProviderBuilder: Record<
   KnownProtocolType,
   ProviderBuilderFn<TypedProvider>
 > = {
-  [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
+  [ProtocolType.Ethereum]: defaultEthersV6ProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
   [ProtocolType.CosmosNative]: defaultCosmJsNativeProviderBuilder,

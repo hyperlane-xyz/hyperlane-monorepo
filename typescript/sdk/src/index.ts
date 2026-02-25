@@ -348,7 +348,7 @@ export {
   RpcUrl,
   RpcUrlSchema,
 } from './metadata/chainMetadataTypes.js';
-export { ZBigNumberish, ZChainName, ZHash } from './metadata/customZodTypes.js';
+export { ZBigIntish, ZChainName, ZHash } from './metadata/customZodTypes.js';
 export {
   HyperlaneDeploymentArtifacts,
   HyperlaneDeploymentArtifactsSchema,
@@ -398,7 +398,7 @@ export {
   SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
-  defaultEthersV5ProviderBuilder,
+  defaultEthersV6ProviderBuilder,
   defaultFuelProviderBuilder,
   defaultProviderBuilder,
   defaultProviderBuilderMap,
@@ -418,10 +418,10 @@ export {
   CosmJsWasmProvider,
   CosmJsWasmTransaction,
   CosmJsWasmTransactionReceipt,
-  EthersV5Contract,
-  EthersV5Provider,
-  EthersV5Transaction,
-  EthersV5TransactionReceipt,
+  EthersV6Contract,
+  EthersV6Provider,
+  EthersV6Transaction,
+  EthersV6TransactionReceipt,
   ProviderMap,
   ProviderType,
   SolanaWeb3Contract,
@@ -451,7 +451,7 @@ export {
 } from './providers/ProviderType.js';
 export {
   isCosmJsProviderHealthy,
-  isEthersV5ProviderHealthy,
+  isEthersV6ProviderHealthy,
   isRpcHealthy,
   isSolanaWeb3ProviderHealthy,
 } from './providers/rpcHealthTest.js';
@@ -487,13 +487,13 @@ export {
 } from './providers/transactions/submitter/types.js';
 
 export {
-  EV5GnosisSafeTxSubmitterProps,
-  EV5GnosisSafeTxSubmitterPropsSchema,
-  EV5ImpersonatedAccountTxSubmitterProps,
-  EV5ImpersonatedAccountTxSubmitterPropsSchema,
+  EvmGnosisSafeTxSubmitterProps,
+  EvmGnosisSafeTxSubmitterPropsSchema,
+  EvmImpersonatedAccountTxSubmitterProps,
+  EvmImpersonatedAccountTxSubmitterPropsSchema,
   EvmIcaTxSubmitterProps,
   isJsonRpcSubmitterConfig,
-} from './providers/transactions/submitter/ethersV5/types.js';
+} from './providers/transactions/submitter/evm/types.js';
 
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
 export {
@@ -505,11 +505,11 @@ export {
   preprocessChainSubmissionStrategy,
 } from './providers/transactions/submitter/builder/types.js';
 
-export { EV5GnosisSafeTxBuilder } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxBuilder.js';
-export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
-export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
-export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
-export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
+export { EvmGnosisSafeTxBuilder } from './providers/transactions/submitter/evm/EvmGnosisSafeTxBuilder.js';
+export { EvmGnosisSafeTxSubmitter } from './providers/transactions/submitter/evm/EvmGnosisSafeTxSubmitter.js';
+export { EvmImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/evm/EvmImpersonatedAccountTxSubmitter.js';
+export { EvmJsonRpcTxSubmitter } from './providers/transactions/submitter/evm/EvmJsonRpcTxSubmitter.js';
+export { EvmTxSubmitterInterface } from './providers/transactions/submitter/evm/EvmTxSubmitterInterface.js';
 export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmitter.js';
 export {
   SubmitterBuilderSettings,
@@ -583,7 +583,7 @@ export {
   chainMetadataToViemChain,
 } from './metadata/chainMetadataConversion.js';
 export {
-  AnnotatedEV5Transaction,
+  AnnotatedEvmTransaction,
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
 } from './providers/ProviderType.js';
 export {

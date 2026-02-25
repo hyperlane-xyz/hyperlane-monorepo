@@ -10,7 +10,7 @@ import {
   ProtocolAgnositicGasOracleConfig,
   ProtocolAgnositicGasOracleConfigSchema,
   ProtocolAgnositicGasOracleConfigWithTypicalCost,
-  ZBigNumberish,
+  ZBigIntish,
   defaultMultisigConfigs,
   getLocalStorageGasOracleConfig,
   getProtocolExchangeRateScale,
@@ -42,8 +42,8 @@ export type AllStorageGasOracleConfigs = ChainMap<
 export type OracleConfig = z.infer<typeof OracleConfigSchema>;
 export const OracleConfigSchema = ProtocolAgnositicGasOracleConfigSchema.extend(
   {
-    tokenExchangeRate: ZBigNumberish, // override to coerce/canonicalize
-    gasPrice: ZBigNumberish, // override to coerce/canonicalize
+    tokenExchangeRate: ZBigIntish, // override to coerce/canonicalize
+    gasPrice: ZBigIntish, // override to coerce/canonicalize
     // we expect infra-generated configs to always have token decimals
     tokenDecimals: z.number().int().nonnegative(),
   },

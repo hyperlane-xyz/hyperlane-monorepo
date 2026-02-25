@@ -173,7 +173,7 @@ export class RebalancerSimulationHarness {
 
     for (const rebalancer of rebalancers) {
       // Recreate engine with fresh provider to avoid cached RPC state
-      // This is important because ethers v5 caches chainId, nonces, etc.
+      // This is important because ethers caches chainId, nonces, etc.
       this.engine = new SimulationEngine(this.deployment);
 
       // Run simulation

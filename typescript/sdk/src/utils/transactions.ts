@@ -1,6 +1,6 @@
 import { EvmChainId, assert } from '@hyperlane-xyz/utils';
 
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 
 /**
  * Retrieves the chain ID from the first transaction and verifies all transactions
@@ -11,11 +11,11 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
  * @throws If the transactions are not all for the same chain ID or if chain ID is missing
  */
 export function getChainIdFromTxs(
-  transactions: AnnotatedEV5Transaction[],
+  transactions: AnnotatedEvmTransaction[],
 ): EvmChainId {
   const firstTransaction = transactions[0];
   const sameChainIds = transactions.every(
-    (t: AnnotatedEV5Transaction) => t.chainId === firstTransaction.chainId,
+    (t: AnnotatedEvmTransaction) => t.chainId === firstTransaction.chainId,
   );
   assert(sameChainIds, 'Transactions must be submitted on the same chains');
   assert(

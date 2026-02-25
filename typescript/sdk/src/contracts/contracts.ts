@@ -19,7 +19,7 @@ import {
 import type { EthersLikeProvider } from '../deploy/proxy.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import {
   ChainMap,
   ChainNameOrId,
@@ -50,8 +50,8 @@ export function serializeContracts<F extends HyperlaneFactories>(
     typeof (contract as any).target === 'string'
       ? (contract as any).target
       : typeof (contract as any).address === 'string'
-      ? (contract as any).address
-      : serializeContracts(contract as any),
+        ? (contract as any).address
+        : serializeContracts(contract as any),
   );
 }
 
@@ -305,7 +305,7 @@ export function transferOwnershipTransactions(
   actual: OwnableConfig,
   expected: OwnableConfig,
   label?: string,
-): AnnotatedEV5Transaction[] {
+): AnnotatedEvmTransaction[] {
   if (eqAddress(actual.owner, expected.owner)) {
     return [];
   }

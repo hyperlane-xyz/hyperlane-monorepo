@@ -237,7 +237,7 @@ export function getManagedLockBox(
   chainName: string,
   lockboxAddress: Address,
 ): Contract {
-  const provider = multiProvider.getEthersV5Provider(chainName);
+  const provider = multiProvider.getEthersV6Provider(chainName);
   return new Contract(lockboxAddress, MANAGED_LOCKBOX_MINIMAL_ABI, provider);
 }
 
@@ -254,7 +254,7 @@ export async function getExtraLockboxInfo(
   warpToken: Token,
   lockboxAddress: Address,
 ): Promise<XERC20Info> {
-  const currentChainProvider = multiProvider.getEthersV5Provider(
+  const currentChainProvider = multiProvider.getEthersV6Provider(
     warpToken.chainName,
   );
   const lockboxInstance = getManagedLockBox(

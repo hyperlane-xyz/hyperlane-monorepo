@@ -8,7 +8,7 @@ import {
 
 import {
   chunk,
-  isBigNumberish,
+  isNumberish,
   isNullish,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -141,7 +141,7 @@ export class HyperlaneJsonRpcProvider
     let endBlock: number;
     if (isNullish(toBlock) || toBlock === 'latest') {
       endBlock = currentBlockNumber;
-    } else if (isBigNumberish(toBlock)) {
+    } else if (isNumberish(toBlock)) {
       endBlock = Number(toBlock);
     } else {
       return superPerform();
@@ -150,7 +150,7 @@ export class HyperlaneJsonRpcProvider
     let startBlock: number;
     if (isNullish(fromBlock) || fromBlock === 'earliest') {
       startBlock = 0;
-    } else if (isBigNumberish(fromBlock)) {
+    } else if (isNumberish(fromBlock)) {
       startBlock = Number(fromBlock);
     } else {
       return superPerform();

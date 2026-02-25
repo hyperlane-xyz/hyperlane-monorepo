@@ -1,5 +1,4 @@
 import {
-  type BigNumberish,
   ZeroAddress,
   getBytes,
   getAddress,
@@ -14,6 +13,7 @@ import {
   Address,
   Domain,
   HexString,
+  Numberish,
   ParsedMessage,
   ParsedWarpRouteMessage,
 } from './types.js';
@@ -23,8 +23,8 @@ import {
  * @returns Hex string of the packed message
  */
 export const formatMessage = (
-  version: BigNumberish,
-  nonce: BigNumberish,
+  version: Numberish,
+  nonce: Numberish,
   originDomain: Domain,
   senderAddr: Address,
   destinationDomain: Domain,
@@ -172,8 +172,5 @@ export function extractRefundAddressFromMetadata(
 
 export function hasValidRefundAddress(metadata?: HexString): boolean {
   const refundAddress = extractRefundAddressFromMetadata(metadata);
-  return (
-    refundAddress !== null &&
-    refundAddress.toLowerCase() !== ZeroAddress
-  );
+  return refundAddress !== null && refundAddress.toLowerCase() !== ZeroAddress;
 }

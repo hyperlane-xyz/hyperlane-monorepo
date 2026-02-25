@@ -31,7 +31,7 @@ import {
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
 
-import { AnnotatedEV5Transaction } from './ProviderType.js';
+import { AnnotatedEvmTransaction } from './ProviderType.js';
 import {
   ProviderBuilderFn,
   defaultProviderBuilder,
@@ -503,7 +503,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       `Timeout (${timeoutMs}ms) waiting for ${confirmations} block confirmations for tx ${response.hash}`,
     )) as TransactionReceipt | null;
 
-    // ethers v5 can return null for wait(0) if tx is still pending.
+    // ethers can return null for wait(0) if tx is still pending.
     if (receipt) return receipt;
 
     this.logger.info(
@@ -637,7 +637,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async sendTransaction(
     chainNameOrId: ChainNameOrId,
-    txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
+    txProm: AnnotatedEvmTransaction | Promise<AnnotatedEvmTransaction>,
     options?: SendTransactionOptions,
   ): Promise<TransactionReceipt> {
     const { annotation, ...tx } = await txProm;

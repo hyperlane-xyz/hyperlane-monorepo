@@ -8,11 +8,11 @@ import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { TxSubmitterBuilder } from './builder/TxSubmitterBuilder.js';
 import { SubmissionStrategy } from './builder/types.js';
-import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
-import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
-import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
-import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
-import { EV5TimelockSubmitter } from './ethersV5/EV5TimelockSubmitter.js';
+import { EvmGnosisSafeTxBuilder } from './evm/EvmGnosisSafeTxBuilder.js';
+import { EvmGnosisSafeTxSubmitter } from './evm/EvmGnosisSafeTxSubmitter.js';
+import { EvmImpersonatedAccountTxSubmitter } from './evm/EvmImpersonatedAccountTxSubmitter.js';
+import { EvmJsonRpcTxSubmitter } from './evm/EvmJsonRpcTxSubmitter.js';
+import { EvmTimelockSubmitter } from './evm/EvmTimelockSubmitter.js';
 import { SubmitterMetadata } from './types.js';
 
 export type SubmitterBuilderSettings = {
@@ -51,28 +51,28 @@ const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
       metadata.type === TxSubmitterType.JSON_RPC,
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.JSON_RPC}`,
     );
-    return new EV5JsonRpcTxSubmitter(multiProvider, metadata);
+    return new EvmJsonRpcTxSubmitter(multiProvider, metadata);
   },
   [TxSubmitterType.IMPERSONATED_ACCOUNT]: (multiProvider, metadata) => {
     assert(
       metadata.type === TxSubmitterType.IMPERSONATED_ACCOUNT,
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.IMPERSONATED_ACCOUNT}`,
     );
-    return new EV5ImpersonatedAccountTxSubmitter(multiProvider, metadata);
+    return new EvmImpersonatedAccountTxSubmitter(multiProvider, metadata);
   },
   [TxSubmitterType.GNOSIS_SAFE]: (multiProvider, metadata) => {
     assert(
       metadata.type === TxSubmitterType.GNOSIS_SAFE,
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.GNOSIS_SAFE}`,
     );
-    return EV5GnosisSafeTxSubmitter.create(multiProvider, metadata);
+    return EvmGnosisSafeTxSubmitter.create(multiProvider, metadata);
   },
   [TxSubmitterType.GNOSIS_TX_BUILDER]: (multiProvider, metadata) => {
     assert(
       metadata.type === TxSubmitterType.GNOSIS_TX_BUILDER,
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.GNOSIS_TX_BUILDER}`,
     );
-    return EV5GnosisSafeTxBuilder.create(multiProvider, metadata);
+    return EvmGnosisSafeTxBuilder.create(multiProvider, metadata);
   },
   [TxSubmitterType.INTERCHAIN_ACCOUNT]: (
     multiProvider,
@@ -99,7 +99,7 @@ const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
       `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.TIMELOCK_CONTROLLER}`,
     );
 
-    return EV5TimelockSubmitter.fromConfig(
+    return EvmTimelockSubmitter.fromConfig(
       metadata,
       multiProvider,
       coreAddressesByChain,

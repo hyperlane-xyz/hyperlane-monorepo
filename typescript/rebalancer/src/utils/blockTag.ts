@@ -29,7 +29,7 @@ export async function getConfirmedBlockTag(
       return reorgPeriod as EthJsonRpcBlockParameterTag;
     }
 
-    const provider = multiProvider.getEthersV5Provider(chainName);
+    const provider = multiProvider.getEthersV6Provider(chainName);
     const latestBlock = await provider.getBlockNumber();
     return Math.max(0, latestBlock - reorgPeriod);
   } catch (error) {

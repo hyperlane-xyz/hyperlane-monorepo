@@ -1,8 +1,8 @@
 import { SendTransactionParameters } from '@wagmi/core';
-import { BigNumberish, TransactionRequest } from 'ethers';
+import { TransactionRequest } from 'ethers';
 
 import { ChainMetadata, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { Numberish, ProtocolType } from '@hyperlane-xyz/utils';
 
 export function ethers5TxToWagmiTx(
   tx: TransactionRequest,
@@ -25,7 +25,7 @@ export function ethers5TxToWagmiTx(
   };
 }
 
-function ethersBnToBigInt(bn: BigNumberish): bigint {
+function ethersBnToBigInt(bn: Numberish): bigint {
   return BigInt(bn.toString());
 }
 

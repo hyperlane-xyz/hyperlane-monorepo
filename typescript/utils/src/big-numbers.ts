@@ -5,11 +5,11 @@ import { FixedNumber } from 'ethers';
 // when parsing exponential string over e21
 
 /**
- * Check if a value is bigNumberish (e.g. valid numbers, bigNumber).
+ * Check if a value is number-like (e.g. valid numbers, bigNumber).
  * @param value The value to check.
  * @returns true/false.
  */
-export function isBigNumberish(
+export function isNumberish(
   value: BigNumber.Value | undefined | null,
 ): boolean {
   try {

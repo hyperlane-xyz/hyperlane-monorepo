@@ -4,13 +4,13 @@ import { Logger } from 'pino';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../../MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
+import { AnnotatedEvmTransaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
-import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
-import { EV5JsonRpcTxSubmitterProps } from './types.js';
+import { EvmTxSubmitterInterface } from './EvmTxSubmitterInterface.js';
+import { EvmJsonRpcTxSubmitterProps } from './types.js';
 
-export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
+export class EvmJsonRpcTxSubmitter implements EvmTxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.JSON_RPC;
 
   protected readonly logger: Logger = rootLogger.child({
@@ -19,11 +19,11 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
 
   constructor(
     public readonly multiProvider: MultiProvider,
-    public readonly props: EV5JsonRpcTxSubmitterProps,
+    public readonly props: EvmJsonRpcTxSubmitterProps,
   ) {}
 
   public async submit(
-    ...txs: AnnotatedEV5Transaction[]
+    ...txs: AnnotatedEvmTransaction[]
   ): Promise<TransactionReceipt[]> {
     const receipts: TransactionReceipt[] = [];
     const submitterChainId = this.multiProvider.getChainId(this.props.chain);

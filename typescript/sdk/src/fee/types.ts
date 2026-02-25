@@ -1,10 +1,6 @@
 import { z } from 'zod';
 
-import {
-  ZBigNumberish,
-  ZChainName,
-  ZHash,
-} from '../metadata/customZodTypes.js';
+import { ZBigIntish, ZChainName, ZHash } from '../metadata/customZodTypes.js';
 
 import { convertToBps } from './utils.js';
 
@@ -55,8 +51,8 @@ export const BaseFeeConfigInputSchema = z.object({
 });
 
 export const FeeParametersSchema = z.object({
-  maxFee: ZBigNumberish,
-  halfAmount: ZBigNumberish,
+  maxFee: ZBigIntish,
+  halfAmount: ZBigIntish,
 });
 export type FeeParameters = z.infer<typeof FeeParametersSchema>;
 
@@ -67,14 +63,14 @@ const StandardFeeConfigBaseSchema =
 
 export const LinearFeeConfigSchema = StandardFeeConfigBaseSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBigNumberish,
+  bps: ZBigIntish,
 });
 export type LinearFeeConfig = z.infer<typeof LinearFeeConfigSchema>;
 
 // Linear Fee Input - only requires bps & type, token is optional
 export const LinearFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
   type: z.literal(TokenFeeType.LinearFee),
-  bps: ZBigNumberish.optional(),
+  bps: ZBigIntish.optional(),
   ...FeeParametersSchema.partial().shape,
 })
   .superRefine((v, ctx) => {
@@ -120,8 +116,8 @@ export type ProgressiveFeeConfig = z.infer<typeof ProgressiveFeeConfigSchema>;
 
 export const ProgressiveFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
   type: z.literal(TokenFeeType.ProgressiveFee),
-  maxFee: ZBigNumberish,
-  halfAmount: ZBigNumberish,
+  maxFee: ZBigIntish,
+  halfAmount: ZBigIntish,
 }).refine((v) => BigInt(v.halfAmount) > 0n, {
   path: ['halfAmount'],
   message: 'halfAmount must be > 0',
@@ -137,8 +133,8 @@ export type RegressiveFeeConfig = z.infer<typeof RegressiveFeeConfigSchema>;
 
 export const RegressiveFeeInputConfigSchema = BaseFeeConfigInputSchema.extend({
   type: z.literal(TokenFeeType.RegressiveFee),
-  maxFee: ZBigNumberish,
-  halfAmount: ZBigNumberish,
+  maxFee: ZBigIntish,
+  halfAmount: ZBigIntish,
 }).refine((v) => BigInt(v.halfAmount) > 0n, {
   path: ['halfAmount'],
   message: 'halfAmount must be > 0',
@@ -155,8 +151,8 @@ export const RoutingFeeConfigSchema = BaseFeeConfigSchema.extend({
       z.lazy((): z.ZodSchema => TokenFeeConfigSchema),
     )
     .optional(), // Destination -> Fee
-  maxFee: ZBigNumberish.optional(),
-  halfAmount: ZBigNumberish.optional(),
+  maxFee: ZBigIntish.optional(),
+  halfAmount: ZBigIntish.optional(),
 });
 export type RoutingFeeConfig = z.infer<typeof RoutingFeeConfigSchema>;
 

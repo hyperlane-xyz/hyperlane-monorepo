@@ -75,7 +75,7 @@ import {
   warnYellow,
 } from '../logger.js';
 import { WarpSendLogs } from '../send/transfer.js';
-import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
+import { EvmFileSubmitter } from '../submitters/EvmFileSubmitter.js';
 import {
   CustomTxSubmitterType,
   type ExtendedChainSubmissionStrategy,
@@ -1204,7 +1204,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   const additionalSubmitterFactories: any = {
     [ProtocolType.Ethereum]: {
       file: (_multiProvider: MultiProvider, metadata: any) => {
-        return new EV5FileSubmitter(metadata);
+        return new EvmFileSubmitter(metadata);
       },
     },
   };

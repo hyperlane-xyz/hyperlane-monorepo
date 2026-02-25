@@ -8,7 +8,7 @@ import { EMPTY_BYTES_32 } from '../../../../timelock/evm/constants.js';
 import { ChainMap } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import {
-  AnnotatedEV5Transaction,
+  AnnotatedEvmTransaction,
   ProtocolTypedReceipt,
 } from '../../../ProviderType.js';
 import { CallData } from '../../types.js';
@@ -25,7 +25,7 @@ type EvmTimelockControllerSubmitterConstructorConfig = Required<
   >
 >;
 
-export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.Ethereum> {
+export class EvmTimelockSubmitter implements TxSubmitterInterface<ProtocolType.Ethereum> {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.TIMELOCK_CONTROLLER;
 
@@ -40,7 +40,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
     config: EvmTimelockControllerSubmitterProps,
     multiProvider: MultiProvider,
     coreAddressesByChain: ChainMap<Record<string, string>>,
-  ): Promise<EV5TimelockSubmitter> {
+  ): Promise<EvmTimelockSubmitter> {
     const provider = multiProvider.getProvider(config.chain);
     const timelockInstance = TimelockController__factory.connect(
       config.timelockAddress,
@@ -60,7 +60,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
       coreAddressesByChain,
     );
 
-    return new EV5TimelockSubmitter(
+    return new EvmTimelockSubmitter(
       {
         chain: config.chain,
         delay,
@@ -74,7 +74,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
   }
 
   async submit(
-    ...txs: AnnotatedEV5Transaction[]
+    ...txs: AnnotatedEvmTransaction[]
   ): Promise<
     | void
     | ProtocolTypedReceipt<ProtocolType.Ethereum>['receipt']

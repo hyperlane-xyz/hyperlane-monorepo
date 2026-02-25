@@ -19,6 +19,7 @@ import {
 import {
   Address,
   CallData,
+  Numberish,
   assert,
   bytes32ToAddress,
   eqAddress,
@@ -667,7 +668,7 @@ export abstract class HyperlaneAppGovernor<
   private async checkSubmitterBalance(
     chain: ChainName,
     submitterAddress: Address,
-    requiredValue: ethers.BigNumberish,
+    requiredValue: Numberish,
   ): Promise<void> {
     const submitterBalance = await this.checker.multiProvider
       .getProvider(chain)

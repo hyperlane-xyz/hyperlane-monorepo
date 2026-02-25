@@ -16,7 +16,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { HookConfig, HookType } from '../hook/types.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { randomAddress, testCoreConfig } from '../test/testUtils.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -35,7 +35,7 @@ describe('EvmCoreModule', async () => {
   let validatorAnnounceContract: any;
   let testRecipientContract: any;
   let timelockControllerContract: any;
-  async function sendTxs(txs: AnnotatedEV5Transaction[]) {
+  async function sendTxs(txs: AnnotatedEvmTransaction[]) {
     for (const tx of txs) {
       await multiProvider.sendTransaction(CHAIN, tx);
     }

@@ -13,17 +13,17 @@ import { TxSubmitterType } from '../TxSubmitterTypes.js';
  * Builds a TxSubmitterBuilder for batch transaction submission.
  *
  * Example use-cases:
- *  const eV5builder = new TxSubmitterBuilder<EV5Transaction, EV5TransactionReceipt>();
- *  let txReceipts = eV5builder.for(
- *    new EV5GnosisSafeTxSubmitter(chainA)
+ *  const evmBuilder = new TxSubmitterBuilder<EthersV6Transaction, EthersV6TransactionReceipt>();
+ *  let txReceipts = evmBuilder.for(
+ *    new EvmGnosisSafeTxSubmitter(chainA)
  *  ).submit(
  *    txs
  *  );
- *  txReceipts = eV5builder.for(
- *    new EV5ImpersonatedAccountTxSubmitter(chainA)
+ *  txReceipts = evmBuilder.for(
+ *    new EvmImpersonatedAccountTxSubmitter(chainA)
  *  ).submit(txs);
- *  txReceipts = eV5builder.for(
- *    new EV5JsonRpcTxSubmitter(chainC)
+ *  txReceipts = evmBuilder.for(
+ *    new EvmJsonRpcTxSubmitter(chainC)
  *  ).submit(txs);
  */
 export class TxSubmitterBuilder<

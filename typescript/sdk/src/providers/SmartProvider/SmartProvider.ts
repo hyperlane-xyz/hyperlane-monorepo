@@ -83,7 +83,7 @@ export function getSmartProviderErrorMessage(errorMsg: string): string {
   return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
 }
 
-// This is a partial list. If needed, check the full list for more: https://docs.ethers.org/v5/api/utils/logger/#errors
+// This is a partial list. If needed, check the full list in ethers docs.
 const EthersError = {
   SERVER_ERROR: 'SERVER_ERROR',
   TIMEOUT: 'TIMEOUT',
@@ -234,7 +234,7 @@ export class HyperlaneSmartProvider
 
   async getFeeData(): Promise<FeeData> {
     // override hardcoded getFeedata
-    // Copied from https://github.com/ethers-io/ethers.js/blob/v5/packages/abstract-provider/src.ts/index.ts#L235 which SmartProvider inherits this logic from
+    // Copied from ethers abstract provider logic that SmartProvider inherits.
     const { block, gasPrice } = await resolveProperties({
       block: this.getBlock('latest'),
       gasPrice: (

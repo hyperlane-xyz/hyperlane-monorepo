@@ -16,7 +16,7 @@ import {
   CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
-  EthersV5Provider,
+  EthersV6Provider,
   RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
@@ -51,8 +51,8 @@ export type AdapterClassType<API> = new (
 export class BaseEvmAdapter extends BaseAppAdapter {
   public readonly protocol: ProtocolType = ProtocolType.Ethereum;
 
-  public getProvider(): EthersV5Provider['provider'] {
-    return this.multiProvider.getEthersV5Provider(this.chainName);
+  public getProvider(): EthersV6Provider['provider'] {
+    return this.multiProvider.getEthersV6Provider(this.chainName);
   }
 }
 

@@ -29,7 +29,7 @@ import {
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -109,7 +109,7 @@ export class EvmIsmModule extends HyperlaneModule<
   // whoever calls update() needs to ensure that targetConfig has a valid owner
   public async update(
     targetConfig: IsmConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     targetConfig = IsmConfigSchema.parse(targetConfig);
 
     // Nothing to do if its the default ism
@@ -192,8 +192,8 @@ export class EvmIsmModule extends HyperlaneModule<
   }: {
     current: Exclude<IsmConfig, string>;
     target: Exclude<IsmConfig, string>;
-  }): Promise<AnnotatedEV5Transaction[]> {
-    const updateTxs: AnnotatedEV5Transaction[] = [];
+  }): Promise<AnnotatedEvmTransaction[]> {
+    const updateTxs: AnnotatedEvmTransaction[] = [];
 
     assert(
       MUTABLE_ISM_TYPE.includes(current.type),
@@ -310,13 +310,13 @@ export class EvmIsmModule extends HyperlaneModule<
     current: DomainRoutingIsmConfig;
     target: DomainRoutingIsmConfig;
     logger: Logger;
-  }): Promise<AnnotatedEV5Transaction[]> {
+  }): Promise<AnnotatedEvmTransaction[]> {
     const contract = DomainRoutingIsm__factory.connect(
       this.args.addresses.deployedIsm,
       this.multiProvider.getProvider(this.chain),
     );
 
-    const updateTxs: AnnotatedEV5Transaction[] = [];
+    const updateTxs: AnnotatedEvmTransaction[] = [];
 
     const knownChains = new Set(this.multiProvider.getKnownChainNames());
 
@@ -371,7 +371,7 @@ export class EvmIsmModule extends HyperlaneModule<
   }: {
     current: PausableIsmConfig;
     target: PausableIsmConfig;
-  }): AnnotatedEV5Transaction[] {
+  }): AnnotatedEvmTransaction[] {
     if (current.paused === target.paused) {
       return [];
     }
@@ -397,7 +397,7 @@ export class EvmIsmModule extends HyperlaneModule<
   }: {
     current: OffchainLookupIsmConfig;
     target: OffchainLookupIsmConfig;
-  }): AnnotatedEV5Transaction[] {
+  }): AnnotatedEvmTransaction[] {
     if (arrayEqual(target.urls, current.urls)) {
       return [];
     }

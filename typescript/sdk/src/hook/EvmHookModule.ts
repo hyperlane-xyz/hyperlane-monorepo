@@ -1,5 +1,10 @@
 import { getArbitrumNetwork } from '@arbitrum/sdk';
-import { ZeroAddress, ZeroHash, formatEther, type TransactionRequest } from 'ethers';
+import {
+  ZeroAddress,
+  ZeroHash,
+  formatEther,
+  type TransactionRequest,
+} from 'ethers';
 
 import {
   AmountRoutingHook,
@@ -57,7 +62,7 @@ import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -151,7 +156,7 @@ export class EvmHookModule extends HyperlaneModule<
 
   public async update(
     targetConfig: HookConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     // Nothing to do if its the default hook
     if (typeof targetConfig === 'string' && isZeroishAddress(targetConfig)) {
       return [];
@@ -281,9 +286,9 @@ export class EvmHookModule extends HyperlaneModule<
   protected async updateMutableHook(configs: {
     current: Exclude<HookConfig, string>;
     target: Exclude<HookConfig, string>;
-  }): Promise<AnnotatedEV5Transaction[]> {
+  }): Promise<AnnotatedEvmTransaction[]> {
     const { current, target } = configs;
-    let updateTxs: AnnotatedEV5Transaction[];
+    let updateTxs: AnnotatedEvmTransaction[];
 
     assert(
       current.type === target.type,
@@ -359,8 +364,8 @@ export class EvmHookModule extends HyperlaneModule<
   }: {
     currentConfig: PausableHookConfig;
     targetConfig: PausableHookConfig;
-  }): Promise<AnnotatedEV5Transaction[]> {
-    const updateTxs: AnnotatedEV5Transaction[] = [];
+  }): Promise<AnnotatedEvmTransaction[]> {
+    const updateTxs: AnnotatedEvmTransaction[] = [];
 
     if (currentConfig.paused !== targetConfig.paused) {
       // Have to encode separately otherwise tsc will complain
@@ -387,8 +392,8 @@ export class EvmHookModule extends HyperlaneModule<
   }: {
     currentConfig: IgpHookConfig;
     targetConfig: IgpHookConfig;
-  }): Promise<AnnotatedEV5Transaction[]> {
-    const updateTxs: AnnotatedEV5Transaction[] = [];
+  }): Promise<AnnotatedEvmTransaction[]> {
+    const updateTxs: AnnotatedEvmTransaction[] = [];
     const igpInterface = InterchainGasPaymaster__factory.createInterface();
 
     // Update beneficiary if changed
@@ -458,7 +463,7 @@ export class EvmHookModule extends HyperlaneModule<
     gasOracle: Address;
     currentOverheads?: IgpConfig['overhead'];
     targetOverheads: IgpConfig['overhead'];
-  }): Promise<AnnotatedEV5Transaction[]> {
+  }): Promise<AnnotatedEvmTransaction[]> {
     const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     for (const [remote, gasOverhead] of Object.entries(targetOverheads)) {
       // Note: non-EVM remotes actually *are* supported, provided that the remote domain is in the MultiProvider.
@@ -516,7 +521,7 @@ export class EvmHookModule extends HyperlaneModule<
     currentOracleConfig?: IgpConfig['oracleConfig'];
     targetOracleConfig: IgpConfig['oracleConfig'];
     targetOverhead: IgpConfig['overhead'];
-  }): Promise<AnnotatedEV5Transaction[]> {
+  }): Promise<AnnotatedEvmTransaction[]> {
     this.logger.info(`Updating gas oracle configuration from ${this.chain}...`);
     const configsToSet: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
 
@@ -579,8 +584,8 @@ export class EvmHookModule extends HyperlaneModule<
   }: {
     currentConfig: ProtocolFeeHookConfig;
     targetConfig: ProtocolFeeHookConfig;
-  }): Promise<AnnotatedEV5Transaction[]> {
-    const updateTxs: AnnotatedEV5Transaction[] = [];
+  }): Promise<AnnotatedEvmTransaction[]> {
+    const updateTxs: AnnotatedEvmTransaction[] = [];
     const protocolFeeInterface = ProtocolFee__factory.createInterface();
 
     // if maxProtocolFee has changed, deploy a new hook
@@ -596,10 +601,9 @@ export class EvmHookModule extends HyperlaneModule<
         annotation: `Updating protocol fee from ${currentConfig.protocolFee} to ${targetConfig.protocolFee}`,
         chainId: this.chainId,
         to: this.args.addresses.deployedHook,
-        data: protocolFeeInterface.encodeFunctionData(
-          'setProtocolFee',
-          [targetConfig.protocolFee],
-        ),
+        data: protocolFeeInterface.encodeFunctionData('setProtocolFee', [
+          targetConfig.protocolFee,
+        ]),
       });
     }
 
@@ -609,10 +613,9 @@ export class EvmHookModule extends HyperlaneModule<
         annotation: `Updating beneficiary from ${currentConfig.beneficiary} to ${targetConfig.beneficiary}`,
         chainId: this.chainId,
         to: this.args.addresses.deployedHook,
-        data: protocolFeeInterface.encodeFunctionData(
-          'setBeneficiary',
-          [targetConfig.beneficiary],
-        ),
+        data: protocolFeeInterface.encodeFunctionData('setBeneficiary', [
+          targetConfig.beneficiary,
+        ]),
       });
     }
 
@@ -627,7 +630,7 @@ export class EvmHookModule extends HyperlaneModule<
   }: {
     currentConfig: DomainRoutingHookConfig | FallbackRoutingHookConfig;
     targetConfig: DomainRoutingHookConfig | FallbackRoutingHookConfig;
-  }): Promise<AnnotatedEV5Transaction[]> {
+  }): Promise<AnnotatedEvmTransaction[]> {
     // Deploy a new fallback hook if the fallback config has changed
     if (
       targetConfig.type === HookType.FALLBACK_ROUTING &&

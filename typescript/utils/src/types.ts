@@ -1,4 +1,4 @@
-import type { BigNumberish, BytesLike, SignatureLike } from 'ethers';
+import type { BytesLike, SignatureLike } from 'ethers';
 
 export enum ProtocolType {
   Ethereum = 'ethereum',
@@ -90,7 +90,7 @@ export type S3Checkpoint = {
 export type CallData = {
   to: Address;
   data: string;
-  value?: BigNumberish;
+  value?: Numberish;
 };
 
 export enum MessageStatus {
