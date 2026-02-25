@@ -38,7 +38,7 @@ class RPCService {
   ): Promise<ProofResult> {
     const results = await this.client.request({
       method: 'eth_getProof',
-      params: [address, storageKeys, block] as any,
+      params: [address, storageKeys, block],
     });
 
     return results as ProofResult;

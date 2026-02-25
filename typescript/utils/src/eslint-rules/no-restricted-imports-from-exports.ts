@@ -154,7 +154,17 @@ const rule: Rule.RuleModule = {
 
         if (!isFileExportedFromIndex(currentFilePath)) return;
 
-        const importSource = (node as any).source.value;
+        const importSource =
+          typeof node === 'object' &&
+          node !== null &&
+          'source' in node &&
+          typeof node.source === 'object' &&
+          node.source !== null &&
+          'value' in node.source
+            ? (node.source as { value?: unknown }).value
+            : undefined;
+
+        if (typeof importSource !== 'string') return;
 
         if (isNodeBuiltinModuleOrSubpath(importSource)) {
           context.report({
@@ -167,7 +177,7 @@ const rule: Rule.RuleModule = {
           });
         }
 
-        if (typeof importSource === 'string' && importSource.startsWith('.')) {
+        if (importSource.startsWith('.')) {
           const resolvedImportPath = path.resolve(
             path.dirname(currentFilePath),
             importSource,

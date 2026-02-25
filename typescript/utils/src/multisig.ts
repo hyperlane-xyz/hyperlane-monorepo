@@ -55,16 +55,27 @@ export const parseLegacyMultisigIsmMetadata = (
 export const formatLegacyMultisigIsmMetadata = (
   metadata: ParsedLegacyMultisigIsmMetadata,
 ): string => {
+  const abiTypes = [
+    'bytes32',
+    'uint32',
+    'bytes32',
+    'bytes32[32]',
+    'uint8',
+    'bytes',
+    'address[]',
+  ] as const;
+  const abiValues = [
+    metadata.checkpointRoot as Hex,
+    metadata.checkpointIndex,
+    addressToBytes32(metadata.originMailbox) as Hex,
+    metadata.proof as readonly Hex[],
+    metadata.signatures.length,
+    concat(metadata.signatures as readonly Hex[]),
+    metadata.validators as readonly `0x${string}`[],
+  ] as const;
+
   return encodePacked(
-    ['bytes32', 'uint32', 'bytes32', 'bytes32[32]', 'uint8', 'bytes', 'address[]'] as any,
-    [
-      metadata.checkpointRoot as Hex,
-      metadata.checkpointIndex,
-      addressToBytes32(metadata.originMailbox) as Hex,
-      metadata.proof as readonly Hex[],
-      metadata.signatures.length,
-      concat(metadata.signatures as readonly Hex[]),
-      metadata.validators as readonly `0x${string}`[],
-    ] as any,
+    abiTypes as unknown as readonly string[],
+    abiValues as unknown as readonly unknown[],
   );
 };
