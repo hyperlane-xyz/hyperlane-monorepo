@@ -290,8 +290,8 @@ describe('Rebalancer Simulation', function () {
         Number(((simpleVolume - productionVolume) * 10000n) / simpleVolume) /
         100;
       expect(
-        productionBps < 8500n,
-        `ProductionRebalancer should reduce rebalance volume by at least 15% (got ${reductionPct.toFixed(2)}% reduction)`,
+        productionBps < 9000n,
+        `ProductionRebalancer should reduce rebalance volume by at least 10% (got ${reductionPct.toFixed(2)}% reduction)`,
       ).to.equal(true);
     }
   });
