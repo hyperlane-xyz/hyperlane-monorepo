@@ -39,11 +39,14 @@ export const TokenMetadataSchema = z.object({
   decimals: z.number().gt(0).optional(),
   scale: z
     .union([
-      z.number().gt(0),
-      z.string(), // string representation for large values
+      z.number().int().gt(0),
       z.object({
-        numerator: z.union([z.number().gt(0), z.string()]),
-        denominator: z.union([z.number().gt(0), z.string()]),
+        numerator: z.number().int().gt(0),
+        denominator: z.number().int().gt(0),
+      }),
+      z.object({
+        numerator: z.bigint(),
+        denominator: z.bigint(),
       }),
     ])
     .optional(),

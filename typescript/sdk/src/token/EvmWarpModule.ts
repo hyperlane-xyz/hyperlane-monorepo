@@ -59,7 +59,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
-import { scaleToScalar } from '../utils/decimals.js';
+import { scalesEqual } from '../utils/decimals.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
@@ -840,6 +840,16 @@ export class EvmWarpModule extends HyperlaneModule<
       Object.keys(resolvedExpectedRemoteRouters).map(Number),
     );
 
+    if (
+      expectedRemoteRouterDomains.size === 0 &&
+      Object.keys(expectedConfig.destinationGas).length > 0
+    ) {
+      throw new Error(
+        `destinationGas is set but remoteRouters is empty. ` +
+          `Cannot configure gas for domains without corresponding router enrollments.`,
+      );
+    }
+
     const actualDestinationGas = resolveRouterMapConfig(
       this.multiProvider,
       actualConfig.destinationGas,
@@ -870,8 +880,10 @@ export class EvmWarpModule extends HyperlaneModule<
       );
 
       // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
-      const gasRouterConfigs: { domain: BigNumberish; gas: BigNumberish }[] =
-        [];
+      const gasRouterConfigs: {
+        domain: BigNumberish;
+        gas: BigNumberish;
+      }[] = [];
       objMap(filteredExpectedGas, (domain: Domain, gas: string) => {
         gasRouterConfigs.push({
           domain,
@@ -1210,11 +1222,9 @@ export class EvmWarpModule extends HyperlaneModule<
     // Scale values are immutables baked into the implementation bytecode.
     // Changing the effective scale during an upgrade would cause in-flight
     // messages to be decoded with incorrect scaling.
-    const actualScalar = scaleToScalar(actualConfig.scale);
-    const expectedScalar = scaleToScalar(expectedConfig.scale);
     assert(
-      actualScalar === expectedScalar,
-      `Scale change detected during upgrade: effective scale changed from ${actualScalar} to ${expectedScalar}. ` +
+      scalesEqual(actualConfig.scale, expectedConfig.scale),
+      `Scale change detected during upgrade. ` +
         `Changing scale on an existing deployment may cause in-flight messages to be decoded incorrectly.`,
     );
 

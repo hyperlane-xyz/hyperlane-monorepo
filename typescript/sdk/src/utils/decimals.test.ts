@@ -7,43 +7,101 @@ import {
   WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
 
-import { scaleToScalar, verifyScale } from './decimals.js';
+import { normalizeScale, scalesEqual, verifyScale } from './decimals.js';
 
-describe(scaleToScalar.name, () => {
-  it('should return 1 for undefined', () => {
-    expect(scaleToScalar(undefined)).to.equal(1);
+describe(normalizeScale.name, () => {
+  it('should normalize undefined to DEFAULT_SCALE', () => {
+    const result = normalizeScale(undefined);
+    expect(result).to.deep.equal({ numerator: 1n, denominator: 1n });
   });
 
-  it('should return the number directly for numeric scale', () => {
-    expect(scaleToScalar(1_000_000_000_000)).to.equal(1_000_000_000_000);
-    expect(scaleToScalar(1)).to.equal(1);
+  it('should normalize a plain number to {BigInt(n), 1n}', () => {
+    const result = normalizeScale(1000);
+    expect(result).to.deep.equal({ numerator: 1000n, denominator: 1n });
   });
 
-  it('should parse string scale', () => {
-    expect(scaleToScalar('1000000000000')).to.equal(1_000_000_000_000);
-    expect(scaleToScalar('1')).to.equal(1);
+  it('should normalize {number, number} to {bigint, bigint}', () => {
+    const result = normalizeScale({ numerator: 5, denominator: 3 });
+    expect(result).to.deep.equal({ numerator: 5n, denominator: 3n });
   });
 
-  it('should compute numerator / denominator for fractional scale', () => {
+  it('should pass through {bigint, bigint} unchanged', () => {
+    const result = normalizeScale({ numerator: 10n ** 18n, denominator: 1n });
+    expect(result).to.deep.equal({ numerator: 10n ** 18n, denominator: 1n });
+  });
+});
+
+describe(scalesEqual.name, () => {
+  it('should treat undefined as equal to {1n, 1n}', () => {
+    expect(scalesEqual(undefined, { numerator: 1n, denominator: 1n })).to.be
+      .true;
+    expect(scalesEqual(undefined, undefined)).to.be.true;
+  });
+
+  it('should accept plain number scales (backwards compat)', () => {
+    expect(scalesEqual(1000, 1000)).to.be.true;
+    expect(scalesEqual(1000, 2000)).to.be.false;
+    expect(scalesEqual(1, undefined)).to.be.true;
+  });
+
+  it('should accept {number, number} scales (backwards compat)', () => {
+    expect(scalesEqual({ numerator: 1000, denominator: 1 }, 1000)).to.be.true;
     expect(
-      scaleToScalar({ numerator: 1_000_000_000_000, denominator: 1 }),
-    ).to.equal(1_000_000_000_000);
-    expect(
-      scaleToScalar({ numerator: 1, denominator: 1_000_000_000_000 }),
-    ).to.equal(1e-12);
-    expect(scaleToScalar({ numerator: 1, denominator: 1 })).to.equal(1);
+      scalesEqual(
+        { numerator: 1, denominator: 2 },
+        { numerator: 2, denominator: 4 },
+      ),
+    ).to.be.true;
   });
 
-  it('should handle string numerator and denominator', () => {
+  it('should compare mixed scale types correctly', () => {
+    // number vs bigint object
+    expect(scalesEqual(1000, { numerator: 1000n, denominator: 1n })).to.be.true;
+    // number object vs bigint object
     expect(
-      scaleToScalar({ numerator: '1000000000000', denominator: '1' }),
-    ).to.equal(1_000_000_000_000);
+      scalesEqual(
+        { numerator: 1000, denominator: 1 },
+        { numerator: 1000n, denominator: 1n },
+      ),
+    ).to.be.true;
   });
 
-  it('should treat legacy integer scale as equivalent to {numerator: scale, denominator: 1}', () => {
-    const legacy = 1_000_000_000_000;
-    const fractional = { numerator: 1_000_000_000_000, denominator: 1 };
-    expect(scaleToScalar(legacy)).to.equal(scaleToScalar(fractional));
+  it('should compare bigint scales', () => {
+    expect(
+      scalesEqual(
+        { numerator: 1_000_000_000_000n, denominator: 1n },
+        { numerator: 1_000_000_000_000n, denominator: 1n },
+      ),
+    ).to.be.true;
+    expect(
+      scalesEqual(
+        { numerator: 1n, denominator: 1n },
+        { numerator: 2n, denominator: 1n },
+      ),
+    ).to.be.false;
+  });
+
+  it('should compare fractional scales via cross-multiplication', () => {
+    expect(
+      scalesEqual(
+        { numerator: 1n, denominator: 2n },
+        { numerator: 2n, denominator: 4n },
+      ),
+    ).to.be.true;
+    expect(
+      scalesEqual(
+        { numerator: 1n, denominator: 3n },
+        { numerator: 1n, denominator: 2n },
+      ),
+    ).to.be.false;
+  });
+
+  it('should handle large values without precision loss', () => {
+    // 10^18 exceeds Number.MAX_SAFE_INTEGER
+    const large = { numerator: 10n ** 18n, denominator: 1n };
+    const slightlyDifferent = { numerator: 10n ** 18n + 1n, denominator: 1n };
+    expect(scalesEqual(large, large)).to.be.true;
+    expect(scalesEqual(large, slightlyDifferent)).to.be.false;
   });
 });
 
@@ -82,7 +140,7 @@ describe(verifyScale.name, () => {
     expect(verifyScale(configMap)).to.be.true;
   });
 
-  it('should return true when decimals are non-uniform but scales are correctly calculated/provided', () => {
+  it('should return true with plain number scale (backwards compat)', () => {
     const configMap: Map<string, TokenMetadata> = new Map([
       [
         'chain1',
@@ -95,6 +153,26 @@ describe(verifyScale.name, () => {
           symbol: TOKEN_NAME,
           decimals: USDC_DECIMALS,
           scale: 1_000_000_000_000,
+        },
+      ],
+    ]);
+
+    expect(verifyScale(configMap)).to.be.true;
+  });
+
+  it('should return true with bigint scale', () => {
+    const configMap: Map<string, TokenMetadata> = new Map([
+      [
+        'chain1',
+        { name: TOKEN_NAME, symbol: TOKEN_NAME, decimals: ETH_DECIMALS },
+      ],
+      [
+        'chain2',
+        {
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: USDC_DECIMALS,
+          scale: { numerator: 1_000_000_000_000n, denominator: 1n },
         },
       ],
     ]);

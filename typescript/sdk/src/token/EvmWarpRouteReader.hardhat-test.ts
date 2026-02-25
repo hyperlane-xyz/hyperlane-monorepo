@@ -992,7 +992,7 @@ describe('EvmWarpRouteReader', async () => {
     // For old contracts (< 11.0.0), scale would default to 1
     const fetchScaleStub = sinon
       .stub(evmERC20WarpRouteReader, 'fetchScale')
-      .resolves(1);
+      .resolves({ numerator: 1n, denominator: 1n });
 
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
@@ -1127,7 +1127,7 @@ describe('EvmWarpRouteReader', async () => {
         // For old contracts (< 11.0.0), scale would default to 1
         const fetchScaleStub = sinon
           .stub(evmERC20WarpRouteReader, 'fetchScale')
-          .resolves(1);
+          .resolves({ numerator: 1n, denominator: 1n });
 
         const derivedConfig =
           await evmERC20WarpRouteReader.deriveWarpRouteConfig(warpAddress);
@@ -1147,6 +1147,39 @@ describe('EvmWarpRouteReader', async () => {
         fetchScaleStub.restore();
       });
     }
+
+    it('should return NormalizedScale from fetchScale on legacy contract (< 11.0.0)', async () => {
+      const config: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          type: TokenType.native,
+          hook: await mailbox.defaultHook(),
+          ...baseConfig,
+        },
+      };
+
+      const warpRoute = await deployer.deploy(config);
+      const warpAddress = warpRoute[chain].native.address;
+
+      // Stub package version to legacy (< 11.0.0) so fetchScale takes the legacy path
+      const mockPackageVersioned = {
+        PACKAGE_VERSION: sinon.stub().resolves('9.0.0'),
+      };
+      const fetchPackageVersionStub = sinon
+        .stub(PackageVersioned__factory, 'connect')
+        .returns(mockPackageVersioned as any);
+
+      // Call fetchScale directly — it will use the legacy scale() ABI
+      const scale = await evmERC20WarpRouteReader.fetchScale(warpAddress);
+
+      // Legacy contracts return a single uint256; fetchScale should convert to NormalizedScale
+      expect(scale).to.have.property('numerator');
+      expect(scale).to.have.property('denominator');
+      expect(typeof scale.numerator).to.equal('bigint');
+      expect(typeof scale.denominator).to.equal('bigint');
+      expect(scale.denominator).to.equal(1n);
+
+      fetchPackageVersionStub.restore();
+    });
 
     it('should fail when modern version contract claims v10.0.0+ but is missing token() method', async () => {
       const config: WarpRouteDeployConfigMailboxRequired = {

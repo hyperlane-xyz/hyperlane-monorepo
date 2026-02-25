@@ -56,6 +56,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmRouterReader } from '../router/EvmRouterReader.js';
 import { DestinationGas } from '../router/types.js';
 import { ChainName, ChainNameOrId, DeployedOwnableConfig } from '../types.js';
+import { NormalizedScale } from '../utils/decimals.js';
 
 import { isProxy, proxyAdmin, proxyImplementation } from './../deploy/proxy.js';
 import { NON_ZERO_SENDER_ADDRESS, TokenType } from './config.js';
@@ -1128,15 +1129,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
    * for contracts >= 11.0.0, otherwise reads legacy scale value.
    *
    * @param tokenRouterAddress - The address of the TokenRouter contract.
-   * @returns The scale as either a number/string (for old contracts or when denominator is 1) or an object with numerator/denominator.
+   * @returns The scale as a NormalizedScale (bigint numerator/denominator) for lossless precision.
    */
-  async fetchScale(
-    tokenRouterAddress: Address,
-  ): Promise<
-    | number
-    | string
-    | { numerator: number | string; denominator: number | string }
-  > {
+  async fetchScale(tokenRouterAddress: Address): Promise<NormalizedScale> {
     const packageVersion = await this.fetchPackageVersion(tokenRouterAddress);
     const hasScaleFractionInterface =
       compareVersions(packageVersion, SCALE_FRACTION_VERSION) >= 0;
@@ -1146,17 +1141,6 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.provider,
     );
 
-    // Helper to safely convert BigNumber to number or string
-    // Uses string representation for values > Number.MAX_SAFE_INTEGER
-    const safeToNumberOrString = (bn: BigNumber): number | string => {
-      try {
-        return bn.toNumber();
-      } catch {
-        // Value exceeds Number.MAX_SAFE_INTEGER, return as string
-        return bn.toString();
-      }
-    };
-
     if (hasScaleFractionInterface) {
       // Read new format (scaleNumerator and scaleDenominator)
       const [numerator, denominator] = await Promise.all([
@@ -1164,18 +1148,12 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         tokenRouter.scaleDenominator(),
       ]);
 
-      // If denominator is 1, return as a simple number/string for backward compatibility
-      if (denominator.eq(1)) {
-        return safeToNumberOrString(numerator);
-      }
-
       return {
-        numerator: safeToNumberOrString(numerator),
-        denominator: safeToNumberOrString(denominator),
+        numerator: numerator.toBigInt(),
+        denominator: denominator.toBigInt(),
       };
     } else {
       // Read old format (single scale value) using low-level call
-      // Create a custom contract instance with the old scale() method ABI
       const legacyScaleABI = [
         'function scale() external view returns (uint256)',
       ];
@@ -1184,8 +1162,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         legacyScaleABI,
         this.provider,
       );
-      const scale = await legacyContract.scale();
-      return safeToNumberOrString(scale);
+      const scale: BigNumber = await legacyContract.scale();
+      return { numerator: scale.toBigInt(), denominator: 1n };
     }
   }
 

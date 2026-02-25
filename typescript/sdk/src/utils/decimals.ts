@@ -6,29 +6,51 @@ import {
 } from '../token/types.js';
 import { ChainMap } from '../types.js';
 
-type Scale =
-  | number
-  | string
-  | { numerator: number | string; denominator: number | string };
+/**
+ * Lossless scale representation using bigint.
+ * On-chain values and internal comparisons always use this form.
+ */
+export type NormalizedScale = { numerator: bigint; denominator: bigint };
 
 /**
- * Converts a scale value (number, string, or {numerator, denominator}) to a
- * scalar number for comparison. Returns 1 if scale is undefined.
+ * Any scale variant the Zod schema can produce:
+ * - `number` (e.g. `scale: 1000`)
+ * - `{numerator: number, denominator: number}`
+ * - `{numerator: bigint, denominator: bigint}`
  */
-export function scaleToScalar(scale?: Scale): number {
-  if (scale === undefined) return 1;
-  if (typeof scale === 'number') return scale;
-  if (typeof scale === 'string') return Number(scale);
+export type ScaleInput = TokenMetadata['scale'];
 
-  const numerator =
-    typeof scale.numerator === 'string'
-      ? Number(scale.numerator)
-      : scale.numerator;
-  const denominator =
-    typeof scale.denominator === 'string'
-      ? Number(scale.denominator)
-      : scale.denominator;
-  return numerator / denominator;
+export const DEFAULT_SCALE: NormalizedScale = {
+  numerator: 1n,
+  denominator: 1n,
+};
+
+/**
+ * Converts any accepted scale variant to NormalizedScale (bigint).
+ */
+export function normalizeScale(scale: ScaleInput | undefined): NormalizedScale {
+  if (scale === undefined) return DEFAULT_SCALE;
+  if (typeof scale === 'number') {
+    return { numerator: BigInt(scale), denominator: 1n };
+  }
+  return {
+    numerator: BigInt(scale.numerator),
+    denominator: BigInt(scale.denominator),
+  };
+}
+
+/**
+ * Compares two scale values for equality without precision loss.
+ * Accepts any scale variant (number, {number,number}, {bigint,bigint}, undefined).
+ * Uses cross-multiplication: a/b === c/d iff a*d === b*c
+ */
+export function scalesEqual(
+  a: ScaleInput | undefined,
+  b: ScaleInput | undefined,
+): boolean {
+  const na = normalizeScale(a);
+  const nb = normalizeScale(b);
+  return na.numerator * nb.denominator === nb.numerator * na.denominator;
 }
 
 export function verifyScale(
@@ -38,10 +60,7 @@ export function verifyScale(
     configMap instanceof Map
       ? Object.fromEntries(configMap.entries())
       : configMap;
-  const decimalsByChain: ChainMap<{
-    decimals: number;
-    scale?: Scale;
-  }> = objMap(chainDecimalConfigPairs, (chain, config) => {
+  const decimalsByChain = objMap(chainDecimalConfigPairs, (chain, config) => {
     assert(
       config.decimals,
       `Decimals must be defined for token config on chain ${chain}`,
@@ -57,9 +76,12 @@ export function verifyScale(
 
     for (const [_, config] of Object.entries(decimalsByChain)) {
       if (config.decimals) {
-        const calculatedScale = 10 ** (maxDecimals - config.decimals);
+        const calculatedScale: NormalizedScale = {
+          numerator: 10n ** BigInt(maxDecimals - config.decimals),
+          denominator: 1n,
+        };
 
-        if (calculatedScale !== scaleToScalar(config.scale)) {
+        if (!scalesEqual(calculatedScale, config.scale)) {
           return false;
         }
       }
@@ -69,13 +91,7 @@ export function verifyScale(
 }
 
 function areDecimalsUniform(
-  configMap: ChainMap<{
-    decimals: number;
-    scale?:
-      | number
-      | string
-      | { numerator: number | string; denominator: number | string };
-  }>,
+  configMap: ChainMap<{ decimals: number }>,
 ): boolean {
   const values = Object.values(configMap);
   const [first, ...rest] = values;

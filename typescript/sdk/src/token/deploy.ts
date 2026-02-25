@@ -38,6 +38,7 @@ import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
+import { normalizeScale } from '../utils/decimals.js';
 import {
   CCTP_PPM_PRECISION_VERSION,
   CCTP_PPM_STORAGE_VERSION,
@@ -153,19 +154,7 @@ abstract class TokenDeployer<
     config: HypTokenRouterConfig,
   ): Promise<any> {
     // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
-    const scale = config.scale ?? 1;
-
-    // Convert scale to numerator/denominator format
-    // Handle number, string, and object formats
-    let numerator: number | string;
-    let denominator: number | string;
-    if (typeof scale === 'number' || typeof scale === 'string') {
-      numerator = scale;
-      denominator = 1;
-    } else {
-      numerator = scale.numerator;
-      denominator = scale.denominator;
-    }
+    const { numerator, denominator } = normalizeScale(config.scale);
 
     if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
       return [config.token, numerator, denominator, config.mailbox];

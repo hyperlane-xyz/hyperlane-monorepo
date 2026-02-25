@@ -1679,7 +1679,7 @@ describe('EvmWarpModule', async () => {
       // For old contracts (< 11.0.0), scale would default to 1
       const scaleStub = sinon
         .stub(evmERC20WarpModule.reader, 'fetchScale')
-        .resolves(1);
+        .resolves({ numerator: 1n, denominator: 1n });
 
       // In update, we do a check see if the package version is old
       // If it is, we deploy a new implementation and run upgradeTo
