@@ -19,3 +19,12 @@ export const SPL_NOOP_PROGRAM_ADDRESS =
 
 export const LOADER_V3_PROGRAM_ADDRESS =
   'BPFLoaderUpgradeab1e11111111111111111111111' as Address;
+
+export const SPL_TOKEN_PROGRAM_ADDRESS =
+  'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as Address;
+
+export const TOKEN_2022_PROGRAM_ADDRESS =
+  'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' as Address;
+
+export const METAPLEX_METADATA_PROGRAM_ADDRESS =
+  'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s' as Address;
