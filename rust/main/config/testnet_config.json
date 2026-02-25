@@ -1627,6 +1627,9 @@
       "validatorAnnounce": "0xE67aEA3CFa04d1ce22dCA0E151C984e5dC0c4057",
       "index": {
         "from": 62643080
+      },
+      "signer": {
+        "key": "0x1a1484a05bee53f5858a3888cdb5a397e433aee4d725e0f6c8a92cba3bb2b011"
       }
     }
   }
