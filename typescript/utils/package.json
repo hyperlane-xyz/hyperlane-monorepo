@@ -63,7 +63,8 @@
     "pino": "catalog:",
     "starknet": "catalog:",
     "viem": "catalog:",
-    "yaml": "catalog:"
+    "yaml": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
