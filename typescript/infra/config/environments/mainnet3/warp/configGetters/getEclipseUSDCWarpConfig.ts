@@ -40,6 +40,35 @@ import {
  * - Routing fee: 5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
  * - Contract version 10.1.3
  */
+const awProxyAdminAddresses: ChainMap<string> = {
+  arbitrum: '0x80Cebd56A65e46c474a1A101e89E76C4c51D179c',
+  base: '0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1',
+  ethereum: '0x75EE15Ee1B4A75Fa3e2fDF5DF3253c25599cc659',
+  optimism: '0xE047cb95FB3b7117989e911c6afb34771183fC35',
+  polygon: '0xC4F7590C5d30BE959225dC75640657954A86b980',
+  unichain: '0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7',
+  avalanche: '0x75a06e84226311B71749EF4F33B1e628D7999b83',
+  linea: '0x71644C723D205E9Bc9C1939ee7bffECf7b5C9687',
+  monad: '0x8F8FEf4Af7575c0A0f9455565ab807484Bb55987',
+  ink: '0x3Ee33a0F98c06eE3d3E5c1717bD3AfbB0f749879',
+  worldchain: '0xbcA7cc1c87E67341463f62F00Ea096564cAD13C1',
+  hyperevm: '0xa5ff938C9DdC524d98ebf0297e39A6F5918Db2CD',
+} as const;
+
+const awProxyAdminOwners: ChainMap<string | undefined> = {
+  arbitrum: chainOwners.arbitrum.ownerOverrides?.proxyAdmin,
+  base: chainOwners.base.ownerOverrides?.proxyAdmin,
+  ethereum: chainOwners.ethereum.ownerOverrides?.proxyAdmin,
+  optimism: chainOwners.optimism.ownerOverrides?.proxyAdmin,
+  polygon: chainOwners.polygon.ownerOverrides?.proxyAdmin,
+  unichain: chainOwners.unichain.ownerOverrides?.proxyAdmin,
+  avalanche: '0x5bE94B17112B8F18eA9Ac8e559377B467556a3c3',
+  linea: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
+  monad: '0x930f79e486B869EC7B5BF4e83121aDfcca198f42',
+  ink: '0x8DEe31BF7da558ee3224D22E224e172783CA8d70',
+  worldchain: '0x95b1634566663117322999ce42cDEaEF18c089Be',
+  hyperevm: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+} as const;
 
 export const evmDeploymentChains = [
   'ethereum',
@@ -166,7 +195,10 @@ export const buildEclipseUSDCWarpConfig = async (
 
   for (const chain of evmDeploymentChains) {
     let chainConfig: HypTokenRouterConfig;
-    const proxyAdmin = { owner: awSafes[chain] };
+    const proxyAdmin = {
+      owner: awProxyAdminOwners[chain] ?? chainOwners[chain].owner,
+      address: awProxyAdminAddresses[chain],
+    };
 
     if (rebalanceableSet.has(chain)) {
       const baseConfig = getRebalancingUSDCConfigForChain(
