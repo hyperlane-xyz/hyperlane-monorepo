@@ -893,19 +893,28 @@ async function performEstimateGas(
   if (provider && isObject(provider)) {
     if (
       'estimateContractGas' in provider &&
-      typeof provider.estimateContractGas === 'function'
+      typeof provider.estimateContractGas === 'function' &&
+      isWriteContractRequest(request)
     ) {
-      return toBigIntValue(
-        await provider.estimateContractGas(request),
-        'estimateContractGas',
-      );
+      try {
+        return toBigIntValue(
+          await provider.estimateContractGas(request),
+          'estimateContractGas',
+        );
+      } catch (error) {
+        if (!shouldFallbackSend(error)) throw error;
+      }
     }
     if (
       'estimateGas' in provider &&
       typeof provider.estimateGas === 'function'
     ) {
-      const estimate = await provider.estimateGas(request);
-      return toBigIntValue(estimate, 'estimateGas');
+      try {
+        const estimate = await provider.estimateGas(request);
+        return toBigIntValue(estimate, 'estimateGas');
+      } catch (error) {
+        if (!shouldFallbackSend(error)) throw error;
+      }
     }
   }
   const estimated = await rpcRequest(runner, 'eth_estimateGas', [
