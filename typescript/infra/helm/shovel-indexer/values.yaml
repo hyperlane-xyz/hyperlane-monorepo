@@ -9,7 +9,9 @@ hyperlane:
 
 image:
   repository: gcr.io/abacus-labs-dev/hyperlane-indexer
-  tag: latest
+  # Use tag (e.g. "v1.0") or digest (e.g. "sha256:abc...")
+  tag: ''
+  digest: ''
   pullPolicy: IfNotPresent
 
 # Shovel binary configuration

@@ -57,7 +57,7 @@ spec:
         {{- if .Values.migrations.enabled }}
         # 2. Run database migrations
         - name: migrate
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ include "shovel.image" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["pnpm", "shovel:db:migrate"]
           env:
@@ -73,7 +73,7 @@ spec:
         {{- end }}
         # 3. Generate shovel config (reads RPC URLs from env, writes JSON config)
         - name: generate-config
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ include "shovel.image" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - pnpm
@@ -112,7 +112,7 @@ spec:
               mountPath: /shovel-config
       containers:
         - name: shovel
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ include "shovel.image" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - /bin/sh

@@ -58,3 +58,14 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Render the full image reference: repository@digest or repository:tag
+*/}}
+{{- define "shovel.image" -}}
+{{- if .Values.image.digest }}
+{{- printf "%s@%s" .Values.image.repository .Values.image.digest }}
+{{- else }}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
+{{- end }}
+{{- end }}
