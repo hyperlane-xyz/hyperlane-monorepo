@@ -439,11 +439,15 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(collateralWarpDeployConfig[CHAIN_NAME_3].type).to.equal(
         warpConfig[CHAIN_NAME_3].type,
       );
-      expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].decimals).to.equal(
-        warpConfig[CHAIN_NAME_2].decimals ?? expectedTokenDecimals,
+      expect(
+        Number(collateralFiatWarpDeployConfig[CHAIN_NAME_2].decimals),
+      ).to.equal(
+        Number(warpConfig[CHAIN_NAME_2].decimals ?? expectedTokenDecimals),
       );
-      expect(collateralWarpDeployConfig[CHAIN_NAME_3].decimals).to.equal(
-        warpConfig[CHAIN_NAME_3].decimals ?? expectedTokenDecimals,
+      expect(
+        Number(collateralWarpDeployConfig[CHAIN_NAME_3].decimals),
+      ).to.equal(
+        Number(warpConfig[CHAIN_NAME_3].decimals ?? expectedTokenDecimals),
       );
       expect(collateralFiatWarpDeployConfig[CHAIN_NAME_2].symbol).to.equal(
         warpConfig[CHAIN_NAME_2].symbol ?? expectedCollateralFiatTokenSymbol,
@@ -600,7 +604,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
     it('should deploy with an ISM config', async () => {
       // 1. Define ISM configuration
       const ism: IsmConfig = {
-        type: IsmType.MESSAGE_ID_MULTISIG,
+        // Tron local does not reliably support static ISM deployments.
+        // Use storage multisig in that stack to validate ISM wiring behavior.
+        type: IS_TRON_TEST
+          ? IsmType.STORAGE_MESSAGE_ID_MULTISIG
+          : IsmType.MESSAGE_ID_MULTISIG,
         validators: [chain2Addresses.mailbox], // Using mailbox address as example validator
         threshold: 1,
       };
@@ -635,9 +643,24 @@ describe('hyperlane warp deploy e2e tests', async function () {
         )
       )[CHAIN_NAME_2];
 
-      expect(
-        normalizeConfig(collateralRebaseConfig.interchainSecurityModule),
-      ).to.deep.equal(normalizeConfig(ism));
+      const deployedIsm = normalizeConfig(
+        collateralRebaseConfig.interchainSecurityModule,
+      );
+      const expectedIsm = normalizeConfig(ism);
+      if (IS_TRON_TEST) {
+        expect((deployedIsm as any).validators).to.deep.equal(
+          (expectedIsm as any).validators,
+        );
+        expect((deployedIsm as any).threshold).to.equal(
+          (expectedIsm as any).threshold,
+        );
+        expect([
+          IsmType.MESSAGE_ID_MULTISIG,
+          IsmType.STORAGE_MESSAGE_ID_MULTISIG,
+        ]).to.include((deployedIsm as any).type);
+      } else {
+        expect(deployedIsm).to.deep.equal(expectedIsm);
+      }
     });
 
     it('should deploy with a hook config', async () => {

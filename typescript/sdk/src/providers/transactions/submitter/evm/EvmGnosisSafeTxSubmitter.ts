@@ -55,6 +55,36 @@ export class EvmGnosisSafeTxSubmitter implements EvmTxSubmitterInterface {
     return { safe, safeService };
   }
 
+  /**
+   * Extracts a private key from a signer, unwrapping wrappers like ethers NonceManager.
+   */
+  protected static getSignerPrivateKey(signer: any): string | undefined {
+    let current: any = signer;
+    const visited = new Set<any>();
+
+    while (current && !visited.has(current)) {
+      visited.add(current);
+
+      if (
+        'privateKey' in current &&
+        typeof current.privateKey === 'string' &&
+        current.privateKey.length > 0
+      ) {
+        return current.privateKey;
+      }
+
+      // ethers v6 NonceManager and similar wrappers expose an inner signer
+      if ('signer' in current && current.signer) {
+        current = current.signer;
+        continue;
+      }
+
+      break;
+    }
+
+    return undefined;
+  }
+
   static async create(
     multiProvider: MultiProvider,
     props: EvmGnosisSafeTxSubmitterProps,
@@ -74,10 +104,7 @@ export class EvmGnosisSafeTxSubmitter implements EvmTxSubmitterInterface {
       `Signer ${signerAddress} is not an authorized Safe Proposer for ${safeAddress}`,
     );
 
-    const safeSignerKey =
-      'privateKey' in signer
-        ? (signer as { privateKey: string }).privateKey
-        : undefined;
+    const safeSignerKey = EvmGnosisSafeTxSubmitter.getSignerPrivateKey(signer);
     assert(
       safeSignerKey,
       'Signer must have a private key to propose Safe transactions',

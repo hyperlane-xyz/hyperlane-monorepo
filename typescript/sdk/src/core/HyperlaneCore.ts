@@ -189,31 +189,54 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     };
   }
 
-  onDispatch(
+  async onDispatch(
     handler: (message: DispatchedMessage, event: any) => Promise<void>,
     chains = Object.keys(this.contractsMap),
-  ): {
+  ): Promise<{
     removeHandler: (chains?: ChainName[]) => void;
-  } {
-    chains.forEach((originChain) => {
-      const mailbox = this.contractsMap[originChain].mailbox;
-      this.logger.debug(`Listening for dispatch on ${originChain}`);
-      void mailbox.on(
-        mailbox.filters.Dispatch(),
-        (_sender, _destination, _recipient, message, event) => {
-          const dispatched = HyperlaneCore.parseDispatchedMessage(message);
+  }> {
+    await Promise.all(
+      chains.map(async (originChain) => {
+        const mailbox = this.contractsMap[originChain].mailbox;
+        this.logger.debug(`Listening for dispatch on ${originChain}`);
+        await mailbox.on(mailbox.filters.Dispatch(), (...args: any[]) => {
+          try {
+            const payload = args[0];
+            const payloadArgs =
+              payload && typeof payload === 'object' && 'args' in payload
+                ? ((payload as any).args as any[])
+                : undefined;
+            const messageArg = payloadArgs?.[3] ?? args[3];
+            const eventArg = (payload as any)?.log ?? payload ?? args[4];
+            assert(
+              messageArg,
+              `Missing dispatch message in event args on ${originChain}`,
+            );
+            const dispatched = HyperlaneCore.parseDispatchedMessage(messageArg);
 
-          // add human readable chain names
-          dispatched.parsed.originChain = this.getOrigin(dispatched);
-          dispatched.parsed.destinationChain = this.getDestination(dispatched);
+            // add human readable chain names
+            dispatched.parsed.originChain = this.getOrigin(dispatched);
+            dispatched.parsed.destinationChain =
+              this.getDestination(dispatched);
 
-          this.logger.info(
-            `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
-          );
-          return handler(dispatched, event);
-        },
-      );
-    });
+            this.logger.info(
+              `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
+            );
+            void handler(dispatched, eventArg).catch((error) => {
+              this.logger.error(
+                { error, args },
+                `Failed to handle dispatch event on ${originChain}`,
+              );
+            });
+          } catch (error) {
+            this.logger.error(
+              { error, args },
+              `Failed to parse dispatch event on ${originChain}`,
+            );
+          }
+        });
+      }),
+    );
 
     return {
       removeHandler: (removeChains) => {

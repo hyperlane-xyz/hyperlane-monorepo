@@ -153,10 +153,12 @@ describe('hyperlane warp apply with submitters', async function () {
     const chain3Provider = new ethers.JsonRpcProvider(chain3Metadata.rpcUrl);
     chain2DomainId = chain2Metadata.domainId;
     chain3DomainId = chain3Metadata.domainId;
-    const wallet = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum);
-    chain2Signer = wallet.connect(chain2Provider);
-
-    chain3Signer = wallet.connect(chain3Provider);
+    chain2Signer = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).connect(
+      chain2Provider,
+    );
+    chain3Signer = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).connect(
+      chain3Provider,
+    );
     initialOwnerAddress = await chain2Signer.getAddress();
 
     [chain2Addresses, chain3Addresses] = await Promise.all([
@@ -179,6 +181,11 @@ describe('hyperlane warp apply with submitters', async function () {
 
     // Deploy the timelock and set both the owner address and the ICA
     // as proposers and executors to avoid having to deploy a new timelock
+    let chain3Nonce = await chain3Provider.getTransactionCount(
+      initialOwnerAddress,
+      'pending',
+    );
+
     timelockInstance = await new TimelockController__factory()
       .connect(chain3Signer)
       .deploy(
@@ -186,13 +193,16 @@ describe('hyperlane warp apply with submitters', async function () {
         [initialOwnerAddress, chain3IcaAddress],
         [initialOwnerAddress, chain3IcaAddress],
         ethers.ZeroAddress,
+        { nonce: chain3Nonce++ },
       );
+    await timelockInstance.waitForDeployment();
 
     // Deploy a mock SAFE so that the SDK can check that a contract exists
     // at the provided address successfully
     const mockSafe = await new MockSafe__factory()
       .connect(chain3Signer)
-      .deploy([initialOwnerAddress], 1);
+      .deploy([initialOwnerAddress], 1, { nonce: chain3Nonce++ });
+    await mockSafe.waitForDeployment();
     safeAddress = await mockSafe.getAddress();
 
     // Configure ICA connections by enrolling the ICAs with each other

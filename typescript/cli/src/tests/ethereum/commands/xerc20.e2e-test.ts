@@ -14,7 +14,7 @@ import {
   type WarpRouteDeployConfig,
   XERC20Type,
 } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
+import { type Address, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
@@ -147,8 +147,20 @@ describe('xerc20 e2e tests', function () {
       (t) => t.chainName === CHAIN_NAME_3,
     )?.addressOrDenom;
 
+    // Use fresh signers to avoid stale NonceManager state after CLI txs.
+    const provider2 = xERC20VS2.runner?.provider;
+    const provider3 = xERC20VS3.runner?.provider;
+    assert(provider2, 'Missing provider for xERC20VS2');
+    assert(provider3, 'Missing provider for xERC20VS3');
+    const xERC20VS2WithFreshSigner = xERC20VS2.connect(
+      new Wallet(ANVIL_KEY, provider2),
+    );
+    const xERC20VS3WithFreshSigner = xERC20VS3.connect(
+      new Wallet(ANVIL_KEY, provider3),
+    );
+
     if (vsWarpRouteAddress2) {
-      const tx = await xERC20VS2.addBridge({
+      const tx = await xERC20VS2WithFreshSigner.addBridge({
         bridge: vsWarpRouteAddress2,
         ...BRIDGE_LIMITS,
       });
@@ -156,7 +168,7 @@ describe('xerc20 e2e tests', function () {
     }
 
     if (vsWarpRouteAddress3) {
-      const tx = await xERC20VS3.addBridge({
+      const tx = await xERC20VS3WithFreshSigner.addBridge({
         bridge: vsWarpRouteAddress3,
         ...BRIDGE_LIMITS,
       });

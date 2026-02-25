@@ -781,6 +781,7 @@ export class HypERC721Deployer extends TokenDeployer<HypERC721Factories> {
     multiProvider: MultiProvider,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = true,
   ) {
     super(
       multiProvider,
@@ -788,6 +789,7 @@ export class HypERC721Deployer extends TokenDeployer<HypERC721Factories> {
       'HypERC721Deployer',
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     );
   }
 

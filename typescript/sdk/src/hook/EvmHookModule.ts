@@ -117,6 +117,14 @@ export class EvmHookModule extends HyperlaneModule<
   public readonly chainId: EvmChainId;
   public readonly domainId: Domain;
 
+  protected async getHookAddress(hook: DeployedHook): Promise<Address> {
+    if (hook?.target) return hook.target as Address;
+    if (hook && 'getAddress' in hook && typeof hook.getAddress === 'function') {
+      return (await hook.getAddress()) as Address;
+    }
+    assert(false, 'Failed to resolve deployed hook address');
+  }
+
   // Transaction overrides for the chain
   protected readonly txOverrides: Partial<TransactionRequest>;
 
@@ -765,8 +773,8 @@ export class EvmHookModule extends HyperlaneModule<
     // deploy subhooks
     const aggregatedHooks: string[] = [];
     for (const hookConfig of config.hooks) {
-      const { address } = await this.deploy({ config: hookConfig });
-      aggregatedHooks.push(address);
+      const deployedHook = await this.deploy({ config: hookConfig });
+      aggregatedHooks.push(await this.getHookAddress(deployedHook));
     }
 
     // deploy aggregation hook

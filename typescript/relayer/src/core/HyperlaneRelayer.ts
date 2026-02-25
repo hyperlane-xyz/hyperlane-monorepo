@@ -367,9 +367,10 @@ export class HyperlaneRelayer {
           undefined,
           dispatchMsg,
         );
-      } catch {
+      } catch (error) {
         const newAttempts = attempts + 1;
         this.logger.error(
+          { error },
           `Failed to relay message ${id} (attempt #${newAttempts})`,
         );
         this.observer.onEvent?.({
@@ -393,30 +394,42 @@ export class HyperlaneRelayer {
     return this.whitelist ? Object.keys(this.whitelist) : undefined;
   }
 
-  start(): void {
+  async start(): Promise<void> {
     assert(!this.stopRelayingHandler, 'Relayer already started');
 
     this.backlog = this.cache?.backlog ?? [];
 
-    const { removeHandler } = this.core.onDispatch(async (message, event) => {
-      if (
-        this.whitelist &&
-        !messageMatchesWhitelist(this.whitelist, message.parsed)
-      ) {
-        this.logger.debug(
-          { message, whitelist: this.whitelist },
-          `Skipping message ${message.id} not matching whitelist`,
-        );
-        return;
-      }
+    const { removeHandler } = await this.core.onDispatch(
+      async (message, event) => {
+        if (
+          this.whitelist &&
+          !messageMatchesWhitelist(this.whitelist, message.parsed)
+        ) {
+          this.logger.debug(
+            { message, whitelist: this.whitelist },
+            `Skipping message ${message.id} not matching whitelist`,
+          );
+          return;
+        }
 
-      this.backlog.push({
-        attempts: 0,
-        lastAttempt: Date.now(),
-        message: message.message,
-        dispatchTx: event.transactionHash,
-      });
-    }, this.whitelistChains());
+        const dispatchTxHash =
+          event?.transactionHash ??
+          event?.log?.transactionHash ??
+          event?.receipt?.hash;
+        assert(
+          dispatchTxHash,
+          `Missing dispatch transaction hash for message ${message.id}`,
+        );
+
+        this.backlog.push({
+          attempts: 0,
+          lastAttempt: Date.now(),
+          message: message.message,
+          dispatchTx: dispatchTxHash,
+        });
+      },
+      this.whitelistChains(),
+    );
 
     this.stopRelayingHandler = removeHandler;
 
