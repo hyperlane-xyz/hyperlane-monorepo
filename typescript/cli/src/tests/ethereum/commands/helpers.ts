@@ -324,9 +324,10 @@ export async function deployTestOffchainLookupISM(
     new TestCcipReadIsm__factory(),
     [urls],
   );
+  const testIsmAddress = await testIsm.getAddress();
 
   return AbstractCcipReadIsm__factory.connect(
-    testIsm.address,
+    testIsmAddress,
     multiProvider.getSigner(chain),
   );
 }

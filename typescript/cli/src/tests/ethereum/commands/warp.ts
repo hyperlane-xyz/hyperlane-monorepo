@@ -619,14 +619,8 @@ export async function setupIncompleteWarpRouteExtension(
 
   warpDeployConfig[CHAIN_NAME_3] = configToExtend;
 
-  const signer2 = new Wallet(
-    ANVIL_KEY,
-    context.multiProvider.getProvider(CHAIN_NAME_2),
-  );
-  const signer3 = new Wallet(
-    ANVIL_KEY,
-    context.multiProvider.getProvider(CHAIN_NAME_3),
-  );
+  const signer2 = new Wallet(ANVIL_KEY);
+  const signer3 = new Wallet(ANVIL_KEY);
   context.multiProvider.setSigner(CHAIN_NAME_2, signer2);
   context.multiProvider.setSigner(CHAIN_NAME_3, signer3);
 

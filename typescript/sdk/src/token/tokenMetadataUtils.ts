@@ -108,11 +108,12 @@ export async function deriveTokenMetadata(
       }
 
       const erc20 = ERC20__factory.connect(token, provider);
-      const [name, symbol, decimals] = await Promise.all([
+      const [name, symbol, rawDecimals] = await Promise.all([
         erc20.name(),
         erc20.symbol(),
         erc20.decimals(),
       ]);
+      const decimals = Number(rawDecimals);
 
       metadataMap.update(
         chain,

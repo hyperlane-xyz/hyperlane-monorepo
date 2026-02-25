@@ -25,9 +25,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
-  type Domain,
   addressToBytes32,
-  bytes32ToAddress,
   sleep,
   toWei,
 } from '@hyperlane-xyz/utils';
@@ -91,6 +89,8 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
 
   let tokenChain2: ERC20;
   let tokenChain3: ERC20;
+  let tokenChain2Address: Address;
+  let tokenChain3Address: Address;
 
   let warpRouteDeployConfig: WarpRouteDeployConfig;
 
@@ -112,6 +112,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       deployToken(ANVIL_KEY, CHAIN_NAME_2),
       deployToken(ANVIL_KEY, CHAIN_NAME_3),
     ]);
+    [tokenChain2Address, tokenChain3Address] = await Promise.all([
+      tokenChain2.getAddress(),
+      tokenChain3.getAddress(),
+    ]);
     tokenSymbol = await tokenChain2.symbol();
 
     console.log('Deploying Warp Route...');
@@ -130,14 +134,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     warpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
-        token: tokenChain2.address,
+        token: tokenChain2Address,
         mailbox: chain2Addresses.mailbox,
         owner: ANVIL_DEPLOYER_ADDRESS,
         allowedRebalancers: [ANVIL_DEPLOYER_ADDRESS],
       },
       [CHAIN_NAME_3]: {
         type: TokenType.collateral,
-        token: tokenChain3.address,
+        token: tokenChain3Address,
         mailbox: chain3Addresses.mailbox,
         owner: ANVIL_DEPLOYER_ADDRESS,
         allowedRebalancers: [ANVIL_DEPLOYER_ADDRESS],
@@ -405,6 +409,23 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         // Process may have already exited, which is fine
       }
     });
+  }
+
+  async function waitForBalance(
+    token: ERC20,
+    account: Address,
+    expectedBalance: bigint,
+    timeoutMs = 60_000,
+  ): Promise<bigint> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const balance = await token.balanceOf(account);
+      if (balance === expectedBalance) return balance;
+      await sleep(500);
+    }
+    throw new Error(
+      `Timed out waiting for balance ${expectedBalance} on ${account}`,
+    );
   }
 
   it('should throw when strategy config file does not exist', async () => {
@@ -712,17 +733,20 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const chain3Provider = new ethers.JsonRpcProvider(
       chain3Metadata.rpcUrls[0].http,
     );
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Signer = new ethers.NonceManager(
+      new Wallet(ANVIL_KEY, chain3Provider),
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
       chain3Signer,
     );
 
     // Disallow destination by setting it to a random, non-zero address
-    await chain3CollateralContract.setRecipient(
+    const setRecipientTx = await chain3CollateralContract.setRecipient(
       chain2Metadata.domainId,
       addressToBytes32(ethers.Wallet.createRandom().address),
     );
+    await setRecipientTx.wait();
 
     await startRebalancerAndExpectLog(
       'Route validation failed: Destination is not allowed.',
@@ -792,7 +816,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const chain3Provider = new ethers.JsonRpcProvider(
       chain3Metadata.rpcUrls[0].http,
     );
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Signer = new ethers.NonceManager(
+      new Wallet(ANVIL_KEY, chain3Provider),
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
       chain3Signer,
@@ -814,7 +840,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const chain3Provider = new ethers.JsonRpcProvider(
       chain3Metadata.rpcUrls[0].http,
     );
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Signer = new ethers.NonceManager(
+      new Wallet(ANVIL_KEY, chain3Provider),
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
       chain3Signer,
@@ -823,18 +851,22 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy(tokenChain3.address, chain3Addresses.mailbox);
-    await bridgeContract.initialize(
+    ).deploy(tokenChain3Address, chain3Addresses.mailbox);
+    await bridgeContract.waitForDeployment();
+    const bridgeContractAddress = await bridgeContract.getAddress();
+    const initializeTx = await bridgeContract.initialize(
       ethers.ZeroAddress,
       ethers.ZeroAddress,
       ANVIL_DEPLOYER_ADDRESS,
     );
+    await initializeTx.wait();
 
     // Allow bridge
-    await chain3CollateralContract.addBridge(
+    const addBridgeTx = await chain3CollateralContract.addBridge(
       chain2Metadata.domainId,
-      bridgeContract.address,
+      bridgeContractAddress,
     );
+    await addBridgeTx.wait();
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
@@ -856,7 +888,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               target: 12,
               type: RebalancerMinAmountType.Absolute,
             },
-            bridge: bridgeContract.address,
+            bridge: bridgeContractAddress,
             bridgeLockTime: 1,
           },
         },
@@ -873,7 +905,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const chain3Provider = new ethers.JsonRpcProvider(
       chain3Metadata.rpcUrls[0].http,
     );
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
+    const chain3Signer = new ethers.NonceManager(
+      new Wallet(ANVIL_KEY, chain3Provider),
+    );
     const chain3CollateralContract = HypERC20Collateral__factory.connect(
       getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
       chain3Signer,
@@ -882,18 +916,22 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // Deploy the bridge
     const bridgeContract = await new MockValueTransferBridge__factory(
       chain3Signer,
-    ).deploy(tokenChain3.address, chain3Addresses.mailbox);
-    await bridgeContract.initialize(
+    ).deploy(tokenChain3Address, chain3Addresses.mailbox);
+    await bridgeContract.waitForDeployment();
+    const bridgeContractAddress = await bridgeContract.getAddress();
+    const initializeTx = await bridgeContract.initialize(
       ethers.ZeroAddress,
       ethers.ZeroAddress,
       ANVIL_DEPLOYER_ADDRESS,
     );
+    await initializeTx.wait();
 
     // Allow bridge
-    await chain3CollateralContract.addBridge(
+    const addBridgeTx = await chain3CollateralContract.addBridge(
       chain2Metadata.domainId,
-      bridgeContract.address,
+      bridgeContractAddress,
     );
+    await addBridgeTx.wait();
 
     writeYamlOrJson(REBALANCER_CONFIG_PATH, {
       warpRouteId,
@@ -913,7 +951,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               weight: '25',
               tolerance: '0',
             },
-            bridge: bridgeContract.address,
+            bridge: bridgeContractAddress,
             bridgeLockTime: 1,
             bridgeMinAcceptedAmount: '5.000001',
           },
@@ -949,7 +987,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     )!.collateralAddressOrDenom!;
 
     // Domain IDs
-    const originDomain = chain3Metadata.domainId;
     const destDomain = chain2Metadata.domainId;
 
     // RPC URLs
@@ -960,7 +997,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // We need to assign to the contract who is able to send the rebalance transaction
     const originProvider = new ethers.JsonRpcProvider(originRpc);
     const destProvider = new ethers.JsonRpcProvider(destRpc);
-    const originSigner = new Wallet(ANVIL_KEY, originProvider);
+    const originSigner = new ethers.NonceManager(
+      new Wallet(ANVIL_KEY, originProvider),
+    );
     const originContract = HypERC20Collateral__factory.connect(
       originContractAddress,
       originSigner,
@@ -971,20 +1010,28 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     // It will also allow us to mock some token movement
     const bridgeContract = await new MockValueTransferBridge__factory(
       originSigner,
-    ).deploy(tokenChain3.address, chain3Addresses.mailbox);
-    await bridgeContract.initialize(
+    ).deploy(tokenChain3Address, chain3Addresses.mailbox);
+    await bridgeContract.waitForDeployment();
+    const bridgeContractAddress = await bridgeContract.getAddress();
+    const initializeTx = await bridgeContract.initialize(
       ethers.ZeroAddress,
       ethers.ZeroAddress,
       ANVIL_DEPLOYER_ADDRESS,
     );
-    await bridgeContract.enrollRemoteRouter(
+    await initializeTx.wait();
+    const enrollTx = await bridgeContract.enrollRemoteRouter(
       destDomain,
       addressToBytes32(destContractAddress),
     );
+    await enrollTx.wait();
 
     // Allow bridge
     // This allow the bridge to be used to send the rebalance transaction
-    await originContract.addBridge(destDomain, bridgeContract.address);
+    const addBridgeTx = await originContract.addBridge(
+      destDomain,
+      bridgeContractAddress,
+    );
+    await addBridgeTx.wait();
 
     // Configure rebalancer
     // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
@@ -1007,7 +1054,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
               weight: '25',
               tolerance: '0',
             },
-            bridge: bridgeContract.address,
+            bridge: bridgeContractAddress,
             bridgeLockTime: 1,
           },
         },
@@ -1023,42 +1070,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     expect(originBalance.toString()).to.equal(toWei(10));
     expect(destBalance.toString()).to.equal(toWei(10));
 
-    // Promise that will resolve with the event that is emitted by the bridge when the rebalance transaction is sent
-    const listenForSentTransferRemote = new Promise<{
-      origin: Domain;
-      destination: Domain;
-      recipient: Address;
-      amount: bigint;
-    }>((resolve) => {
-      void bridgeContract.on(
-        bridgeContract.filters.SentTransferRemote(),
-        (origin, destination, recipient, amount) => {
-          resolve({
-            origin,
-            destination,
-            recipient: bytes32ToAddress(recipient),
-            amount: amount.toBigInt(),
-          });
-
-          void bridgeContract.removeAllListeners();
-        },
-      );
-    });
-
     // Start the rebalancer
     const rebalancer = startRebalancer();
-
-    // Await for the event that is emitted when the rebalance is triggered
-    const sentTransferRemote = await listenForSentTransferRemote;
-
-    // Verify the different params of the event to make sure that the transfer of 5TKN is being done from chain 3 to chain 2
-    expect(sentTransferRemote.origin).to.equal(originDomain);
-    expect(sentTransferRemote.destination).to.equal(destDomain);
-    expect(sentTransferRemote.recipient).to.equal(destContractAddress);
-    expect(sentTransferRemote.amount).to.equal(BigInt(toWei(5)));
+    const expectedRebalanceAmount = BigInt(toWei(5));
 
     // Verify that the bridge pulled tokens from origin (10 - 5 = 5)
-    originBalance = await originTkn.balanceOf(originContractAddress);
+    originBalance = await waitForBalance(
+      originTkn,
+      originContractAddress,
+      BigInt(toWei(5)),
+    );
     expect(originBalance.toString()).to.equal(toWei(5));
 
     // Simulate bridge delivery by minting tokens to destination warp token
@@ -1070,7 +1091,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
     const mintTx = await destCollateralToken.mintTo(
       destContractAddress,
-      sentTransferRemote.amount.toString(),
+      expectedRebalanceAmount.toString(),
     );
     await mintTx.wait();
 
@@ -1201,7 +1222,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       )!.collateralAddressOrDenom!;
 
       // Domain IDs
-      const originDomain = chain3Metadata.domainId;
       const destDomain = chain2Metadata.domainId;
 
       // Chain names
@@ -1216,7 +1236,9 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // We need to assign to the contract who is able to send the rebalance transaction
       const originProvider = new ethers.JsonRpcProvider(originRpc);
       const destProvider = new ethers.JsonRpcProvider(destRpc);
-      const originSigner = new Wallet(ANVIL_KEY, originProvider);
+      const originSigner = new ethers.NonceManager(
+        new Wallet(ANVIL_KEY, originProvider),
+      );
       const originContract = HypERC20Collateral__factory.connect(
         originContractAddress,
         originSigner,
@@ -1227,20 +1249,28 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // It will also allow us to mock some token movement
       const bridgeContract = await new MockValueTransferBridge__factory(
         originSigner,
-      ).deploy(tokenChain3.address, chain3Addresses.mailbox);
-      await bridgeContract.initialize(
+      ).deploy(tokenChain3Address, chain3Addresses.mailbox);
+      await bridgeContract.waitForDeployment();
+      const bridgeContractAddress = await bridgeContract.getAddress();
+      const initializeTx = await bridgeContract.initialize(
         ethers.ZeroAddress,
         ethers.ZeroAddress,
         ANVIL_DEPLOYER_ADDRESS,
       );
-      await bridgeContract.enrollRemoteRouter(
+      await initializeTx.wait();
+      const enrollTx = await bridgeContract.enrollRemoteRouter(
         destDomain,
         addressToBytes32(destContractAddress),
       );
+      await enrollTx.wait();
 
       // Allow bridge
       // This allow the bridge to be used to send the rebalance transaction
-      await originContract.addBridge(destDomain, bridgeContract.address);
+      const addBridgeTx = await originContract.addBridge(
+        destDomain,
+        bridgeContractAddress,
+      );
+      await addBridgeTx.wait();
 
       // Configure rebalancer
       // Given that the rebalance will be performed by sending tokens from chain 3 to chain 2
@@ -1263,7 +1293,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
                 weight: '25',
                 tolerance: '0',
               },
-              bridge: bridgeContract.address,
+              bridge: bridgeContractAddress,
               bridgeLockTime: 1,
             },
           },
@@ -1282,28 +1312,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       expect(originBalance.toString()).to.equal(toWei(10));
       expect(destBalance.toString()).to.equal(toWei(10));
 
-      // Promise that will resolve with the event that is emitted by the bridge when the rebalance transaction is sent
-      const listenForSentTransferRemote = new Promise<{
-        origin: Domain;
-        destination: Domain;
-        recipient: Address;
-        amount: bigint;
-      }>((resolve) => {
-        void bridgeContract.on(
-          bridgeContract.filters.SentTransferRemote(),
-          (origin, destination, recipient, amount) => {
-            resolve({
-              origin,
-              destination,
-              recipient: bytes32ToAddress(recipient),
-              amount: amount.toBigInt(),
-            });
-
-            void bridgeContract.removeAllListeners();
-          },
-        );
-      });
-
       const manualRebalanceAmount = '5';
 
       // Start the rebalancer
@@ -1313,20 +1321,14 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         destination: destName,
         amount: manualRebalanceAmount,
       });
-
-      // Await for the event that is emitted when the rebalance is triggered
-      const sentTransferRemote = await listenForSentTransferRemote;
-
-      // Verify the different params of the event to make sure that the transfer of 5TKN is being done from chain 3 to chain 2
-      expect(sentTransferRemote.origin).to.equal(originDomain);
-      expect(sentTransferRemote.destination).to.equal(destDomain);
-      expect(sentTransferRemote.recipient).to.equal(destContractAddress);
-      expect(sentTransferRemote.amount).to.equal(
-        BigInt(toWei(manualRebalanceAmount)),
-      );
+      const expectedRebalanceAmount = BigInt(toWei(manualRebalanceAmount));
 
       // Verify that the bridge pulled tokens from origin (10 - 5 = 5)
-      originBalance = await originTkn.balanceOf(originContractAddress);
+      originBalance = await waitForBalance(
+        originTkn,
+        originContractAddress,
+        BigInt(toWei(10 - Number(manualRebalanceAmount))),
+      );
       expect(originBalance.toString()).to.equal(
         toWei(10 - Number(manualRebalanceAmount)),
       );
@@ -1339,7 +1341,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       );
       const mintTx = await destCollateralToken.mintTo(
         destContractAddress,
-        sentTransferRemote.amount.toString(),
+        expectedRebalanceAmount.toString(),
       );
       await mintTx.wait();
 

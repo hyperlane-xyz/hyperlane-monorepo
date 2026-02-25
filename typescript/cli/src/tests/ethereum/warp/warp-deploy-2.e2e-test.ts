@@ -125,7 +125,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
   describe(`hyperlane warp deploy --config ... --yes --key ...`, () => {
     let tokenChain2: ERC20Test;
+    let tokenChain2Address: Address;
     let everclearBridgeAdapterMock: MockEverclearAdapter;
+    let everclearBridgeAdapterMockAddress: Address;
 
     before(async () => {
       tokenChain2 = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
@@ -134,6 +136,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
         CHAIN_NAME_2,
         REGISTRY_PATH,
       );
+      [tokenChain2Address, everclearBridgeAdapterMockAddress] =
+        await Promise.all([
+          tokenChain2.getAddress(),
+          everclearBridgeAdapterMock.getAddress(),
+        ]);
     });
 
     const MAX_UINT256 =
@@ -144,12 +151,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
-          token: tokenChain2.address,
+          token: tokenChain2Address,
           owner: ownerAddress,
           allowedRebalancingBridges: {
             [chain3DomainId]: bridges.map((bridge) => ({
               bridge,
-              approvedTokens: [tokenChain2.address],
+              approvedTokens: [tokenChain2Address],
             })),
           },
         },
@@ -187,7 +194,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chain2TokenConfig.addressOrDenom!,
           bridge,
         );
-        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+        expect(allowance === MAX_UINT256).to.be.true;
 
         const allowedBridgesOnDomain =
           await movableToken.allowedBridges(chain3DomainId);
@@ -205,19 +212,19 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
-          token: tokenChain2.address,
+          token: tokenChain2Address,
           owner: ownerAddress,
           allowedRebalancingBridges: {
             [chain3DomainId]: [
               {
                 bridge: allowedBridge,
-                approvedTokens: [tokenChain2.address],
+                approvedTokens: [tokenChain2Address],
               },
             ],
             [chain4DomainId]: [
               {
                 bridge: allowedBridge,
-                approvedTokens: [tokenChain2.address],
+                approvedTokens: [tokenChain2Address],
               },
             ],
           },
@@ -260,7 +267,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           chain2TokenConfig.addressOrDenom!,
           allowedBridge,
         );
-        expect(allowance.toBigInt() === MAX_UINT256).to.be.true;
+        expect(allowance === MAX_UINT256).to.be.true;
 
         const allowedBridgesOnDomain =
           await movableToken.allowedBridges(domain);
@@ -276,14 +283,14 @@ describe('hyperlane warp deploy e2e tests', async function () {
     it('should deploy a token fee with top-level owner when fee owner is unspecified', async () => {
       const tokenFee = {
         type: TokenFeeType.LinearFee,
-        token: tokenChain2.address,
+        token: tokenChain2Address,
         bps: 1n,
       };
 
       const warpConfig = WarpRouteDeployConfigSchema.parse({
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
-          token: tokenChain2.address,
+          token: tokenChain2Address,
           owner: ownerAddress,
           tokenFee,
         },
@@ -321,7 +328,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig = WarpRouteDeployConfigSchema.parse({
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
-          token: tokenChain2.address,
+          token: tokenChain2Address,
           owner: ownerAddress,
           tokenFee,
         },
@@ -350,7 +357,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(
         (collateralConfig.tokenFee as TokenFeeConfig | undefined)?.token,
-      ).to.equal(tokenChain2.address);
+      ).to.equal(tokenChain2Address);
     });
 
     for (const tokenFee of [
@@ -372,7 +379,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         const warpConfig = WarpRouteDeployConfigSchema.parse({
           [CHAIN_NAME_2]: {
             type: TokenType.collateral,
-            token: tokenChain2.address,
+            token: tokenChain2Address,
             owner: ownerAddress,
             tokenFee,
           },
@@ -410,7 +417,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig = WarpRouteDeployConfigSchema.parse({
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
-          token: tokenChain2.address,
+          token: tokenChain2Address,
           owner: ownerAddress,
         },
         [CHAIN_NAME_3]: {
@@ -515,9 +522,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateralEverclear,
-          token: tokenChain2.address,
+          token: tokenChain2Address,
           owner: ownerAddress,
-          everclearBridgeAddress: everclearBridgeAdapterMock.address,
+          everclearBridgeAddress: everclearBridgeAdapterMockAddress,
           everclearFeeParams: {
             [CHAIN_NAME_3]: expectedFeeSettings,
           },
@@ -557,13 +564,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const onChainEverclearBridgeAdapterAddress =
         await movableToken.everclearAdapter();
       expect(onChainEverclearBridgeAdapterAddress).to.equal(
-        everclearBridgeAdapterMock.address,
+        everclearBridgeAdapterMockAddress,
       );
 
       const [fee, deadline, signature] =
         await movableToken.feeParams(chain3DomainId);
-      expect(deadline.toNumber()).to.equal(expectedFeeSettings.deadline);
-      expect(fee.toNumber()).to.equal(expectedFeeSettings.fee);
+      expect(Number(deadline)).to.equal(expectedFeeSettings.deadline);
+      expect(Number(fee)).to.equal(expectedFeeSettings.fee);
       expect(signature).to.equal(expectedFeeSettings.signature);
 
       const outputAssetAddress =
@@ -580,7 +587,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig = WarpRouteDeployConfigSchema.parse({
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
-          token: tokenChain2.address,
+          token: tokenChain2Address,
           owner: ownerAddress,
           tokenFee: {
             type: TokenFeeType.LinearFee,
@@ -626,7 +633,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig = WarpRouteDeployConfigSchema.parse({
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
-          token: tokenChain2.address,
+          token: tokenChain2Address,
           owner: ownerAddress,
         },
         [CHAIN_NAME_3]: {

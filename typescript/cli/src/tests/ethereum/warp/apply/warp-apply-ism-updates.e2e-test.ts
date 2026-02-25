@@ -141,7 +141,7 @@ describe('hyperlane warp apply E2E (ISM updates)', async function () {
           REGISTRY_PATH,
         );
 
-        ismDeployConfig = testOffchainLookupIsm.address;
+        ismDeployConfig = await testOffchainLookupIsm.getAddress();
       }
 
       const warpDeployConfig: WarpRouteDeployConfig = {

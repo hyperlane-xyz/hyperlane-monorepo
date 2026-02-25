@@ -208,9 +208,12 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     }
 
     const metadata = this.getChainMetadata(chainName);
+    const signerConstructorName = connectedSigner.constructor?.name;
+    const isHardhatSigner = signerConstructorName === 'HardhatEthersSigner';
     const useNonceManager =
       metadata.protocol === ProtocolType.Ethereum &&
-      metadata.technicalStack !== ChainTechnicalStack.Tron;
+      metadata.technicalStack !== ChainTechnicalStack.Tron &&
+      !isHardhatSigner;
 
     if (useNonceManager && !(connectedSigner instanceof NonceManager)) {
       connectedSigner = new NonceManager(connectedSigner);

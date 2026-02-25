@@ -48,6 +48,7 @@ describe('hyperlane warp check e2e tests', async function () {
   let chain3Addresses: ChainAddresses = {};
   let chain3DomainId: number;
   let token: ERC20Test;
+  let tokenAddress: Address;
   let tokenSymbol: string;
   let ownerAddress: Address;
   let combinedWarpCoreConfigPath: string;
@@ -68,6 +69,7 @@ describe('hyperlane warp check e2e tests', async function () {
     signer = new Wallet(ANVIL_KEY).connect(provider);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+    tokenAddress = await token.getAddress();
     tokenSymbol = await token.symbol();
 
     combinedWarpCoreConfigPath = getCombinedWarpRoutePath(tokenSymbol, [
@@ -100,7 +102,7 @@ describe('hyperlane warp check e2e tests', async function () {
     warpConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
       },
@@ -178,16 +180,18 @@ describe('hyperlane warp check e2e tests', async function () {
         tokenDecimals,
         symbol,
       );
+      const collateralAddress = await collateral.getAddress();
 
       const contract = new HypERC20Collateral__factory(signer);
       const tx = await contract.deploy(
-        collateral.address,
+        collateralAddress,
         1,
         1,
         chain2Addresses.mailbox,
       );
 
       const deployedContract = await tx.waitForDeployment();
+      const deployedContractAddress = await deployedContract.getAddress();
       const tx2 = await deployedContract.initialize(
         zeroAddress,
         zeroAddress,
@@ -201,7 +205,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const warpDeployConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
-          token: collateral.address,
+          token: collateralAddress,
           owner: ANVIL_DEPLOYER_ADDRESS,
         },
       };
@@ -213,10 +217,10 @@ describe('hyperlane warp check e2e tests', async function () {
       const warpCoreConfig: WarpCoreConfig = {
         tokens: [
           {
-            addressOrDenom: deployedContract.address,
+            addressOrDenom: deployedContractAddress,
             chainName: CHAIN_NAME_2,
             decimals: tokenDecimals,
-            collateralAddressOrDenom: token.address,
+            collateralAddressOrDenom: tokenAddress,
             name: tokenName,
             standard: TokenStandard.EvmHypCollateral,
             symbol,

@@ -93,7 +93,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     warpDeployConfig: Readonly<WarpRouteDeployConfig>,
     warpCoreConfigPath: string,
     chainName: ChainName,
-    expectedMetadata: { decimals: number; symbol: string },
+    expectedMetadata: { decimals: number | bigint; symbol: string },
   ): Promise<void> {
     const currentWarpDeployConfig = await readWarpConfig(
       chainName,
@@ -104,8 +104,11 @@ describe('hyperlane warp deploy e2e tests', async function () {
     expect(currentWarpDeployConfig[chainName].type).to.equal(
       warpDeployConfig[chainName].type,
     );
-    expect(currentWarpDeployConfig[chainName].decimals).to.equal(
+    const expectedDecimals = Number(
       warpDeployConfig[chainName].decimals ?? expectedMetadata.decimals,
+    );
+    expect(Number(currentWarpDeployConfig[chainName].decimals)).to.equal(
+      expectedDecimals,
     );
     expect(currentWarpDeployConfig[chainName].symbol).to.equal(
       warpDeployConfig[chainName].symbol ?? expectedMetadata.symbol,
@@ -166,11 +169,15 @@ describe('hyperlane warp deploy e2e tests', async function () {
         'TOKEN',
         'TOKEN',
       );
+      const [tokenFiatAddress, tokenAddress] = await Promise.all([
+        tokenFiat.getAddress(),
+        token.getAddress(),
+      ]);
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateralFiat,
-          token: tokenFiat.address,
+          token: tokenFiatAddress,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
           decimals: 9,
@@ -178,7 +185,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
         [CHAIN_NAME_3]: {
           type: TokenType.collateral,
-          token: token.address,
+          token: tokenAddress,
           mailbox: chain3Addresses.mailbox,
           owner: ownerAddress,
           decimals: 18,
@@ -220,6 +227,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
       const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+      const tokenAddress = await token.getAddress();
 
       const [expectedTokenSymbol, expectedTokenDecimals] = await Promise.all([
         token.symbol(),
@@ -234,7 +242,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
-          token: token.address,
+          token: tokenAddress,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
         },
@@ -286,11 +294,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     it(`should successfully deploy a warp route with a custom warp route id`, async function () {
       const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+      const tokenAddress = await token.getAddress();
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
-          token: token.address,
+          token: tokenAddress,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
         },
@@ -348,6 +357,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
         'TOKEN',
         'TOKEN',
       );
+      const [tokenFiatAddress, tokenAddress] = await Promise.all([
+        tokenFiat.getAddress(),
+        token.getAddress(),
+      ]);
 
       const [
         expectedTokenSymbol,
@@ -368,13 +381,13 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateralFiat,
-          token: tokenFiat.address,
+          token: tokenFiatAddress,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
         },
         [CHAIN_NAME_3]: {
           type: TokenType.collateral,
-          token: token.address,
+          token: tokenAddress,
           mailbox: chain3Addresses.mailbox,
           owner: ownerAddress,
         },
@@ -484,6 +497,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
       const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+      const tokenAddress = await token.getAddress();
 
       const [expectedTokenSymbol, expectedTokenDecimals] = await Promise.all([
         token.symbol(),
@@ -499,7 +513,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
-          token: token.address,
+          token: tokenAddress,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
         },
@@ -550,21 +564,25 @@ describe('hyperlane warp deploy e2e tests', async function () {
   describe(`hyperlane warp deploy --config ... --yes --key ...`, () => {
     let tokenChain2: ERC20Test;
     let vaultChain2: ERC4626Test;
+    let tokenChain2Address: Address;
+    let vaultChain2Address: Address;
 
     before(async () => {
       tokenChain2 = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+      tokenChain2Address = await tokenChain2.getAddress();
       vaultChain2 = await deploy4626Vault(
         ANVIL_KEY,
         CHAIN_NAME_2,
-        tokenChain2.address,
+        tokenChain2Address,
       );
+      vaultChain2Address = await vaultChain2.getAddress();
     });
 
     it('should only allow rebasing yield route to be deployed with rebasing synthetic', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,
-          token: vaultChain2.address,
+          token: vaultChain2Address,
           mailbox: chain2Addresses.mailbox,
           owner: chain2Addresses.mailbox,
         },
@@ -591,7 +609,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,
-          token: vaultChain2.address,
+          token: vaultChain2Address,
           mailbox: chain2Addresses.mailbox,
           owner: chain2Addresses.mailbox,
           interchainSecurityModule: ism, // Add ISM config here
@@ -633,7 +651,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,
-          token: vaultChain2.address,
+          token: vaultChain2Address,
           mailbox: chain2Addresses.mailbox,
           owner: chain2Addresses.mailbox,
           hook,
@@ -667,7 +685,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,
-          token: vaultChain2.address,
+          token: vaultChain2Address,
           mailbox: chain2Addresses.mailbox,
           owner: chain2Addresses.mailbox,
         },
@@ -723,7 +741,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateralVaultRebase,
-          token: vaultChain2.address,
+          token: vaultChain2Address,
           mailbox: chain2Addresses.mailbox,
           owner: chain2Addresses.mailbox,
         },

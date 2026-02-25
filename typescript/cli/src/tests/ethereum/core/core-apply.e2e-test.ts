@@ -97,7 +97,8 @@ describe('hyperlane core apply e2e tests', async function () {
     const proxyFactory = new ProxyAdmin__factory().connect(signer);
     const deployTx = await proxyFactory.deploy();
     const newProxyAdmin = await deployTx.waitForDeployment();
-    coreConfig.proxyAdmin!.address = newProxyAdmin.address;
+    const newProxyAdminAddress = await newProxyAdmin.getAddress();
+    coreConfig.proxyAdmin!.address = newProxyAdminAddress;
 
     writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
     await hyperlaneCore.apply(ANVIL_KEY);
@@ -105,7 +106,7 @@ describe('hyperlane core apply e2e tests', async function () {
     // Verify that the owner has been set correctly without modifying any other owner values
     const updatedConfig: CoreConfig = await hyperlaneCore.readConfig();
     expect(updatedConfig.owner).to.equal(initialOwnerAddress);
-    expect(updatedConfig.proxyAdmin?.address).to.equal(newProxyAdmin.address);
+    expect(updatedConfig.proxyAdmin?.address).to.equal(newProxyAdminAddress);
     // Assuming that the ProtocolFeeHook is used for deployment
     expect(
       (updatedConfig.requiredHook as ProtocolFeeHookConfig).owner,
