@@ -8,6 +8,7 @@ import {
   Domain,
   EvmChainId,
   ProtocolType,
+  assert,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -71,6 +72,16 @@ export class EvmCoreModule extends HyperlaneModule<
 
   public readonly chainId: EvmChainId;
   public readonly domainId: Domain;
+
+  private getDerivedIsmAddress(config: IsmConfig | DerivedIsmConfig): Address {
+    if (typeof config === 'string') return config;
+    const address = (config as { address?: unknown }).address;
+    assert(
+      typeof address === 'string',
+      `Missing derived ISM address for chain ${this.chainName}`,
+    );
+    return address;
+  }
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -214,11 +225,13 @@ export class EvmCoreModule extends HyperlaneModule<
   ): Promise<AnnotatedEvmTransaction[]> {
     const updateTransactions: AnnotatedEvmTransaction[] = [];
 
-    const actualDefaultIsmConfig = actualConfig.defaultIsm as DerivedIsmConfig;
+    const actualDefaultIsmAddress = this.getDerivedIsmAddress(
+      actualConfig.defaultIsm,
+    );
 
     // Try to update (may also deploy) Ism with the expected config
     const { deployedIsm, ismUpdateTxs } = await this.deployOrUpdateIsm(
-      actualDefaultIsmConfig,
+      actualConfig.defaultIsm,
       expectedConfig.defaultIsm,
     );
 
@@ -226,10 +239,7 @@ export class EvmCoreModule extends HyperlaneModule<
       updateTransactions.push(...ismUpdateTxs);
     }
 
-    const newIsmDeployed = !eqAddress(
-      actualDefaultIsmConfig.address,
-      deployedIsm,
-    );
+    const newIsmDeployed = !eqAddress(actualDefaultIsmAddress, deployedIsm);
     if (newIsmDeployed) {
       const { mailbox } = this.serialize();
       const contractToUpdate = Mailbox__factory.connect(
@@ -255,13 +265,16 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns Object with deployedIsm address, and update Transactions
    */
   public async deployOrUpdateIsm(
-    actualDefaultIsmConfig: DerivedIsmConfig,
+    actualDefaultIsmConfig: IsmConfig | DerivedIsmConfig,
     expectDefaultIsmConfig: IsmConfig,
   ): Promise<{
     deployedIsm: Address;
     ismUpdateTxs: AnnotatedEvmTransaction[];
   }> {
     const { mailbox } = this.serialize();
+    const actualDefaultIsmAddress = this.getDerivedIsmAddress(
+      actualDefaultIsmConfig,
+    );
 
     const ismModule = new EvmIsmModule(this.multiProvider, {
       chain: this.args.chain,
@@ -269,7 +282,7 @@ export class EvmCoreModule extends HyperlaneModule<
       addresses: {
         mailbox,
         ...extractIsmAndHookFactoryAddresses(this.serialize()),
-        deployedIsm: actualDefaultIsmConfig.address,
+        deployedIsm: actualDefaultIsmAddress,
       },
     });
     this.logger.info(

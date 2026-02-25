@@ -333,8 +333,7 @@ export abstract class HyperlaneDeployer<
         destination: chain,
         config,
       });
-      targetIsm = ((deployedIsm as any).address ??
-        (deployedIsm as any).target) as Address;
+      targetIsm = this.getContractAddress(deployedIsm);
     }
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
