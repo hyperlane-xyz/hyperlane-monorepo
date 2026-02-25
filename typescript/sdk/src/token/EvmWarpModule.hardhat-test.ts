@@ -815,6 +815,10 @@ describe('EvmWarpModule', async () => {
       const existingConfig = await evmERC20WarpModule.read();
       for (let i = 0; i < numOfRouters; i++) {
         delete existingConfig.remoteRouters?.[i.toString()];
+        // Also remove corresponding destinationGas entry to stay consistent
+        if (existingConfig.destinationGas) {
+          delete existingConfig.destinationGas[i.toString()];
+        }
         await sendTxs(await evmERC20WarpModule.update(existingConfig));
 
         const updatedConfig = await evmERC20WarpModule.read();
