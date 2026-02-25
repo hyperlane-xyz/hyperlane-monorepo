@@ -3,7 +3,8 @@ import { ChainMetadata, RpcUrl } from '../../metadata/chainMetadataTypes.js';
 export type ConnectionInfo = {
   url?: string;
   headers?: Record<string, string>;
-} & Record<string, unknown>;
+  [key: string]: unknown;
+};
 
 export type RpcConfigWithConnectionInfo = RpcUrl & {
   connection?: ConnectionInfo;
