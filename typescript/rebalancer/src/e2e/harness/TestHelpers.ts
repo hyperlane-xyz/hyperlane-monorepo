@@ -1,9 +1,14 @@
 import { BigNumber, providers } from 'ethers';
 
+import { HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
+import { expect } from 'chai';
+
 import type { RebalanceAction } from '../../tracking/types.js';
 import type { MonitorEvent } from '../../interfaces/IMonitor.js';
 import { MonitorEventType } from '../../interfaces/IMonitor.js';
 import type { Monitor } from '../../monitor/Monitor.js';
+import type { TestRebalancerContext } from './TestRebalancer.js';
+import { tryRelayMessage } from './TransferHelper.js';
 
 import {
   DOMAIN_IDS,
@@ -78,4 +83,45 @@ export function classifyChains(
     (c) => c !== deficitChain && c !== surplusChain,
   );
   return { deficitChain, surplusChain, neutralChain };
+}
+
+export async function relayInProgressInventoryDeposits(
+  context: TestRebalancerContext,
+  localProviders: Map<string, providers.JsonRpcProvider>,
+  multiProvider: MultiProvider,
+  hyperlaneCore: HyperlaneCore,
+): Promise<void> {
+  const inProgressActions = await context.tracker.getInProgressActions();
+  const depositActions = inProgressActions.filter(
+    (a) => a.type === 'inventory_deposit' && a.txHash && a.messageId,
+  );
+
+  for (const action of depositActions) {
+    const origin = chainFromDomain(action.origin);
+    const destination = chainFromDomain(action.destination);
+    const provider = localProviders.get(origin)!;
+    const dispatchTx = await provider.getTransactionReceipt(action.txHash!);
+
+    const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
+      dispatchTx,
+      messageId: action.messageId!,
+      origin,
+      destination,
+    });
+
+    expect(
+      relayResult.success,
+      `Inventory deposit relay should succeed: ${relayResult.error}`,
+    ).to.be.true;
+  }
+
+  // Use provider.send to bypass ethers v5 _maxInternalBlockNumber cache
+  // which refuses to return lower block numbers after evm_revert.
+  const tags: Record<string, number> = {};
+  for (const chain of TEST_CHAINS) {
+    const p = localProviders.get(chain)!;
+    const hex = await p.send('eth_blockNumber', []);
+    tags[chain] = parseInt(hex, 16);
+  }
+  await context.tracker.syncRebalanceActions(tags);
 }

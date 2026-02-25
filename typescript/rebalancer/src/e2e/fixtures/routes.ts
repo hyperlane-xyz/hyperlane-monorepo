@@ -192,6 +192,16 @@ export const BALANCE_PRESETS: Record<string, Record<TestChain, string>> = {
     anvil2: '2000000000000000000',
     anvil3: '1000000000000000000',
   },
+  INVENTORY_WEIGHTED_ALL_ANVIL1: {
+    anvil1: '10000000000000000000',
+    anvil2: '0',
+    anvil3: '0',
+  },
+  INVENTORY_WEIGHTED_PARTIAL_SUPPLY: {
+    anvil1: '4800000000000000000',
+    anvil2: '1200000000000000000',
+    anvil3: '0',
+  },
 };
 
 // Inventory signer balance presets (ETH balances for the inventory signer wallet)
@@ -222,6 +232,22 @@ export const INVENTORY_SIGNER_PRESETS: Record<
     anvil2: '0',
     anvil3: '0',
   },
+  SIGNER_PARTIAL_ANVIL3: {
+    anvil3: '500000000000000000', // 0.5 ETH — forces partial deposit on anvil3
+  },
+  SIGNER_ZERO_ANVIL3: {
+    anvil3: '0',
+  },
+  SIGNER_WEIGHTED_LOW_ALL: {
+    anvil1: '800000000000000000', // 0.8 ETH
+    anvil2: '800000000000000000', // 0.8 ETH
+    anvil3: '500000000000000000', // 0.5 ETH
+  },
+  SIGNER_WEIGHTED_BRIDGE_SOURCES: {
+    anvil1: '600000000000000000', // 0.6 ETH
+    anvil2: '600000000000000000', // 0.6 ETH
+    anvil3: '300000000000000000', // 0.3 ETH
+  },
 };
 
 // The min/target values used by buildInventoryMinAmountStrategyConfig below.
@@ -231,6 +257,17 @@ export const INVENTORY_MIN_AMOUNT_TARGET = '2';
 export const INVENTORY_MIN_AMOUNT_TARGET_WEI = BigNumber.from(
   INVENTORY_MIN_AMOUNT_TARGET,
 ).mul(BigNumber.from('1000000000000000000'));
+
+// Weighted strategy deficit constants
+export const WEIGHTED_EXPECTED_DEFICIT_1ETH = BigNumber.from(
+  '1000000000000000000',
+);
+export const WEIGHTED_EXPECTED_DEFICIT_2ETH = BigNumber.from(
+  '2000000000000000000',
+);
+export const WEIGHTED_EXPECTED_DEFICIT_1_2ETH = BigNumber.from(
+  '1200000000000000000',
+);
 
 export function buildInventoryMinAmountStrategyConfig(
   _addresses: NativeDeployedAddresses,
