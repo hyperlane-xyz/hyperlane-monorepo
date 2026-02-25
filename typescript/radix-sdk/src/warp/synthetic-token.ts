@@ -128,23 +128,22 @@ export class RadixSyntheticTokenWriter
       );
     });
 
-    const createReceipt =
-      await this.signer.signAndBroadcast(transactionManifest).catch(
-        (error: unknown) => {
-          throw withErrorContext(
-            `Failed to create synthetic warp token (signer=${this.signer.getAddress()}, mailbox=${config.mailbox}, name=${config.name}, symbol=${config.symbol})`,
-            error,
-          );
-        },
-      );
-    const address = await this.base.getNewComponent(createReceipt).catch(
-      (error: unknown) => {
+    const createReceipt = await this.signer
+      .signAndBroadcast(transactionManifest)
+      .catch((error: unknown) => {
+        throw withErrorContext(
+          `Failed to create synthetic warp token (signer=${this.signer.getAddress()}, mailbox=${config.mailbox}, name=${config.name}, symbol=${config.symbol})`,
+          error,
+        );
+      });
+    const address = await this.base
+      .getNewComponent(createReceipt)
+      .catch((error: unknown) => {
         throw withErrorContext(
           'Failed to resolve created synthetic token address from transaction receipt',
           error,
         );
-      },
-    );
+      });
     allReceipts.push(createReceipt);
 
     // Set ISM if configured
@@ -164,14 +163,14 @@ export class RadixSyntheticTokenWriter
         );
       });
 
-      const ismReceipt = await this.signer.signAndBroadcast(setIsmTx).catch(
-        (error: unknown) => {
+      const ismReceipt = await this.signer
+        .signAndBroadcast(setIsmTx)
+        .catch((error: unknown) => {
           throw withErrorContext(
             `Failed to set ISM for synthetic warp token ${address}`,
             error,
           );
-        },
-      );
+        });
       allReceipts.push(ismReceipt);
     }
 
@@ -199,14 +198,14 @@ export class RadixSyntheticTokenWriter
         );
       });
 
-      const enrollReceipt = await this.signer.signAndBroadcast(enrollTx).catch(
-        (error: unknown) => {
+      const enrollReceipt = await this.signer
+        .signAndBroadcast(enrollTx)
+        .catch((error: unknown) => {
           throw withErrorContext(
             `Failed to enroll remote router for synthetic warp token ${address} (domain=${domainId}, router=${routerAddress})`,
             error,
           );
-        },
-      );
+        });
       allReceipts.push(enrollReceipt);
     }
 

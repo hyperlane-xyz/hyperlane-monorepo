@@ -128,23 +128,22 @@ export class RadixCollateralTokenWriter
       );
     });
 
-    const createReceipt =
-      await this.signer.signAndBroadcast(transactionManifest).catch(
-        (error: unknown) => {
-          throw withErrorContext(
-            `Failed to create collateral warp token (signer=${this.signer.getAddress()}, mailbox=${config.mailbox}, originDenom=${config.token})`,
-            error,
-          );
-        },
-      );
-    const address = await this.base.getNewComponent(createReceipt).catch(
-      (error: unknown) => {
+    const createReceipt = await this.signer
+      .signAndBroadcast(transactionManifest)
+      .catch((error: unknown) => {
+        throw withErrorContext(
+          `Failed to create collateral warp token (signer=${this.signer.getAddress()}, mailbox=${config.mailbox}, originDenom=${config.token})`,
+          error,
+        );
+      });
+    const address = await this.base
+      .getNewComponent(createReceipt)
+      .catch((error: unknown) => {
         throw withErrorContext(
           'Failed to resolve created collateral token address from transaction receipt',
           error,
         );
-      },
-    );
+      });
     allReceipts.push(createReceipt);
 
     // Set ISM if configured
@@ -163,14 +162,14 @@ export class RadixCollateralTokenWriter
         );
       });
 
-      const ismReceipt = await this.signer.signAndBroadcast(setIsmTx).catch(
-        (error: unknown) => {
+      const ismReceipt = await this.signer
+        .signAndBroadcast(setIsmTx)
+        .catch((error: unknown) => {
           throw withErrorContext(
             `Failed to set ISM for collateral warp token ${address}`,
             error,
           );
-        },
-      );
+        });
       allReceipts.push(ismReceipt);
     }
 
@@ -198,14 +197,14 @@ export class RadixCollateralTokenWriter
         );
       });
 
-      const enrollReceipt = await this.signer.signAndBroadcast(enrollTx).catch(
-        (error: unknown) => {
+      const enrollReceipt = await this.signer
+        .signAndBroadcast(enrollTx)
+        .catch((error: unknown) => {
           throw withErrorContext(
             `Failed to enroll remote router for collateral warp token ${address} (domain=${domainId}, router=${routerAddress})`,
             error,
           );
-        },
-      );
+        });
       allReceipts.push(enrollReceipt);
     }
 
