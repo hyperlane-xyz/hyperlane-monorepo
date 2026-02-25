@@ -108,7 +108,7 @@ export interface PartialInventoryIntent {
   intent: RebalanceIntent;
   /** Sum of complete inventory_deposit action amounts */
   completedAmount: bigint;
-  /** Amount remaining to fulfill: intent.amount - completedAmount - inflightAmount */
+  /** Amount remaining to fulfill (0n when final deposit is fully in-flight). Formula: intent.amount - completedAmount - inflightAmount */
   remaining: bigint;
   /** True when intent has in_progress inventory_deposit actions (not safe to continue, but still active) */
   hasInflightDeposit: boolean;

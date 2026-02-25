@@ -580,7 +580,7 @@ export class ActionTracker implements IActionTracker {
 
       const remaining = intent.amount - completedAmount - inflightAmount;
 
-      if (remaining > 0n) {
+      if (remaining > 0n || inflightAmount > 0n) {
         partialIntents.push({
           intent,
           completedAmount,
