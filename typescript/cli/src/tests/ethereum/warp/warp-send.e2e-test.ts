@@ -328,7 +328,11 @@ describe('hyperlane warp send e2e tests', async function () {
       readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
     ).tokens.reduce((acc, curr) => ({ ...acc, [curr.chainName]: curr }), {});
     const collateral = parseEther('1');
-    const tx = await tokenChain3.transfer(
+    const tokenChain3Fresh = ERC20__factory.connect(
+      tokenChain3Address,
+      walletChain3,
+    );
+    const tx = await tokenChain3Fresh.transfer(
       config[CHAIN_NAME_3].addressOrDenom,
       collateral,
     );

@@ -111,7 +111,8 @@ export async function runWarpBridgeTests(
 
     const warpCoreConfig: WarpCoreConfig = readYamlOrJson(routeConfigPath);
     if (warpConfig[CHAIN_NAME_2].type.match(/.*xerc20.*/i)) {
-      const tx = await config.xERC202.addBridge({
+      const xerc20 = config.xERC202.connect(config.walletChain2);
+      const tx = await xerc20.addBridge({
         bridge: getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_2),
         bufferCap: 20000000000000,
         rateLimitPerSecond: 5000000000,
@@ -121,7 +122,8 @@ export async function runWarpBridgeTests(
     }
 
     if (warpConfig[CHAIN_NAME_3].type.match(/.*xerc20.*/i)) {
-      const tx = await config.xERC203.addBridge({
+      const xerc20 = config.xERC203.connect(config.walletChain3);
+      const tx = await xerc20.addBridge({
         bridge: getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
         bufferCap: 20000000000000,
         rateLimitPerSecond: 5000000000,
@@ -370,11 +372,14 @@ export async function collateralizeWarpTokens(
           !warpDeployConfig[chainName].type.match(/.*synthetic/i) &&
           warpDeployConfig[chainName].type.match(/.*collateral/i)
         ) {
-          const decimals =
-            await walletAndCollateralByChain[chainName].collateral.decimals();
-          const tx = await walletAndCollateralByChain[
-            chainName
-          ].collateral.transfer(
+          const collateral = walletAndCollateralByChain[chainName].collateral;
+          const collateralAddress = await collateral.getAddress();
+          const collateralInstance = ERC20Test__factory.connect(
+            collateralAddress,
+            walletAndCollateralByChain[chainName].wallet,
+          );
+          const decimals = await collateralInstance.decimals();
+          const tx = await collateralInstance.transfer(
             config[chainName].addressOrDenom,
             parseUnits('2', decimals),
           );
