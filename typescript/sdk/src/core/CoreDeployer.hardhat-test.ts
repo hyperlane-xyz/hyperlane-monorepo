@@ -76,7 +76,9 @@ describe('core', async () => {
       }));
 
       const [signer] = await hre.ethers.getSigners();
-      const nonceBefore = await signer.getTransactionCount();
+      const nonceBefore = await signer.provider.getTransactionCount(
+        await signer.getAddress(),
+      );
 
       const updatedContracts = await deployer.deploy(updatedConfig);
 
@@ -90,7 +92,9 @@ describe('core', async () => {
 
       // number of set hook transactions
       const numTransactions = 2 * testChains.length;
-      const nonceAfter = await signer.getTransactionCount();
+      const nonceAfter = await signer.provider.getTransactionCount(
+        await signer.getAddress(),
+      );
       expect(nonceAfter).to.equal(nonceBefore + numTransactions);
     });
 
@@ -113,7 +117,9 @@ describe('core', async () => {
       );
 
       const [signer] = await hre.ethers.getSigners();
-      const nonceBefore = await signer.getTransactionCount();
+      const nonceBefore = await signer.provider.getTransactionCount(
+        await signer.getAddress(),
+      );
 
       await deployer.deploy(updatedConfig);
 
@@ -121,7 +127,9 @@ describe('core', async () => {
       // 3x1 for setting ISM transaction for mailbox
       // 3x1 for setting ISM transaction for test recipient
       const numTransactions = 3 * testChains.length;
-      const nonceAfter = await signer.getTransactionCount();
+      const nonceAfter = await signer.provider.getTransactionCount(
+        await signer.getAddress(),
+      );
       expect(nonceAfter).to.equal(nonceBefore + numTransactions);
     });
   });
@@ -144,7 +152,7 @@ describe('core', async () => {
                 urls: ['https://commitment-read-ism.hyperlane.xyz'],
                 owner: signer.address,
               },
-              mailbox: contracts[chain].mailbox.address,
+              mailbox: await contracts[chain].mailbox.getAddress(),
               owner: signer.address,
             },
           })
@@ -171,7 +179,7 @@ describe('core', async () => {
         objMap(contracts, async (chainName, contract) => {
           const coreConfigOnChain = await deriveCoreConfig(
             chainName,
-            contract.mailbox.address,
+            await contract.mailbox.getAddress(),
             icaRouterAddressMap[chainName],
           );
 
@@ -191,7 +199,7 @@ describe('core', async () => {
         objMap(contracts, async (chainName, contract) => {
           const coreConfigOnChain = await deriveCoreConfig(
             chainName,
-            contract.mailbox.address,
+            await contract.mailbox.getAddress(),
             icaRouterAddressMap[chainName],
           );
 
@@ -211,7 +219,7 @@ describe('core', async () => {
         objMap(contracts, async (chainName, contract) => {
           const coreConfigOnChain = await deriveCoreConfig(
             chainName,
-            contract.mailbox.address,
+            await contract.mailbox.getAddress(),
             icaRouterAddressMap[chainName],
           );
           const { address: _, ...requiredHookOnchain } =

@@ -1,6 +1,6 @@
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { MaxUint256, ZeroAddress } from 'ethers';
 import hre from 'hardhat';
 
 import {
@@ -15,7 +15,7 @@ import { TestChainName } from '../consts/testChains.js';
 import { FeeTokenApproval, IcaRouterConfig } from '../ica/types.js';
 import { IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { AnnotatedEvmTransaction } from '../providers/ProviderType.js';
 
 import { EvmIcaModule } from './EvmIcaModule.js';
 
@@ -29,8 +29,9 @@ describe('EvmIcaModule', async () => {
   let erc20Factory: ERC20Test__factory;
   let feeToken: ERC20Test;
   let feeToken2: ERC20Test;
+  let mailboxAddress: string;
 
-  async function sendTxs(txs: AnnotatedEV5Transaction[]) {
+  async function sendTxs(txs: AnnotatedEvmTransaction[]) {
     for (const tx of txs) {
       await multiProvider.sendTransaction(chain, tx);
     }
@@ -45,6 +46,7 @@ describe('EvmIcaModule', async () => {
     erc20Factory = new ERC20Test__factory(signer);
     feeToken = await erc20Factory.deploy('FeeToken', 'FEE', '1000000', 18);
     feeToken2 = await erc20Factory.deploy('FeeToken2', 'FEE2', '1000000', 18);
+    mailboxAddress = await mailbox.getAddress();
   });
 
   describe('Create', async () => {
@@ -52,7 +54,7 @@ describe('EvmIcaModule', async () => {
       const evmIcaModule = await EvmIcaModule.create({
         chain,
         config: {
-          mailbox: mailbox.address,
+          mailbox: mailboxAddress,
           owner: signer.address,
           commitmentIsm: {
             type: IsmType.OFFCHAIN_LOOKUP,
@@ -64,12 +66,12 @@ describe('EvmIcaModule', async () => {
       });
 
       const { interchainAccountRouter } = evmIcaModule.serialize();
-      expect(interchainAccountRouter).to.not.equal(ethers.ZeroAddress);
+      expect(interchainAccountRouter).to.not.equal(ZeroAddress);
     });
 
     it('should configure commitment ISM', async () => {
       const config: IcaRouterConfig = {
-        mailbox: mailbox.address,
+        mailbox: mailboxAddress,
         owner: signer.address,
         commitmentIsm: {
           owner: signer.address,
@@ -99,7 +101,7 @@ describe('EvmIcaModule', async () => {
       evmIcaModule = await EvmIcaModule.create({
         chain,
         config: {
-          mailbox: mailbox.address,
+          mailbox: mailboxAddress,
           owner: signer.address,
           commitmentIsm: {
             type: IsmType.OFFCHAIN_LOOKUP,
@@ -114,11 +116,11 @@ describe('EvmIcaModule', async () => {
 
     it('should generate approval tx when allowance is zero', async () => {
       const feeTokenApprovals: FeeTokenApproval[] = [
-        { feeToken: feeToken.address, hook: mockHookAddress },
+        { feeToken: await feeToken.getAddress(), hook: mockHookAddress },
       ];
 
       const txs = await evmIcaModule.update({
-        mailbox: mailbox.address,
+        mailbox: mailboxAddress,
         owner: signer.address,
         commitmentIsm: {
           type: IsmType.OFFCHAIN_LOOKUP,
@@ -131,16 +133,16 @@ describe('EvmIcaModule', async () => {
       expect(txs.length).to.equal(1);
       expect(txs[0].annotation).to.include('Approving hook');
       expect(txs[0].annotation).to.include(mockHookAddress);
-      expect(txs[0].annotation).to.include(feeToken.address);
+      expect(txs[0].annotation).to.include(await feeToken.getAddress());
     });
 
     it('should set infinite approval after executing tx', async () => {
       const feeTokenApprovals: FeeTokenApproval[] = [
-        { feeToken: feeToken.address, hook: mockHookAddress },
+        { feeToken: await feeToken.getAddress(), hook: mockHookAddress },
       ];
 
       const txs = await evmIcaModule.update({
-        mailbox: mailbox.address,
+        mailbox: mailboxAddress,
         owner: signer.address,
         commitmentIsm: {
           type: IsmType.OFFCHAIN_LOOKUP,
@@ -153,21 +155,19 @@ describe('EvmIcaModule', async () => {
       await sendTxs(txs);
 
       const provider = multiProvider.getProvider(chain);
-      const token = IERC20__factory.connect(feeToken.address, provider);
+      const token = IERC20__factory.connect(await feeToken.getAddress(), provider);
       const allowance = await token.allowance(routerAddress, mockHookAddress);
-      expect(allowance.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
-      );
+      expect(allowance).to.equal(MaxUint256);
     });
 
     it('should not generate tx when approval is already at max', async () => {
       const feeTokenApprovals: FeeTokenApproval[] = [
-        { feeToken: feeToken.address, hook: mockHookAddress },
+        { feeToken: await feeToken.getAddress(), hook: mockHookAddress },
       ];
 
       // First update to set approval
       const txs1 = await evmIcaModule.update({
-        mailbox: mailbox.address,
+        mailbox: mailboxAddress,
         owner: signer.address,
         commitmentIsm: {
           type: IsmType.OFFCHAIN_LOOKUP,
@@ -180,7 +180,7 @@ describe('EvmIcaModule', async () => {
 
       // Second update should not generate new txs for same approval
       const txs2 = await evmIcaModule.update({
-        mailbox: mailbox.address,
+        mailbox: mailboxAddress,
         owner: signer.address,
         commitmentIsm: {
           type: IsmType.OFFCHAIN_LOOKUP,
@@ -195,12 +195,12 @@ describe('EvmIcaModule', async () => {
 
     it('should handle multiple fee token approvals', async () => {
       const feeTokenApprovals: FeeTokenApproval[] = [
-        { feeToken: feeToken.address, hook: mockHookAddress },
-        { feeToken: feeToken2.address, hook: mockHookAddress2 },
+        { feeToken: await feeToken.getAddress(), hook: mockHookAddress },
+        { feeToken: await feeToken2.getAddress(), hook: mockHookAddress2 },
       ];
 
       const txs = await evmIcaModule.update({
-        mailbox: mailbox.address,
+        mailbox: mailboxAddress,
         owner: signer.address,
         commitmentIsm: {
           type: IsmType.OFFCHAIN_LOOKUP,
@@ -215,8 +215,14 @@ describe('EvmIcaModule', async () => {
       await sendTxs(txs);
 
       const provider = multiProvider.getProvider(chain);
-      const token1 = IERC20__factory.connect(feeToken.address, provider);
-      const token2 = IERC20__factory.connect(feeToken2.address, provider);
+      const token1 = IERC20__factory.connect(
+        await feeToken.getAddress(),
+        provider,
+      );
+      const token2 = IERC20__factory.connect(
+        await feeToken2.getAddress(),
+        provider,
+      );
 
       const allowance1 = await token1.allowance(routerAddress, mockHookAddress);
       const allowance2 = await token2.allowance(
@@ -224,17 +230,13 @@ describe('EvmIcaModule', async () => {
         mockHookAddress2,
       );
 
-      expect(allowance1.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
-      );
-      expect(allowance2.toBigInt()).to.equal(
-        ethers.constants.MaxUint256.toBigInt(),
-      );
+      expect(allowance1).to.equal(MaxUint256);
+      expect(allowance2).to.equal(MaxUint256);
     });
 
     it('should return empty array when feeTokenApprovals is empty', async () => {
       const txs = await evmIcaModule.update({
-        mailbox: mailbox.address,
+        mailbox: mailboxAddress,
         owner: signer.address,
         commitmentIsm: {
           type: IsmType.OFFCHAIN_LOOKUP,
@@ -249,7 +251,7 @@ describe('EvmIcaModule', async () => {
 
     it('should return empty array when feeTokenApprovals is undefined', async () => {
       const txs = await evmIcaModule.update({
-        mailbox: mailbox.address,
+        mailbox: mailboxAddress,
         owner: signer.address,
         commitmentIsm: {
           type: IsmType.OFFCHAIN_LOOKUP,

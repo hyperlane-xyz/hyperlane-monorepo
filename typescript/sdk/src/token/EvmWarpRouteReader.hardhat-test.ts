@@ -219,7 +219,7 @@ describe('EvmWarpRouteReader', async () => {
         // Deploy warp route with config
         const warpRoute = await deployer.deploy(config);
         const derivedTokenType = await evmERC20WarpRouteReader.deriveTokenType(
-          warpRoute[chain][type].address,
+          await warpRoute[chain][type].getAddress(),
         );
         expect(derivedTokenType).to.equal(type);
       }),
@@ -242,7 +242,7 @@ describe('EvmWarpRouteReader', async () => {
 
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateral.address,
+      await warpRoute[chain].collateral.getAddress(),
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
@@ -251,9 +251,14 @@ describe('EvmWarpRouteReader', async () => {
     }
 
     // Check hook because they're potentially objects
+    const collateralHook = config[chain].hook;
+    assert(
+      typeof collateralHook === 'string',
+      'Expected collateral hook to be an address',
+    );
     expect(derivedConfig.hook).to.deep.equal(
       await evmERC20WarpRouteReader.evmHookReader.deriveHookConfig(
-        config[chain].hook as string,
+        collateralHook,
       ),
     );
     // Check ism
@@ -334,7 +339,7 @@ describe('EvmWarpRouteReader', async () => {
 
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].xERC20.address,
+      await warpRoute[chain].xERC20.getAddress(),
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
@@ -343,10 +348,13 @@ describe('EvmWarpRouteReader', async () => {
     }
 
     // Check hook because they're potentially objects
+    const xerc20Hook = config[chain].hook;
+    assert(
+      typeof xerc20Hook === 'string',
+      'Expected xERC20 hook to be an address',
+    );
     expect(derivedConfig.hook).to.deep.equal(
-      await evmERC20WarpRouteReader.evmHookReader.deriveHookConfig(
-        config[chain].hook as string,
-      ),
+      await evmERC20WarpRouteReader.evmHookReader.deriveHookConfig(xerc20Hook),
     );
     // Check ism
     expect(derivedIsmAddress(derivedConfig)).to.be.equal(
@@ -385,7 +393,7 @@ describe('EvmWarpRouteReader', async () => {
     const warpRoute = await deployer.deploy(config);
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].xERC20Lockbox.address,
+      await warpRoute[chain].xERC20Lockbox.getAddress(),
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
@@ -394,9 +402,14 @@ describe('EvmWarpRouteReader', async () => {
     }
 
     // Check hook because they're potentially objects
+    const xerc20LockboxHook = config[chain].hook;
+    assert(
+      typeof xerc20LockboxHook === 'string',
+      'Expected xERC20 lockbox hook to be an address',
+    );
     expect(derivedConfig.hook).to.deep.equal(
       await evmERC20WarpRouteReader.evmHookReader.deriveHookConfig(
-        config[chain].hook as string,
+        xerc20LockboxHook,
       ),
     );
     // Check ism
@@ -431,7 +444,7 @@ describe('EvmWarpRouteReader', async () => {
 
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].syntheticRebase.address,
+      await warpRoute[chain].syntheticRebase.getAddress(),
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
@@ -464,7 +477,7 @@ describe('EvmWarpRouteReader', async () => {
 
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].synthetic.address,
+      await warpRoute[chain].synthetic.getAddress(),
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
@@ -493,7 +506,7 @@ describe('EvmWarpRouteReader', async () => {
 
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].native.address,
+      await warpRoute[chain].native.getAddress(),
     );
     for (const [key, value] of Object.entries(derivedConfig)) {
       const deployedValue = (config[chain] as any)[key];
@@ -518,7 +531,7 @@ describe('EvmWarpRouteReader', async () => {
     const warpRoute = await deployer.deploy(config);
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateralVault.address,
+      await warpRoute[chain].collateralVault.getAddress(),
     );
 
     assert(
@@ -544,7 +557,7 @@ describe('EvmWarpRouteReader', async () => {
     const warpRoute = await deployer.deploy(config);
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateralVaultRebase.address,
+      await warpRoute[chain].collateralVaultRebase.getAddress(),
     );
 
     assert(
@@ -571,7 +584,7 @@ describe('EvmWarpRouteReader', async () => {
     const warpRoute = await deployer.deploy(config);
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateralFiat.address,
+      await warpRoute[chain].collateralFiat.getAddress(),
     );
 
     assert(
@@ -634,7 +647,7 @@ describe('EvmWarpRouteReader', async () => {
 
       // Derive config and check if each value matches
       const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-        warpRoute[chain][tokenType].address,
+        await warpRoute[chain][tokenType].getAddress(),
       );
 
       assert(derivedConfig.type === tokenType, `Must be ${tokenType}`);
@@ -693,7 +706,7 @@ describe('EvmWarpRouteReader', async () => {
 
       // Derive config and check if each value matches
       const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-        warpRoute[chain][tokenType].address,
+        await warpRoute[chain][tokenType].getAddress(),
       );
 
       // delete undefined member
@@ -719,7 +732,7 @@ describe('EvmWarpRouteReader', async () => {
 
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateral.address,
+      await warpRoute[chain].collateral.getAddress(),
     );
 
     expect(derivedConfig.interchainSecurityModule).to.be.equal(zeroAddress);
@@ -748,12 +761,14 @@ describe('EvmWarpRouteReader', async () => {
 
     // Derive config and check if remote router matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateral.address,
+      await warpRoute[chain].collateral.getAddress(),
     );
     expect(Object.keys(derivedConfig.remoteRouters!).length).to.equal(1);
     expect(
       derivedConfig.remoteRouters![otherChainMetadata.domainId!].address,
-    ).to.be.equal(addressToBytes32(warpRoute[otherChain].collateral.address));
+    ).to.be.equal(
+      addressToBytes32(await warpRoute[otherChain].collateral.getAddress()),
+    );
   });
 
   it('should return the contractVerificationStatus virtual config', async () => {
@@ -789,7 +804,7 @@ describe('EvmWarpRouteReader', async () => {
     const derivedConfig =
       await evmERC20WarpRouteReader.deriveWarpRouteVirtualConfig(
         chain,
-        warpRoute[chain].collateral.address,
+        await warpRoute[chain].collateral.getAddress(),
       );
     expect(derivedConfig.contractVerificationStatus).to.deep.equal({
       [VerifyContractTypes.Proxy]: ContractVerificationStatus.Verified,
@@ -828,7 +843,7 @@ describe('EvmWarpRouteReader', async () => {
       .returns(false);
 
     // Derive config and transfer the proxy, implementation, and proxyAdmin over
-    const warpRouteAddress = warpRoute[chain].collateral.address;
+    const warpRouteAddress = await warpRoute[chain].collateral.getAddress();
     const proxyAdminAddress = await proxyAdmin(provider, warpRouteAddress);
     await new ProxyAdmin__factory()
       .connect(signer)
@@ -870,7 +885,7 @@ describe('EvmWarpRouteReader', async () => {
     };
     // Deploy with config
     const warpRoute = await deployer.deploy(config);
-    const warpRouteAddress = warpRoute[chain].collateral.address;
+    const warpRouteAddress = await warpRoute[chain].collateral.getAddress();
 
     // Stub isLocalRpc to bypass local rpc check
     const isLocalRpcStub = sinon
@@ -919,7 +934,7 @@ describe('EvmWarpRouteReader', async () => {
     const warpRoute = await deployer.deploy(config);
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateral.address,
+      await warpRoute[chain].collateral.getAddress(),
     );
 
     expect(normalizeConfig(derivedConfig.tokenFee)).to.deep.equal(
@@ -955,7 +970,7 @@ describe('EvmWarpRouteReader', async () => {
 
     const warpRoute = await deployer.deploy(config);
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateral.address,
+      await warpRoute[chain].collateral.getAddress(),
     );
 
     expect(derivedConfig.tokenFee?.type).to.equal(TokenFeeType.RoutingFee);
@@ -978,7 +993,7 @@ describe('EvmWarpRouteReader', async () => {
     const warpRoute = await deployer.deploy(config);
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateral.address,
+      await warpRoute[chain].collateral.getAddress(),
     );
     expect(derivedConfig.tokenFee).to.be.undefined;
   });
@@ -1016,7 +1031,7 @@ describe('EvmWarpRouteReader', async () => {
 
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].collateral.address,
+      await warpRoute[chain].collateral.getAddress(),
     );
 
     // Even though we deployed a token fee, it should be undefined because the package version is below the required version.
@@ -1142,7 +1157,8 @@ describe('EvmWarpRouteReader', async () => {
         };
 
         const warpRoute = await deployer.deploy(config);
-        const warpAddress = warpRoute[chain][testCase.tokenType].address;
+        const warpAddress =
+          await warpRoute[chain][testCase.tokenType].getAddress();
 
         // Stub package version for legacy contracts
         let fetchPackageVersionStub;
@@ -1200,7 +1216,8 @@ describe('EvmWarpRouteReader', async () => {
         };
 
         const warpRoute = await deployer.deploy(config);
-        const warpAddress = warpRoute[chain][testCase.tokenType].address;
+        const warpAddress =
+          await warpRoute[chain][testCase.tokenType].getAddress();
 
         // Stub package version to simulate legacy contract
         const mockPackageVersioned = {
@@ -1250,7 +1267,7 @@ describe('EvmWarpRouteReader', async () => {
       };
 
       const warpRoute = await deployer.deploy(config);
-      const warpAddress = warpRoute[chain].native.address;
+      const warpAddress = await warpRoute[chain].native.getAddress();
 
       // Stub package version to claim it's modern (10.0.0+)
       const mockPackageVersioned = {

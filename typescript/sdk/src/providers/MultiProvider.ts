@@ -439,15 +439,17 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       );
     }
 
-    const contractAddress =
-      (contract as any).getAddress?.() ??
-      Promise.resolve((contract as any).address);
+    const contractAddress = await (contract as any).getAddress?.();
+    assert(
+      typeof contractAddress === 'string',
+      `Missing deployed contract address on ${chainNameOrId}`,
+    );
     const deploymentTx =
       (contract as any).deploymentTransaction?.() ??
       (contract as any).deployTransaction;
 
     this.logger.trace(
-      `Contract deployed at ${await contractAddress} on ${chainNameOrId}:`,
+      `Contract deployed at ${contractAddress} on ${chainNameOrId}:`,
       { transaction: deploymentTx },
     );
 
