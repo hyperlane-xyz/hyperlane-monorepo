@@ -21,13 +21,13 @@ import {
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   ChainTechnicalStack,
+  LocalAccountViemSigner,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { TronWallet } from '@hyperlane-xyz/tron-sdk';
 import { type Address, assert, ensure0x, inCIMode } from '@hyperlane-xyz/utils';
-import { ethers } from 'ethers';
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -191,7 +191,7 @@ function setSignerForChain(
       : rpcUrl;
     multiProvider.setSigner(chain, new TronWallet(privateKey, tronBaseUrl));
   } else {
-    multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+    multiProvider.setSigner(chain, new LocalAccountViemSigner(privateKey));
   }
 }
 

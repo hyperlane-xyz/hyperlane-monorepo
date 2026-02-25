@@ -186,10 +186,8 @@ export type RunnerLike =
       send?: (method: string, params: unknown[]) => Promise<unknown>;
       readContract?: (args: Record<string, unknown>) => Promise<unknown>;
       call?: (args: Record<string, unknown>) => Promise<unknown>;
-      estimateContractGas?: (args: Record<string, unknown>) => Promise<unknown>;
       estimateGas?: (args: Record<string, unknown>) => Promise<unknown>;
       sendTransaction?: unknown;
-      writeContract?: (args: Record<string, unknown>) => Promise<unknown>;
       waitForTransactionReceipt?: unknown;
       waitForTransaction?: unknown;
       getLogs?: (filter: Record<string, unknown>) => Promise<unknown[]>;
@@ -221,11 +219,6 @@ export interface ViemContractLike<TAbi extends Abi = Abi> {
 }
 
 type SentTxLike = ContractWriteResult;
-type WriteContractRequestLike = {
-  address: string;
-  abi: Abi;
-  functionName: string;
-} & Record<string, unknown>;
 
 const TX_OVERRIDE_KEYS = new Set([
   'from',
@@ -510,16 +503,6 @@ function toReceiptLike(
     return value as TransactionReceipt | Record<string, unknown>;
   }
   throw new Error(`Transaction receipt not found for ${hash}`);
-}
-
-function isWriteContractRequest(
-  request: TxRequestLike,
-): request is WriteContractRequestLike {
-  return (
-    typeof request.address === 'string' &&
-    Array.isArray(request.abi) &&
-    typeof request.functionName === 'string'
-  );
 }
 
 function splitArgsAndOverrides(
@@ -947,20 +930,6 @@ async function performEstimateGas(
   const provider = getRunnerProvider(runner);
   if (provider && isObject(provider)) {
     if (
-      'estimateContractGas' in provider &&
-      typeof provider.estimateContractGas === 'function' &&
-      isWriteContractRequest(request)
-    ) {
-      try {
-        return toBigIntValue(
-          await provider.estimateContractGas(request),
-          'estimateContractGas',
-        );
-      } catch (error) {
-        if (!shouldFallbackSend(error)) throw error;
-      }
-    }
-    if (
       'estimateGas' in provider &&
       typeof provider.estimateGas === 'function'
     ) {
@@ -1131,19 +1100,6 @@ async function performSend(
   request: TxRequestLike,
 ): Promise<SentTxLike> {
   if (runner && isObject(runner)) {
-    if (
-      'writeContract' in runner &&
-      typeof runner.writeContract === 'function' &&
-      isWriteContractRequest(request)
-    ) {
-      try {
-        const hash = await runner.writeContract(request);
-        return asTxResponse(runner, hash);
-      } catch (error) {
-        if (!shouldFallbackSend(error)) throw error;
-      }
-    }
-
     const hasRunnerAddress =
       ('getAddress' in runner && typeof runner.getAddress === 'function') ||
       getAccountAddress((runner as Record<string, unknown>).account) !==
