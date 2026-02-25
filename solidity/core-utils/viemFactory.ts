@@ -300,6 +300,11 @@ const SEND_FALLBACK_REASONS = [
   /account is required/i,
 ];
 
+const SEND_ACCOUNT_REQUIRED_REASONS = [
+  /must provide (an )?account/i,
+  /account is required/i,
+];
+
 const RECEIPT_RETRY_REASONS = [
   /invalid hash/i,
   /invalid transaction hash/i,
@@ -330,6 +335,13 @@ function shouldRetryReceiptWithPositionalArgs(error: unknown): boolean {
   const messages = extractErrorMessages(error);
   return messages.some((message) =>
     RECEIPT_RETRY_REASONS.some((pattern) => pattern.test(message)),
+  );
+}
+
+function shouldRetrySendWithAccount(error: unknown): boolean {
+  const messages = extractErrorMessages(error);
+  return messages.some((message) =>
+    SEND_ACCOUNT_REQUIRED_REASONS.some((pattern) => pattern.test(message)),
   );
 }
 
@@ -530,6 +542,7 @@ function splitArgsAndOverrides(
 function getFunctionAbi(
   abi: Abi,
   functionName: string,
+  args?: readonly unknown[],
 ): AbiFunction | undefined {
   if (functionName.includes('(')) {
     return abi.find((item): item is AbiFunction => {
@@ -540,6 +553,7 @@ function getFunctionAbi(
 
   const item = getAbiItem({
     abi,
+    ...(args !== undefined ? { args: [...args] } : {}),
     name: functionName,
   });
   if (!item || item.type !== 'function') return undefined;
@@ -583,6 +597,79 @@ function getFunctionSignature(fn: AbiFunction): string {
 
 function getFunctionSelector(fn: AbiFunction): Hex {
   return toFunctionSelector(getFunctionSignature(fn));
+}
+
+type ResolvedFunctionCall = {
+  fn: AbiFunction;
+  fnArgs: unknown[];
+  overrides: Record<string, unknown>;
+};
+
+function resolveFunctionCall(
+  abi: Abi,
+  functionName: string,
+  rawArgs: readonly unknown[],
+): ResolvedFunctionCall {
+  if (functionName.includes('(')) {
+    const fn = getFunctionAbi(abi, functionName);
+    if (!fn) throw new Error(`Function ${functionName} not found`);
+    const inputCount = (fn.inputs ?? []).length;
+    const { fnArgs, overrides } = splitArgsAndOverrides(rawArgs, inputCount);
+    if (fnArgs.length !== inputCount) {
+      throw new Error(
+        `Function ${functionName} expected ${inputCount} argument(s), received ${fnArgs.length}`,
+      );
+    }
+    return { fn, fnArgs, overrides };
+  }
+
+  const candidates = abi.filter(
+    (item): item is AbiFunction =>
+      item.type === 'function' && item.name === functionName,
+  );
+  if (!candidates.length) throw new Error(`Function ${functionName} not found`);
+
+  const matches = candidates
+    .map((fn) => {
+      const inputCount = (fn.inputs ?? []).length;
+      const { fnArgs, overrides } = splitArgsAndOverrides(rawArgs, inputCount);
+      return { fn, fnArgs, overrides };
+    })
+    .filter(({ fn, fnArgs }) => fnArgs.length === (fn.inputs ?? []).length);
+
+  if (!matches.length) {
+    throw new Error(
+      `Function ${functionName} not found for ${rawArgs.length} argument(s)`,
+    );
+  }
+  if (matches.length === 1) return matches[0];
+
+  const overrideMatches = matches.filter(
+    ({ overrides }) => Object.keys(overrides).length > 0,
+  );
+  const disambiguationPool =
+    overrideMatches.length === 1 ? overrideMatches : matches;
+  if (disambiguationPool.length === 1) return disambiguationPool[0];
+
+  for (const candidate of disambiguationPool) {
+    try {
+      const resolved = getAbiItem({
+        abi: disambiguationPool.map(({ fn }) => fn),
+        args: candidate.fnArgs,
+        name: functionName,
+      });
+      if (!resolved || resolved.type !== 'function') continue;
+      const signature = getFunctionSignature(resolved);
+      const match = disambiguationPool.find(
+        ({ fn }) => getFunctionSignature(fn) === signature,
+      );
+      if (match) return match;
+    } catch {
+      // ignore and try next candidate
+    }
+  }
+
+  throw new Error(`Ambiguous function ${functionName}; use full signature`);
 }
 
 function getConstructorInputs(abi: Abi) {
@@ -707,7 +794,7 @@ export function createInterface<TAbi extends Abi>(
     functions,
     events,
     encodeFunctionData(functionName: string, args: readonly unknown[] = []) {
-      const fn = getFunctionAbi(abi, functionName);
+      const fn = getFunctionAbi(abi, functionName, args);
       if (!fn) {
         throw new Error(`Function ${functionName} not found`);
       }
@@ -933,13 +1020,26 @@ async function performEstimateGas(
       'estimateGas' in provider &&
       typeof provider.estimateGas === 'function'
     ) {
+      const normalizedRequest = normalizeTxRequest(request);
       try {
-        const estimate = await provider.estimateGas(
-          normalizeTxRequest(request, { includeAccountFromFrom: true }),
-        );
+        const estimate = await provider.estimateGas(normalizedRequest);
         return toBigIntValue(estimate, 'estimateGas');
       } catch (error) {
-        if (!shouldFallbackSend(error)) throw error;
+        if (shouldRetrySendWithAccount(error)) {
+          const withAccountRequest = normalizeTxRequest(request, {
+            includeAccountFromFrom: true,
+          });
+          if ('account' in withAccountRequest) {
+            try {
+              const estimate = await provider.estimateGas(withAccountRequest);
+              return toBigIntValue(estimate, 'estimateGas');
+            } catch (withAccountError) {
+              if (!shouldFallbackSend(withAccountError)) throw withAccountError;
+            }
+          }
+        } else if (!shouldFallbackSend(error)) {
+          throw error;
+        }
       }
     }
   }
@@ -1109,13 +1209,30 @@ async function performSend(
       typeof runner.sendTransaction === 'function' &&
       hasRunnerAddress
     ) {
+      const normalizedRequest = normalizeTxRequest(request);
       try {
         const sent = await (
           runner.sendTransaction as (args: unknown) => Promise<unknown>
-        )(normalizeTxRequest(request, { includeAccountFromFrom: true }));
+        )(normalizedRequest);
         return asTxResponse(runner, sent);
       } catch (error) {
-        if (!shouldFallbackSend(error)) throw error;
+        if (shouldRetrySendWithAccount(error)) {
+          const withAccountRequest = normalizeTxRequest(request, {
+            includeAccountFromFrom: true,
+          });
+          if ('account' in withAccountRequest) {
+            try {
+              const sent = await (
+                runner.sendTransaction as (args: unknown) => Promise<unknown>
+              )(withAccountRequest);
+              return asTxResponse(runner, sent);
+            } catch (withAccountError) {
+              if (!shouldFallbackSend(withAccountError)) throw withAccountError;
+            }
+          }
+        } else if (!shouldFallbackSend(error)) {
+          throw error;
+        }
       }
     }
   }
@@ -1158,10 +1275,11 @@ export function createContractProxy<TAbi extends Abi>(
     functionName: string,
     rawArgs: readonly unknown[],
   ) => {
-    const fn = getFunctionAbi(abi, functionName);
-    if (!fn) throw new Error(`Function ${functionName} not found`);
-    const inputCount = (fn.inputs ?? []).length;
-    const { fnArgs, overrides } = splitArgsAndOverrides(rawArgs, inputCount);
+    const { fn, fnArgs, overrides } = resolveFunctionCall(
+      abi,
+      functionName,
+      rawArgs,
+    );
     const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
     const stateMutability = fn.stateMutability ?? 'nonpayable';
     if (stateMutability === 'view' || stateMutability === 'pure') {
@@ -1183,12 +1301,10 @@ export function createContractProxy<TAbi extends Abi>(
       get(_target, prop) {
         if (typeof prop !== 'string') return undefined;
         return async (...rawArgs: unknown[]) => {
-          const fn = getFunctionAbi(abi, prop);
-          if (!fn) throw new Error(`Function ${prop} not found`);
-          const inputCount = (fn.inputs ?? []).length;
-          const { fnArgs, overrides } = splitArgsAndOverrides(
+          const { fn, fnArgs, overrides } = resolveFunctionCall(
+            abi,
+            prop,
             rawArgs,
-            inputCount,
           );
           const normalizedArgs = normalizeFunctionArgs(fn, fnArgs);
           const request = await withRunnerFrom(runner, {
