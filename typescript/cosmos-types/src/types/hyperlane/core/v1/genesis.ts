@@ -3,13 +3,12 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/v1/genesis.proto
+
 /* eslint-disable */
 import Long from 'long';
 import _m0 from 'protobufjs/minimal.js';
-
 import { GenesisState as GenesisState1 } from '../interchain_security/v1/genesis.js';
 import { GenesisState as GenesisState2 } from '../post_dispatch/v1/genesis.js';
-
 import { Mailbox } from './types.js';
 
 export const protobufPackage = 'hyperlane.core.v1';
@@ -214,14 +213,10 @@ export const GenesisState = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GenesisState>, I>>(
-    base?: I,
-  ): GenesisState {
-    return GenesisState.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<GenesisState>): GenesisState {
+    return GenesisState.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<GenesisState>, I>>(
-    object: I,
-  ): GenesisState {
+  fromPartial(object: DeepPartial<GenesisState>): GenesisState {
     const message = createBaseGenesisState();
     message.ism_genesis =
       object.ism_genesis !== undefined && object.ism_genesis !== null
@@ -319,13 +314,13 @@ export const GenesisMailboxMessageWrapper = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GenesisMailboxMessageWrapper>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<GenesisMailboxMessageWrapper>,
   ): GenesisMailboxMessageWrapper {
-    return GenesisMailboxMessageWrapper.fromPartial(base ?? ({} as any));
+    return GenesisMailboxMessageWrapper.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<GenesisMailboxMessageWrapper>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<GenesisMailboxMessageWrapper>,
   ): GenesisMailboxMessageWrapper {
     const message = createBaseGenesisMailboxMessageWrapper();
     message.mailbox_id = object.mailbox_id ?? '0';
@@ -352,13 +347,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function longToString(long: Long) {
   return long.toString();

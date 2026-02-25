@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: google/api/http.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -437,10 +438,10 @@ export const Http = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<Http>, I>>(base?: I): Http {
-    return Http.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<Http>): Http {
+    return Http.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<Http>, I>>(object: I): Http {
+  fromPartial(object: DeepPartial<Http>): Http {
     const message = createBaseHttp();
     message.rules = object.rules?.map((e) => HttpRule.fromPartial(e)) || [];
     message.fully_decode_reserved_expansion =
@@ -656,10 +657,10 @@ export const HttpRule = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<HttpRule>, I>>(base?: I): HttpRule {
-    return HttpRule.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<HttpRule>): HttpRule {
+    return HttpRule.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<HttpRule>, I>>(object: I): HttpRule {
+  fromPartial(object: DeepPartial<HttpRule>): HttpRule {
     const message = createBaseHttpRule();
     message.selector = object.selector ?? '';
     message.get = object.get ?? undefined;
@@ -746,14 +747,10 @@ export const CustomHttpPattern = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<CustomHttpPattern>, I>>(
-    base?: I,
-  ): CustomHttpPattern {
-    return CustomHttpPattern.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<CustomHttpPattern>): CustomHttpPattern {
+    return CustomHttpPattern.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<CustomHttpPattern>, I>>(
-    object: I,
-  ): CustomHttpPattern {
+  fromPartial(object: DeepPartial<CustomHttpPattern>): CustomHttpPattern {
     const message = createBaseCustomHttpPattern();
     message.kind = object.kind ?? '';
     message.path = object.path ?? '';
@@ -779,13 +776,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

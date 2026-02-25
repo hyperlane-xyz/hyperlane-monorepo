@@ -3,21 +3,20 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/warp/v1/query.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
-
 import {
   PageRequest,
   PageResponse,
 } from '../../../cosmos/base/query/v1beta1/pagination.js';
 import { Coin } from '../../../cosmos/base/v1beta1/coin.js';
-
 import {
   HypTokenType,
-  RemoteRouter,
   hypTokenTypeFromJSON,
   hypTokenTypeToJSON,
   hypTokenTypeToNumber,
+  RemoteRouter,
 } from './types.js';
 
 export const protobufPackage = 'hyperlane.warp.v1';
@@ -147,14 +146,10 @@ export const QueryTokensRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryTokensRequest>, I>>(
-    base?: I,
-  ): QueryTokensRequest {
-    return QueryTokensRequest.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryTokensRequest>): QueryTokensRequest {
+    return QueryTokensRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryTokensRequest>, I>>(
-    object: I,
-  ): QueryTokensRequest {
+  fromPartial(object: DeepPartial<QueryTokensRequest>): QueryTokensRequest {
     const message = createBaseQueryTokensRequest();
     message.pagination =
       object.pagination !== undefined && object.pagination !== null
@@ -238,14 +233,10 @@ export const QueryTokensResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryTokensResponse>, I>>(
-    base?: I,
-  ): QueryTokensResponse {
-    return QueryTokensResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryTokensResponse>): QueryTokensResponse {
+    return QueryTokensResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryTokensResponse>, I>>(
-    object: I,
-  ): QueryTokensResponse {
+  fromPartial(object: DeepPartial<QueryTokensResponse>): QueryTokensResponse {
     const message = createBaseQueryTokensResponse();
     message.tokens =
       object.tokens?.map((e) => WrappedHypToken.fromPartial(e)) || [];
@@ -308,14 +299,10 @@ export const QueryTokenRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryTokenRequest>, I>>(
-    base?: I,
-  ): QueryTokenRequest {
-    return QueryTokenRequest.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryTokenRequest>): QueryTokenRequest {
+    return QueryTokenRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryTokenRequest>, I>>(
-    object: I,
-  ): QueryTokenRequest {
+  fromPartial(object: DeepPartial<QueryTokenRequest>): QueryTokenRequest {
     const message = createBaseQueryTokenRequest();
     message.id = object.id ?? '';
     return message;
@@ -377,14 +364,10 @@ export const QueryTokenResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryTokenResponse>, I>>(
-    base?: I,
-  ): QueryTokenResponse {
-    return QueryTokenResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryTokenResponse>): QueryTokenResponse {
+    return QueryTokenResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryTokenResponse>, I>>(
-    object: I,
-  ): QueryTokenResponse {
+  fromPartial(object: DeepPartial<QueryTokenResponse>): QueryTokenResponse {
     const message = createBaseQueryTokenResponse();
     message.token =
       object.token !== undefined && object.token !== null
@@ -530,14 +513,10 @@ export const WrappedHypToken = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<WrappedHypToken>, I>>(
-    base?: I,
-  ): WrappedHypToken {
-    return WrappedHypToken.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<WrappedHypToken>): WrappedHypToken {
+    return WrappedHypToken.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<WrappedHypToken>, I>>(
-    object: I,
-  ): WrappedHypToken {
+  fromPartial(object: DeepPartial<WrappedHypToken>): WrappedHypToken {
     const message = createBaseWrappedHypToken();
     message.id = object.id ?? '';
     message.owner = object.owner ?? '';
@@ -604,13 +583,13 @@ export const QueryBridgedSupplyRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryBridgedSupplyRequest>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryBridgedSupplyRequest>,
   ): QueryBridgedSupplyRequest {
-    return QueryBridgedSupplyRequest.fromPartial(base ?? ({} as any));
+    return QueryBridgedSupplyRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryBridgedSupplyRequest>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryBridgedSupplyRequest>,
   ): QueryBridgedSupplyRequest {
     const message = createBaseQueryBridgedSupplyRequest();
     message.id = object.id ?? '';
@@ -676,13 +655,13 @@ export const QueryBridgedSupplyResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryBridgedSupplyResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryBridgedSupplyResponse>,
   ): QueryBridgedSupplyResponse {
-    return QueryBridgedSupplyResponse.fromPartial(base ?? ({} as any));
+    return QueryBridgedSupplyResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryBridgedSupplyResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryBridgedSupplyResponse>,
   ): QueryBridgedSupplyResponse {
     const message = createBaseQueryBridgedSupplyResponse();
     message.bridged_supply =
@@ -765,13 +744,13 @@ export const QueryRemoteRoutersRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryRemoteRoutersRequest>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryRemoteRoutersRequest>,
   ): QueryRemoteRoutersRequest {
-    return QueryRemoteRoutersRequest.fromPartial(base ?? ({} as any));
+    return QueryRemoteRoutersRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryRemoteRoutersRequest>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryRemoteRoutersRequest>,
   ): QueryRemoteRoutersRequest {
     const message = createBaseQueryRemoteRoutersRequest();
     message.id = object.id ?? '';
@@ -864,13 +843,13 @@ export const QueryRemoteRoutersResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryRemoteRoutersResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryRemoteRoutersResponse>,
   ): QueryRemoteRoutersResponse {
-    return QueryRemoteRoutersResponse.fromPartial(base ?? ({} as any));
+    return QueryRemoteRoutersResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryRemoteRoutersResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryRemoteRoutersResponse>,
   ): QueryRemoteRoutersResponse {
     const message = createBaseQueryRemoteRoutersResponse();
     message.remote_routers =
@@ -992,13 +971,13 @@ export const QueryQuoteRemoteTransferRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryQuoteRemoteTransferRequest>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryQuoteRemoteTransferRequest>,
   ): QueryQuoteRemoteTransferRequest {
-    return QueryQuoteRemoteTransferRequest.fromPartial(base ?? ({} as any));
+    return QueryQuoteRemoteTransferRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryQuoteRemoteTransferRequest>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryQuoteRemoteTransferRequest>,
   ): QueryQuoteRemoteTransferRequest {
     const message = createBaseQueryQuoteRemoteTransferRequest();
     message.id = object.id ?? '';
@@ -1067,14 +1046,14 @@ export const QueryQuoteRemoteTransferResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryQuoteRemoteTransferResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryQuoteRemoteTransferResponse>,
   ): QueryQuoteRemoteTransferResponse {
-    return QueryQuoteRemoteTransferResponse.fromPartial(base ?? ({} as any));
+    return QueryQuoteRemoteTransferResponse.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<QueryQuoteRemoteTransferResponse>, I>,
-  >(object: I): QueryQuoteRemoteTransferResponse {
+  fromPartial(
+    object: DeepPartial<QueryQuoteRemoteTransferResponse>,
+  ): QueryQuoteRemoteTransferResponse {
     const message = createBaseQueryQuoteRemoteTransferResponse();
     message.gas_payment =
       object.gas_payment?.map((e) => Coin.fromPartial(e)) || [];
@@ -1188,13 +1167,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

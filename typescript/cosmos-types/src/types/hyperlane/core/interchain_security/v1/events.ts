@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/interchain_security/v1/events.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -136,14 +137,10 @@ export const EventCreateNoopIsm = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventCreateNoopIsm>, I>>(
-    base?: I,
-  ): EventCreateNoopIsm {
-    return EventCreateNoopIsm.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventCreateNoopIsm>): EventCreateNoopIsm {
+    return EventCreateNoopIsm.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventCreateNoopIsm>, I>>(
-    object: I,
-  ): EventCreateNoopIsm {
+  fromPartial(object: DeepPartial<EventCreateNoopIsm>): EventCreateNoopIsm {
     const message = createBaseEventCreateNoopIsm();
     message.ism_id = object.ism_id ?? '';
     message.owner = object.owner ?? '';
@@ -253,14 +250,14 @@ export const EventCreateMerkleRootMultisigIsm = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventCreateMerkleRootMultisigIsm>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<EventCreateMerkleRootMultisigIsm>,
   ): EventCreateMerkleRootMultisigIsm {
-    return EventCreateMerkleRootMultisigIsm.fromPartial(base ?? ({} as any));
+    return EventCreateMerkleRootMultisigIsm.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<EventCreateMerkleRootMultisigIsm>, I>,
-  >(object: I): EventCreateMerkleRootMultisigIsm {
+  fromPartial(
+    object: DeepPartial<EventCreateMerkleRootMultisigIsm>,
+  ): EventCreateMerkleRootMultisigIsm {
     const message = createBaseEventCreateMerkleRootMultisigIsm();
     message.ism_id = object.ism_id ?? '';
     message.owner = object.owner ?? '';
@@ -372,13 +369,13 @@ export const EventCreateMessageIdMultisigIsm = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventCreateMessageIdMultisigIsm>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<EventCreateMessageIdMultisigIsm>,
   ): EventCreateMessageIdMultisigIsm {
-    return EventCreateMessageIdMultisigIsm.fromPartial(base ?? ({} as any));
+    return EventCreateMessageIdMultisigIsm.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventCreateMessageIdMultisigIsm>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventCreateMessageIdMultisigIsm>,
   ): EventCreateMessageIdMultisigIsm {
     const message = createBaseEventCreateMessageIdMultisigIsm();
     message.ism_id = object.ism_id ?? '';
@@ -493,13 +490,13 @@ export const EventAnnounceStorageLocation = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventAnnounceStorageLocation>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<EventAnnounceStorageLocation>,
   ): EventAnnounceStorageLocation {
-    return EventAnnounceStorageLocation.fromPartial(base ?? ({} as any));
+    return EventAnnounceStorageLocation.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventAnnounceStorageLocation>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventAnnounceStorageLocation>,
   ): EventAnnounceStorageLocation {
     const message = createBaseEventAnnounceStorageLocation();
     message.mailbox_id = object.mailbox_id ?? '';
@@ -612,13 +609,13 @@ export const EventSetRoutingIsmDomain = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventSetRoutingIsmDomain>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<EventSetRoutingIsmDomain>,
   ): EventSetRoutingIsmDomain {
-    return EventSetRoutingIsmDomain.fromPartial(base ?? ({} as any));
+    return EventSetRoutingIsmDomain.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventSetRoutingIsmDomain>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventSetRoutingIsmDomain>,
   ): EventSetRoutingIsmDomain {
     const message = createBaseEventSetRoutingIsmDomain();
     message.ism_id = object.ism_id ?? '';
@@ -715,13 +712,13 @@ export const EventRemoveRoutingIsmDomain = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventRemoveRoutingIsmDomain>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<EventRemoveRoutingIsmDomain>,
   ): EventRemoveRoutingIsmDomain {
-    return EventRemoveRoutingIsmDomain.fromPartial(base ?? ({} as any));
+    return EventRemoveRoutingIsmDomain.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventRemoveRoutingIsmDomain>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventRemoveRoutingIsmDomain>,
   ): EventRemoveRoutingIsmDomain {
     const message = createBaseEventRemoveRoutingIsmDomain();
     message.ism_id = object.ism_id ?? '';
@@ -830,14 +827,10 @@ export const EventSetRoutingIsm = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventSetRoutingIsm>, I>>(
-    base?: I,
-  ): EventSetRoutingIsm {
-    return EventSetRoutingIsm.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventSetRoutingIsm>): EventSetRoutingIsm {
+    return EventSetRoutingIsm.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventSetRoutingIsm>, I>>(
-    object: I,
-  ): EventSetRoutingIsm {
+  fromPartial(object: DeepPartial<EventSetRoutingIsm>): EventSetRoutingIsm {
     const message = createBaseEventSetRoutingIsm();
     message.ism_id = object.ism_id ?? '';
     message.owner = object.owner ?? '';
@@ -917,13 +910,11 @@ export const EventCreateRoutingIsm = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventCreateRoutingIsm>, I>>(
-    base?: I,
-  ): EventCreateRoutingIsm {
-    return EventCreateRoutingIsm.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventCreateRoutingIsm>): EventCreateRoutingIsm {
+    return EventCreateRoutingIsm.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventCreateRoutingIsm>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventCreateRoutingIsm>,
   ): EventCreateRoutingIsm {
     const message = createBaseEventCreateRoutingIsm();
     message.ism_id = object.ism_id ?? '';
@@ -950,13 +941,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

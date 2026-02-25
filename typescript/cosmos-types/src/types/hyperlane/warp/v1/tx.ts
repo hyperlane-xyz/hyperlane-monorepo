@@ -3,11 +3,10 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/warp/v1/tx.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
-
 import { Coin } from '../../../cosmos/base/v1beta1/coin.js';
-
 import { RemoteRouter } from './types.js';
 
 export const protobufPackage = 'hyperlane.warp.v1';
@@ -30,6 +29,13 @@ export interface MsgCreateSyntheticToken {
   /** owner is the message sender. */
   owner: string;
   origin_mailbox: string;
+}
+
+/** MsgCreateNativeSyntheticToken ... */
+export interface MsgCreateNativeSyntheticToken {
+  owner: string;
+  origin_mailbox: string;
+  origin_denom: string;
 }
 
 /** MsgCreateSyntheticTokenResponse ... */
@@ -179,13 +185,13 @@ export const MsgCreateCollateralToken = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateCollateralToken>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgCreateCollateralToken>,
   ): MsgCreateCollateralToken {
-    return MsgCreateCollateralToken.fromPartial(base ?? ({} as any));
+    return MsgCreateCollateralToken.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateCollateralToken>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgCreateCollateralToken>,
   ): MsgCreateCollateralToken {
     const message = createBaseMsgCreateCollateralToken();
     message.owner = object.owner ?? '';
@@ -249,14 +255,14 @@ export const MsgCreateCollateralTokenResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateCollateralTokenResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgCreateCollateralTokenResponse>,
   ): MsgCreateCollateralTokenResponse {
-    return MsgCreateCollateralTokenResponse.fromPartial(base ?? ({} as any));
+    return MsgCreateCollateralTokenResponse.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<MsgCreateCollateralTokenResponse>, I>,
-  >(object: I): MsgCreateCollateralTokenResponse {
+  fromPartial(
+    object: DeepPartial<MsgCreateCollateralTokenResponse>,
+  ): MsgCreateCollateralTokenResponse {
     const message = createBaseMsgCreateCollateralTokenResponse();
     message.id = object.id ?? '';
     return message;
@@ -335,17 +341,119 @@ export const MsgCreateSyntheticToken = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateSyntheticToken>, I>>(
-    base?: I,
-  ): MsgCreateSyntheticToken {
-    return MsgCreateSyntheticToken.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgCreateSyntheticToken>): MsgCreateSyntheticToken {
+    return MsgCreateSyntheticToken.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateSyntheticToken>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgCreateSyntheticToken>,
   ): MsgCreateSyntheticToken {
     const message = createBaseMsgCreateSyntheticToken();
     message.owner = object.owner ?? '';
     message.origin_mailbox = object.origin_mailbox ?? '';
+    return message;
+  },
+};
+
+function createBaseMsgCreateNativeSyntheticToken(): MsgCreateNativeSyntheticToken {
+  return { owner: '', origin_mailbox: '', origin_denom: '' };
+}
+
+export const MsgCreateNativeSyntheticToken = {
+  encode(
+    message: MsgCreateNativeSyntheticToken,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.owner !== '') {
+      writer.uint32(10).string(message.owner);
+    }
+    if (message.origin_mailbox !== '') {
+      writer.uint32(18).string(message.origin_mailbox);
+    }
+    if (message.origin_denom !== '') {
+      writer.uint32(26).string(message.origin_denom);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number,
+  ): MsgCreateNativeSyntheticToken {
+    const reader =
+      input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgCreateNativeSyntheticToken();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.owner = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.origin_mailbox = reader.string();
+          continue;
+        case 3:
+          if (tag !== 26) {
+            break;
+          }
+
+          message.origin_denom = reader.string();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MsgCreateNativeSyntheticToken {
+    return {
+      owner: isSet(object.owner) ? globalThis.String(object.owner) : '',
+      origin_mailbox: isSet(object.origin_mailbox)
+        ? globalThis.String(object.origin_mailbox)
+        : '',
+      origin_denom: isSet(object.origin_denom)
+        ? globalThis.String(object.origin_denom)
+        : '',
+    };
+  },
+
+  toJSON(message: MsgCreateNativeSyntheticToken): unknown {
+    const obj: any = {};
+    if (message.owner !== '') {
+      obj.owner = message.owner;
+    }
+    if (message.origin_mailbox !== '') {
+      obj.origin_mailbox = message.origin_mailbox;
+    }
+    if (message.origin_denom !== '') {
+      obj.origin_denom = message.origin_denom;
+    }
+    return obj;
+  },
+
+  create(
+    base?: DeepPartial<MsgCreateNativeSyntheticToken>,
+  ): MsgCreateNativeSyntheticToken {
+    return MsgCreateNativeSyntheticToken.fromPartial(base ?? {});
+  },
+  fromPartial(
+    object: DeepPartial<MsgCreateNativeSyntheticToken>,
+  ): MsgCreateNativeSyntheticToken {
+    const message = createBaseMsgCreateNativeSyntheticToken();
+    message.owner = object.owner ?? '';
+    message.origin_mailbox = object.origin_mailbox ?? '';
+    message.origin_denom = object.origin_denom ?? '';
     return message;
   },
 };
@@ -404,13 +512,13 @@ export const MsgCreateSyntheticTokenResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateSyntheticTokenResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgCreateSyntheticTokenResponse>,
   ): MsgCreateSyntheticTokenResponse {
-    return MsgCreateSyntheticTokenResponse.fromPartial(base ?? ({} as any));
+    return MsgCreateSyntheticTokenResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateSyntheticTokenResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgCreateSyntheticTokenResponse>,
   ): MsgCreateSyntheticTokenResponse {
     const message = createBaseMsgCreateSyntheticTokenResponse();
     message.id = object.id ?? '';
@@ -539,12 +647,10 @@ export const MsgSetToken = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgSetToken>, I>>(base?: I): MsgSetToken {
-    return MsgSetToken.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgSetToken>): MsgSetToken {
+    return MsgSetToken.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgSetToken>, I>>(
-    object: I,
-  ): MsgSetToken {
+  fromPartial(object: DeepPartial<MsgSetToken>): MsgSetToken {
     const message = createBaseMsgSetToken();
     message.owner = object.owner ?? '';
     message.token_id = object.token_id ?? '';
@@ -593,14 +699,10 @@ export const MsgSetTokenResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgSetTokenResponse>, I>>(
-    base?: I,
-  ): MsgSetTokenResponse {
-    return MsgSetTokenResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgSetTokenResponse>): MsgSetTokenResponse {
+    return MsgSetTokenResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgSetTokenResponse>, I>>(
-    _: I,
-  ): MsgSetTokenResponse {
+  fromPartial(_: DeepPartial<MsgSetTokenResponse>): MsgSetTokenResponse {
     const message = createBaseMsgSetTokenResponse();
     return message;
   },
@@ -697,13 +799,11 @@ export const MsgEnrollRemoteRouter = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgEnrollRemoteRouter>, I>>(
-    base?: I,
-  ): MsgEnrollRemoteRouter {
-    return MsgEnrollRemoteRouter.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgEnrollRemoteRouter>): MsgEnrollRemoteRouter {
+    return MsgEnrollRemoteRouter.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgEnrollRemoteRouter>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgEnrollRemoteRouter>,
   ): MsgEnrollRemoteRouter {
     const message = createBaseMsgEnrollRemoteRouter();
     message.owner = object.owner ?? '';
@@ -757,13 +857,13 @@ export const MsgEnrollRemoteRouterResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgEnrollRemoteRouterResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgEnrollRemoteRouterResponse>,
   ): MsgEnrollRemoteRouterResponse {
-    return MsgEnrollRemoteRouterResponse.fromPartial(base ?? ({} as any));
+    return MsgEnrollRemoteRouterResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgEnrollRemoteRouterResponse>, I>>(
-    _: I,
+  fromPartial(
+    _: DeepPartial<MsgEnrollRemoteRouterResponse>,
   ): MsgEnrollRemoteRouterResponse {
     const message = createBaseMsgEnrollRemoteRouterResponse();
     return message;
@@ -858,13 +958,11 @@ export const MsgUnrollRemoteRouter = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgUnrollRemoteRouter>, I>>(
-    base?: I,
-  ): MsgUnrollRemoteRouter {
-    return MsgUnrollRemoteRouter.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgUnrollRemoteRouter>): MsgUnrollRemoteRouter {
+    return MsgUnrollRemoteRouter.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgUnrollRemoteRouter>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgUnrollRemoteRouter>,
   ): MsgUnrollRemoteRouter {
     const message = createBaseMsgUnrollRemoteRouter();
     message.owner = object.owner ?? '';
@@ -915,13 +1013,13 @@ export const MsgUnrollRemoteRouterResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgUnrollRemoteRouterResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgUnrollRemoteRouterResponse>,
   ): MsgUnrollRemoteRouterResponse {
-    return MsgUnrollRemoteRouterResponse.fromPartial(base ?? ({} as any));
+    return MsgUnrollRemoteRouterResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgUnrollRemoteRouterResponse>, I>>(
-    _: I,
+  fromPartial(
+    _: DeepPartial<MsgUnrollRemoteRouterResponse>,
   ): MsgUnrollRemoteRouterResponse {
     const message = createBaseMsgUnrollRemoteRouterResponse();
     return message;
@@ -1117,14 +1215,10 @@ export const MsgRemoteTransfer = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgRemoteTransfer>, I>>(
-    base?: I,
-  ): MsgRemoteTransfer {
-    return MsgRemoteTransfer.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgRemoteTransfer>): MsgRemoteTransfer {
+    return MsgRemoteTransfer.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgRemoteTransfer>, I>>(
-    object: I,
-  ): MsgRemoteTransfer {
+  fromPartial(object: DeepPartial<MsgRemoteTransfer>): MsgRemoteTransfer {
     const message = createBaseMsgRemoteTransfer();
     message.sender = object.sender ?? '';
     message.token_id = object.token_id ?? '';
@@ -1200,13 +1294,13 @@ export const MsgRemoteTransferResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgRemoteTransferResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgRemoteTransferResponse>,
   ): MsgRemoteTransferResponse {
-    return MsgRemoteTransferResponse.fromPartial(base ?? ({} as any));
+    return MsgRemoteTransferResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgRemoteTransferResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgRemoteTransferResponse>,
   ): MsgRemoteTransferResponse {
     const message = createBaseMsgRemoteTransferResponse();
     message.message_id = object.message_id ?? '';
@@ -1223,6 +1317,10 @@ export interface Msg {
   /** CreateSyntheticToken ... */
   CreateSyntheticToken(
     request: MsgCreateSyntheticToken,
+  ): Promise<MsgCreateSyntheticTokenResponse>;
+  /** CreateNativeSyntheticToken ... */
+  CreateNativeSyntheticToken(
+    request: MsgCreateNativeSyntheticToken,
   ): Promise<MsgCreateSyntheticTokenResponse>;
   /** SetToken ... */
   SetToken(request: MsgSetToken): Promise<MsgSetTokenResponse>;
@@ -1249,6 +1347,8 @@ export class MsgClientImpl implements Msg {
     this.rpc = rpc;
     this.CreateCollateralToken = this.CreateCollateralToken.bind(this);
     this.CreateSyntheticToken = this.CreateSyntheticToken.bind(this);
+    this.CreateNativeSyntheticToken =
+      this.CreateNativeSyntheticToken.bind(this);
     this.SetToken = this.SetToken.bind(this);
     this.EnrollRemoteRouter = this.EnrollRemoteRouter.bind(this);
     this.UnrollRemoteRouter = this.UnrollRemoteRouter.bind(this);
@@ -1275,6 +1375,20 @@ export class MsgClientImpl implements Msg {
     const promise = this.rpc.request(
       this.service,
       'CreateSyntheticToken',
+      data,
+    );
+    return promise.then((data) =>
+      MsgCreateSyntheticTokenResponse.decode(_m0.Reader.create(data)),
+    );
+  }
+
+  CreateNativeSyntheticToken(
+    request: MsgCreateNativeSyntheticToken,
+  ): Promise<MsgCreateSyntheticTokenResponse> {
+    const data = MsgCreateNativeSyntheticToken.encode(request).finish();
+    const promise = this.rpc.request(
+      this.service,
+      'CreateNativeSyntheticToken',
       data,
     );
     return promise.then((data) =>
@@ -1347,13 +1461,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

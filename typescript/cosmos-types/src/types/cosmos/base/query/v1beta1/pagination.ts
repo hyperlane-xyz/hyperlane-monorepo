@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: cosmos/base/query/v1beta1/pagination.proto
+
 /* eslint-disable */
 import Long from 'long';
 import _m0 from 'protobufjs/minimal.js';
@@ -193,12 +194,10 @@ export const PageRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<PageRequest>, I>>(base?: I): PageRequest {
-    return PageRequest.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<PageRequest>): PageRequest {
+    return PageRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<PageRequest>, I>>(
-    object: I,
-  ): PageRequest {
+  fromPartial(object: DeepPartial<PageRequest>): PageRequest {
     const message = createBasePageRequest();
     message.key = object.key ?? new Uint8Array(0);
     message.offset = object.offset ?? '0';
@@ -278,14 +277,10 @@ export const PageResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<PageResponse>, I>>(
-    base?: I,
-  ): PageResponse {
-    return PageResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<PageResponse>): PageResponse {
+    return PageResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<PageResponse>, I>>(
-    object: I,
-  ): PageResponse {
+  fromPartial(object: DeepPartial<PageResponse>): PageResponse {
     const message = createBasePageResponse();
     message.next_key = object.next_key ?? new Uint8Array(0);
     message.total = object.total ?? '0';
@@ -336,13 +331,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function longToString(long: Long) {
   return long.toString();

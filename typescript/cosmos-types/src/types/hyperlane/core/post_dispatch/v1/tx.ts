@@ -3,11 +3,10 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/post_dispatch/v1/tx.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
-
 import { Coin } from '../../../../cosmos/base/v1beta1/coin.js';
-
 import { DestinationGasConfig } from './types.js';
 
 export const protobufPackage = 'hyperlane.core.post_dispatch.v1';
@@ -37,7 +36,7 @@ export interface MsgSetIgpOwner {
   renounce_ownership: boolean;
 }
 
-/** MsgCreateIgpResponse ... */
+/** MsgSetIgpOwnerResponse ... */
 export interface MsgSetIgpOwnerResponse {}
 
 /** MsgSetDestinationGasConfig ... */
@@ -83,7 +82,7 @@ export interface MsgClaim {
 /** MsgClaimResponse ... */
 export interface MsgClaimResponse {}
 
-/** MsgMerkleTreeHook ... */
+/** MsgCreateMerkleTreeHook ... */
 export interface MsgCreateMerkleTreeHook {
   /** sender ... */
   owner: string;
@@ -95,13 +94,13 @@ export interface MsgCreateMerkleTreeHookResponse {
   id: string;
 }
 
-/** MsgMerkleTreeHook ... */
+/** MsgCreateNoopHook ... */
 export interface MsgCreateNoopHook {
   /** sender ... */
   owner: string;
 }
 
-/** MsgCreateMerkleTreeHookResponse ... */
+/** MsgCreateNoopHookResponse ... */
 export interface MsgCreateNoopHookResponse {
   id: string;
 }
@@ -173,14 +172,10 @@ export const MsgCreateIgp = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateIgp>, I>>(
-    base?: I,
-  ): MsgCreateIgp {
-    return MsgCreateIgp.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgCreateIgp>): MsgCreateIgp {
+    return MsgCreateIgp.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateIgp>, I>>(
-    object: I,
-  ): MsgCreateIgp {
+  fromPartial(object: DeepPartial<MsgCreateIgp>): MsgCreateIgp {
     const message = createBaseMsgCreateIgp();
     message.owner = object.owner ?? '';
     message.denom = object.denom ?? '';
@@ -242,14 +237,10 @@ export const MsgCreateIgpResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateIgpResponse>, I>>(
-    base?: I,
-  ): MsgCreateIgpResponse {
-    return MsgCreateIgpResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgCreateIgpResponse>): MsgCreateIgpResponse {
+    return MsgCreateIgpResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateIgpResponse>, I>>(
-    object: I,
-  ): MsgCreateIgpResponse {
+  fromPartial(object: DeepPartial<MsgCreateIgpResponse>): MsgCreateIgpResponse {
     const message = createBaseMsgCreateIgpResponse();
     message.id = object.id ?? '';
     return message;
@@ -355,14 +346,10 @@ export const MsgSetIgpOwner = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgSetIgpOwner>, I>>(
-    base?: I,
-  ): MsgSetIgpOwner {
-    return MsgSetIgpOwner.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgSetIgpOwner>): MsgSetIgpOwner {
+    return MsgSetIgpOwner.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgSetIgpOwner>, I>>(
-    object: I,
-  ): MsgSetIgpOwner {
+  fromPartial(object: DeepPartial<MsgSetIgpOwner>): MsgSetIgpOwner {
     const message = createBaseMsgSetIgpOwner();
     message.owner = object.owner ?? '';
     message.igp_id = object.igp_id ?? '';
@@ -413,14 +400,10 @@ export const MsgSetIgpOwnerResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgSetIgpOwnerResponse>, I>>(
-    base?: I,
-  ): MsgSetIgpOwnerResponse {
-    return MsgSetIgpOwnerResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgSetIgpOwnerResponse>): MsgSetIgpOwnerResponse {
+    return MsgSetIgpOwnerResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgSetIgpOwnerResponse>, I>>(
-    _: I,
-  ): MsgSetIgpOwnerResponse {
+  fromPartial(_: DeepPartial<MsgSetIgpOwnerResponse>): MsgSetIgpOwnerResponse {
     const message = createBaseMsgSetIgpOwnerResponse();
     return message;
   },
@@ -520,13 +503,13 @@ export const MsgSetDestinationGasConfig = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgSetDestinationGasConfig>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgSetDestinationGasConfig>,
   ): MsgSetDestinationGasConfig {
-    return MsgSetDestinationGasConfig.fromPartial(base ?? ({} as any));
+    return MsgSetDestinationGasConfig.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgSetDestinationGasConfig>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgSetDestinationGasConfig>,
   ): MsgSetDestinationGasConfig {
     const message = createBaseMsgSetDestinationGasConfig();
     message.owner = object.owner ?? '';
@@ -581,14 +564,14 @@ export const MsgSetDestinationGasConfigResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgSetDestinationGasConfigResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgSetDestinationGasConfigResponse>,
   ): MsgSetDestinationGasConfigResponse {
-    return MsgSetDestinationGasConfigResponse.fromPartial(base ?? ({} as any));
+    return MsgSetDestinationGasConfigResponse.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<MsgSetDestinationGasConfigResponse>, I>,
-  >(_: I): MsgSetDestinationGasConfigResponse {
+  fromPartial(
+    _: DeepPartial<MsgSetDestinationGasConfigResponse>,
+  ): MsgSetDestinationGasConfigResponse {
     const message = createBaseMsgSetDestinationGasConfigResponse();
     return message;
   },
@@ -730,14 +713,10 @@ export const MsgPayForGas = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgPayForGas>, I>>(
-    base?: I,
-  ): MsgPayForGas {
-    return MsgPayForGas.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgPayForGas>): MsgPayForGas {
+    return MsgPayForGas.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgPayForGas>, I>>(
-    object: I,
-  ): MsgPayForGas {
+  fromPartial(object: DeepPartial<MsgPayForGas>): MsgPayForGas {
     const message = createBaseMsgPayForGas();
     message.sender = object.sender ?? '';
     message.igp_id = object.igp_id ?? '';
@@ -793,14 +772,10 @@ export const MsgPayForGasResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgPayForGasResponse>, I>>(
-    base?: I,
-  ): MsgPayForGasResponse {
-    return MsgPayForGasResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgPayForGasResponse>): MsgPayForGasResponse {
+    return MsgPayForGasResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgPayForGasResponse>, I>>(
-    _: I,
-  ): MsgPayForGasResponse {
+  fromPartial(_: DeepPartial<MsgPayForGasResponse>): MsgPayForGasResponse {
     const message = createBaseMsgPayForGasResponse();
     return message;
   },
@@ -873,10 +848,10 @@ export const MsgClaim = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgClaim>, I>>(base?: I): MsgClaim {
-    return MsgClaim.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgClaim>): MsgClaim {
+    return MsgClaim.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgClaim>, I>>(object: I): MsgClaim {
+  fromPartial(object: DeepPartial<MsgClaim>): MsgClaim {
     const message = createBaseMsgClaim();
     message.sender = object.sender ?? '';
     message.igp_id = object.igp_id ?? '';
@@ -922,14 +897,10 @@ export const MsgClaimResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgClaimResponse>, I>>(
-    base?: I,
-  ): MsgClaimResponse {
-    return MsgClaimResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgClaimResponse>): MsgClaimResponse {
+    return MsgClaimResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgClaimResponse>, I>>(
-    _: I,
-  ): MsgClaimResponse {
+  fromPartial(_: DeepPartial<MsgClaimResponse>): MsgClaimResponse {
     const message = createBaseMsgClaimResponse();
     return message;
   },
@@ -1007,13 +978,11 @@ export const MsgCreateMerkleTreeHook = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateMerkleTreeHook>, I>>(
-    base?: I,
-  ): MsgCreateMerkleTreeHook {
-    return MsgCreateMerkleTreeHook.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgCreateMerkleTreeHook>): MsgCreateMerkleTreeHook {
+    return MsgCreateMerkleTreeHook.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateMerkleTreeHook>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgCreateMerkleTreeHook>,
   ): MsgCreateMerkleTreeHook {
     const message = createBaseMsgCreateMerkleTreeHook();
     message.owner = object.owner ?? '';
@@ -1076,13 +1045,13 @@ export const MsgCreateMerkleTreeHookResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateMerkleTreeHookResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgCreateMerkleTreeHookResponse>,
   ): MsgCreateMerkleTreeHookResponse {
-    return MsgCreateMerkleTreeHookResponse.fromPartial(base ?? ({} as any));
+    return MsgCreateMerkleTreeHookResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateMerkleTreeHookResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgCreateMerkleTreeHookResponse>,
   ): MsgCreateMerkleTreeHookResponse {
     const message = createBaseMsgCreateMerkleTreeHookResponse();
     message.id = object.id ?? '';
@@ -1143,14 +1112,10 @@ export const MsgCreateNoopHook = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateNoopHook>, I>>(
-    base?: I,
-  ): MsgCreateNoopHook {
-    return MsgCreateNoopHook.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgCreateNoopHook>): MsgCreateNoopHook {
+    return MsgCreateNoopHook.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateNoopHook>, I>>(
-    object: I,
-  ): MsgCreateNoopHook {
+  fromPartial(object: DeepPartial<MsgCreateNoopHook>): MsgCreateNoopHook {
     const message = createBaseMsgCreateNoopHook();
     message.owner = object.owner ?? '';
     return message;
@@ -1211,13 +1176,13 @@ export const MsgCreateNoopHookResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateNoopHookResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgCreateNoopHookResponse>,
   ): MsgCreateNoopHookResponse {
-    return MsgCreateNoopHookResponse.fromPartial(base ?? ({} as any));
+    return MsgCreateNoopHookResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateNoopHookResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgCreateNoopHookResponse>,
   ): MsgCreateNoopHookResponse {
     const message = createBaseMsgCreateNoopHookResponse();
     message.id = object.id ?? '';
@@ -1361,13 +1326,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

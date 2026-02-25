@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: cosmos/base/v1beta1/coin.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -110,10 +111,10 @@ export const Coin = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<Coin>, I>>(base?: I): Coin {
-    return Coin.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<Coin>): Coin {
+    return Coin.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<Coin>, I>>(object: I): Coin {
+  fromPartial(object: DeepPartial<Coin>): Coin {
     const message = createBaseCoin();
     message.denom = object.denom ?? '';
     message.amount = object.amount ?? '';
@@ -188,10 +189,10 @@ export const DecCoin = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DecCoin>, I>>(base?: I): DecCoin {
-    return DecCoin.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<DecCoin>): DecCoin {
+    return DecCoin.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<DecCoin>, I>>(object: I): DecCoin {
+  fromPartial(object: DeepPartial<DecCoin>): DecCoin {
     const message = createBaseDecCoin();
     message.denom = object.denom ?? '';
     message.amount = object.amount ?? '';
@@ -250,10 +251,10 @@ export const IntProto = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<IntProto>, I>>(base?: I): IntProto {
-    return IntProto.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<IntProto>): IntProto {
+    return IntProto.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<IntProto>, I>>(object: I): IntProto {
+  fromPartial(object: DeepPartial<IntProto>): IntProto {
     const message = createBaseIntProto();
     message.int = object.int ?? '';
     return message;
@@ -311,10 +312,10 @@ export const DecProto = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DecProto>, I>>(base?: I): DecProto {
-    return DecProto.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<DecProto>): DecProto {
+    return DecProto.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<DecProto>, I>>(object: I): DecProto {
+  fromPartial(object: DeepPartial<DecProto>): DecProto {
     const message = createBaseDecProto();
     message.dec = object.dec ?? '';
     return message;
@@ -339,13 +340,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/post_dispatch/v1/events.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -169,13 +170,13 @@ export const EventCreateMerkleTreeHook = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventCreateMerkleTreeHook>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<EventCreateMerkleTreeHook>,
   ): EventCreateMerkleTreeHook {
-    return EventCreateMerkleTreeHook.fromPartial(base ?? ({} as any));
+    return EventCreateMerkleTreeHook.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventCreateMerkleTreeHook>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventCreateMerkleTreeHook>,
   ): EventCreateMerkleTreeHook {
     const message = createBaseEventCreateMerkleTreeHook();
     message.merkle_tree_hook_id = object.merkle_tree_hook_id ?? '';
@@ -273,13 +274,11 @@ export const EventInsertedIntoTree = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventInsertedIntoTree>, I>>(
-    base?: I,
-  ): EventInsertedIntoTree {
-    return EventInsertedIntoTree.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventInsertedIntoTree>): EventInsertedIntoTree {
+    return EventInsertedIntoTree.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventInsertedIntoTree>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventInsertedIntoTree>,
   ): EventInsertedIntoTree {
     const message = createBaseEventInsertedIntoTree();
     message.message_id = object.message_id ?? '';
@@ -410,14 +409,10 @@ export const EventGasPayment = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventGasPayment>, I>>(
-    base?: I,
-  ): EventGasPayment {
-    return EventGasPayment.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventGasPayment>): EventGasPayment {
+    return EventGasPayment.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventGasPayment>, I>>(
-    object: I,
-  ): EventGasPayment {
+  fromPartial(object: DeepPartial<EventGasPayment>): EventGasPayment {
     const message = createBaseEventGasPayment();
     message.message_id = object.message_id ?? '';
     message.destination = object.destination ?? 0;
@@ -497,14 +492,10 @@ export const EventCreateNoopHook = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventCreateNoopHook>, I>>(
-    base?: I,
-  ): EventCreateNoopHook {
-    return EventCreateNoopHook.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventCreateNoopHook>): EventCreateNoopHook {
+    return EventCreateNoopHook.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventCreateNoopHook>, I>>(
-    object: I,
-  ): EventCreateNoopHook {
+  fromPartial(object: DeepPartial<EventCreateNoopHook>): EventCreateNoopHook {
     const message = createBaseEventCreateNoopHook();
     message.noop_hook_id = object.noop_hook_id ?? '';
     message.owner = object.owner ?? '';
@@ -593,14 +584,10 @@ export const EventCreateIgp = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventCreateIgp>, I>>(
-    base?: I,
-  ): EventCreateIgp {
-    return EventCreateIgp.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventCreateIgp>): EventCreateIgp {
+    return EventCreateIgp.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventCreateIgp>, I>>(
-    object: I,
-  ): EventCreateIgp {
+  fromPartial(object: DeepPartial<EventCreateIgp>): EventCreateIgp {
     const message = createBaseEventCreateIgp();
     message.igp_id = object.igp_id ?? '';
     message.owner = object.owner ?? '';
@@ -708,12 +695,10 @@ export const EventSetIgp = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventSetIgp>, I>>(base?: I): EventSetIgp {
-    return EventSetIgp.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventSetIgp>): EventSetIgp {
+    return EventSetIgp.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventSetIgp>, I>>(
-    object: I,
-  ): EventSetIgp {
+  fromPartial(object: DeepPartial<EventSetIgp>): EventSetIgp {
     const message = createBaseEventSetIgp();
     message.igp_id = object.igp_id ?? '';
     message.owner = object.owner ?? '';
@@ -864,13 +849,13 @@ export const EventSetDestinationGasConfig = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventSetDestinationGasConfig>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<EventSetDestinationGasConfig>,
   ): EventSetDestinationGasConfig {
-    return EventSetDestinationGasConfig.fromPartial(base ?? ({} as any));
+    return EventSetDestinationGasConfig.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventSetDestinationGasConfig>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<EventSetDestinationGasConfig>,
   ): EventSetDestinationGasConfig {
     const message = createBaseEventSetDestinationGasConfig();
     message.igp_id = object.igp_id ?? '';
@@ -964,14 +949,10 @@ export const EventClaimIgp = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventClaimIgp>, I>>(
-    base?: I,
-  ): EventClaimIgp {
-    return EventClaimIgp.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventClaimIgp>): EventClaimIgp {
+    return EventClaimIgp.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventClaimIgp>, I>>(
-    object: I,
-  ): EventClaimIgp {
+  fromPartial(object: DeepPartial<EventClaimIgp>): EventClaimIgp {
     const message = createBaseEventClaimIgp();
     message.igp_id = object.igp_id ?? '';
     message.owner = object.owner ?? '';
@@ -998,13 +979,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;
