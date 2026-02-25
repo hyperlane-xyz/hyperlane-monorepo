@@ -312,8 +312,10 @@ fn run_locally() {
     };
     let _relayer = "hpl-relayer";
 
-    // give things a chance to fully start.
-    sleep(Duration::from_secs(20));
+    // Wait for devnet nodes to be ready
+    for (i, _) in nodes.iter().enumerate() {
+        wait_for_starknet_node(port_start + (i as u32 * 20));
+    }
 
     let nodes = nodes
         .into_iter()
@@ -399,7 +401,7 @@ fn run_locally() {
         .cmd("postgres:14")
         .spawn("SQL", None);
 
-    sleep(Duration::from_secs(15));
+    crate::utils::wait_for_postgres();
 
     log!("Init postgres db...");
     Program::new(concat_path(format!("../../{AGENT_BIN_PATH}"), "init-db"))
@@ -541,6 +543,27 @@ fn run_locally() {
     } else {
         log!("E2E tests passed");
     }
+}
+
+fn wait_for_starknet_node(port: u32) {
+    use ureq::get;
+
+    const MAX_ATTEMPTS: u32 = 30;
+    let url = format!("http://0.0.0.0:{port}/is_alive");
+    for attempt in 1..=MAX_ATTEMPTS {
+        if let Ok(resp) = get(&url).call() {
+            if resp.status() == 200 {
+                log!(
+                    "Starknet devnet on port {} ready after {} attempts",
+                    port,
+                    attempt
+                );
+                return;
+            }
+        }
+        sleep(Duration::from_secs(1));
+    }
+    panic!("Starknet devnet on port {port} not ready after {MAX_ATTEMPTS} attempts");
 }
 
 fn termination_invariants_met(

@@ -21,10 +21,6 @@ pub const SOLANA_AGENT_BIN_PATH: &str = "target/debug";
 pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "3.0.14";
 pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
 
-/// Solana version used by mainnet validators
-pub const SOLANA_NETWORK_CLI_VERSION: &str = "3.0.14";
-pub const SOLANA_NETWORK_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
-
 const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
     "https://github.com/hyperlane-xyz/solana-program-library/releases/download/2024-08-23/spl.tar.gz";
 
@@ -197,7 +193,7 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
     let sealevel_path = get_sealevel_path(&workspace_path);
     let sealevel_programs = concat_path(sealevel_path, "programs");
 
-    // build our programs
+    // build programs sequentially (cargo-build-sbf downloads shared platform-tools on first run)
     for &path in SOLANA_HYPERLANE_PROGRAMS {
         build_sbf
             .clone()

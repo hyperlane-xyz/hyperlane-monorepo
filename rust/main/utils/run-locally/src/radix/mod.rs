@@ -105,6 +105,26 @@ pub fn download_radix_contracts() -> (PathBuf, PathBuf) {
     (wasm_path, rpd_path)
 }
 
+fn wait_for_radix_localnet() {
+    use ureq::post;
+
+    const MAX_ATTEMPTS: u32 = 60;
+    let url = "http://localhost:3333/core/status/network-configuration";
+    for attempt in 1..=MAX_ATTEMPTS {
+        if let Ok(resp) = post(url)
+            .set("Content-Type", "application/json")
+            .send_string("{}")
+        {
+            if resp.status() == 200 {
+                log!("Radix localnet ready after {} attempts", attempt);
+                return;
+            }
+        }
+        sleep(Duration::from_secs(1));
+    }
+    panic!("Radix localnet not ready after {MAX_ATTEMPTS} attempts");
+}
+
 fn start_localnet() {
     Program::new("docker")
         .working_dir("./src/radix/")
@@ -254,8 +274,7 @@ fn launch_radix_scraper(agent_config_path: String, chains: Vec<String>) -> Agent
 pub async fn run_locally() {
     log!("Staring local net");
     start_localnet();
-    // Give some time for the localnet to startup
-    sleep(Duration::from_secs(20));
+    wait_for_radix_localnet();
 
     log!("Building rust...");
     Program::new("cargo")
@@ -372,7 +391,7 @@ pub async fn run_locally() {
         .cmd("postgres:14")
         .spawn("SQL", None);
 
-    sleep(Duration::from_secs(15));
+    crate::utils::wait_for_postgres();
 
     log!("Init postgres db...");
     Program::new(concat_path(format!("../../{AGENT_BIN_PATH}"), "init-db"))

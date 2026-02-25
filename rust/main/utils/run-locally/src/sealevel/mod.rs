@@ -180,21 +180,20 @@ fn run_locally() {
     // Ready to run...
     //
 
-    let (solana_programs_path, hyperlane_solana_programs_path) = {
-        let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
-        let solana_bin_path = install_solana_cli_tools(
-            SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
-            SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
-            solana_path_tempdir.path().to_path_buf(),
-        )
-        .join();
-        state.data.push(Box::new(solana_path_tempdir));
+    // Install Solana CLI tools once (both contract and network CLI use the same version)
+    let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
+    let solana_cli_tools_path = install_solana_cli_tools(
+        SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
+        SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
+        solana_path_tempdir.path().to_path_buf(),
+    )
+    .join();
+    state.data.push(Box::new(solana_path_tempdir));
 
-        let solana_program_builder = build_solana_programs(solana_bin_path.clone());
-        (solana_bin_path, solana_program_builder.join())
-    };
+    let hyperlane_solana_programs_path =
+        build_solana_programs(solana_cli_tools_path.clone()).join();
 
-    // this task takes a long time in the CI so run it in parallel
+    // Build agent binaries and sealevel-client in parallel (separate workspaces)
     log!("Building rust...");
     let build_main = Program::new("cargo")
         .cmd("build")
@@ -204,6 +203,14 @@ fn run_locally() {
         .arg("bin", "validator")
         .arg("bin", "scraper")
         .arg("bin", "init-db")
+        .filter_logs(|l| !l.contains("workspace-inheritance"))
+        .run();
+
+    log!("Building hyperlane-sealevel-client...");
+    let build_sealevel_client = Program::new("cargo")
+        .working_dir(&sealevel_path)
+        .cmd("build")
+        .arg("bin", "hyperlane-sealevel-client")
         .filter_logs(|l| !l.contains("workspace-inheritance"))
         .run();
 
@@ -219,44 +226,22 @@ fn run_locally() {
     state.push_agent(postgres);
 
     build_main.join();
-
-    log!("Building hyperlane-sealevel-client...");
-    Program::new("cargo")
-        .working_dir(&sealevel_path)
-        .cmd("build")
-        .arg("bin", "hyperlane-sealevel-client")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run()
-        .join();
+    build_sealevel_client.join();
 
     let solana_ledger_dir = tempdir().expect("Failed to create solana ledger dir");
-    let (solana_cli_tools_path, solana_config_path, sealeveltest2_alt) = {
-        // use the agave 2.x validator version to ensure mainnet compatibility
-        let solana_tools_dir = tempdir().expect("Failed to create solana tools dir");
-        let solana_bin_path = install_solana_cli_tools(
-            SOLANA_NETWORK_CLI_RELEASE_URL.to_owned(),
-            SOLANA_NETWORK_CLI_VERSION.to_owned(),
-            solana_tools_dir.path().to_path_buf(),
-        )
-        .join();
-        state.data.push(Box::new(solana_tools_dir));
-
+    let (solana_config_path, sealeveltest2_alt) = {
         let start_solana_validator = start_solana_test_validator(
-            solana_bin_path.clone(),
+            solana_cli_tools_path.clone(),
             hyperlane_solana_programs_path.clone(),
             solana_ledger_dir.as_ref().to_path_buf(),
         );
 
         let result = start_solana_validator.join();
         state.push_agent(result.validator);
-        (
-            solana_bin_path,
-            result.config_path,
-            result.sealeveltest2_alt,
-        )
+        (result.config_path, result.sealeveltest2_alt)
     };
 
-    sleep(Duration::from_secs(5));
+    crate::utils::wait_for_postgres();
 
     log!("Init postgres db...");
     Program::new(concat_path(&workspace_path, "target/debug/init-db"))
@@ -349,7 +334,7 @@ fn run_locally() {
             termination_invariants_met(
                 &config,
                 starting_relayer_balance,
-                &solana_programs_path,
+                &solana_cli_tools_path,
                 &solana_config_path,
                 SUBMITTER_TYPE,
             )

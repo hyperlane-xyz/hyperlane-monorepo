@@ -507,7 +507,7 @@ fn run_locally() {
         .cmd("postgres:14")
         .spawn("SQL", None);
 
-    sleep(Duration::from_secs(15));
+    crate::utils::wait_for_postgres();
 
     log!("Init postgres db...");
     Program::new(concat_path(format!("../../{AGENT_BIN_PATH}"), "init-db"))
