@@ -2,7 +2,12 @@ import { useMemo } from 'react';
 
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { Address, HexString, KnownProtocolType, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  KnownProtocolType,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
@@ -67,7 +72,15 @@ import {
   WalletDetails,
   WatchAssetFns,
 } from './types.js';
-import { useAleoAccount, useAleoActiveChain, useAleoConnectFn, useAleoDisconnectFn, useAleoTransactionFns, useAleoWalletDetails, useAleoWatchAsset } from './aleo.js';
+import {
+  useAleoAccount,
+  useAleoActiveChain,
+  useAleoConnectFn,
+  useAleoDisconnectFn,
+  useAleoTransactionFns,
+  useAleoWalletDetails,
+  useAleoWatchAsset,
+} from './aleo.js';
 
 const logger = widgetLogger.child({
   module: 'walletIntegrations/multiProtocol',
@@ -343,14 +356,8 @@ export function useDisconnectFns(): Record<
         ProtocolType.Radix,
         disconnectRadix,
       ),
-      [ProtocolType.Aleo]: onClickDisconnect(
-        ProtocolType.Aleo,
-        disconnectAleo
-      ),
-      [ProtocolType.Tron]: onClickDisconnect(
-        ProtocolType.Tron,
-        disconnectTron
-      ),
+      [ProtocolType.Aleo]: onClickDisconnect(ProtocolType.Aleo, disconnectAleo),
+      [ProtocolType.Tron]: onClickDisconnect(ProtocolType.Tron, disconnectTron),
     }),
     [
       disconnectEvm,
@@ -386,7 +393,15 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         aleoChain,
         tronChain,
       ].filter((c) => !!c.chainDisplayName),
-    [evmChain, solChain, cosmChain, starknetChain, radixChain, aleoChain, tronChain],
+    [
+      evmChain,
+      solChain,
+      cosmChain,
+      starknetChain,
+      radixChain,
+      aleoChain,
+      tronChain,
+    ],
   );
 
   return useMemo(
