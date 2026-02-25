@@ -524,8 +524,8 @@ export class ActionTracker implements IActionTracker {
   }
 
   /**
-   * Get inventory intents that are in_progress or not_started but not fully fulfilled,
-   * and have no in-flight actions (safe to continue).
+   * Get inventory intents that are in_progress or not_started but not fully settled.
+   * Intents with in-flight deposits are included but flagged via hasInflightDeposit.
    * Returns enriched data with computed values derived from action states.
    *
    * NOTE: We include 'not_started' intents because they may have been created
