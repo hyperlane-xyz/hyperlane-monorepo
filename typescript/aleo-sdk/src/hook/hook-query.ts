@@ -108,9 +108,38 @@ interface AleoIgpData {
 }
 
 interface AleoDestinationGasConfigData {
-  exchange_rate: { toString(): string };
-  gas_price: { toString(): string };
-  gas_overhead: { toString(): string };
+  exchange_rate: string;
+  gas_price: string;
+  gas_overhead: string;
+}
+
+function normalizeDestinationGasValue(
+  value: unknown,
+  fieldName: string,
+): string {
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'bigint'
+  ) {
+    return value.toString();
+  }
+
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toString' in value &&
+    typeof (value as { toString?: unknown }).toString === 'function'
+  ) {
+    const normalized = (value as { toString(): string }).toString();
+    assert(
+      normalized.length > 0 && normalized !== '[object Object]',
+      `Invalid ${fieldName} value`,
+    );
+    return normalized;
+  }
+
+  assert(false, `Invalid ${fieldName} value type: ${typeof value}`);
 }
 
 function parseDestinationGasConfig(raw: unknown): AleoDestinationGasConfigData {
@@ -120,27 +149,16 @@ function parseDestinationGasConfig(raw: unknown): AleoDestinationGasConfigData {
   );
 
   const config = raw as Record<string, unknown>;
-  const exchangeRate = config.exchange_rate;
-  const gasPrice = config.gas_price;
-  const gasOverhead = config.gas_overhead;
-
-  const hasToStringFn = (value: unknown): value is { toString(): string } =>
-    typeof value === 'object' &&
-    value !== null &&
-    'toString' in value &&
-    typeof (value as { toString?: unknown }).toString === 'function';
-
-  assert(
-    hasToStringFn(exchangeRate) &&
-      hasToStringFn(gasPrice) &&
-      hasToStringFn(gasOverhead),
-    'Invalid destination gas config structure',
-  );
-
   return {
-    exchange_rate: exchangeRate,
-    gas_price: gasPrice,
-    gas_overhead: gasOverhead,
+    exchange_rate: normalizeDestinationGasValue(
+      config.exchange_rate,
+      'exchange_rate',
+    ),
+    gas_price: normalizeDestinationGasValue(config.gas_price, 'gas_price'),
+    gas_overhead: normalizeDestinationGasValue(
+      config.gas_overhead,
+      'gas_overhead',
+    ),
   };
 }
 
@@ -233,10 +251,10 @@ export async function getIgpHookConfig(
 
     destinationGasConfigs[gasConfigKey.toObject().destination] = {
       gasOracle: {
-        tokenExchangeRate: destinationGasConfig.exchange_rate.toString(),
-        gasPrice: destinationGasConfig.gas_price.toString(),
+        tokenExchangeRate: destinationGasConfig.exchange_rate,
+        gasPrice: destinationGasConfig.gas_price,
       },
-      gasOverhead: destinationGasConfig.gas_overhead.toString(),
+      gasOverhead: destinationGasConfig.gas_overhead,
     };
   }
 

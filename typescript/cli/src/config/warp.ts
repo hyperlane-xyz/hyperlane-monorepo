@@ -140,10 +140,14 @@ export async function readWarpRouteDeployConfig({
       : await context.registry.getWarpDeployConfig(args.warpRouteId);
 
   assert(rawConfig, `No warp route deploy config found!`);
+  assert(
+    typeof rawConfig === 'object' && rawConfig !== null,
+    'Warp route deploy config must be an object',
+  );
 
   const config = await fillDefaults<WarpRouteDeployConfig[string]>(
     context,
-    WarpRouteDeployConfigSchema.parse(rawConfig),
+    rawConfig as ChainMap<WarpRouteDeployConfig[string]>,
   );
 
   const resolvedConfig = objMap(config, (_chain, chainConfig) => {
