@@ -525,7 +525,11 @@ export function computeRemoteRoutersUpdates(
   )) {
     const domainId = parseInt(domainIdStr);
     const expectedDestinationGas =
-      expectedRoutersConfig.destinationGas[domainId] ?? '0';
+      expectedRoutersConfig.destinationGas[domainId];
+    assert(
+      !isNullish(expectedDestinationGas),
+      `Missing destination gas for domain ${domainId} in expected router configuration`,
+    );
     const currentRouterAddress = currentRoutersConfig.remoteRouters[domainId];
     const currentDestinationGas =
       currentRoutersConfig.destinationGas[domainId] ?? '0';
