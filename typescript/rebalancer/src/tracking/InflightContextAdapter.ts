@@ -1,6 +1,9 @@
 import type { MultiProvider } from '@hyperlane-xyz/sdk';
 
-import type { InflightContext } from '../interfaces/IStrategy.js';
+import type {
+  InflightContext,
+  RouteWithContext,
+} from '../interfaces/IStrategy.js';
 
 import type { IActionTracker } from './IActionTracker.js';
 
@@ -22,14 +25,44 @@ export class InflightContextAdapter {
     const intents = await this.actionTracker.getActiveRebalanceIntents();
     const transfers = await this.actionTracker.getInProgressTransfers();
 
-    const pendingRebalances = intents.map((intent) => ({
-      origin: this.multiProvider.getChainName(intent.origin),
-      destination: this.multiProvider.getChainName(intent.destination),
-      // TODO: Review once inventory rebalancing is implemented and we expect
-      // partially fulfilled intents. May need to use (amount - fulfilledAmount).
-      amount: intent.amount,
-      bridge: intent.bridge,
-    }));
+    const pendingRebalances: RouteWithContext[] = await Promise.all(
+      intents.map(async (intent) => {
+        let deliveredAmount = 0n;
+        let awaitingDeliveryAmount = 0n;
+
+        // For inventory intents, compute delivered and awaiting amounts from actions
+        if (intent.executionMethod === 'inventory') {
+          const actions = await this.actionTracker.getActionsForIntent(
+            intent.id,
+          );
+
+          // Sum of complete inventory_deposit actions (message delivered)
+          deliveredAmount = actions
+            .filter(
+              (a) => a.type === 'inventory_deposit' && a.status === 'complete',
+            )
+            .reduce((sum, a) => sum + a.amount, 0n);
+
+          // Sum of in_progress inventory_deposit actions (tx confirmed, message pending)
+          awaitingDeliveryAmount = actions
+            .filter(
+              (a) =>
+                a.type === 'inventory_deposit' && a.status === 'in_progress',
+            )
+            .reduce((sum, a) => sum + a.amount, 0n);
+        }
+
+        return {
+          origin: this.multiProvider.getChainName(intent.origin),
+          destination: this.multiProvider.getChainName(intent.destination),
+          amount: intent.amount,
+          deliveredAmount,
+          awaitingDeliveryAmount,
+          executionMethod: intent.executionMethod,
+          bridge: intent.bridge,
+        };
+      }),
+    );
 
     const pendingTransfers = transfers.map((transfer) => ({
       origin: this.multiProvider.getChainName(transfer.origin),

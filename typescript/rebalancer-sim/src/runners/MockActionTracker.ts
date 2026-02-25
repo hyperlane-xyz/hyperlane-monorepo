@@ -1,7 +1,9 @@
 import type {
+  ActionType,
   CreateRebalanceActionParams,
   CreateRebalanceIntentParams,
   IActionTracker,
+  PartialInventoryIntent,
   RebalanceAction,
   RebalanceIntent,
   Transfer,
@@ -41,6 +43,36 @@ export class MockActionTracker implements IActionTracker {
 
   async syncRebalanceActions(): Promise<void> {
     // No-op: simulation manages state directly
+  }
+
+  async syncInventoryMovementActions(): Promise<{
+    completed: number;
+    failed: number;
+  }> {
+    // No-op: simulation doesn't use external bridges
+    return { completed: 0, failed: 0 };
+  }
+
+  async getPartiallyFulfilledInventoryIntents(): Promise<
+    PartialInventoryIntent[]
+  > {
+    // No inventory intents in simulation
+    return [];
+  }
+
+  async getActionsByType(type: ActionType): Promise<RebalanceAction[]> {
+    return Array.from(this.actions.values()).filter((a) => a.type === type);
+  }
+
+  async getActionsForIntent(intentId: string): Promise<RebalanceAction[]> {
+    return Array.from(this.actions.values()).filter(
+      (a) => a.intentId === intentId,
+    );
+  }
+
+  async getInflightInventoryMovements(_origin: Domain): Promise<bigint> {
+    // No inventory movements in simulation
+    return 0n;
   }
 
   // === Transfer Management ===
@@ -113,7 +145,6 @@ export class MockActionTracker implements IActionTracker {
       priority: params.priority,
       strategyType: params.strategyType,
       status: 'not_started',
-      fulfilledAmount: 0n,
       createdAt: now,
       updatedAt: now,
     };
@@ -186,6 +217,7 @@ export class MockActionTracker implements IActionTracker {
     const now = Date.now();
     const action: RebalanceAction = {
       id,
+      type: params.type,
       intentId: params.intentId,
       origin: params.origin,
       destination: params.destination,
@@ -235,13 +267,14 @@ export class MockActionTracker implements IActionTracker {
       action.status = 'complete';
       action.updatedAt = Date.now();
 
-      // Update parent intent's fulfilledAmount
       const intent = this.intents.get(action.intentId);
       if (intent) {
-        intent.fulfilledAmount += action.amount;
         intent.updatedAt = Date.now();
-
-        if (intent.fulfilledAmount >= intent.amount) {
+        const intentActions = Array.from(this.actions.values()).filter(
+          (a) => a.intentId === intent.id,
+        );
+        const allComplete = intentActions.every((a) => a.status === 'complete');
+        if (allComplete && intentActions.length > 0) {
           intent.status = 'complete';
         }
       }
@@ -323,11 +356,12 @@ export class MockActionTracker implements IActionTracker {
 
     const action: RebalanceAction = {
       id: actionId,
+      type: 'rebalance_message' as const,
       intentId: intent.id,
       origin,
       destination,
       amount,
-      messageId: bridgeTransferId, // Use bridge transfer ID as pseudo-messageId
+      messageId: bridgeTransferId,
       status: 'in_progress',
       createdAt: now,
       updatedAt: now,
@@ -390,21 +424,18 @@ export class MockActionTracker implements IActionTracker {
     action.status = 'complete';
     action.updatedAt = Date.now();
 
-    // Update parent intent's fulfilledAmount
     const intent = this.intents.get(action.intentId);
     if (intent) {
-      intent.fulfilledAmount += action.amount;
       intent.updatedAt = Date.now();
-
-      // If fully fulfilled, mark intent as complete
-      if (intent.fulfilledAmount >= intent.amount) {
+      const intentActions = Array.from(this.actions.values()).filter(
+        (a) => a.intentId === intent.id,
+      );
+      const allComplete = intentActions.every((a) => a.status === 'complete');
+      if (allComplete && intentActions.length > 0) {
         intent.status = 'complete';
         logger.debug(
-          {
-            intentId: intent.id,
-            fulfilledAmount: intent.fulfilledAmount.toString(),
-          },
-          'Intent fully fulfilled, marking complete',
+          { intentId: intent.id },
+          'All actions complete, marking intent complete',
         );
       }
     }
@@ -424,7 +455,6 @@ export class MockActionTracker implements IActionTracker {
   /**
    * Fail a rebalance action by route match (origin, destination, amount).
    * Marks the action as failed and the parent intent as failed.
-   * Does NOT increment fulfilledAmount.
    */
   failRebalanceByRoute(
     origin: Domain,
