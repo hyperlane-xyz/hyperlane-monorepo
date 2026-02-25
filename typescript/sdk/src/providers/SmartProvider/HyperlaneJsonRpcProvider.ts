@@ -392,12 +392,11 @@ function normalizeRpcTransaction(
   return sanitizeJsonRpcValue(normalized) as Record<string, unknown>;
 }
 
-function normalizeLogFilter(
-  filter: {
-    fromBlock?: string | number | bigint;
-    toBlock?: string | number | bigint;
-  } & Record<string, unknown>,
-): Record<string, unknown> {
+function normalizeLogFilter(filter: {
+  fromBlock?: string | number | bigint;
+  toBlock?: string | number | bigint;
+  [key: string]: unknown;
+}): Record<string, unknown> {
   const normalized = { ...filter };
   if (normalized.fromBlock !== undefined) {
     normalized.fromBlock = toBlockTag(normalized.fromBlock);
