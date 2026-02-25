@@ -9,4 +9,3 @@ superseed
 pris
 towords
 tre
-copys
