@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { Wallet, toBeHex } from 'ethers';
 import { type Logger, pino } from 'pino';
 
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
@@ -55,19 +55,16 @@ import {
 } from './MockExplorerClient.js';
 import { MockExternalBridge } from './MockExternalBridge.js';
 
-function encodeWarpRouteMessageBody(
-  recipient: string,
-  amount: BigNumber,
-): string {
+function encodeWarpRouteMessageBody(recipient: string, amount: bigint): string {
   const recipientBytes32 = addressToBytes32(recipient);
-  const amountHex = ethers.utils.hexZeroPad(amount.toHexString(), 32);
+  const amountHex = toBeHex(amount, 32);
   return recipientBytes32 + amountHex.slice(2);
 }
 
 export interface PendingTransferParams {
   from: TestChain;
   to: TestChain;
-  amount: BigNumber;
+  amount: bigint;
   warpRecipient?: string;
 }
 
@@ -86,7 +83,7 @@ export interface TestRebalancerContext {
 }
 
 type BalancePreset = keyof typeof BALANCE_PRESETS;
-type BalanceConfig = BalancePreset | Record<string, BigNumber>;
+type BalanceConfig = BalancePreset | Record<string, bigint>;
 type ExecutionMode = 'propose' | 'execute';
 type InventorySignerPreset = keyof typeof INVENTORY_SIGNER_PRESETS;
 type InventorySignerBalanceConfig =
@@ -131,7 +128,7 @@ export class TestRebalancerBuilder {
     return this;
   }
 
-  withBalances(preset: BalancePreset | Record<string, BigNumber>): this {
+  withBalances(preset: BalancePreset | Record<string, bigint>): this {
     this.balanceConfig = preset;
     return this;
   }
@@ -264,7 +261,7 @@ export class TestRebalancerBuilder {
       this.multiProvider,
     );
 
-    const deployerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
+    const deployerWallet = new Wallet(ANVIL_TEST_PRIVATE_KEY);
     const rebalancerAddresses = [deployerWallet.address];
 
     const workingMultiProvider = await this.getWorkingMultiProvider();
@@ -410,15 +407,12 @@ export class TestRebalancerBuilder {
     return Object.keys(this.balanceConfig);
   }
 
-  private getBalances(): Record<string, BigNumber> {
+  private getBalances(): Record<string, bigint> {
     if (typeof this.balanceConfig === 'string') {
       const preset = BALANCE_PRESETS[this.balanceConfig];
       return Object.fromEntries(
-        Object.entries(preset).map(([chain, value]) => [
-          chain,
-          BigNumber.from(value),
-        ]),
-      ) as Record<string, BigNumber>;
+        Object.entries(preset).map(([chain, value]) => [chain, BigInt(value)]),
+      ) as Record<string, bigint>;
     }
     return this.balanceConfig;
   }
@@ -746,7 +740,7 @@ export class TestRebalancerBuilder {
     const ctx = this.deploymentManager.getContext();
     const rebalancerMultiProvider = this.multiProvider.extendChainMetadata({});
 
-    const wallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
+    const wallet = new Wallet(ANVIL_TEST_PRIVATE_KEY);
     for (const chain of TEST_CHAINS) {
       const provider = ctx.providers.get(chain);
       if (provider) {

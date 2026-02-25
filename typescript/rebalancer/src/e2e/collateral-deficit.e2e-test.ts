@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber, ethers, providers } from 'ethers';
+import { JsonRpcProvider, Wallet } from 'ethers';
 
 import {
   HyperlaneCore,
@@ -38,7 +38,7 @@ describe('Collateral Deficit E2E', function () {
 
   let deploymentManager: Erc20LocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let localProviders: Map<string, JsonRpcProvider>;
   let userAddress: string;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
@@ -46,7 +46,7 @@ describe('Collateral Deficit E2E', function () {
   let collateralDeficitStrategyConfig: StrategyConfig[];
 
   before(async function () {
-    const wallet = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
+    const wallet = new Wallet(ANVIL_USER_PRIVATE_KEY);
     userAddress = wallet.address;
 
     deploymentManager = new Erc20LocalDeploymentManager();
@@ -109,7 +109,7 @@ describe('Collateral Deficit E2E', function () {
   });
 
   it('should propose rebalance route when pending transfer creates collateral deficit', async function () {
-    const transferAmount = BigNumber.from(toWei('500', USDC_DECIMALS));
+    const transferAmount = BigInt(toWei('500', USDC_DECIMALS));
 
     const context = await TestRebalancer.builder(
       deploymentManager,
@@ -145,7 +145,7 @@ describe('Collateral Deficit E2E', function () {
   });
 
   it('should execute full rebalance cycle with actual transfers', async function () {
-    const transferAmount = BigNumber.from(toWei('500', USDC_DECIMALS));
+    const transferAmount = BigInt(toWei('500', USDC_DECIMALS));
 
     const context = await TestRebalancer.builder(
       deploymentManager,
@@ -164,12 +164,12 @@ describe('Collateral Deficit E2E', function () {
     );
 
     const ethProvider = localProviders.get('anvil1')!;
-    const deployer = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
+    const deployer = new Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
     const token = (await import('@hyperlane-xyz/core')).ERC20__factory.connect(
       deployedAddresses.tokens.anvil1,
       deployer,
     );
-    await token.transfer(userAddress, transferAmount.mul(2));
+    await token.transfer(userAddress, transferAmount * 2n);
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
@@ -195,9 +195,9 @@ describe('Collateral Deficit E2E', function () {
 
     // Assert: Origin collateral INCREASED by exactly the transfer amount (user deposited tokens into router)
     const expectedCollateralAfterDeposit =
-      initialCollateralBalances.anvil1.add(transferAmount);
+      initialCollateralBalances.anvil1 + transferAmount;
     expect(
-      balancesAfterUserTransfer.anvil1.eq(expectedCollateralAfterDeposit),
+      balancesAfterUserTransfer.anvil1 === expectedCollateralAfterDeposit,
       `Origin (anvil1) collateral should increase by transfer amount. ` +
         `Expected: ${expectedCollateralAfterDeposit.toString()}, Actual: ${balancesAfterUserTransfer.anvil1.toString()}`,
     ).to.be.true;
@@ -213,7 +213,7 @@ describe('Collateral Deficit E2E', function () {
 
     // Assert: Destination collateral UNCHANGED (transfer not delivered)
     expect(
-      balancesAfterUserTransfer.anvil2.eq(initialCollateralBalances.anvil2),
+      balancesAfterUserTransfer.anvil2 === initialCollateralBalances.anvil2,
       `Destination (anvil2) collateral should be unchanged before delivery. ` +
         `Before: ${initialCollateralBalances.anvil2.toString()}, After: ${balancesAfterUserTransfer.anvil2.toString()}`,
     ).to.be.true;

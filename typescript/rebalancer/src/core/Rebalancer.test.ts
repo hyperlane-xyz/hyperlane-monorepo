@@ -382,7 +382,7 @@ describe('Rebalancer', () => {
         if (callCount === 1) {
           return Promise.reject(new Error('Gas estimation failed'));
         }
-        return Promise.resolve(ethers.BigNumber.from(100000));
+        return Promise.resolve(BigInt(100000));
       });
 
       sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
@@ -538,10 +538,10 @@ describe('Rebalancer', () => {
 
       const routes = [
         buildTestMovableCollateralRoute({
-          amount: ethers.utils.parseEther('100').toBigInt(),
+          amount: ethers.parseEther('100'),
         }),
         buildTestMovableCollateralRoute({
-          amount: ethers.utils.parseEther('200').toBigInt(),
+          amount: ethers.parseEther('200'),
         }),
       ];
 
@@ -591,12 +591,12 @@ describe('Rebalancer', () => {
         buildTestMovableCollateralRoute({
           origin: 'ethereum',
           destination: 'arbitrum',
-          amount: ethers.utils.parseEther('100').toBigInt(),
+          amount: ethers.parseEther('100'),
         }),
         buildTestMovableCollateralRoute({
           origin: 'ethereum',
           destination: 'optimism',
-          amount: ethers.utils.parseEther('200').toBigInt(),
+          amount: ethers.parseEther('200'),
         }),
       ];
 

@@ -1,4 +1,11 @@
-import { BigNumber, type ContractReceipt, ethers, providers } from 'ethers';
+import {
+  JsonRpcProvider,
+  JsonRpcSigner,
+  MaxUint256,
+  TransactionReceipt,
+  parseEther,
+  toBeHex,
+} from 'ethers';
 
 import {
   ERC20__factory,
@@ -19,13 +26,13 @@ export interface WarpTransferParams {
   destinationChain: string;
   routerAddress: string;
   tokenAddress: string;
-  amount: BigNumber;
+  amount: bigint;
   recipient: string;
   senderAddress?: string;
 }
 
 export interface WarpTransferResult {
-  dispatchTx: ContractReceipt;
+  dispatchTx: TransactionReceipt;
   messageId: string;
   origin: string;
   destination: string;
@@ -34,7 +41,7 @@ export interface WarpTransferResult {
 export async function executeWarpTransfer(
   multiProvider: MultiProvider,
   params: WarpTransferParams,
-  forkedProvider?: providers.JsonRpcProvider,
+  forkedProvider?: JsonRpcProvider,
 ): Promise<WarpTransferResult> {
   const {
     originChain,
@@ -48,7 +55,7 @@ export async function executeWarpTransfer(
 
   const provider =
     forkedProvider ??
-    (multiProvider.getProvider(originChain) as providers.JsonRpcProvider);
+    (multiProvider.getProvider(originChain) as JsonRpcProvider);
   const destinationDomain = multiProvider.getDomainId(destinationChain);
 
   let sender: string;
@@ -59,10 +66,7 @@ export async function executeWarpTransfer(
     sender = await multiProvider.getSigner(originChain).getAddress();
   }
 
-  await provider.send('anvil_setBalance', [
-    sender,
-    ethers.utils.parseEther('100').toHexString(),
-  ]);
+  await provider.send('anvil_setBalance', [sender, toBeHex(parseEther('100'))]);
 
   const signer = provider.getSigner(sender);
 
@@ -70,12 +74,10 @@ export async function executeWarpTransfer(
   const router = HypERC20Collateral__factory.connect(routerAddress, signer);
 
   const currentAllowance = await token.allowance(sender, routerAddress);
-  if (currentAllowance.lt(amount)) {
-    const approveTx = await token.approve(
-      routerAddress,
-      ethers.constants.MaxUint256,
-      { gasLimit: 100000 },
-    );
+  if (currentAllowance < amount) {
+    const approveTx = await token.approve(routerAddress, MaxUint256, {
+      gasLimit: 100000,
+    });
     await approveTx.wait();
   }
 
@@ -90,6 +92,9 @@ export async function executeWarpTransfer(
     { gasLimit: 500000, value: gasQuote },
   );
   const receipt = await tx.wait();
+  if (!receipt) {
+    throw new Error('Transfer transaction not mined');
+  }
 
   if (senderAddress) {
     await provider.send('anvil_stopImpersonatingAccount', [senderAddress]);
@@ -112,7 +117,7 @@ export async function relayMessage(
   multiProvider: MultiProvider,
   core: HyperlaneCore,
   transferResult: WarpTransferResult,
-): Promise<ContractReceipt> {
+): Promise<TransactionReceipt> {
   return retryAsync(
     async () => {
       const relayer = new HyperlaneRelayer({ core });
@@ -139,7 +144,7 @@ export async function executeWarpTransferAndRelay(
   params: WarpTransferParams,
 ): Promise<{
   transferResult: WarpTransferResult;
-  relayReceipt: ContractReceipt;
+  relayReceipt: TransactionReceipt;
 }> {
   const transferResult = await executeWarpTransfer(multiProvider, params);
   const relayReceipt = await relayMessage(multiProvider, core, transferResult);
@@ -147,7 +152,7 @@ export async function executeWarpTransferAndRelay(
 }
 
 export async function getRebalancerAddress(
-  provider: providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   routerAddress: string,
 ): Promise<string> {
   const movable = MovableCollateralRouter__factory.connect(
@@ -162,9 +167,9 @@ export async function getRebalancerAddress(
 }
 
 export async function impersonateRebalancer(
-  provider: providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   routerAddress: string,
-): Promise<{ rebalancerAddress: string; signer: providers.JsonRpcSigner }> {
+): Promise<{ rebalancerAddress: string; signer: JsonRpcSigner }> {
   const rebalancerAddress = await getRebalancerAddress(provider, routerAddress);
   await impersonateAccounts(provider, [rebalancerAddress]);
   await setBalance(provider, rebalancerAddress, '0x56BC75E2D63100000');
@@ -178,7 +183,7 @@ export async function tryRelayMessage(
   multiProvider: MultiProvider,
   core: HyperlaneCore,
   transferResult: WarpTransferResult,
-): Promise<{ success: boolean; receipt?: ContractReceipt; error?: string }> {
+): Promise<{ success: boolean; receipt?: TransactionReceipt; error?: string }> {
   try {
     const receipt = await relayMessage(multiProvider, core, transferResult);
     return { success: true, receipt };

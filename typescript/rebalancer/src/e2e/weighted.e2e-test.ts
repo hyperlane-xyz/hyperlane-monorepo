@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber, providers } from 'ethers';
+import { JsonRpcProvider } from 'ethers';
 
 import {
   HyperlaneCore,
@@ -30,7 +30,7 @@ describe('WeightedStrategy E2E', function () {
 
   let deploymentManager: Erc20LocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let localProviders: Map<string, JsonRpcProvider>;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
   let deployedAddresses: DeployedAddresses;
@@ -257,8 +257,8 @@ describe('WeightedStrategy E2E', function () {
     );
     expect(inflightToBase, 'Should have inflight action eth→base').to.exist;
 
-    const inflightAmount = BigNumber.from(inflightToBase!.amount);
-    expect(inflightAmount.gt(0), 'Inflight amount should be positive').to.be
+    const inflightAmount = BigInt(inflightToBase!.amount);
+    expect(inflightAmount > 0n, 'Inflight amount should be positive').to.be
       .true;
 
     // ===== CYCLE 2: Execute again - should account for inflight =====
@@ -282,9 +282,7 @@ describe('WeightedStrategy E2E', function () {
 
     if (newActionsToBase.length > 0) {
       // If action was created, should be much smaller than original 1000 USDC
-      const proposedAmount = BigNumber.from(
-        newActionsToBase[0].amount,
-      ).toBigInt();
+      const proposedAmount = BigInt(newActionsToBase[0].amount);
       expect(
         proposedAmount < 500000000n,
         `Amount to base (${proposedAmount}) should be reduced accounting for inflight`,
