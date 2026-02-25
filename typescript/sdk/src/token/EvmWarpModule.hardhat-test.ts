@@ -528,7 +528,7 @@ describe('EvmWarpModule', async () => {
         owner: owner,
         paused: false,
       },
-      ethers.constants.AddressZero,
+      ethers.ZeroAddress,
     ];
 
     const hookConfigToUpdate: HookConfig[] = [

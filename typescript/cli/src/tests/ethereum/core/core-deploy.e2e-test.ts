@@ -48,9 +48,7 @@ describe('hyperlane core deploy e2e tests', async function () {
   before(async () => {
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
 
-    const provider = new ethers.providers.JsonRpcProvider(
-      chainMetadata.rpcUrls[0].http,
-    );
+    const provider = new ethers.JsonRpcProvider(chainMetadata.rpcUrls[0].http);
 
     const wallet = new Wallet(ANVIL_KEY);
     signer = wallet.connect(provider);

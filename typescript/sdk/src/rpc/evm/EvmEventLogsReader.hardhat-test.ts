@@ -35,7 +35,7 @@ describe('EvmEventLogsReader', () => {
   let erc20Factory: ERC20Test__factory;
   let deploymentBlockNumber: number;
 
-  const transferTopic = ethers.utils.id('Transfer(address,address,uint256)');
+  const transferTopic = ethers.id('Transfer(address,address,uint256)');
 
   beforeEach(async () => {
     [contractOwner, tokenRecipient1, tokenRecipient2] =
@@ -58,7 +58,7 @@ describe('EvmEventLogsReader', () => {
     testContract = await erc20Factory.deploy(
       'TestToken',
       'TST',
-      ethers.utils.parseEther('1000000'),
+      ethers.parseEther('1000000'),
       18,
     );
 
@@ -147,13 +147,13 @@ describe('EvmEventLogsReader', () => {
       // Emit some Transfer events
       const tx1 = await testContract.transfer(
         tokenRecipient1.address,
-        ethers.utils.parseEther('100'),
+        ethers.parseEther('100'),
       );
       await tx1.wait();
 
       const tx2 = await testContract.transfer(
         tokenRecipient2.address,
-        ethers.utils.parseEther('200'),
+        ethers.parseEther('200'),
       );
       await tx2.wait();
 
@@ -175,7 +175,7 @@ describe('EvmEventLogsReader', () => {
       // Emit Transfer event
       const tx = await testContract.transfer(
         tokenRecipient1.address,
-        ethers.utils.parseEther('100'),
+        ethers.parseEther('100'),
       );
       await tx.wait();
 
@@ -196,7 +196,7 @@ describe('EvmEventLogsReader', () => {
       // Emit Transfer event
       const tx = await testContract.transfer(
         tokenRecipient1.address,
-        ethers.utils.parseEther('100'),
+        ethers.parseEther('100'),
       );
       await tx.wait();
 
@@ -222,7 +222,7 @@ describe('EvmEventLogsReader', () => {
       // Emit event in first block
       const tx1 = await testContract.transfer(
         tokenRecipient1.address,
-        ethers.utils.parseEther('100'),
+        ethers.parseEther('100'),
       );
       await tx1.wait();
       const firstEventBlock = await providerChainTest1.getBlockNumber();
@@ -232,7 +232,7 @@ describe('EvmEventLogsReader', () => {
       // Emit event in later block
       const tx2 = await testContract.transfer(
         tokenRecipient1.address,
-        ethers.utils.parseEther('200'),
+        ethers.parseEther('200'),
       );
       await tx2.wait();
 
@@ -254,11 +254,11 @@ describe('EvmEventLogsReader', () => {
       // Emit an event just to be sure that filtering works as expected
       const tx = await testContract.transfer(
         tokenRecipient1.address,
-        ethers.utils.parseEther('100'),
+        ethers.parseEther('100'),
       );
       await tx.wait();
 
-      const nonExistentTopic = ethers.utils.id('NonExistentEvent(uint256)');
+      const nonExistentTopic = ethers.id('NonExistentEvent(uint256)');
       const logs = await reader.getLogsByTopic({
         eventTopic: nonExistentTopic,
         contractAddress: testContract.address,
@@ -274,7 +274,7 @@ describe('EvmEventLogsReader', () => {
 
       for (let i = 0; i < numberOfEventsToEmit; i++) {
         const tx = await testContract.mint(
-          ethers.utils.parseEther(`${(i + 1) * 50}`),
+          ethers.parseEther(`${(i + 1) * 50}`),
         );
         await tx.wait();
         eventBlocks.push(await providerChainTest1.getBlockNumber());
@@ -313,7 +313,7 @@ describe('EvmEventLogsReader', () => {
       const numberOfEventsToEmit = 5;
       for (let i = 0; i < numberOfEventsToEmit; i++) {
         const tx = await testContract.mint(
-          ethers.utils.parseEther(`${(i + 1) * 100}`),
+          ethers.parseEther(`${(i + 1) * 100}`),
         );
         await tx.wait();
       }
@@ -345,7 +345,7 @@ describe('EvmEventLogsReader', () => {
       // Emit event
       const tx = await testContract.transfer(
         tokenRecipient1.address,
-        ethers.utils.parseEther('100'),
+        ethers.parseEther('100'),
       );
       await tx.wait();
       const eventBlock = await providerChainTest1.getBlockNumber();

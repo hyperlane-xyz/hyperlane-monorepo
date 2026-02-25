@@ -149,12 +149,8 @@ describe('hyperlane warp apply with submitters', async function () {
     const chain3Metadata =
       TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
 
-    const chain2Provider = new ethers.providers.JsonRpcProvider(
-      chain2Metadata.rpcUrl,
-    );
-    const chain3Provider = new ethers.providers.JsonRpcProvider(
-      chain3Metadata.rpcUrl,
-    );
+    const chain2Provider = new ethers.JsonRpcProvider(chain2Metadata.rpcUrl);
+    const chain3Provider = new ethers.JsonRpcProvider(chain3Metadata.rpcUrl);
     chain2DomainId = chain2Metadata.domainId;
     chain3DomainId = chain3Metadata.domainId;
     const wallet = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum);
@@ -178,7 +174,7 @@ describe('hyperlane warp apply with submitters', async function () {
     ](
       initialOwnerAddress,
       chain3Addresses.interchainAccountRouter,
-      ethers.constants.AddressZero,
+      ethers.ZeroAddress,
     );
 
     // Deploy the timelock and set both the owner address and the ICA
@@ -189,7 +185,7 @@ describe('hyperlane warp apply with submitters', async function () {
         0,
         [initialOwnerAddress, chain3IcaAddress],
         [initialOwnerAddress, chain3IcaAddress],
-        ethers.constants.AddressZero,
+        ethers.ZeroAddress,
       );
 
     // Deploy a mock SAFE so that the SDK can check that a contract exists

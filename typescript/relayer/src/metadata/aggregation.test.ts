@@ -41,10 +41,7 @@ describe('AggregationMetadataBuilder', () => {
         AggregationMetadataBuilder.decode(fixture.encoded, {
           ism: {
             type: IsmType.AGGREGATION,
-            modules: Array.from(
-              { length: count },
-              () => ethers.constants.AddressZero,
-            ),
+            modules: Array.from({ length: count }, () => ethers.ZeroAddress),
             threshold: count,
           },
         } as any),

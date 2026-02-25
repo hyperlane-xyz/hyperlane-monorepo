@@ -24,11 +24,12 @@ async function getMintOnlyOwnerTransaction(
   chainId: number,
 ): Promise<EV5Transaction> {
   const owner = await xerc20.owner();
-  const iface = new ethers.utils.Interface(XERC20VSTest__factory.abi);
+  const xerc20Address = await xerc20.getAddress();
+  const iface = new ethers.Interface(XERC20VSTest__factory.abi);
   const calldata = iface.encodeFunctionData('mintOnlyOwner', [address, amount]);
   return {
     data: calldata,
-    to: xerc20.address,
+    to: xerc20Address,
     from: owner,
     chainId,
   };
@@ -44,7 +45,7 @@ async function expectUserBalances(
     const xerc20 = xerc20Chains[idx];
     const balance = balances[idx];
     const userBalance = await xerc20.balanceOf(user);
-    expect(userBalance).to.eql(ethers.BigNumber.from(balance));
+    expect(userBalance).to.eql(BigInt(balance));
   }
 }
 
@@ -124,8 +125,8 @@ describe('hyperlane submit', function () {
     );
     await hyperlaneSubmit({ strategyPath, transactionsPath });
     await expectUserBalances(users, xerc20Chains, [
-      initialBalances[0].add(chain2MintAmount).toNumber(),
-      initialBalances[1].add(chain3MintAmount).toNumber(),
+      Number(initialBalances[0] + BigInt(chain2MintAmount)),
+      Number(initialBalances[1] + BigInt(chain3MintAmount)),
     ]);
   });
 
@@ -157,8 +158,8 @@ describe('hyperlane submit', function () {
     );
     await hyperlaneSubmit({ transactionsPath });
     await expectUserBalances(users, xerc20Chains, [
-      initialBalances[0].add(chain2MintAmount).toNumber(),
-      initialBalances[1].add(chain3MintAmount).toNumber(),
+      Number(initialBalances[0] + BigInt(chain2MintAmount)),
+      Number(initialBalances[1] + BigInt(chain3MintAmount)),
     ]);
   });
 

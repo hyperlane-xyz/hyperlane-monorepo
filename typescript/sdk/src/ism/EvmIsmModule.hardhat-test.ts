@@ -94,7 +94,7 @@ describe('EvmIsmModule', async () => {
     await hre.ethers.provider.send('hardhat_impersonateAccount', [account]);
     await fundingAccount.sendTransaction({
       to: account,
-      value: hre.ethers.utils.parseEther('1.0'),
+      value: hre.ethers.parseEther('1.0'),
     });
     return MultiProvider.createTestMultiProvider({
       signer: hre.ethers.provider.getSigner(account),

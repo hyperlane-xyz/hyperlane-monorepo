@@ -76,10 +76,10 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-    const providerChain2 = new ethers.providers.JsonRpcProvider(
+    const providerChain2 = new ethers.JsonRpcProvider(
       chain2Metadata.rpcUrls[0].http,
     );
-    const providerChain3 = new ethers.providers.JsonRpcProvider(
+    const providerChain3 = new ethers.JsonRpcProvider(
       chain3Metadata.rpcUrls[0].http,
     );
 
@@ -117,7 +117,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
         .enrollRemoteRouterAndIsm(
           chain2Metadata.domainId!,
           addressToBytes32(chain2Addresses.interchainAccountRouter!),
-          ethers.constants.HashZero,
+          ethers.ZeroHash,
         )
         .then((tx) => tx.wait());
     } catch {
@@ -129,7 +129,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
         .enrollRemoteRouterAndIsm(
           chain3Metadata.domainId!,
           addressToBytes32(chain3Addresses.interchainAccountRouter!),
-          ethers.constants.HashZero,
+          ethers.ZeroHash,
         )
         .then((tx) => tx.wait());
     } catch {

@@ -1,7 +1,6 @@
 import { ChildToParentMessageStatus } from '@arbitrum/sdk';
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
@@ -217,8 +216,8 @@ describe('ArbL2ToL1MetadataBuilder', () => {
       // stub waiting period to 10 blocks
       sinon
         .stub(metadataBuilder, 'getWaitingBlocksUntilReady')
-        .callsFake(async (): Promise<BigNumber> => {
-          return BigNumber.from(10); // test waiting period
+        .callsFake(async (): Promise<bigint> => {
+          return 10n; // test waiting period
         });
 
       result = await metadataBuilder.build(context);
@@ -244,7 +243,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
         calldata.arbBlockNum,
         calldata.ethBlockNum,
         calldata.timestamp,
-        BigNumber.from(0), // msg.value
+        0n, // msg.value
         calldata.data,
       );
       result = await metadataBuilder.build(context);

@@ -61,9 +61,7 @@ describe('hyperlane core apply e2e tests', async function () {
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
 
-    const provider = new ethers.providers.JsonRpcProvider(
-      chain2Metadata.rpcUrls[0].http,
-    );
+    const provider = new ethers.JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
 
     chain2DomainId = chain2Metadata.domainId;
     chain3DomainId = chain3Metadata.domainId;
