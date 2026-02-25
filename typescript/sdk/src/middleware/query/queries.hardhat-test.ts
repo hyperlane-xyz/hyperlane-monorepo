@@ -56,7 +56,9 @@ describe.skip('InterchainQueryRouter', async () => {
     contracts = await new InterchainQueryDeployer(multiProvider).deploy(config);
     local = contracts[localChain].interchainQueryRouter;
     remote = contracts[remoteChain].interchainQueryRouter;
-    testQuery = await new TestQuery__factory(signer).deploy(local.address);
+    testQuery = await new TestQuery__factory(signer).deploy(
+      await local.getAddress(),
+    );
   });
 
   it('checks', async () => {
@@ -68,7 +70,7 @@ describe.skip('InterchainQueryRouter', async () => {
 
   it('completes query round trip and invokes callback', async () => {
     const secret = 123;
-    const sender = testQuery.address;
+    const sender = await testQuery.getAddress();
     const bytes32sender = addressToBytes32(sender);
     const expectedOwner = await remote.owner();
     await expect(testQuery.queryRouterOwner(remoteDomain, secret))
