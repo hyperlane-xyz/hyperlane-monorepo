@@ -51,7 +51,8 @@ export function defineWarpTokenTests(
 
   it('should deploy and initialize token', async () => {
     const { writer, makeConfig } = getContext();
-    const config = makeConfig();
+    const testScale = 1e9;
+    const config = makeConfig({ scale: testScale });
     const [deployed, receipts] = await writer.create({ config });
 
     deployedProgramId = deployed.deployed.address;
@@ -66,6 +67,7 @@ export function defineWarpTokenTests(
     expect(onChain.config.owner).to.equal(config.owner);
     expect(onChain.config.hook).to.be.undefined;
     expect(onChain.config.interchainSecurityModule).to.be.undefined;
+    expect(onChain.config.scale).to.equal(testScale);
   });
 
   it('should deploy with IGP and ISM configured and read them back', async () => {
@@ -233,5 +235,27 @@ export function defineWarpTokenTests(
     const updated = await writer.read(deployedProgramId);
     expect(updated.config.remoteRouters[1]).to.exist;
     expect(updated.config.remoteRouters[2]).to.be.undefined;
+  });
+
+  it('should transfer ownership via update()', async () => {
+    const { writer, makeConfig, testIsmAddress } = getContext();
+    const current = await writer.read(deployedProgramId);
+
+    const updateTxs = await writer.update({
+      ...current,
+      config: makeConfig({ owner: testIsmAddress }),
+    });
+
+    expect(updateTxs.length).to.be.greaterThan(0);
+    await executeUpdateTxs(updateTxs);
+
+    const updated = await writer.read(deployedProgramId);
+    expect(updated.config.owner).to.equal(testIsmAddress);
+  });
+
+  it('should reflect scale (remoteDecimals) correctly', async () => {
+    const { writer } = getContext();
+    const token = await writer.read(deployedProgramId);
+    expect(token.config.scale).to.equal(1e9);
   });
 }

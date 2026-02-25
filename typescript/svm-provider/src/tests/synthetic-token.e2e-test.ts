@@ -130,6 +130,7 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
           name: 'Test Token',
           symbol: 'TEST',
           decimals: 6,
+          metadataUri: 'https://test.example.com/metadata.json',
           remoteRouters: {},
           destinationGas: {},
           ...overrides,
@@ -148,6 +149,9 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       expect(token.config.name).to.equal('Test Token');
       expect(token.config.symbol).to.equal('TEST');
       expect(token.config.decimals).to.equal(6);
+      expect(token.config.metadataUri).to.equal(
+        'https://test.example.com/metadata.json',
+      );
       expect(token.config.mailbox).to.equal(mailboxAddress);
     });
   });
