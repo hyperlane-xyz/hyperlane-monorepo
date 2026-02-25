@@ -27,7 +27,7 @@
     "lint": "eslint -c ./eslint.config.mjs ./src",
     "format": "oxfmt --write ./src",
     "test": "mocha --config .mocharc.json './test/**/*.test.ts' --exit",
-    "test:ci": "pnpm test"
+    "test:ci": "mocha --config .mocharc.json './test/scenarios/**/*.test.ts' --exit"
   },
   "dependencies": {
     "@hyperlane-xyz/core": "workspace:*",
