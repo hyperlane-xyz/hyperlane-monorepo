@@ -243,7 +243,7 @@ async function executeDelivery({
     if (token.isNative()) {
       throw new Error(
         'Predicate compliance is not supported for native token warp routes. ' +
-          'Only ERC20 collateral and synthetic routes support Predicate attestations.',
+          'Only ERC20-based routes (collateral and synthetic) support Predicate attestations.',
       );
     }
   }

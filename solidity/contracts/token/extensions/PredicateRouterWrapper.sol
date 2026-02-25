@@ -129,8 +129,11 @@ contract PredicateRouterWrapper is
         // Initialize PredicateClient (handles registry, policy storage and registration)
         _initPredicateClient(_registry, _policyID);
 
-        // Infinite approval to warp route - wrapper never holds tokens
-        token.forceApprove(_warpRoute, type(uint256).max);
+        // Infinite approval to warp route for collateral routes
+        // For synthetics, warpRoute == token (self-approval not needed)
+        if (_warpRoute != _token) {
+            token.forceApprove(_warpRoute, type(uint256).max);
+        }
     }
 
     // ============ External Functions ============

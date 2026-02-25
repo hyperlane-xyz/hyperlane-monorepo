@@ -229,6 +229,8 @@ export class EvmHypSyntheticAdapter
   extends EvmTokenAdapter<HypERC20>
   implements IHypTokenAdapter<PopulatedTransaction>
 {
+  protected predicateWrapperAddress: Address | null | undefined;
+
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
@@ -239,10 +241,18 @@ export class EvmHypSyntheticAdapter
   }
 
   override async isApproveRequired(
-    _owner: Address,
+    owner: Address,
     _spender: Address,
-    _weiAmountOrId: Numberish,
+    weiAmountOrId: Numberish,
   ): Promise<boolean> {
+    // Synthetics with PredicateWrapper need approval to the wrapper
+    const predicateWrapper = await this.getPredicateWrapperAddress();
+    if (predicateWrapper) {
+      const allowance = await this.contract.allowance(owner, predicateWrapper);
+      return allowance.lt(weiAmountOrId);
+    }
+
+    // Normal synthetics don't need approval
     return false;
   }
 
@@ -250,7 +260,90 @@ export class EvmHypSyntheticAdapter
     _owner: Address,
     _spender: Address,
   ): Promise<boolean> {
+    // Synthetics are standard ERC20s - no revoke required before approve
     return false;
+  }
+
+  override async populateApproveTx(
+    params: TransferParams,
+  ): Promise<PopulatedTransaction> {
+    // Synthetics with PredicateWrapper approve the wrapper
+    const predicateWrapper = await this.getPredicateWrapperAddress();
+    if (predicateWrapper) {
+      return this.contract.populateTransaction.approve(
+        predicateWrapper,
+        params.weiAmountOrId.toString(),
+      );
+    }
+
+    throw new Error(
+      'Approve not required for synthetic tokens without wrapper',
+    );
+  }
+
+  protected async getPredicateWrapperAddress(): Promise<Address | null> {
+    if (this.predicateWrapperAddress !== undefined) {
+      return this.predicateWrapperAddress;
+    }
+
+    try {
+      const hookAddress = await this.contract.hook();
+      if (hookAddress === ethersConstants.AddressZero) {
+        this.predicateWrapperAddress = null;
+        return null;
+      }
+
+      const provider = this.getProvider();
+      const warpRouteAddress = this.addresses.token.toLowerCase();
+
+      const foundWrapper = await this.findPredicateWrapperInHook(
+        hookAddress,
+        warpRouteAddress,
+        provider,
+      );
+      this.predicateWrapperAddress = foundWrapper;
+    } catch {
+      this.predicateWrapperAddress = null;
+    }
+    return this.predicateWrapperAddress;
+  }
+
+  private async findPredicateWrapperInHook(
+    hookAddress: Address,
+    warpRouteAddress: string,
+    provider: ReturnType<typeof this.getProvider>,
+  ): Promise<Address | null> {
+    const hook = IPostDispatchHook__factory.connect(hookAddress, provider);
+    const hookType = await hook.hookType();
+
+    if (hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER) {
+      const wrapper = PredicateRouterWrapper__factory.connect(
+        hookAddress,
+        provider,
+      );
+      const warpRouteFromWrapper = await wrapper.warpRoute();
+      if (warpRouteFromWrapper.toLowerCase() === warpRouteAddress) {
+        return hookAddress;
+      }
+    }
+
+    if (hookType === OnchainHookType.AGGREGATION) {
+      const aggregationHook = StaticAggregationHook__factory.connect(
+        hookAddress,
+        provider,
+      );
+      const subHooks = await aggregationHook.hooks('0x');
+      for (const subHook of subHooks) {
+        const found = await this.findPredicateWrapperInHook(
+          subHook,
+          warpRouteAddress,
+          provider,
+        );
+        if (found) return found;
+      }
+    }
+
+    return null;
   }
 
   getDomains(): Promise<Domain[]> {
@@ -351,14 +444,61 @@ export class EvmHypSyntheticAdapter
   }
 
   async populateTransferRemoteTx(
-    {
-      weiAmountOrId,
-      destination,
-      recipient,
-      interchainGas,
-    }: TransferRemoteParams,
+    params: TransferRemoteParams,
     nativeValue = 0n,
   ): Promise<PopulatedTransaction> {
+    const { weiAmountOrId, destination, recipient, attestation } = params;
+
+    if (attestation) {
+      const predicateWrapperAddress = await this.getPredicateWrapperAddress();
+      if (!predicateWrapperAddress) {
+        throw new Error(
+          'Attestation provided but no PredicateRouterWrapper detected on warp route hook. ' +
+            'Attestations can only be used with routes that have a PredicateRouterWrapper configured.',
+        );
+      }
+
+      let { interchainGas } = params;
+      if (!interchainGas) {
+        interchainGas = await this.quoteTransferRemoteGas({
+          destination,
+          recipient,
+          amount: BigInt(weiAmountOrId),
+        });
+      }
+
+      nativeValue += interchainGas.igpQuote.amount;
+      if (
+        !interchainGas.tokenFeeQuote?.addressOrDenom ||
+        isZeroishAddress(interchainGas.tokenFeeQuote?.addressOrDenom)
+      ) {
+        nativeValue += interchainGas.tokenFeeQuote?.amount ?? 0n;
+      }
+
+      const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
+
+      const predicateWrapper = PredicateRouterWrapper__factory.connect(
+        predicateWrapperAddress,
+        this.getProvider(),
+      );
+
+      const contractAttestation = {
+        uuid: attestation.uuid,
+        expiration: attestation.expiration,
+        attester: attestation.attester,
+        signature: attestation.signature,
+      };
+
+      return predicateWrapper.populateTransaction.transferRemoteWithAttestation(
+        contractAttestation,
+        destination,
+        recipBytes32,
+        weiAmountOrId,
+        { value: nativeValue.toString() },
+      );
+    }
+
+    let { interchainGas } = params;
     if (!interchainGas)
       interchainGas = await this.quoteTransferRemoteGas({
         destination,
@@ -394,7 +534,6 @@ class BaseEvmHypCollateralAdapter
   protected readonly wrappedTokenAddress = new LazyAsync(() =>
     this.loadWrappedTokenAddress(),
   );
-  private predicateWrapperAddress: Address | null | undefined;
 
   constructor(
     public readonly chainName: ChainName,
@@ -420,71 +559,6 @@ class BaseEvmHypCollateralAdapter
     return new EvmTokenAdapter(this.chainName, this.multiProvider, {
       token: await this.getWrappedTokenAddress(),
     });
-  }
-
-  protected async getPredicateWrapperAddress(): Promise<Address | null> {
-    if (this.predicateWrapperAddress !== undefined) {
-      return this.predicateWrapperAddress;
-    }
-
-    try {
-      const hookAddress = await this.collateralContract.hook();
-      if (hookAddress === ethersConstants.AddressZero) {
-        this.predicateWrapperAddress = null;
-        return null;
-      }
-
-      const provider = this.getProvider();
-      const warpRouteAddress = this.addresses.token.toLowerCase();
-
-      const foundWrapper = await this.findPredicateWrapperInHook(
-        hookAddress,
-        warpRouteAddress,
-        provider,
-      );
-      this.predicateWrapperAddress = foundWrapper;
-    } catch {
-      this.predicateWrapperAddress = null;
-    }
-    return this.predicateWrapperAddress;
-  }
-
-  private async findPredicateWrapperInHook(
-    hookAddress: Address,
-    warpRouteAddress: string,
-    provider: ReturnType<typeof this.getProvider>,
-  ): Promise<Address | null> {
-    const hook = IPostDispatchHook__factory.connect(hookAddress, provider);
-    const hookType = await hook.hookType();
-
-    if (hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER) {
-      const wrapper = PredicateRouterWrapper__factory.connect(
-        hookAddress,
-        provider,
-      );
-      const warpRouteFromWrapper = await wrapper.warpRoute();
-      if (warpRouteFromWrapper.toLowerCase() === warpRouteAddress) {
-        return hookAddress;
-      }
-    }
-
-    if (hookType === OnchainHookType.AGGREGATION) {
-      const aggregationHook = StaticAggregationHook__factory.connect(
-        hookAddress,
-        provider,
-      );
-      const subHooks = await aggregationHook.hooks('0x');
-      for (const subHook of subHooks) {
-        const found = await this.findPredicateWrapperInHook(
-          subHook,
-          warpRouteAddress,
-          provider,
-        );
-        if (found) return found;
-      }
-    }
-
-    return null;
   }
 
   override async getBalance(address: Address): Promise<bigint> {
