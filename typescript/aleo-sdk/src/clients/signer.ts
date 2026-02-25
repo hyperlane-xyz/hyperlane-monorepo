@@ -23,6 +23,8 @@ export class AleoSigner
   extends AleoProvider
   implements AltVM.ISigner<AleoTransaction, AleoReceipt>
 {
+  private static readonly WARP_SUFFIX_ALREADY_DEPLOYED_ERROR =
+    'already deployed, please choose another suffix';
   private readonly programManager: AnyProgramManager;
 
   static async connectWithSigner(
@@ -107,6 +109,39 @@ export class AleoSigner
 
     throw new Error(
       `Could not find an unused suffix for ${programName} after ${maxAttempts} attempts`,
+    );
+  }
+
+  async getWarpTokenSuffix(
+    tokenType: 'native' | 'collateral' | 'synthetic',
+    preferredSuffix?: string,
+    maxAttempts = 20,
+  ): Promise<string> {
+    const configuredSuffix = preferredSuffix || this.warpSuffix;
+
+    if (configuredSuffix) {
+      const tokenProgramId = `${this.prefix}_${tokenType}_${configuredSuffix}.aleo`;
+
+      const isAlreadyDeployed = await this.isProgramDeployed(tokenProgramId);
+      assert(
+        !isAlreadyDeployed,
+        `Warp route with suffix ${configuredSuffix} ${AleoSigner.WARP_SUFFIX_ALREADY_DEPLOYED_ERROR}`,
+      );
+
+      return configuredSuffix;
+    }
+
+    for (let i = 0; i < maxAttempts; i++) {
+      const suffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
+      const tokenProgramId = `${this.prefix}_${tokenType}_${suffix}.aleo`;
+
+      if (!(await this.isProgramDeployed(tokenProgramId))) {
+        return suffix;
+      }
+    }
+
+    throw new Error(
+      `Could not find an unused suffix for ${tokenType} after ${maxAttempts} attempts`,
     );
   }
 
@@ -770,20 +805,7 @@ export class AleoSigner
       );
     }
 
-    const suffix = req.warpSuffix || this.warpSuffix;
-
-    if (suffix) {
-      const isAlreadyDeployed = await this.isProgramDeployed(
-        `${this.prefix}_native_${suffix}.aleo`,
-      );
-      if (isAlreadyDeployed) {
-        throw new Error(
-          `Warp route with suffix ${suffix} already deployed, please choose another suffix`,
-        );
-      }
-    }
-
-    const tokenSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
+    const tokenSuffix = await this.getWarpTokenSuffix('native', req.warpSuffix);
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -822,20 +844,10 @@ export class AleoSigner
       );
     }
 
-    const suffix = req.warpSuffix || this.warpSuffix;
-
-    if (suffix) {
-      const isAlreadyDeployed = await this.isProgramDeployed(
-        `${this.prefix}_collateral_${suffix}.aleo`,
-      );
-      if (isAlreadyDeployed) {
-        throw new Error(
-          `Warp route with suffix ${suffix} already deployed, please choose another suffix`,
-        );
-      }
-    }
-
-    const tokenSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
+    const tokenSuffix = await this.getWarpTokenSuffix(
+      'collateral',
+      req.warpSuffix,
+    );
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -874,20 +886,10 @@ export class AleoSigner
       );
     }
 
-    const suffix = req.warpSuffix || this.warpSuffix;
-
-    if (suffix) {
-      const isAlreadyDeployed = await this.isProgramDeployed(
-        `${this.prefix}_synthetic_${suffix}.aleo`,
-      );
-      if (isAlreadyDeployed) {
-        throw new Error(
-          `Warp route with suffix ${suffix} already deployed, please choose another suffix`,
-        );
-      }
-    }
-
-    const tokenSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
+    const tokenSuffix = await this.getWarpTokenSuffix(
+      'synthetic',
+      req.warpSuffix,
+    );
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );

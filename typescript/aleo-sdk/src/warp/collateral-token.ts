@@ -15,9 +15,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import type { AnyAleoNetworkClient } from '../clients/base.js';
 import type { AleoSigner } from '../clients/signer.js';
 import {
-  SUFFIX_LENGTH_LONG,
   fromAleoAddress,
-  generateSuffix,
   getProgramSuffix,
   toAleoAddress,
 } from '../utils/helper.js';
@@ -123,8 +121,8 @@ export class AleoCollateralTokenWriter
     const { programId: mailboxProgramId } = fromAleoAddress(config.mailbox);
     const mailboxSuffix = getProgramSuffix(mailboxProgramId);
 
-    // Generate token suffix
-    const tokenSuffix = generateSuffix(SUFFIX_LENGTH_LONG);
+    // Resolve token suffix from preferred setting or generate a collision-free one
+    const tokenSuffix = await this.signer.getWarpTokenSuffix('collateral');
 
     // Deploy collateral token program
     const programs = await this.signer
