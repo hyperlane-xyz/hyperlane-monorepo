@@ -222,7 +222,8 @@ describe('MinAmountStrategy E2E', function () {
     ).to.be.true;
 
     // Sync actions to detect delivery and mark complete
-    await context.tracker.syncRebalanceActions();
+    const blockTags = await context.getConfirmedBlockTags();
+    await context.tracker.syncRebalanceActions(blockTags);
 
     // Assert: Action is now complete
     const completedAction = await context.tracker.getRebalanceAction(
