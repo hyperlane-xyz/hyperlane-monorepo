@@ -64,8 +64,12 @@ export class TronContractFactory<
     // Re-attach to correct address, preserving deployTransaction
     const deployTransaction = contract.deployTransaction;
     const correctedContract = this.attach(evmAddress);
-    (correctedContract as any).deployTransaction = deployTransaction;
-    return correctedContract as Awaited<ReturnType<F['deploy']>>;
+    const correctedWithDeployTx =
+      correctedContract as typeof correctedContract & {
+        deployTransaction: typeof deployTransaction;
+      };
+    correctedWithDeployTx.deployTransaction = deployTransaction;
+    return correctedWithDeployTx as Awaited<ReturnType<F['deploy']>>;
   }
 
   /**
