@@ -51,6 +51,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
   let chain3Addresses: ChainAddresses = {};
   let chain4Addresses: ChainAddresses = {};
   let token: ERC20Test;
+  let tokenAddress: Address;
   let combinedWarpCoreConfigPath: string;
   let expectedIcaAddress: Address;
   let icaOwnerAddress: Address;
@@ -65,6 +66,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     ]);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+    tokenAddress = await token.getAddress();
 
     combinedWarpCoreConfigPath = getCombinedWarpRoutePath(
       await token.symbol(),
@@ -164,7 +166,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     return {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         mailbox: chain2Addresses.mailbox,
         owner: icaOwnerAddress,
       },
@@ -269,7 +271,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     const mixedOwnerConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         mailbox: chain2Addresses.mailbox,
         owner: icaOwnerAddress,
       },
@@ -317,7 +319,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     const icaWarpConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         mailbox: chain2Addresses.mailbox,
         owner: icaOwnerAddress, // Config owner is the default
       },
@@ -382,7 +384,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     const nonDeployedConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         mailbox: chain2Addresses.mailbox,
         owner: icaOwnerAddress,
       },

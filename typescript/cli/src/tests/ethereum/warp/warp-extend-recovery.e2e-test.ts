@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { JsonRpcProvider, Wallet } from 'ethers';
 
 import { TokenRouter__factory } from '@hyperlane-xyz/core';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
@@ -99,9 +99,12 @@ describe('hyperlane warp apply recovery extension tests', async function () {
 
     // Manually call unenrollRemoteRouters
     const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+    const chain2Provider = new JsonRpcProvider(
+      multiProvider.getChainMetadata(CHAIN_NAME_2).rpcUrls[0].http,
+    );
     const tokenRouter = TokenRouter__factory.connect(
       deployedTokenRoute,
-      new Wallet(ANVIL_KEY).connect(multiProvider.getProvider(CHAIN_NAME_2)),
+      new Wallet(ANVIL_KEY).connect(chain2Provider),
     );
     await tokenRouter.unenrollRemoteRouters([chain3Id]);
 

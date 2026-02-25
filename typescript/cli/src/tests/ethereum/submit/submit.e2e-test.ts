@@ -1,8 +1,5 @@
 import { expect } from 'chai';
-import {
-  type PopulatedTransaction as EthersV6Transaction,
-  ethers,
-} from 'ethers';
+import { type TransactionRequest as EthersV6Transaction, ethers } from 'ethers';
 
 import { type XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';

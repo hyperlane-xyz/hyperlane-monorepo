@@ -103,10 +103,17 @@ describe('xerc20 e2e tests', function () {
   };
 
   async function deployWarpRoutesAndSetupBridges(): Promise<void> {
+    const [xERC20Lockbox2Address, xERC20VS2Address, xERC20VS3Address] =
+      await Promise.all([
+        xERC20Lockbox2.getAddress(),
+        xERC20VS2.getAddress(),
+        xERC20VS3.getAddress(),
+      ]);
+
     const xerc20LockboxConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.XERC20Lockbox,
-        token: xERC20Lockbox2.address,
+        token: xERC20Lockbox2Address,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
       },
@@ -117,13 +124,13 @@ describe('xerc20 e2e tests', function () {
     const xerc20VSConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.XERC20,
-        token: xERC20VS2.address,
+        token: xERC20VS2Address,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
       },
       [CHAIN_NAME_3]: {
         type: TokenType.XERC20,
-        token: xERC20VS3.address,
+        token: xERC20VS3Address,
         mailbox: chain3Addresses.mailbox,
         owner: ownerAddress,
       },
@@ -159,7 +166,7 @@ describe('xerc20 e2e tests', function () {
     const xerc20VSConfigWithLimits: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.XERC20,
-        token: xERC20VS2.address,
+        token: xERC20VS2Address,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
         xERC20: {
@@ -171,7 +178,7 @@ describe('xerc20 e2e tests', function () {
       },
       [CHAIN_NAME_3]: {
         type: TokenType.XERC20,
-        token: xERC20VS3.address,
+        token: xERC20VS3Address,
         mailbox: chain3Addresses.mailbox,
         owner: ownerAddress,
         xERC20: {
@@ -203,10 +210,11 @@ describe('xerc20 e2e tests', function () {
     });
 
     it('generates transactions when config specifies different limits', async function () {
+      const xERC20VS2Address = await xERC20VS2.getAddress();
       const configWithLimits: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.XERC20,
-          token: xERC20VS2.address,
+          token: xERC20VS2Address,
           mailbox: chain2Addresses.mailbox,
           owner: ownerAddress,
           xERC20: {
