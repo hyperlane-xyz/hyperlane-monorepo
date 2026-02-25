@@ -1,4 +1,4 @@
-import type { Address } from '@solana/kit';
+import { address, type Address } from '@solana/kit';
 import { expect } from 'chai';
 import { it } from 'mocha';
 
@@ -10,7 +10,9 @@ import type {
   RawWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 
-import type { SvmSigner } from '../clients/signer.js';
+import { SvmSigner } from '../clients/signer.js';
+import { airdropSol } from '../testing/setup.js';
+import { createRpc } from '../rpc.js';
 
 /**
  * Overrides that can be applied to any token type config.
@@ -26,6 +28,8 @@ export interface WarpTestContext {
   overheadIgpAccountAddress: Address;
   testIsmAddress: Address;
   signer: SvmSigner;
+  rpc: ReturnType<typeof createRpc>;
+  rpcUrl: string;
 }
 
 /**
@@ -237,20 +241,56 @@ export function defineWarpTokenTests(
     expect(updated.config.remoteRouters[2]).to.be.undefined;
   });
 
-  it('should transfer ownership via update()', async () => {
-    const { writer, makeConfig, testIsmAddress } = getContext();
+  it('should transfer ownership and allow new owner to update', async () => {
+    const { writer, makeConfig, testIsmAddress, rpc, rpcUrl } = getContext();
+
+    // Create a second keypair to act as the new owner.
+    const newOwnerSigner = await SvmSigner.connectWithSigner(
+      [rpcUrl],
+      '0x0000000000000000000000000000000000000000000000000000000000000002',
+    );
+
+    await airdropSol(
+      rpc,
+      address(newOwnerSigner.getSignerAddress()),
+      10_000_000_000n,
+    );
+
+    // Transfer ownership to the new keypair.
     const current = await writer.read(deployedProgramId);
-
-    const updateTxs = await writer.update({
+    const transferTxs = await writer.update({
       ...current,
-      config: makeConfig({ owner: testIsmAddress }),
+      config: makeConfig({ owner: newOwnerSigner.getSignerAddress() }),
     });
+    expect(transferTxs.length).to.be.greaterThan(0);
+    await executeUpdateTxs(transferTxs);
 
+    const afterTransfer = await writer.read(deployedProgramId);
+    expect(afterTransfer.config.owner).to.equal(
+      newOwnerSigner.getSignerAddress(),
+    );
+
+    // New owner sets the ISM — instructions reference newOwnerSigner.address.
+    const updateTxs = await writer.update({
+      ...afterTransfer,
+      config: makeConfig({
+        owner: newOwnerSigner.getSignerAddress(),
+        interchainSecurityModule: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: testIsmAddress },
+        },
+      }),
+    });
     expect(updateTxs.length).to.be.greaterThan(0);
-    await executeUpdateTxs(updateTxs);
+
+    for (const tx of updateTxs) {
+      await newOwnerSigner.send({ instructions: tx.instructions });
+    }
 
     const updated = await writer.read(deployedProgramId);
-    expect(updated.config.owner).to.equal(testIsmAddress);
+    expect(updated.config.interchainSecurityModule?.deployed?.address).to.equal(
+      testIsmAddress,
+    );
   });
 
   it('should reflect scale (remoteDecimals) correctly', async () => {
