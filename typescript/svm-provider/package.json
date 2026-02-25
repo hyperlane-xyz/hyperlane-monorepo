@@ -28,6 +28,8 @@
   },
   "scripts": {
     "build": "rm -rf ./dist && tsc",
+    "program:build": "(cd ../../rust/sealevel/programs && bash build-programs.sh)",
+    "program:generate": "node scripts/generate-program-bytes.mjs",
     "format": "oxfmt --write ./src",
     "lint": "eslint -c ./eslint.config.mjs",
     "clean": "rm -rf ./dist ./cache",
