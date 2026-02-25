@@ -53,12 +53,13 @@ type EvmTxReceipt = Awaited<ReturnType<MultiProvider['handleTx']>>;
 type EventLike = {
   args?: unknown;
   blockNumber?: number | bigint;
+  block_number?: number | bigint;
   getTransactionReceipt?: () => Promise<unknown>;
   getTransaction?: () => Promise<EvmTransactionResponseLike>;
   log?: { blockNumber?: number | bigint; transactionHash?: string };
   transaction?: { hash?: string };
   transactionHash?: string;
-} & Record<string, unknown>;
+};
 
 type MailboxEventApi = {
   on?: (filter: unknown, listener: (...args: unknown[]) => unknown) => void;
@@ -91,7 +92,7 @@ function eventTxHash(event: EventLike): string | undefined {
 }
 
 function eventBlockNumber(event: EventLike): number | undefined {
-  const blockNumberSnakeCase = asRecord(event)?.block_number;
+  const blockNumberSnakeCase = event.block_number;
   const block =
     event.blockNumber ?? event.log?.blockNumber ?? blockNumberSnakeCase;
   if (typeof block === 'number') return block;
@@ -153,12 +154,16 @@ function toEvmTxReceipt(receipt: unknown, context: string): EvmTxReceipt {
 }
 
 function toDispatchEvent(event: EventLike): DispatchEvent {
-  const args = asRecord(event.args) as
-    | ({ message?: string } & Record<string, unknown>)
-    | undefined;
+  const rawArgs = asRecord(event.args);
+  const message = rawArgs?.message;
+  const args =
+    typeof message === 'string'
+      ? {
+          message,
+        }
+      : undefined;
 
   return {
-    ...event,
     args,
     blockNumber: eventBlockNumber(event),
     transactionHash: eventTxHash(event),
