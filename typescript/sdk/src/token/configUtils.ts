@@ -7,7 +7,6 @@ import {
   TransformObjectTransformer,
   addressToBytes32,
   assert,
-  deepCopy,
   intersection,
   isAddressEvm,
   isCosmosIbcDenomAddress,
@@ -466,7 +465,11 @@ export function transformConfigToCheck(
     ),
   );
 
-  const clonedTokenConfig: HypTokenRouterConfig = deepCopy(filteredObj);
+  // Avoid lodash deep cloning here; ethers v6 Result objects are non-cloneable
+  // and transformObj below already creates fresh nested objects.
+  const clonedTokenConfig: HypTokenRouterConfig = {
+    ...filteredObj,
+  } as HypTokenRouterConfig;
 
   if (isMovableCollateralTokenConfig(clonedTokenConfig)) {
     clonedTokenConfig.allowedRebalancers = clonedTokenConfig.allowedRebalancers

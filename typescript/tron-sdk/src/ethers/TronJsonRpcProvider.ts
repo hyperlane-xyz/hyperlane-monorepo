@@ -31,7 +31,10 @@ export class TronJsonRpcProvider extends JsonRpcProvider {
    * Return legacy gas pricing only - Tron doesn't support EIP-1559.
    */
   async getFeeData(): Promise<FeeData> {
-    const { gasPrice } = await super.getFeeData();
-    return new FeeData(gasPrice ?? 0n, null, null);
+    // Avoid ethers v6 block formatting in super.getFeeData(), which can reject
+    // Tron JSON-RPC blocks (e.g. empty stateRoot = "0x").
+    const gasPriceHex = await this.send('eth_gasPrice', []);
+    const gasPrice = typeof gasPriceHex === 'string' ? BigInt(gasPriceHex) : 0n;
+    return new FeeData(gasPrice, null, null);
   }
 }

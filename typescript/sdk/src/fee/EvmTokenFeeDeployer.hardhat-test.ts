@@ -27,6 +27,7 @@ describe('EvmTokenFeeDeployer', () => {
   let multiProvider: MultiProvider;
   let deployer: EvmTokenFeeDeployer;
   let token: ERC20Test;
+  let tokenAddress: string;
   let signer: SignerWithAddress;
 
   type TestCase = {
@@ -44,6 +45,7 @@ describe('EvmTokenFeeDeployer', () => {
     const factory = new ERC20Test__factory(signer);
     token = await factory.deploy('fake', 'FAKE', '100000000000000000000', 18);
     await token.waitForDeployment();
+    tokenAddress = await token.getAddress();
   });
 
   describe('basic config', () => {
@@ -79,7 +81,7 @@ describe('EvmTokenFeeDeployer', () => {
         const config = {
           ...testCase.config,
           owner: signer.address,
-          token: token.address,
+          token: tokenAddress,
         };
 
         const deployedContracts = await deployer.deploy({
@@ -95,8 +97,8 @@ describe('EvmTokenFeeDeployer', () => {
         if (config.type === TokenFeeType.LinearFee)
           expect(
             convertToBps(
-              (await tokenFeeContract.maxFee()).toBigInt(),
-              (await tokenFeeContract.halfAmount()).toBigInt(),
+              await tokenFeeContract.maxFee(),
+              await tokenFeeContract.halfAmount(),
             ),
           ).to.equal(config.bps);
       });
@@ -107,7 +109,7 @@ describe('EvmTokenFeeDeployer', () => {
     const config = TokenFeeConfigSchema.parse({
       type: TokenFeeType.RoutingFee,
       owner: signer.address,
-      token: token.address,
+      token: tokenAddress,
     });
 
     const deployedContracts = await deployer.deploy({
@@ -123,7 +125,7 @@ describe('EvmTokenFeeDeployer', () => {
     // Deploy and set a LinearFee
     const linearFeeConfig = {
       type: TokenFeeType.LinearFee,
-      token: token.address,
+      token: tokenAddress,
       owner: signer.address,
       maxFee: MAX_FEE,
       halfAmount: HALF_AMOUNT,
@@ -137,7 +139,10 @@ describe('EvmTokenFeeDeployer', () => {
     const linearFeeContract =
       linearFeeDeployer[TestChainName.test2][TokenFeeType.LinearFee];
 
-    await routingFeeContract.setFeeContract(1, linearFeeContract.address);
+    await routingFeeContract.setFeeContract(
+      1,
+      await linearFeeContract.getAddress(),
+    );
 
     const amount = randomInt(1, 10000000000000);
     const quote = await routingFeeContract[
@@ -146,7 +151,7 @@ describe('EvmTokenFeeDeployer', () => {
 
     expect(quote.length).to.equal(1);
     expect(quote[0].amount).to.be.equal((BigInt(amount) * BPS) / 10_000n);
-    expect(quote[0].token).to.equal(token.address);
+    expect(quote[0].token).to.equal(tokenAddress);
 
     // If no fee contract is set, the quote should be zero
     const quote2 = await routingFeeContract[
@@ -159,11 +164,11 @@ describe('EvmTokenFeeDeployer', () => {
     const config = RoutingFeeConfigSchema.parse({
       type: TokenFeeType.RoutingFee,
       owner: signer.address,
-      token: token.address,
+      token: tokenAddress,
       feeContracts: {
         [TestChainName.test2]: {
           type: TokenFeeType.LinearFee,
-          token: token.address,
+          token: tokenAddress,
           owner: signer.address,
           maxFee: MAX_FEE,
           halfAmount: HALF_AMOUNT,
@@ -188,7 +193,9 @@ describe('EvmTokenFeeDeployer', () => {
     );
 
     expect(actualLinearFeeAddress).to.equal(
-      deployedContracts[TestChainName.test2][TokenFeeType.LinearFee].address,
+      await deployedContracts[TestChainName.test2][
+        TokenFeeType.LinearFee
+      ].getAddress(),
     );
   });
 
@@ -198,11 +205,11 @@ describe('EvmTokenFeeDeployer', () => {
     const config = RoutingFeeConfigSchema.parse({
       type: TokenFeeType.RoutingFee,
       owner: otherSigner.address,
-      token: token.address,
+      token: tokenAddress,
       feeContracts: {
         [TestChainName.test2]: {
           type: TokenFeeType.LinearFee,
-          token: token.address,
+          token: tokenAddress,
           owner: otherSigner.address,
           maxFee: MAX_FEE,
           halfAmount: HALF_AMOUNT,
@@ -225,7 +232,9 @@ describe('EvmTokenFeeDeployer', () => {
     const actualLinearFeeAddress = await routingFeeContract.feeContracts(
       multiProvider.getChainId(TestChainName.test2),
     );
-    expect(actualLinearFeeAddress).to.equal(linearFeeContract.address);
+    expect(actualLinearFeeAddress).to.equal(
+      await linearFeeContract.getAddress(),
+    );
     expect(await linearFeeContract.owner()).to.equal(otherSigner.address);
   });
 
@@ -235,7 +244,7 @@ describe('EvmTokenFeeDeployer', () => {
     const config = TokenFeeConfigSchema.parse({
       type: TokenFeeType.RoutingFee,
       owner: otherSigner.address,
-      token: token.address,
+      token: tokenAddress,
     });
 
     const deployedContracts = await deployer.deploy({
@@ -246,6 +255,6 @@ describe('EvmTokenFeeDeployer', () => {
       deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee];
 
     expect(await routingFeeContract.owner()).to.equal(otherSigner.address);
-    expect(await routingFeeContract.token()).to.equal(token.address);
+    expect(await routingFeeContract.token()).to.equal(tokenAddress);
   });
 });
