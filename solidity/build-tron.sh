@@ -2,11 +2,15 @@
 set -e
 cd "$(dirname "$0")"
 
-# Ensure soldeer dependencies are installed before patching files.
-# The regular @hyperlane-xyz/core build also runs soldeer install, and if it
-# runs concurrently with our file patches below, soldeer's git checkout fails
-# on the dirty working tree. Running it first avoids the race condition.
-forge soldeer install --quiet
+# Ensure deterministic outputs for turbo cache: hardhat/typechain can emit
+# partial trees when incremental cache is reused against cleaned output dirs.
+rm -rf ./cache-tron ../typescript/tron-sdk/src/abi ../typescript/tron-sdk/src/typechain
+
+# Soldeer dependencies are already installed by the turbo deps:soldeer task
+# (build:tron depends on build, which depends on deps:soldeer).
+# This call is a safety net for standalone invocations; allow it to fail
+# gracefully since deps may already be present (e.g. forge v1.1.0 soldeer bug).
+forge soldeer install --quiet || echo "Warning: soldeer install failed, assuming dependencies are already present"
 
 OZ_CREATE2="dependencies/@openzeppelin-contracts-4.9.3/contracts/utils/Create2.sol"
 
@@ -35,7 +39,7 @@ trap restore_files EXIT
 backup_files
 
 # Patch Create2.sol with Tron-specific version (0x41 prefix)
-cp overwrites/tron/Create2.sol "$OZ_CREATE2"
+cp overrides/tron/Create2.sol "$OZ_CREATE2"
 
 # Patch isContract() calls → address.code.length > 0
 # Uses Node script to handle nested parentheses correctly

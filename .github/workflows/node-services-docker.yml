@@ -3,6 +3,21 @@ name: Build and Push Node Services Images to GCR
 on:
   push:
     branches: [main]
+    paths:
+      - 'typescript/**'
+      - 'solidity/**'
+      - 'starknet/**'
+      - 'scripts/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - 'patches/**'
+      - 'turbo.json'
+      - '.dockerignore'
+      - '.github/workflows/node-services-docker.yml'
+      - 'solidity/.foundryrc'
+      - 'typescript/Dockerfile.node-service'
+      - 'typescript/docker-bake.hcl'
   pull_request:
     paths:
       - 'typescript/rebalancer/**'
@@ -12,6 +27,7 @@ on:
       - 'typescript/relayer/**'
       - 'typescript/Dockerfile.node-service'
       - 'pnpm-lock.yaml'
+      - '.dockerignore'
       - '.github/workflows/node-services-docker.yml'
       - 'typescript/docker-bake.hcl'
   workflow_dispatch:
@@ -110,7 +126,7 @@ jobs:
           FOUNDRY_VERSION: ${{ steps.taggen.outputs.FOUNDRY_VERSION }}
           SERVICE_VERSION: ${{ steps.taggen.outputs.TAG_SHA_DATE }}
         with:
-          project: 3cpjhx94qv
+          project: 057xstl4t6
           files: typescript/docker-bake.hcl
           push: true
 

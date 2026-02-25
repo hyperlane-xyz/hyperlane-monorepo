@@ -1,22 +1,36 @@
+# Dependencies & build caches
 node_modules
-test_deploy.env
+.pnpm-store/
+pnpm-debug.log*
+**/dist
+**/.turbo
 
-typescript/hyperlane-deploy/.env
+# Git & IDE
+.github
+.idea
+.DS_STORE
+
+# Directories not used in Docker images
+rust
+!rust/main
+!rust/sealevel
+docs
+tools
+vectors
+.claude
+.changeset
+
+# Test & coverage artifacts
+**/coverage
+**/__snapshots__
+
+# Environment & temp files
 **/.env
-**/tsconfig.tsbuildinfo
+test_deploy.env
+tmp.env
 **/tmp.*
 **/*.swp
 **/*.swo
 
-tmp.env
-.DS_STORE
-
-typescript/*/.env
-typescript/*/node_modules
-typescript/**/tsconfig.tsbuildinfo
-**/**/tsconfig.tsbuildinfo
-
-.pnpm-store/
-pnpm-debug.log*
-
-.idea
+# TypeScript build info
+**/tsconfig.tsbuildinfo
