@@ -110,14 +110,24 @@ export class SimulationEngine {
       // Execute transfers according to scenario
       await this.executeTransfers(scenario, timing, kpiCollector);
 
-      // Wait for provider event polling to catch up
-      await new Promise((r) => setTimeout(r, 200));
+      // Keep rebalancer active only for the configured scenario window.
+      // Without this, daemon mode keeps generating follow-up rebalances while
+      // we're waiting for delayed bridge deliveries, which can make results
+      // highly timing-dependent and flaky in CI.
+      const elapsed = Date.now() - startTime;
+      const remainingScenarioTime = scenario.duration - elapsed;
+      if (remainingScenarioTime > 0) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, remainingScenarioTime),
+        );
+      }
+
+      // Let any in-flight poll cycle settle, then stop creating new actions.
+      await rebalancer.waitForIdle(5000);
+      await rebalancer.stop();
 
       // Wait for all deliveries (user transfers + bridge transfers)
       await controller.waitForAllDeliveries(60000);
-
-      // Wait for rebalancer to become idle
-      await rebalancer.waitForIdle(5000);
 
       // Generate final KPIs
       const kpis = await kpiCollector.generateKPIs();
