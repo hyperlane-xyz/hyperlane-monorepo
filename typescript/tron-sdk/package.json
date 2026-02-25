@@ -28,7 +28,8 @@
     }
   },
   "scripts": {
-    "build": "rm -rf ./dist && tsc",
+    "sync:generated": "node ./scripts/sync-generated-from-solidity.mjs",
+    "build": "pnpm sync:generated && rm -rf ./dist && tsc",
     "format": "oxfmt --write src/**/*.ts !src/typechain !src/abi",
     "lint": "eslint -c ./eslint.config.mjs",
     "clean": "rm -rf ./dist ./cache ./src/typechain ./src/abi ./coverage",
