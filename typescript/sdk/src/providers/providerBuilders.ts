@@ -190,9 +190,9 @@ export function defaultAleoProviderBuilder(
 export function defaultTronEthersProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
-): providers.Provider {
+): Provider {
   assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
-  return new TronJsonRpcProvider(rpcUrls[0].http);
+  return new TronJsonRpcProvider(rpcUrls[0].http) as unknown as Provider;
 }
 
 export function defaultTronProviderBuilder(

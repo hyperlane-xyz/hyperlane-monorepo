@@ -24,8 +24,7 @@ module.exports = {
   },
   typechain: {
     outDir: '../typescript/tron-sdk/src/typechain',
-    target: 'ethers-v5',
-    alwaysGenerateOverloads: true,
+    target: 'ethers-v6',
     node16Modules: true,
   },
 };
