@@ -83,8 +83,10 @@ describe('EvmWarpRouteReader', async () => {
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
   let erc20Factory: ERC20Test__factory;
   let token: ERC20Test;
+  let tokenAddress: string;
   let wethMockFactory: MockWETH__factory;
   let weth: MockWETH;
+  let wethAddress: string;
   let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
   let contractVerifier: ContractVerifier;
@@ -93,13 +95,19 @@ describe('EvmWarpRouteReader', async () => {
   let routerConfigMap: ChainMap<RouterConfig>;
   let baseConfig: RouterConfig;
   let mailbox: Mailbox;
+  let mailboxAddress: string;
   let evmERC20WarpRouteReader: EvmWarpRouteReader;
   let vault: ERC4626;
+  let vaultAddress: string;
   let collateralFiatToken: FiatTokenTest;
+  let collateralFiatTokenAddress: string;
   let everclearBridgeAdapterMockFactory: MockEverclearAdapter__factory;
   let everclearBridgeAdapterMock: MockEverclearAdapter;
+  let everclearBridgeAdapterMockAddress: string;
   let mockCircleTokenMessenger: MockCircleTokenMessenger;
+  let mockCircleTokenMessengerAddress: string;
   let mockCircleMessageTransmitter: MockCircleMessageTransmitter;
+  let mockCircleMessageTransmitterAddress: string;
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -120,16 +128,20 @@ describe('EvmWarpRouteReader', async () => {
       TOKEN_SUPPLY,
       TOKEN_DECIMALS,
     );
+    tokenAddress = await token.getAddress();
 
     wethMockFactory = new MockWETH__factory(signer);
     weth = await wethMockFactory.deploy();
+    wethAddress = await weth.getAddress();
 
     baseConfig = routerConfigMap[chain];
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
+    mailboxAddress = await mailbox.getAddress();
     deployer = new HypERC20Deployer(multiProvider);
 
     const vaultFactory = new ERC4626Test__factory(signer);
-    vault = await vaultFactory.deploy(token.address, TOKEN_NAME, TOKEN_NAME);
+    vault = await vaultFactory.deploy(tokenAddress, TOKEN_NAME, TOKEN_NAME);
+    vaultAddress = await vault.getAddress();
 
     const fiatCollateralFactory = new FiatTokenTest__factory(signer);
     collateralFiatToken = await fiatCollateralFactory.deploy(
@@ -138,20 +150,27 @@ describe('EvmWarpRouteReader', async () => {
       TOKEN_SUPPLY,
       TOKEN_DECIMALS,
     );
+    collateralFiatTokenAddress = await collateralFiatToken.getAddress();
 
     everclearBridgeAdapterMockFactory = new MockEverclearAdapter__factory(
       signer,
     );
     everclearBridgeAdapterMock =
       await everclearBridgeAdapterMockFactory.deploy();
+    everclearBridgeAdapterMockAddress =
+      await everclearBridgeAdapterMock.getAddress();
 
     mockCircleTokenMessenger = await new MockCircleTokenMessenger__factory(
       signer,
-    ).deploy(token.address);
+    ).deploy(tokenAddress);
+    mockCircleTokenMessengerAddress =
+      await mockCircleTokenMessenger.getAddress();
     mockCircleMessageTransmitter =
       await new MockCircleMessageTransmitter__factory(signer).deploy(
-        token.address,
+        tokenAddress,
       );
+    mockCircleMessageTransmitterAddress =
+      await mockCircleMessageTransmitter.getAddress();
   });
 
   beforeEach(async () => {
@@ -187,9 +206,7 @@ describe('EvmWarpRouteReader', async () => {
           [chain]: {
             type,
             token:
-              type === TokenType.collateralVault
-                ? vault.address
-                : token.address,
+              type === TokenType.collateralVault ? vaultAddress : tokenAddress,
             hook: await mailbox.defaultHook(),
             name: TOKEN_NAME,
             symbol: TOKEN_NAME,
@@ -213,7 +230,7 @@ describe('EvmWarpRouteReader', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         interchainSecurityModule: await mailbox.defaultIsm(),
         ...baseConfig,
@@ -300,11 +317,12 @@ describe('EvmWarpRouteReader', async () => {
       TOKEN_SUPPLY,
       TOKEN_DECIMALS,
     );
+    const xerc20TokenAddress = await xerc20Token.getAddress();
     // Create config
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.XERC20,
-        token: xerc20Token.address,
+        token: xerc20TokenAddress,
         hook: await mailbox.defaultHook(),
         interchainSecurityModule: await mailbox.defaultIsm(),
         ...baseConfig,
@@ -339,7 +357,7 @@ describe('EvmWarpRouteReader', async () => {
       expect(derivedConfig.name).to.equal(TOKEN_NAME);
       expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
       expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
-      expect(derivedConfig.token).to.equal(xerc20Token.address);
+      expect(derivedConfig.token).to.equal(xerc20TokenAddress);
     }
   });
 
@@ -351,11 +369,12 @@ describe('EvmWarpRouteReader', async () => {
       TOKEN_SUPPLY,
       TOKEN_DECIMALS,
     );
+    const xerc20LockboxAddress = await xerc20Lockbox.getAddress();
     // Create config
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.XERC20Lockbox,
-        token: xerc20Lockbox.address,
+        token: xerc20LockboxAddress,
         hook: await mailbox.defaultHook(),
         interchainSecurityModule: await mailbox.defaultIsm(),
         ...baseConfig,
@@ -389,7 +408,7 @@ describe('EvmWarpRouteReader', async () => {
       expect(derivedConfig.name).to.equal(TOKEN_NAME);
       expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
       expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
-      expect(derivedConfig.token).to.equal(xerc20Lockbox.address);
+      expect(derivedConfig.token).to.equal(xerc20LockboxAddress);
     }
   });
 
@@ -490,7 +509,7 @@ describe('EvmWarpRouteReader', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateralVault,
-        token: vault.address,
+        token: vaultAddress,
         ...baseConfig,
       },
     };
@@ -508,7 +527,7 @@ describe('EvmWarpRouteReader', async () => {
     expect(derivedConfig.type).to.equal(config[chain].type);
     expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
     expect(derivedConfig.owner).to.equal(config[chain].owner);
-    expect(derivedConfig.token).to.equal(vault.address);
+    expect(derivedConfig.token).to.equal(vaultAddress);
   });
 
   it('should derive rebase collateral vault config correctly', async () => {
@@ -516,7 +535,7 @@ describe('EvmWarpRouteReader', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateralVaultRebase,
-        token: vault.address,
+        token: vaultAddress,
         ...baseConfig,
       },
     };
@@ -534,7 +553,7 @@ describe('EvmWarpRouteReader', async () => {
     expect(derivedConfig.type).to.equal(config[chain].type);
     expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
     expect(derivedConfig.owner).to.equal(config[chain].owner);
-    expect(derivedConfig.token).to.equal(vault.address);
+    expect(derivedConfig.token).to.equal(vaultAddress);
   });
 
   // FiatTokenTest
@@ -543,7 +562,7 @@ describe('EvmWarpRouteReader', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateralFiat,
-        token: collateralFiatToken.address,
+        token: collateralFiatTokenAddress,
         ...baseConfig,
       },
     };
@@ -561,7 +580,7 @@ describe('EvmWarpRouteReader', async () => {
     expect(derivedConfig.type).to.equal(config[chain].type);
     expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
     expect(derivedConfig.owner).to.equal(config[chain].owner);
-    expect(derivedConfig.token).to.equal(collateralFiatToken.address);
+    expect(derivedConfig.token).to.equal(collateralFiatTokenAddress);
   });
 
   const getEverclearTokenBridgeConfig = (): Record<
@@ -571,8 +590,8 @@ describe('EvmWarpRouteReader', async () => {
     return {
       [TokenType.ethEverclear]: {
         type: TokenType.ethEverclear,
-        wethAddress: weth.address,
-        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        wethAddress: wethAddress,
+        everclearBridgeAddress: everclearBridgeAdapterMockAddress,
         everclearFeeParams: {
           [chain]: {
             deadline: Date.now(),
@@ -585,8 +604,8 @@ describe('EvmWarpRouteReader', async () => {
       },
       [TokenType.collateralEverclear]: {
         type: TokenType.collateralEverclear,
-        token: token.address,
-        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        token: tokenAddress,
+        everclearBridgeAddress: everclearBridgeAdapterMockAddress,
         everclearFeeParams: {
           [chain]: {
             deadline: Date.now(),
@@ -622,15 +641,15 @@ describe('EvmWarpRouteReader', async () => {
       expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
       expect(derivedConfig.owner).to.equal(config[chain].owner);
       expect(derivedConfig.everclearBridgeAddress).to.equal(
-        everclearBridgeAdapterMock.address,
+        everclearBridgeAdapterMockAddress,
       );
 
       if (derivedConfig.type === TokenType.collateralEverclear) {
-        expect(derivedConfig.token).to.equal(token.address);
+        expect(derivedConfig.token).to.equal(tokenAddress);
       }
 
       if (derivedConfig.type === TokenType.ethEverclear) {
-        expect(derivedConfig.wethAddress).to.equal(weth.address);
+        expect(derivedConfig.wethAddress).to.equal(wethAddress);
       }
     });
   }
@@ -645,10 +664,10 @@ describe('EvmWarpRouteReader', async () => {
 
       const cctpConfig: CctpTokenConfig = {
         type: tokenType,
-        token: token.address,
+        token: tokenAddress,
         cctpVersion: cctpVersion,
-        messageTransmitter: mockCircleMessageTransmitter.address,
-        tokenMessenger: mockCircleTokenMessenger.address,
+        messageTransmitter: mockCircleMessageTransmitterAddress,
+        tokenMessenger: mockCircleTokenMessengerAddress,
         urls: ['https://fake-cctp-url.com'],
       };
 
@@ -689,7 +708,7 @@ describe('EvmWarpRouteReader', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         ...baseConfig,
       },
@@ -712,13 +731,13 @@ describe('EvmWarpRouteReader', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         ...baseConfig,
       },
       [otherChain]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         ...baseConfig,
       },
@@ -741,13 +760,13 @@ describe('EvmWarpRouteReader', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         ...baseConfig,
       },
       [otherChain]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         ...baseConfig,
       },
@@ -788,13 +807,13 @@ describe('EvmWarpRouteReader', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         ...baseConfig,
       },
       [otherChain]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         ...baseConfig,
       },
@@ -821,7 +840,7 @@ describe('EvmWarpRouteReader', async () => {
     await new HypERC20__factory()
       .connect(signer)
       .attach(implementation)
-      .transferOwnership(mailbox.address);
+      .transferOwnership(mailboxAddress);
 
     const derivedConfig =
       await evmERC20WarpRouteReader.deriveWarpRouteVirtualConfig(
@@ -832,7 +851,7 @@ describe('EvmWarpRouteReader', async () => {
     expect(derivedConfig.ownerStatus).to.deep.equal({
       [signer.address]: OwnerStatus.Active,
       [warpRouteAddress]: OwnerStatus.Active,
-      [mailbox.address]: OwnerStatus.Active,
+      [mailboxAddress]: OwnerStatus.Active,
     });
 
     // Restore stub
@@ -843,7 +862,7 @@ describe('EvmWarpRouteReader', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         ...baseConfig,
       },
@@ -886,11 +905,11 @@ describe('EvmWarpRouteReader', async () => {
       [chain]: {
         ...baseConfig,
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         tokenFee: {
           type: TokenFeeType.LinearFee,
-          owner: mailbox.address,
+          owner: mailboxAddress,
           bps: BPS,
         },
       },
@@ -905,7 +924,7 @@ describe('EvmWarpRouteReader', async () => {
     expect(normalizeConfig(derivedConfig.tokenFee)).to.deep.equal(
       normalizeConfig({
         ...config[chain].tokenFee,
-        token: token.address,
+        token: tokenAddress,
         maxFee: MAX_FEE,
         halfAmount: HALF_AMOUNT,
       }),
@@ -917,15 +936,15 @@ describe('EvmWarpRouteReader', async () => {
       [chain]: {
         ...baseConfig,
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         tokenFee: {
           type: TokenFeeType.RoutingFee,
-          owner: mailbox.address,
+          owner: mailboxAddress,
           feeContracts: {
             [TestChainName.test3]: {
               type: TokenFeeType.LinearFee,
-              owner: mailbox.address,
+              owner: mailboxAddress,
               bps: BPS,
             },
           },
@@ -939,7 +958,7 @@ describe('EvmWarpRouteReader', async () => {
     );
 
     expect(derivedConfig.tokenFee?.type).to.equal(TokenFeeType.RoutingFee);
-    expect((derivedConfig.tokenFee as any).owner).to.equal(mailbox.address);
+    expect((derivedConfig.tokenFee as any).owner).to.equal(mailboxAddress);
     expect(
       Object.keys(((derivedConfig.tokenFee as any)?.feeContracts ?? {}) as any),
     ).to.have.length(0);
@@ -950,7 +969,7 @@ describe('EvmWarpRouteReader', async () => {
       [chain]: {
         ...baseConfig,
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
       },
     };
@@ -968,11 +987,11 @@ describe('EvmWarpRouteReader', async () => {
       [chain]: {
         ...baseConfig,
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         hook: await mailbox.defaultHook(),
         tokenFee: {
           type: TokenFeeType.LinearFee,
-          owner: mailbox.address,
+          owner: mailboxAddress,
           bps: BPS,
         },
       },

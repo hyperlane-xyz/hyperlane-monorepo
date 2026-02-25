@@ -21,6 +21,8 @@ export class HyperlaneEtherscanProvider
   public readonly supportedMethods = excludeProviderMethods([
     ProviderMethod.Call,
     ProviderMethod.EstimateGas,
+    ProviderMethod.GetGasPrice,
+    ProviderMethod.GetTransactionCount,
     ProviderMethod.SendTransaction,
     ProviderMethod.MaxPriorityFeePerGas,
   ]);

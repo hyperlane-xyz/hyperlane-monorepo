@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { errors as EthersError, Wallet, constants } from 'ethers';
+import { errors as EthersError, Wallet, ZeroAddress } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
 
@@ -41,7 +41,7 @@ describe('SmartProvider', function () {
   it('Deploys contracts', async () => {
     const factory = new ERC20__factory(signer);
     const contract = await factory.deploy('fake', 'FAKE');
-    contractAddress = contract.address;
+    contractAddress = await contract.getAddress();
     expect(contractAddress.substring(0, 2)).to.equal('0x');
     expect(contractAddress.length).to.equal(42);
   });
@@ -70,7 +70,7 @@ describe('SmartProvider', function () {
       smartProvider.getNetwork(),
       smartProvider.getLogs({
         fromBlock: 0,
-        address: constants.AddressZero,
+        address: ZeroAddress,
         topics: [],
       }),
     ]);
@@ -78,10 +78,9 @@ describe('SmartProvider', function () {
     expect(isHealthy).to.be.true;
     expect(blockNum).to.greaterThan(0);
     expect(block.number).to.equal(1);
-    expect(balance.toBigInt() > 0).to.be.true;
-    expect(gasPrice.toBigInt() > 0).to.be.true;
-    expect(feeData.maxFeePerGas && feeData.maxFeePerGas.toBigInt() > 0).to.be
-      .true;
+    expect(balance > 0n).to.be.true;
+    expect(gasPrice > 0n).to.be.true;
+    expect(feeData.maxFeePerGas && feeData.maxFeePerGas > 0n).to.be.true;
     expect(code.length).to.greaterThan(10);
     expect(txCount).to.be.greaterThan(0);
     expect(network.chainId).to.equal(NETWORK);
@@ -145,7 +144,7 @@ describe('SmartProvider', function () {
     const factory = new ERC20__factory(signer);
     const erc20 = await factory.deploy('fake', 'FAKE');
 
-    expect(erc20.address).to.not.be.empty;
+    expect(await erc20.getAddress()).to.not.be.empty;
   });
 
   it('returns the blockchain error reason: "ERC20: transfer to zero address"', async () => {
@@ -157,7 +156,7 @@ describe('SmartProvider', function () {
     const factory = new ERC20__factory(signer);
     const token = await factory.deploy('fake', 'FAKE');
     try {
-      await token.transfer(constants.AddressZero, 1000000);
+      await token.transfer(ZeroAddress, 1000000);
     } catch (e: any) {
       expect(e.error.cause.code).to.equal(EthersError.UNPREDICTABLE_GAS_LIMIT);
       expect(e.error.message).to.equal(
@@ -195,7 +194,7 @@ describe('SmartProvider', function () {
       // sendTransaction uses the Provider (SmartProvider in this case)
       await signer.sendTransaction({
         to: randomAddress(),
-        value: balance.add(1),
+        value: balance + 1n,
       });
     } catch (e: any) {
       expect(e.cause.code).to.equal(EthersError.INSUFFICIENT_FUNDS);

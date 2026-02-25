@@ -4,7 +4,6 @@ import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
 import hre from 'hardhat';
 import sinon from 'sinon';
-import { UINT_256_MAX } from 'starknet';
 
 import {
   CONTRACTS_PACKAGE_VERSION,
@@ -96,6 +95,7 @@ describe('EvmWarpModule', async () => {
   const chain = TestChainName.test4;
   const domainId = 31337;
   let mailbox: Mailbox;
+  let mailboxAddress: string;
   let ismAddress: string;
   let ismFactory: HyperlaneIsmFactory;
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
@@ -103,10 +103,14 @@ describe('EvmWarpModule', async () => {
   let erc20Factory: ERC20Test__factory;
   let vaultFactory: ERC4626Test__factory;
   let vault: ERC4626Test;
+  let vaultAddress: string;
   let token: ERC20Test;
+  let tokenAddress: string;
   let feeToken: ERC20Test;
+  let feeTokenAddress: string;
   let everclearBridgeAdapterMockFactory: MockEverclearAdapter__factory;
   let everclearBridgeAdapterMock: MockEverclearAdapter;
+  let everclearBridgeAdapterMockAddress: string;
   let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
@@ -114,7 +118,7 @@ describe('EvmWarpModule', async () => {
   let baseConfig: RouterConfig;
 
   async function validateCoreValues(deployedToken: GasRouter) {
-    expect(await deployedToken.mailbox()).to.equal(mailbox.address);
+    expect(await deployedToken.mailbox()).to.equal(mailboxAddress);
     expect(await deployedToken.owner()).to.equal(signer.address);
   }
 
@@ -143,6 +147,7 @@ describe('EvmWarpModule', async () => {
       TOKEN_SUPPLY,
       TOKEN_DECIMALS,
     );
+    tokenAddress = await token.getAddress();
 
     feeToken = await erc20Factory.deploy(
       TOKEN_NAME,
@@ -150,12 +155,15 @@ describe('EvmWarpModule', async () => {
       TOKEN_SUPPLY,
       TOKEN_DECIMALS,
     );
+    feeTokenAddress = await feeToken.getAddress();
     vaultFactory = new ERC4626Test__factory(signer);
-    vault = await vaultFactory.deploy(token.address, TOKEN_NAME, TOKEN_NAME);
+    vault = await vaultFactory.deploy(tokenAddress, TOKEN_NAME, TOKEN_NAME);
+    vaultAddress = await vault.getAddress();
 
     baseConfig = routerConfigMap[chain];
 
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
+    mailboxAddress = await mailbox.getAddress();
     ismAddress = await mailbox.defaultIsm();
 
     everclearBridgeAdapterMockFactory = new MockEverclearAdapter__factory(
@@ -163,6 +171,8 @@ describe('EvmWarpModule', async () => {
     );
     everclearBridgeAdapterMock =
       await everclearBridgeAdapterMockFactory.deploy();
+    everclearBridgeAdapterMockAddress =
+      await everclearBridgeAdapterMock.getAddress();
   });
 
   const movableCollateralTypes = Object.values(TokenType).filter(
@@ -200,7 +210,7 @@ describe('EvmWarpModule', async () => {
       [TokenType.collateral]: {
         ...baseConfig,
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         allowedRebalancers,
       },
       [TokenType.native]: {
@@ -240,18 +250,18 @@ describe('EvmWarpModule', async () => {
     return {
       [TokenType.collateralEverclear]: {
         type: TokenType.collateralEverclear,
-        token: token.address,
+        token: tokenAddress,
         ...baseConfig,
-        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearBridgeAddress: everclearBridgeAdapterMockAddress,
         everclearFeeParams,
         outputAssets: {},
         remoteRouters,
       },
       [TokenType.ethEverclear]: {
         type: TokenType.ethEverclear,
-        wethAddress: token.address,
+        wethAddress: tokenAddress,
         ...baseConfig,
-        everclearBridgeAddress: everclearBridgeAdapterMock.address,
+        everclearBridgeAddress: everclearBridgeAdapterMockAddress,
         everclearFeeParams,
         outputAssets: {},
         remoteRouters,
@@ -263,7 +273,7 @@ describe('EvmWarpModule', async () => {
     const config: HypTokenRouterConfig = {
       ...baseConfig,
       type: TokenType.collateral,
-      token: token.address,
+      token: tokenAddress,
     };
 
     // Deploy using WarpModule
@@ -284,7 +294,7 @@ describe('EvmWarpModule', async () => {
   it('should create with a collateral vault config', async () => {
     const config: HypTokenRouterConfig = {
       type: TokenType.collateralVault,
-      token: vault.address,
+      token: vaultAddress,
       ...baseConfig,
     };
 
@@ -308,10 +318,8 @@ describe('EvmWarpModule', async () => {
       signer,
     );
     await validateCoreValues(collateralVaultContract);
-    expect(await collateralVaultContract.vault()).to.equal(vault.address);
-    expect(await collateralVaultContract.wrappedToken()).to.equal(
-      token.address,
-    );
+    expect(await collateralVaultContract.vault()).to.equal(vaultAddress);
+    expect(await collateralVaultContract.wrappedToken()).to.equal(tokenAddress);
   });
 
   it('should create with a synthetic config', async () => {
@@ -716,7 +724,7 @@ describe('EvmWarpModule', async () => {
         multiProvider,
         config: ismConfig,
         proxyFactoryFactories: ismFactoryAddresses,
-        mailbox: mailbox.address,
+        mailbox: mailboxAddress,
       });
 
       const { deployedIsm } = ism.serialize();
@@ -1102,7 +1110,7 @@ describe('EvmWarpModule', async () => {
               [domainId]: [
                 {
                   bridge: allowedBridgeToAdd,
-                  approvedTokens: [feeToken.address],
+                  approvedTokens: [feeTokenAddress],
                 },
               ],
             },
@@ -1124,7 +1132,7 @@ describe('EvmWarpModule', async () => {
           evmERC20WarpModule.serialize().deployedTokenRoute,
           allowedBridgeToAdd,
         );
-        expect(allowance.toBigInt() === UINT_256_MAX).to.be.true;
+        expect(allowance).to.equal(ethers.MaxUint256);
       });
 
       it(`should remove rebalancing bridges for tokens of type "${tokenType}"`, async () => {
@@ -1140,7 +1148,7 @@ describe('EvmWarpModule', async () => {
             [domainId]: [
               {
                 bridge: allowedBridgeToAdd,
-                approvedTokens: [feeToken.address],
+                approvedTokens: [feeTokenAddress],
               },
             ],
           },
@@ -1190,7 +1198,7 @@ describe('EvmWarpModule', async () => {
             [domainId]: [
               {
                 bridge: allowedBridgeToAdd,
-                approvedTokens: [feeToken.address],
+                approvedTokens: [feeTokenAddress],
               },
             ],
           },
@@ -1210,7 +1218,7 @@ describe('EvmWarpModule', async () => {
               [domainId]: [
                 {
                   bridge: allowedBridgeToAdd.toLowerCase(),
-                  approvedTokens: [feeToken.address],
+                  approvedTokens: [feeTokenAddress],
                 },
               ],
             },
@@ -1647,7 +1655,7 @@ describe('EvmWarpModule', async () => {
       const config: HypTokenRouterConfig = {
         ...baseConfig,
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         remoteRouters: {
           [domain]: {
             address: randomAddress(),
@@ -1710,7 +1718,7 @@ describe('EvmWarpModule', async () => {
       const config: HypTokenRouterConfig = {
         ...baseConfig,
         type: TokenType.collateral,
-        token: token.address,
+        token: tokenAddress,
         remoteRouters: {
           [domain]: {
             address: randomAddress(),

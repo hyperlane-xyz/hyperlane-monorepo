@@ -1,6 +1,6 @@
 import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { constants } from 'ethers';
+import { MaxUint256 } from 'ethers';
 import hre from 'hardhat';
 
 import { ERC20Test, ERC20Test__factory } from '@hyperlane-xyz/core';
@@ -29,6 +29,7 @@ describe('EvmTokenFeeModule', () => {
   let multiProvider: MultiProvider;
   let signer: SignerWithAddress;
   let token: ERC20Test;
+  let tokenAddress: string;
   let config: TokenFeeConfig;
 
   before(async () => {
@@ -37,11 +38,12 @@ describe('EvmTokenFeeModule', () => {
     const factory = new ERC20Test__factory(signer);
     token = await factory.deploy('fake', 'FAKE', '100000000000000000000', 18);
     await token.waitForDeployment();
+    tokenAddress = await token.getAddress();
 
     config = {
       type: TokenFeeType.LinearFee,
       owner: signer.address,
-      token: token.address,
+      token: tokenAddress,
       maxFee: MAX_FEE,
       halfAmount: HALF_AMOUNT,
       bps: BPS,
@@ -98,9 +100,9 @@ describe('EvmTokenFeeModule', () => {
         [test4Chain]: config,
       },
       owner: signer.address,
-      token: token.address,
-      maxFee: constants.MaxUint256.toBigInt(),
-      halfAmount: constants.MaxUint256.toBigInt(),
+      token: tokenAddress,
+      maxFee: MaxUint256,
+      halfAmount: MaxUint256,
       type: TokenFeeType.RoutingFee,
     };
     const module = await EvmTokenFeeModule.create({
@@ -133,7 +135,7 @@ describe('EvmTokenFeeModule', () => {
       const routingConfig = TokenFeeConfigSchema.parse({
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
-        token: token.address,
+        token: tokenAddress,
         feeContracts: {
           [test4Chain]: config,
         },
@@ -189,7 +191,7 @@ describe('EvmTokenFeeModule', () => {
       const routingFeeConfig: TokenFeeConfig = {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
-        token: token.address,
+        token: tokenAddress,
         feeContracts: feeContracts,
       };
       const module = await EvmTokenFeeModule.create({
@@ -238,7 +240,7 @@ describe('EvmTokenFeeModule', () => {
       const routingFeeConfig: TokenFeeConfig = {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
-        token: token.address,
+        token: tokenAddress,
         feeContracts: feeContracts,
       };
       const module = await EvmTokenFeeModule.create({
@@ -282,7 +284,7 @@ describe('EvmTokenFeeModule', () => {
       const routingFeeConfig: TokenFeeConfig = {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
-        token: token.address,
+        token: tokenAddress,
         feeContracts,
       };
       const module = await EvmTokenFeeModule.create({
@@ -317,7 +319,7 @@ describe('EvmTokenFeeModule', () => {
       const routingFeeConfig: TokenFeeConfig = {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
-        token: token.address,
+        token: tokenAddress,
         feeContracts: initialFeeContracts,
       };
       const module = await EvmTokenFeeModule.create({
@@ -368,11 +370,12 @@ describe('EvmTokenFeeModule', () => {
       const factory = new ERC20Test__factory(signer);
       const zeroSupplyToken = await factory.deploy('ZeroSupply', 'ZERO', 0, 18);
       await zeroSupplyToken.waitForDeployment();
+      const zeroSupplyTokenAddress = await zeroSupplyToken.getAddress();
 
       const inputConfig: ResolvedTokenFeeConfigInput = {
         type: TokenFeeType.LinearFee,
         owner: signer.address,
-        token: zeroSupplyToken.address,
+        token: zeroSupplyTokenAddress,
         bps: 8n,
       };
 
@@ -402,16 +405,17 @@ describe('EvmTokenFeeModule', () => {
       const factory = new ERC20Test__factory(signer);
       const zeroSupplyToken = await factory.deploy('ZeroSupply', 'ZERO', 0, 18);
       await zeroSupplyToken.waitForDeployment();
+      const zeroSupplyTokenAddress = await zeroSupplyToken.getAddress();
 
       const inputConfig: ResolvedTokenFeeConfigInput = {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
-        token: zeroSupplyToken.address,
+        token: zeroSupplyTokenAddress,
         feeContracts: {
           [test4Chain]: {
             type: TokenFeeType.LinearFee,
             owner: signer.address,
-            token: zeroSupplyToken.address,
+            token: zeroSupplyTokenAddress,
             bps: 8n,
           },
         },
@@ -451,7 +455,7 @@ describe('EvmTokenFeeModule', () => {
       const inputConfig = {
         type: TokenFeeType.LinearFee,
         owner: signer.address,
-        token: token.address,
+        token: tokenAddress,
         maxFee: explicitMaxFee,
         halfAmount: explicitHalfAmount,
       } as ResolvedTokenFeeConfigInput;
@@ -481,12 +485,12 @@ describe('EvmTokenFeeModule', () => {
       const inputConfig = {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
-        token: token.address,
+        token: tokenAddress,
         feeContracts: {
           [test4Chain]: {
             type: TokenFeeType.LinearFee,
             owner: signer.address,
-            token: token.address,
+            token: tokenAddress,
             maxFee: explicitMaxFee,
             halfAmount: explicitHalfAmount,
           },
@@ -520,7 +524,7 @@ describe('EvmTokenFeeModule', () => {
       const inputConfig = {
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
-        token: token.address,
+        token: tokenAddress,
         feeContracts: {
           [test4Chain]: {
             type: TokenFeeType.LinearFee,
@@ -543,7 +547,7 @@ describe('EvmTokenFeeModule', () => {
       const routingConfig = expandedConfig as RoutingFeeConfig;
       const nestedFee = routingConfig.feeContracts?.[test4Chain];
       assert(nestedFee, 'Nested fee must exist');
-      expect(nestedFee.token).to.equal(token.address);
+      expect(nestedFee.token).to.equal(tokenAddress);
     });
   });
 });

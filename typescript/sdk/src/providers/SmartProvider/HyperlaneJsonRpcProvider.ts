@@ -4,6 +4,7 @@ import {
   Log,
   Networkish,
   toBeHex,
+  toBigInt,
 } from 'ethers';
 
 import {
@@ -99,6 +100,8 @@ export class HyperlaneJsonRpcProvider
         return this.getBlockNumber();
       case ProviderMethod.GetCode:
         return this.getCode(params?.address, params?.blockTag);
+      case ProviderMethod.GetGasPrice:
+        return this.send('eth_gasPrice', []).then((value) => toBigInt(value));
       case ProviderMethod.GetStorageAt:
         return this.getStorage(
           params?.address,
@@ -114,9 +117,9 @@ export class HyperlaneJsonRpcProvider
           params?.hash ?? params?.transactionHash,
         );
       case ProviderMethod.SendTransaction:
-        return this.broadcastTransaction(
+        return this.send('eth_sendRawTransaction', [
           params?.signedTransaction ?? params?.signedTx ?? params,
-        );
+        ]);
       case ProviderMethod.MaxPriorityFeePerGas:
         return this.send('eth_maxPriorityFeePerGas', []);
       default:

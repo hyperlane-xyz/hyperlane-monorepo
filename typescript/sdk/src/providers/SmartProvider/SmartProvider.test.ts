@@ -18,6 +18,7 @@ const EthersError = {
 class MockProvider implements IProviderMethods {
   public readonly supportedMethods = AllProviderMethods;
   public called = false;
+  public callCount = 0;
   public thrownError?: Error;
 
   static success(successValue?: any, responseDelayMs = 0) {
@@ -51,6 +52,7 @@ class MockProvider implements IProviderMethods {
 
   async perform(_method: string, _params: any, _reqId?: number): Promise<any> {
     this.called = true;
+    this.callCount += 1;
 
     if (this.responseDelayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, this.responseDelayMs));
@@ -89,6 +91,28 @@ class TestableSmartProvider extends HyperlaneSmartProvider {
       this.mockProviders as any,
       reqId,
     );
+  }
+}
+
+class RetrySpySmartProvider extends HyperlaneSmartProvider {
+  public performWithFallbackCallCount = 0;
+
+  constructor() {
+    super({ chainId: 1, name: 'test' }, [{ http: 'http://provider' }], [], {
+      maxRetries: 3,
+      baseRetryDelayMs: 1,
+      fallbackStaggerMs: 1,
+    });
+  }
+
+  protected override async performWithFallback(
+    _method: string,
+    _params: { [name: string]: any },
+    _providers: any[],
+    _reqId: number,
+  ): Promise<any> {
+    this.performWithFallbackCallCount += 1;
+    throw new ProviderError('connection refused', EthersError.SERVER_ERROR);
   }
 }
 
@@ -492,6 +516,18 @@ describe('SmartProvider', () => {
       expect(provider2.called).to.be.true;
     });
 
+    it('does not fan out sendTransaction on stagger timeout', async () => {
+      const provider1 = MockProvider.success('success1', 100);
+      const provider2 = MockProvider.success('success2');
+      const provider = new TestableSmartProvider([provider1, provider2]);
+
+      const result = await provider.simplePerform('sendTransaction', 1);
+
+      expect(result).to.deep.equal('success1');
+      expect(provider1.called).to.be.true;
+      expect(provider2.called).to.be.false;
+    });
+
     it('both providers timeout, first provider ultimately returns result (waitForProviderSuccess)', async () => {
       const provider1 = MockProvider.success('success1', 120); // 120ms delay
       const provider2 = MockProvider.success('success2', 200); // 200ms delay
@@ -674,6 +710,18 @@ describe('SmartProvider', () => {
         expect(provider1.called).to.be.true;
         expect(provider1.thrownError).to.equal(callExceptionJsonRpcCode3);
         expect(provider2.called).to.be.false; // Key test - second provider should NOT be called
+      }
+    });
+
+    it('does not retry sendTransaction in perform()', async () => {
+      const provider = new RetrySpySmartProvider();
+      try {
+        await provider.perform('sendTransaction', {
+          signedTransaction: '0x02',
+        });
+        expect.fail('Should have thrown an error');
+      } catch {
+        expect(provider.performWithFallbackCallCount).to.equal(1);
       }
     });
   });

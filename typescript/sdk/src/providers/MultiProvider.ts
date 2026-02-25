@@ -1,5 +1,6 @@
 import {
   ContractFactory,
+  NonceManager,
   TransactionReceipt,
   TransactionRequest,
   JsonRpcProvider,
@@ -15,6 +16,7 @@ import {
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   Address,
+  ProtocolType,
   addBufferToGasLimit,
   pick,
   rootLogger,
@@ -197,11 +199,25 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (!chainName) return null;
     const signer = this.signers[chainName];
     if (!signer) return null;
-    if (signer.provider) return signer;
+    let connectedSigner = signer;
     // Auto-connect the signer for convenience
-    const provider = this.tryGetProvider(chainName);
-    if (!provider) return signer;
-    return signer.connect(provider as any);
+    if (!connectedSigner.provider) {
+      const provider = this.tryGetProvider(chainName);
+      if (!provider) return connectedSigner;
+      connectedSigner = connectedSigner.connect(provider as any);
+    }
+
+    const metadata = this.getChainMetadata(chainName);
+    const useNonceManager =
+      metadata.protocol === ProtocolType.Ethereum &&
+      metadata.technicalStack !== ChainTechnicalStack.Tron;
+
+    if (useNonceManager && !(connectedSigner instanceof NonceManager)) {
+      connectedSigner = new NonceManager(connectedSigner);
+    }
+
+    this.signers[chainName] = connectedSigner;
+    return connectedSigner;
   }
 
   /**

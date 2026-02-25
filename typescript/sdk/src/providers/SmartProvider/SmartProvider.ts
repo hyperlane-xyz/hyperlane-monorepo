@@ -326,6 +326,18 @@ export class HyperlaneSmartProvider
     this.requestCount += 1;
     const reqId = this.requestCount;
 
+    // Do not wrap tx broadcast in retry logic; retries can re-submit the same
+    // signed tx and trigger nonce errors on providers that don't return
+    // "already known" for duplicate raw transactions.
+    if (method === ProviderMethod.SendTransaction) {
+      return this.performWithFallback(
+        method,
+        params,
+        supportedProviders,
+        reqId,
+      );
+    }
+
     return retryAsync(
       () => this.performWithFallback(method, params, supportedProviders, reqId),
       this.options?.maxRetries || DEFAULT_MAX_RETRIES,
@@ -405,10 +417,15 @@ export class HyperlaneSmartProvider
         params,
         reqId,
       );
-      const timeoutPromise = timeoutResult(
-        this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
-      );
-      const result = await Promise.race([resultPromise, timeoutPromise]);
+      const result =
+        method === ProviderMethod.SendTransaction
+          ? await resultPromise
+          : await Promise.race([
+              resultPromise,
+              timeoutResult(
+                this.options?.fallbackStaggerMs || DEFAULT_STAGGER_DELAY_MS,
+              ),
+            ]);
 
       const providerMetadata = {
         providerIndex: pIndex,
