@@ -170,9 +170,9 @@ const deployedChainFeeParams: Record<
 
 const productionOwnersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
-  arbitrum: awIcas.arbitrum,
-  base: awIcas.base,
-  optimism: awIcas.optimism,
+  arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
+  base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7',
+  optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
   polygon: awIcas.polygon,
   unichain: awIcas.unichain,
   eclipsemainnet: chainOwners.eclipsemainnet.owner,
