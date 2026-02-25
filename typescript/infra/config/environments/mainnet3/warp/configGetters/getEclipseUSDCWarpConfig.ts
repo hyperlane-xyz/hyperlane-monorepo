@@ -62,12 +62,12 @@ const awProxyAdminOwners: ChainMap<string | undefined> = {
   optimism: chainOwners.optimism.ownerOverrides?.proxyAdmin,
   polygon: chainOwners.polygon.ownerOverrides?.proxyAdmin,
   unichain: chainOwners.unichain.ownerOverrides?.proxyAdmin,
-  avalanche: '0x5bE94B17112B8F18eA9Ac8e559377B467556a3c3',
-  linea: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
-  monad: '0x930f79e486B869EC7B5BF4e83121aDfcca198f42',
-  ink: '0x8DEe31BF7da558ee3224D22E224e172783CA8d70',
-  worldchain: '0x95b1634566663117322999ce42cDEaEF18c089Be',
-  hyperevm: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+  avalanche: awSafes.avalanche,
+  linea: awSafes.linea,
+  monad: awSafes.monad,
+  ink: awSafes.ink,
+  worldchain: awSafes.worldchain,
+  hyperevm: awSafes.hyperevm,
 } as const;
 
 export const evmDeploymentChains = [
