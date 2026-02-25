@@ -7,7 +7,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import { expect } from 'chai';
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 
-describe('SVM Collateral Warp Token E2E Tests', function () {
+describe('SVM Warp Token read E2E Tests', function () {
   this.timeout(300_000);
 
   let rpc: ReturnType<typeof createRpc>;
@@ -61,13 +61,13 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
       },
     ]) {
       it('should read the prod deployment', async () => {
-        // const read = await writer.read(add);
         const read = await artifactManager.readWarpToken(add.tokenAddress);
 
-        // eslint-disable-next-line no-console
-        console.log(JSON.stringify(read, null, 2));
         const onChainConfig = read.config;
-        assert(onChainConfig.type === add.type, '');
+        assert(
+          onChainConfig.type === add.type,
+          `Expected token type to be either ${TokenType.collateral} or ${TokenType.synthetic}`,
+        );
         expect(onChainConfig.name).to.equal(add.expectedMetadata.name);
         expect(onChainConfig.decimals).to.equal(add.expectedMetadata.decimals);
         expect(onChainConfig.symbol).to.equal(add.expectedMetadata.symbol);
