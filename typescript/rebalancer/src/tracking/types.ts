@@ -110,4 +110,6 @@ export interface PartialInventoryIntent {
   completedAmount: bigint;
   /** Amount remaining to fulfill: intent.amount - completedAmount - inflightAmount */
   remaining: bigint;
+  /** True when intent has in_progress inventory_deposit actions (not safe to continue, but still active) */
+  hasInflightDeposit: boolean;
 }
