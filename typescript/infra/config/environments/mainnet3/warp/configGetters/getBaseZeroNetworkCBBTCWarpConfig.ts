@@ -17,7 +17,7 @@ export const getBaseZeroNetworkCBBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero;
+  const ISM_CONFIG: IsmConfig = ethers.ZeroAddress;
 
   const base: HypTokenRouterConfig = {
     ...routerConfig.base,

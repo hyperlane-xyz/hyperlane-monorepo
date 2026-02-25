@@ -22,7 +22,7 @@ export const getEthereumEclipseTETHWarpConfig = async (
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     type: TokenType.collateral,
-    interchainSecurityModule: ethers.constants.AddressZero,
+    interchainSecurityModule: ethers.ZeroAddress,
     token: '0x19e099B7aEd41FA52718D780dDA74678113C0b32',
   };
 

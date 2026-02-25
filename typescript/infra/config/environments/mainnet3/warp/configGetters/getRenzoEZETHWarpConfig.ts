@@ -1,4 +1,4 @@
-import { parseEther } from 'ethers/lib/utils.js';
+import { parseEther } from 'ethers';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {

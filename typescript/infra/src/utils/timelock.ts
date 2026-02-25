@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { BigNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { TimelockController__factory } from '@hyperlane-xyz/core';
 import {
@@ -50,9 +50,9 @@ export async function timelockConfigMatches({
 
     // Ensure the min delay is set to the expected value
     const minDelay = await timelock.getMinDelay();
-    if (!minDelay.eq(expectedConfig.minimumDelay)) {
+    if (minDelay !== BigInt(expectedConfig.minimumDelay)) {
       issues.push(
-        `Min delay mismatch for ${chain} at ${address}: actual delay ${minDelay.toNumber()} !== expected delay ${expectedConfig.minimumDelay}`,
+        `Min delay mismatch for ${chain} at ${address}: actual delay ${Number(minDelay)} !== expected delay ${expectedConfig.minimumDelay}`,
       );
     }
 
@@ -60,7 +60,7 @@ export async function timelockConfigMatches({
     const expectedExecutors =
       expectedConfig.executors && expectedConfig.executors.length !== 0
         ? expectedConfig.executors
-        : [ethers.constants.AddressZero];
+        : [ethers.ZeroAddress];
     const executorRoles = await Promise.all(
       expectedExecutors.map(async (executor) => {
         return timelock.hasRole(EXECUTOR_ROLE, executor);
@@ -183,7 +183,7 @@ export enum TimelockOperationStatus {
 type TimelockTransactionStatus = {
   chain: ChainName;
   id: string;
-  earliestExecution: BigNumber;
+  earliestExecution: bigint;
   executeTransactionData: HexString;
   predecessorId: HexString;
   salt: HexString;
