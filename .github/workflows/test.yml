@@ -1089,9 +1089,7 @@ jobs:
           timeout_minutes: 20
           max_attempts: 3
           retry_wait_seconds: 30
-          command: pnpm run coverage
-        env:
-          NODE_OPTIONS: --max_old_space_size=4096
+          command: NODE_OPTIONS=--max_old_space_size=4096 pnpm run coverage
 
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v4
