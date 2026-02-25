@@ -67,7 +67,7 @@
         "test:tron": "FOUNDRY_PROFILE=tron forge test --match-contract TronCreate2Test -vvv",
         "prepublishOnly": "pnpm build && pnpm build:zk && pnpm build:tron",
         "lint": "solhint contracts/**/*.sol && eslint -c ./eslint.config.mjs",
-        "clean": "pnpm hardhat-esm clean && pnpm hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./cache-tron ./artifacts-tron ./types ./coverage ./out ./forge-cache ./fixtures ./core-utils/generated",
+        "clean": "pnpm hardhat-esm clean && pnpm hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./cache-tron ./artifacts-tron ./types ./coverage ./out ./out-tron ./forge-cache ./forge-cache-tron ./fixtures ./core-utils/generated",
         "coverage": "pnpm fixtures && ./coverage.sh",
         "docs": "forge doc",
         "fixtures": "mkdir -p ./fixtures/aggregation ./fixtures/multisig",

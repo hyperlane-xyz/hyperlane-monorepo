@@ -87,6 +87,43 @@ export class TronWallet extends Wallet {
     return 0;
   }
 
+  private normalizeTransactionRequest(
+    transaction: providers.TransactionRequest,
+  ): providers.TransactionRequest {
+    const request = transaction as providers.TransactionRequest & {
+      gas?: ethers.BigNumberish;
+    };
+
+    return {
+      to: request.to,
+      from: request.from,
+      nonce: request.nonce,
+      gasLimit: request.gasLimit ?? request.gas,
+      gasPrice: request.gasPrice,
+      maxFeePerGas: request.maxFeePerGas,
+      maxPriorityFeePerGas: request.maxPriorityFeePerGas,
+      data: request.data,
+      value: request.value,
+      chainId: request.chainId,
+      type: request.type,
+      accessList: request.accessList,
+    };
+  }
+
+  async populateTransaction(
+    transaction: providers.TransactionRequest,
+  ): Promise<providers.TransactionRequest> {
+    return super.populateTransaction(
+      this.normalizeTransactionRequest(transaction),
+    );
+  }
+
+  async estimateGas(
+    transaction: providers.TransactionRequest,
+  ): Promise<BigNumber> {
+    return super.estimateGas(this.normalizeTransactionRequest(transaction));
+  }
+
   async sendTransaction(
     transaction: providers.TransactionRequest,
   ): Promise<TronTransactionResponse> {

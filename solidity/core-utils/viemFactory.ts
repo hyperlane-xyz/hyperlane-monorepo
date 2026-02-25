@@ -897,17 +897,22 @@ async function performRead(
     }
     if ('call' in provider && typeof provider.call === 'function') {
       const data = encodeFunctionCallData(fn, args);
-      const callRequest: Record<string, unknown> = {
+      const callTransaction: Record<string, unknown> = {
         to: address,
         data,
       };
       if (from) {
-        callRequest.from = from;
-        callRequest.account = from;
+        callTransaction.from = from;
       }
-      if (blockTag) callRequest.blockTag = blockTag;
-      if (blockNumber !== undefined) callRequest.blockNumber = blockNumber;
-      const callResult = await provider.call(callRequest);
+      const call = provider.call as (
+        transaction: Record<string, unknown>,
+        blockRefArg?: unknown,
+      ) => Promise<unknown>;
+      const callResult = await call.call(
+        provider,
+        callTransaction,
+        blockNumber !== undefined ? blockNumber : blockTag,
+      );
       const callResultRecord = asRecord(callResult);
       const resultHex =
         typeof callResult === 'string'
