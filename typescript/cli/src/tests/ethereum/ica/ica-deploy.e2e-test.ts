@@ -81,18 +81,22 @@ describe('hyperlane ica deploy e2e tests', async function () {
     walletChain4 = new Wallet(ANVIL_KEY).connect(providerChain4);
     ownerAddress = walletChain2.address;
 
+    const routerSignerChain2 = new ethers.NonceManager(walletChain2);
+    const routerSignerChain3 = new ethers.NonceManager(walletChain3);
+    const routerSignerChain4 = new ethers.NonceManager(walletChain4);
+
     // Enroll ICA routers with each other so they can communicate
     const icaRouterChain2 = InterchainAccountRouter__factory.connect(
       chain2Addresses.interchainAccountRouter!,
-      walletChain2,
+      routerSignerChain2,
     );
     const icaRouterChain3 = InterchainAccountRouter__factory.connect(
       chain3Addresses.interchainAccountRouter!,
-      walletChain3,
+      routerSignerChain3,
     );
     const icaRouterChain4 = InterchainAccountRouter__factory.connect(
       chain4Addresses.interchainAccountRouter!,
-      walletChain4,
+      routerSignerChain4,
     );
 
     // Check if routers are already enrolled

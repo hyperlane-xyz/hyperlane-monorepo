@@ -271,21 +271,17 @@ export async function moduleMatchesConfig(
     }
     case IsmType.MERKLE_ROOT_MULTISIG: {
       // A MerkleRootMultisigIsm matches if validators and threshold match the config
-      const expectedAddress =
-        await contracts.staticMerkleRootMultisigIsmFactory.getAddress(
-          config.validators.sort(),
-          config.threshold,
-        );
+      const expectedAddress = await contracts.staticMerkleRootMultisigIsmFactory
+        .getFunction('getAddress(address[],uint8)')
+        .staticCall(config.validators.sort(), config.threshold);
       matches = eqAddress(expectedAddress, moduleAddress);
       break;
     }
     case IsmType.MESSAGE_ID_MULTISIG: {
       // A MessageIdMultisigIsm matches if validators and threshold match the config
-      const expectedAddress =
-        await contracts.staticMessageIdMultisigIsmFactory.getAddress(
-          config.validators.sort(),
-          config.threshold,
-        );
+      const expectedAddress = await contracts.staticMessageIdMultisigIsmFactory
+        .getFunction('getAddress(address[],uint8)')
+        .staticCall(config.validators.sort(), config.threshold);
       matches = eqAddress(expectedAddress, moduleAddress);
       break;
     }
@@ -458,19 +454,17 @@ export async function moduleMatchesConfig(
     }
     case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG: {
       const expectedAddress =
-        await contracts.staticMerkleRootWeightedMultisigIsmFactory.getAddress(
-          config.validators.sort(),
-          config.thresholdWeight,
-        );
+        await contracts.staticMerkleRootWeightedMultisigIsmFactory
+          .getFunction('getAddress')
+          .staticCall(config.validators.sort(), config.thresholdWeight);
       matches = eqAddress(expectedAddress, moduleAddress);
       break;
     }
     case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG: {
       const expectedAddress =
-        await contracts.staticMessageIdWeightedMultisigIsmFactory.getAddress(
-          config.validators.sort(),
-          config.thresholdWeight,
-        );
+        await contracts.staticMessageIdWeightedMultisigIsmFactory
+          .getFunction('getAddress')
+          .staticCall(config.validators.sort(), config.thresholdWeight);
       matches = eqAddress(expectedAddress, moduleAddress);
       break;
     }
