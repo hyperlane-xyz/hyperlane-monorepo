@@ -63,7 +63,9 @@ export async function deployMultiDomainSimulation(
   // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
   provider.pollingInterval = 100;
 
-  const deployer = new ethers.Wallet(deployerKey, provider);
+  const deployer = new ethers.NonceManager(
+    new ethers.Wallet(deployerKey, provider),
+  );
   const deployerAddress = await deployer.getAddress();
   const rebalancerWallet = new ethers.Wallet(rebalancerKey, provider);
   const rebalancerAddress = await rebalancerWallet.getAddress();
@@ -93,10 +95,11 @@ export async function deployMultiDomainSimulation(
     const mailbox = mailboxes[chain.domainId];
     for (const otherChain of chains) {
       if (chain.domainId !== otherChain.domainId) {
-        await mailbox.addRemoteMailbox(
+        const addRemoteMailboxTx = await mailbox.addRemoteMailbox(
           otherChain.domainId,
           await mailboxes[otherChain.domainId].getAddress(),
         );
+        await addRemoteMailboxTx.wait();
       }
     }
   }
@@ -127,11 +130,12 @@ export async function deployMultiDomainSimulation(
     await warpToken.waitForDeployment();
 
     // Initialize the warp token
-    await warpToken.initialize(
+    const warpTokenInitTx = await warpToken.initialize(
       ethers.ZeroAddress, // hook
       ethers.ZeroAddress, // ISM
       deployerAddress, // owner
     );
+    await warpTokenInitTx.wait();
 
     warpTokens[chain.domainId] = warpToken;
   }
@@ -155,7 +159,11 @@ export async function deployMultiDomainSimulation(
     }
 
     // Use batch enrollment for efficiency
-    await warpToken.enrollRemoteRouters(remoteDomains, remoteRouters);
+    const enrollRemoteRoutersTx = await warpToken.enrollRemoteRouters(
+      remoteDomains,
+      remoteRouters,
+    );
+    await enrollRemoteRoutersTx.wait();
   }
 
   // Step 6: Deploy MockValueTransferBridge for each domain (now extends Router)
@@ -168,11 +176,12 @@ export async function deployMultiDomainSimulation(
     await bridge.waitForDeployment();
 
     // Initialize the bridge (Router requires initialization)
-    await bridge.initialize(
+    const bridgeInitTx = await bridge.initialize(
       ethers.ZeroAddress, // hook
       ethers.ZeroAddress, // ISM
       deployerAddress, // owner
     );
+    await bridgeInitTx.wait();
 
     bridges[chain.domainId] = bridge;
   }
@@ -195,7 +204,11 @@ export async function deployMultiDomainSimulation(
       }
     }
 
-    await bridge.enrollRemoteRouters(remoteDomains, remoteRouters);
+    const enrollRemoteBridgeRoutersTx = await bridge.enrollRemoteRouters(
+      remoteDomains,
+      remoteRouters,
+    );
+    await enrollRemoteBridgeRoutersTx.wait();
   }
 
   // Step 7: Add bridges to warp tokens for all destination domains
@@ -203,10 +216,11 @@ export async function deployMultiDomainSimulation(
     const warpToken = warpTokens[chain.domainId];
     for (const otherChain of chains) {
       if (chain.domainId !== otherChain.domainId) {
-        await warpToken.addBridge(
+        const addBridgeTx = await warpToken.addBridge(
           otherChain.domainId,
           await bridges[chain.domainId].getAddress(),
         );
+        await addBridgeTx.wait();
       }
     }
   }
@@ -214,7 +228,8 @@ export async function deployMultiDomainSimulation(
   // Step 8: Add rebalancer (separate account) as allowed rebalancer on all warp tokens
   for (const chain of chains) {
     const warpToken = warpTokens[chain.domainId];
-    await warpToken.addRebalancer(rebalancerAddress);
+    const addRebalancerTx = await warpToken.addRebalancer(rebalancerAddress);
+    await addRebalancerTx.wait();
   }
 
   // Step 9: Transfer collateral tokens to warp contracts

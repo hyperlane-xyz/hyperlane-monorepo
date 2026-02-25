@@ -1,4 +1,4 @@
-import { JsonRpcProvider, Wallet } from 'ethers';
+import { JsonRpcProvider, NonceManager, Wallet } from 'ethers';
 
 import {
   ERC20__factory,
@@ -16,7 +16,7 @@ export async function setupCollateralBalances(
     const provider = providers.get(chain);
     if (!provider) throw new Error(`No provider for chain ${chain}`);
 
-    const deployer = new Wallet(deployerKey, provider);
+    const deployer = new NonceManager(new Wallet(deployerKey, provider));
     const token = ERC20__factory.connect(tokensByChain[chain], deployer);
 
     // First check current balance of the router
@@ -26,7 +26,8 @@ export async function setupCollateralBalances(
     // We need to set the exact balance, so transfer (targetBalance - currentBalance) if needed
     if (targetBalance > currentBalance) {
       const diff = targetBalance - currentBalance;
-      await token.transfer(routersByChain[chain], diff);
+      const transferTx = await token.transfer(routersByChain[chain], diff);
+      await transferTx.wait();
     }
 
     // Verify
@@ -82,13 +83,17 @@ export async function configureAllowedBridges(
 ): Promise<void> {
   if (configs.length === 0) return;
 
-  const deployer = new Wallet(deployerKey, provider);
+  const deployer = new NonceManager(new Wallet(deployerKey, provider));
   const router = MovableCollateralRouter__factory.connect(
     configs[0].monitoredRouterAddress,
     deployer,
   );
 
   for (const config of configs) {
-    await router.addBridge(config.destinationDomain, config.bridgeAddress);
+    const addBridgeTx = await router.addBridge(
+      config.destinationDomain,
+      config.bridgeAddress,
+    );
+    await addBridgeTx.wait();
   }
 }
