@@ -561,8 +561,8 @@ export class ActionTracker implements IActionTracker {
   }
 
   /**
-   * Get inventory intents that are in_progress or not_started but not fully fulfilled,
-   * and have no in-flight actions (safe to continue).
+   * Get inventory intents that are in_progress or not_started but not fully settled.
+   * Intents with in-flight deposits are included but flagged via hasInflightDeposit.
    * Returns enriched data with computed values derived from action states.
    *
    * NOTE: We include 'not_started' intents because they may have been created
@@ -617,9 +617,13 @@ export class ActionTracker implements IActionTracker {
 
       const remaining = intent.amount - completedAmount - inflightAmount;
 
-      // Safe to continue if: remaining > 0 AND no in-flight inventory_deposit
-      if (remaining > 0n && inflightAmount === 0n) {
-        partialIntents.push({ intent, completedAmount, remaining });
+      if (remaining > 0n || inflightAmount > 0n) {
+        partialIntents.push({
+          intent,
+          completedAmount,
+          remaining,
+          hasInflightDeposit: inflightAmount > 0n,
+        });
       }
     }
 
