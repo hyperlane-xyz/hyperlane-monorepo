@@ -13,7 +13,6 @@ import {
   RawCollateralWarpArtifactConfig,
   RawSyntheticWarpArtifactConfig,
   RawWarpArtifactConfig,
-  WarpArtifactConfig,
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, eqAddressRadix } from '@hyperlane-xyz/utils';
@@ -329,7 +328,7 @@ describe('Radix Warp Tokens (e2e)', function () {
 
         // Update routers, ISM, AND ownership
         const updatedConfig: ArtifactDeployed<
-          WarpArtifactConfig,
+          RawWarpArtifactConfig,
           DeployedWarpAddress
         > = {
           ...deployedToken,
@@ -354,7 +353,7 @@ describe('Radix Warp Tokens (e2e)', function () {
           },
         };
 
-        const txs = await writer.update(updatedConfig as any);
+        const txs = await writer.update(updatedConfig);
         expect(txs).to.be.an('array').with.length.greaterThan(0);
 
         // Verify ownership transfer is the LAST transaction
