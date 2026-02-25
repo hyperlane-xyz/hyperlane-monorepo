@@ -1,0 +1,176 @@
+{
+  "name": "mc-stress-3chain-swap",
+  "description": "High-volume 3-chain scenario: 8 transfers mixing cross-asset and same-asset across all chain pairs. Wallet has only USDC. Forces multi-tool composition across multiple cycles.",
+  "expectedBehavior": "8 transfers across 3 chains: 5 cross-asset (USDC→USDT) + 3 same-asset (USDC→USDC).\nTotal USDT demand = 250, supply = 150 (50/chain). USDT globally depleted.\nWallet has 200 USDC, 0 USDT. Must mock_lifi_swap USDC→USDT then supply.\nUSDS same-asset traffic creates distribution imbalance needing rebalance_collateral.\nTests all 3 tools in concert across multiple cycles.",
+  "duration": 45000,
+  "chains": ["chain1", "chain2", "chain3"],
+  "assets": [
+    { "symbol": "USDC", "decimals": 18 },
+    { "symbol": "USDT", "decimals": 18 }
+  ],
+  "walletInventory": {
+    "USDC": "200000000000000000000",
+    "USDT": "0"
+  },
+  "transfers": [
+    {
+      "id": "mcs-000",
+      "timestamp": 0,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "50000000000000000000",
+      "user": "0x8b563f19033b6111597f5ae37a91b88591fa17d6",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mcs-001",
+      "timestamp": 500,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "50000000000000000000",
+      "user": "0x53e81e13db7f8a7f1ff614b699d36b22ba85761f",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mcs-002",
+      "timestamp": 1000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "50000000000000000000",
+      "user": "0xe6aa46c39443ae5c696524b2ec1b39f82942cdd8",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDC"
+    },
+    {
+      "id": "mcs-003",
+      "timestamp": 1500,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "50000000000000000000",
+      "user": "0x80507c3a61c9e6eede5dca9ee05d906455618ddf",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mcs-004",
+      "timestamp": 2000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "50000000000000000000",
+      "user": "0x3d8d6bb644bb6977ed12949c603941ceb5d403f8",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDC"
+    },
+    {
+      "id": "mcs-005",
+      "timestamp": 2500,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "50000000000000000000",
+      "user": "0xa16e87ef53bfc0e75e73e2d6340e690ba23d8faa",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mcs-006",
+      "timestamp": 3000,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "50000000000000000000",
+      "user": "0xb2c34f60f3d5e5f7e07f1cb4d1249d7e15cc19b8",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDT"
+    },
+    {
+      "id": "mcs-007",
+      "timestamp": 3500,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "30000000000000000000",
+      "user": "0xd4e5f6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d",
+      "sourceAsset": "USDC",
+      "destinationAsset": "USDC"
+    }
+  ],
+  "defaultInitialCollateral": "50000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain3": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "routeHints": "Available paths:\n- rebalance_collateral tool: same-asset cross-chain (USDC chain1↔chain2↔chain3, USDT chain1↔chain2↔chain3)\n- supply_collateral tool: deposit wallet inventory into any router (same-asset, same-chain instant, cross-chain via bridge)\n- mock_lifi_swap tool: swap between assets in your wallet (same-chain, e.g. USDC→USDT)",
+    "policyProse": "High volume mixed traffic across 3 chains.\nUSDT is globally depleted — demand far exceeds router supply.\nYour wallet has USDC but NO USDT.\nPriority: unblock USDT-depleted routers first.\n1. mock_lifi_swap USDC→USDT in wallet to get USDT inventory\n2. supply_collateral USDT to depleted routers (prefer same-chain for instant delivery)\n3. rebalance_collateral for USDC distribution imbalances\nDon't try to solve everything at once — handle critical USDT depletion first, then optimize.",
+    "chains": {
+      "USDC|chain1": {
+        "weighted": { "weight": "0.333", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      },
+      "USDC|chain2": {
+        "weighted": { "weight": "0.333", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      },
+      "USDC|chain3": {
+        "weighted": { "weight": "0.334", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      },
+      "USDT|chain1": {
+        "weighted": { "weight": "0.333", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      },
+      "USDT|chain2": {
+        "weighted": { "weight": "0.333", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      },
+      "USDT|chain3": {
+        "weighted": { "weight": "0.334", "tolerance": "0.15" },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "minCompletionRate": 0.75,
+    "shouldTriggerRebalancing": true
+  }
+}
