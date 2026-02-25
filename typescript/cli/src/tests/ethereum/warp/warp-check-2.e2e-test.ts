@@ -28,7 +28,6 @@ import {
   hyperlaneWarpDeploy,
 } from '../commands/warp.js';
 import {
-  ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
   CHAIN_3_METADATA_PATH,
@@ -44,6 +43,7 @@ describe('hyperlane warp check e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let signer: Signer;
+  let isolatedSigner: Signer;
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let chain3DomainId: number;
@@ -67,6 +67,7 @@ describe('hyperlane warp check e2e tests', async function () {
     const provider = new ethers.JsonRpcProvider(chainMetadata.rpcUrls[0].http);
 
     signer = new Wallet(ANVIL_KEY).connect(provider);
+    isolatedSigner = await provider.getSigner(1);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     tokenAddress = await token.getAddress();
@@ -174,6 +175,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const symbol = 'NTAP';
       const tokenName = 'NOTAPROXY';
       const tokenDecimals = 10;
+      const isolatedOwner = await isolatedSigner.getAddress();
       const collateral = await deployToken(
         ANVIL_KEY,
         CHAIN_NAME_2,
@@ -182,7 +184,7 @@ describe('hyperlane warp check e2e tests', async function () {
       );
       const collateralAddress = await collateral.getAddress();
 
-      const contract = new HypERC20Collateral__factory(signer);
+      const contract = new HypERC20Collateral__factory(isolatedSigner);
       const tx = await contract.deploy(
         collateralAddress,
         1,
@@ -195,7 +197,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const tx2 = await deployedContract.initialize(
         zeroAddress,
         zeroAddress,
-        ANVIL_DEPLOYER_ADDRESS,
+        isolatedOwner,
       );
 
       await tx2.wait();
@@ -206,7 +208,7 @@ describe('hyperlane warp check e2e tests', async function () {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
           token: collateralAddress,
-          owner: ANVIL_DEPLOYER_ADDRESS,
+          owner: isolatedOwner,
         },
       };
       writeYamlOrJson(
