@@ -26,3 +26,12 @@ export const MAX_ACCOUNT_DATA_SIZE = 10_485_760;
 // Fixed base fee per signature on Solana.
 // https://solana.com/docs/core/fees#base-fee
 export const LAMPORTS_PER_SIGNATURE = 5_000;
+
+export const SPL_TOKEN_PROGRAM_ADDRESS =
+  'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' as Address;
+
+export const TOKEN_2022_PROGRAM_ADDRESS =
+  'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb' as Address;
+
+export const METAPLEX_METADATA_PROGRAM_ADDRESS =
+  'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s' as Address;
