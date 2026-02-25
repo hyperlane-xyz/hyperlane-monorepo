@@ -27,6 +27,7 @@ on:
       - 'typescript/relayer/**'
       - 'typescript/Dockerfile.node-service'
       - 'pnpm-lock.yaml'
+      - '.dockerignore'
       - '.github/workflows/node-services-docker.yml'
       - 'typescript/docker-bake.hcl'
   workflow_dispatch:
