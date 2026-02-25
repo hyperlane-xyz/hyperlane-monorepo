@@ -712,6 +712,170 @@ describe('ActionTracker', () => {
 
       expect(partialIntents).to.have.lengthOf(0);
     });
+
+    it('returns intent with in-flight deposit and sets hasInflightDeposit flag', async () => {
+      // Setup: in_progress inventory intent (amount: 1 ETH = 1_000_000_000_000_000_000n)
+      await rebalanceIntentStore.save({
+        id: 'intent-with-inflight',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Complete inventory_deposit action (amount: 400_000_000_000_000_000n = 0.4 ETH)
+      await rebalanceActionStore.save({
+        id: 'action-complete',
+        type: 'inventory_deposit',
+        status: 'complete',
+        intentId: 'intent-with-inflight',
+        origin: 1,
+        destination: 2,
+        amount: 400000000000000000n, // 0.4 ETH completed
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // In_progress inventory_deposit action (amount: 300_000_000_000_000_000n = 0.3 ETH)
+      await rebalanceActionStore.save({
+        id: 'action-inflight',
+        type: 'inventory_deposit',
+        status: 'in_progress',
+        intentId: 'intent-with-inflight',
+        origin: 1,
+        destination: 2,
+        amount: 300000000000000000n, // 0.3 ETH in-flight
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightDeposit).to.be.true;
+      expect(partialIntents[0].completedAmount).to.equal(400000000000000000n);
+      expect(partialIntents[0].remaining).to.equal(300000000000000000n); // 1.0 - 0.4 - 0.3
+    });
+
+    it('returns intent without in-flight deposit with hasInflightDeposit false', async () => {
+      // Setup: in_progress inventory intent (amount: 1 ETH)
+      await rebalanceIntentStore.save({
+        id: 'intent-no-inflight',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Complete inventory_deposit action (amount: 0.4 ETH)
+      await rebalanceActionStore.save({
+        id: 'action-complete-only',
+        type: 'inventory_deposit',
+        status: 'complete',
+        intentId: 'intent-no-inflight',
+        origin: 1,
+        destination: 2,
+        amount: 400000000000000000n, // 0.4 ETH completed
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      // NO in_progress inventory_deposit actions
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].hasInflightDeposit).to.be.false;
+      expect(partialIntents[0].remaining).to.equal(600000000000000000n);
+    });
+
+    it('returns intent when remaining is 0n but has in-flight deposit', async () => {
+      // intent.amount = 1 ETH, completedAmount = 0.7 ETH, inflightAmount = 0.3 ETH → remaining = 0n
+      await rebalanceIntentStore.save({
+        id: 'intent-zero-remaining',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // 0.7 ETH already completed
+      await rebalanceActionStore.save({
+        id: 'action-complete-part',
+        type: 'inventory_deposit',
+        status: 'complete',
+        intentId: 'intent-zero-remaining',
+        origin: 1,
+        destination: 2,
+        amount: 700000000000000000n, // 0.7 ETH
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // 0.3 ETH in-flight — exactly fills the remaining gap
+      await rebalanceActionStore.save({
+        id: 'action-inflight-rest',
+        type: 'inventory_deposit',
+        status: 'in_progress',
+        intentId: 'intent-zero-remaining',
+        origin: 1,
+        destination: 2,
+        amount: 300000000000000000n, // 0.3 ETH in-flight
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].remaining).to.equal(0n);
+      expect(partialIntents[0].hasInflightDeposit).to.be.true;
+      expect(partialIntents[0].completedAmount).to.equal(700000000000000000n);
+    });
+
+    it('does not return fully completed intent with no in-flight deposits', async () => {
+      // intent.amount = 1 ETH, completedAmount = 1 ETH, inflightAmount = 0 → remaining = 0n, no inflight
+      await rebalanceIntentStore.save({
+        id: 'intent-fully-done',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Full amount completed
+      await rebalanceActionStore.save({
+        id: 'action-all-done',
+        type: 'inventory_deposit',
+        status: 'complete',
+        intentId: 'intent-fully-done',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH — full amount
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      // remaining = 0n AND inflightAmount = 0n → should NOT be returned
+      expect(partialIntents).to.have.lengthOf(0);
+    });
   });
 
   describe('createRebalanceIntent', () => {
