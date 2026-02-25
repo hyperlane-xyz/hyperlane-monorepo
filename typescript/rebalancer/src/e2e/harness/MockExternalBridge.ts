@@ -289,7 +289,9 @@ export class MockExternalBridge implements IExternalBridge {
   ): Promise<bigint> {
     const tx = await provider.getTransaction(receipt.transactionHash);
     if (!tx) {
-      return 0n;
+      throw new Error(
+        `Transaction ${receipt.transactionHash} not found on provider`,
+      );
     }
 
     try {
@@ -299,7 +301,9 @@ export class MockExternalBridge implements IExternalBridge {
       });
 
       if (!parsed || parsed.name !== 'transferRemote') {
-        return 0n;
+        throw new Error(
+          `Expected transferRemote tx, got: ${parsed?.name ?? 'unparseable'}`,
+        );
       }
 
       const amount = parsed.args[2];

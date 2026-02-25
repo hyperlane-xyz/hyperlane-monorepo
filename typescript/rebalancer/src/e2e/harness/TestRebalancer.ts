@@ -176,9 +176,12 @@ export class TestRebalancerBuilder {
           { chain, blockNumber: blockTags[chain] },
           'Computed confirmed block tag',
         );
-      } catch (error) {
+      } catch (error: unknown) {
         this.logger.warn(
-          { chain, error: (error as Error).message },
+          {
+            chain,
+            error: error instanceof Error ? error.message : String(error),
+          },
           'Failed to get block number, using undefined',
         );
         blockTags[chain] = undefined;
@@ -555,12 +558,15 @@ export class TestRebalancerBuilder {
 
     for (const chain of TEST_CHAINS) {
       const provider = localProviders.get(chain);
-      if (provider) {
-        inventoryMultiProvider.setSigner(
-          chain,
-          inventoryWallet.connect(provider),
+      if (!provider) {
+        throw new Error(
+          `Missing local provider for inventory chain ${chain} in getInventoryMultiProvider`,
         );
       }
+      inventoryMultiProvider.setSigner(
+        chain,
+        inventoryWallet.connect(provider),
+      );
     }
 
     this.logger.info(

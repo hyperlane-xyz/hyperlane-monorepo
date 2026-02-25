@@ -427,6 +427,12 @@ export class RebalancerContextFactory {
 
     // Use override if provided, skip the bridge registry build
     if (externalBridgeRegistryOverride !== undefined) {
+      if (Object.keys(externalBridgeRegistryOverride).length === 0) {
+        this.logger.debug(
+          'No external bridges in override registry, skipping inventory components',
+        );
+        return null;
+      }
       const inventoryConfig: InventoryMonitorConfig = {
         inventoryAddress: inventorySigner,
         chains: inventoryChains,
