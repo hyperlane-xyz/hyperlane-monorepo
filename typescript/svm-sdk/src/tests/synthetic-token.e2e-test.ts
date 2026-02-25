@@ -1,11 +1,12 @@
 import { address, type Address } from '@solana/kit';
-// eslint-disable-next-line import/no-nodejs-modules
-import * as fs from 'fs';
-import { after, before, describe, it } from 'mocha';
 import { expect } from 'chai';
+import { after, before, describe, it } from 'mocha';
+
+import { PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
+import { SvmSigner } from '../clients/signer.js';
 import {
   DEFAULT_IGP_CONTEXT,
   SvmIgpHookWriter,
@@ -15,18 +16,16 @@ import {
 import { SvmTestIsmWriter, type SvmTestIsmConfig } from '../ism/test-ism.js';
 import { deriveOverheadIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
-import { SvmSigner } from '../clients/signer.js';
 import {
-  DEFAULT_PROGRAMS_PATH,
   PROGRAM_BINARIES,
   TEST_PROGRAM_IDS,
   airdropSol,
   getPreloadedPrograms,
 } from '../testing/setup.js';
 import {
-  type SolanaTestValidator,
   startSolanaTestValidator,
   waitForRpcReady,
+  type SolanaTestValidator,
 } from '../testing/solana-container.js';
 import { SvmSyntheticTokenWriter } from '../warp/synthetic-token.js';
 
@@ -103,12 +102,8 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       config: ismConfig,
     });
 
-    const syntheticTokenBytes = fs.readFileSync(
-      `${DEFAULT_PROGRAMS_PATH}/${PROGRAM_BINARIES.token}`,
-    );
-
     writer = new SvmSyntheticTokenWriter(
-      { program: { programBytes: syntheticTokenBytes }, igpProgramId },
+      { program: { programBytes: PROGRAM_BYTES.token }, igpProgramId },
       rpc,
       signer,
     );
