@@ -599,7 +599,8 @@ describe('InventoryMinAmountStrategy E2E', function () {
 
     const partialIntents =
       await context.tracker.getPartiallyFulfilledInventoryIntents();
-    expect(partialIntents.length).to.equal(0);
+    expect(partialIntents.length).to.equal(1);
+    expect(partialIntents[0].hasInflightDeposit).to.equal(true);
 
     const actions = await context.tracker.getActionsForIntent(firstIntentId);
     expect(actions.length).to.equal(1);

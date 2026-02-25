@@ -553,7 +553,8 @@ describe('Inventory WeightedStrategy E2E', function () {
     const firstIntentId = firstCycleIntents[0].id;
     let partialIntents =
       await context.tracker.getPartiallyFulfilledInventoryIntents();
-    expect(partialIntents.length).to.equal(0);
+    expect(partialIntents.length).to.equal(1);
+    expect(partialIntents[0].hasInflightDeposit).to.equal(true);
 
     await context.tracker.syncInventoryMovementActions({
       [ExternalBridgeType.LiFi]: mockBridge,
