@@ -49,8 +49,8 @@ const CommitmentRecordSchema = PostCallsSchema.extend({
 
 type ReceiptLog = { topics: readonly string[]; address: string; data: string };
 type TransactionReceiptLike = {
-  logs?: readonly unknown[] | unknown[];
-  transactionHash?: string;
+  logs?: readonly unknown[] | unknown[] | null;
+  transactionHash?: string | null;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

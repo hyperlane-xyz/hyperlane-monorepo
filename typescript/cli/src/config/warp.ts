@@ -7,7 +7,6 @@ import {
   type DeployableTokenType,
   type DeployedOwnableConfig,
   HypERC20Deployer,
-  type HypTokenRouterConfig,
   type IsmConfig,
   IsmType,
   type MailboxClientConfig,
@@ -135,16 +134,19 @@ export async function readWarpRouteDeployConfig({
       context: CommandContext;
       filePath: string;
     }): Promise<WarpRouteDeployConfigMailboxRequired> {
-  let config: WarpRouteDeployConfig =
+  const rawConfig =
     'filePath' in args
-      ? WarpRouteDeployConfigSchema.parse(readYamlOrJson(args.filePath))
+      ? readYamlOrJson(args.filePath)
       : await context.registry.getWarpDeployConfig(args.warpRouteId);
 
-  assert(config, `No warp route deploy config found!`);
+  assert(rawConfig, `No warp route deploy config found!`);
 
-  config = await fillDefaults(context, config);
+  const config = await fillDefaults<WarpRouteDeployConfig[string]>(
+    context,
+    WarpRouteDeployConfigSchema.parse(rawConfig),
+  );
 
-  config = objMap(config, (_chain, chainConfig: HypTokenRouterConfig) => {
+  const resolvedConfig = objMap(config, (_chain, chainConfig) => {
     if (chainConfig.destinationGas) {
       chainConfig.destinationGas = resolveRouterMapConfig(
         context.multiProvider,
@@ -174,7 +176,7 @@ export async function readWarpRouteDeployConfig({
   });
 
   //fillDefaults would have added a mailbox to the config if it was missing
-  return WarpRouteDeployConfigMailboxRequiredSchema.parse(config);
+  return WarpRouteDeployConfigMailboxRequiredSchema.parse(resolvedConfig);
 }
 
 export function isValidWarpRouteDeployConfig(config: any) {

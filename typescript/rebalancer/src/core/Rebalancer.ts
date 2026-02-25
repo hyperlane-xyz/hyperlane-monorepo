@@ -668,7 +668,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
         success: false,
         error: `Transaction confirmed but no Dispatch event found`,
         messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
-        txHash: receipt.transactionHash,
+        txHash: receipt.transactionHash ?? undefined,
       };
     }
 
@@ -677,7 +677,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       intentId: transaction.route.intentId,
       success: true,
       messageId: dispatchedMessages[0].id,
-      txHash: receipt.transactionHash,
+      txHash: receipt.transactionHash ?? undefined,
     };
   }
 
