@@ -590,10 +590,12 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     tx: PopulatedTransaction,
     from?: string,
   ): Promise<BigNumber> {
+    const preparedTx = await this.prepareTx(chainNameOrId, tx, from);
+    const resolvedFrom = from ?? preparedTx.from;
     const txReq = {
-      ...(await this.prepareTx(chainNameOrId, tx, from)),
+      ...preparedTx,
       // Pass the 'from' address to prevent zero-address fund errors on chains with strict balance checks
-      from,
+      from: resolvedFrom,
       // Reset any tx request params that may have an unintended effect on gas estimation
       gasLimit: undefined,
       gasPrice: undefined,
