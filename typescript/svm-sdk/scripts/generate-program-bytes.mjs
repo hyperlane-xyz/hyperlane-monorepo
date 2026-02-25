@@ -53,11 +53,11 @@ const tsContent = `/**
  * Generated: ${new Date().toISOString()}
  */
 
-export const PROGRAM_BYTES = {
+export const HYPERLANE_SVM_PROGRAM_BYTES = {
 ${entries}
 } as const;
 
-export type ProgramBytesKey = keyof typeof PROGRAM_BYTES;
+export type HyperlaneSvmProgramBytesKey = keyof typeof HYPERLANE_SVM_PROGRAM_BYTES;
 `;
 
 mkdirSync(dirname(OUTPUT_FILE), { recursive: true });
