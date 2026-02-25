@@ -1,6 +1,11 @@
 import { Plaintext } from '@provablehq/sdk';
 
-import { assert, ensure0x, isZeroishAddress } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  ensure0x,
+  isNullish,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import type { AnyAleoNetworkClient } from '../clients/base.js';
 import {
@@ -165,10 +170,18 @@ export async function getRemoteRouters(
 /**
  * Query app_metadata mapping for a warp token
  */
+interface AleoWarpTokenMetadata {
+  token_type: number;
+  token_owner: string;
+  ism: string;
+  hook: string;
+  token_id?: string;
+}
+
 async function getWarpTokenMetadata(
   aleoClient: AnyAleoNetworkClient,
   tokenAddress: string,
-): Promise<Record<string, any>> {
+): Promise<AleoWarpTokenMetadata> {
   const { programId } = fromAleoAddress(tokenAddress);
 
   const metadataValue = await aleoClient.getProgramMappingValue(
@@ -182,7 +195,41 @@ async function getWarpTokenMetadata(
     `Expected app_metadata mapping to exist for token ${tokenAddress} but none found`,
   );
 
-  return Plaintext.fromString(metadataValue).toObject();
+  const metadata = Plaintext.fromString(metadataValue).toObject();
+  const tokenType = metadata['token_type'];
+  const tokenOwner = metadata['token_owner'];
+  const ism = metadata['ism'];
+  const hook = metadata['hook'];
+  const tokenId = metadata['token_id'];
+
+  assert(
+    typeof tokenType === 'number',
+    `Expected token_type field to be a number in app_metadata for token ${tokenAddress} but got ${typeof tokenType}`,
+  );
+  assert(
+    typeof tokenOwner === 'string',
+    `Expected token_owner field to be a string in app_metadata for token ${tokenAddress} but got ${typeof tokenOwner}`,
+  );
+  assert(
+    typeof ism === 'string',
+    `Expected ism field to be a string in app_metadata for token ${tokenAddress} but got ${typeof ism}`,
+  );
+  assert(
+    typeof hook === 'string',
+    `Expected hook field to be a string in app_metadata for token ${tokenAddress} but got ${typeof hook}`,
+  );
+  assert(
+    isNullish(tokenId) || typeof tokenId === 'string',
+    `Expected token_id field to be a string in app_metadata for token ${tokenAddress} but got ${typeof tokenId}`,
+  );
+
+  return {
+    token_type: tokenType,
+    token_owner: tokenOwner,
+    ism,
+    hook,
+    token_id: tokenId,
+  };
 }
 
 /**
@@ -256,11 +303,7 @@ export async function getNativeWarpTokenConfig(
   const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
 
   // Verify token type
-  const tokenTypeValue = metadata['token_type'];
-  assert(
-    typeof tokenTypeValue === 'number',
-    `Expected token_type field to be a number in app_metadata for token ${tokenAddress} but got ${typeof tokenTypeValue}`,
-  );
+  const tokenTypeValue = metadata.token_type;
 
   const tokenType = toAleoTokenType(tokenTypeValue);
   assert(
@@ -309,11 +352,7 @@ export async function getCollateralWarpTokenConfig(
   const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
 
   // Verify token type
-  const tokenTypeValue = metadata['token_type'];
-  assert(
-    typeof tokenTypeValue === 'number',
-    `Expected token_type field to be a number in app_metadata for token ${tokenAddress} but got ${typeof tokenTypeValue}`,
-  );
+  const tokenTypeValue = metadata.token_type;
 
   const tokenType = toAleoTokenType(tokenTypeValue);
   assert(
@@ -340,7 +379,7 @@ export async function getCollateralWarpTokenConfig(
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
 
   // Get token ID and metadata from token_registry
-  const tokenId = metadata['token_id'];
+  const tokenId = metadata.token_id;
   assert(
     tokenId,
     `Expected token_id field in app_metadata for token ${tokenAddress} but none found`,
@@ -375,11 +414,7 @@ export async function getSyntheticWarpTokenConfig(
   const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
 
   // Verify token type
-  const tokenTypeValue = metadata['token_type'];
-  assert(
-    typeof tokenTypeValue === 'number',
-    `Expected token_type field to be a number in app_metadata for token ${tokenAddress} but got ${typeof tokenTypeValue}`,
-  );
+  const tokenTypeValue = metadata.token_type;
 
   const tokenType = toAleoTokenType(tokenTypeValue);
   assert(
@@ -406,7 +441,7 @@ export async function getSyntheticWarpTokenConfig(
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
 
   // Get token ID and metadata from token_registry
-  const tokenId = metadata['token_id'];
+  const tokenId = metadata.token_id;
   assert(
     tokenId,
     `Expected token_id field in app_metadata for token ${tokenAddress} but none found`,
