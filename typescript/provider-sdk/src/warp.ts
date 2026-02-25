@@ -131,6 +131,7 @@ interface BaseWarpArtifactConfig {
   name?: string;
   symbol?: string;
   decimals?: number;
+  scale?: number;
 }
 
 export interface CollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -143,6 +144,7 @@ export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
   name: string;
   symbol: string;
   decimals: number;
+  metadataUri?: string;
 }
 
 export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {
@@ -214,12 +216,11 @@ export type DeployedRawWarpArtifact = ArtifactDeployed<
  * Should be used to implement an object/closure or class that individually deploys
  * warp tokens on chain
  */
-export interface IRawWarpArtifactManager
-  extends IArtifactManager<
-    WarpType,
-    RawWarpArtifactConfigs,
-    DeployedWarpAddress
-  > {
+export interface IRawWarpArtifactManager extends IArtifactManager<
+  WarpType,
+  RawWarpArtifactConfigs,
+  DeployedWarpAddress
+> {
   /**
    * Read any warp token by detecting its type and delegating to the appropriate reader.
    * This is the generic entry point for reading warp tokens of unknown types.
