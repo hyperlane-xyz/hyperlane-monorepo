@@ -67,23 +67,24 @@ export async function deployMultiDomainSimulation(
     options.mailboxProcessorKey || ANVIL_MAILBOX_PROCESSOR_KEY;
 
   // Create fresh provider with no caching
-  const provider = HyperlaneSmartProvider.fromRpcUrl(31337, anvilRpc);
+  const provider: ReturnType<MultiProvider['getProvider']> =
+    HyperlaneSmartProvider.fromRpcUrl(31337, anvilRpc);
 
   const deployer = new LocalAccountViemSigner(
     ensure0x(deployerKey) as `0x${string}`,
-  ).connect(provider as any);
+  ).connect(provider);
   const deployerAddress = await deployer.getAddress();
   const rebalancerWallet = new LocalAccountViemSigner(
     ensure0x(rebalancerKey) as `0x${string}`,
-  ).connect(provider as any);
+  ).connect(provider);
   const rebalancerAddress = await rebalancerWallet.getAddress();
   const bridgeControllerWallet = new LocalAccountViemSigner(
     ensure0x(bridgeControllerKey) as `0x${string}`,
-  ).connect(provider as any);
+  ).connect(provider);
   const bridgeControllerAddress = await bridgeControllerWallet.getAddress();
   const mailboxProcessorWallet = new LocalAccountViemSigner(
     ensure0x(mailboxProcessorKey) as `0x${string}`,
-  ).connect(provider as any);
+  ).connect(provider);
   const mailboxProcessorAddress = await mailboxProcessorWallet.getAddress();
 
   // Step 1: Deploy MockMailboxes for each domain

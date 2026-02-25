@@ -8,6 +8,7 @@ import {
 import {
   HyperlaneSmartProvider,
   LocalAccountViemSigner,
+  type MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { ensure0x } from '@hyperlane-xyz/utils';
 
@@ -19,7 +20,8 @@ import type {
 
 // Track the current SimpleRunner instance for cleanup
 let currentSimpleRunner: SimpleRunner | null = null;
-let currentSimpleProvider: HyperlaneSmartProvider | null = null;
+let currentSimpleProvider: ReturnType<MultiProvider['getProvider']> | null =
+  null;
 
 /**
  * Global cleanup function - call between test runs to ensure clean state
@@ -55,7 +57,7 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
   private running = false;
   private activeOperations = 0;
   private pollingTimer?: NodeJS.Timeout;
-  private provider?: HyperlaneSmartProvider;
+  private provider?: ReturnType<MultiProvider['getProvider']>;
   private deployer?: LocalAccountViemSigner;
 
   async initialize(config: RebalancerSimConfig): Promise<void> {
@@ -73,7 +75,7 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
     // Use separate rebalancer key to avoid nonce conflicts with transfer execution
     this.deployer = new LocalAccountViemSigner(
       ensure0x(config.deployment.rebalancerKey) as `0x${string}`,
-    ).connect(this.provider as any);
+    ).connect(this.provider);
   }
 
   async start(): Promise<void> {

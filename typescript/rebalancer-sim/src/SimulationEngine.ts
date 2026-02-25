@@ -164,7 +164,7 @@ export class SimulationEngine {
   ): Promise<void> {
     const deployer = new LocalAccountViemSigner(
       ensure0x(this.deployment.deployerKey) as `0x${string}`,
-    ).connect(this.provider as any);
+    ).connect(this.provider);
     const startTime = Date.now();
 
     for (let i = 0; i < scenario.transfers.length; i++) {
@@ -292,7 +292,7 @@ export class SimulationEngine {
     const multiProvider = new MultiProvider(chainMetadata);
     const processorWallet = new LocalAccountViemSigner(
       ensure0x(this.deployment.mailboxProcessorKey) as `0x${string}`,
-    ).connect(this.provider as any);
+    ).connect(this.provider);
     multiProvider.setSharedSigner(processorWallet);
 
     // Set fast polling on internal providers
