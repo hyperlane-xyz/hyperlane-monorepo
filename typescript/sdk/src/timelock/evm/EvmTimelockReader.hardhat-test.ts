@@ -68,13 +68,9 @@ describe(EvmTimelockReader.name, () => {
       config,
     );
 
-    timelockAddress =
-      (await TimelockController.getAddress?.()) ??
-      (TimelockController.target as string);
+    timelockAddress = await TimelockController.getAddress();
 
-    const deploymentTx =
-      TimelockController.deploymentTransaction?.() ??
-      (TimelockController as any).deployTransaction;
+    const deploymentTx = TimelockController.deploymentTransaction();
     assert(deploymentTx, 'Expected Timelock deployment transaction');
 
     const deploymentReceipt = await deploymentTx.wait();

@@ -31,6 +31,7 @@ describe('EvmEventLogsReader', () => {
   let providerChainTest1: JsonRpcProvider;
   let multiProvider: MultiProvider;
   let testContract: ERC20Test;
+  let testContractAddress: string;
   let erc20Factory: ERC20Test__factory;
   let deploymentBlockNumber: number;
 
@@ -62,11 +63,15 @@ describe('EvmEventLogsReader', () => {
     );
 
     await testContract.waitForDeployment();
+    testContractAddress = await testContract.getAddress();
+    const deploymentTx = testContract.deploymentTransaction();
+    assert(deploymentTx, 'Expected deployment transaction to be defined');
+    const deploymentReceipt = await deploymentTx.wait();
     assert(
-      testContract.deployTransaction.blockNumber,
+      deploymentReceipt?.blockNumber,
       'Expected the Contract deployment block number to be defined',
     );
-    deploymentBlockNumber = testContract.deployTransaction.blockNumber;
+    deploymentBlockNumber = deploymentReceipt.blockNumber;
   }
 
   async function mineRandomNumberOfBlocks() {
@@ -158,14 +163,14 @@ describe('EvmEventLogsReader', () => {
 
       const logs = await reader.getLogsByTopic({
         eventTopic: transferTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
         fromBlock: deploymentBlockNumber,
       });
 
       // Should have 3 transfer events: 1 from constructor mint + 2 from transfers
       expect(logs).to.have.length(3);
       logs.forEach((log) => {
-        expect(log.address).to.equal(testContract.address);
+        expect(log.address).to.equal(testContractAddress);
         expect(log.topics[0]).to.equal(transferTopic);
       });
     });
@@ -180,13 +185,13 @@ describe('EvmEventLogsReader', () => {
 
       const logs = await reader.getLogsByTopic({
         eventTopic: transferTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
       });
 
       // Should have 2 transfer events: 1 from constructor mint + 1 from transfer
       expect(logs).to.have.length(2);
       logs.forEach((log) => {
-        expect(log.address).to.equal(testContract.address);
+        expect(log.address).to.equal(testContractAddress);
         expect(log.topics[0]).to.equal(transferTopic);
       });
     });
@@ -201,7 +206,7 @@ describe('EvmEventLogsReader', () => {
 
       const logs = await reader.getLogsByTopic({
         eventTopic: transferTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
         fromBlock: deploymentBlockNumber,
         // No toBlock specified
       });
@@ -209,7 +214,7 @@ describe('EvmEventLogsReader', () => {
       // Should have 2 transfer events: 1 from constructor mint + 1 from transfer
       expect(logs).to.have.length(2);
       logs.forEach((log) => {
-        expect(log.address).to.equal(testContract.address);
+        expect(log.address).to.equal(testContractAddress);
         expect(log.topics[0]).to.equal(transferTopic);
       });
     });
@@ -238,14 +243,14 @@ describe('EvmEventLogsReader', () => {
       // Query only the first event's block range
       const logs = await reader.getLogsByTopic({
         eventTopic: transferTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
         fromBlock: startBlock,
         toBlock: firstEventBlock,
       });
 
       expect(logs).to.have.length(1);
       expect(logs[0].blockNumber).to.equal(firstEventBlock);
-      expect(logs[0].address).to.equal(testContract.address);
+      expect(logs[0].address).to.equal(testContractAddress);
       expect(logs[0].topics[0]).to.equal(transferTopic);
     });
 
@@ -260,7 +265,7 @@ describe('EvmEventLogsReader', () => {
       const nonExistentTopic = ethers.id('NonExistentEvent(uint256)');
       const logs = await reader.getLogsByTopic({
         eventTopic: nonExistentTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
         fromBlock: deploymentBlockNumber,
       });
 
@@ -286,7 +291,7 @@ describe('EvmEventLogsReader', () => {
       const expectedNumberOfEvents = numberOfEventsToEmit + 1;
       const logs = await reader.getLogsByTopic({
         eventTopic: transferTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
         fromBlock: deploymentBlockNumber,
       });
 
@@ -294,7 +299,7 @@ describe('EvmEventLogsReader', () => {
 
       // Verify all logs are from the correct contract and have the right topic
       logs.forEach((log) => {
-        expect(log.address).to.equal(testContract.address);
+        expect(log.address).to.equal(testContractAddress);
         expect(log.topics[0]).to.equal(transferTopic);
       });
     });
@@ -321,7 +326,7 @@ describe('EvmEventLogsReader', () => {
       const expectedNumberOfEvents = numberOfEventsToEmit + 1;
       const logs = await readerWithSmallPageSize.getLogsByTopic({
         eventTopic: transferTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
         fromBlock: deploymentBlockNumber,
       });
 
@@ -351,7 +356,7 @@ describe('EvmEventLogsReader', () => {
 
       const logs = await reader.getLogsByTopic({
         eventTopic: transferTopic,
-        contractAddress: testContract.address,
+        contractAddress: testContractAddress,
         fromBlock: eventBlock,
         toBlock: eventBlock,
       });
@@ -542,7 +547,7 @@ describe('EvmEventLogsReader', () => {
       expect(
         reader.getLogsByTopic({
           eventTopic: invalidTopic,
-          contractAddress: testContract.address,
+          contractAddress: testContractAddress,
           fromBlock: deploymentBlockNumber,
         }),
       ).to.be.rejectedWith();

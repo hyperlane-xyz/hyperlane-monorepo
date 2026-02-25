@@ -67,13 +67,14 @@ describe('EvmHookModule', async () => {
 
     // get addresses of factories for the chain
     factoryContracts = contractsMap[chain];
-    proxyFactoryAddresses = Object.keys(factoryContracts).reduce(
-      (acc, key) => {
-        acc[key] =
-          contractsMap[chain][key as keyof ProxyFactoryFactories].address;
-        return acc;
-      },
-      {} as Record<string, Address>,
+    const factoryAddressEntries = await Promise.all(
+      (Object.keys(factoryContracts) as Array<keyof ProxyFactoryFactories>).map(
+        async (key) =>
+          [key, await contractsMap[chain][key].getAddress()] as const,
+      ),
+    );
+    proxyFactoryAddresses = Object.fromEntries(
+      factoryAddressEntries,
     ) as HyperlaneAddresses<ProxyFactoryFactories>;
 
     // legacy HyperlaneIsmFactory is required to do a core deploy
@@ -94,9 +95,9 @@ describe('EvmHookModule', async () => {
     ).getContracts(chain);
 
     coreAddresses = {
-      mailbox: mailbox.address,
-      proxyAdmin: proxyAdmin.address,
-      validatorAnnounce: validatorAnnounce.address,
+      mailbox: await mailbox.getAddress(),
+      proxyAdmin: await proxyAdmin.getAddress(),
+      validatorAnnounce: await validatorAnnounce.getAddress(),
     };
 
     // reusable for routing/fallback routing specific tests

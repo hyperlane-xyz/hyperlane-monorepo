@@ -21,6 +21,7 @@ import {
   Address,
   ProtocolType,
   addBufferToGasLimit,
+  assert,
   eqAddress,
   isZeroishAddress,
   rootLogger,
@@ -118,7 +119,8 @@ export abstract class HyperlaneDeployer<
   }
 
   protected getContractAddress(contract: any): Address {
-    return (contract?.target ?? contract?.address) as Address;
+    assert(typeof contract?.target === 'string', 'Missing contract target');
+    return contract.target;
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
@@ -327,7 +329,10 @@ export abstract class HyperlaneDeployer<
         this.multiProvider,
         ismFactory.getContracts(chain),
       );
-      const deployedIsm = await ismFactory.deploy({ destination: chain, config });
+      const deployedIsm = await ismFactory.deploy({
+        destination: chain,
+        config,
+      });
       targetIsm = ((deployedIsm as any).address ??
         (deployedIsm as any).target) as Address;
     }
@@ -479,7 +484,9 @@ export abstract class HyperlaneDeployer<
           this.initializeFnSignature(contractName)
         ];
         // Estimate gas for the initialize transaction
-        const estimatedGas = await initializeMethod.estimateGas(...initializeArgs);
+        const estimatedGas = await initializeMethod.estimateGas(
+          ...initializeArgs,
+        );
 
         // deploy with buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);
@@ -864,9 +871,8 @@ export abstract class HyperlaneDeployer<
           this.logger.debug(
             `Transferring ownership of ${contractName} to ${owner} on ${chain}`,
           );
-          const estimatedGas = await ownable.transferOwnership.estimateGas(
-            owner,
-          );
+          const estimatedGas =
+            await ownable.transferOwnership.estimateGas(owner);
           return this.multiProvider.handleTx(
             chain,
             ownable.transferOwnership(owner, {

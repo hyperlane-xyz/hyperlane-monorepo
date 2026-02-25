@@ -243,7 +243,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox,
     });
     this.addDeployedContracts(chain, this.ismFactory.deployedIsms[chain]);
-    return ((ism as any).address ?? (ism as any).target) as Address;
+    return this.getContractAddress(ism);
   }
 
   async deployTestRecipient(

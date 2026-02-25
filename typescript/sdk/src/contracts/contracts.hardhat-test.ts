@@ -48,7 +48,7 @@ describe('Contracts', () => {
     it('should return true for contracts address with a non-zero nonce', async () => {
       const active = await isAddressActive(
         multiProvider.getProvider(TestChainName.test1),
-        contract.address,
+        await contract.getAddress(),
       );
 
       expect(active).to.be.true;

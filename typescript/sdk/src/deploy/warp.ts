@@ -61,7 +61,8 @@ import { ContractVerifier } from './verify/ContractVerifier.js';
 type ChainAddresses = Record<string, string>;
 
 function getEvmAddress(contract: { target?: unknown }): Address {
-  return contract.target as Address;
+  assert(typeof contract.target === 'string', 'Missing contract target');
+  return contract.target;
 }
 
 function shouldDeployConcurrently(

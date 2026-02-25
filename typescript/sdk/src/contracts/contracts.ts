@@ -46,13 +46,16 @@ export function serializeContractsMap<F extends HyperlaneFactories>(
 export function serializeContracts<F extends HyperlaneFactories>(
   contracts: HyperlaneContracts<F>,
 ): any {
-  return objMap(contracts, (_, contract) =>
-    typeof (contract as any).target === 'string'
-      ? (contract as any).target
-      : typeof (contract as any).address === 'string'
-        ? (contract as any).address
-        : serializeContracts(contract as any),
-  );
+  return objMap(contracts, (_, contract) => {
+    if (typeof (contract as any).target === 'string') {
+      return (contract as any).target;
+    }
+    assert(
+      contract && typeof contract === 'object',
+      'Expected nested contract object with v6 `target`',
+    );
+    return serializeContracts(contract as any);
+  });
 }
 
 function getFactory<F extends HyperlaneFactories>(
