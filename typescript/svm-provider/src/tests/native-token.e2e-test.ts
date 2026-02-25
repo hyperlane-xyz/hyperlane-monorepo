@@ -131,6 +131,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
         overheadIgpAccountAddress,
         testIsmAddress,
         signer,
+        rpc,
       }),
       (_id) => {},
     );

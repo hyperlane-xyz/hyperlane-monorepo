@@ -140,6 +140,7 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
         overheadIgpAccountAddress,
         testIsmAddress,
         signer,
+        rpc,
       }),
       (id) => {
         deployedProgramId = id;
