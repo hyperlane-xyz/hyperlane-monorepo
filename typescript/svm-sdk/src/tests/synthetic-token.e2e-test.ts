@@ -1,7 +1,8 @@
 import { address, type Address } from '@solana/kit';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as fs from 'fs';
-import { after, before, describe } from 'mocha';
+import { after, before, describe, it } from 'mocha';
+import { expect } from 'chai';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
@@ -27,7 +28,7 @@ import {
   startSolanaTestValidator,
   waitForRpcReady,
 } from '../testing/solana-container.js';
-import { SvmNativeTokenWriter } from '../warp/native-token.js';
+import { SvmSyntheticTokenWriter } from '../warp/synthetic-token.js';
 
 import { defineWarpTokenTests } from './warp-token-suite.js';
 
@@ -40,7 +41,7 @@ const PRELOADED_PROGRAMS: Array<keyof typeof PROGRAM_BINARIES> = [
   'testIsm',
 ];
 
-describe('SVM Native Warp Token E2E Tests', function () {
+describe('SVM Synthetic Warp Token E2E Tests', function () {
   this.timeout(300_000);
 
   let solana: SolanaTestValidator;
@@ -50,7 +51,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
   let igpProgramId: Address;
   let overheadIgpAccountAddress: Address;
   let testIsmAddress: Address;
-  let writer: SvmNativeTokenWriter;
+  let writer: SvmSyntheticTokenWriter;
 
   before(async () => {
     const preloadedPrograms = getPreloadedPrograms(PRELOADED_PROGRAMS);
@@ -102,14 +103,15 @@ describe('SVM Native Warp Token E2E Tests', function () {
       config: ismConfig,
     });
 
-    const nativeTokenBytes = fs.readFileSync(
-      `${DEFAULT_PROGRAMS_PATH}/${PROGRAM_BINARIES.tokenNative}`,
+    const syntheticTokenBytes = fs.readFileSync(
+      `${DEFAULT_PROGRAMS_PATH}/${PROGRAM_BINARIES.token}`,
     );
 
-    writer = new SvmNativeTokenWriter(
-      { program: { programBytes: nativeTokenBytes }, igpProgramId },
+    writer = new SvmSyntheticTokenWriter(
+      { program: { programBytes: syntheticTokenBytes }, igpProgramId },
       rpc,
       signer,
+      solana.rpcUrl,
     );
   });
 
@@ -119,14 +121,19 @@ describe('SVM Native Warp Token E2E Tests', function () {
     }
   });
 
-  describe('Native Token', () => {
+  describe('Synthetic Token', () => {
+    let deployedProgramId: string;
+
     defineWarpTokenTests(
       () => ({
         writer,
         makeConfig: (overrides = {}) => ({
-          type: 'native' as const,
+          type: 'synthetic' as const,
           owner: signer.getSignerAddress(),
           mailbox: mailboxAddress,
+          name: 'Test Token',
+          symbol: 'TEST',
+          decimals: 6,
           remoteRouters: {},
           destinationGas: {},
           ...overrides,
@@ -135,7 +142,17 @@ describe('SVM Native Warp Token E2E Tests', function () {
         testIsmAddress,
         signer,
       }),
-      (_id) => {},
+      (id) => {
+        deployedProgramId = id;
+      },
     );
+
+    it('should have correct metadata after deploy', async () => {
+      const token = await writer.read(deployedProgramId);
+      expect(token.config.name).to.equal('Test Token');
+      expect(token.config.symbol).to.equal('TEST');
+      expect(token.config.decimals).to.equal(6);
+      expect(token.config.mailbox).to.equal(mailboxAddress);
+    });
   });
 });
