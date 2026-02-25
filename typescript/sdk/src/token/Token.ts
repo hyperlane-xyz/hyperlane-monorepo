@@ -108,7 +108,12 @@ export class Token implements IToken {
    * nothing specific is set in the ChainMetadata.
    */
   static FromChainMetadataNativeToken(chainMetadata: ChainMetadata): Token {
-    const { protocol, name: chainName, logoURI } = chainMetadata;
+    const {
+      protocol,
+      name: chainName,
+      logoURI,
+      gasCurrencyCoinGeckoId,
+    } = chainMetadata;
     assert(
       protocol !== ProtocolType.Unknown,
       'Cannot create native token for unknown protocol',
@@ -126,6 +131,7 @@ export class Token implements IToken {
       symbol: nativeToken.symbol,
       name: nativeToken.name,
       logoURI,
+      coinGeckoId: gasCurrencyCoinGeckoId,
     });
   }
 

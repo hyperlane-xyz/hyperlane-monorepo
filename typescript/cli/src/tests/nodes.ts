@@ -29,3 +29,10 @@ export async function runEvmNode({ rpcPort, chainId }: TestChainMetadata) {
 
   return container;
 }
+
+// Re-export Tron node utilities from tron-sdk
+export {
+  runTronNode,
+  stopTronNode,
+  type TronTestChainMetadata,
+} from '@hyperlane-xyz/tron-sdk/testing';

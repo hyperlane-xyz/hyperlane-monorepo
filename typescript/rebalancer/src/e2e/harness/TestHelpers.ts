@@ -22,9 +22,6 @@ export async function getFirstMonitorEvent(
       reject(error);
     });
 
-    monitor.start().catch((err: unknown) => {
-      clearTimeout(timeout);
-      reject(err instanceof Error ? err : new Error(String(err)));
-    });
+    void monitor.start();
   });
 }

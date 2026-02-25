@@ -3,39 +3,55 @@ import {
   type TokenAmount,
 } from '@hyperlane-xyz/sdk';
 
-import type { StrategyRoute } from './IStrategy.js';
+import {
+  type InventoryRoute,
+  type MovableCollateralRoute,
+  type Route,
+} from './IStrategy.js';
 
-/**
- * RebalanceRoute extends StrategyRoute with a required intentId for tracking.
- * The intentId is assigned by RebalancerService before execution and links
- * to the corresponding RebalanceIntent in the tracking system.
- */
-export type RebalanceRoute = StrategyRoute & {
-  /** Links to the RebalanceIntent that this route fulfills */
-  intentId: string;
-};
+export type RebalancerType = 'movableCollateral' | 'inventory';
+
+export interface ExecutionResult<R extends Route = Route> {
+  route: R;
+  success: boolean;
+  error?: string;
+  // messageId?: string;
+  txHash?: string;
+  // amountSent?: bigint;
+  reason?: string;
+}
+
+export interface MovableCollateralExecutionResult extends ExecutionResult<MovableCollateralRoute> {
+  messageId: string;
+}
+
+export interface InventoryExecutionResult extends ExecutionResult<InventoryRoute> {
+  messageId?: string;
+  amountSent?: bigint;
+}
+
+export interface IRebalancer<
+  R extends Route = Route,
+  E extends ExecutionResult<R> = ExecutionResult<R>,
+> {
+  readonly rebalancerType: RebalancerType;
+  rebalance(routes: R[]): Promise<E[]>;
+}
+
+export type IMovableCollateralRebalancer = IRebalancer<
+  MovableCollateralRoute,
+  MovableCollateralExecutionResult
+>;
+
+export type IInventoryRebalancer = IRebalancer<
+  InventoryRoute,
+  InventoryExecutionResult
+>;
 
 export type PreparedTransaction = {
   populatedTx: Awaited<
     ReturnType<EvmMovableCollateralAdapter['populateRebalanceTx']>
   >;
-  route: RebalanceRoute;
+  route: MovableCollateralRoute & { intentId: string };
   originTokenAmount: TokenAmount;
 };
-
-export type RebalanceMetrics = {
-  route: RebalanceRoute;
-  originTokenAmount: TokenAmount;
-};
-
-export type RebalanceExecutionResult = {
-  route: RebalanceRoute;
-  success: boolean;
-  messageId?: string;
-  txHash?: string;
-  error?: string;
-};
-
-export interface IRebalancer {
-  rebalance(routes: RebalanceRoute[]): Promise<RebalanceExecutionResult[]>;
-}

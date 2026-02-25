@@ -5,6 +5,7 @@ import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
 
+import { DEFAULT_INTENT_TTL_MS } from '../config/types.js';
 import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 
 import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
@@ -71,6 +72,7 @@ describe('ActionTracker', () => {
       },
       bridges: ['0xbridge1', '0xbridge2'],
       rebalancerAddress: '0xrebalancer',
+      intentTTL: DEFAULT_INTENT_TTL_MS,
     };
 
     tracker = new ActionTracker(
@@ -99,6 +101,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -128,6 +131,102 @@ describe('ActionTracker', () => {
       expect(actions[0].messageId).to.equal('0xmsg1');
     });
 
+    it('should use send_occurred_at for createdAt when available', async () => {
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: '2024-01-15T12:30:45',
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.initialize();
+
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents).to.have.lengthOf(1);
+      // Hasura timestamps are UTC without 'Z'; recoverAction appends 'Z' before parsing
+      const expectedMs = new Date('2024-01-15T12:30:45Z').getTime();
+      expect(intents[0].createdAt).to.equal(expectedMs);
+
+      const actions = await rebalanceActionStore.getAll();
+      expect(actions[0].createdAt).to.equal(expectedMs);
+    });
+
+    it('should fall back to Date.now() when send_occurred_at is null', async () => {
+      const before = Date.now();
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.initialize();
+      const after = Date.now();
+
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents[0].createdAt).to.be.at.least(before);
+      expect(intents[0].createdAt).to.be.at.most(after);
+    });
+
+    it('should skip action with invalid send_occurred_at timestamp', async () => {
+      const inflightMessages: ExplorerMessage[] = [
+        {
+          msg_id: '0xmsg1',
+          origin_domain_id: 1,
+          destination_domain_id: 2,
+          sender: '0xrouter1',
+          recipient: '0xrouter2',
+          origin_tx_hash: '0xtx1',
+          origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
+          is_delivered: false,
+          message_body:
+            '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: 'garbage',
+        },
+      ];
+
+      explorerClient.getInflightRebalanceActions.resolves(inflightMessages);
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.initialize();
+
+      // Invalid timestamp is caught by recoverAction's catch block, so the action is skipped
+      const intents = await rebalanceIntentStore.getAll();
+      expect(intents).to.have.lengthOf(0);
+      const actions = await rebalanceActionStore.getAll();
+      expect(actions).to.have.lengthOf(0);
+    });
+
     it('should skip creating action if it already exists', async () => {
       const inflightMessages: ExplorerMessage[] = [
         {
@@ -142,12 +241,14 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
       // Pre-create action
       await rebalanceActionStore.save({
         id: '0xmsg1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'existing-intent',
         messageId: '0xmsg1',
@@ -188,6 +289,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -231,6 +333,7 @@ describe('ActionTracker', () => {
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
+          send_occurred_at: null,
         },
       ];
 
@@ -269,18 +372,32 @@ describe('ActionTracker', () => {
 
   describe('syncRebalanceIntents', () => {
     it('should mark intents as complete when fully fulfilled', async () => {
+      // Intent derives completion from action states, so we need a complete action
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      const action: RebalanceAction = {
+        id: 'action-1',
+        type: 'rebalance_message',
+        status: 'complete',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
 
       await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
 
       await tracker.syncRebalanceIntents();
 
@@ -289,14 +406,83 @@ describe('ActionTracker', () => {
     });
 
     it('should not mark intents as complete if not fully fulfilled', async () => {
+      // Intent with only partial completion via actions
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 50n,
         createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      const action: RebalanceAction = {
+        id: 'action-1',
+        type: 'rebalance_message',
+        status: 'complete',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 50n, // Only partial
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
+
+      await tracker.syncRebalanceIntents();
+
+      const updated = await rebalanceIntentStore.get('intent-1');
+      expect(updated?.status).to.equal('in_progress');
+    });
+
+    it('should mark unfulfilled intents as failed when TTL exceeded', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS - 1,
+        updatedAt: Date.now(),
+      };
+
+      const action: RebalanceAction = {
+        id: 'action-1',
+        type: 'rebalance_message',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 50n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
+
+      await tracker.syncRebalanceIntents();
+
+      const updatedIntent = await rebalanceIntentStore.get('intent-1');
+      expect(updatedIntent?.status).to.equal('failed');
+
+      const updatedAction = await rebalanceActionStore.get('action-1');
+      expect(updatedAction?.status).to.equal('failed');
+    });
+
+    it('should not expire intents within TTL', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now() - DEFAULT_INTENT_TTL_MS + 60_000,
         updatedAt: Date.now(),
       };
 
@@ -317,13 +503,13 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
 
       const action: RebalanceAction = {
         id: 'action-1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
@@ -345,15 +531,15 @@ describe('ActionTracker', () => {
       const updatedAction = await rebalanceActionStore.get('action-1');
       expect(updatedAction?.status).to.equal('complete');
 
-      // Intent should be updated and complete
+      // Intent should be complete (derived from completed action amounts)
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
-      expect(updatedIntent?.fulfilledAmount).to.equal(100n);
       expect(updatedIntent?.status).to.equal('complete');
     });
 
     it('should not mark actions as complete if not delivered', async () => {
       const action: RebalanceAction = {
         id: 'action-1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
@@ -417,7 +603,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -428,7 +613,6 @@ describe('ActionTracker', () => {
         origin: 2,
         destination: 3,
         amount: 200n,
-        fulfilledAmount: 50n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -439,7 +623,6 @@ describe('ActionTracker', () => {
         origin: 3,
         destination: 1,
         amount: 300n,
-        fulfilledAmount: 300n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -449,6 +632,85 @@ describe('ActionTracker', () => {
       const result = await tracker.getActiveRebalanceIntents();
       expect(result).to.have.lengthOf(1);
       expect(result[0].id).to.equal('intent-2');
+    });
+  });
+
+  describe('getPartiallyFulfilledInventoryIntents', () => {
+    it('returns not_started inventory intents', async () => {
+      // Create a not_started inventory intent (simulates failed execution before any action created)
+      await rebalanceIntentStore.save({
+        id: 'stuck-intent',
+        status: 'not_started',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Should be returned even though status is 'not_started'
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].intent.id).to.equal('stuck-intent');
+      expect(partialIntents[0].completedAmount).to.equal(0n);
+      expect(partialIntents[0].remaining).to.equal(1000000000000000000n);
+    });
+
+    it('returns in_progress inventory intents with partial completion', async () => {
+      // Create an in_progress inventory intent with a completed action
+      await rebalanceIntentStore.save({
+        id: 'partial-intent',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Create a completed inventory_deposit action for partial amount
+      await rebalanceActionStore.save({
+        id: 'action-1',
+        type: 'inventory_deposit',
+        status: 'complete',
+        intentId: 'partial-intent',
+        origin: 1,
+        destination: 2,
+        amount: 400000000000000000n, // 0.4 ETH completed
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].intent.id).to.equal('partial-intent');
+      expect(partialIntents[0].completedAmount).to.equal(400000000000000000n);
+      expect(partialIntents[0].remaining).to.equal(600000000000000000n); // 0.6 ETH remaining
+    });
+
+    it('does not return non-inventory intents', async () => {
+      // Create a not_started intent without executionMethod: 'inventory'
+      await rebalanceIntentStore.save({
+        id: 'non-inventory-intent',
+        status: 'not_started',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        // executionMethod is undefined - not an inventory intent
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(0);
     });
   });
 
@@ -466,7 +728,6 @@ describe('ActionTracker', () => {
       expect(result.origin).to.equal(1);
       expect(result.destination).to.equal(2);
       expect(result.amount).to.equal(100n);
-      expect(result.fulfilledAmount).to.equal(0n);
       expect(result.priority).to.equal(1);
       expect(result.strategyType).to.equal('MinAmountStrategy');
 
@@ -483,7 +744,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -491,6 +751,7 @@ describe('ActionTracker', () => {
       await rebalanceIntentStore.save(intent);
 
       const result = await tracker.createRebalanceAction({
+        type: 'rebalance_message',
         intentId: 'intent-1',
         origin: 1,
         destination: 2,
@@ -514,7 +775,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 50n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -522,6 +782,7 @@ describe('ActionTracker', () => {
       await rebalanceIntentStore.save(intent);
 
       await tracker.createRebalanceAction({
+        type: 'rebalance_message',
         intentId: 'intent-1',
         origin: 1,
         destination: 2,
@@ -532,25 +793,24 @@ describe('ActionTracker', () => {
 
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
       expect(updatedIntent?.status).to.equal('in_progress');
-      expect(updatedIntent?.fulfilledAmount).to.equal(50n); // Should not change
     });
   });
 
   describe('completeRebalanceAction', () => {
-    it('should mark action as complete and update parent intent fulfilledAmount', async () => {
+    it('should mark action as complete and mark parent intent complete if fully fulfilled', async () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
 
       const action: RebalanceAction = {
         id: 'action-1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
@@ -569,8 +829,8 @@ describe('ActionTracker', () => {
       const updatedAction = await rebalanceActionStore.get('action-1');
       expect(updatedAction?.status).to.equal('complete');
 
+      // Intent should be complete (derived from completed action amounts)
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
-      expect(updatedIntent?.fulfilledAmount).to.equal(100n);
       expect(updatedIntent?.status).to.equal('complete');
     });
 
@@ -589,7 +849,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -607,6 +866,7 @@ describe('ActionTracker', () => {
     it('should mark action as failed', async () => {
       const action: RebalanceAction = {
         id: 'action-1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
@@ -653,7 +913,7 @@ describe('ActionTracker', () => {
 
       const params = call.args[0];
       expect(params.routersByDomain).to.deep.equal(config.routersByDomain);
-      expect(params.excludeTxSender).to.equal(config.rebalancerAddress);
+      expect(params.excludeTxSenders).to.deep.equal([config.rebalancerAddress]);
     });
   });
 
@@ -692,13 +952,13 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
 
       const action: RebalanceAction = {
         id: 'action-1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
@@ -806,7 +1066,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -814,6 +1073,7 @@ describe('ActionTracker', () => {
       const action: RebalanceAction = {
         id: 'action-1',
         status: 'in_progress',
+        type: 'rebalance_message',
         intentId: 'intent-1',
         messageId: '0xmsg1',
         origin: 1,

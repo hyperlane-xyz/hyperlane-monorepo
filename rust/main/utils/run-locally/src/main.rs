@@ -294,7 +294,7 @@ fn main() -> ExitCode {
     // spawn 1st validator before any messages have been sent to test empty mailbox
     state.push_agent(validator_envs.first().unwrap().clone().spawn("VL1", None));
 
-    sleep(Duration::from_secs(5));
+    crate::utils::wait_for_postgres();
 
     log!("Init postgres db...");
     Program::new(concat_path(AGENT_BIN_PATH, "init-db"))
