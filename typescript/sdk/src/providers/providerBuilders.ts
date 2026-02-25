@@ -202,6 +202,7 @@ export function defaultTronProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: string | number,
 ): TronProvider {
+  assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
   const provider = new TronSDKProvider(rpcUrls.map((rpc) => rpc.http));
   return { provider, type: ProviderType.Tron };
 }

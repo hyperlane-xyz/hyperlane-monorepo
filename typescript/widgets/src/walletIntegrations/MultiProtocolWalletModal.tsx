@@ -78,6 +78,15 @@ export function MultiProtocolWalletModal({
             Radix
           </ProtocolButton>
         )}
+        {includesProtocol(ProtocolType.Aleo) && (
+          <ProtocolButton
+            protocol={ProtocolType.Aleo}
+            onClick={onClickProtocol}
+            subTitle="a Aleo"
+          >
+            Aleo
+          </ProtocolButton>
+        )}
         {includesProtocol(ProtocolType.Tron) && (
           <ProtocolButton
             protocol={ProtocolType.Tron}

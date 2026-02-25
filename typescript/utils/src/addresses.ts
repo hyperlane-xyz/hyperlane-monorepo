@@ -623,10 +623,14 @@ export function bytesToAddressAleo(bytes: Uint8Array): Address {
 }
 
 export function bytesToAddressTron(bytes: Uint8Array): Address {
-  let addressBytes = bytes;
-  if (addressBytes.length === 20) {
-    addressBytes = new Uint8Array([0x41, ...bytes]);
-  }
+  let payload20: Uint8Array;
+
+  if (bytes.length === 32) payload20 = bytes.slice(12);
+  else if (bytes.length === 21 && bytes[0] === 0x41) payload20 = bytes.slice(1);
+  else if (bytes.length === 20) payload20 = bytes;
+  else throw new Error(`Invalid Tron address byte length: ${bytes.length}`);
+
+  const addressBytes = new Uint8Array([0x41, ...payload20]);
 
   const hash1 = ethersUtils.arrayify(ethersUtils.sha256(addressBytes));
   const hash2 = ethersUtils.arrayify(ethersUtils.sha256(hash1));

@@ -102,7 +102,7 @@ export class TronTokenAdapter
 
     const { decimals } = await this.getMetadata();
     assert(
-      decimals,
+      decimals !== undefined,
       `Token decimals not found for "${this.getDenom()}" on chain "${this.chainName}"`,
     );
     assert(transferParams.fromAccountOwner, `no sender in transfer params`);
@@ -173,15 +173,15 @@ export class TronHypCollateralAdapter
 
     assert(
       name !== undefined,
-      `name on radix token ${this.tokenAddress} is undefined`,
+      `name on tron token ${this.tokenAddress} is undefined`,
     );
     assert(
       symbol !== undefined,
-      `symbol on radix token ${this.tokenAddress} is undefined`,
+      `symbol on tron token ${this.tokenAddress} is undefined`,
     );
     assert(
       decimals !== undefined,
-      `divisibility on radix token ${this.tokenAddress} is undefined`,
+      `divisibility on tron token ${this.tokenAddress} is undefined`,
     );
 
     return {

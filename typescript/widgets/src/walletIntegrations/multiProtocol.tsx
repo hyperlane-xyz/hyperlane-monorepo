@@ -365,6 +365,7 @@ export function useDisconnectFns(): Record<
       disconnectCosmos,
       disconnectStarknet,
       disconnectRadix,
+      disconnectAleo,
       disconnectTron,
     ],
   );
