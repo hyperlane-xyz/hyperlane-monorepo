@@ -3,9 +3,9 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/interchain_security/v1/query.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
-
 import {
   PageRequest,
   PageResponse,
@@ -114,14 +114,10 @@ export const QueryIsmsRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryIsmsRequest>, I>>(
-    base?: I,
-  ): QueryIsmsRequest {
-    return QueryIsmsRequest.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryIsmsRequest>): QueryIsmsRequest {
+    return QueryIsmsRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryIsmsRequest>, I>>(
-    object: I,
-  ): QueryIsmsRequest {
+  fromPartial(object: DeepPartial<QueryIsmsRequest>): QueryIsmsRequest {
     const message = createBaseQueryIsmsRequest();
     message.pagination =
       object.pagination !== undefined && object.pagination !== null
@@ -205,14 +201,10 @@ export const QueryIsmsResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryIsmsResponse>, I>>(
-    base?: I,
-  ): QueryIsmsResponse {
-    return QueryIsmsResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryIsmsResponse>): QueryIsmsResponse {
+    return QueryIsmsResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryIsmsResponse>, I>>(
-    object: I,
-  ): QueryIsmsResponse {
+  fromPartial(object: DeepPartial<QueryIsmsResponse>): QueryIsmsResponse {
     const message = createBaseQueryIsmsResponse();
     message.isms = object.isms?.map((e) => Any.fromPartial(e)) || [];
     message.pagination =
@@ -274,14 +266,10 @@ export const QueryIsmRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryIsmRequest>, I>>(
-    base?: I,
-  ): QueryIsmRequest {
-    return QueryIsmRequest.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryIsmRequest>): QueryIsmRequest {
+    return QueryIsmRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryIsmRequest>, I>>(
-    object: I,
-  ): QueryIsmRequest {
+  fromPartial(object: DeepPartial<QueryIsmRequest>): QueryIsmRequest {
     const message = createBaseQueryIsmRequest();
     message.id = object.id ?? '';
     return message;
@@ -339,14 +327,10 @@ export const QueryIsmResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryIsmResponse>, I>>(
-    base?: I,
-  ): QueryIsmResponse {
-    return QueryIsmResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryIsmResponse>): QueryIsmResponse {
+    return QueryIsmResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryIsmResponse>, I>>(
-    object: I,
-  ): QueryIsmResponse {
+  fromPartial(object: DeepPartial<QueryIsmResponse>): QueryIsmResponse {
     const message = createBaseQueryIsmResponse();
     message.ism =
       object.ism !== undefined && object.ism !== null
@@ -430,16 +414,14 @@ export const QueryAnnouncedStorageLocationsRequest = {
     return obj;
   },
 
-  create<
-    I extends Exact<DeepPartial<QueryAnnouncedStorageLocationsRequest>, I>,
-  >(base?: I): QueryAnnouncedStorageLocationsRequest {
-    return QueryAnnouncedStorageLocationsRequest.fromPartial(
-      base ?? ({} as any),
-    );
+  create(
+    base?: DeepPartial<QueryAnnouncedStorageLocationsRequest>,
+  ): QueryAnnouncedStorageLocationsRequest {
+    return QueryAnnouncedStorageLocationsRequest.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<QueryAnnouncedStorageLocationsRequest>, I>,
-  >(object: I): QueryAnnouncedStorageLocationsRequest {
+  fromPartial(
+    object: DeepPartial<QueryAnnouncedStorageLocationsRequest>,
+  ): QueryAnnouncedStorageLocationsRequest {
     const message = createBaseQueryAnnouncedStorageLocationsRequest();
     message.mailbox_id = object.mailbox_id ?? '';
     message.validator_address = object.validator_address ?? '';
@@ -505,16 +487,14 @@ export const QueryAnnouncedStorageLocationsResponse = {
     return obj;
   },
 
-  create<
-    I extends Exact<DeepPartial<QueryAnnouncedStorageLocationsResponse>, I>,
-  >(base?: I): QueryAnnouncedStorageLocationsResponse {
-    return QueryAnnouncedStorageLocationsResponse.fromPartial(
-      base ?? ({} as any),
-    );
+  create(
+    base?: DeepPartial<QueryAnnouncedStorageLocationsResponse>,
+  ): QueryAnnouncedStorageLocationsResponse {
+    return QueryAnnouncedStorageLocationsResponse.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<QueryAnnouncedStorageLocationsResponse>, I>,
-  >(object: I): QueryAnnouncedStorageLocationsResponse {
+  fromPartial(
+    object: DeepPartial<QueryAnnouncedStorageLocationsResponse>,
+  ): QueryAnnouncedStorageLocationsResponse {
     const message = createBaseQueryAnnouncedStorageLocationsResponse();
     message.storage_locations = object.storage_locations?.map((e) => e) || [];
     return message;
@@ -595,16 +575,14 @@ export const QueryLatestAnnouncedStorageLocationRequest = {
     return obj;
   },
 
-  create<
-    I extends Exact<DeepPartial<QueryLatestAnnouncedStorageLocationRequest>, I>,
-  >(base?: I): QueryLatestAnnouncedStorageLocationRequest {
-    return QueryLatestAnnouncedStorageLocationRequest.fromPartial(
-      base ?? ({} as any),
-    );
+  create(
+    base?: DeepPartial<QueryLatestAnnouncedStorageLocationRequest>,
+  ): QueryLatestAnnouncedStorageLocationRequest {
+    return QueryLatestAnnouncedStorageLocationRequest.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<QueryLatestAnnouncedStorageLocationRequest>, I>,
-  >(object: I): QueryLatestAnnouncedStorageLocationRequest {
+  fromPartial(
+    object: DeepPartial<QueryLatestAnnouncedStorageLocationRequest>,
+  ): QueryLatestAnnouncedStorageLocationRequest {
     const message = createBaseQueryLatestAnnouncedStorageLocationRequest();
     message.mailbox_id = object.mailbox_id ?? '';
     message.validator_address = object.validator_address ?? '';
@@ -670,22 +648,14 @@ export const QueryLatestAnnouncedStorageLocationResponse = {
     return obj;
   },
 
-  create<
-    I extends Exact<
-      DeepPartial<QueryLatestAnnouncedStorageLocationResponse>,
-      I
-    >,
-  >(base?: I): QueryLatestAnnouncedStorageLocationResponse {
-    return QueryLatestAnnouncedStorageLocationResponse.fromPartial(
-      base ?? ({} as any),
-    );
+  create(
+    base?: DeepPartial<QueryLatestAnnouncedStorageLocationResponse>,
+  ): QueryLatestAnnouncedStorageLocationResponse {
+    return QueryLatestAnnouncedStorageLocationResponse.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<
-      DeepPartial<QueryLatestAnnouncedStorageLocationResponse>,
-      I
-    >,
-  >(object: I): QueryLatestAnnouncedStorageLocationResponse {
+  fromPartial(
+    object: DeepPartial<QueryLatestAnnouncedStorageLocationResponse>,
+  ): QueryLatestAnnouncedStorageLocationResponse {
     const message = createBaseQueryLatestAnnouncedStorageLocationResponse();
     message.storage_location = object.storage_location ?? '';
     return message;
@@ -795,13 +765,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

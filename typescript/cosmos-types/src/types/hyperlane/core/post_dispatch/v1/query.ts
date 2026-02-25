@@ -3,15 +3,14 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/post_dispatch/v1/query.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
-
 import {
   PageRequest,
   PageResponse,
 } from '../../../../cosmos/base/query/v1beta1/pagination.js';
 import { Coin } from '../../../../cosmos/base/v1beta1/coin.js';
-
 import {
   DestinationGasConfig,
   InterchainGasPaymaster,
@@ -184,14 +183,10 @@ export const QueryIgpsRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryIgpsRequest>, I>>(
-    base?: I,
-  ): QueryIgpsRequest {
-    return QueryIgpsRequest.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryIgpsRequest>): QueryIgpsRequest {
+    return QueryIgpsRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryIgpsRequest>, I>>(
-    object: I,
-  ): QueryIgpsRequest {
+  fromPartial(object: DeepPartial<QueryIgpsRequest>): QueryIgpsRequest {
     const message = createBaseQueryIgpsRequest();
     message.pagination =
       object.pagination !== undefined && object.pagination !== null
@@ -277,14 +272,10 @@ export const QueryIgpsResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryIgpsResponse>, I>>(
-    base?: I,
-  ): QueryIgpsResponse {
-    return QueryIgpsResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryIgpsResponse>): QueryIgpsResponse {
+    return QueryIgpsResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryIgpsResponse>, I>>(
-    object: I,
-  ): QueryIgpsResponse {
+  fromPartial(object: DeepPartial<QueryIgpsResponse>): QueryIgpsResponse {
     const message = createBaseQueryIgpsResponse();
     message.igps =
       object.igps?.map((e) => InterchainGasPaymaster.fromPartial(e)) || [];
@@ -347,14 +338,10 @@ export const QueryIgpRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryIgpRequest>, I>>(
-    base?: I,
-  ): QueryIgpRequest {
-    return QueryIgpRequest.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryIgpRequest>): QueryIgpRequest {
+    return QueryIgpRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryIgpRequest>, I>>(
-    object: I,
-  ): QueryIgpRequest {
+  fromPartial(object: DeepPartial<QueryIgpRequest>): QueryIgpRequest {
     const message = createBaseQueryIgpRequest();
     message.id = object.id ?? '';
     return message;
@@ -419,14 +406,10 @@ export const QueryIgpResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryIgpResponse>, I>>(
-    base?: I,
-  ): QueryIgpResponse {
-    return QueryIgpResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryIgpResponse>): QueryIgpResponse {
+    return QueryIgpResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryIgpResponse>, I>>(
-    object: I,
-  ): QueryIgpResponse {
+  fromPartial(object: DeepPartial<QueryIgpResponse>): QueryIgpResponse {
     const message = createBaseQueryIgpResponse();
     message.igp =
       object.igp !== undefined && object.igp !== null
@@ -508,14 +491,14 @@ export const QueryDestinationGasConfigsRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryDestinationGasConfigsRequest>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryDestinationGasConfigsRequest>,
   ): QueryDestinationGasConfigsRequest {
-    return QueryDestinationGasConfigsRequest.fromPartial(base ?? ({} as any));
+    return QueryDestinationGasConfigsRequest.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<QueryDestinationGasConfigsRequest>, I>,
-  >(object: I): QueryDestinationGasConfigsRequest {
+  fromPartial(
+    object: DeepPartial<QueryDestinationGasConfigsRequest>,
+  ): QueryDestinationGasConfigsRequest {
     const message = createBaseQueryDestinationGasConfigsRequest();
     message.id = object.id ?? '';
     message.pagination =
@@ -611,14 +594,14 @@ export const QueryDestinationGasConfigsResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryDestinationGasConfigsResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryDestinationGasConfigsResponse>,
   ): QueryDestinationGasConfigsResponse {
-    return QueryDestinationGasConfigsResponse.fromPartial(base ?? ({} as any));
+    return QueryDestinationGasConfigsResponse.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<QueryDestinationGasConfigsResponse>, I>,
-  >(object: I): QueryDestinationGasConfigsResponse {
+  fromPartial(
+    object: DeepPartial<QueryDestinationGasConfigsResponse>,
+  ): QueryDestinationGasConfigsResponse {
     const message = createBaseQueryDestinationGasConfigsResponse();
     message.destination_gas_configs =
       object.destination_gas_configs?.map((e) =>
@@ -720,13 +703,13 @@ export const QueryQuoteGasPaymentRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryQuoteGasPaymentRequest>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryQuoteGasPaymentRequest>,
   ): QueryQuoteGasPaymentRequest {
-    return QueryQuoteGasPaymentRequest.fromPartial(base ?? ({} as any));
+    return QueryQuoteGasPaymentRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryQuoteGasPaymentRequest>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryQuoteGasPaymentRequest>,
   ): QueryQuoteGasPaymentRequest {
     const message = createBaseQueryQuoteGasPaymentRequest();
     message.igp_id = object.igp_id ?? '';
@@ -794,13 +777,13 @@ export const QueryQuoteGasPaymentResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryQuoteGasPaymentResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryQuoteGasPaymentResponse>,
   ): QueryQuoteGasPaymentResponse {
-    return QueryQuoteGasPaymentResponse.fromPartial(base ?? ({} as any));
+    return QueryQuoteGasPaymentResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryQuoteGasPaymentResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryQuoteGasPaymentResponse>,
   ): QueryQuoteGasPaymentResponse {
     const message = createBaseQueryQuoteGasPaymentResponse();
     message.gas_payment =
@@ -867,13 +850,13 @@ export const QueryMerkleTreeHooksRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryMerkleTreeHooksRequest>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryMerkleTreeHooksRequest>,
   ): QueryMerkleTreeHooksRequest {
-    return QueryMerkleTreeHooksRequest.fromPartial(base ?? ({} as any));
+    return QueryMerkleTreeHooksRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryMerkleTreeHooksRequest>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryMerkleTreeHooksRequest>,
   ): QueryMerkleTreeHooksRequest {
     const message = createBaseQueryMerkleTreeHooksRequest();
     message.pagination =
@@ -970,13 +953,13 @@ export const QueryMerkleTreeHooksResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryMerkleTreeHooksResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryMerkleTreeHooksResponse>,
   ): QueryMerkleTreeHooksResponse {
-    return QueryMerkleTreeHooksResponse.fromPartial(base ?? ({} as any));
+    return QueryMerkleTreeHooksResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryMerkleTreeHooksResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryMerkleTreeHooksResponse>,
   ): QueryMerkleTreeHooksResponse {
     const message = createBaseQueryMerkleTreeHooksResponse();
     message.merkle_tree_hooks =
@@ -1045,13 +1028,13 @@ export const QueryMerkleTreeHookRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryMerkleTreeHookRequest>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryMerkleTreeHookRequest>,
   ): QueryMerkleTreeHookRequest {
-    return QueryMerkleTreeHookRequest.fromPartial(base ?? ({} as any));
+    return QueryMerkleTreeHookRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryMerkleTreeHookRequest>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryMerkleTreeHookRequest>,
   ): QueryMerkleTreeHookRequest {
     const message = createBaseQueryMerkleTreeHookRequest();
     message.id = object.id ?? '';
@@ -1125,13 +1108,13 @@ export const QueryMerkleTreeHookResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryMerkleTreeHookResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<QueryMerkleTreeHookResponse>,
   ): QueryMerkleTreeHookResponse {
-    return QueryMerkleTreeHookResponse.fromPartial(base ?? ({} as any));
+    return QueryMerkleTreeHookResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryMerkleTreeHookResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryMerkleTreeHookResponse>,
   ): QueryMerkleTreeHookResponse {
     const message = createBaseQueryMerkleTreeHookResponse();
     message.merkle_tree_hook =
@@ -1247,13 +1230,13 @@ export const WrappedMerkleTreeHookResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<WrappedMerkleTreeHookResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<WrappedMerkleTreeHookResponse>,
   ): WrappedMerkleTreeHookResponse {
-    return WrappedMerkleTreeHookResponse.fromPartial(base ?? ({} as any));
+    return WrappedMerkleTreeHookResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<WrappedMerkleTreeHookResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<WrappedMerkleTreeHookResponse>,
   ): WrappedMerkleTreeHookResponse {
     const message = createBaseWrappedMerkleTreeHookResponse();
     message.id = object.id ?? '';
@@ -1352,14 +1335,10 @@ export const TreeResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<TreeResponse>, I>>(
-    base?: I,
-  ): TreeResponse {
-    return TreeResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<TreeResponse>): TreeResponse {
+    return TreeResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<TreeResponse>, I>>(
-    object: I,
-  ): TreeResponse {
+  fromPartial(object: DeepPartial<TreeResponse>): TreeResponse {
     const message = createBaseTreeResponse();
     message.leafs = object.leafs?.map((e) => e) || [];
     message.count = object.count ?? 0;
@@ -1422,14 +1401,10 @@ export const QueryNoopHookRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryNoopHookRequest>, I>>(
-    base?: I,
-  ): QueryNoopHookRequest {
-    return QueryNoopHookRequest.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryNoopHookRequest>): QueryNoopHookRequest {
+    return QueryNoopHookRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryNoopHookRequest>, I>>(
-    object: I,
-  ): QueryNoopHookRequest {
+  fromPartial(object: DeepPartial<QueryNoopHookRequest>): QueryNoopHookRequest {
     const message = createBaseQueryNoopHookRequest();
     message.id = object.id ?? '';
     return message;
@@ -1494,13 +1469,11 @@ export const QueryNoopHookResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryNoopHookResponse>, I>>(
-    base?: I,
-  ): QueryNoopHookResponse {
-    return QueryNoopHookResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryNoopHookResponse>): QueryNoopHookResponse {
+    return QueryNoopHookResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryNoopHookResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryNoopHookResponse>,
   ): QueryNoopHookResponse {
     const message = createBaseQueryNoopHookResponse();
     message.noop_hook =
@@ -1569,13 +1542,11 @@ export const QueryNoopHooksRequest = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryNoopHooksRequest>, I>>(
-    base?: I,
-  ): QueryNoopHooksRequest {
-    return QueryNoopHooksRequest.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryNoopHooksRequest>): QueryNoopHooksRequest {
+    return QueryNoopHooksRequest.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryNoopHooksRequest>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryNoopHooksRequest>,
   ): QueryNoopHooksRequest {
     const message = createBaseQueryNoopHooksRequest();
     message.pagination =
@@ -1663,13 +1634,11 @@ export const QueryNoopHooksResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<QueryNoopHooksResponse>, I>>(
-    base?: I,
-  ): QueryNoopHooksResponse {
-    return QueryNoopHooksResponse.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<QueryNoopHooksResponse>): QueryNoopHooksResponse {
+    return QueryNoopHooksResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<QueryNoopHooksResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<QueryNoopHooksResponse>,
   ): QueryNoopHooksResponse {
     const message = createBaseQueryNoopHooksResponse();
     message.noop_hooks =
@@ -1854,13 +1823,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

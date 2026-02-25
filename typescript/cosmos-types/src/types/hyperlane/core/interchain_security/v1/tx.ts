@@ -3,9 +3,9 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/interchain_security/v1/tx.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
-
 import { Route } from './types.js';
 
 export const protobufPackage = 'hyperlane.core.interchain_security.v1';
@@ -28,7 +28,7 @@ export interface MsgCreateMessageIdMultisigIsmResponse {
   id: string;
 }
 
-/** MsgCreateMultisigIsm ... */
+/** MsgCreateMerkleRootMultisigIsm ... */
 export interface MsgCreateMerkleRootMultisigIsm {
   /** creator is the message sender. */
   creator: string;
@@ -41,7 +41,7 @@ export interface MsgCreateMerkleRootMultisigIsm {
   threshold: number;
 }
 
-/** MsgCreateMultisigIsmResponse ... */
+/** MsgCreateMerkleRootMultisigIsmResponse ... */
 export interface MsgCreateMerkleRootMultisigIsmResponse {
   id: string;
 }
@@ -216,13 +216,13 @@ export const MsgCreateMessageIdMultisigIsm = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateMessageIdMultisigIsm>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgCreateMessageIdMultisigIsm>,
   ): MsgCreateMessageIdMultisigIsm {
-    return MsgCreateMessageIdMultisigIsm.fromPartial(base ?? ({} as any));
+    return MsgCreateMessageIdMultisigIsm.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateMessageIdMultisigIsm>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgCreateMessageIdMultisigIsm>,
   ): MsgCreateMessageIdMultisigIsm {
     const message = createBaseMsgCreateMessageIdMultisigIsm();
     message.creator = object.creator ?? '';
@@ -286,16 +286,14 @@ export const MsgCreateMessageIdMultisigIsmResponse = {
     return obj;
   },
 
-  create<
-    I extends Exact<DeepPartial<MsgCreateMessageIdMultisigIsmResponse>, I>,
-  >(base?: I): MsgCreateMessageIdMultisigIsmResponse {
-    return MsgCreateMessageIdMultisigIsmResponse.fromPartial(
-      base ?? ({} as any),
-    );
+  create(
+    base?: DeepPartial<MsgCreateMessageIdMultisigIsmResponse>,
+  ): MsgCreateMessageIdMultisigIsmResponse {
+    return MsgCreateMessageIdMultisigIsmResponse.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<MsgCreateMessageIdMultisigIsmResponse>, I>,
-  >(object: I): MsgCreateMessageIdMultisigIsmResponse {
+  fromPartial(
+    object: DeepPartial<MsgCreateMessageIdMultisigIsmResponse>,
+  ): MsgCreateMessageIdMultisigIsmResponse {
     const message = createBaseMsgCreateMessageIdMultisigIsmResponse();
     message.id = object.id ?? '';
     return message;
@@ -390,13 +388,13 @@ export const MsgCreateMerkleRootMultisigIsm = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateMerkleRootMultisigIsm>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgCreateMerkleRootMultisigIsm>,
   ): MsgCreateMerkleRootMultisigIsm {
-    return MsgCreateMerkleRootMultisigIsm.fromPartial(base ?? ({} as any));
+    return MsgCreateMerkleRootMultisigIsm.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateMerkleRootMultisigIsm>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgCreateMerkleRootMultisigIsm>,
   ): MsgCreateMerkleRootMultisigIsm {
     const message = createBaseMsgCreateMerkleRootMultisigIsm();
     message.creator = object.creator ?? '';
@@ -460,16 +458,14 @@ export const MsgCreateMerkleRootMultisigIsmResponse = {
     return obj;
   },
 
-  create<
-    I extends Exact<DeepPartial<MsgCreateMerkleRootMultisigIsmResponse>, I>,
-  >(base?: I): MsgCreateMerkleRootMultisigIsmResponse {
-    return MsgCreateMerkleRootMultisigIsmResponse.fromPartial(
-      base ?? ({} as any),
-    );
+  create(
+    base?: DeepPartial<MsgCreateMerkleRootMultisigIsmResponse>,
+  ): MsgCreateMerkleRootMultisigIsmResponse {
+    return MsgCreateMerkleRootMultisigIsmResponse.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<MsgCreateMerkleRootMultisigIsmResponse>, I>,
-  >(object: I): MsgCreateMerkleRootMultisigIsmResponse {
+  fromPartial(
+    object: DeepPartial<MsgCreateMerkleRootMultisigIsmResponse>,
+  ): MsgCreateMerkleRootMultisigIsmResponse {
     const message = createBaseMsgCreateMerkleRootMultisigIsmResponse();
     message.id = object.id ?? '';
     return message;
@@ -529,14 +525,10 @@ export const MsgCreateNoopIsm = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateNoopIsm>, I>>(
-    base?: I,
-  ): MsgCreateNoopIsm {
-    return MsgCreateNoopIsm.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgCreateNoopIsm>): MsgCreateNoopIsm {
+    return MsgCreateNoopIsm.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateNoopIsm>, I>>(
-    object: I,
-  ): MsgCreateNoopIsm {
+  fromPartial(object: DeepPartial<MsgCreateNoopIsm>): MsgCreateNoopIsm {
     const message = createBaseMsgCreateNoopIsm();
     message.creator = object.creator ?? '';
     return message;
@@ -597,13 +589,13 @@ export const MsgCreateNoopIsmResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateNoopIsmResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgCreateNoopIsmResponse>,
   ): MsgCreateNoopIsmResponse {
-    return MsgCreateNoopIsmResponse.fromPartial(base ?? ({} as any));
+    return MsgCreateNoopIsmResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateNoopIsmResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgCreateNoopIsmResponse>,
   ): MsgCreateNoopIsmResponse {
     const message = createBaseMsgCreateNoopIsmResponse();
     message.id = object.id ?? '';
@@ -737,14 +729,10 @@ export const MsgAnnounceValidator = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgAnnounceValidator>, I>>(
-    base?: I,
-  ): MsgAnnounceValidator {
-    return MsgAnnounceValidator.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgAnnounceValidator>): MsgAnnounceValidator {
+    return MsgAnnounceValidator.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgAnnounceValidator>, I>>(
-    object: I,
-  ): MsgAnnounceValidator {
+  fromPartial(object: DeepPartial<MsgAnnounceValidator>): MsgAnnounceValidator {
     const message = createBaseMsgAnnounceValidator();
     message.validator = object.validator ?? '';
     message.storage_location = object.storage_location ?? '';
@@ -796,13 +784,13 @@ export const MsgAnnounceValidatorResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgAnnounceValidatorResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgAnnounceValidatorResponse>,
   ): MsgAnnounceValidatorResponse {
-    return MsgAnnounceValidatorResponse.fromPartial(base ?? ({} as any));
+    return MsgAnnounceValidatorResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgAnnounceValidatorResponse>, I>>(
-    _: I,
+  fromPartial(
+    _: DeepPartial<MsgAnnounceValidatorResponse>,
   ): MsgAnnounceValidatorResponse {
     const message = createBaseMsgAnnounceValidatorResponse();
     return message;
@@ -878,14 +866,10 @@ export const MsgCreateRoutingIsm = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateRoutingIsm>, I>>(
-    base?: I,
-  ): MsgCreateRoutingIsm {
-    return MsgCreateRoutingIsm.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgCreateRoutingIsm>): MsgCreateRoutingIsm {
+    return MsgCreateRoutingIsm.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateRoutingIsm>, I>>(
-    object: I,
-  ): MsgCreateRoutingIsm {
+  fromPartial(object: DeepPartial<MsgCreateRoutingIsm>): MsgCreateRoutingIsm {
     const message = createBaseMsgCreateRoutingIsm();
     message.creator = object.creator ?? '';
     message.routes = object.routes?.map((e) => Route.fromPartial(e)) || [];
@@ -947,13 +931,13 @@ export const MsgCreateRoutingIsmResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgCreateRoutingIsmResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgCreateRoutingIsmResponse>,
   ): MsgCreateRoutingIsmResponse {
-    return MsgCreateRoutingIsmResponse.fromPartial(base ?? ({} as any));
+    return MsgCreateRoutingIsmResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgCreateRoutingIsmResponse>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgCreateRoutingIsmResponse>,
   ): MsgCreateRoutingIsmResponse {
     const message = createBaseMsgCreateRoutingIsmResponse();
     message.id = object.id ?? '';
@@ -1045,13 +1029,11 @@ export const MsgSetRoutingIsmDomain = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgSetRoutingIsmDomain>, I>>(
-    base?: I,
-  ): MsgSetRoutingIsmDomain {
-    return MsgSetRoutingIsmDomain.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MsgSetRoutingIsmDomain>): MsgSetRoutingIsmDomain {
+    return MsgSetRoutingIsmDomain.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgSetRoutingIsmDomain>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgSetRoutingIsmDomain>,
   ): MsgSetRoutingIsmDomain {
     const message = createBaseMsgSetRoutingIsmDomain();
     message.ism_id = object.ism_id ?? '';
@@ -1105,13 +1087,13 @@ export const MsgSetRoutingIsmDomainResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgSetRoutingIsmDomainResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgSetRoutingIsmDomainResponse>,
   ): MsgSetRoutingIsmDomainResponse {
-    return MsgSetRoutingIsmDomainResponse.fromPartial(base ?? ({} as any));
+    return MsgSetRoutingIsmDomainResponse.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgSetRoutingIsmDomainResponse>, I>>(
-    _: I,
+  fromPartial(
+    _: DeepPartial<MsgSetRoutingIsmDomainResponse>,
   ): MsgSetRoutingIsmDomainResponse {
     const message = createBaseMsgSetRoutingIsmDomainResponse();
     return message;
@@ -1202,13 +1184,13 @@ export const MsgRemoveRoutingIsmDomain = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgRemoveRoutingIsmDomain>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgRemoveRoutingIsmDomain>,
   ): MsgRemoveRoutingIsmDomain {
-    return MsgRemoveRoutingIsmDomain.fromPartial(base ?? ({} as any));
+    return MsgRemoveRoutingIsmDomain.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgRemoveRoutingIsmDomain>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgRemoveRoutingIsmDomain>,
   ): MsgRemoveRoutingIsmDomain {
     const message = createBaseMsgRemoveRoutingIsmDomain();
     message.ism_id = object.ism_id ?? '';
@@ -1259,14 +1241,14 @@ export const MsgRemoveRoutingIsmDomainResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgRemoveRoutingIsmDomainResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgRemoveRoutingIsmDomainResponse>,
   ): MsgRemoveRoutingIsmDomainResponse {
-    return MsgRemoveRoutingIsmDomainResponse.fromPartial(base ?? ({} as any));
+    return MsgRemoveRoutingIsmDomainResponse.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<MsgRemoveRoutingIsmDomainResponse>, I>,
-  >(_: I): MsgRemoveRoutingIsmDomainResponse {
+  fromPartial(
+    _: DeepPartial<MsgRemoveRoutingIsmDomainResponse>,
+  ): MsgRemoveRoutingIsmDomainResponse {
     const message = createBaseMsgRemoveRoutingIsmDomainResponse();
     return message;
   },
@@ -1374,13 +1356,13 @@ export const MsgUpdateRoutingIsmOwner = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgUpdateRoutingIsmOwner>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgUpdateRoutingIsmOwner>,
   ): MsgUpdateRoutingIsmOwner {
-    return MsgUpdateRoutingIsmOwner.fromPartial(base ?? ({} as any));
+    return MsgUpdateRoutingIsmOwner.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MsgUpdateRoutingIsmOwner>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<MsgUpdateRoutingIsmOwner>,
   ): MsgUpdateRoutingIsmOwner {
     const message = createBaseMsgUpdateRoutingIsmOwner();
     message.ism_id = object.ism_id ?? '';
@@ -1432,14 +1414,14 @@ export const MsgUpdateRoutingIsmOwnerResponse = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MsgUpdateRoutingIsmOwnerResponse>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<MsgUpdateRoutingIsmOwnerResponse>,
   ): MsgUpdateRoutingIsmOwnerResponse {
-    return MsgUpdateRoutingIsmOwnerResponse.fromPartial(base ?? ({} as any));
+    return MsgUpdateRoutingIsmOwnerResponse.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<MsgUpdateRoutingIsmOwnerResponse>, I>,
-  >(_: I): MsgUpdateRoutingIsmOwnerResponse {
+  fromPartial(
+    _: DeepPartial<MsgUpdateRoutingIsmOwnerResponse>,
+  ): MsgUpdateRoutingIsmOwnerResponse {
     const message = createBaseMsgUpdateRoutingIsmOwnerResponse();
     return message;
   },
@@ -1618,13 +1600,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

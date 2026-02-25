@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: cosmos_proto/cosmos.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -181,14 +182,10 @@ export const InterfaceDescriptor = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<InterfaceDescriptor>, I>>(
-    base?: I,
-  ): InterfaceDescriptor {
-    return InterfaceDescriptor.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<InterfaceDescriptor>): InterfaceDescriptor {
+    return InterfaceDescriptor.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<InterfaceDescriptor>, I>>(
-    object: I,
-  ): InterfaceDescriptor {
+  fromPartial(object: DeepPartial<InterfaceDescriptor>): InterfaceDescriptor {
     const message = createBaseInterfaceDescriptor();
     message.name = object.name ?? '';
     message.description = object.description ?? '';
@@ -293,14 +290,10 @@ export const ScalarDescriptor = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<ScalarDescriptor>, I>>(
-    base?: I,
-  ): ScalarDescriptor {
-    return ScalarDescriptor.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<ScalarDescriptor>): ScalarDescriptor {
+    return ScalarDescriptor.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<ScalarDescriptor>, I>>(
-    object: I,
-  ): ScalarDescriptor {
+  fromPartial(object: DeepPartial<ScalarDescriptor>): ScalarDescriptor {
     const message = createBaseScalarDescriptor();
     message.name = object.name ?? '';
     message.description = object.description ?? '';
@@ -327,13 +320,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

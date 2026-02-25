@@ -3,9 +3,9 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/post_dispatch/v1/types.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
-
 import { Coin } from '../../../../cosmos/base/v1beta1/coin.js';
 
 export const protobufPackage = 'hyperlane.core.post_dispatch.v1';
@@ -169,13 +169,11 @@ export const InterchainGasPaymaster = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<InterchainGasPaymaster>, I>>(
-    base?: I,
-  ): InterchainGasPaymaster {
-    return InterchainGasPaymaster.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<InterchainGasPaymaster>): InterchainGasPaymaster {
+    return InterchainGasPaymaster.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<InterchainGasPaymaster>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<InterchainGasPaymaster>,
   ): InterchainGasPaymaster {
     const message = createBaseInterchainGasPaymaster();
     message.id = object.id ?? '';
@@ -277,14 +275,10 @@ export const DestinationGasConfig = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DestinationGasConfig>, I>>(
-    base?: I,
-  ): DestinationGasConfig {
-    return DestinationGasConfig.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<DestinationGasConfig>): DestinationGasConfig {
+    return DestinationGasConfig.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<DestinationGasConfig>, I>>(
-    object: I,
-  ): DestinationGasConfig {
+  fromPartial(object: DeepPartial<DestinationGasConfig>): DestinationGasConfig {
     const message = createBaseDestinationGasConfig();
     message.remote_domain = object.remote_domain ?? 0;
     message.gas_oracle =
@@ -367,12 +361,10 @@ export const GasOracle = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GasOracle>, I>>(base?: I): GasOracle {
-    return GasOracle.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<GasOracle>): GasOracle {
+    return GasOracle.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<GasOracle>, I>>(
-    object: I,
-  ): GasOracle {
+  fromPartial(object: DeepPartial<GasOracle>): GasOracle {
     const message = createBaseGasOracle();
     message.token_exchange_rate = object.token_exchange_rate ?? '';
     message.gas_price = object.gas_price ?? '';
@@ -477,14 +469,10 @@ export const MerkleTreeHook = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<MerkleTreeHook>, I>>(
-    base?: I,
-  ): MerkleTreeHook {
-    return MerkleTreeHook.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<MerkleTreeHook>): MerkleTreeHook {
+    return MerkleTreeHook.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<MerkleTreeHook>, I>>(
-    object: I,
-  ): MerkleTreeHook {
+  fromPartial(object: DeepPartial<MerkleTreeHook>): MerkleTreeHook {
     const message = createBaseMerkleTreeHook();
     message.id = object.id ?? '';
     message.mailbox_id = object.mailbox_id ?? '';
@@ -563,10 +551,10 @@ export const Tree = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<Tree>, I>>(base?: I): Tree {
-    return Tree.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<Tree>): Tree {
+    return Tree.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<Tree>, I>>(object: I): Tree {
+  fromPartial(object: DeepPartial<Tree>): Tree {
     const message = createBaseTree();
     message.branch = object.branch?.map((e) => e) || [];
     message.count = object.count ?? 0;
@@ -641,10 +629,10 @@ export const NoopHook = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<NoopHook>, I>>(base?: I): NoopHook {
-    return NoopHook.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<NoopHook>): NoopHook {
+    return NoopHook.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<NoopHook>, I>>(object: I): NoopHook {
+  fromPartial(object: DeepPartial<NoopHook>): NoopHook {
     const message = createBaseNoopHook();
     message.id = object.id ?? '';
     message.owner = object.owner ?? '';
@@ -695,13 +683,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

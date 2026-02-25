@@ -3,6 +3,7 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/v1/events.proto
+
 /* eslint-disable */
 import _m0 from 'protobufjs/minimal.js';
 
@@ -191,14 +192,10 @@ export const EventDispatch = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventDispatch>, I>>(
-    base?: I,
-  ): EventDispatch {
-    return EventDispatch.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventDispatch>): EventDispatch {
+    return EventDispatch.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventDispatch>, I>>(
-    object: I,
-  ): EventDispatch {
+  fromPartial(object: DeepPartial<EventDispatch>): EventDispatch {
     const message = createBaseEventDispatch();
     message.origin_mailbox_id = object.origin_mailbox_id ?? '';
     message.sender = object.sender ?? '';
@@ -345,14 +342,10 @@ export const EventProcess = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventProcess>, I>>(
-    base?: I,
-  ): EventProcess {
-    return EventProcess.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventProcess>): EventProcess {
+    return EventProcess.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventProcess>, I>>(
-    object: I,
-  ): EventProcess {
+  fromPartial(object: DeepPartial<EventProcess>): EventProcess {
     const message = createBaseEventProcess();
     message.origin_mailbox_id = object.origin_mailbox_id ?? '';
     message.origin = object.origin ?? 0;
@@ -504,14 +497,10 @@ export const EventCreateMailbox = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventCreateMailbox>, I>>(
-    base?: I,
-  ): EventCreateMailbox {
-    return EventCreateMailbox.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventCreateMailbox>): EventCreateMailbox {
+    return EventCreateMailbox.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventCreateMailbox>, I>>(
-    object: I,
-  ): EventCreateMailbox {
+  fromPartial(object: DeepPartial<EventCreateMailbox>): EventCreateMailbox {
     const message = createBaseEventCreateMailbox();
     message.mailbox_id = object.mailbox_id ?? '';
     message.owner = object.owner ?? '';
@@ -663,14 +652,10 @@ export const EventSetMailbox = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<EventSetMailbox>, I>>(
-    base?: I,
-  ): EventSetMailbox {
-    return EventSetMailbox.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<EventSetMailbox>): EventSetMailbox {
+    return EventSetMailbox.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<EventSetMailbox>, I>>(
-    object: I,
-  ): EventSetMailbox {
+  fromPartial(object: DeepPartial<EventSetMailbox>): EventSetMailbox {
     const message = createBaseEventSetMailbox();
     message.mailbox_id = object.mailbox_id ?? '';
     message.owner = object.owner ?? '';
@@ -700,13 +685,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

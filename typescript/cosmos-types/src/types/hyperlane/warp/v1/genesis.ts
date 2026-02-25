@@ -3,10 +3,10 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/warp/v1/genesis.proto
+
 /* eslint-disable */
 import Long from 'long';
 import _m0 from 'protobufjs/minimal.js';
-
 import { HypToken, Params, RemoteRouter } from './types.js';
 
 export const protobufPackage = 'hyperlane.warp.v1';
@@ -115,14 +115,10 @@ export const GenesisState = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GenesisState>, I>>(
-    base?: I,
-  ): GenesisState {
-    return GenesisState.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<GenesisState>): GenesisState {
+    return GenesisState.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<GenesisState>, I>>(
-    object: I,
-  ): GenesisState {
+  fromPartial(object: DeepPartial<GenesisState>): GenesisState {
     const message = createBaseGenesisState();
     message.params =
       object.params !== undefined && object.params !== null
@@ -214,13 +210,13 @@ export const GenesisRemoteRouterWrapper = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GenesisRemoteRouterWrapper>, I>>(
-    base?: I,
+  create(
+    base?: DeepPartial<GenesisRemoteRouterWrapper>,
   ): GenesisRemoteRouterWrapper {
-    return GenesisRemoteRouterWrapper.fromPartial(base ?? ({} as any));
+    return GenesisRemoteRouterWrapper.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<GenesisRemoteRouterWrapper>, I>>(
-    object: I,
+  fromPartial(
+    object: DeepPartial<GenesisRemoteRouterWrapper>,
   ): GenesisRemoteRouterWrapper {
     const message = createBaseGenesisRemoteRouterWrapper();
     message.token_id = object.token_id ?? '0';
@@ -250,13 +246,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function longToString(long: Long) {
   return long.toString();

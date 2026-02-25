@@ -3,10 +3,10 @@
 //   protoc-gen-ts_proto  v1.181.2
 //   protoc               unknown
 // source: hyperlane/core/interchain_security/v1/genesis.proto
+
 /* eslint-disable */
 import Long from 'long';
 import _m0 from 'protobufjs/minimal.js';
-
 import { Any } from '../../../../google/protobuf/any.js';
 
 export const protobufPackage = 'hyperlane.core.interchain_security.v1';
@@ -114,14 +114,10 @@ export const GenesisState = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<GenesisState>, I>>(
-    base?: I,
-  ): GenesisState {
-    return GenesisState.fromPartial(base ?? ({} as any));
+  create(base?: DeepPartial<GenesisState>): GenesisState {
+    return GenesisState.fromPartial(base ?? {});
   },
-  fromPartial<I extends Exact<DeepPartial<GenesisState>, I>>(
-    object: I,
-  ): GenesisState {
+  fromPartial(object: DeepPartial<GenesisState>): GenesisState {
     const message = createBaseGenesisState();
     message.isms = object.isms?.map((e) => Any.fromPartial(e)) || [];
     message.validator_storage_locations =
@@ -241,16 +237,14 @@ export const GenesisValidatorStorageLocationWrapper = {
     return obj;
   },
 
-  create<
-    I extends Exact<DeepPartial<GenesisValidatorStorageLocationWrapper>, I>,
-  >(base?: I): GenesisValidatorStorageLocationWrapper {
-    return GenesisValidatorStorageLocationWrapper.fromPartial(
-      base ?? ({} as any),
-    );
+  create(
+    base?: DeepPartial<GenesisValidatorStorageLocationWrapper>,
+  ): GenesisValidatorStorageLocationWrapper {
+    return GenesisValidatorStorageLocationWrapper.fromPartial(base ?? {});
   },
-  fromPartial<
-    I extends Exact<DeepPartial<GenesisValidatorStorageLocationWrapper>, I>,
-  >(object: I): GenesisValidatorStorageLocationWrapper {
+  fromPartial(
+    object: DeepPartial<GenesisValidatorStorageLocationWrapper>,
+  ): GenesisValidatorStorageLocationWrapper {
     const message = createBaseGenesisValidatorStorageLocationWrapper();
     message.mailbox_id = object.mailbox_id ?? '0';
     message.validator_address = object.validator_address ?? '';
@@ -278,13 +272,6 @@ export type DeepPartial<T> = T extends Builtin
       : T extends {}
         ? { [K in keyof T]?: DeepPartial<T[K]> }
         : Partial<T>;
-
-type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin
-  ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & {
-      [K in Exclude<keyof I, KeysOfUnion<P>>]: never;
-    };
 
 function longToString(long: Long) {
   return long.toString();
