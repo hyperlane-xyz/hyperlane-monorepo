@@ -4,7 +4,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$SCRIPT_DIR/.venv"
-if [ ! -d "$VENV_DIR" ]; then
+if [ ! -x "$VENV_DIR/bin/codespell" ]; then
   echo "Creating codespell venv..."
   python3 -m venv "$VENV_DIR"
   "$VENV_DIR/bin/pip" install -q -r "$SCRIPT_DIR/requirements.txt"
