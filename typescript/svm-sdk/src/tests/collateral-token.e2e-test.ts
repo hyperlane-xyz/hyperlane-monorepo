@@ -121,7 +121,6 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
       { program: { programBytes: collateralTokenBytes }, igpProgramId },
       rpc,
       signer,
-      solana.rpcUrl,
     );
   });
 
