@@ -115,7 +115,7 @@ export const RebalancerStrategySchema = z
   .union([StrategyConfigSchema, z.array(StrategyConfigSchema).min(1)])
   .transform((val) => (Array.isArray(val) ? val : [val]));
 
-export const DEFAULT_INTENT_TTL_S = 604800;
+export const DEFAULT_INTENT_TTL_S = 604800; // 7 days
 export const DEFAULT_INTENT_TTL_MS = DEFAULT_INTENT_TTL_S * 1_000;
 
 export const LiFiBridgeConfigSchema = z.object({

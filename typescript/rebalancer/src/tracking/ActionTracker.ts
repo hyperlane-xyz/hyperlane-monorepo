@@ -902,6 +902,7 @@ export class ActionTracker implements IActionTracker {
       const { amount } = parseWarpRouteMessage(msg.message_body);
       // Hasura returns block timestamps as UTC without 'Z' suffix (e.g. "2024-01-15T12:30:45").
       // Null when the scraper hasn't indexed the origin block yet, so fall back to now.
+      // Note: when null, TTL effectively extends by scraper lag since recoverAction won't update createdAt later.
       const createdAt = msg.send_occurred_at
         ? new Date(msg.send_occurred_at + 'Z').getTime()
         : Date.now();
