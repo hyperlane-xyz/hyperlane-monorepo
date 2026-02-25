@@ -2,7 +2,7 @@ import { address, type Address } from '@solana/kit';
 import { expect } from 'chai';
 import { after, before, describe, it } from 'mocha';
 
-import { PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
+import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
@@ -103,7 +103,10 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
     });
 
     writer = new SvmSyntheticTokenWriter(
-      { program: { programBytes: PROGRAM_BYTES.token }, igpProgramId },
+      {
+        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.token },
+        igpProgramId,
+      },
       rpc,
       signer,
     );
