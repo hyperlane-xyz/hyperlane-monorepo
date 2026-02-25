@@ -401,6 +401,7 @@ pub enum HyperlaneDomainTechnicalStack {
     PolygonCDK,
     PolkadotSubstrate,
     ZkSync,
+    Tron,
     #[default]
     Other,
 }
