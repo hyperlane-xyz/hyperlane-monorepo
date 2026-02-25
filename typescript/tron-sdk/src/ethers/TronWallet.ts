@@ -195,7 +195,11 @@ export class TronWallet extends Wallet {
       const hash = ethersKeccak256(
         Buffer.from(altered.txID + this.tronAddressHex, 'hex'),
       );
-      (altered as any).contract_address = '41' + hash.substring(2).slice(24);
+      const alteredWithContractAddress = altered as TronTransaction & {
+        contract_address?: string;
+      };
+      alteredWithContractAddress.contract_address =
+        '41' + hash.substring(2).slice(24);
     }
 
     return altered as TronTransaction;

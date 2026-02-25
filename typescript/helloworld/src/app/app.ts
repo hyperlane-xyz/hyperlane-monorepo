@@ -1,5 +1,6 @@
 import { toBytes } from 'viem';
 
+import type { Router } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
@@ -62,8 +63,8 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     );
   }
 
-  router(contracts: HyperlaneContracts<HelloWorldFactories>): any {
-    return contracts.router as any;
+  router(contracts: HyperlaneContracts<HelloWorldFactories>): Router {
+    return contracts.router as unknown as Router;
   }
 
   async sendHelloWorld(

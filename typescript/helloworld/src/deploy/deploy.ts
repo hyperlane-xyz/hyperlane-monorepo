@@ -1,5 +1,6 @@
 import { zeroAddress } from 'viem';
 
+import type { Router } from '@hyperlane-xyz/core';
 import {
   ChainName,
   ContractVerifier,
@@ -30,8 +31,8 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
     });
   }
 
-  router(contracts: HyperlaneContracts<HelloWorldFactories>): any {
-    return contracts.router as any;
+  router(contracts: HyperlaneContracts<HelloWorldFactories>): Router {
+    return contracts.router as unknown as Router;
   }
 
   // Custom contract deployment logic can go here
@@ -41,7 +42,7 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
       config.mailbox,
       zeroAddress,
     ]);
-    await super.configureClient(chain, router as any, config);
+    await super.configureClient(chain, router as unknown as Router, config);
     return {
       router,
     };

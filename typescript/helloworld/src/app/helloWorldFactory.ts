@@ -1,24 +1,26 @@
 import { createRequire } from 'node:module';
 
-import * as CoreContracts from '@hyperlane-xyz/core';
+import { ViemContractFactory } from '@hyperlane-xyz/core';
+import type { Abi } from 'viem';
 
 const require = createRequire(import.meta.url);
-const ViemContractFactoryBase = (CoreContracts as any).ViemContractFactory;
 
 type HelloWorldArtifact = {
-  abi: readonly unknown[];
+  abi: Abi;
   bytecode?: `0x${string}`;
 };
 
 const helloWorldArtifact =
   require('../../artifacts/contracts/HelloWorld.sol/HelloWorld.json') as HelloWorldArtifact;
 
-export type HelloWorld = any;
-
-export class HelloWorld__factory extends ViemContractFactoryBase {
+export class HelloWorld__factory extends ViemContractFactory<
+  typeof helloWorldArtifact.abi
+> {
   static readonly artifact = {
     contractName: 'HelloWorld',
-    abi: helloWorldArtifact.abi as any,
+    abi: helloWorldArtifact.abi,
     bytecode: (helloWorldArtifact.bytecode ?? '0x') as `0x${string}`,
   };
 }
+
+export type HelloWorld = ReturnType<HelloWorld__factory['connect']>;

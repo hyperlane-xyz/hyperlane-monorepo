@@ -96,10 +96,10 @@ export class EvmHelloWorldAdapter
     return toNumberValue(sent);
   }
 
-  override getConnectedContract(): any {
+  override getConnectedContract() {
     return HelloWorld__factory.connect(
       this.addresses.router,
       this.getProvider(),
-    ) as any;
+    );
   }
 }
