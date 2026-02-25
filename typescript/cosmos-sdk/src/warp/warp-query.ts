@@ -38,9 +38,10 @@ export async function getWarpTokenType(
         throw new Error(`Unknown token type: ${_exhaustiveCheck}`);
       }
     }
-  } catch (error) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Failed to query token type at ${tokenAddress}: ${(error as Error).message}`,
+      `Failed to query token type at ${tokenAddress}: ${message}`,
     );
   }
 }
@@ -101,9 +102,10 @@ export async function getCollateralWarpTokenConfig(
       remoteRouters,
       destinationGas,
     };
-  } catch (error) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Failed to query collateral token config at ${tokenAddress}: ${(error as Error).message}`,
+      `Failed to query collateral token config at ${tokenAddress}: ${message}`,
     );
   }
 }
@@ -139,9 +141,10 @@ export async function getSyntheticWarpTokenConfig(
       remoteRouters,
       destinationGas,
     };
-  } catch (error) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Failed to query synthetic token config at ${tokenAddress}: ${(error as Error).message}`,
+      `Failed to query synthetic token config at ${tokenAddress}: ${message}`,
     );
   }
 }

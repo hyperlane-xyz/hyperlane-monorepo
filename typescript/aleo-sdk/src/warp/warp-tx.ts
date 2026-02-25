@@ -27,6 +27,11 @@ import type {
 
 import { getTokenMetadata } from './warp-query.js';
 
+function withErrorContext(context: string, error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`${context}: ${message}`);
+}
+
 /**
  * Create transaction for initializing a native token
  */
@@ -50,7 +55,14 @@ export async function getCreateCollateralTokenTx(
   tokenProgramId: string,
   collateralDenom: string,
 ): Promise<AleoTransaction> {
-  const metadata = await getTokenMetadata(aleoClient, collateralDenom);
+  const metadata = await getTokenMetadata(aleoClient, collateralDenom).catch(
+    (error: unknown) => {
+      throw withErrorContext(
+        `Failed to query collateral token metadata (tokenProgramId=${tokenProgramId}, collateralDenom=${collateralDenom})`,
+        error,
+      );
+    },
+  );
 
   return {
     programName: tokenProgramId,

@@ -35,6 +35,11 @@ import {
 } from '../utils/types.js';
 import { bytes } from '../utils/utils.js';
 
+function withErrorContext(context: string, error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`${context}: ${message}`);
+}
+
 export async function getCreateCollateralTokenTx(
   base: Readonly<RadixBase>,
   fromAddress: string,
@@ -98,7 +103,12 @@ export async function getSetTokenOwnerTx(
     gateway,
     tokenAddress,
     RADIX_COMPONENT_NAMES.HYP_TOKEN,
-  );
+  ).catch((error: unknown) => {
+    throw withErrorContext(
+      `Failed to fetch Radix token details for ownership transfer (token=${tokenAddress})`,
+      error,
+    );
+  });
 
   const ownershipInfo = getComponentOwnershipInfo(tokenAddress, tokenDetails);
   const resourceAddress =

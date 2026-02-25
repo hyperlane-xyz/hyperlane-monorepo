@@ -28,6 +28,11 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
+function withErrorContext(context: string, error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`${context}: ${message}`);
+}
+
 export class RadixCollateralTokenReader implements ArtifactReader<
   RawCollateralWarpArtifactConfig,
   DeployedWarpAddress
@@ -47,7 +52,12 @@ export class RadixCollateralTokenReader implements ArtifactReader<
       this.gateway,
       this.base,
       address,
-    );
+    ).catch((error: unknown) => {
+      throw withErrorContext(
+        `Failed to read collateral warp token config (address=${address})`,
+        error,
+      );
+    });
 
     const config: RawCollateralWarpArtifactConfig = {
       type: AltVM.TokenType.collateral,
@@ -111,11 +121,30 @@ export class RadixCollateralTokenWriter
         mailbox: config.mailbox,
         originDenom: config.token,
       },
-    );
+    ).catch((error: unknown) => {
+      throw withErrorContext(
+        `Failed to build collateral create transaction (signer=${this.signer.getAddress()}, mailbox=${config.mailbox}, originDenom=${config.token})`,
+        error,
+      );
+    });
 
     const createReceipt =
-      await this.signer.signAndBroadcast(transactionManifest);
-    const address = await this.base.getNewComponent(createReceipt);
+      await this.signer.signAndBroadcast(transactionManifest).catch(
+        (error: unknown) => {
+          throw withErrorContext(
+            `Failed to create collateral warp token (signer=${this.signer.getAddress()}, mailbox=${config.mailbox}, originDenom=${config.token})`,
+            error,
+          );
+        },
+      );
+    const address = await this.base.getNewComponent(createReceipt).catch(
+      (error: unknown) => {
+        throw withErrorContext(
+          'Failed to resolve created collateral token address from transaction receipt',
+          error,
+        );
+      },
+    );
     allReceipts.push(createReceipt);
 
     // Set ISM if configured
@@ -127,9 +156,21 @@ export class RadixCollateralTokenWriter
           tokenAddress: address,
           ismAddress: config.interchainSecurityModule.deployed.address,
         },
-      );
+      ).catch((error: unknown) => {
+        throw withErrorContext(
+          `Failed to build set ISM transaction for collateral warp token ${address}`,
+          error,
+        );
+      });
 
-      const ismReceipt = await this.signer.signAndBroadcast(setIsmTx);
+      const ismReceipt = await this.signer.signAndBroadcast(setIsmTx).catch(
+        (error: unknown) => {
+          throw withErrorContext(
+            `Failed to set ISM for collateral warp token ${address}`,
+            error,
+          );
+        },
+      );
       allReceipts.push(ismReceipt);
     }
 
@@ -150,9 +191,21 @@ export class RadixCollateralTokenWriter
           remoteRouterAddress: routerAddress,
           destinationGas: gas,
         },
-      );
+      ).catch((error: unknown) => {
+        throw withErrorContext(
+          `Failed to build enroll remote router transaction for collateral warp token ${address} (domain=${domainId}, router=${routerAddress})`,
+          error,
+        );
+      });
 
-      const enrollReceipt = await this.signer.signAndBroadcast(enrollTx);
+      const enrollReceipt = await this.signer.signAndBroadcast(enrollTx).catch(
+        (error: unknown) => {
+          throw withErrorContext(
+            `Failed to enroll remote router for collateral warp token ${address} (domain=${domainId}, router=${routerAddress})`,
+            error,
+          );
+        },
+      );
       allReceipts.push(enrollReceipt);
     }
 
