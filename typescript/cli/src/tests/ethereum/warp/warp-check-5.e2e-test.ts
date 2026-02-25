@@ -54,9 +54,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
     const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
 
-    const provider = new ethers.providers.JsonRpcProvider(
-      chainMetadata.rpcUrls[0].http,
-    );
+    const provider = new ethers.JsonRpcProvider(chainMetadata.rpcUrls[0].http);
 
     signer = new Wallet(ANVIL_KEY).connect(provider);
 

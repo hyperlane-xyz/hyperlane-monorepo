@@ -12,15 +12,15 @@ jest.mock('../../src/services/RPCService');
 describe('ProofsService', () => {
   const TARGET_ADDR = 'targetAddress';
   const MESSAGE_ID = 'msgId';
-  const STORAGE_KEY = ethers.utils.formatBytes32String('10');
+  const STORAGE_KEY = ethers.encodeBytes32String('10');
   let proofsService: ProofsService;
   let pendingProofKey: string;
 
   beforeEach(() => {
     proofsService = new ProofsService(
       {
-        lightClientAddress: ethers.constants.AddressZero,
-        stepFunctionId: ethers.constants.HashZero,
+        lightClientAddress: ethers.ZeroAddress,
+        stepFunctionId: ethers.ZeroHash,
         platformUrl: 'http://localhost:8080',
         apiKey: 'apiKey',
       },

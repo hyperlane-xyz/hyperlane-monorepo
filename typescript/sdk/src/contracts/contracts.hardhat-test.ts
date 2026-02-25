@@ -30,7 +30,7 @@ describe('Contracts', () => {
     it('should return false for AddressZero', async () => {
       const isActive = await isAddressActive(
         multiProvider.getProvider(TestChainName.test1),
-        ethers.constants.AddressZero,
+        ethers.ZeroAddress,
       );
 
       expect(isActive).to.be.false;
