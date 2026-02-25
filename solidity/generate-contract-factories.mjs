@@ -91,6 +91,17 @@ function renderMethodNamesUnion(methodNames) {
   return methodNames.map((methodName) => JSON.stringify(methodName)).join(' | ');
 }
 
+function renderSignatureAliasType(sourceType, signatureAliases) {
+  if (!signatureAliases.length) return '{}';
+  const lines = signatureAliases
+    .map(
+      ({ signature, name }) =>
+        `  ${JSON.stringify(signature)}: ${sourceType}[${JSON.stringify(name)}];`,
+    )
+    .join('\n');
+  return `{\n${lines}\n}`;
+}
+
 function renderContractModuleSource(name, artifact) {
   const abiIdentifier = `${name}Abi`;
   const artifactIdentifier = `${name}Artifact`;
@@ -119,8 +130,23 @@ type ${name}EstimateGasMethods = {
     ViemContractLike<typeof ${abiIdentifier}>['estimateGas'][TName];
 };
 
-export type ${name} = ViemContractLike<typeof ${abiIdentifier}> & ${name}Methods & {
-  estimateGas: ViemContractLike<typeof ${abiIdentifier}>['estimateGas'] & ${name}EstimateGasMethods;
+type ${name}SignatureMethods = ${renderSignatureAliasType(
+    `ViemContractLike<typeof ${abiIdentifier}>['functions']`,
+    artifact.functionAliases,
+  )};
+
+type ${name}EstimateGasSignatureMethods = ${renderSignatureAliasType(
+    `ViemContractLike<typeof ${abiIdentifier}>['estimateGas']`,
+    artifact.functionAliases,
+  )};
+
+export type ${name} = ViemContractLike<typeof ${abiIdentifier}> &
+  Record<string, unknown> &
+  ${name}Methods &
+  ${name}SignatureMethods & {
+  estimateGas: ViemContractLike<typeof ${abiIdentifier}>['estimateGas'] &
+    ${name}EstimateGasMethods &
+    ${name}EstimateGasSignatureMethods;
 };
 
 export class ${name}__factory extends ViemContractFactory<typeof ${abiIdentifier}, ${name}> {
@@ -198,6 +224,22 @@ async function generate() {
           (item) => item?.type === 'function' && typeof item?.name === 'string',
         );
         return uniqueStrings(functions.map((item) => item.name));
+      })(),
+      functionAliases: (() => {
+        const functions = (parsed.abi ?? []).filter(
+          (item) => item?.type === 'function' && typeof item?.name === 'string',
+        );
+        return [
+          ...new Map(
+            functions.map((item) => [
+              functionSignature(item),
+              {
+                signature: functionSignature(item),
+                name: item.name,
+              },
+            ]),
+          ).values(),
+        ];
       })(),
     };
     artifactsByName.set(

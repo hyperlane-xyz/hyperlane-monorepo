@@ -185,15 +185,15 @@ export function defaultAleoProviderBuilder(
 }
 
 /**
- * Returns an ethers-compatible TronJsonRpcProvider for use in MultiProvider.
- * This handles Tron's missing eth_getTransactionCount and returns the raw provider.
+ * Returns a SmartProvider-based Tron provider for use in MultiProvider.
  */
 export function defaultTronEthersProviderBuilder(
   rpcUrls: RpcUrl[],
-  _network: number | string,
-): providers.Provider {
+  network: number | string,
+): HyperlaneSmartProvider {
   assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
-  return new TronJsonRpcProvider(rpcUrls[0].http);
+  return defaultEvmProviderBuilder(rpcUrls, network)
+    .provider as HyperlaneSmartProvider;
 }
 
 // Kept for backwards compatibility
