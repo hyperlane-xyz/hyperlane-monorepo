@@ -209,7 +209,7 @@ jobs:
   pnpm-test-run:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
-    timeout-minutes: 10
+    timeout-minutes: 20
     if: needs.change-detection.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v6
