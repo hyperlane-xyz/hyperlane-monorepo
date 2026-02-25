@@ -111,7 +111,7 @@ export const rebalanceableCollateralChains = [
 
 // On-chain LinearFee parameters for already-deployed chains.
 // These were deployed with the original bps logic of using the totalSupply()
-// Without these, warp apply will redeploy the fees
+// Without these, warp apply will 1) redeploy the fees and 2) warp check will show diffs
 const deployedChainFeeParams: Record<
   string,
   { maxFee: string; halfAmount: string }
@@ -145,6 +145,26 @@ const deployedChainFeeParams: Record<
     maxFee: '2675917496765118465156267568419760491445101099689821059982086779',
     halfAmount:
       '2675917496765118465156267568419760491445101099689821059982086778000',
+  },
+  avalanche: {
+    maxFee: '115792089237316195423570985008687907853269',
+    halfAmount: '115792089237316195423570985008687907853268000',
+  },
+  hyperevm: {
+    maxFee: '115792089237316195423570985008687907853269',
+    halfAmount: '115792089237316195423570985008687907853268000',
+  },
+  ink: {
+    maxFee: '115792089237316195423570985008687907853269',
+    halfAmount: '115792089237316195423570985008687907853268000',
+  },
+  linea: {
+    maxFee: '115792089237316195423570985008687907853269',
+    halfAmount: '115792089237316195423570985008687907853268000',
+  },
+  worldchain: {
+    maxFee: '115792089237316195423570985008687907853269',
+    halfAmount: '115792089237316195423570985008687907853268000',
   },
 };
 
