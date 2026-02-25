@@ -3,5 +3,5 @@
   "*.ts": ["oxlint", "oxfmt --write"],
   "*.md": "oxfmt --no-error-on-unmatched-pattern --write",
   "*.sol": "prettier --write",
-  "*.json": "oxfmt --write"
+  "*.json": "oxfmt --no-error-on-unmatched-pattern --write"
 }

@@ -1,5 +1,50 @@
 # @hyperlane-xyz/sdk
 
+## 25.3.0
+
+### Minor Changes
+
+- aea767c: Tron Virtual Machine (TVM) support added to the Hyperlane SDK. The new `@hyperlane-xyz/tron-sdk` package provides `TronJsonRpcProvider`, `TronWallet`, and `TronContractFactory` for interacting with Tron chains. The SDK deployers now automatically use Tron-compiled factories for Create2-affected contracts (ISM/hook factories, ICA router) when deploying to Tron chains.
+
+### Patch Changes
+
+- Updated dependencies [aea767c]
+  - @hyperlane-xyz/tron-sdk@21.1.0
+  - @hyperlane-xyz/deploy-sdk@1.3.4
+  - @hyperlane-xyz/aleo-sdk@25.3.0
+  - @hyperlane-xyz/starknet-core@25.3.0
+  - @hyperlane-xyz/cosmos-sdk@25.3.0
+  - @hyperlane-xyz/radix-sdk@25.3.0
+  - @hyperlane-xyz/utils@25.3.0
+  - @hyperlane-xyz/provider-sdk@1.3.4
+  - @hyperlane-xyz/core@10.1.5
+
+## 25.2.0
+
+### Minor Changes
+
+- 18ec479: Allow custom_rpc_header to be set for starknet chains
+- 795d93e: Include gasCurrencyCoinGeckoId to coinGeckoId field created by Token.FromChainMetadataNativeToken
+
+### Patch Changes
+
+- 215dff0: Exported `onChainTypeToTokenFeeTypeMap` and `OnchainTokenFeeType` from SDK to support fee contract transaction reading in GovernTransactionReader.
+- d2f75a1: Added retry logic for Safe Transaction Service API calls to handle 429 rate limits during multi-chain operations. Fixed signer passthrough in EV5GnosisSafeTxSubmitter.create(). Extracted shared Safe init logic to reduce duplication between EV5GnosisSafeTxSubmitter and EV5GnosisSafeTxBuilder.
+- e143956: Added a 30-second minimum floor to the dynamic confirmation timeout in `MultiProvider.handleTx`, preventing unreasonably short timeouts on fast L2 chains with very small `estimateBlockTime` values.
+- c61d612: Added anvil RPC helper functions (setBalance, setStorageAt, mine, increaseTime, snapshot, revertToSnapshot, impersonateAccounts) for use in E2E test harnesses.
+- c2affe2: Added timeout protection to MultiProvider.handleTx() for numeric block confirmation waits. The existing timeoutMs option now applies to both numeric and block-tag confirmation paths, with a default of 5 minutes. This prevents indefinite hangs when ethers.js response.wait() fails to resolve.
+- Updated dependencies [360db52]
+- Updated dependencies [6091a31]
+- Updated dependencies [ccd638d]
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/aleo-sdk@25.2.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/cosmos-sdk@25.2.0
+  - @hyperlane-xyz/deploy-sdk@1.3.3
+  - @hyperlane-xyz/provider-sdk@1.3.3
+  - @hyperlane-xyz/radix-sdk@25.2.0
+  - @hyperlane-xyz/starknet-core@25.2.0
+
 ## 25.1.0
 
 ### Patch Changes

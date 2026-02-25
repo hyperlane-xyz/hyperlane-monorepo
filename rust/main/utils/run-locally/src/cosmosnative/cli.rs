@@ -78,6 +78,16 @@ impl SimApp {
 
     pub fn init(&self) {
         self.cli().cmd("init-sample-chain").run().join();
+
+        // Speed up block times for faster E2E tests
+        let config_path = format!("{}/config/config.toml", self.home);
+        let contents =
+            std::fs::read_to_string(&config_path).expect("Failed to read config.toml after init");
+        let mut doc = contents
+            .parse::<toml_edit::Document>()
+            .expect("Failed to parse config.toml");
+        doc["consensus"]["timeout_commit"] = toml_edit::value("1s");
+        std::fs::write(&config_path, doc.to_string()).expect("Failed to write config.toml");
     }
 
     pub fn start(&mut self) -> AgentHandles {
@@ -94,8 +104,35 @@ impl SimApp {
             .arg("rpc.pprof_laddr", &self.pprof_addr) // default is localhost:6060
             .arg("log_level", "panic")
             .spawn("SIMAPP", None);
-        sleep(Duration::from_secs(5));
+        self.wait_for_node();
         node
+    }
+
+    /// Poll the CometBFT RPC /status endpoint until the node is producing blocks.
+    fn wait_for_node(&self) {
+        use ureq::get;
+        const MAX_ATTEMPTS: u32 = 30;
+        let url = format!("{}/status", self.rpc_addr.replace("tcp", "http"));
+        for attempt in 1..=MAX_ATTEMPTS {
+            if let Ok(resp) = get(&url).call() {
+                if resp.status() == 200 {
+                    if let Ok(body) = resp.into_string() {
+                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
+                            if let Some(height) =
+                                json["result"]["sync_info"]["latest_block_height"].as_str()
+                            {
+                                if height.parse::<u64>().unwrap_or(0) > 0 {
+                                    log!("SimApp node ready after {} attempts", attempt);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            sleep(Duration::from_secs(1));
+        }
+        panic!("SimApp node not ready after {MAX_ATTEMPTS} attempts");
     }
 
     fn tx<'a>(&self, args: impl IntoIterator<Item = &'a str>) {
@@ -114,7 +151,7 @@ impl SimApp {
             .filter_logs(|_| false)
             .run()
             .join();
-        sleep(Duration::from_secs(5)); // wait for the block to mined
+        sleep(Duration::from_secs(2)); // wait for the block to be mined
     }
 
     pub fn remote_transfer(
@@ -146,7 +183,7 @@ impl SimApp {
             .filter_logs(|_| false)
             .run()
             .join();
-        sleep(Duration::from_secs(5)); // wait for the block to mined
+        sleep(Duration::from_secs(2)); // wait for the block to be mined
     }
 
     pub fn deploy_and_configure_contracts(
@@ -248,7 +285,7 @@ impl SimApp {
             .flag("yes")
             .run()
             .join();
-        sleep(Duration::from_secs(5)); // wait for the block to mined
+        sleep(Duration::from_secs(2)); // wait for the block to be mined
 
         // create warp route
         // expected address: 0x726f757465725f61707000000000000000000000000000010000000000000000

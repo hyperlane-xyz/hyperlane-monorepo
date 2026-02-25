@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup python
         uses: actions/setup-python@v6

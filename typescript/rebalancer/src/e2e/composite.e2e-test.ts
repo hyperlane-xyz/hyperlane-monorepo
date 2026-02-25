@@ -233,7 +233,7 @@ describe('CompositeStrategy E2E', function () {
           hyperlaneCore,
           {
             dispatchTx: rebalanceTxReceipt!,
-            messageId: action.messageId,
+            messageId: action.messageId!,
             origin: originChain,
             destination: destChain,
           },
@@ -432,7 +432,7 @@ describe('CompositeStrategy E2E', function () {
           hyperlaneCore,
           {
             dispatchTx: rebalanceTxReceipt!,
-            messageId: action.messageId,
+            messageId: action.messageId!,
             origin: originChain,
             destination: destChain,
           },
@@ -651,7 +651,7 @@ describe('CompositeStrategy E2E', function () {
           hyperlaneCore,
           {
             dispatchTx: rebalanceTxReceipt!,
-            messageId: action.messageId,
+            messageId: action.messageId!,
             origin: originChain,
             destination: destChain,
           },
@@ -794,7 +794,7 @@ describe('CompositeStrategy E2E', function () {
       );
       const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
         dispatchTx: rebalanceTxReceipt,
-        messageId: inflightToBase.messageId,
+        messageId: inflightToBase.messageId!,
         origin: 'anvil1',
         destination: 'anvil3',
       });
@@ -959,7 +959,7 @@ describe('CompositeStrategy E2E', function () {
 
       const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
         dispatchTx: rebalanceTxReceipt,
-        messageId: action.messageId,
+        messageId: action.messageId!,
         origin: originChain,
         destination: destChain,
       });

@@ -9,14 +9,15 @@ export type InflightRebalanceQueryParams = {
 
 export type UserTransferQueryParams = {
   routersByDomain: Record<number, string>; // Domain ID → router address (derive routers and domains from this)
-  excludeTxSender: string; // Rebalancer address to exclude
+  excludeTxSenders: string[]; // Addresses to exclude (rebalancer + inventory signer)
   limit?: number;
 };
 
 export type RebalanceActionQueryParams = {
   bridges: string[]; // Bridge contract addresses
   routersByDomain: Record<number, string>; // Domain ID → router address (derive routers and domains from this)
-  rebalancerAddress: string; // Only include rebalancer's txs
+  rebalancerAddress: string; // Include rebalancer's txs
+  inventorySignerAddress?: string; // Optional: also include inventory signer's txs (for inventory_deposit actions)
   limit?: number;
 };
 
@@ -191,7 +192,7 @@ export class ExplorerClient implements IExplorerClient {
     params: UserTransferQueryParams,
     logger: Logger,
   ): Promise<ExplorerMessage[]> {
-    const { routersByDomain, excludeTxSender, limit = 100 } = params;
+    const { routersByDomain, excludeTxSenders, limit = 100 } = params;
 
     // Derive routers and domains from routersByDomain
     const routers = Object.values(routersByDomain);
@@ -202,7 +203,7 @@ export class ExplorerClient implements IExplorerClient {
       recipients: routers.map((a) => this.toBytea(a)),
       originDomains: domains,
       destDomains: domains,
-      excludeTxSender: this.toBytea(excludeTxSender),
+      excludeTxSenders: excludeTxSenders.map((a) => this.toBytea(a)),
       limit,
     };
 
@@ -214,7 +215,7 @@ export class ExplorerClient implements IExplorerClient {
         $recipients: [bytea!],
         $originDomains: [Int!],
         $destDomains: [Int!],
-        $excludeTxSender: bytea!,
+        $excludeTxSenders: [bytea!],
         $limit: Int = 100
       ) {
         message_view(
@@ -225,7 +226,7 @@ export class ExplorerClient implements IExplorerClient {
               { recipient: { _in: $recipients } },
               { origin_domain_id: { _in: $originDomains } },
               { destination_domain_id: { _in: $destDomains } },
-              { origin_tx_sender: { _neq: $excludeTxSender } }
+              { origin_tx_sender: { _nin: $excludeTxSenders } }
             ]
           }
           order_by: { origin_tx_id: desc }
@@ -284,11 +285,23 @@ export class ExplorerClient implements IExplorerClient {
     params: RebalanceActionQueryParams,
     logger: Logger,
   ): Promise<ExplorerMessage[]> {
-    const { bridges, routersByDomain, rebalancerAddress, limit = 100 } = params;
+    const {
+      bridges,
+      routersByDomain,
+      rebalancerAddress,
+      inventorySignerAddress,
+      limit = 100,
+    } = params;
 
     // Derive routers and domains from routersByDomain
     const routers = Object.values(routersByDomain);
     const domains = Object.keys(routersByDomain).map(Number);
+
+    // Build list of tx senders to include (rebalancer + optional inventory signer)
+    const txSenders = [this.toBytea(rebalancerAddress)];
+    if (inventorySignerAddress) {
+      txSenders.push(this.toBytea(inventorySignerAddress));
+    }
 
     const variables = {
       senders: bridges.map((a) => this.toBytea(a)),
@@ -296,7 +309,7 @@ export class ExplorerClient implements IExplorerClient {
       originTxRecipients: routers.map((a) => this.toBytea(a)),
       originDomains: domains,
       destDomains: domains,
-      txSender: this.toBytea(rebalancerAddress),
+      txSenders,
       limit,
     };
 
@@ -309,7 +322,7 @@ export class ExplorerClient implements IExplorerClient {
         $originTxRecipients: [bytea!],
         $originDomains: [Int!],
         $destDomains: [Int!],
-        $txSender: bytea!,
+        $txSenders: [bytea!],
         $limit: Int = 100
       ) {
         message_view(
@@ -321,7 +334,7 @@ export class ExplorerClient implements IExplorerClient {
               { origin_tx_recipient: { _in: $originTxRecipients } },
               { origin_domain_id: { _in: $originDomains } },
               { destination_domain_id: { _in: $destDomains } },
-              { origin_tx_sender: { _eq: $txSender } }
+              { origin_tx_sender: { _in: $txSenders } }
             ]
           }
           order_by: { origin_tx_id: desc }

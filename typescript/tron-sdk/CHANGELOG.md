@@ -1,5 +1,26 @@
 # @hyperlane-xyz/tron-sdk
 
+## 21.1.0
+
+### Minor Changes
+
+- aea767c: Tron Virtual Machine (TVM) support added to the Hyperlane SDK. The new `@hyperlane-xyz/tron-sdk` package provides `TronJsonRpcProvider`, `TronWallet`, and `TronContractFactory` for interacting with Tron chains. The SDK deployers now automatically use Tron-compiled factories for Create2-affected contracts (ISM/hook factories, ICA router) when deploying to Tron chains.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@25.3.0
+- @hyperlane-xyz/provider-sdk@1.3.4
+
+## 21.0.2
+
+### Patch Changes
+
+- Updated dependencies [360db52]
+- Updated dependencies [ccd638d]
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/provider-sdk@1.3.3
+  - @hyperlane-xyz/eslint-config@25.2.0
+
 ## 21.0.1
 
 ### Patch Changes
