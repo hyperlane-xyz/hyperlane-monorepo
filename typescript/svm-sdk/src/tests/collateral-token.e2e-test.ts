@@ -1,13 +1,12 @@
 import { address, type Address } from '@solana/kit';
-import { createMint } from '@solana/spl-token';
-import { Connection, Keypair } from '@solana/web3.js';
+import { expect } from 'chai';
 // eslint-disable-next-line import/no-nodejs-modules
 import * as fs from 'fs';
 import { after, before, describe, it } from 'mocha';
-import { expect } from 'chai';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 
+import { SvmSigner } from '../clients/signer.js';
 import {
   DEFAULT_IGP_CONTEXT,
   SvmIgpHookWriter,
@@ -17,18 +16,18 @@ import {
 import { SvmTestIsmWriter, type SvmTestIsmConfig } from '../ism/test-ism.js';
 import { deriveOverheadIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
-import { SvmSigner } from '../clients/signer.js';
 import {
   DEFAULT_PROGRAMS_PATH,
   PROGRAM_BINARIES,
   TEST_PROGRAM_IDS,
   airdropSol,
+  createSplMint,
   getPreloadedPrograms,
 } from '../testing/setup.js';
 import {
-  type SolanaTestValidator,
   startSolanaTestValidator,
   waitForRpcReady,
+  type SolanaTestValidator,
 } from '../testing/solana-container.js';
 import { SvmCollateralTokenWriter } from '../warp/collateral-token.js';
 
@@ -107,11 +106,7 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
     });
 
     // Create a collateral SPL mint for the test.
-    const seed = Buffer.from(TEST_PRIVATE_KEY.slice(2), 'hex');
-    const payer = Keypair.fromSeed(seed);
-    const connection = new Connection(solana.rpcUrl, 'confirmed');
-    const mint = await createMint(connection, payer, payer.publicKey, null, 9);
-    collateralMint = mint.toBase58() as Address;
+    collateralMint = await createSplMint(rpc, signer, 9);
 
     const collateralTokenBytes = fs.readFileSync(
       `${DEFAULT_PROGRAMS_PATH}/${PROGRAM_BINARIES.tokenCollateral}`,
