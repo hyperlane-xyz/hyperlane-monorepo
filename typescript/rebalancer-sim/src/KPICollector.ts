@@ -3,6 +3,7 @@ import type { ethers } from 'ethers';
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
 
 import type {
+  AssetMetrics,
   ChainMetrics,
   DeployedDomain,
   RebalanceRecord,
@@ -59,6 +60,7 @@ export class KPICollector {
     origin: string,
     destination: string,
     amount: bigint,
+    asset?: string,
   ): void {
     this.transferRecords.set(id, {
       id,
@@ -67,6 +69,7 @@ export class KPICollector {
       amount,
       startTime: Date.now(),
       status: 'pending',
+      asset,
     });
   }
 
@@ -116,6 +119,7 @@ export class KPICollector {
     destination: string,
     amount: bigint,
     gasCost: bigint,
+    asset?: string,
   ): string {
     const id = `rebalance-${this.rebalanceRecords.size}`;
     this.rebalanceRecords.set(id, {
@@ -126,6 +130,7 @@ export class KPICollector {
       startTime: Date.now(),
       gasCost,
       status: 'pending',
+      asset,
     });
     return id;
   }
@@ -261,6 +266,39 @@ export class KPICollector {
       BigInt(0),
     );
 
+    // Per-asset metrics (only when records have asset info)
+    let perAssetMetrics: Record<string, AssetMetrics> | undefined;
+    const hasAssetInfo =
+      transfers.some((t) => t.asset) ||
+      allRebalanceRecords.some((r) => r.asset);
+    if (hasAssetInfo) {
+      const assetSet = new Set<string>();
+      for (const t of transfers) if (t.asset) assetSet.add(t.asset);
+      for (const r of allRebalanceRecords) if (r.asset) assetSet.add(r.asset);
+
+      perAssetMetrics = {};
+      for (const asset of assetSet) {
+        const assetTransfers = transfers.filter((t) => t.asset === asset);
+        const assetCompleted = assetTransfers.filter(
+          (t) => t.status === 'completed',
+        );
+        const assetRebalances = completedRebalances.filter(
+          (r) => r.asset === asset,
+        );
+        const assetRebalanceVol = assetRebalances.reduce(
+          (sum, r) => sum + r.amount,
+          BigInt(0),
+        );
+        perAssetMetrics[asset] = {
+          asset,
+          transfers: assetTransfers.length,
+          completedTransfers: assetCompleted.length,
+          rebalances: assetRebalances.length,
+          rebalanceVolume: assetRebalanceVol,
+        };
+      }
+    }
+
     return {
       totalTransfers: transfers.length,
       completedTransfers: completed.length,
@@ -275,6 +313,7 @@ export class KPICollector {
       rebalanceVolume: totalRebalanceVolume,
       totalGasCost,
       perChainMetrics,
+      perAssetMetrics,
     };
   }
 

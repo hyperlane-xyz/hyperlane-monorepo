@@ -315,6 +315,7 @@ export function buildMockLifiSwapTool(
             params.chain,
             amount.toBigInt(),
             0n,
+            `${params.sourceAsset}→${params.destinationAsset}`,
           );
           const syntheticId = `swap-${Date.now()}`;
           kpiCollector.linkBridgeTransfer(syntheticId, rid);
@@ -416,6 +417,7 @@ export function buildSupplyCollateralTool(
               dst.chain,
               amount.toBigInt(),
               0n,
+              src.symbol,
             );
             const syntheticId = `supply-${Date.now()}`;
             kpiCollector.linkBridgeTransfer(syntheticId, rid);

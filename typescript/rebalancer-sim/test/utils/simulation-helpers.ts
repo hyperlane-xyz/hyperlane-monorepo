@@ -318,6 +318,15 @@ export function printResults(
     `    Rebalances: ${result.kpis.totalRebalances} (${ethers.utils.formatEther(result.kpis.rebalanceVolume.toString())} tokens)`,
   );
 
+  if (result.kpis.perAssetMetrics) {
+    console.log(`    Per-Asset:`);
+    for (const [asset, m] of Object.entries(result.kpis.perAssetMetrics)) {
+      console.log(
+        `      ${asset}: ${m.completedTransfers}/${m.transfers} transfers, ${m.rebalances} rebalances (${ethers.utils.formatEther(m.rebalanceVolume.toString())} tokens)`,
+      );
+    }
+  }
+
   console.log(`    Final Balances:`);
   const initialCollateral = ethers.utils.formatEther(
     file.defaultInitialCollateral,

@@ -229,6 +229,7 @@ export class MockInfrastructureController {
         destChain,
         amount,
         0n,
+        senderAssetSymbol,
       );
       this.kpiCollector.linkBridgeTransfer(messageId, rebalanceId);
     } else {
@@ -238,6 +239,7 @@ export class MockInfrastructureController {
         originChain,
         destChain,
         amount,
+        senderAssetSymbol,
       );
 
       // Resolve destination asset for cross-asset transfers.

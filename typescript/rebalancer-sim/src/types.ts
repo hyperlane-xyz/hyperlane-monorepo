@@ -285,6 +285,17 @@ export interface ChainMetrics {
 /**
  * KPIs collected during simulation
  */
+/**
+ * Per-asset metrics (multi-asset scenarios only)
+ */
+export interface AssetMetrics {
+  asset: string;
+  transfers: number;
+  completedTransfers: number;
+  rebalances: number;
+  rebalanceVolume: bigint;
+}
+
 export interface SimulationKPIs {
   totalTransfers: number;
   completedTransfers: number;
@@ -298,6 +309,8 @@ export interface SimulationKPIs {
   rebalanceVolume: bigint;
   totalGasCost: bigint;
   perChainMetrics: Record<string, ChainMetrics>;
+  /** Per-asset breakdown (populated when records have asset info) */
+  perAssetMetrics?: Record<string, AssetMetrics>;
 }
 
 /**
