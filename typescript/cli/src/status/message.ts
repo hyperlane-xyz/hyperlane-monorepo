@@ -1,4 +1,4 @@
-import type { TransactionReceipt } from '@ethersproject/providers';
+import type { TransactionReceipt } from 'ethers';
 import { input } from '@inquirer/prompts';
 
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
@@ -42,28 +42,34 @@ export async function checkMessageStatus({
     context.multiProvider,
   );
 
-  let dispatchedReceipt: TransactionReceipt;
+  let dispatchedReceipt: TransactionReceipt | null = null;
 
   if (dispatchTx) {
-    dispatchedReceipt = await context.multiProvider
+    dispatchedReceipt = (await context.multiProvider
       .getProvider(origin)
-      .getTransactionReceipt(dispatchTx);
+      .getTransactionReceipt(dispatchTx)) as TransactionReceipt | null;
   } else {
     messageId ??= await input({
       message: 'Please specify the message id',
     });
     try {
-      dispatchedReceipt = await core.getDispatchTx(origin, messageId);
+      dispatchedReceipt = (await core.getDispatchTx(
+        origin,
+        messageId,
+      )) as TransactionReceipt;
     } catch {
       logRed(`Failed to infer dispatch transaction for message ${messageId}`);
 
       dispatchTx = await input({
         message: 'Provide dispatch transaction hash',
       });
-      dispatchedReceipt = await context.multiProvider
+      dispatchedReceipt = (await context.multiProvider
         .getProvider(origin)
-        .getTransactionReceipt(dispatchTx);
+        .getTransactionReceipt(dispatchTx)) as TransactionReceipt | null;
     }
+  }
+  if (!dispatchedReceipt) {
+    throw new Error('Failed to fetch dispatch transaction receipt');
   }
 
   const dispatched = core.getDispatchedMessages(dispatchedReceipt);
@@ -90,7 +96,7 @@ export async function checkMessageStatus({
     if (delivered) {
       try {
         const processedReceipt = await core.getProcessedReceipt(message);
-        const hash = processedReceipt.transactionHash;
+        const hash = processedReceipt.hash;
         const url = context.multiProvider.tryGetExplorerTxUrl(
           message.parsed.destination,
           { hash },

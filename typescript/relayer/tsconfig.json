@@ -4,10 +4,5 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["./src/**/*"],
-  "exclude": [
-    "./src/**/*.test.ts",
-    "./src/**/*.hardhat-test.ts",
-    "./src/**/*.foundry-test.ts"
-  ]
+  "include": ["./src/**/*"]
 }

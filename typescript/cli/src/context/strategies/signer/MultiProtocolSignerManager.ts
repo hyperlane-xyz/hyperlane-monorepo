@@ -1,4 +1,4 @@
-import { type BigNumber, type Signer } from 'ethers';
+import { type Signer } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
@@ -219,7 +219,7 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     address: Address;
     chain: ChainName;
     denom?: string;
-  }): Promise<BigNumber> {
+  }): Promise<bigint> {
     const metadata = this.multiProtocolProvider.getChainMetadata(params.chain);
 
     switch (metadata.protocol) {

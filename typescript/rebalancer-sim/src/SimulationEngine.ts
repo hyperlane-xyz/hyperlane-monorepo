@@ -148,7 +148,7 @@ export class SimulationEngine {
       }
 
       // Clean up provider to release connections
-      this.provider.removeAllListeners();
+      void this.provider.removeAllListeners();
     }
   }
 

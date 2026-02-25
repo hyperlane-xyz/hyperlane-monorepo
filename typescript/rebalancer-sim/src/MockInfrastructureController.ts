@@ -83,7 +83,7 @@ export class MockInfrastructureController {
     // Listen for Dispatch events on all mailboxes
     for (const chainName of this.core.multiProvider.getKnownChainNames()) {
       const mailbox = this.core.getContracts(chainName).mailbox;
-      mailbox.on(
+      void mailbox.on(
         mailbox.filters.Dispatch(),
         (
           sender: string,
@@ -303,7 +303,7 @@ export class MockInfrastructureController {
     }
 
     for (const chainName of this.core.multiProvider.getKnownChainNames()) {
-      this.core.getContracts(chainName).mailbox.removeAllListeners();
+      void this.core.getContracts(chainName).mailbox.removeAllListeners();
     }
   }
 

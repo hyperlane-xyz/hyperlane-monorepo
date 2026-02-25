@@ -1,6 +1,6 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
-import { ethers } from 'ethers';
+import { parseUnits } from 'ethers';
 
 import {
   type ChainGasOracleParams,
@@ -43,8 +43,8 @@ export function presetHookConfigs(owner: Address): HooksConfig {
   return {
     required: {
       type: HookType.PROTOCOL_FEE,
-      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(),
-      protocolFee: ethers.utils.parseUnits('0', 'wei').toString(),
+      maxProtocolFee: parseUnits('1', 'gwei').toString(),
+      protocolFee: parseUnits('0', 'wei').toString(),
       beneficiary: owner,
       owner: owner,
     },
