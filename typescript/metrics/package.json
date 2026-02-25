@@ -34,7 +34,8 @@
     "@hyperlane-xyz/utils": "workspace:*",
     "pino": "catalog:",
     "prom-client": "catalog:",
-    "viem": "catalog:"
+    "viem": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@hyperlane-xyz/eslint-config": "workspace:^",
