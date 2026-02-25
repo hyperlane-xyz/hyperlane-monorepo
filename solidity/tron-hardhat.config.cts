@@ -12,19 +12,19 @@ import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
  * Uses tron-solc compiler (via hardhat-tron-solc plugin) with
  * @nomicfoundation/hardhat-foundry for remapping support.
  *
- * Produces both:
- * - Raw ABI artifacts in ../typescript/tron-sdk/src/abi/ (for AltVM clients)
- * - TypeChain factories in ../typescript/tron-sdk/src/typechain/ (for ethers deployers)
+ * Produces both (self-contained within solidity package):
+ * - Raw ABI artifacts in ./artifacts-tron/ (for AltVM clients)
+ * - TypeChain factories in ./artifacts-tron/typechain/ (for ethers deployers)
  */
 module.exports = {
   ...rootHardhatConfig,
   paths: {
     sources: "./contracts",
-    artifacts: "../typescript/tron-sdk/src/abi",
+    artifacts: "./artifacts-tron",
     cache: "./cache-tron",
   },
   typechain: {
-    outDir: "../typescript/tron-sdk/src/typechain",
+    outDir: "./artifacts-tron/typechain",
     target: "ethers-v5",
     alwaysGenerateOverloads: true,
     node16Modules: true,

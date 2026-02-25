@@ -418,6 +418,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 3000000000n,
           remaining: 7000000000n, // 7k remaining
+          hasInflightDeposit: false,
         },
       ]);
 
@@ -439,6 +440,41 @@ describe('InventoryRebalancer E2E', () => {
 
       // Verify: No new intent was created (existing was used)
       expect(actionTracker.createRebalanceIntent.called).to.be.false;
+    });
+
+    it('returns empty when active intent has in-flight deposit (prevents oscillation)', async () => {
+      const existingIntent = createTestIntent({
+        id: 'inflight-deposit-intent',
+        status: 'in_progress',
+        amount: 10000000000n,
+      });
+
+      // Configure mock: active intent WITH in-flight deposit
+      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+        {
+          intent: existingIntent,
+          completedAmount: 3000000000n,
+          remaining: 7000000000n,
+          hasInflightDeposit: true,
+        },
+      ]);
+
+      // New routes that WOULD create a new intent or continue
+      const newRoute = createTestRoute({ amount: 5000000000n });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 10000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const results = await inventoryRebalancer.rebalance([newRoute]);
+
+      // Must return empty — wait for in-flight deposit to complete
+      expect(results).to.have.lengthOf(0);
+      // Must NOT create a new intent
+      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+      // Must NOT call createRebalanceAction (proves continueIntent was never reached)
+      expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
 
     it('returns empty results when no routes provided and no active intent', async () => {
@@ -463,6 +499,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 0n,
           remaining: 10000000000n,
+          hasInflightDeposit: false,
         },
       ]);
 

@@ -2471,6 +2471,9 @@ importers:
       '@ethersproject/providers':
         specifier: '*'
         version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@hyperlane-xyz/core':
+        specifier: workspace:*
+        version: link:../../solidity
       '@hyperlane-xyz/provider-sdk':
         specifier: workspace:*
         version: link:../provider-sdk
@@ -2493,9 +2496,6 @@ importers:
       '@eslint/js':
         specifier: 'catalog:'
         version: 9.39.2
-      '@hyperlane-xyz/core':
-        specifier: workspace:*
-        version: link:../../solidity
       '@hyperlane-xyz/eslint-config':
         specifier: workspace:^
         version: link:../eslint-config
@@ -3807,6 +3807,10 @@ packages:
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
 
+  '@bcoe/v8-coverage@1.0.2':
+    resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
+    engines: {node: '>=18'}
+
   '@bigmi/core@0.6.5':
     resolution: {integrity: sha512-prjyiUm8xYYcyiHf/I3MvFnqgHIv2XsA4c9EvCw0Do2thVDIJrQCcr3Z76U1ettrgg5u8XRS4MyOO+ITwG6FWA==}
     peerDependencies:
@@ -3814,10 +3818,6 @@ packages:
 
   '@bitcoinerlab/secp256k1@1.2.0':
     resolution: {integrity: sha512-jeujZSzb3JOZfmJYI0ph1PVpCRV5oaexCgy+RvCXV8XlY+XFB/2n3WOcvBsKLsOw78KYgnQrQWb2HrKE4be88Q==}
-
-  '@bcoe/v8-coverage@1.0.2':
-    resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
-    engines: {node: '>=18'}
 
   '@chain-registry/client@1.53.258':
     resolution: {integrity: sha512-qpzNFnatBNmoUUmZ5BYH91SoFtGMoo9VJsQywUOlHTabRAFRfoJ7Z4gJ2zjZOsK0va7dwAEViaIDpspwh30Gow==}

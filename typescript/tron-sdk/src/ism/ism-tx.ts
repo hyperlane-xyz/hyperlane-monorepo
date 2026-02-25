@@ -1,9 +1,9 @@
 import { TronWeb } from 'tronweb';
 
-import DomainRoutingIsmAbi from '../abi/contracts/isms/routing/DomainRoutingIsm.sol/DomainRoutingIsm.json' with { type: 'json' };
-import NoopIsmAbi from '../abi/contracts/isms/NoopIsm.sol/NoopIsm.json' with { type: 'json' };
-import StaticMerkleRootMultisigIsmAbi from '../abi/contracts/isms/multisig/StaticMultisigIsm.sol/StaticMerkleRootMultisigIsm.json' with { type: 'json' };
-import StaticMessageIdMultisigIsmAbi from '../abi/contracts/isms/multisig/StaticMultisigIsm.sol/StaticMessageIdMultisigIsm.json' with { type: 'json' };
+import DomainRoutingIsmAbi from '@hyperlane-xyz/core/tron/abi/contracts/isms/routing/DomainRoutingIsm.sol/DomainRoutingIsm.json' with { type: 'json' };
+import NoopIsmAbi from '@hyperlane-xyz/core/tron/abi/contracts/isms/NoopIsm.sol/NoopIsm.json' with { type: 'json' };
+import StaticMerkleRootMultisigIsmAbi from '@hyperlane-xyz/core/tron/abi/contracts/isms/multisig/StaticMultisigIsm.sol/StaticMerkleRootMultisigIsm.json' with { type: 'json' };
+import StaticMessageIdMultisigIsmAbi from '@hyperlane-xyz/core/tron/abi/contracts/isms/multisig/StaticMultisigIsm.sol/StaticMessageIdMultisigIsm.json' with { type: 'json' };
 import {
   buildMetaProxyBytecode,
   createDeploymentTransaction,

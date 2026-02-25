@@ -1,5 +1,7 @@
 # @hyperlane-xyz/utils
 
+## 25.3.0
+
 ## 25.2.0
 
 ### Minor Changes

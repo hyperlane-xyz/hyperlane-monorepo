@@ -4,4 +4,4 @@
 // only in bytecode (TVM-compiled with 0x41 Create2 prefix). This 1:1 correspondence
 // with core factory class names is relied upon by the SDK's MultiProvider.handleDeploy
 // to dynamically resolve the correct factory at deploy time.
-export * from '../typechain/index.js';
+export * from '@hyperlane-xyz/core/tron/typechain';

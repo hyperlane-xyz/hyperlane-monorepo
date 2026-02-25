@@ -13,8 +13,8 @@
       "dependsOn": ["build"],
       "outputs": [
         "cache-tron/**",
-        "../typescript/tron-sdk/src/abi/**",
-        "../typescript/tron-sdk/src/typechain/**"
+        "artifacts-tron/**",
+        "dist/tron/typechain/**"
       ]
     },
     "test:ci": {
