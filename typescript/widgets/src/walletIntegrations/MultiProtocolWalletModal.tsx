@@ -78,13 +78,13 @@ export function MultiProtocolWalletModal({
             Radix
           </ProtocolButton>
         )}
-        {includesProtocol(ProtocolType.Aleo) && (
+        {includesProtocol(ProtocolType.Tron) && (
           <ProtocolButton
-            protocol={ProtocolType.Aleo}
+            protocol={ProtocolType.Tron}
             onClick={onClickProtocol}
-            subTitle="an Aleo"
+            subTitle="a Tron"
           >
-            Aleo
+            Tron
           </ProtocolButton>
         )}
       </div>

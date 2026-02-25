@@ -70,6 +70,12 @@ export enum TokenStandard {
   AleoHypNative = 'AleoHypNative',
   AleoHypCollateral = 'AleoHypCollateral',
   AleoHypSynthetic = 'AleoHypSynthetic',
+
+  // Tron
+  TronNative = 'TronNative',
+  TronHypNative = 'TronHypNative',
+  TronHypCollateral = 'TronHypCollateral',
+  TronHypSynthetic = 'TronHypSynthetic',
 }
 
 // Allows for omission of protocol field in token args
@@ -138,6 +144,12 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<
   AleoHypNative: ProtocolType.Aleo,
   AleoHypCollateral: ProtocolType.Aleo,
   AleoHypSynthetic: ProtocolType.Aleo,
+
+  // Tron
+  TronNative: ProtocolType.Tron,
+  TronHypNative: ProtocolType.Tron,
+  TronHypCollateral: ProtocolType.Tron,
+  TronHypSynthetic: ProtocolType.Tron,
 };
 
 export const TOKEN_STANDARD_TO_PROVIDER_TYPE: Record<
@@ -173,6 +185,8 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypVSXERC20Lockbox,
   TokenStandard.AleoHypNative,
   TokenStandard.AleoHypCollateral,
+  TokenStandard.TronHypNative,
+  TokenStandard.TronHypCollateral,
 ];
 
 export const XERC20_STANDARDS = [
@@ -224,6 +238,9 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.AleoHypNative,
   TokenStandard.AleoHypCollateral,
   TokenStandard.AleoHypSynthetic,
+  TokenStandard.TronHypNative,
+  TokenStandard.TronHypCollateral,
+  TokenStandard.TronHypSynthetic,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
@@ -293,6 +310,21 @@ export const tokenTypeToStandard = (
       ) {
         return ALEO_TOKEN_TYPE_TO_STANDARD[
           tokenType as AleoSupportedTokenTypes
+        ];
+      }
+
+      throw new Error(
+        `token type ${tokenType} not available on protocol ${protocolType}`,
+      );
+    }
+    case ProtocolType.Tron: {
+      if (
+        TRON_SUPPORTED_TOKEN_TYPES.includes(
+          tokenType as TronSupportedTokenTypes,
+        )
+      ) {
+        return TRON_TOKEN_TYPE_TO_STANDARD[
+          tokenType as TronSupportedTokenTypes
         ];
       }
 
@@ -430,6 +462,23 @@ export const ALEO_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.synthetic]: TokenStandard.AleoHypSynthetic,
 };
 
+export const TRON_SUPPORTED_TOKEN_TYPES = [
+  TokenType.native,
+  TokenType.collateral,
+  TokenType.synthetic,
+] as const;
+
+type TronSupportedTokenTypes = (typeof TRON_SUPPORTED_TOKEN_TYPES)[number];
+
+export const TRON_TOKEN_TYPE_TO_STANDARD: Record<
+  TronSupportedTokenTypes,
+  TokenStandard
+> = {
+  [TokenType.native]: TokenStandard.TronHypNative,
+  [TokenType.collateral]: TokenStandard.TronHypCollateral,
+  [TokenType.synthetic]: TokenStandard.TronHypSynthetic,
+};
+
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<
   KnownProtocolType,
   TokenStandard
@@ -441,6 +490,7 @@ export const PROTOCOL_TO_NATIVE_STANDARD: Record<
   [ProtocolType.Starknet]: TokenStandard.StarknetNative,
   [ProtocolType.Radix]: TokenStandard.RadixNative,
   [ProtocolType.Aleo]: TokenStandard.AleoNative,
+  [ProtocolType.Tron]: TokenStandard.TronNative,
 };
 
 export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<
@@ -455,4 +505,5 @@ export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<
   [ProtocolType.Radix]: TokenStandard.RadixHypCollateral,
   [ProtocolType.CosmosNative]: TokenStandard.CosmNativeHypCollateral,
   [ProtocolType.Aleo]: TokenStandard.AleoHypNative,
+  [ProtocolType.Tron]: TokenStandard.TronHypNative,
 };

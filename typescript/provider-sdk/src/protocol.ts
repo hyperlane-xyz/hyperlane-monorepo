@@ -20,6 +20,7 @@ export enum ProtocolType {
   Starknet = 'starknet',
   Radix = 'radix',
   Aleo = 'aleo',
+  Tron = 'tron',
   Unknown = 'unknown',
 }
 
@@ -34,6 +35,7 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.Starknet]: 'fri',
   [ProtocolType.Radix]: 'attos',
   [ProtocolType.Aleo]: 'microcredits',
+  [ProtocolType.Tron]: 'SUN',
   [ProtocolType.Unknown]: 'unknown',
 };
 

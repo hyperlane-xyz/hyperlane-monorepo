@@ -28,6 +28,8 @@ import {
   SolanaWeb3Transaction,
   StarknetJsProvider,
   StarknetJsTransaction,
+  TronProvider,
+  TronTransaction,
   TypedProvider,
   TypedTransaction,
   ViemProvider,
@@ -291,6 +293,18 @@ export async function estimateTransactionFeeAleo({
   });
 }
 
+export async function estimateTransactionFeeTron({
+  transaction,
+  provider,
+}: {
+  transaction: TronTransaction;
+  provider: TronProvider;
+}): Promise<TransactionFeeEstimate> {
+  return provider.provider.estimateTransactionFee({
+    transaction: transaction.transaction,
+  });
+}
+
 export function estimateTransactionFee({
   transaction,
   provider,
@@ -382,6 +396,14 @@ export function estimateTransactionFee({
     provider.type === ProviderType.Aleo
   ) {
     return estimateTransactionFeeAleo({
+      transaction,
+      provider,
+    });
+  } else if (
+    transaction.type === ProviderType.Tron &&
+    provider.type === ProviderType.Tron
+  ) {
+    return estimateTransactionFeeTron({
       transaction,
       provider,
     });

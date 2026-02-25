@@ -88,6 +88,13 @@ import {
   StarknetHypSyntheticAdapter,
   StarknetTokenAdapter,
 } from './adapters/StarknetTokenAdapter.js';
+import {
+  TronHypCollateralAdapter,
+  TronHypNativeAdapter,
+  TronHypSyntheticAdapter,
+  TronNativeTokenAdapter,
+  TronTokenAdapter,
+} from './adapters/TronTokenAdapter.js';
 import { PROTOCOL_TO_DEFAULT_NATIVE_TOKEN } from './nativeTokenMetadata.js';
 
 // Declaring the interface in addition to class allows
@@ -194,6 +201,10 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.AleoNative) {
       return new AleoNativeTokenAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.TronNative) {
+      return new TronNativeTokenAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (this.isHypToken()) {
@@ -377,6 +388,18 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.AleoHypSynthetic) {
       return new AleoHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.TronHypNative) {
+      return new TronHypNativeAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.TronHypCollateral) {
+      return new TronHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.TronHypSynthetic) {
+      return new TronHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmM0PortalLite) {
@@ -596,6 +619,10 @@ export function getCollateralTokenAdapter({
     });
   } else if (protocolType === ProtocolType.Radix) {
     return new RadixTokenAdapter(chainName, multiProvider, {
+      token: tokenAddress,
+    });
+  } else if (protocolType === ProtocolType.Tron) {
+    return new TronTokenAdapter(chainName, multiProvider, {
       token: tokenAddress,
     });
   } else {
