@@ -38,18 +38,22 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
     }
 
     /// @inheritdoc AbstractPostDispatchHook
+    /// @dev When metadata specifies a non-zero feeToken, native value is NOT
+    /// forwarded to children. Each child that supports ERC20 fees is responsible
+    /// for pulling tokens via transferFrom in its own _postDispatch. Any native
+    /// value received is refunded to the refund address.
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
     ) internal override {
         address[] memory _hooks = hooks(message);
         uint256 count = _hooks.length;
+        bool isNativeFee = metadata.feeToken(address(0)) == address(0);
         uint256 valueRemaining = msg.value;
         for (uint256 i = 0; i < count; i++) {
-            uint256 quote = IPostDispatchHook(_hooks[i]).quoteDispatch(
-                metadata,
-                message
-            );
+            uint256 quote = isNativeFee
+                ? IPostDispatchHook(_hooks[i]).quoteDispatch(metadata, message)
+                : 0;
             require(
                 valueRemaining >= quote,
                 "StaticAggregationHook: insufficient value"

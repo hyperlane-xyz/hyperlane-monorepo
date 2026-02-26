@@ -12,7 +12,7 @@ import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/t
  * @author Abacus Works
  */
 contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
-    constructor(address _mailbox) TokenRouter(1, _mailbox) {}
+    constructor(address _mailbox) TokenRouter(1, 1, _mailbox) {}
 
     /**
      * @notice Initializes the Hyperlane router, ERC721 metadata, and mints initial supply to deployer.

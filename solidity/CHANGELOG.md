@@ -1,5 +1,28 @@
 # @hyperlane-xyz/core
 
+## 11.0.0
+
+### Major Changes
+
+- d4a5026510: Renamed `maxFeeBps` to `maxFeePpm` on `TokenBridgeCctpV2` to accurately reflect the parts-per-million denomination. The on-chain getter, setter, event, and storage slot were all renamed.
+- 34649cd54f: Refactored InterchainGasPaymaster storage layout to support token-based gas payments. The `destinationGasConfigs` mapping is deprecated and replaced with `tokenGasOracles` and `destinationGasOverhead` mappings. A backward-compatible getter maintains the original ABI signature.
+- 29f14a1259: Update TokenRouter with fractional scaling
+
+### Minor Changes
+
+- 934d8577c7: Made maxFeeBps mutable on TokenBridgeCctpV2 and increased fee precision from bps (1/10,000) to ppm (1/1,000,000) to support Circle's fractional basis point fees (e.g., 1.3 bps). SDK converts bps config to ppm for deployment and ppm back to bps when reading.
+- 25f5bcfb36: Add ERC20 token payment support for interchain gas fees
+- d5e8e98119: Added ERC20 token fee payment support to InterchainAccountRouter. Users can now pay interchain gas fees using ERC20 tokens by passing hook metadata with a fee token address.
+- 942bbfbfe0: Added `approveFeeTokenForHook` function to InterchainAccountRouter allowing pre-approval of ERC-20 fee tokens for hooks. This fixes an issue where ERC-20 fee payments fail when using StaticAggregationHook, since the router only approved the top-level hook but the actual fee transfer happens in a child hook (IGP).
+- a3f7fd3c09: Added IncrementalDomainRoutingIsm, an append-only variant of DomainRoutingIsm that prevents domain removal and re-configuration. Includes factory, SDK integration for deployment and reading, and proper delta handling in routingModuleDelta.
+- c70b2159ff: Add enumerable domains() interface for contracts with ChainMap
+- c07a406a48: Added TimelockRouter, a combined hook and ISM for time-delayed message verification. Enables optimistic security patterns where messages must wait a configurable timelock window before verification, allowing time for off-chain observation and watcher intervention.
+
+### Patch Changes
+
+- fc9e1af786: Revert in hooks when fee token denominations are mixed
+- bf5fb9d0c3: Restrict timelock hook to Mailbox dispatched messages
+
 ## 10.2.0
 
 ### Minor Changes

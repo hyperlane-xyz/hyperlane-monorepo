@@ -11,7 +11,8 @@ import {
 
 import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
 
-const TOKEN_SCALE = ethers.BigNumber.from(1);
+const TOKEN_SCALE_NUMERATOR = ethers.BigNumber.from(1);
+const TOKEN_SCALE_DENOMINATOR = ethers.BigNumber.from(1);
 const INVENTORY_INITIAL_BALANCE = '20000000000000000000';
 const INVENTORY_BRIDGE_SEED = '10000000000000000000';
 
@@ -43,7 +44,8 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
       const deployer = deployerWallet.connect(provider);
 
       const monitoredRoute = await new HypNative__factory(deployer).deploy(
-        TOKEN_SCALE,
+        TOKEN_SCALE_NUMERATOR,
+        TOKEN_SCALE_DENOMINATOR,
         chainInfra[config.name].mailbox,
       );
       await monitoredRoute.deployed();
@@ -54,7 +56,8 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
       );
 
       const bridgeRoute = await new HypNative__factory(deployer).deploy(
-        TOKEN_SCALE,
+        TOKEN_SCALE_NUMERATOR,
+        TOKEN_SCALE_DENOMINATOR,
         chainInfra[config.name].mailbox,
       );
       await bridgeRoute.deployed();

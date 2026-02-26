@@ -23,9 +23,10 @@ contract HypXERC20Lockbox is TokenRouter {
 
     constructor(
         address _lockbox,
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox
-    ) TokenRouter(_scale, _mailbox) {
+    ) TokenRouter(_scaleNumerator, _scaleDenominator, _mailbox) {
         lockbox = IXERC20Lockbox(_lockbox);
         xERC20 = IXERC20(lockbox.XERC20());
         wrappedToken = IERC20(lockbox.ERC20());
