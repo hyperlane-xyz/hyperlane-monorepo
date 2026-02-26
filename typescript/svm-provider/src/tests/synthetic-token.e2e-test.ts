@@ -5,6 +5,7 @@ import { expect } from 'chai';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 
 import {
   DEFAULT_IGP_CONTEXT,
@@ -125,7 +126,7 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
       () => ({
         writer,
         makeConfig: (overrides = {}) => ({
-          type: 'synthetic' as const,
+          type: TokenType.synthetic,
           owner: signer.address,
           mailbox: mailboxAddress,
           name: 'Test Token',

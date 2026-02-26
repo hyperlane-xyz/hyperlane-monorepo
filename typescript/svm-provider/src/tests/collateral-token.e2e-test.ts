@@ -5,6 +5,7 @@ import { expect } from 'chai';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 
 import {
   DEFAULT_IGP_CONTEXT,
@@ -129,7 +130,7 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
       () => ({
         writer,
         makeConfig: (overrides = {}) => ({
-          type: 'collateral' as const,
+          type: TokenType.collateral,
           owner: signer.address,
           mailbox: mailboxAddress,
           token: collateralMint,

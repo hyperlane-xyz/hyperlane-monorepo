@@ -7,9 +7,10 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedWarpAddress,
-  RawCollateralWarpArtifactConfig,
+import {
+  TokenType,
+  type DeployedWarpAddress,
+  type RawCollateralWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   ZERO_ADDRESS_HEX_32,
@@ -79,7 +80,7 @@ export class SvmCollateralTokenReader implements ArtifactReader<
     );
 
     const config: RawCollateralWarpArtifactConfig = {
-      type: 'collateral',
+      type: TokenType.collateral,
       owner: token.owner ?? ZERO_ADDRESS_HEX_32,
       mailbox: token.mailbox,
       token: plugin.mint,

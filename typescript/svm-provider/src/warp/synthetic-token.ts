@@ -11,9 +11,10 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedWarpAddress,
-  RawSyntheticWarpArtifactConfig,
+import {
+  TokenType,
+  type DeployedWarpAddress,
+  type RawSyntheticWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   ZERO_ADDRESS_HEX_32,
@@ -190,7 +191,7 @@ export class SvmSyntheticTokenReader implements ArtifactReader<
     const metadata = await fetchMintMetadata(this.rpc, mintPda);
 
     const config: RawSyntheticWarpArtifactConfig = {
-      type: 'synthetic',
+      type: TokenType.synthetic,
       owner: token.owner ?? ZERO_ADDRESS_HEX_32,
       mailbox: token.mailbox,
       interchainSecurityModule: token.interchainSecurityModule
