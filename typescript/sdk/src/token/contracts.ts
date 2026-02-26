@@ -14,6 +14,8 @@ import {
   HypERC4626__factory,
   HypFiatToken__factory,
   HypNative__factory,
+  HypTIP20Collateral__factory,
+  HypTIP20__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   OpL1V1NativeTokenBridge__factory,
@@ -28,8 +30,10 @@ export const hypERC20contracts = {
   [TokenType.synthetic]: 'HypERC20',
   [TokenType.syntheticRebase]: 'HypERC4626',
   [TokenType.syntheticUri]: 'HypERC721',
+  [TokenType.syntheticTip20]: 'HypTIP20',
   [TokenType.collateral]: 'HypERC20Collateral',
   [TokenType.collateralFiat]: 'HypFiatToken',
+  [TokenType.collateralTip20]: 'HypTIP20Collateral',
   [TokenType.collateralUri]: 'HypERC721Collateral',
   [TokenType.XERC20]: 'HypXERC20',
   [TokenType.XERC20Lockbox]: 'HypXERC20Lockbox',
@@ -53,6 +57,7 @@ type HypERC20TokenType = Exclude<
 
 export const hypERC20factories = {
   [TokenType.synthetic]: new HypERC20__factory(),
+  [TokenType.syntheticTip20]: new HypTIP20__factory(),
   [TokenType.collateral]: new HypERC20Collateral__factory(),
   // use V1 here to satisfy type requirements
   [TokenType.collateralCctp]: new TokenBridgeCctpV1__factory(),
@@ -60,6 +65,7 @@ export const hypERC20factories = {
   [TokenType.collateralVaultRebase]: new HypERC4626Collateral__factory(),
   [TokenType.syntheticRebase]: new HypERC4626__factory(),
   [TokenType.collateralFiat]: new HypFiatToken__factory(),
+  [TokenType.collateralTip20]: new HypTIP20Collateral__factory(),
   [TokenType.XERC20]: new HypXERC20__factory(),
   [TokenType.XERC20Lockbox]: new HypXERC20Lockbox__factory(),
   [TokenType.native]: new HypNative__factory(),
