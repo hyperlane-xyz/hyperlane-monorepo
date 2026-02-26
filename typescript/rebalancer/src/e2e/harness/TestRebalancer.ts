@@ -211,6 +211,12 @@ export class TestRebalancerBuilder {
       );
     }
 
+    if (this.inventoryConfig && !this.mockExternalBridge) {
+      throw new Error(
+        'Inventory mode requires .withMockExternalBridge() to prevent hitting real external bridges in tests',
+      );
+    }
+
     await this.setupBalances();
 
     const inventoryModeConfig = this.inventoryConfig;
