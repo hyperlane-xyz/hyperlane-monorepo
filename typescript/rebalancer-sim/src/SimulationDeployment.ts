@@ -113,10 +113,12 @@ export async function deployMultiDomainSimulation(
   // Step 4: Deploy HypERC20Collateral warp tokens for each domain
   const warpTokens: Record<number, ethers.Contract> = {};
   for (const chain of chains) {
-    const scale = ethers.BigNumber.from(10).pow(tokenDecimals);
+    const scaleNumerator = ethers.BigNumber.from(10).pow(tokenDecimals);
+    const scaleDenominator = ethers.BigNumber.from(1);
     const warpToken = await new HypERC20Collateral__factory(deployer).deploy(
       collateralTokens[chain.domainId].address,
-      scale,
+      scaleNumerator,
+      scaleDenominator,
       mailboxes[chain.domainId].address,
     );
     await warpToken.deployed();

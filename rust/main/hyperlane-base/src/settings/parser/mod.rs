@@ -21,14 +21,14 @@ use url::Url;
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod, SubmitterType,
+    HyperlaneDomainTechnicalStack, IndexMode, NativeToken, ReorgPeriod, SubmitterType,
 };
 
 use crate::settings::{
     chains::IndexSettings,
     parser::connection_parser::{build_connection_conf, is_protocol_supported},
     trace::TracingConfig,
-    ChainConf, CoreContractAddresses, Settings, SignerConf,
+    ChainConf, ChainConnectionConf, CoreContractAddresses, Settings, SignerConf,
 };
 
 pub use super::envs::*;
@@ -267,6 +267,48 @@ fn parse_chain(
         .parse_bool()
         .unwrap_or(false);
 
+    let confirmations = chain
+        .chain(&mut err)
+        .get_opt_key("blocks")
+        .get_opt_key("confirmations")
+        .parse_u32()
+        .unwrap_or(1);
+
+    // chainId can be a number (EVM) or a string (Cosmos), so we need to handle both.
+    let chain_id = chain
+        .chain(&mut err)
+        .get_opt_key("chainId")
+        .parse_value::<serde_json::Value>("Invalid chainId")
+        .map(|v| match v {
+            serde_json::Value::String(s) => s,
+            serde_json::Value::Number(n) => n.to_string(),
+            other => other.to_string(),
+        })
+        .unwrap_or_default();
+
+    let native_token_decimals = chain
+        .chain(&mut err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("decimals")
+        .parse_u32()
+        .unwrap_or(18);
+
+    let native_token_symbol = chain
+        .chain(&mut err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("symbol")
+        .parse_string()
+        .unwrap_or("")
+        .to_owned();
+
+    let native_token_denom = chain
+        .chain(&mut err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("denom")
+        .parse_string()
+        .unwrap_or("")
+        .to_owned();
+
     cfg_unwrap_all!(&chain.cwp, err: [domain]);
     let connection = build_connection_conf(
         domain.domain_protocol(),
@@ -281,6 +323,16 @@ fn parse_chain(
             max_submit_queue_length,
         },
     );
+
+    // Convert Ethereum → Tron when techstack indicates Tron
+    let connection = connection.map(|conn| {
+        if domain.domain_technical_stack() == HyperlaneDomainTechnicalStack::Tron {
+            if let ChainConnectionConf::Ethereum(eth_conf) = conn {
+                return ethereum_to_tron_connection_conf(eth_conf);
+            }
+        }
+        conn
+    });
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
 
@@ -322,7 +374,14 @@ fn parse_chain(
             chunk_size,
             mode,
         },
+        confirmations,
+        chain_id,
         ignore_reorg_reports,
+        native_token: NativeToken {
+            decimals: native_token_decimals,
+            symbol: native_token_symbol,
+            denom: native_token_denom,
+        },
     })
 }
 
@@ -638,6 +697,19 @@ fn parse_base_and_override_urls(
         );
     }
     combined
+}
+
+/// Convert an Ethereum connection conf to a Tron connection conf.
+/// Used when a chain has `protocol: "ethereum"` + `technicalStack: "tron"`.
+fn ethereum_to_tron_connection_conf(
+    eth_conf: hyperlane_ethereum::ConnectionConf,
+) -> ChainConnectionConf {
+    ChainConnectionConf::Tron(hyperlane_tron::ConnectionConf::new(
+        eth_conf.rpc_urls(),
+        eth_conf.grpc_urls.unwrap_or_default(),
+        eth_conf.solidity_grpc_urls.unwrap_or_default(),
+        eth_conf.energy_multiplier,
+    ))
 }
 
 #[cfg(test)]

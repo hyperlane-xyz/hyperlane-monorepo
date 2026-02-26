@@ -1,6 +1,9 @@
 import { ethers } from 'ethers';
 
-import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
+import {
+  IERC20__factory,
+  InterchainAccountRouter__factory,
+} from '@hyperlane-xyz/core';
 import {
   Domain,
   EvmChainId,
@@ -15,10 +18,8 @@ import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
-import type {
-  DerivedIcaRouterConfig,
-  IcaRouterConfig as InterchainAccountConfig,
-} from '../ica/types.js';
+import { DerivedIcaRouterConfig, FeeTokenApproval } from '../ica/types.js';
+import { InterchainAccountConfig } from '../index.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -72,6 +73,7 @@ export class EvmIcaModule extends HyperlaneModule<
         actualConfig.remoteRouters,
         expectedConfig.remoteRouters,
       )),
+      ...(await this.getFeeTokenApprovalTxs(expectedConfig.feeTokenApprovals)),
     ];
 
     return transactions;
@@ -85,6 +87,50 @@ export class EvmIcaModule extends HyperlaneModule<
       ...(await this.getEnrollRemoteRoutersTxs(actualConfig, expectedConfig)),
       ...(await this.getUnenrollRemoteRoutersTxs(actualConfig, expectedConfig)),
     ];
+
+    return transactions;
+  }
+
+  /**
+   * Generates transactions to approve fee tokens for hooks.
+   * Only generates transactions for approvals that are not already set to max.
+   */
+  private async getFeeTokenApprovalTxs(
+    feeTokenApprovals: FeeTokenApproval[] = [],
+  ): Promise<AnnotatedEV5Transaction[]> {
+    if (feeTokenApprovals.length === 0) {
+      return [];
+    }
+
+    const transactions: AnnotatedEV5Transaction[] = [];
+    const routerAddress = this.args.addresses.interchainAccountRouter;
+    const provider = this.multiProvider.getProvider(this.args.chain);
+
+    for (const approval of feeTokenApprovals) {
+      // Check if approval is already set to max
+      const token = IERC20__factory.connect(approval.feeToken, provider);
+      const currentAllowance = await token.allowance(
+        routerAddress,
+        approval.hook,
+      );
+
+      if (
+        currentAllowance.toBigInt() !== ethers.constants.MaxUint256.toBigInt()
+      ) {
+        this.logger.debug(
+          `Generating approval tx for fee token ${approval.feeToken} to hook ${approval.hook}`,
+        );
+        transactions.push({
+          chainId: this.chainId,
+          annotation: `Approving hook ${approval.hook} to spend fee token ${approval.feeToken} on behalf of ICA router ${routerAddress}`,
+          to: routerAddress,
+          data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
+            'approveFeeTokenForHook',
+            [approval.feeToken, approval.hook],
+          ),
+        });
+      }
+    }
 
     return transactions;
   }

@@ -43,10 +43,16 @@ pub fn dummy_chain_conf(domain: &HyperlaneDomain) -> ChainConf {
             transaction_overrides: Default::default(),
             op_submission_config: Default::default(),
             consider_null_transaction_receipt: false,
+            grpc_urls: None,
+            solidity_grpc_urls: None,
+            energy_multiplier: None,
         }),
         metrics_conf: Default::default(),
         index: Default::default(),
+        confirmations: Default::default(),
+        chain_id: Default::default(),
         ignore_reorg_reports: false,
+        native_token: Default::default(),
     }
 }
 

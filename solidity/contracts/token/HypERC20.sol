@@ -17,9 +17,10 @@ contract HypERC20 is ERC20Upgradeable, TokenRouter {
 
     constructor(
         uint8 __decimals,
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox
-    ) TokenRouter(_scale, _mailbox) {
+    ) TokenRouter(_scaleNumerator, _scaleDenominator, _mailbox) {
         _decimals = __decimals;
     }
 
