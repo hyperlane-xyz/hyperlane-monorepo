@@ -24,6 +24,8 @@ shovel:
   concurrency: 1
   # Poll interval for new blocks
   pollDuration: '1s'
+  # Starting block number (omit to use chain config default)
+  startBlock: ''
 
 # Resource limits
 resources:

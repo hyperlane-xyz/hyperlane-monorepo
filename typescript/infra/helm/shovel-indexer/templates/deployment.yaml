@@ -91,6 +91,10 @@ spec:
             - {{ .Values.shovel.concurrency | quote }}
             - --poll-duration
             - {{ .Values.shovel.pollDuration | quote }}
+            {{- if .Values.shovel.startBlock }}
+            - --start-block
+            - {{ .Values.shovel.startBlock | quote }}
+            {{- end }}
           env:
             - name: DEPLOY_ENV
               value: {{ .Values.hyperlane.runEnv }}
