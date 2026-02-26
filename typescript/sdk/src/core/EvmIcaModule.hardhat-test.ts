@@ -155,7 +155,10 @@ describe('EvmIcaModule', async () => {
       await sendTxs(txs);
 
       const provider = multiProvider.getProvider(chain);
-      const token = IERC20__factory.connect(await feeToken.getAddress(), provider);
+      const token = IERC20__factory.connect(
+        await feeToken.getAddress(),
+        provider,
+      );
       const allowance = await token.allowance(routerAddress, mockHookAddress);
       expect(allowance).to.equal(MaxUint256);
     });

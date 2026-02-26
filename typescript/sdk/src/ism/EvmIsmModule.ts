@@ -174,7 +174,7 @@ export class EvmIsmModule extends HyperlaneModule<
         const contract = await this.deploy({
           config: normalizedTargetConfig,
         });
-        this.args.addresses.deployedIsm = contract.address;
+        this.args.addresses.deployedIsm = this.getContractAddress(contract);
         return [];
       }
     }

@@ -322,7 +322,9 @@ abstract class TokenDeployer<
 
     await promiseObjAll(
       objMap(cctpV2Configs, async (chain, config) => {
-        const router = this.router(deployedContractsMap[chain]).address;
+        const router = this.getContractAddress(
+          this.router(deployedContractsMap[chain]),
+        );
         const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
           router,
           this.multiProvider.getSigner(chain),
@@ -348,7 +350,7 @@ abstract class TokenDeployer<
         const currentMaxFee = usesPpmName
           ? await tokenBridgeV2.maxFeePpm()
           : BigInt(
-              await tokenBridgeV2.provider.call({
+              await this.multiProvider.getProvider(chain).call({
                 to: router,
                 // maxFeeBps() selector
                 data: '0xbf769a3f',
@@ -371,7 +373,7 @@ abstract class TokenDeployer<
           } else {
             await this.multiProvider.handleTx(
               chain,
-              tokenBridgeV2.signer.sendTransaction({
+              this.multiProvider.getSigner(chain).sendTransaction({
                 to: router,
                 // setMaxFeeBps(uint256) selector + abi-encoded targetFee
                 data: '0x246d4569' + toBeHex(targetFee, 32).slice(2),

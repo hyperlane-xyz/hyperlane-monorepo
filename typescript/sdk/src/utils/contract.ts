@@ -1,5 +1,5 @@
 import { compareVersions } from 'compare-versions';
-import { providers } from 'ethers';
+import type { Provider } from 'ethers';
 
 import { Address, chunk, strip0x } from '@hyperlane-xyz/utils';
 
@@ -11,7 +11,7 @@ export function isValidContractVersion(
 }
 
 export async function contractHasString(
-  provider: providers.Provider,
+  provider: Provider,
   address: Address,
   searchFor: string,
 ): Promise<boolean> {

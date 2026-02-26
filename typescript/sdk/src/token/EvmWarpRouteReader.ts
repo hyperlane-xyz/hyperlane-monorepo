@@ -806,13 +806,13 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         tokenBridgeV2.minFinalityThreshold(),
         usesPpmName
           ? tokenBridgeV2.maxFeePpm()
-          : tokenBridgeV2.provider
+          : this.provider
               .call({
                 to: hypToken,
                 // maxFeeBps() selector
                 data: '0xbf769a3f',
               })
-              .then((result) => BigInt(result)),
+              .then((result: string) => BigInt(result)),
       ]);
       return {
         ...collateralConfig,
@@ -1157,8 +1157,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       ]);
 
       result = {
-        numerator: numerator.toBigInt(),
-        denominator: denominator.toBigInt(),
+        numerator,
+        denominator,
       };
     } else {
       // Read old format (single scale value) using low-level call
