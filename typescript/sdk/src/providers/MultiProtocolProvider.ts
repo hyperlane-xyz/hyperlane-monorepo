@@ -21,6 +21,7 @@ import {
   CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
+  EvmProvider,
   EthersV5Provider,
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderMap,
@@ -102,7 +103,9 @@ export class MultiProtocolProvider<
 
     const providers = objMap(
       this.providers,
-      (_, typeToProviders) => typeToProviders[ProviderType.EthersV5]?.provider,
+      (_, typeToProviders) =>
+        typeToProviders[ProviderType.EthersV5]?.provider ||
+        typeToProviders[ProviderType.Evm]?.provider,
     ) as ChainMap<EthersV5Provider['provider'] | undefined>;
 
     const filteredProviders = objFilter(
@@ -173,9 +176,17 @@ export class MultiProtocolProvider<
   getEthersV5Provider(
     chainNameOrId: ChainNameOrId,
   ): EthersV5Provider['provider'] {
-    return this.getSpecificProvider<EthersV5Provider['provider']>(
+    const legacyProvider = this.tryGetProvider(
       chainNameOrId,
       ProviderType.EthersV5,
+    );
+    if (legacyProvider?.type === ProviderType.EthersV5) {
+      return legacyProvider.provider;
+    }
+
+    return this.getSpecificProvider<EvmProvider['provider']>(
+      chainNameOrId,
+      ProviderType.Evm,
     );
   }
 

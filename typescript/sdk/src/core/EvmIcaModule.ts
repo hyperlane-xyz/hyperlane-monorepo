@@ -116,10 +116,7 @@ export class EvmIcaModule extends HyperlaneModule<
         routerAddress,
         approval.hook,
       );
-      const allowance =
-        typeof currentAllowance === 'bigint'
-          ? currentAllowance
-          : BigInt(currentAllowance.toString());
+      const allowance = BigInt(currentAllowance);
 
       if (allowance !== maxUint256) {
         this.logger.debug(

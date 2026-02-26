@@ -52,6 +52,7 @@ type ZkSyncTransactionLike = EvmTransactionLike;
 type ZkSyncTransactionReceiptLike = EvmTransactionReceiptLike;
 
 export enum ProviderType {
+  EthersV5 = 'ethers-v5',
   Evm = 'evm',
   Viem = 'viem',
   SolanaWeb3 = 'solana-web3',
@@ -181,6 +182,11 @@ export interface EvmProvider extends TypedProviderBase<EvmProviderLike> {
   provider: EvmProviderLike;
 }
 
+export interface EthersV5Provider extends TypedProviderBase<EvmProviderLike> {
+  type: ProviderType.EthersV5;
+  provider: EvmProviderLike;
+}
+
 export interface ViemProvider extends TypedProviderBase<PublicClient> {
   type: ProviderType.Viem;
   provider: PublicClient;
@@ -233,6 +239,7 @@ export interface ZKSyncProvider extends TypedProviderBase<ZkSyncProviderLike> {
 }
 
 export type TypedProvider =
+  | EthersV5Provider
   | EvmProvider
   // | EthersV6Provider
   | ViemProvider
@@ -256,6 +263,11 @@ interface TypedContractBase<T> {
 
 export interface EvmContract extends TypedContractBase<EvmContractLike> {
   type: ProviderType.Evm;
+  contract: EvmContractLike;
+}
+
+export interface EthersV5Contract extends TypedContractBase<EvmContractLike> {
+  type: ProviderType.EthersV5;
   contract: EvmContractLike;
 }
 
@@ -292,6 +304,7 @@ export interface ZKSyncContract extends TypedContractBase<ZkSyncContractLike> {
 }
 
 export type TypedContract =
+  | EthersV5Contract
   | EvmContract
   // | EthersV6Contract
   | ViemContract
@@ -312,6 +325,11 @@ interface TypedTransactionBase<T> {
 
 export interface EvmTransaction extends TypedTransactionBase<EvmTransactionLike> {
   type: ProviderType.Evm;
+  transaction: EvmTransactionLike;
+}
+
+export interface EthersV5Transaction extends TypedTransactionBase<EvmTransactionLike> {
+  type: ProviderType.EthersV5;
   transaction: EvmTransactionLike;
 }
 
@@ -361,6 +379,7 @@ export interface ZKSyncTransaction extends TypedTransactionBase<ZkSyncTransactio
 }
 
 export type TypedTransaction =
+  | EthersV5Transaction
   | EvmTransaction
   // | EthersV6Transaction
   | ViemTransaction
@@ -417,6 +436,11 @@ export interface EvmTransactionReceipt extends TypedTransactionReceiptBase<EvmTr
   receipt: EvmTransactionReceiptLike;
 }
 
+export interface EthersV5TransactionReceipt extends TypedTransactionReceiptBase<EvmTransactionReceiptLike> {
+  type: ProviderType.EthersV5;
+  receipt: EvmTransactionReceiptLike;
+}
+
 export interface ViemTransactionReceipt extends TypedTransactionReceiptBase<VTransactionReceipt> {
   type: ProviderType.Viem;
   receipt: VTransactionReceipt;
@@ -463,6 +487,7 @@ export interface AleoTransactionReceipt extends TypedTransactionReceiptBase<Aleo
 }
 
 export type TypedTransactionReceipt =
+  | EthersV5TransactionReceipt
   | EvmTransactionReceipt
   | ViemTransactionReceipt
   | SolanaWeb3TransactionReceipt

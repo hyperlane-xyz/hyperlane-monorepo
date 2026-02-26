@@ -35,15 +35,11 @@ async function main() {
       throw new Error(`No metadata for ${chain}`);
     }
     publicRpcs.push(
-      ...chainMetadata.rpcUrls.map((rpc) =>
-        keccak256(toBytes(rpc.http)),
-      ),
+      ...chainMetadata.rpcUrls.map((rpc) => keccak256(toBytes(rpc.http))),
     );
     if (chainMetadata.grpcUrls)
       publicRpcs.push(
-        ...chainMetadata.grpcUrls.map((rpc) =>
-          keccak256(toBytes(rpc.http)),
-        ),
+        ...chainMetadata.grpcUrls.map((rpc) => keccak256(toBytes(rpc.http))),
       );
   }
   const output: {

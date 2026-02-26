@@ -12,7 +12,9 @@ import { WeightedStrategy } from './WeightedStrategy.js';
 const testLogger = pino({ level: 'silent' });
 const ethers = {
   constants: { AddressZero: zeroAddress },
-  utils: { parseEther: (value: string) => ({ toBigInt: () => parseEther(value) }) },
+  utils: {
+    parseEther: (value: string) => ({ toBigInt: () => parseEther(value) }),
+  },
 } as const;
 
 describe('WeightedStrategy', () => {

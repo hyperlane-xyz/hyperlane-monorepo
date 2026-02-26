@@ -1,136 +1,135 @@
-import {zeroAddress} from "viem";
+import { zeroAddress } from 'viem';
 
 import {
-    ChainMap,
-    ChainSubmissionStrategy,
-    HypTokenRouterConfig,
-    OwnableConfig,
-    SubmissionStrategy,
-    SubmitterMetadata,
-    TokenType,
-    TxSubmitterType,
-} from "@hyperlane-xyz/sdk";
+  ChainMap,
+  ChainSubmissionStrategy,
+  HypTokenRouterConfig,
+  OwnableConfig,
+  SubmissionStrategy,
+  SubmitterMetadata,
+  TokenType,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
 
-import {legacyEthIcaRouter} from "../../../../../src/config/chain.js";
-import {RouterConfigWithoutOwner} from "../../../../../src/config/warp.js";
-import {awSafes} from "../../governance/safe/aw.js";
-import {getWarpFeeOwner} from "../../governance/utils.js";
-import {chainOwners} from "../../owners.js";
+import { legacyEthIcaRouter } from '../../../../../src/config/chain.js';
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { awSafes } from '../../governance/safe/aw.js';
+import { getWarpFeeOwner } from '../../governance/utils.js';
+import { chainOwners } from '../../owners.js';
 
 import {
-    getFixedRoutingFeeConfig,
-    getNativeTokenConfigForChain,
-} from "./utils.js";
+  getFixedRoutingFeeConfig,
+  getNativeTokenConfigForChain,
+} from './utils.js';
 
 const awProxyAdminOwners: ChainMap<string | undefined> = {
-    arbitrum: awSafes.arbitrum,
-    base: awSafes.base,
-    ethereum: awSafes.ethereum,
-    optimism: awSafes.optimism,
+  arbitrum: awSafes.arbitrum,
+  base: awSafes.base,
+  ethereum: awSafes.ethereum,
+  optimism: awSafes.optimism,
 } as const;
 
 const deploymentChains = [
-    "arbitrum",
-    "base",
-    "ethereum",
-    "optimism",
-    "viction",
+  'arbitrum',
+  'base',
+  'ethereum',
+  'optimism',
+  'viction',
 ] as const;
 
 type DeploymentChain = (typeof deploymentChains)[number];
 
 const nativeChains = [
-    "arbitrum",
-    "base",
-    "ethereum",
-    "optimism",
+  'arbitrum',
+  'base',
+  'ethereum',
+  'optimism',
 ] as const satisfies DeploymentChain[];
 
 const ownersByChain: Record<DeploymentChain, string> = {
-    ethereum: awSafes.ethereum,
-    arbitrum: "0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45", // ICA on ethereum
-    base: "0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7", // ICA on ethereum
-    optimism: "0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC", // ICA on ethereum
-    viction: awSafes.viction,
+  ethereum: awSafes.ethereum,
+  arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45', // ICA on ethereum
+  base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7', // ICA on ethereum
+  optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC', // ICA on ethereum
+  viction: awSafes.viction,
 };
 
 export const getVictionETHWarpConfig = async (
-    routerConfig: ChainMap<RouterConfigWithoutOwner>,
-    abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-    const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
+  const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
-    // Configure native chains with routing fees (10 bps for transfers to other native chains)
-    for (const currentChain of nativeChains) {
-        const baseConfig = getNativeTokenConfigForChain(
-            currentChain,
-            routerConfig,
-            ownersByChain,
-        );
+  // Configure native chains with routing fees (10 bps for transfers to other native chains)
+  for (const currentChain of nativeChains) {
+    const baseConfig = getNativeTokenConfigForChain(
+      currentChain,
+      routerConfig,
+      ownersByChain,
+    );
 
-        const feeDestinations = nativeChains.filter((c) => c !== currentChain);
+    const feeDestinations = nativeChains.filter((c) => c !== currentChain);
 
-        configs.push([
-            currentChain,
-            {
-                ...baseConfig,
-                decimals: 18,
-                tokenFee: getFixedRoutingFeeConfig(
-                    getWarpFeeOwner(currentChain),
-                    feeDestinations,
-                    10n,
-                ),
-                proxyAdmin: {
-                    owner:
-                        awProxyAdminOwners[currentChain] ??
-                        chainOwners[currentChain].owner,
-                },
-            },
-        ]);
-    }
-
-    // // Viction synthetic config
     configs.push([
-        "viction",
-        {
-            ...routerConfig.viction,
-            ...abacusWorksEnvOwnerConfig.viction,
-            owner: ownersByChain.viction,
-            type: TokenType.synthetic,
-            name: "ETH",
-            symbol: "ETH",
-            decimals: 18,
-            gas: 50_000,
-            interchainSecurityModule: zeroAddress,
+      currentChain,
+      {
+        ...baseConfig,
+        decimals: 18,
+        tokenFee: getFixedRoutingFeeConfig(
+          getWarpFeeOwner(currentChain),
+          feeDestinations,
+          10n,
+        ),
+        proxyAdmin: {
+          owner:
+            awProxyAdminOwners[currentChain] ?? chainOwners[currentChain].owner,
         },
+      },
     ]);
+  }
 
-    return Object.fromEntries(configs);
+  // // Viction synthetic config
+  configs.push([
+    'viction',
+    {
+      ...routerConfig.viction,
+      ...abacusWorksEnvOwnerConfig.viction,
+      owner: ownersByChain.viction,
+      type: TokenType.synthetic,
+      name: 'ETH',
+      symbol: 'ETH',
+      decimals: 18,
+      gas: 50_000,
+      interchainSecurityModule: zeroAddress,
+    },
+  ]);
+
+  return Object.fromEntries(configs);
 };
 
 export const getVictionETHStrategyConfig = (): ChainSubmissionStrategy => {
-    const safeChain = "ethereum";
-    const safeAddress = awSafes[safeChain];
+  const safeChain = 'ethereum';
+  const safeAddress = awSafes[safeChain];
 
-    const safeSubmitter: SubmitterMetadata = {
-        type: TxSubmitterType.GNOSIS_TX_BUILDER,
-        chain: safeChain,
-        safeAddress,
-        version: "1.0",
-    };
+  const safeSubmitter: SubmitterMetadata = {
+    type: TxSubmitterType.GNOSIS_TX_BUILDER,
+    chain: safeChain,
+    safeAddress,
+    version: '1.0',
+  };
 
-    const victionIcaStrategy: SubmissionStrategy = {
-        submitter: {
-            type: TxSubmitterType.INTERCHAIN_ACCOUNT,
-            chain: safeChain,
-            destinationChain: "viction",
-            owner: safeAddress,
-            originInterchainAccountRouter: legacyEthIcaRouter,
-            internalSubmitter: safeSubmitter,
-        },
-    };
+  const victionIcaStrategy: SubmissionStrategy = {
+    submitter: {
+      type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+      chain: safeChain,
+      destinationChain: 'viction',
+      owner: safeAddress,
+      originInterchainAccountRouter: legacyEthIcaRouter,
+      internalSubmitter: safeSubmitter,
+    },
+  };
 
-    return {
-        viction: victionIcaStrategy,
-    };
+  return {
+    viction: victionIcaStrategy,
+  };
 };

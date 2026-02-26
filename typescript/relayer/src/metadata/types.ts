@@ -107,6 +107,7 @@ export interface AggregationMetadataBuildResult extends BaseMetadataBuildResult 
 export interface RoutingMetadataBuildResult extends BaseMetadataBuildResult {
   type:
     | typeof IsmType.ROUTING
+    | typeof IsmType.INCREMENTAL_ROUTING
     | typeof IsmType.FALLBACK_ROUTING
     | typeof IsmType.AMOUNT_ROUTING
     | typeof IsmType.INTERCHAIN_ACCOUNT_ROUTING;

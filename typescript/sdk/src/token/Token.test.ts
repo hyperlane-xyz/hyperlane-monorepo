@@ -430,7 +430,6 @@ describe('Token', () => {
       );
     });
   });
-
   describe('isFungibleWith', () => {
     const evmNativeToken = Token.FromChainMetadataNativeToken(test1);
 

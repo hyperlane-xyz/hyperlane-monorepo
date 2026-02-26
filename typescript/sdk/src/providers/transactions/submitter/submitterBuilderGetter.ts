@@ -8,11 +8,11 @@ import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { TxSubmitterBuilder } from './builder/TxSubmitterBuilder.js';
 import { SubmissionStrategy } from './builder/types.js';
-import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
-import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
-import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
-import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
-import { EV5TimelockSubmitter } from './ethersV5/EV5TimelockSubmitter.js';
+import { EV5GnosisSafeTxBuilder } from './evm/EV5GnosisSafeTxBuilder.js';
+import { EV5GnosisSafeTxSubmitter } from './evm/EV5GnosisSafeTxSubmitter.js';
+import { EV5ImpersonatedAccountTxSubmitter } from './evm/EV5ImpersonatedAccountTxSubmitter.js';
+import { EV5JsonRpcTxSubmitter } from './evm/EV5JsonRpcTxSubmitter.js';
+import { EV5TimelockSubmitter } from './evm/EV5TimelockSubmitter.js';
 import { SubmitterMetadata } from './types.js';
 
 export type SubmitterBuilderSettings = {

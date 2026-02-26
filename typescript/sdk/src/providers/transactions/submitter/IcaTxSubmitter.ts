@@ -20,7 +20,7 @@ import { CallData } from '../types.js';
 
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
-import { EvmIcaTxSubmitterProps } from './ethersV5/types.js';
+import { EvmIcaTxSubmitterProps } from './evm/types.js';
 import { getSubmitter } from './submitterBuilderGetter.js';
 
 type EvmIcaTxSubmitterConstructorConfig = Omit<

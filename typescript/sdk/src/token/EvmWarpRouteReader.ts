@@ -854,9 +854,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         hypToken,
         this.provider,
       );
-      const [minFinalityThreshold, maxFeeBps] = await Promise.all([
+      const [minFinalityThreshold, maxFeePpm] = await Promise.all([
         tokenBridgeV2.minFinalityThreshold(),
-        tokenBridgeV2.maxFeeBps(),
+        tokenBridgeV2.maxFeePpm(),
       ]);
       return {
         ...collateralConfig,
@@ -866,7 +866,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         tokenMessenger,
         urls: [...urls],
         minFinalityThreshold: toNumber(minFinalityThreshold),
-        maxFeeBps: toNumber(maxFeeBps),
+        maxFeeBps: toNumber(maxFeePpm) / 100,
       };
     } else {
       throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);
