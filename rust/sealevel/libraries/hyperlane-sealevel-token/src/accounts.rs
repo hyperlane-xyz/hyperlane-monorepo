@@ -284,6 +284,7 @@ pub fn convert_decimals(amount: U256, from_decimals: u8, to_decimals: u8) -> Opt
 #[cfg(test)]
 mod test {
     use super::*;
+    use borsh::BorshSerialize;
 
     #[test]
     fn test_convert_decimals() {
@@ -451,28 +452,42 @@ mod test {
         // Serialize without fee_config (simulate legacy format by serializing
         // all fields except fee_config manually)
         let mut legacy_bytes = Vec::new();
-        borsh::BorshSerialize::serialize(&legacy_token.bump, &mut legacy_bytes).unwrap();
-        borsh::BorshSerialize::serialize(&legacy_token.mailbox, &mut legacy_bytes).unwrap();
-        borsh::BorshSerialize::serialize(
-            &legacy_token.mailbox_process_authority,
-            &mut legacy_bytes,
-        )
-        .unwrap();
-        borsh::BorshSerialize::serialize(&legacy_token.dispatch_authority_bump, &mut legacy_bytes)
+        legacy_token.bump.serialize(&mut legacy_bytes).unwrap();
+        legacy_token.mailbox.serialize(&mut legacy_bytes).unwrap();
+        legacy_token
+            .mailbox_process_authority
+            .serialize(&mut legacy_bytes)
             .unwrap();
-        borsh::BorshSerialize::serialize(&legacy_token.decimals, &mut legacy_bytes).unwrap();
-        borsh::BorshSerialize::serialize(&legacy_token.remote_decimals, &mut legacy_bytes).unwrap();
-        borsh::BorshSerialize::serialize(&legacy_token.owner, &mut legacy_bytes).unwrap();
-        borsh::BorshSerialize::serialize(
-            &legacy_token.interchain_security_module,
-            &mut legacy_bytes,
-        )
-        .unwrap();
-        borsh::BorshSerialize::serialize(&legacy_token.interchain_gas_paymaster, &mut legacy_bytes)
+        legacy_token
+            .dispatch_authority_bump
+            .serialize(&mut legacy_bytes)
             .unwrap();
-        borsh::BorshSerialize::serialize(&legacy_token.destination_gas, &mut legacy_bytes).unwrap();
-        borsh::BorshSerialize::serialize(&legacy_token.remote_routers, &mut legacy_bytes).unwrap();
-        borsh::BorshSerialize::serialize(&legacy_token.plugin_data, &mut legacy_bytes).unwrap();
+        legacy_token.decimals.serialize(&mut legacy_bytes).unwrap();
+        legacy_token
+            .remote_decimals
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        legacy_token.owner.serialize(&mut legacy_bytes).unwrap();
+        legacy_token
+            .interchain_security_module
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        legacy_token
+            .interchain_gas_paymaster
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        legacy_token
+            .destination_gas
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        legacy_token
+            .remote_routers
+            .serialize(&mut legacy_bytes)
+            .unwrap();
+        legacy_token
+            .plugin_data
+            .serialize(&mut legacy_bytes)
+            .unwrap();
         // No fee_config serialized — simulates legacy account
 
         let deserialized: HyperlaneToken<()> =
