@@ -1737,30 +1737,29 @@ export class GovernTransactionReader {
       remoteIcaInsight = `⚠️ could not verify ICA (RPC error on ${remoteChainName})`;
     }
 
-    let decodedCalls: GovernTransaction[];
-    try {
-      decodedCalls = await Promise.all(
-        calls.map((call: any) => {
-          const icaCallAsTx = {
-            to: bytes32ToAddress(call[0]),
-            value: BigNumber.from(call[1]),
+    const decodedCalls = await Promise.all(
+      calls.map(async (call: any) => {
+        const icaCallAsTx = {
+          to: bytes32ToAddress(call[0]),
+          value: BigNumber.from(call[1]),
+          data: call[2],
+        };
+        try {
+          return await this.read(remoteChainName, icaCallAsTx);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to decode ICA call to ${icaCallAsTx.to} on ${remoteChainName}`,
+            error,
+          );
+          return {
+            chain: remoteChainName,
+            insight: `⚠️ could not decode call (RPC error on ${remoteChainName})`,
+            to: icaCallAsTx.to,
             data: call[2],
-          };
-          return this.read(remoteChainName, icaCallAsTx);
-        }),
-      );
-    } catch (error) {
-      this.logger.warn(
-        `Failed to decode ICA calls for ${remoteChainName}`,
-        error,
-      );
-      decodedCalls = calls.map((call: any) => ({
-        chain: remoteChainName,
-        insight: `⚠️ could not decode call (RPC error on ${remoteChainName})`,
-        to: bytes32ToAddress(call[0]),
-        data: call[2],
-      }));
-    }
+          } as GovernTransaction;
+        }
+      }),
+    );
 
     const hookMetadataInsight = hookMetadataRaw
       ? await parseHookMetadataWithInsight(chain, hookMetadataRaw)
