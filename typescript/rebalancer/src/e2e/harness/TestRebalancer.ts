@@ -108,7 +108,9 @@ export class TestRebalancerBuilder {
     | undefined;
 
   constructor(
-    private readonly deploymentManager: BaseLocalDeploymentManager<any>,
+    private readonly deploymentManager: BaseLocalDeploymentManager<
+      DeployedAddresses | NativeDeployedAddresses
+    >,
     private readonly multiProvider: MultiProvider,
   ) {
     this.logger = pino({ level: 'debug' }).child({ module: 'TestRebalancer' });
@@ -216,12 +218,15 @@ export class TestRebalancerBuilder {
     const ctx = this.deploymentManager.getContext();
     const { providers: localProviders } = ctx;
     const deployedAddresses = ctx.deployedAddresses;
+    if (!isInventoryMode && !('tokens' in deployedAddresses)) {
+      throw new Error('Expected ERC20 deployed addresses with tokens field');
+    }
 
     const coreAddresses: Record<string, Record<string, string>> = {};
     for (const chain of TEST_CHAINS) {
       const chainAddresses = isInventoryMode
         ? inventoryModeConfig.nativeDeployedAddresses.chains[chain]
-        : (deployedAddresses as DeployedAddresses).chains[chain];
+        : deployedAddresses.chains[chain];
       if (!chainAddresses) {
         throw new Error(`Missing chain addresses for ${chain}`);
       }
@@ -280,14 +285,15 @@ export class TestRebalancerBuilder {
         inventoryModeConfig.nativeDeployedAddresses,
       );
     } else {
+      if (!('tokens' in deployedAddresses)) {
+        throw new Error('Expected ERC20 deployed addresses with tokens field');
+      }
       rebalancerConfig = new RebalancerConfig(
         MONITORED_ROUTE_ID,
         this.strategyConfig,
         DEFAULT_INTENT_TTL_MS,
       );
-      warpCoreConfig = buildWarpRouteConfig(
-        deployedAddresses as DeployedAddresses,
-      );
+      warpCoreConfig = buildWarpRouteConfig(deployedAddresses);
     }
 
     const contextFactory = await RebalancerContextFactory.create(
@@ -419,7 +425,10 @@ export class TestRebalancerBuilder {
       return;
     }
 
-    const deployedAddresses: DeployedAddresses = ctx.deployedAddresses;
+    const deployedAddresses = ctx.deployedAddresses;
+    if (!('tokens' in deployedAddresses)) {
+      throw new Error('Expected ERC20 deployed addresses with tokens field');
+    }
 
     await setupCollateralBalances(
       localProviders,
@@ -538,9 +547,12 @@ export class TestRebalancerBuilder {
       return this.inventoryConfig.nativeDeployedAddresses.monitoredRoute;
     }
 
-    return (
-      this.deploymentManager.getContext().deployedAddresses as DeployedAddresses
-    ).monitoredRoute;
+    const deployedAddresses =
+      this.deploymentManager.getContext().deployedAddresses;
+    if (!('tokens' in deployedAddresses)) {
+      throw new Error('Expected ERC20 deployed addresses with tokens field');
+    }
+    return deployedAddresses.monitoredRoute;
   }
 
   private async getInventoryMultiProvider(
@@ -602,7 +614,9 @@ export class TestRebalancerBuilder {
 
 export class TestRebalancer {
   static builder(
-    deploymentManager: BaseLocalDeploymentManager<any>,
+    deploymentManager: BaseLocalDeploymentManager<
+      DeployedAddresses | NativeDeployedAddresses
+    >,
     multiProvider: MultiProvider,
   ): TestRebalancerBuilder {
     return new TestRebalancerBuilder(deploymentManager, multiProvider);
