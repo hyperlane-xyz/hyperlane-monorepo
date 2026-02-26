@@ -318,6 +318,31 @@ async fn test_set_route_errors_if_not_routing_type() {
 }
 
 #[tokio::test]
+async fn test_set_route_errors_if_nested_routing() {
+    let (mut banks_client, payer) = setup_client().await;
+    let program_id = fee_program_id();
+    let salt = H256::zero();
+
+    let fee_key = init_fee(
+        &mut banks_client,
+        &payer,
+        salt,
+        payer.pubkey(),
+        FeeData::Routing,
+    )
+    .await
+    .unwrap();
+
+    let ixn =
+        set_route_instruction(program_id, payer.pubkey(), fee_key, 42, FeeData::Routing).unwrap();
+    let result = process_instruction_helper(&mut banks_client, ixn, &payer, &[&payer]).await;
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(0, InstructionError::Custom(8)), // NestedRoutingNotSupported
+    );
+}
+
+#[tokio::test]
 async fn test_set_route_errors_if_not_owner() {
     let (mut banks_client, payer) = setup_client().await;
     let program_id = fee_program_id();

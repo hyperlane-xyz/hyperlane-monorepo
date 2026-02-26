@@ -26,6 +26,9 @@ pub enum Error {
 
     #[error("Routing fee is not directly computable")]
     RoutingFeeNotDirectlyComputable = 7,
+
+    #[error("Nested routing (routing -> routing) is not supported")]
+    NestedRoutingNotSupported = 8,
 }
 
 impl From<Error> for ProgramError {

@@ -169,6 +169,12 @@ fn process_set_route(
     let owner_info = next_account_info(accounts_iter)?;
     fee_account.ensure_owner_signer(owner_info)?;
 
+    // Nested routing (routing -> routing -> leaf) is not supported.
+    // Each route domain must contain a leaf fee type (Linear, Regressive, Progressive).
+    if route.fee_data == FeeData::Routing {
+        return Err(Error::NestedRoutingNotSupported.into());
+    }
+
     let route_domain = RouteDomain {
         bump: route_bump,
         fee_data: route.fee_data,
@@ -262,6 +268,10 @@ fn process_remove_route(
 }
 
 /// Update fee data on an existing fee account.
+///
+/// Note: when switching from Routing to a non-Routing type, existing route
+/// domain PDAs are not cleaned up. The owner should call RemoveRoute for
+/// each domain before (or after) switching away from Routing.
 ///
 /// Accounts:
 /// 0. `[executable]` System program
@@ -400,6 +410,8 @@ fn process_quote_fee(
             } else {
                 let route_domain =
                     RouteDomainData::fetch(&mut &route_pda_info.data.borrow()[..])?.into_inner();
+                // route_domain.fee_data is guaranteed to be a leaf type (not Routing),
+                // enforced by process_set_route.
                 compute_fee(&route_domain.fee_data, quote.amount)?
             }
         }
