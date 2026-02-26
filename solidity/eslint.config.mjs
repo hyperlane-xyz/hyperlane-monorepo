@@ -7,6 +7,8 @@ export default [
       '**/lib/**/*',
       '**/test/**/*',
       '**/dist/**/*',
+      '**/artifacts/**/*',
+      '**/artifacts-tron/**/*',
       '**/dependencies/**/*',
       '**/multicollateral/**/*',
       'core-utils/generated/**/*',
