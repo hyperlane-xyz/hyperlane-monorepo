@@ -1,5 +1,5 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { mapAllSettled, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, mapAllSettled, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { chainsToSkip } from '../../src/config/chain.js';
@@ -38,6 +38,14 @@ async function main() {
   const targetChains = chains.filter(
     (chain) => isEthereumProtocolChain(chain) && !chainsToSkip.includes(chain),
   );
+  const excludedChains = chains.filter((c) => !targetChains.includes(c));
+  if (excludedChains.length) {
+    logger.warn(`Excluded chains: ${excludedChains.join(', ')}`);
+  }
+  assert(
+    targetChains.length > 0,
+    'No eligible EVM chains after filtering --chains',
+  );
 
   const { fulfilled, rejected } = await mapAllSettled(
     targetChains,
@@ -71,13 +79,14 @@ async function main() {
     (chain) => chain,
   );
 
+  console.table([...fulfilled.values()]);
+
   if (rejected.size > 0) {
     for (const [chain, error] of rejected) {
       logger.error(`Failed on ${chain}`, error);
     }
+    throw new Error(`ProxyAdmin deploy failed on ${rejected.size} chain(s)`);
   }
-
-  console.table([...fulfilled.values()]);
 }
 
 main().catch((err) => {
