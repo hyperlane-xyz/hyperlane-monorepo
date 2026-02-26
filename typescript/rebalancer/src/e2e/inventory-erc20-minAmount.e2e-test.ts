@@ -119,7 +119,7 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
         erc20DeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('ERC20_INVENTORY_EMPTY_DEST')
+      .withBalances('ERC20_INVENTORY_EMPTY_DEST')
       .withExecutionMode('execute')
       .build();
 
@@ -198,7 +198,7 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
         erc20DeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('ERC20_INVENTORY_EMPTY_DEST')
+      .withBalances('ERC20_INVENTORY_EMPTY_DEST')
       .withInventorySignerBalances('ERC20_SIGNER_PARTIAL_ANVIL2')
       .withExecutionMode('execute')
       .build();
@@ -338,7 +338,7 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
         erc20DeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('ERC20_INVENTORY_EMPTY_DEST')
+      .withBalances('ERC20_INVENTORY_EMPTY_DEST')
       .withInventorySignerBalances('ERC20_SIGNER_LOW_ALL')
       .withExecutionMode('execute')
       .build();
@@ -459,7 +459,7 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
         erc20DeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('ERC20_INVENTORY_EMPTY_DEST')
+      .withBalances('ERC20_INVENTORY_EMPTY_DEST')
       .withInventorySignerBalances('ERC20_SIGNER_FUNDED_ANVIL1')
       .withExecutionMode('execute')
       .build();
@@ -581,7 +581,7 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
         erc20DeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('ERC20_INVENTORY_MULTI_DEFICIT')
+      .withBalances('ERC20_INVENTORY_MULTI_DEFICIT')
       .withExecutionMode('execute')
       .build();
 
@@ -671,7 +671,7 @@ describe('Erc20 InventoryMinAmountStrategy E2E', function () {
         erc20DeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('ERC20_INVENTORY_EMPTY_DEST')
+      .withBalances('ERC20_INVENTORY_EMPTY_DEST')
       .withInventorySignerBalances('ERC20_SIGNER_SPLIT_SOURCES')
       .withExecutionMode('execute')
       .build();

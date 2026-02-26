@@ -125,7 +125,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
         erc20DeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('ERC20_INVENTORY_WEIGHTED_IMBALANCED')
+      .withBalances('ERC20_INVENTORY_WEIGHTED_IMBALANCED')
       .build();
 
     const initialBalances = await getErc20RouterBalances(
@@ -203,7 +203,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventorySignerBalances('ERC20_SIGNER_PARTIAL_ANVIL3')
-      .withInventoryBalances('ERC20_INVENTORY_WEIGHTED_IMBALANCED')
+      .withBalances('ERC20_INVENTORY_WEIGHTED_IMBALANCED')
       .build();
 
     await executeCycle(context);
@@ -300,7 +300,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventorySignerBalances('ERC20_SIGNER_WEIGHTED_LOW_ALL')
-      .withInventoryBalances('ERC20_INVENTORY_WEIGHTED_ALL_ANVIL1')
+      .withBalances('ERC20_INVENTORY_WEIGHTED_ALL_ANVIL1')
       .build();
 
     await executeCycle(context);
@@ -413,7 +413,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventorySignerBalances('ERC20_SIGNER_ZERO_ANVIL3')
-      .withInventoryBalances('ERC20_INVENTORY_WEIGHTED_IMBALANCED')
+      .withBalances('ERC20_INVENTORY_WEIGHTED_IMBALANCED')
       .build();
 
     const initialBalances = await getErc20RouterBalances(
@@ -534,7 +534,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
         erc20DeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('ERC20_INVENTORY_WEIGHTED_ALL_ANVIL1')
+      .withBalances('ERC20_INVENTORY_WEIGHTED_ALL_ANVIL1')
       .build();
 
     const initialBalances = await getErc20RouterBalances(
@@ -635,7 +635,7 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventorySignerBalances('ERC20_SIGNER_WEIGHTED_BRIDGE_SOURCES')
-      .withInventoryBalances('ERC20_INVENTORY_WEIGHTED_PARTIAL_SUPPLY')
+      .withBalances('ERC20_INVENTORY_WEIGHTED_PARTIAL_SUPPLY')
       .build();
 
     await executeCycle(context);
