@@ -54,8 +54,7 @@ export const keyFunderConfig: KeyFunderConfig<
     solanatestnet: '0',
     // no funding for SVM chains
     sonicsvmtestnet: '0',
-    // TODO:
-    tronshasta: '0',
+    tronshasta: '50',
   },
   desiredRebalancerBalancePerChain: {},
   igpClaimThresholdPerChain: {
