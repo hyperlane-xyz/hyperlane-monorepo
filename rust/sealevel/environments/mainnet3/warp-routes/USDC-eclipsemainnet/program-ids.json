@@ -3,6 +3,26 @@
     "hex": "0x000000000000000000000000a7e4dc4078bac6e97eec52a4f7642ff51cbb17c1",
     "base58": "1111111111113LfYq5LBr9evqvLDj4ZDxFMtwGC8"
   },
+  "base": {
+    "hex": "0x00000000000000000000000037e637891a558b5b621723cbf8fc771525f280c1",
+    "base58": "111111111111nAnZpyLB78WejyhCZYRJtrMVx7i"
+  },
+  "avalanche": {
+    "hex": "0x000000000000000000000000252833ad2daa5bcb7c251aa8e12ce97d6bd4765e",
+    "base58": "111111111111X2QgK4okJUapi5FgM6gLk9M2mC9"
+  },
+  "worldchain": {
+    "hex": "0x000000000000000000000000485de5aa437d46b925d800929ccca587e6e9d2c3",
+    "base58": "11111111111121UZ9vt8t2m2who9AKuXTq3MW5KQ"
+  },
+  "ethereum": {
+    "hex": "0x000000000000000000000000e1de9910fe71cc216490ac7fcf019e13a34481d7",
+    "base58": "11111111111149We9K5tM8ijcyNy9zDMG9RyDBCJ"
+  },
+  "arbitrum": {
+    "hex": "0x000000000000000000000000ad4350ee0f9f5b85bab115425426086ae8384ebb",
+    "base58": "1111111111113R1AxnnE1dT6dddnNY4G7WZsLCXC"
+  },
   "solanamainnet": {
     "hex": "0x21419dfbe06b0ab41171d012ac511e058f2d036333e003f0c2e6003ac8dea12c",
     "base58": "3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm"
@@ -11,24 +31,28 @@
     "hex": "0xcd8f7348bdee9233f64432ab826c3526692e6cb17d6a5a5ddacfe3cbd0d77a9e",
     "base58": "EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m"
   },
-  "ethereum": {
-    "hex": "0x000000000000000000000000e1de9910fe71cc216490ac7fcf019e13a34481d7",
-    "base58": "11111111111149We9K5tM8ijcyNy9zDMG9RyDBCJ"
+  "ink": {
+    "hex": "0x0000000000000000000000000de665377a5b0d390469d0ea0fcae55e0c14f4c4",
+    "base58": "111111111111CESTi9mEEHVvT7oqqkxpCirhRPy"
   },
-  "base": {
-    "hex": "0x00000000000000000000000037e637891a558b5b621723cbf8fc771525f280c1",
-    "base58": "111111111111nAnZpyLB78WejyhCZYRJtrMVx7i"
+  "linea": {
+    "hex": "0x00000000000000000000000034eac2132bb041b3f789cc7b5665dabdf6ac3f12",
+    "base58": "111111111111jm255fs1sQeZa5MQfBJGbjxqJVf"
+  },
+  "monad": {
+    "hex": "0x000000000000000000000000c2e074f6aec27c39fa9423e2d5752c31a7b0a75e",
+    "base58": "1111111111113iU8W4QE3MadztH7m4EDRb8kcERK"
   },
   "optimism": {
     "hex": "0x00000000000000000000000002bfd67829317d666dc7dfa030f18eacc12c2cfb",
     "base58": "1111111111113DrS4wzJNc9Dz28aHXWfyZ5yiFC"
   },
-  "arbitrum": {
-    "hex": "0x000000000000000000000000ad4350ee0f9f5b85bab115425426086ae8384ebb",
-    "base58": "1111111111113R1AxnnE1dT6dddnNY4G7WZsLCXC"
-  },
   "polygon": {
     "hex": "0x000000000000000000000000cb9f833f4d6d9bb9767cdb25c487da54d67731d6",
     "base58": "1111111111113qY34QWExhkFy2rXodzkYS81qR4h"
+  },
+  "hyperevm": {
+    "hex": "0x000000000000000000000000a1b10de5b3a131b02bce94864943426d901d98b5",
+    "base58": "1111111111113FesKQR2B6R2jNCvkwJLGhkLy5ye"
   }
 }

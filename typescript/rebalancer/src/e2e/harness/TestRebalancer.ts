@@ -10,6 +10,7 @@ import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
+  DEFAULT_INTENT_TTL_MS,
   type StrategyConfig,
   getStrategyChainNames,
 } from '../../config/types.js';
@@ -21,7 +22,7 @@ import { RebalancerContextFactory } from '../../factories/RebalancerContextFacto
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { IStrategy } from '../../interfaces/IStrategy.js';
 import type { Monitor } from '../../monitor/Monitor.js';
-import type { IActionTracker } from '../../tracking/index.js';
+import type { IActionTracker } from '../../tracking/IActionTracker.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
 import {
   ANVIL_TEST_PRIVATE_KEY,
@@ -203,6 +204,7 @@ export class TestRebalancerBuilder {
     const rebalancerConfig = new RebalancerConfig(
       MONITORED_ROUTE_ID,
       this.strategyConfig,
+      DEFAULT_INTENT_TTL_MS,
     );
 
     const registry = this.deploymentManager.getRegistry();
@@ -212,6 +214,7 @@ export class TestRebalancerBuilder {
     const contextFactory = await RebalancerContextFactory.create(
       rebalancerConfig,
       workingMultiProvider,
+      undefined,
       mpp,
       registry,
       this.logger,
@@ -225,18 +228,17 @@ export class TestRebalancerBuilder {
     await tracker.initialize();
     this.logger.info('ActionTracker initialized with mock explorer');
 
-    // In execute mode, create an actual Rebalancer to enable intent creation and execution
-    const rebalancer =
+    // In execute mode, create actual Rebalancers to enable intent creation and execution
+    const rebalancers =
       this.executionMode === 'execute'
-        ? contextFactory.createRebalancer()
-        : undefined;
+        ? (await contextFactory.createRebalancers(tracker)).rebalancers
+        : [];
 
     const orchestratorDeps: RebalancerOrchestratorDeps = {
       strategy,
-      rebalancer,
+      rebalancers,
       actionTracker: tracker,
       inflightContextAdapter: adapter,
-      multiProvider: workingMultiProvider,
       rebalancerConfig,
       logger: this.logger,
     };
@@ -325,6 +327,7 @@ export class TestRebalancerBuilder {
         origin_tx_recipient: deployedAddresses.monitoredRoute[params.from],
         is_delivered: false,
         message_body: encodeWarpRouteMessageBody(warpRecipient, params.amount),
+        send_occurred_at: null,
       };
 
       userTransfers.push(mockTransfer);

@@ -16,18 +16,24 @@ import {
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { RebalancerStrategyOptions } from '../config/types.js';
 import type {
+  ExecutionResult,
   IRebalancer,
+  MovableCollateralExecutionResult,
   PreparedTransaction,
-  RebalanceExecutionResult,
-  RebalanceRoute,
+  RebalancerType,
 } from '../interfaces/IRebalancer.js';
-import type { StrategyRoute } from '../interfaces/IStrategy.js';
-import type { BridgeConfigWithOverride } from '../utils/index.js';
+import type {
+  MovableCollateralRoute,
+  StrategyRoute,
+} from '../interfaces/IStrategy.js';
+import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
 // === Mock Classes ===
 
 export class MockRebalancer implements IRebalancer {
-  rebalance(_routes: RebalanceRoute[]): Promise<RebalanceExecutionResult[]> {
+  readonly rebalancerType: RebalancerType = 'movableCollateral';
+
+  rebalance(_routes: MovableCollateralRoute[]): Promise<ExecutionResult[]> {
     return Promise.resolve([]);
   }
 }
@@ -36,33 +42,45 @@ export class MockRebalancer implements IRebalancer {
 
 export function buildTestRoute(
   overrides: Partial<StrategyRoute> = {},
+  executionType: 'movableCollateral' | 'inventory' = 'movableCollateral',
 ): StrategyRoute {
+  if (executionType === 'inventory') {
+    return {
+      origin: 'ethereum',
+      destination: 'arbitrum',
+      amount: ethers.utils.parseEther('100').toBigInt(),
+      executionType: 'inventory',
+      externalBridge: 'lifi',
+      ...overrides,
+    } as StrategyRoute;
+  }
   return {
     origin: 'ethereum',
     destination: 'arbitrum',
     amount: ethers.utils.parseEther('100').toBigInt(),
+    executionType: 'movableCollateral',
     bridge: TEST_ADDRESSES.bridge,
     ...overrides,
-  };
+  } as StrategyRoute;
 }
 
-export function buildTestRebalanceRoute(
-  overrides: Partial<RebalanceRoute> = {},
-): RebalanceRoute {
+export function buildTestMovableCollateralRoute(
+  overrides: Partial<MovableCollateralRoute> = {},
+): MovableCollateralRoute {
   return {
-    intentId: overrides.intentId ?? `test-route-${Date.now()}`,
     origin: 'ethereum',
     destination: 'arbitrum',
     amount: ethers.utils.parseEther('100').toBigInt(),
+    executionType: 'movableCollateral',
     bridge: TEST_ADDRESSES.bridge,
     ...overrides,
   };
 }
 
 export function buildTestResult(
-  overrides: Partial<RebalanceExecutionResult> = {},
-): RebalanceExecutionResult {
-  const route = overrides.route ?? buildTestRebalanceRoute();
+  overrides: Partial<MovableCollateralExecutionResult> = {},
+): MovableCollateralExecutionResult {
+  const route = overrides.route ?? buildTestMovableCollateralRoute();
   return {
     route,
     success: true,
@@ -77,7 +95,12 @@ export function buildTestResult(
 export function buildTestPreparedTransaction(
   overrides: Partial<PreparedTransaction> = {},
 ): PreparedTransaction {
-  const route = overrides.route ?? buildTestRebalanceRoute();
+  const route =
+    overrides.route ??
+    ({
+      ...buildTestMovableCollateralRoute(),
+      intentId: 'test-intent',
+    } as MovableCollateralRoute & { intentId: string });
   return {
     populatedTx: {
       to: TEST_ADDRESSES.token,
@@ -272,6 +295,7 @@ export function buildTestBridges(
 ): ChainMap<BridgeConfigWithOverride> {
   return chains.reduce((acc, chain) => {
     acc[chain] = {
+      executionType: 'movableCollateral',
       bridge: TEST_ADDRESSES.bridge,
       bridgeMinAcceptedAmount: 0,
     };
@@ -291,6 +315,7 @@ export function extractBridgeConfigs(
 ): ChainMap<BridgeConfigWithOverride> {
   return Object.entries(chainConfig).reduce((acc, [chain, config]) => {
     acc[chain] = {
+      executionType: 'movableCollateral',
       bridge: config.bridge,
       bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount ?? 0,
     };

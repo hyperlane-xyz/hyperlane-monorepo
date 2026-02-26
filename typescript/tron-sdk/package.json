@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/tron-sdk",
-  "version": "21.0.1",
-  "description": "Hyperlane TypeScript SDK for the TRON Hyperlane SDK module",
+  "version": "21.1.0",
+  "description": "Hyperlane TypeScript SDK for Tron",
   "keywords": [
     "blockchain",
     "hyperlane",
@@ -12,33 +12,44 @@
   "license": "Apache-2.0",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "files": [
-    "/dist"
+    "/dist",
+    "local-node"
   ],
   "type": "module",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
   },
   "scripts": {
     "build": "rm -rf ./dist && tsc",
-    "format": "oxfmt --write ./src",
+    "format": "oxfmt --write src/**/*.ts",
     "lint": "eslint -c ./eslint.config.mjs",
-    "clean": "rm -rf ./dist ./cache",
-    "test": "echo \"no tests in tron-sdk\"",
-    "test:ci": "echo \"no tests in tron-sdk\"",
-    "test:e2e": "./scripts/run-e2e-test.sh"
+    "clean": "rm -rf ./dist ./cache ./coverage",
+    "dev": "tsc --watch",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
+    "coverage": "c8 pnpm test"
   },
   "dependencies": {
-    "@hyperlane-xyz/eslint-config": "workspace:*",
+    "@ethersproject/abi": "*",
+    "@ethersproject/providers": "*",
+    "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/utils": "workspace:*",
     "bignumber.js": "catalog:",
-    "tronweb": "^6.1.1"
+    "ethers": "catalog:",
+    "tronweb": "catalog:"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
-    "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
@@ -46,6 +57,7 @@
     "@types/unzipper": "^0",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
+    "c8": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
     "eslint": "catalog:",
@@ -55,7 +67,9 @@
     "mocha": "catalog:",
     "mocha-steps": "catalog:",
     "node-fetch": "^3.3.2",
+    "testcontainers": "catalog:",
     "ts-node": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
   }

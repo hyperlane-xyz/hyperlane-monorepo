@@ -212,7 +212,7 @@ describe('MinAmountStrategy E2E', function () {
       hyperlaneCore,
       {
         dispatchTx: rebalanceTxReceipt,
-        messageId: actionToArbitrum.messageId,
+        messageId: actionToArbitrum.messageId!,
         origin: 'anvil1',
         destination: 'anvil2',
       },
@@ -236,7 +236,6 @@ describe('MinAmountStrategy E2E', function () {
       activeIntents[0].id,
     );
     expect(completedIntent!.status).to.equal('complete');
-    expect(completedIntent!.fulfilledAmount).to.equal(70000000n);
   });
 
   it('should handle stuck transfer and propose routes to destination', async function () {

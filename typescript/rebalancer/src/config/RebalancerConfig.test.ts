@@ -9,6 +9,9 @@ import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import { RebalancerConfig } from './RebalancerConfig.js';
 import {
+  DEFAULT_INTENT_TTL_MS,
+  ExecutionType,
+  ExternalBridgeType,
   type RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
@@ -98,6 +101,9 @@ describe('RebalancerConfig', () => {
           },
         },
       ],
+      intentTTL: DEFAULT_INTENT_TTL_MS,
+      inventorySigner: undefined,
+      externalBridges: undefined,
     });
   });
 
@@ -497,6 +503,162 @@ describe('RebalancerConfig', () => {
 
       expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.not.throw();
     });
+  });
+});
+
+describe('per-chain bridge configuration', () => {
+  const TEST_CONFIG_PATH_BRIDGE = join(tmpdir(), 'rebalancer-bridge-test.yaml');
+
+  afterEach(() => {
+    rmSync(TEST_CONFIG_PATH_BRIDGE, { force: true });
+  });
+
+  it('should accept externalBridge field on chain config when using inventory execution', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 50, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LiFi,
+            },
+            arbitrum: {
+              weighted: { weight: 50, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LiFi,
+            },
+          },
+        },
+      ],
+      inventorySigner: '0x1234567890123456789012345678901234567890',
+      externalBridges: {
+        lifi: {
+          integrator: 'test-app',
+        },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
+
+    expect(config.strategyConfig[0].chains.ethereum.externalBridge).to.equal(
+      'lifi',
+    );
+    expect(config.externalBridges?.lifi?.integrator).to.equal('test-app');
+  });
+
+  it('should accept bridges.lifi section with integrator and optional defaultSlippage', () => {
+    const data: RebalancerConfigFileInput = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LiFi,
+            },
+          },
+        },
+      ],
+      inventorySigner: '0x1234567890123456789012345678901234567890',
+      externalBridges: {
+        lifi: {
+          integrator: 'my-app',
+          defaultSlippage: 0.01,
+        },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+    const config = RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE);
+
+    expect(config.externalBridges?.lifi).to.deep.include({
+      integrator: 'my-app',
+      defaultSlippage: 0.01,
+    });
+  });
+
+  it('should require externalBridges.lifi when executionType is inventory', () => {
+    const data = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+            },
+          },
+        },
+      ],
+      inventorySigner: '0x1234567890123456789012345678901234567890',
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+      /externalBridges\.lifi.*required/i,
+    );
+  });
+
+  it('should require externalBridges.lifi when externalBridge is lifi', () => {
+    const data = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+              externalBridge: ExternalBridgeType.LiFi,
+            },
+          },
+        },
+      ],
+      inventorySigner: '0x1234567890123456789012345678901234567890',
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+      /externalBridges\.lifi.*required|lifi.*not configured/i,
+    );
+  });
+
+  it('should require externalBridge field when executionType is inventory', () => {
+    const data = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+            },
+          },
+        },
+      ],
+      inventorySigner: '0x1234567890123456789012345678901234567890',
+      externalBridges: {
+        lifi: {
+          integrator: 'test-app',
+        },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+      /ethereum.*inventory execution.*externalBridge/i,
+    );
   });
 });
 

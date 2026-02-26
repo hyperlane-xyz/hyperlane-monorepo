@@ -38,6 +38,7 @@ import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
   ProviderBuilderFn,
   defaultProviderBuilder,
+  defaultTronEthersProviderBuilder,
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
@@ -135,6 +136,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     } else if (rpcUrls.length) {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
         this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
+      } else if (technicalStack === ChainTechnicalStack.Tron) {
+        this.providers[name] = defaultTronEthersProviderBuilder(
+          rpcUrls,
+          chainId,
+        );
       } else {
         this.providers[name] = this.providerBuilder(rpcUrls, chainId);
       }
@@ -375,14 +381,19 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       // no need to `handleTx` for zkSync as the zksync deployer itself
       // will wait for the deploy tx to be confirmed before returning
     } else {
-      const contractFactory = factory.connect(signer);
+      const resolved =
+        technicalStack === ChainTechnicalStack.Tron
+          ? await this.resolveTronFactory(factory)
+          : factory;
+      const contractFactory = resolved.connect(signer);
+
       const deployTx = contractFactory.getDeployTransaction(...params);
       estimatedGas = await signer.estimateGas(deployTx);
       contract = await contractFactory.deploy(...params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
-      // manually wait for deploy tx to be confirmed for non-zksync chains
+      // manually wait for deploy tx to be confirmed
       await this.handleTx(chainNameOrId, contract.deployTransaction);
     }
 
@@ -393,6 +404,31 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     // return deployed contract
     return contract as Awaited<ReturnType<F['deploy']>>;
+  }
+
+  /**
+   * Resolve a core typechain factory to its Tron-compiled equivalent
+   * wrapped with TronContractFactory for deployment.
+   *
+   * @hyperlane-xyz/tron-sdk exports typechain factories with class names identical to
+   * @hyperlane-xyz/core (e.g. Mailbox__factory), generated from the same Solidity source.
+   * They share the same ABIs and deploy signatures, differing only in TVM bytecode.
+   *
+   * Looks up the tron factory by factory.constructor.name and wraps it
+   * with TronContractFactory to handle Tron's deployment flow.
+   * @throws if no matching Tron factory is found
+   */
+  async resolveTronFactory<F extends ContractFactory>(factory: F): Promise<F> {
+    const TronSdk = await import('@hyperlane-xyz/tron-sdk');
+    const TronFactory = (TronSdk as Record<string, any>)[
+      factory.constructor.name
+    ];
+    if (!TronFactory) {
+      throw new Error(
+        `No Tron-compiled factory found for ${factory.constructor.name}`,
+      );
+    }
+    return new TronSdk.TronContractFactory(new TronFactory()) as unknown as F;
   }
 
   /**
