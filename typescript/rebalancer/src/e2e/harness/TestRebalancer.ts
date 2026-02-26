@@ -8,7 +8,7 @@ import {
   type MultiProvider,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
@@ -302,7 +302,7 @@ export class TestRebalancerBuilder {
         ERC20_INVENTORY_MONITORED_ROUTE_ID,
         this.strategyConfig,
         DEFAULT_INTENT_TTL_MS,
-        inventorySignerAddress,
+        { [ProtocolType.Ethereum]: inventorySignerAddress },
         { lifi: { integrator: 'test' } },
       );
       warpCoreConfig = buildErc20InventoryWarpRouteConfig(
@@ -319,7 +319,7 @@ export class TestRebalancerBuilder {
         NATIVE_MONITORED_ROUTE_ID,
         this.strategyConfig,
         DEFAULT_INTENT_TTL_MS,
-        inventorySignerAddress,
+        { [ProtocolType.Ethereum]: inventorySignerAddress },
         { lifi: { integrator: 'test' } },
       );
       warpCoreConfig = buildNativeWarpRouteConfig(
