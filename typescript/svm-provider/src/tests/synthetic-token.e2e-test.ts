@@ -103,7 +103,7 @@ describe('SVM Synthetic Warp Token E2E Tests', function () {
 
     writer = new SvmSyntheticTokenWriter(
       {
-        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.token },
+        program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenSynthetic },
         igpProgramId,
         ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
       },
