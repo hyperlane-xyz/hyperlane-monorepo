@@ -87,7 +87,8 @@
         "**/*.spec.ts",
         "**/*-test.ts",
         "**/test/**",
-        "**/tests/**"
+        "**/tests/**",
+        "typescript/rebalancer/src/e2e/**"
       ],
       "rules": {
         "no-console": "off",

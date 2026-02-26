@@ -386,15 +386,17 @@ export class RebalancerContextFactory {
    * Returns null if inventory config is not available.
    *
    * @param actionTracker - ActionTracker instance for tracking inventory actions
+   * @param externalBridgeRegistryOverride - Optional override for external bridge registry (for testing)
    */
   private async createInventoryRebalancerAndConfig(
     actionTracker: IActionTracker,
+    externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>,
   ): Promise<{
     inventoryRebalancer: IRebalancer;
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
     inventoryConfig: InventoryMonitorConfig;
   } | null> {
-    const { inventorySigner, externalBridges } = this.config;
+    const { inventorySigner } = this.config;
 
     if (!inventorySigner) {
       this.logger.debug(
@@ -423,37 +425,19 @@ export class RebalancerContextFactory {
       return null;
     }
 
-    // Build registry dynamically from ExternalBridgeType enum
-    const externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
-
-    for (const bridgeType of Object.values(ExternalBridgeType)) {
-      switch (bridgeType) {
-        case ExternalBridgeType.LiFi: {
-          const lifiConfig = externalBridges?.lifi;
-          if (lifiConfig?.integrator) {
-            externalBridgeRegistry[ExternalBridgeType.LiFi] = new LiFiBridge(
-              {
-                integrator: lifiConfig.integrator,
-                defaultSlippage: lifiConfig.defaultSlippage,
-                chainMetadata: this.multiProvider.metadata,
-              },
-              this.logger,
-            );
-          }
-          break;
-        }
-        default: {
-          // Exhaustive check - TypeScript will error if new enum value added
-          const _exhaustive: never = bridgeType;
-          throw new Error(`Unknown bridge type: ${_exhaustive}`);
-        }
-      }
-    }
+    const externalBridgeRegistry: Partial<ExternalBridgeRegistry> =
+      externalBridgeRegistryOverride ?? this.buildExternalBridgeRegistry();
 
     if (Object.keys(externalBridgeRegistry).length === 0) {
-      this.logger.debug(
-        'No external bridges configured, skipping inventory components',
-      );
+      if (externalBridgeRegistryOverride !== undefined) {
+        this.logger.debug(
+          'No external bridges in override registry, skipping inventory components',
+        );
+      } else {
+        this.logger.debug(
+          'No external bridges configured, skipping inventory components',
+        );
+      }
       return null;
     }
 
@@ -478,25 +462,63 @@ export class RebalancerContextFactory {
       this.logger,
     );
 
-    this.logger.info(
-      {
-        inventoryChains,
-        inventorySigner,
-      },
-      'Inventory components created successfully',
-    );
+    if (externalBridgeRegistryOverride === undefined) {
+      this.logger.info(
+        {
+          inventoryChains,
+          inventorySigner,
+        },
+        'Inventory components created successfully',
+      );
+    }
 
     return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
+  }
+
+  private buildExternalBridgeRegistry(): Partial<ExternalBridgeRegistry> {
+    const { externalBridges } = this.config;
+    const registry: Partial<ExternalBridgeRegistry> = {};
+
+    for (const bridgeType of Object.values(ExternalBridgeType)) {
+      switch (bridgeType) {
+        case ExternalBridgeType.LiFi: {
+          const lifiConfig = externalBridges?.lifi;
+          if (lifiConfig?.integrator) {
+            registry[ExternalBridgeType.LiFi] = new LiFiBridge(
+              {
+                integrator: lifiConfig.integrator,
+                defaultSlippage: lifiConfig.defaultSlippage,
+                chainMetadata: this.multiProvider.metadata,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
+        default: {
+          // Exhaustive check - TypeScript will error if new enum value added
+          const _exhaustive: never = bridgeType;
+          throw new Error(`Unknown bridge type: ${_exhaustive}`);
+        }
+      }
+    }
+
+    return registry;
   }
 
   /**
    * Creates all rebalancers based on config execution types.
    * Returns an array of rebalancers (movableCollateral and/or inventory)
    * along with metadata needed for monitor and orchestrator.
+   *
+   * @param actionTracker - ActionTracker instance for tracking actions
+   * @param metrics - Optional Metrics instance
+   * @param externalBridgeRegistryOverride - Optional override for external bridge registry (for testing)
    */
   public async createRebalancers(
     actionTracker: IActionTracker,
     metrics?: Metrics,
+    externalBridgeRegistryOverride?: Partial<ExternalBridgeRegistry>,
   ): Promise<{
     rebalancers: IRebalancer[];
     externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
@@ -504,7 +526,7 @@ export class RebalancerContextFactory {
   }> {
     const rebalancers: IRebalancer[] = [];
     let externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
-    let inventoryConfig: InventoryMonitorConfig | undefined;
+    let inventoryConfig: undefined | InventoryMonitorConfig;
 
     // Check if any chains use movableCollateral execution type
     const hasMovableCollateral = this.hasMovableCollateralChains();
@@ -517,8 +539,10 @@ export class RebalancerContextFactory {
     }
 
     // Check if any chains use inventory execution type
-    const inventoryComponents =
-      await this.createInventoryRebalancerAndConfig(actionTracker);
+    const inventoryComponents = await this.createInventoryRebalancerAndConfig(
+      actionTracker,
+      externalBridgeRegistryOverride,
+    );
     if (inventoryComponents) {
       rebalancers.push(inventoryComponents.inventoryRebalancer);
       externalBridgeRegistry = inventoryComponents.externalBridgeRegistry;
