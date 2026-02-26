@@ -28,8 +28,9 @@ const deployEnv = (process.env.DEPLOY_ENV || 'testnet4') as DeployEnv;
 const chains = await loadChainConfigs(deployEnv);
 const addresses = await loadContractAddresses(chains);
 
-// Log startup summary
+// Log startup summary (eslint-disable needed: ponder.config.ts runs before logger init)
 const chainNames = chains.map((c) => c.name).join(', ');
+// eslint-disable-next-line no-console
 console.log(
   `[indexer] Starting ${deployEnv} indexer for ${chains.length} chains: ${chainNames}`,
 );

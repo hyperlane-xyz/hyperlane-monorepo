@@ -44,6 +44,7 @@ COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
 COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
 COPY typescript/aleo-sdk/package.json ./typescript/aleo-sdk/
+COPY typescript/tron-sdk/package.json ./typescript/tron-sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY typescript/eslint-config/package.json ./typescript/eslint-config/
 COPY solidity/package.json ./solidity/
@@ -64,6 +65,7 @@ COPY typescript/cosmos-sdk ./typescript/cosmos-sdk
 COPY typescript/cosmos-types ./typescript/cosmos-types
 COPY typescript/radix-sdk ./typescript/radix-sdk
 COPY typescript/aleo-sdk ./typescript/aleo-sdk
+COPY typescript/tron-sdk ./typescript/tron-sdk
 COPY typescript/tsconfig ./typescript/tsconfig
 COPY typescript/eslint-config ./typescript/eslint-config
 COPY solidity ./solidity
@@ -116,6 +118,7 @@ COPY --from=builder /hyperlane-monorepo/typescript/cosmos-sdk ./typescript/cosmo
 COPY --from=builder /hyperlane-monorepo/typescript/cosmos-types ./typescript/cosmos-types
 COPY --from=builder /hyperlane-monorepo/typescript/radix-sdk ./typescript/radix-sdk
 COPY --from=builder /hyperlane-monorepo/typescript/aleo-sdk ./typescript/aleo-sdk
+COPY --from=builder /hyperlane-monorepo/typescript/tron-sdk ./typescript/tron-sdk
 COPY --from=builder /hyperlane-monorepo/typescript/tsconfig ./typescript/tsconfig
 
 # Solidity ABIs needed by SDK
