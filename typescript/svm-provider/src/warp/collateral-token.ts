@@ -201,12 +201,13 @@ export class SvmCollateralTokenWriter
       );
     }
 
-    const configReceipt = await applyPostInitConfig(
-      this.svmSigner,
-      programAddress,
-      tokenConfig,
+    receipts.push(
+      ...(await applyPostInitConfig(
+        this.svmSigner,
+        programAddress,
+        tokenConfig,
+      )),
     );
-    if (configReceipt) receipts.push(configReceipt);
 
     return [
       {
@@ -232,21 +233,13 @@ export class SvmCollateralTokenWriter
       `Cannot update collateral token ${programId}: token has no owner`,
     );
 
-    const instructions = await computeWarpTokenUpdateInstructions(
+    return computeWarpTokenUpdateInstructions(
       current.config,
       artifact.config,
       programId,
       parseAddress(current.config.owner),
       this.config.igpProgramId,
+      `collateral token ${programId}`,
     );
-
-    if (instructions.length === 0) return [];
-
-    return [
-      {
-        instructions,
-        annotation: `Update collateral token ${programId}`,
-      },
-    ];
   }
 }

@@ -29,7 +29,12 @@ import {
 import { deriveAtaPayerPda } from '../pda.js';
 import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import type { SvmSigner } from '../signer.js';
-import type { SvmInstruction, SvmRpc, SvmReceipt } from '../types.js';
+import type {
+  AnnotatedSvmTransaction,
+  SvmInstruction,
+  SvmRpc,
+  SvmReceipt,
+} from '../types.js';
 
 import { routerHexToBytes } from './warp-query.js';
 
@@ -113,47 +118,69 @@ export function buildBaseInitData(
   };
 }
 
+// Each router entry is 37 bytes in the EnrollRemoteRouters instruction data.
+// With ~322 bytes of fixed tx overhead the 1232-byte limit allows at most 24
+// routers per tx. Use 20 to stay comfortably within that bound.
+const MAX_ROUTERS_PER_TX = 20;
+
+// Each gas config entry is 13 bytes in SetDestinationGasConfigs instruction
+// data. The same fixed overhead allows at most 70 configs per tx. Use 60.
+const MAX_GAS_CONFIGS_PER_TX = 60;
+
 /**
- * Sends post-init configuration (remote routers + destination gas) in a
- * single batched transaction. Returns undefined if there is nothing to send.
+ * Sends post-init configuration (remote routers + destination gas) in
+ * separate, batched transactions — matching the Rust CLI behaviour — to
+ * stay within Solana's 1232-byte transaction size limit.
+ *
+ * Router enrollments and gas configs are issued as independent instruction
+ * streams so each can use its full per-tx budget.
  */
 export async function applyPostInitConfig(
   signer: SvmSigner,
   programId: Address,
   config: Pick<RawWarpArtifactConfig, 'remoteRouters' | 'destinationGas'>,
-): Promise<SvmReceipt | undefined> {
-  const instructions: SvmInstruction[] = [];
+): Promise<SvmReceipt[]> {
+  const receipts: SvmReceipt[] = [];
 
   const routerEntries = Object.entries(config.remoteRouters);
-  if (routerEntries.length > 0) {
-    instructions.push(
-      await getTokenEnrollRemoteRoutersInstruction(
-        programId,
-        signer.signer.address,
-        routerEntries.map(([domain, router]) => ({
-          domain: parseInt(domain),
-          router: routerHexToBytes(router.address),
-        })),
-      ),
+  for (let i = 0; i < routerEntries.length; i += MAX_ROUTERS_PER_TX) {
+    const batch = routerEntries.slice(i, i + MAX_ROUTERS_PER_TX);
+    receipts.push(
+      await signer.send({
+        instructions: [
+          await getTokenEnrollRemoteRoutersInstruction(
+            programId,
+            signer.signer.address,
+            batch.map(([domain, router]) => ({
+              domain: parseInt(domain),
+              router: routerHexToBytes(router.address),
+            })),
+          ),
+        ],
+      }),
     );
-
-    const gasEntries = Object.entries(config.destinationGas);
-    if (gasEntries.length > 0) {
-      instructions.push(
-        await getTokenSetDestinationGasConfigsInstruction(
-          programId,
-          signer.signer.address,
-          gasEntries.map(([domain, gas]) => ({
-            domain: parseInt(domain),
-            gas: BigInt(gas),
-          })),
-        ),
-      );
-    }
   }
 
-  if (instructions.length === 0) return undefined;
-  return signer.send({ instructions });
+  const gasEntries = Object.entries(config.destinationGas);
+  for (let i = 0; i < gasEntries.length; i += MAX_GAS_CONFIGS_PER_TX) {
+    const batch = gasEntries.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
+    receipts.push(
+      await signer.send({
+        instructions: [
+          await getTokenSetDestinationGasConfigsInstruction(
+            programId,
+            signer.signer.address,
+            batch.map(([domain, gas]) => ({
+              domain: parseInt(domain),
+              gas: BigInt(gas),
+            })),
+          ),
+        ],
+      }),
+    );
+  }
+
+  return receipts;
 }
 
 /**
@@ -186,8 +213,18 @@ export async function buildFundAtaPayerInstruction(
 }
 
 /**
- * Diffs current vs expected config and returns the minimal set of update
- * instructions needed to reconcile them.
+ * Diffs current vs expected config and returns the minimal set of annotated
+ * update transactions needed to reconcile them, batched to stay within
+ * Solana's 1232-byte transaction size limit.
+ *
+ * Transaction grouping:
+ *   1. ISM + IGP hook changes (combined, both are small)
+ *   2. Router unenroll/enroll batches (MAX_ROUTERS_PER_TX each)
+ *   3. Gas config unenroll/enroll batches (MAX_GAS_CONFIGS_PER_TX each)
+ *   4. Ownership transfer (always last, own tx)
+ *
+ * @param label - Prefix used for transaction annotations,
+ *                e.g. "native token <programId>"
  */
 export async function computeWarpTokenUpdateInstructions(
   current: RawWarpArtifactConfig,
@@ -195,14 +232,17 @@ export async function computeWarpTokenUpdateInstructions(
   programId: Address,
   ownerAddress: Address,
   igpProgramId: Address,
-): Promise<SvmInstruction[]> {
-  const instructions: SvmInstruction[] = [];
+  label: string,
+): Promise<AnnotatedSvmTransaction[]> {
+  const txs: AnnotatedSvmTransaction[] = [];
 
-  // 1. ISM change
+  // 1. ISM + IGP hook — combined into a single tx (both are small instructions)
+  const configInstructions: SvmInstruction[] = [];
+
   const currentIsm = current.interchainSecurityModule?.deployed?.address;
   const expectedIsm = expected.interchainSecurityModule?.deployed?.address;
   if (!eqOptionalAddress(currentIsm, expectedIsm, eqAddressSol)) {
-    instructions.push(
+    configInstructions.push(
       await getTokenSetInterchainSecurityModuleInstruction(
         programId,
         ownerAddress,
@@ -211,7 +251,6 @@ export async function computeWarpTokenUpdateInstructions(
     );
   }
 
-  // 2. IGP hook change
   const currentHook = current.hook?.deployed?.address;
   const expectedHook = expected.hook?.deployed?.address;
   if (!eqOptionalAddress(currentHook, expectedHook, eqAddressSol)) {
@@ -226,7 +265,7 @@ export async function computeWarpTokenUpdateInstructions(
           },
         ]
       : null;
-    instructions.push(
+    configInstructions.push(
       await getTokenSetInterchainGasPaymasterInstruction(
         programId,
         ownerAddress,
@@ -235,7 +274,14 @@ export async function computeWarpTokenUpdateInstructions(
     );
   }
 
-  // 3. Router diff
+  if (configInstructions.length > 0) {
+    txs.push({
+      instructions: configInstructions,
+      annotation: `Update ${label}: ISM/hook config`,
+    });
+  }
+
+  // 2. Router diff — routers and gas configs as independent batched streams
   const diff = computeRemoteRoutersUpdates(
     {
       remoteRouters: current.remoteRouters,
@@ -248,58 +294,99 @@ export async function computeWarpTokenUpdateInstructions(
     eqAddressSol,
   );
 
-  if (diff.toUnenroll.length > 0) {
-    instructions.push(
-      await getTokenEnrollRemoteRoutersInstruction(
-        programId,
-        ownerAddress,
-        diff.toUnenroll.map((domain) => ({ domain, router: null })),
-      ),
-    );
-    instructions.push(
-      await getTokenSetDestinationGasConfigsInstruction(
-        programId,
-        ownerAddress,
-        diff.toUnenroll.map((domain) => ({ domain, gas: null })),
-      ),
-    );
+  const unenrollRouterBatches = Math.ceil(
+    diff.toUnenroll.length / MAX_ROUTERS_PER_TX,
+  );
+  for (let i = 0; i < diff.toUnenroll.length; i += MAX_ROUTERS_PER_TX) {
+    const batch = diff.toUnenroll.slice(i, i + MAX_ROUTERS_PER_TX);
+    const batchNum = i / MAX_ROUTERS_PER_TX + 1;
+    txs.push({
+      instructions: [
+        await getTokenEnrollRemoteRoutersInstruction(
+          programId,
+          ownerAddress,
+          batch.map((domain) => ({ domain, router: null })),
+        ),
+      ],
+      annotation: `Update ${label}: unenroll routers${unenrollRouterBatches > 1 ? ` (${batchNum}/${unenrollRouterBatches})` : ''}`,
+    });
   }
 
-  if (diff.toEnroll.length > 0) {
-    instructions.push(
-      await getTokenEnrollRemoteRoutersInstruction(
-        programId,
-        ownerAddress,
-        diff.toEnroll.map((e) => ({
-          domain: e.domainId,
-          router: routerHexToBytes(e.routerAddress),
-        })),
-      ),
-    );
-    instructions.push(
-      await getTokenSetDestinationGasConfigsInstruction(
-        programId,
-        ownerAddress,
-        diff.toEnroll.map((e) => ({
-          domain: e.domainId,
-          gas: BigInt(e.gas),
-        })),
-      ),
-    );
+  const unenrollGasBatches = Math.ceil(
+    diff.toUnenroll.length / MAX_GAS_CONFIGS_PER_TX,
+  );
+  for (let i = 0; i < diff.toUnenroll.length; i += MAX_GAS_CONFIGS_PER_TX) {
+    const batch = diff.toUnenroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
+    const batchNum = i / MAX_GAS_CONFIGS_PER_TX + 1;
+    txs.push({
+      instructions: [
+        await getTokenSetDestinationGasConfigsInstruction(
+          programId,
+          ownerAddress,
+          batch.map((domain) => ({ domain, gas: null })),
+        ),
+      ],
+      annotation: `Update ${label}: unenroll gas configs${unenrollGasBatches > 1 ? ` (${batchNum}/${unenrollGasBatches})` : ''}`,
+    });
   }
 
-  // 4. Ownership change (always last)
+  const enrollRouterBatches = Math.ceil(
+    diff.toEnroll.length / MAX_ROUTERS_PER_TX,
+  );
+  for (let i = 0; i < diff.toEnroll.length; i += MAX_ROUTERS_PER_TX) {
+    const batch = diff.toEnroll.slice(i, i + MAX_ROUTERS_PER_TX);
+    const batchNum = i / MAX_ROUTERS_PER_TX + 1;
+    txs.push({
+      instructions: [
+        await getTokenEnrollRemoteRoutersInstruction(
+          programId,
+          ownerAddress,
+          batch.map((e) => ({
+            domain: e.domainId,
+            router: routerHexToBytes(e.routerAddress),
+          })),
+        ),
+      ],
+      annotation: `Update ${label}: enroll routers${enrollRouterBatches > 1 ? ` (${batchNum}/${enrollRouterBatches})` : ''}`,
+    });
+  }
+
+  const enrollGasBatches = Math.ceil(
+    diff.toEnroll.length / MAX_GAS_CONFIGS_PER_TX,
+  );
+  for (let i = 0; i < diff.toEnroll.length; i += MAX_GAS_CONFIGS_PER_TX) {
+    const batch = diff.toEnroll.slice(i, i + MAX_GAS_CONFIGS_PER_TX);
+    const batchNum = i / MAX_GAS_CONFIGS_PER_TX + 1;
+    txs.push({
+      instructions: [
+        await getTokenSetDestinationGasConfigsInstruction(
+          programId,
+          ownerAddress,
+          batch.map((e) => ({
+            domain: e.domainId,
+            gas: BigInt(e.gas),
+          })),
+        ),
+      ],
+      annotation: `Update ${label}: enroll gas configs${enrollGasBatches > 1 ? ` (${batchNum}/${enrollGasBatches})` : ''}`,
+    });
+  }
+
+  // 3. Ownership change — always its own last tx
   if (!eqOptionalAddress(current.owner, expected.owner, eqAddressSol)) {
-    instructions.push(
-      await getTokenTransferOwnershipInstruction(
-        programId,
-        ownerAddress,
-        expected.owner && !isZeroishAddress(expected.owner)
-          ? parseAddress(expected.owner)
-          : null,
-      ),
-    );
+    txs.push({
+      instructions: [
+        await getTokenTransferOwnershipInstruction(
+          programId,
+          ownerAddress,
+          expected.owner && !isZeroishAddress(expected.owner)
+            ? parseAddress(expected.owner)
+            : null,
+        ),
+      ],
+      annotation: `Update ${label}: transfer ownership`,
+    });
   }
 
-  return instructions;
+  return txs;
 }
