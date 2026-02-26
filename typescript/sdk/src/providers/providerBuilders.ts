@@ -9,7 +9,10 @@ import { Provider as ZKProvider } from 'zksync-ethers';
 import { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk';
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
-import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk';
+import {
+  TronJsonRpcProvider,
+  TronProvider as TronSDKProvider,
+} from '@hyperlane-xyz/tron-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
@@ -25,6 +28,7 @@ import {
   RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
+  TronProvider,
   TypedProvider,
   ViemProvider,
   ZKSyncProvider,
@@ -194,6 +198,15 @@ export function defaultTronEthersProviderBuilder(
   return new TronJsonRpcProvider(rpcUrls[0].http);
 }
 
+export function defaultTronProviderBuilder(
+  rpcUrls: RpcUrl[],
+  _network: string | number,
+): TronProvider {
+  assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
+  const provider = new TronSDKProvider(rpcUrls.map((rpc) => rpc.http));
+  return { provider, type: ProviderType.Tron };
+}
+
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
@@ -225,6 +238,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
   [ProviderType.Radix]: defaultRadixProviderBuilder,
   [ProviderType.Aleo]: defaultAleoProviderBuilder,
+  [ProviderType.Tron]: defaultTronProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -238,4 +252,5 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProtocolType.Radix]: defaultRadixProviderBuilder,
   [ProtocolType.Aleo]: defaultAleoProviderBuilder,
+  [ProtocolType.Tron]: defaultTronProviderBuilder,
 };

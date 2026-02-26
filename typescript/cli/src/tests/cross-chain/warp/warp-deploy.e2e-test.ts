@@ -201,7 +201,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
     // Unknown is excluded because it's a forward-compatibility placeholder
     Exclude<
       ProtocolType,
-      ProtocolType.Radix | ProtocolType.Aleo | ProtocolType.Unknown
+      | ProtocolType.Radix
+      | ProtocolType.Aleo
+      | ProtocolType.Tron
+      | ProtocolType.Unknown
     >,
     Address
   > = {

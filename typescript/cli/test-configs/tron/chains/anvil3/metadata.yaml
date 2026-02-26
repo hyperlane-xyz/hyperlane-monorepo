@@ -9,8 +9,8 @@ displayName: Tron Local 3
 protocol: ethereum
 technicalStack: tron
 rpcUrls:
-    - http: http://127.0.0.1:9090
+  - http: http://127.0.0.1:9090
 nativeToken:
-    name: TRX
-    symbol: TRX
-    decimals: 6
+  name: TRX
+  symbol: TRX
+  decimals: 6
