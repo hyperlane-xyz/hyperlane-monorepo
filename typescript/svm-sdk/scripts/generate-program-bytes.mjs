@@ -21,7 +21,7 @@ const PROGRAMS = {
   multisigIsm: 'hyperlane_sealevel_multisig_ism_message_id.so',
   testIsm: 'hyperlane_sealevel_test_ism.so',
   validatorAnnounce: 'hyperlane_sealevel_validator_announce.so',
-  token: 'hyperlane_sealevel_token.so',
+  tokenSynthetic: 'hyperlane_sealevel_token.so',
   tokenNative: 'hyperlane_sealevel_token_native.so',
   tokenCollateral: 'hyperlane_sealevel_token_collateral.so',
 };

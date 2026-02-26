@@ -88,7 +88,9 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
         new SvmSyntheticTokenWriter(
           {
             igpProgramId: this.igpProgramId,
-            program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.token },
+            program: {
+              programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenSynthetic,
+            },
             ataPayerFundingAmount: this.ataPayerFundingAmount,
           },
           this.rpc,
