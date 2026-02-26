@@ -245,16 +245,19 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             ],
         )?;
 
-        // Transfer fee to recipient (if any)
+        // Transfer fee to beneficiary (if any).
+        // The fee_beneficiary_account's legitimacy (matching the fee account's
+        // stored beneficiary) was verified by verify_and_quote_fee in the
+        // hyperlane-sealevel-token lib.
         if fee_amount > 0 {
-            let recipient_ata = fee_beneficiary_account.ok_or(ProgramError::from(
+            let fee_beneficiary_ata = fee_beneficiary_account.ok_or(ProgramError::from(
                 hyperlane_sealevel_token_lib::error::Error::FeeBeneficiaryRequired,
             ))?;
             let transfer_ixn = spl_token_2022::instruction::transfer_checked(
                 &spl_token_2022::id(),
                 sender_ata.key,
                 mint_account.key,
-                recipient_ata.key,
+                fee_beneficiary_ata.key,
                 sender_wallet.key,
                 &[],
                 fee_amount,
@@ -265,7 +268,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
                 &[
                     sender_ata.clone(),
                     mint_account.clone(),
-                    recipient_ata.clone(),
+                    fee_beneficiary_ata.clone(),
                     sender_wallet.clone(),
                 ],
             )?;
