@@ -484,10 +484,7 @@ mod test {
             .remote_routers
             .serialize(&mut legacy_bytes)
             .unwrap();
-        legacy_token
-            .plugin_data
-            .serialize(&mut legacy_bytes)
-            .unwrap();
+        BorshSerialize::serialize(&legacy_token.plugin_data, &mut legacy_bytes).unwrap();
         // No fee_config serialized — simulates legacy account
 
         let deserialized: HyperlaneToken<()> =

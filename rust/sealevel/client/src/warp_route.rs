@@ -290,6 +290,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             interchain_gas_paymaster,
             decimals: app_config.decimal_metadata.decimals,
             remote_decimals: app_config.decimal_metadata.remote_decimals(),
+            fee_config: None,
         };
 
         let home_path = std::env::var("HOME").unwrap();
