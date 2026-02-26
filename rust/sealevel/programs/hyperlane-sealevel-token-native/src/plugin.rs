@@ -144,7 +144,10 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
             &[sender_wallet.clone(), native_collateral_account.clone()],
         )?;
 
-        // Transfer fee lamports to recipient (if any)
+        // Transfer fee lamports to recipient (if any).
+        // The fee_beneficiary_account's legitimacy (matching the fee account's
+        // stored beneficiary) was verified by verify_and_quote_fee in the
+        // hyperlane-sealevel-token lib.
         if fee_amount > 0 {
             let recipient = fee_beneficiary_account.ok_or(ProgramError::from(
                 hyperlane_sealevel_token_lib::error::Error::FeeBeneficiaryRequired,
