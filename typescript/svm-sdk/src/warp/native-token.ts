@@ -7,9 +7,10 @@ import {
   ArtifactState,
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import type {
-  DeployedWarpAddress,
-  RawNativeWarpArtifactConfig,
+import {
+  TokenType,
+  type DeployedWarpAddress,
+  type RawNativeWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   ZERO_ADDRESS_HEX_32,
@@ -65,7 +66,7 @@ export class SvmNativeTokenReader implements ArtifactReader<
     }
 
     const config: RawNativeWarpArtifactConfig = {
-      type: 'native',
+      type: TokenType.native,
       owner: token.owner ?? ZERO_ADDRESS_HEX_32,
       mailbox: token.mailbox,
       interchainSecurityModule: token.interchainSecurityModule
