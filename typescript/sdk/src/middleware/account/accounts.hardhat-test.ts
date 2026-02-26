@@ -106,7 +106,8 @@ describe('InterchainAccounts', async () => {
     const quote = await local['quoteGasPayment(uint32)'](
       multiProvider.getDomainId(remoteChain),
     );
-    const balanceBefore = await signer.getBalance();
+    const originProvider = multiProvider.getProvider(localChain);
+    const balanceBefore = await originProvider.getBalance(signer.address);
     const config: AccountConfig = {
       origin: localChain,
       owner: signer.address,
@@ -118,7 +119,7 @@ describe('InterchainAccounts', async () => {
       innerCalls: [call],
       config,
     });
-    const balanceAfter = await signer.getBalance();
+    const balanceAfter = await originProvider.getBalance(signer.address);
     await coreApp.processMessages();
     expect(balanceAfter <= balanceBefore - quote).to.be.true;
     expect(await recipient.lastCallMessage()).to.eql(fooMessage);

@@ -401,22 +401,13 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     return processedEvent.getTransactionReceipt();
   }
 
-  protected waitForProcessReceipt(
+  protected async waitForProcessReceipt(
     message: DispatchedMessage,
   ): Promise<TransactionReceipt> {
     const id = messageId(message.message);
     const destinationChain = this.getDestination(message);
-    const mailbox = this.contractsMap[destinationChain].mailbox;
-    const filter = mailbox.filters.ProcessId(id);
-
-    return new Promise<TransactionReceipt>((resolve, reject) => {
-      void mailbox.once(filter, (emittedId, event) => {
-        if (id !== emittedId) {
-          reject(`Expected message id ${id} but got ${emittedId}`);
-        }
-        resolve(event.getTransactionReceipt());
-      });
-    });
+    await this.waitForMessageIdProcessed(id, destinationChain);
+    return this.getProcessedReceipt(message);
   }
 
   async waitForMessageIdProcessed(

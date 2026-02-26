@@ -207,7 +207,7 @@ describe('MinAmountStrategy E2E', function () {
       actionToArbitrum.txHash!,
     );
     const rebalanceRelayResult = await tryRelayMessage(
-      multiProvider,
+      context.multiProvider,
       hyperlaneCore,
       {
         dispatchTx: rebalanceTxReceipt,

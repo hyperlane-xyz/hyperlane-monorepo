@@ -789,12 +789,16 @@ describe('CompositeStrategy E2E', function () {
       const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
         inflightToBase.txHash,
       );
-      const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
-        dispatchTx: rebalanceTxReceipt,
-        messageId: inflightToBase.messageId!,
-        origin: 'anvil1',
-        destination: 'anvil3',
-      });
+      const relayResult = await tryRelayMessage(
+        context.multiProvider,
+        hyperlaneCore,
+        {
+          dispatchTx: rebalanceTxReceipt,
+          messageId: inflightToBase.messageId!,
+          origin: 'anvil1',
+          destination: 'anvil3',
+        },
+      );
 
       if (relayResult.success) {
         const blockTags13 = await context.getConfirmedBlockTags();
@@ -954,12 +958,16 @@ describe('CompositeStrategy E2E', function () {
         action.txHash,
       );
 
-      const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
-        dispatchTx: rebalanceTxReceipt,
-        messageId: action.messageId!,
-        origin: originChain,
-        destination: destChain,
-      });
+      const relayResult = await tryRelayMessage(
+        context.multiProvider,
+        hyperlaneCore,
+        {
+          dispatchTx: rebalanceTxReceipt,
+          messageId: action.messageId!,
+          origin: originChain,
+          destination: destChain,
+        },
+      );
       expect(
         relayResult.success,
         `SUPERSEED relay should succeed: ${relayResult.error}`,

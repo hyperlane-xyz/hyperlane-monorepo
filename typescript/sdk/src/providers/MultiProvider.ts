@@ -51,6 +51,24 @@ type TransactionResponseLike = {
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
 
+class ResilientNonceManager extends NonceManager {
+  override async sendTransaction(tx: TransactionRequest) {
+    try {
+      return await super.sendTransaction(tx);
+    } catch (error) {
+      // Failed sends can desync nonce cache from chain state; reset before retrying.
+      this.reset();
+      throw error;
+    }
+  }
+}
+
+function unwrapSignerForNonceManagement(signer: Signer): Signer {
+  if (!(signer instanceof NonceManager)) return signer;
+  const innerSigner = (signer as Signer & { signer?: Signer }).signer;
+  return innerSigner ?? signer;
+}
+
 export interface MultiProviderOptions {
   logger?: Logger;
   providers?: ChainMap<Provider>;
@@ -211,13 +229,22 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const metadata = this.getChainMetadata(chainName);
     const signerConstructorName = connectedSigner.constructor?.name;
     const isHardhatSigner = signerConstructorName === 'HardhatEthersSigner';
+    const skipNonceManagerForLocalTesting =
+      metadata.blocks?.confirmations === 0 &&
+      metadata.blocks?.reorgPeriod === 0;
     const useNonceManager =
       metadata.protocol === ProtocolType.Ethereum &&
       metadata.technicalStack !== ChainTechnicalStack.Tron &&
+      !skipNonceManagerForLocalTesting &&
       !isHardhatSigner;
 
-    if (useNonceManager && !(connectedSigner instanceof NonceManager)) {
-      connectedSigner = new NonceManager(connectedSigner);
+    if (
+      useNonceManager &&
+      !(connectedSigner instanceof ResilientNonceManager)
+    ) {
+      connectedSigner = new ResilientNonceManager(
+        unwrapSignerForNonceManagement(connectedSigner),
+      );
     }
 
     this.signers[chainName] = connectedSigner;

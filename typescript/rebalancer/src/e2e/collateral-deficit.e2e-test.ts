@@ -345,13 +345,13 @@ describe('Collateral Deficit E2E', function () {
     expect(retrievedAction!.id).to.equal(actionToArbitrum!.id);
     expect(retrievedAction!.status).to.equal('in_progress');
 
-    // Relay the rebalance message to destination (use global multiProvider which has signers on all chains)
+    // Relay the rebalance message to destination using this test context's signer state.
     expect(actionToArbitrum!.txHash, 'Action should have txHash').to.exist;
     const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
       actionToArbitrum!.txHash!,
     );
     const rebalanceRelayResult = await tryRelayMessage(
-      multiProvider,
+      context.multiProvider,
       hyperlaneCore,
       {
         dispatchTx: rebalanceTxReceipt,
