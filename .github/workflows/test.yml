@@ -630,7 +630,7 @@ jobs:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
     if: needs.change-detection.outputs.only_rust == 'false'
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
         with:
