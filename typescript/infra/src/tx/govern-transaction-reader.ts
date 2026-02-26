@@ -205,8 +205,8 @@ function isRpcOrTransportError(error: unknown): boolean {
       // CALL_EXCEPTION: only transient when there's no revert data and no
       // JSON-RPC error code 3 (which definitively indicates a contract revert)
       if (code === 'CALL_EXCEPTION') {
-        const hasRevertData =
-          !!(error as any).data && (error as any).data !== '0x';
+        const data = (error as any).data;
+        const hasRevertData = !!data && data !== '0x' && data !== '';
         const nestedError = (error as any).error;
         const jsonRpcErrorCode = nestedError?.error?.code ?? nestedError?.code;
         const isJsonRpcRevert = jsonRpcErrorCode === 3;
@@ -225,11 +225,26 @@ function isRpcOrTransportError(error: unknown): boolean {
   return false;
 }
 
+// Patterns that may contain secrets in ethers.js RPC error messages
+const SENSITIVE_PATTERNS = [
+  /https?:\/\/\S+/gi, // RPC URLs (often contain API keys in path/query)
+  /Bearer\s+\S+/gi,
+  /(?:api_key|secret|token|key|password)=\S+/gi,
+];
+
+function sanitizeErrorMessage(msg: string): string {
+  let sanitized = msg;
+  for (const pattern of SENSITIVE_PATTERNS) {
+    sanitized = sanitized.replace(pattern, '[REDACTED]');
+  }
+  return sanitized.slice(0, 120);
+}
+
 function summarizeError(error: unknown): string {
   if (error instanceof Error) {
     const code = (error as any).code;
     const prefix = typeof code === 'string' ? `[${code}] ` : '';
-    return `${prefix}${error.message.slice(0, 120)}`;
+    return `${prefix}${sanitizeErrorMessage(error.message)}`;
   }
   return 'unknown error';
 }
@@ -1814,7 +1829,7 @@ export class GovernTransactionReader {
             insight: `⚠️ could not decode call (RPC error on ${remoteChainName})`,
             to: icaCallAsTx.to,
             data: call[2],
-          } as GovernTransaction;
+          };
         }
       }),
     );

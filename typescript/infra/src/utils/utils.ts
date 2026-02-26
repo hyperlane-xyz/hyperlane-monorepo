@@ -179,10 +179,18 @@ export function getMonorepoRoot(): string {
  * Formats a file using oxfmt (JS/TS) or prettier (other file types)
  * @param filepath - The path to the file to format
  */
+const OXFMT_EXTENSIONS = new Set([
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.mjs',
+  '.cjs',
+]);
+
 export async function formatFile(filepath: string): Promise<void> {
-  const oxfmtExtensions = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'];
   const ext = filepath.slice(filepath.lastIndexOf('.'));
-  const formatter = oxfmtExtensions.includes(ext)
+  const formatter = OXFMT_EXTENSIONS.has(ext)
     ? `npx oxfmt --write "${filepath}"`
     : `npx prettier --write "${filepath}"`;
 
