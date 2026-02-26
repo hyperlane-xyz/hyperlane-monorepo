@@ -16,11 +16,7 @@
     },
     "build:tron": {
       "dependsOn": ["build"],
-      "outputs": [
-        "cache-tron/**",
-        "artifacts-tron/**",
-        "dist/tron/typechain/**"
-      ]
+      "outputs": ["cache-tron/**", "artifacts-tron/**"]
     },
     "test:ci": {
       "dependsOn": ["build", "^test:ci"]

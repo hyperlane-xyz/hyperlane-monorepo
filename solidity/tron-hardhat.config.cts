@@ -12,7 +12,6 @@ import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
  * @nomicfoundation/hardhat-foundry for remapping support.
  *
  * Produces raw ABI artifacts in ./artifacts-tron/ for downstream Tron clients.
- * TypeChain output is configured for compatibility and may be absent in viem flows.
  */
 module.exports = {
   ...rootHardhatConfig,
@@ -20,11 +19,5 @@ module.exports = {
     sources: "./contracts",
     artifacts: "./artifacts-tron",
     cache: "./cache-tron",
-  },
-  typechain: {
-    outDir: "./artifacts-tron/typechain",
-    target: "ethers-v5",
-    alwaysGenerateOverloads: true,
-    node16Modules: true,
   },
 };
