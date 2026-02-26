@@ -68,7 +68,7 @@ export async function executeWarpTransfer(
 
   await provider.send('anvil_setBalance', [sender, toBeHex(parseEther('100'))]);
 
-  const signer = provider.getSigner(sender);
+  const signer = await provider.getSigner(sender);
 
   const token = ERC20__factory.connect(tokenAddress, signer);
   const router = HypERC20Collateral__factory.connect(routerAddress, signer);
@@ -118,12 +118,22 @@ export async function relayMessage(
   core: HyperlaneCore,
   transferResult: WarpTransferResult,
 ): Promise<TransactionReceipt> {
+  const relayCore =
+    core.multiProvider === multiProvider
+      ? core
+      : HyperlaneCore.fromAddressesMap(
+          Object.fromEntries(
+            core.chains().map((chain) => [chain, core.getAddresses(chain)]),
+          ),
+          multiProvider,
+        );
+
   return retryAsync(
     async () => {
-      const relayer = new HyperlaneRelayer({ core });
+      const relayer = new HyperlaneRelayer({ core: relayCore });
       const receipts = await relayer.relayAll(transferResult.dispatchTx);
       // relayAll keys receipts by domain ID, so look up by domain ID or chain name
-      const destinationDomain = core.multiProvider.getDomainId(
+      const destinationDomain = relayCore.multiProvider.getDomainId(
         transferResult.destination,
       );
       const destinationReceipts =
@@ -175,7 +185,7 @@ export async function impersonateRebalancer(
   await setBalance(provider, rebalancerAddress, '0x56BC75E2D63100000');
   return {
     rebalancerAddress,
-    signer: provider.getSigner(rebalancerAddress),
+    signer: await provider.getSigner(rebalancerAddress),
   };
 }
 

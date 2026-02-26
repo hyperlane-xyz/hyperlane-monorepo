@@ -185,7 +185,7 @@ describe('WeightedStrategy E2E', function () {
       actionToBase.txHash!,
     );
     const rebalanceRelayResult = await tryRelayMessage(
-      multiProvider,
+      context.multiProvider,
       hyperlaneCore,
       {
         dispatchTx: rebalanceTxReceipt,
