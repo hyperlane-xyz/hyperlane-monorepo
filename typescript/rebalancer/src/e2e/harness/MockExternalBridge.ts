@@ -163,10 +163,7 @@ export class MockExternalBridge implements IExternalBridge {
         receipts[destinationDomain];
 
       if (!destinationReceipts || destinationReceipts.length === 0) {
-        return {
-          status: 'failed',
-          error: 'No destination relay receipt found',
-        };
+        return { status: 'not_found' };
       }
 
       const receivedAmount = await this.getTransferredAmount(
