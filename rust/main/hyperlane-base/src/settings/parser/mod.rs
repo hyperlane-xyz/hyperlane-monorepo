@@ -274,12 +274,17 @@ fn parse_chain(
         .parse_u32()
         .unwrap_or(1);
 
+    // chainId can be a number (EVM) or a string (Cosmos), so we need to handle both.
     let chain_id = chain
         .chain(&mut err)
         .get_opt_key("chainId")
-        .parse_string()
-        .unwrap_or("")
-        .to_owned();
+        .parse_value::<serde_json::Value>("Invalid chainId")
+        .map(|v| match v {
+            serde_json::Value::String(s) => s,
+            serde_json::Value::Number(n) => n.to_string(),
+            other => other.to_string(),
+        })
+        .unwrap_or_default();
 
     let native_token_decimals = chain
         .chain(&mut err)
