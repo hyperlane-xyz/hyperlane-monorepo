@@ -146,8 +146,8 @@ describe('MultiProvider', () => {
         hash: '0xabc123def456',
         wait: sinon.stub().returns(new Promise(() => {})),
       } as unknown as ProtocolTransaction<any>;
-      // Raw timeout: 1 × 0.02s × 1000 × 2 = 40ms
-      // With floor: max(40, 30000) = 30000ms
+      // Raw timeout: 1 × 0.02s × 1000 × 4 = 80ms
+      // With floor: max(80, 180000) = 180000ms
       // Race against 200ms — if the floor works, 200ms timer wins (not a Timeout error)
       try {
         await Promise.race([
