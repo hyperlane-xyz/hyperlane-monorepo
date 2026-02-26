@@ -31,10 +31,10 @@
     "build": "rm -rf ./dist && tsc",
     "format": "oxfmt --write src/**/*.ts",
     "lint": "eslint -c ./eslint.config.mjs",
-    "clean": "rm -rf ./dist ./cache ./coverage",
+    "clean": "rm -rf ./dist ./cache ./coverage ./src/abi ./src/typechain",
     "dev": "tsc --watch",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
-    "coverage": "c8 --exclude 'src/abi/**' --exclude 'src/typechain/**' pnpm test"
+    "coverage": "c8 pnpm test"
   },
   "dependencies": {
     "@ethersproject/abi": "*",
