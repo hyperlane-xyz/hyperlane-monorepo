@@ -147,8 +147,16 @@ pub fn build_ethereum_connection_conf(
         transaction_overrides,
         op_submission_config: operation_batch,
         consider_null_transaction_receipt,
-        grpc_urls: if grpc_urls.is_empty() { None } else { Some(grpc_urls) },
-        solidity_grpc_urls: if solidity_grpc_urls.is_empty() { None } else { Some(solidity_grpc_urls) },
+        grpc_urls: if grpc_urls.is_empty() {
+            None
+        } else {
+            Some(grpc_urls)
+        },
+        solidity_grpc_urls: if solidity_grpc_urls.is_empty() {
+            None
+        } else {
+            Some(solidity_grpc_urls)
+        },
         energy_multiplier,
     }))
 }
