@@ -53,10 +53,7 @@ pub fn compute_fee(fee_data: &FeeData, amount: u64) -> Result<u64, ProgramError>
             let fee = U256::from(*max_fee) * amount_sq / (half_sq + amount_sq);
             Ok(std::cmp::min(*max_fee, try_u256_to_u64(fee)?))
         }
-        FeeData::Routing => {
-            // Routing delegates to per-domain fee accounts; should never be called directly.
-            Ok(0)
-        }
+        FeeData::Routing => Err(Error::RoutingFeeNotDirectlyComputable.into()),
     }
 }
 
@@ -143,8 +140,8 @@ mod tests {
     }
 
     #[test]
-    fn test_routing_returns_zero() {
-        assert_eq!(compute_fee(&FeeData::Routing, 1000).unwrap(), 0);
+    fn test_routing_returns_error() {
+        assert!(compute_fee(&FeeData::Routing, 1000).is_err());
     }
 
     #[test]

@@ -23,6 +23,9 @@ pub enum Error {
 
     #[error("Account already initialized")]
     AlreadyInitialized = 6,
+
+    #[error("Routing fee is not directly computable")]
+    RoutingFeeNotDirectlyComputable = 7,
 }
 
 impl From<Error> for ProgramError {
