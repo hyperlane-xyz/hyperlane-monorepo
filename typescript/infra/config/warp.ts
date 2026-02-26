@@ -242,6 +242,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
   [WarpRouteIds.SuperseedUSDC]: getSuperseedUSDCStrategyConfig,
+  [WarpRouteIds.VictionETH]: getVictionETHStrategyConfig,
 };
 
 /**
