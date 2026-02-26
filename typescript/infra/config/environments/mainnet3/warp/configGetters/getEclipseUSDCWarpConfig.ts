@@ -195,13 +195,14 @@ export interface EclipseUSDCWarpConfigOptions {
   ownersByChain: Record<DeploymentChain, string>;
   programIds: { eclipsemainnet: string; solanamainnet: string };
   tokenMetadata?: { symbol: string; name: string };
+  proxyAdmins: ChainMap<{ address: string; owner: string }>;
 }
 
 export const buildEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   options: EclipseUSDCWarpConfigOptions,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const { ownersByChain, programIds, tokenMetadata } = options;
+  const { ownersByChain, programIds, tokenMetadata, proxyAdmins } = options;
 
   const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
@@ -215,10 +216,8 @@ export const buildEclipseUSDCWarpConfig = async (
 
   for (const chain of evmDeploymentChains) {
     let chainConfig: HypTokenRouterConfig;
-    const proxyAdmin = {
-      owner: awProxyAdminOwners[chain] ?? chainOwners[chain].owner,
-      address: awProxyAdminAddresses[chain],
-    };
+    const proxyAdmin = proxyAdmins[chain];
+    assert(proxyAdmin, `Missing proxyAdmin for chain ${chain}`);
 
     if (rebalanceableSet.has(chain)) {
       const baseConfig = getRebalancingUSDCConfigForChain(
@@ -289,12 +288,24 @@ export const buildEclipseUSDCWarpConfig = async (
   return Object.fromEntries(configs);
 };
 
+const awProxyAdmins: ChainMap<{ address: string; owner: string }> =
+  Object.fromEntries(
+    Object.entries(awProxyAdminAddresses).map(([chain, address]) => [
+      chain,
+      {
+        address,
+        owner: awProxyAdminOwners[chain] ?? chainOwners[chain].owner,
+      },
+    ]),
+  );
+
 export const getEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> =>
   buildEclipseUSDCWarpConfig(routerConfig, {
     ownersByChain: productionOwnersByChain,
     programIds: PRODUCTION_PROGRAM_IDS,
+    proxyAdmins: awProxyAdmins,
   });
 
 // Strategies
