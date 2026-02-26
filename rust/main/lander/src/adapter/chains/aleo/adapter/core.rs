@@ -8,7 +8,7 @@ use hyperlane_base::settings::ChainConf;
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{ContractLocator, H256, H512};
 
-use crate::adapter::{AdaptsChain, GasLimit, TxBuildingResult};
+use crate::adapter::{AdaptsChain, TxBuildingResult};
 use crate::payload::PayloadDetails;
 use crate::transaction::Transaction;
 use crate::{DispatcherMetrics, FullPayload, LanderError, TransactionStatus};
@@ -60,7 +60,7 @@ impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
         &self,
         _payload: &FullPayload,
     ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
-        todo!()
+        Err(LanderError::EstimationFailed)
     }
 
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {

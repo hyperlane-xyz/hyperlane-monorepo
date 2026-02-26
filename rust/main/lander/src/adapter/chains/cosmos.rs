@@ -32,7 +32,7 @@ impl AdaptsChain for CosmosAdapter {
         &self,
         _payload: &FullPayload,
     ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
-        todo!()
+        Err(LanderError::EstimationFailed)
     }
 
     async fn build_transactions(&self, _payloads: &[FullPayload]) -> Vec<TxBuildingResult> {

@@ -1,12 +1,13 @@
 use lander::{Entrypoint, FullPayload, PayloadUuid};
 use tracing::instrument;
 use tracing::{debug, info, trace};
+use uuid::Uuid;
 
 use hyperlane_core::PendingOperationResult;
 use hyperlane_core::ReprepareReason;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ConfirmReason, HyperlaneMessage, MessageSubmissionData,
-    Metadata, PendingOperation, TxCostEstimate,
+    Metadata, PendingOperation, TxCostEstimate, H256,
 };
 
 use crate::msg::pending_message::PendingMessage;
@@ -76,7 +77,11 @@ pub async fn handler(pending_message: &mut PendingMessage) -> PendingOperationRe
             match estimate_gas_costs(&pending_message.ctx, &pending_message.message, metadata).await
             {
                 Ok(gas_estimate) => Some(gas_estimate),
-                _ => {
+                Err(err) => {
+                    debug!(
+                        error = ?err,
+                        "Cached metadata gas estimation failed; rebuilding metadata"
+                    );
                     pending_message.clear_metadata();
                     None
                 }
@@ -188,6 +193,13 @@ pub async fn estimate_gas_costs(
     }
 }
 
+fn payload_uuid_from_message_id(message_id: H256) -> PayloadUuid {
+    let message_id_bytes = message_id.to_fixed_bytes();
+    let mut uuid_bytes = [0u8; 16];
+    uuid_bytes.copy_from_slice(&message_id_bytes[..16]);
+    PayloadUuid::new(Uuid::from_bytes(uuid_bytes))
+}
+
 /// Create a FullPayload from the message and metadata for Lander estimation
 pub async fn create_payload(
     message_context: &MessageContext,
@@ -206,12 +218,268 @@ pub async fn create_payload(
         .destination_mailbox
         .delivered_calldata(message_id)?;
 
-    // Create FullPayload with a random UUID and the message ID as identifier
+    // Use a deterministic UUID keyed by message ID so retries preserve payload identity.
     Ok(FullPayload::new(
-        PayloadUuid::random(),
+        payload_uuid_from_message_id(message_id),
         format!("{message_id:?}"),
         operation_payload,
         success_criteria,
         message_context.destination_mailbox.address(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use tempfile::TempDir;
+    use uuid::Uuid;
+
+    use crate::msg::pending_message::MessageContext;
+    use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
+    use hyperlane_base::cache::OptionalCache;
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+    use hyperlane_core::{
+        BatchResult, ChainCommunicationError, FixedPointNumber, HyperlaneChain, HyperlaneContract,
+        HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, Metadata, QueueOperation,
+        ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
+    };
+
+    use super::{create_payload, estimate_gas_costs, payload_uuid_from_message_id};
+
+    #[derive(Debug)]
+    struct TestMailbox {
+        domain: HyperlaneDomain,
+        address: H256,
+        estimate_response: TxCostEstimate,
+        process_calldata_response: Vec<u8>,
+        delivered_calldata_response: Option<Vec<u8>>,
+        fail_process_estimate_costs: bool,
+        fail_process_calldata: bool,
+        fail_delivered_calldata: bool,
+        process_estimate_costs_calls: AtomicUsize,
+    }
+
+    impl Default for TestMailbox {
+        fn default() -> Self {
+            Self {
+                domain: HyperlaneDomain::new_test_domain("destination"),
+                address: H256::zero(),
+                estimate_response: TxCostEstimate {
+                    gas_limit: U256::from(21_000),
+                    gas_price: FixedPointNumber::zero(),
+                    l2_gas_limit: None,
+                },
+                process_calldata_response: vec![1, 2, 3],
+                delivered_calldata_response: Some(vec![4, 5, 6]),
+                fail_process_estimate_costs: false,
+                fail_process_calldata: false,
+                fail_delivered_calldata: false,
+                process_estimate_costs_calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Mailbox for TestMailbox {
+        async fn count(&self, _reorg_period: &ReorgPeriod) -> hyperlane_core::ChainResult<u32> {
+            unimplemented!()
+        }
+
+        async fn delivered(&self, _id: H256) -> hyperlane_core::ChainResult<bool> {
+            unimplemented!()
+        }
+
+        async fn default_ism(&self) -> hyperlane_core::ChainResult<H256> {
+            unimplemented!()
+        }
+
+        async fn recipient_ism(&self, _recipient: H256) -> hyperlane_core::ChainResult<H256> {
+            unimplemented!()
+        }
+
+        async fn process(
+            &self,
+            _message: &HyperlaneMessage,
+            _metadata: &Metadata,
+            _tx_gas_limit: Option<U256>,
+        ) -> hyperlane_core::ChainResult<TxOutcome> {
+            unimplemented!()
+        }
+
+        async fn process_estimate_costs(
+            &self,
+            _message: &HyperlaneMessage,
+            _metadata: &Metadata,
+        ) -> hyperlane_core::ChainResult<TxCostEstimate> {
+            self.process_estimate_costs_calls
+                .fetch_add(1, Ordering::Relaxed);
+            if self.fail_process_estimate_costs {
+                Err(ChainCommunicationError::CustomError(
+                    "process_estimate_costs_failed".to_string(),
+                ))
+            } else {
+                Ok(self.estimate_response.clone())
+            }
+        }
+
+        async fn process_calldata(
+            &self,
+            _message: &HyperlaneMessage,
+            _metadata: &Metadata,
+        ) -> hyperlane_core::ChainResult<Vec<u8>> {
+            if self.fail_process_calldata {
+                Err(ChainCommunicationError::CustomError(
+                    "process_calldata_failed".to_string(),
+                ))
+            } else {
+                Ok(self.process_calldata_response.clone())
+            }
+        }
+
+        fn delivered_calldata(
+            &self,
+            _message_id: H256,
+        ) -> hyperlane_core::ChainResult<Option<Vec<u8>>> {
+            if self.fail_delivered_calldata {
+                Err(ChainCommunicationError::CustomError(
+                    "delivered_calldata_failed".to_string(),
+                ))
+            } else {
+                Ok(self.delivered_calldata_response.clone())
+            }
+        }
+
+        async fn process_batch<'a>(
+            &self,
+            _ops: Vec<&'a QueueOperation>,
+        ) -> hyperlane_core::ChainResult<BatchResult> {
+            unimplemented!()
+        }
+    }
+
+    impl HyperlaneChain for TestMailbox {
+        fn domain(&self) -> &HyperlaneDomain {
+            &self.domain
+        }
+
+        fn provider(&self) -> Box<dyn HyperlaneProvider> {
+            panic!("provider is unused in prepare.rs unit tests")
+        }
+    }
+
+    impl HyperlaneContract for TestMailbox {
+        fn address(&self) -> H256 {
+            self.address
+        }
+    }
+
+    fn test_message_context(mailbox: Arc<dyn Mailbox>) -> (MessageContext, TempDir) {
+        let origin_domain = HyperlaneDomain::new_test_domain("origin");
+        let destination_domain = HyperlaneDomain::new_test_domain("destination");
+        let cache = OptionalCache::new(None);
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db = DB::from_path(temp_dir.path()).unwrap();
+        let base_db = HyperlaneRocksDB::new(&origin_domain, db);
+
+        let base_metadata_builder =
+            dummy_metadata_builder(&origin_domain, &destination_domain, &base_db, cache.clone());
+        let mut message_context =
+            dummy_message_context(Arc::new(base_metadata_builder), &base_db, cache);
+        message_context.destination_mailbox = mailbox;
+
+        (message_context, temp_dir)
+    }
+
+    fn test_message() -> HyperlaneMessage {
+        HyperlaneMessage {
+            nonce: 1,
+            origin: 11,
+            destination: 22,
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn estimate_gas_costs_uses_mailbox_when_lander_entrypoint_is_absent() {
+        let mailbox = Arc::new(TestMailbox::default());
+        let (message_context, _temp_dir) =
+            test_message_context(mailbox.clone() as Arc<dyn Mailbox>);
+
+        let message = test_message();
+        let metadata = Metadata::new(vec![1, 2, 3]);
+
+        let gas_estimate = estimate_gas_costs(&message_context, &message, &metadata)
+            .await
+            .unwrap();
+
+        assert_eq!(gas_estimate, mailbox.estimate_response);
+        assert_eq!(
+            mailbox.process_estimate_costs_calls.load(Ordering::Relaxed),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn create_payload_builds_deterministic_uuid_and_metadata_from_message_id() {
+        let mailbox = Arc::new(TestMailbox::default());
+        let (message_context, _temp_dir) = test_message_context(mailbox as Arc<dyn Mailbox>);
+
+        let message = test_message();
+        let metadata = Metadata::new(vec![7, 8, 9]);
+
+        let payload_a = create_payload(&message_context, &message, &metadata)
+            .await
+            .unwrap();
+        let payload_b = create_payload(&message_context, &message, &metadata)
+            .await
+            .unwrap();
+
+        assert_eq!(payload_a.uuid(), payload_b.uuid());
+        assert_eq!(
+            *payload_a.uuid(),
+            payload_uuid_from_message_id(message.id())
+        );
+        assert_eq!(payload_a.details.metadata, format!("{:?}", message.id()));
+        assert_eq!(payload_a.data, vec![1, 2, 3]);
+        assert_eq!(payload_a.details.success_criteria, Some(vec![4, 5, 6]));
+        assert!(Uuid::parse_str(&payload_a.uuid().to_string()).is_ok());
+    }
+
+    #[tokio::test]
+    async fn create_payload_propagates_process_calldata_errors() {
+        let mailbox = Arc::new(TestMailbox {
+            fail_process_calldata: true,
+            ..Default::default()
+        });
+        let (message_context, _temp_dir) = test_message_context(mailbox as Arc<dyn Mailbox>);
+
+        let message = test_message();
+        let metadata = Metadata::new(vec![1]);
+
+        let err = create_payload(&message_context, &message, &metadata)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("process_calldata_failed"));
+    }
+
+    #[tokio::test]
+    async fn create_payload_propagates_delivered_calldata_errors() {
+        let mailbox = Arc::new(TestMailbox {
+            fail_delivered_calldata: true,
+            ..Default::default()
+        });
+        let (message_context, _temp_dir) = test_message_context(mailbox as Arc<dyn Mailbox>);
+
+        let message = test_message();
+        let metadata = Metadata::new(vec![1]);
+
+        let err = create_payload(&message_context, &message, &metadata)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("delivered_calldata_failed"));
+    }
 }

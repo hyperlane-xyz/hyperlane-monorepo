@@ -312,7 +312,7 @@ impl AdaptsChain for RadixAdapter {
         &self,
         _payload: &FullPayload,
     ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
-        todo!()
+        Err(LanderError::EstimationFailed)
     }
 
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {

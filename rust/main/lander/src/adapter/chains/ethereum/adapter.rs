@@ -427,7 +427,7 @@ impl EthereumAdapter {
                     ethers::types::NameOrAddress::Address(addr) => Some(*addr),
                     _ => None,
                 })
-                .unwrap_or_else(H160::zero);
+                .ok_or(LanderError::EstimationFailed)?;
 
             self.provider
                 .arbitrum_estimate_l2_gas(to_address, calldata.0.to_vec())

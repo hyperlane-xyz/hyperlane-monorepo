@@ -325,4 +325,39 @@ pub mod tests {
         assert_eq!(estimate.gas_limit, expected_gas_limit);
         assert_eq!(estimate.l2_gas_limit, None);
     }
+
+    #[tokio::test]
+    async fn test_estimate_gas_limit_for_preparation() {
+        let db = Arc::new(MockDb::new());
+        let payload_db = db.clone() as Arc<dyn PayloadDb>;
+        let tx_db = db as Arc<dyn TransactionDb>;
+        let expected_gas_limit = 21000u64.into();
+        let mock_tx_cost_estimate = TxCostEstimate {
+            gas_limit: expected_gas_limit,
+            gas_price: Default::default(),
+            l2_gas_limit: None,
+        };
+        let mut mock_adapter = MockAdapter::new();
+        mock_adapter
+            .expect_estimate_gas_limit_for_preparation()
+            .returning(move |_| Ok(mock_tx_cost_estimate.clone()));
+        let adapter = Arc::new(mock_adapter) as Arc<dyn AdaptsChain>;
+        let entrypoint_state = DispatcherState::new(
+            payload_db,
+            tx_db,
+            adapter,
+            DispatcherMetrics::dummy_instance(),
+            "test".to_string(),
+        );
+        let entrypoint = Box::new(DispatcherEntrypoint::from_inner(entrypoint_state));
+
+        let payload = FullPayload::default();
+        let estimate = entrypoint
+            .estimate_gas_limit_for_preparation(&payload)
+            .await
+            .unwrap();
+
+        assert_eq!(estimate.gas_limit, expected_gas_limit);
+        assert_eq!(estimate.l2_gas_limit, None);
+    }
 }

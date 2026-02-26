@@ -61,7 +61,7 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
         &self,
         _payload: &FullPayload,
     ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
-        todo!()
+        Err(LanderError::EstimationFailed)
     }
 
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)

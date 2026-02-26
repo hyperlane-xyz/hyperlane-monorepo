@@ -16,7 +16,7 @@ use crate::adapter::chains::ethereum::{
 use crate::adapter::AdaptsChain;
 use crate::dispatcher::PayloadDb;
 use crate::tests::test_utils::tmp_dbs;
-use crate::FullPayload;
+use crate::{FullPayload, LanderError};
 
 fn create_test_adapter(
     provider: MockEvmProvider,
@@ -75,6 +75,33 @@ fn create_test_adapter(
 fn create_test_payload() -> FullPayload {
     let tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
         to: Some(ethers::types::NameOrAddress::Address(H160::random())),
+        data: Some(vec![1, 2, 3, 4].into()),
+        ..Default::default()
+    });
+
+    #[allow(deprecated)]
+    let function = Function {
+        name: "test".to_string(),
+        inputs: vec![],
+        outputs: vec![],
+        constant: None,
+        state_mutability: ethers::abi::StateMutability::NonPayable,
+    };
+
+    let data = serde_json::to_vec(&(tx, function)).unwrap();
+
+    FullPayload::new(
+        hyperlane_core::identifiers::UniqueIdentifier::random(),
+        "test-payload",
+        data,
+        None,
+        hyperlane_core::H256::random(),
+    )
+}
+
+fn create_test_payload_without_to() -> FullPayload {
+    let tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+        to: None,
         data: Some(vec![1, 2, 3, 4].into()),
         ..Default::default()
     });
@@ -277,6 +304,40 @@ async fn test_estimate_gas_limit_with_cap() {
 
     // Gas limit should be capped at 500_000 even though estimate + buffer would be higher
     assert_eq!(estimate.gas_limit, U256::from(500_000));
+}
+
+#[tokio::test]
+async fn test_estimate_gas_limit_arbitrum_fails_when_to_address_is_missing() {
+    let mut provider = MockEvmProvider::new();
+
+    provider
+        .expect_estimate_gas_limit()
+        .returning(|_, _| Ok(U256::from(100_000)));
+
+    provider.expect_get_block().returning(|_| {
+        Ok(Some(Block {
+            gas_limit: EthersU256::from(30_000_000),
+            base_fee_per_gas: Some(EthersU256::from(100)),
+            ..Default::default()
+        }))
+    });
+
+    provider.expect_fee_history().returning(|_, _, _| {
+        Ok(ethers::types::FeeHistory {
+            oldest_block: 0.into(),
+            reward: vec![vec![10.into()]],
+            base_fee_per_gas: vec![100.into()],
+            gas_used_ratio: vec![0.5],
+        })
+    });
+
+    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+    let adapter = create_test_adapter(provider, domain, TransactionOverrides::default());
+    let payload = create_test_payload_without_to();
+
+    let result = adapter.estimate_gas_limit(&payload).await;
+
+    assert!(matches!(result, Err(LanderError::EstimationFailed)));
 }
 
 #[tokio::test]
