@@ -889,6 +889,7 @@ mod tests {
             ("polygoncdk", HyperlaneDomainTechnicalStack::PolygonCDK) => {}
             ("starknet", HyperlaneDomainTechnicalStack::Starknet) => {}
             ("zksync", HyperlaneDomainTechnicalStack::ZkSync) => {}
+            ("tron", HyperlaneDomainTechnicalStack::Tron) => {}
             _ => {
                 panic!(
                     "Incorrect domain stack for `{chain_name}`.\nExpected `{protocol_str}`, got `{protocol}`"
