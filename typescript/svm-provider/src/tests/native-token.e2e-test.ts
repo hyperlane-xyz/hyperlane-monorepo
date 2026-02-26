@@ -102,6 +102,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
       {
         program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenNative },
         igpProgramId,
+        ataPayerFundingAmount: 100_000_000n,
       },
       rpc,
       signer,

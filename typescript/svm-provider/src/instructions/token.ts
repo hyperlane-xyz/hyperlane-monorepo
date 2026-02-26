@@ -6,33 +6,29 @@ import type {
 } from '@solana/kit';
 import {
   getAddressCodec,
+  getNullableCodec,
   getNullableDecoder,
   getNullableEncoder,
-  getNullableCodec,
   getStructDecoder,
   getStructEncoder,
   getU8Codec,
 } from '@solana/kit';
 
 import {
-  PROGRAM_INSTRUCTION_DISCRIMINATOR,
-  SYSTEM_PROGRAM_ADDRESS,
-} from '../constants.js';
-import {
   ByteCursor,
   concatBytes,
   option,
-  u8,
-  u32le,
   u256le,
+  u32le,
+  u8,
   vec,
 } from '../codecs/binary.js';
 import {
   decodeInterchainGasPaymasterType,
   encodeGasRouterConfig,
+  encodeH256,
   encodeInterchainGasPaymasterType,
   encodeRemoteRouterConfig,
-  encodeH256,
   type GasRouterConfig,
   type H256,
   type InterchainGasPaymasterType,
@@ -40,16 +36,21 @@ import {
   type RemoteRouterConfig,
 } from '../codecs/shared.js';
 import {
-  buildInstruction,
-  readonlyAccount,
-  readonlySigner,
-  readonlySignerAddress,
-  writableAccount,
-} from './utils.js';
+  PROGRAM_INSTRUCTION_DISCRIMINATOR,
+  SYSTEM_PROGRAM_ADDRESS,
+} from '../constants.js';
 import {
   deriveHyperlaneTokenPda,
   deriveMailboxDispatchAuthorityPda,
 } from '../pda.js';
+import {
+  buildInstruction,
+  type InstructionAccountMeta,
+  readonlyAccount,
+  readonlySignerAddress,
+  writableAccount,
+  writableSigner,
+} from './utils.js';
 
 export enum TokenProgramInstructionKind {
   Init = 0,
@@ -249,6 +250,7 @@ export async function getTokenInitInstruction(
   programAddress: Address,
   payer: TransactionSigner,
   init: TokenInitInstructionData,
+  pluginAccounts: InstructionAccountMeta[],
 ): Promise<Instruction> {
   const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
   const { address: dispatchAuthority } =
@@ -259,7 +261,8 @@ export async function getTokenInitInstruction(
       readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
       writableAccount(tokenPda),
       writableAccount(dispatchAuthority),
-      readonlySigner(payer),
+      writableSigner(payer),
+      ...pluginAccounts,
     ],
     encodeTokenProgramInstruction({ kind: 'init', value: init }),
   );

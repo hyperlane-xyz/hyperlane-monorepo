@@ -11,31 +11,28 @@ import type {
   DeployedWarpAddress,
   RawCollateralWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { ZERO_ADDRESS_HEX_32, assert, isNullish } from '@hyperlane-xyz/utils';
+import {
+  ZERO_ADDRESS_HEX_32,
+  assert,
+  isNullish,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import { resolveProgram } from '../deploy/resolve-program.js';
-import { RENT_SYSVAR_ADDRESS, SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
+import { RENT_SYSVAR_ADDRESS } from '../constants.js';
 import { decodeCollateralPlugin } from '../accounts/token.js';
 import { fetchMintMetadata, getMintDecimals } from '../accounts/mint.js';
-import { encodeTokenProgramInstruction } from '../instructions/token.js';
-import {
-  buildInstruction,
-  readonlyAccount,
-  writableAccount,
-  writableSigner,
-} from '../instructions/utils.js';
-import {
-  deriveAtaPayerPda,
-  deriveEscrowPda,
-  deriveHyperlaneTokenPda,
-  deriveMailboxDispatchAuthorityPda,
-} from '../pda.js';
+import { getTokenInitInstruction } from '../instructions/token.js';
+import { readonlyAccount, writableAccount } from '../instructions/utils.js';
+import { deriveAtaPayerPda, deriveEscrowPda } from '../pda.js';
 import type { SvmSigner } from '../signer.js';
 import type { AnnotatedSvmTransaction, SvmRpc, SvmReceipt } from '../types.js';
 
 import {
   applyPostInitConfig,
+  assertLocalDecimals,
   buildBaseInitData,
+  buildFundAtaPayerInstruction,
   computeWarpTokenUpdateInstructions,
   remoteDecimalsToScale,
   scaleToRemoteDecimals,
@@ -75,6 +72,12 @@ export class SvmCollateralTokenReader implements ArtifactReader<
 
     const metadata = await fetchMintMetadata(this.rpc, plugin.mint);
 
+    assert(
+      token.decimals === metadata.decimals,
+      `Decimals mismatch for collateral token ${programId}: ` +
+        `warp route initialized with ${token.decimals} but mint reports ${metadata.decimals}`,
+    );
+
     const config: RawCollateralWarpArtifactConfig = {
       type: 'collateral',
       owner: token.owner ?? ZERO_ADDRESS_HEX_32,
@@ -82,7 +85,7 @@ export class SvmCollateralTokenReader implements ArtifactReader<
       token: plugin.mint,
       name: metadata.name,
       symbol: metadata.symbol,
-      decimals: metadata.decimals,
+      decimals: token.decimals,
       interchainSecurityModule: token.interchainSecurityModule
         ? {
             artifactState: ArtifactState.UNDERIVED,
@@ -97,7 +100,6 @@ export class SvmCollateralTokenReader implements ArtifactReader<
         : undefined,
       remoteRouters,
       destinationGas,
-      // token.decimals holds the local decimals stored at init time.
       scale: remoteDecimalsToScale(token.decimals, token.remoteDecimals),
     };
 
@@ -140,9 +142,6 @@ export class SvmCollateralTokenWriter
     );
     receipts.push(...deployReceipts);
 
-    const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
-    const { address: dispatchAuthPda } =
-      await deriveMailboxDispatchAuthorityPda(programAddress);
     const { address: escrowPda } = await deriveEscrowPda(programAddress);
     const { address: ataPayerPda } = await deriveAtaPayerPda(programAddress);
 
@@ -158,6 +157,7 @@ export class SvmCollateralTokenWriter
     const splProgram = parseAddress(mintInfo.value.owner);
     const mintRawData = Buffer.from(mintInfo.value.data[0] as string, 'base64');
     const localDecimals = getMintDecimals(mintRawData);
+    assertLocalDecimals(localDecimals);
 
     const initData = buildBaseInitData(
       tokenConfig,
@@ -166,20 +166,17 @@ export class SvmCollateralTokenWriter
       scaleToRemoteDecimals(localDecimals, tokenConfig.scale),
     );
 
-    const initIx = buildInstruction(
+    const initIx = await getTokenInitInstruction(
       programAddress,
+      this.svmSigner.signer,
+      initData,
       [
-        readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
-        writableAccount(tokenPda),
-        writableAccount(dispatchAuthPda),
-        writableSigner(this.svmSigner.signer),
         readonlyAccount(splProgram),
         readonlyAccount(collateralMint),
         readonlyAccount(RENT_SYSVAR_ADDRESS),
         writableAccount(escrowPda),
         writableAccount(ataPayerPda),
       ],
-      encodeTokenProgramInstruction({ kind: 'init', value: initData }),
     );
 
     receipts.push(
@@ -190,12 +187,15 @@ export class SvmCollateralTokenWriter
       }),
     );
 
-    await new Promise((r) => setTimeout(r, 2000));
-
-    const check = await fetchTokenAccount(this.rpc, programAddress);
-    if (!check) {
-      throw new Error(
-        `Init failed - token account not found at ${programAddress}`,
+    const fundAtaPayerIx = await buildFundAtaPayerInstruction(
+      this.rpc,
+      this.svmSigner.signer.address,
+      programAddress,
+      this.config.ataPayerFundingAmount,
+    );
+    if (fundAtaPayerIx) {
+      receipts.push(
+        await this.svmSigner.send({ instructions: [fundAtaPayerIx] }),
       );
     }
 
@@ -224,6 +224,11 @@ export class SvmCollateralTokenWriter
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);
     const current = await this.read(programId);
+
+    assert(
+      !isZeroishAddress(current.config.owner),
+      `Cannot update collateral token ${programId}: token has no owner`,
+    );
 
     const instructions = await computeWarpTokenUpdateInstructions(
       current.config,

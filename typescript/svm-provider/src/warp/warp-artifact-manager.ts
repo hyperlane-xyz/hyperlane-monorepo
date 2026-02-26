@@ -33,6 +33,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
   constructor(
     private readonly rpc: Rpc<SolanaRpcApi>,
     private readonly igpProgramId: Address,
+    private readonly ataPayerFundingAmount: bigint = 100_000_000n,
   ) {}
 
   async readWarpToken(tokenAddress: string): Promise<DeployedRawWarpArtifact> {
@@ -78,6 +79,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
           {
             igpProgramId: this.igpProgramId,
             program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenNative },
+            ataPayerFundingAmount: this.ataPayerFundingAmount,
           },
           this.rpc,
           signer,
@@ -87,6 +89,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
           {
             igpProgramId: this.igpProgramId,
             program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.token },
+            ataPayerFundingAmount: this.ataPayerFundingAmount,
           },
           this.rpc,
           signer,
@@ -98,6 +101,7 @@ export class SvmWarpArtifactManager implements IRawWarpArtifactManager {
             program: {
               programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral,
             },
+            ataPayerFundingAmount: this.ataPayerFundingAmount,
           },
           this.rpc,
           signer,

@@ -4,9 +4,15 @@ import {
   computeRemoteRoutersUpdates,
   type RawWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { eqAddressSol, eqOptionalAddress } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  eqAddressSol,
+  eqOptionalAddress,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import { InterchainGasPaymasterTypeKind } from '../codecs/shared.js';
+import { u32le } from '../codecs/binary.js';
 import {
   getTokenEnrollRemoteRoutersInstruction,
   getTokenSetDestinationGasConfigsInstruction,
@@ -15,23 +21,51 @@ import {
   getTokenTransferOwnershipInstruction,
   type TokenInitInstructionData,
 } from '../instructions/token.js';
+import {
+  buildInstruction,
+  writableAccount,
+  writableSignerAddress,
+} from '../instructions/utils.js';
+import { deriveAtaPayerPda } from '../pda.js';
+import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
 import type { SvmSigner } from '../signer.js';
-import type { SvmInstruction, SvmReceipt } from '../types.js';
+import type { SvmInstruction, SvmRpc, SvmReceipt } from '../types.js';
 
 import { routerHexToBytes } from './warp-query.js';
+
+/** Maximum local decimals allowed by the on-chain SVM token programs. */
+const MAX_LOCAL_DECIMALS = 9;
+
+/**
+ * Asserts that `localDecimals` does not exceed the SVM maximum of 9.
+ * The on-chain program stores decimals as u8 and the decimal-conversion math
+ * overflows for values > 9. Mirrors the Rust client's `assert_decimals_max`.
+ */
+export function assertLocalDecimals(localDecimals: number): void {
+  assert(
+    localDecimals <= MAX_LOCAL_DECIMALS,
+    `Invalid decimals: ${localDecimals}. Must be <= ${MAX_LOCAL_DECIMALS}. Use scale/remoteDecimals for higher-precision remote chains.`,
+  );
+}
 
 /**
  * Derives `remoteDecimals` from `localDecimals` and the optional `scale` factor.
  * scale = 10^(remoteDecimals - localDecimals), so
  * remoteDecimals = localDecimals + log10(scale).
  * Falls back to localDecimals when scale is absent or 1.
+ * Asserts that scale is an exact power of 10.
  */
 export function scaleToRemoteDecimals(
   localDecimals: number,
   scale?: number,
 ): number {
   if (!scale || scale === 1) return localDecimals;
-  return localDecimals + Math.round(Math.log10(scale));
+  const exp = Math.round(Math.log10(scale));
+  assert(
+    Math.pow(10, exp) === scale,
+    `scale must be an exact power of 10 (e.g. 1e9), got ${scale}`,
+  );
+  return localDecimals + exp;
 }
 
 /**
@@ -123,6 +157,35 @@ export async function applyPostInitConfig(
 }
 
 /**
+ * Returns a System Program transfer instruction to top up the ATA payer PDA
+ * to at least `targetLamports`, or undefined if already sufficiently funded.
+ * For synthetic and collateral tokens the ATA payer funds recipient ATA
+ * creation on transfer_out.
+ */
+export async function buildFundAtaPayerInstruction(
+  rpc: SvmRpc,
+  payer: Address,
+  programId: Address,
+  targetLamports: bigint,
+): Promise<SvmInstruction | undefined> {
+  const { address: ataPayerPda } = await deriveAtaPayerPda(programId);
+  const balance = await rpc.getBalance(ataPayerPda).send();
+  const current = BigInt(balance.value);
+  if (current >= targetLamports) return undefined;
+
+  const topUp = targetLamports - current;
+  const data = new Uint8Array(12);
+  data.set(u32le(2), 0); // SystemProgram::Transfer discriminator (u32 LE)
+  new DataView(data.buffer).setBigUint64(4, topUp, true); // lamports, LE
+
+  return buildInstruction(
+    SYSTEM_PROGRAM_ADDRESS,
+    [writableSignerAddress(payer), writableAccount(ataPayerPda)],
+    data,
+  );
+}
+
+/**
  * Diffs current vs expected config and returns the minimal set of update
  * instructions needed to reconcile them.
  */
@@ -131,7 +194,7 @@ export async function computeWarpTokenUpdateInstructions(
   expected: RawWarpArtifactConfig,
   programId: Address,
   ownerAddress: Address,
-  igpProgramId?: Address,
+  igpProgramId: Address,
 ): Promise<SvmInstruction[]> {
   const instructions: SvmInstruction[] = [];
 
@@ -154,16 +217,15 @@ export async function computeWarpTokenUpdateInstructions(
   if (!eqOptionalAddress(currentHook, expectedHook, eqAddressSol)) {
     const igpValue: Parameters<
       typeof getTokenSetInterchainGasPaymasterInstruction
-    >[2] =
-      expectedHook && igpProgramId
-        ? [
-            igpProgramId,
-            {
-              kind: InterchainGasPaymasterTypeKind.OverheadIgp,
-              account: parseAddress(expectedHook),
-            },
-          ]
-        : null;
+    >[2] = expectedHook
+      ? [
+          igpProgramId,
+          {
+            kind: InterchainGasPaymasterTypeKind.OverheadIgp,
+            account: parseAddress(expectedHook),
+          },
+        ]
+      : null;
     instructions.push(
       await getTokenSetInterchainGasPaymasterInstruction(
         programId,
@@ -192,6 +254,13 @@ export async function computeWarpTokenUpdateInstructions(
         programId,
         ownerAddress,
         diff.toUnenroll.map((domain) => ({ domain, router: null })),
+      ),
+    );
+    instructions.push(
+      await getTokenSetDestinationGasConfigsInstruction(
+        programId,
+        ownerAddress,
+        diff.toUnenroll.map((domain) => ({ domain, gas: null })),
       ),
     );
   }
@@ -225,7 +294,9 @@ export async function computeWarpTokenUpdateInstructions(
       await getTokenTransferOwnershipInstruction(
         programId,
         ownerAddress,
-        expected.owner ? parseAddress(expected.owner) : null,
+        expected.owner && !isZeroishAddress(expected.owner)
+          ? parseAddress(expected.owner)
+          : null,
       ),
     );
   }

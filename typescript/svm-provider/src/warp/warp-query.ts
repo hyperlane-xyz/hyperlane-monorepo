@@ -6,7 +6,12 @@ import {
   decodeHyperlaneTokenAccount,
   type HyperlaneTokenAccountData,
 } from '../accounts/token.js';
-import { deriveHyperlaneTokenPda } from '../pda.js';
+import {
+  deriveHyperlaneTokenPda,
+  deriveNativeCollateralPda,
+  deriveSyntheticMintPda,
+  deriveEscrowPda,
+} from '../pda.js';
 import type { SvmRpc } from '../types.js';
 
 export enum SvmWarpTokenType {
@@ -30,34 +35,47 @@ export async function fetchTokenAccount(
 }
 
 /**
- * Detects the warp token type by inspecting the pluginData length.
+ * Detects the warp token type by checking which type-specific PDA exists on-chain.
  *
- * Sizes:
- *   NativePlugin    = 1 byte  (native_collateral_bump)
- *   SyntheticPlugin = 34 bytes (mint:32 + mint_bump:1 + ata_payer_bump:1)
- *   CollateralPlugin = 98 bytes (spl_token_program:32 + mint:32 + escrow:32 + escrow_bump:1 + ata_payer_bump:1)
+ * Each token type creates exactly one unique PDA during init:
+ *   Native:     nativeCollateralPda  ["hyperlane_token", "-", "native_collateral"]
+ *   Synthetic:  syntheticMintPda     ["hyperlane_token", "-", "mint"]
+ *   Collateral: escrowPda            ["hyperlane_token", "-", "escrow"]
  */
 export async function detectWarpTokenType(
   rpc: SvmRpc,
   programId: Address,
 ): Promise<SvmWarpTokenType> {
-  const token = await fetchTokenAccount(rpc, programId);
+  const [
+    { address: nativeCollateralPda },
+    { address: syntheticMintPda },
+    { address: escrowPda },
+  ] = await Promise.all([
+    deriveNativeCollateralPda(programId),
+    deriveSyntheticMintPda(programId),
+    deriveEscrowPda(programId),
+  ]);
+
+  const [nativeAccount, syntheticAccount, collateralAccount] =
+    await Promise.all([
+      fetchEncodedAccount(rpc, nativeCollateralPda),
+      fetchEncodedAccount(rpc, syntheticMintPda),
+      fetchEncodedAccount(rpc, escrowPda),
+    ]);
+
+  const matches: SvmWarpTokenType[] = [];
+  if (nativeAccount.exists) matches.push(SvmWarpTokenType.Native);
+  if (syntheticAccount.exists) matches.push(SvmWarpTokenType.Synthetic);
+  if (collateralAccount.exists) matches.push(SvmWarpTokenType.Collateral);
+
   assert(
-    token !== null,
-    `Token account not initialized at program ${programId}`,
+    matches.length === 1,
+    matches.length === 0
+      ? `Unable to detect warp token type for program ${programId}: no type-specific PDA found`
+      : `Ambiguous warp token type for program ${programId}: multiple type-specific PDAs exist (${matches.join(', ')})`,
   );
 
-  const len = token.pluginData.length;
-  if (len === 1) return SvmWarpTokenType.Native;
-  // Current SyntheticPlugin: 34 bytes (mint:32 + mint_bump:1 + ata_payer_bump:1).
-  // Legacy SyntheticPlugin: 66 bytes (mint:32 + ata_payer:32 + mint_bump:1 + ata_payer_bump:1).
-  // decodeSyntheticPlugin reads only the first 34 bytes in both cases.
-  if (len === 34 || len === 66) return SvmWarpTokenType.Synthetic;
-  if (len >= 98) return SvmWarpTokenType.Collateral;
-
-  throw new Error(
-    `Unable to detect warp token type for program ${programId}: unexpected pluginData length ${len}`,
-  );
+  return matches[0]!;
 }
 
 /** Converts a 32-byte router H256 to a 0x-prefixed hex string. */

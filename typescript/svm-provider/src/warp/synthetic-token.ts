@@ -15,7 +15,12 @@ import type {
   DeployedWarpAddress,
   RawSyntheticWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { ZERO_ADDRESS_HEX_32, assert, isNullish } from '@hyperlane-xyz/utils';
+import {
+  ZERO_ADDRESS_HEX_32,
+  assert,
+  isNullish,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import { resolveProgram } from '../deploy/resolve-program.js';
 import {
@@ -24,7 +29,7 @@ import {
   TOKEN_2022_PROGRAM_ADDRESS,
 } from '../constants.js';
 import { concatBytes, u8, u32le } from '../codecs/binary.js';
-import { encodeTokenProgramInstruction } from '../instructions/token.js';
+import { getTokenInitInstruction } from '../instructions/token.js';
 import { fetchMintMetadata } from '../accounts/mint.js';
 import {
   buildInstruction,
@@ -33,12 +38,7 @@ import {
   writableAccount,
   writableSigner,
 } from '../instructions/utils.js';
-import {
-  deriveAtaPayerPda,
-  deriveHyperlaneTokenPda,
-  deriveMailboxDispatchAuthorityPda,
-  deriveSyntheticMintPda,
-} from '../pda.js';
+import { deriveAtaPayerPda, deriveSyntheticMintPda } from '../pda.js';
 import type { SvmSigner } from '../signer.js';
 import type {
   AnnotatedSvmTransaction,
@@ -49,7 +49,9 @@ import type {
 
 import {
   applyPostInitConfig,
+  assertLocalDecimals,
   buildBaseInitData,
+  buildFundAtaPayerInstruction,
   computeWarpTokenUpdateInstructions,
   remoteDecimalsToScale,
   scaleToRemoteDecimals,
@@ -254,12 +256,10 @@ export class SvmSyntheticTokenWriter
     );
     receipts.push(...deployReceipts);
 
-    const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
-    const { address: dispatchAuthPda } =
-      await deriveMailboxDispatchAuthorityPda(programAddress);
     const { address: mintPda } = await deriveSyntheticMintPda(programAddress);
     const { address: ataPayerPda } = await deriveAtaPayerPda(programAddress);
 
+    assertLocalDecimals(tokenConfig.decimals);
     const initData = buildBaseInitData(
       tokenConfig,
       this.config.igpProgramId,
@@ -267,19 +267,11 @@ export class SvmSyntheticTokenWriter
       scaleToRemoteDecimals(tokenConfig.decimals, tokenConfig.scale),
     );
 
-    // Init instruction: base accounts + mintPda + ataPayerPda.
-    // Payer must be WRITABLE_SIGNER to fund account creation.
-    const initIx = buildInstruction(
+    const initIx = await getTokenInitInstruction(
       programAddress,
-      [
-        readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
-        writableAccount(tokenPda),
-        writableAccount(dispatchAuthPda),
-        writableSigner(this.svmSigner.signer),
-        writableAccount(mintPda),
-        writableAccount(ataPayerPda),
-      ],
-      encodeTokenProgramInstruction({ kind: 'init', value: initData }),
+      this.svmSigner.signer,
+      initData,
+      [writableAccount(mintPda), writableAccount(ataPayerPda)],
     );
 
     const initMetadataPtrIx = createInitializeMetadataPointerInstruction(
@@ -301,15 +293,6 @@ export class SvmSyntheticTokenWriter
       }),
     );
 
-    await new Promise((r) => setTimeout(r, 2000));
-
-    const check = await fetchTokenAccount(this.rpc, programAddress);
-    if (!check) {
-      throw new Error(
-        `Init failed — token account not found at ${programAddress}`,
-      );
-    }
-
     // Initialize Token 2022 metadata.
     if (tokenConfig.name && tokenConfig.symbol) {
       // Fund mint account to cover metadata account rent.
@@ -317,8 +300,7 @@ export class SvmSyntheticTokenWriter
         SYSTEM_PROGRAM_ADDRESS,
         [writableSigner(this.svmSigner.signer), writableAccount(mintPda)],
         concatBytes(
-          u8(2), // SystemProgram::Transfer discriminator
-          new Uint8Array(4), // 4-byte padding before the u64 amount
+          u32le(2), // SystemProgram::Transfer discriminator (u32 LE)
           new Uint8Array(new BigUint64Array([BigInt(1_000_000)]).buffer),
         ),
       );
@@ -353,6 +335,18 @@ export class SvmSyntheticTokenWriter
       }),
     );
 
+    const fundAtaPayerIx = await buildFundAtaPayerInstruction(
+      this.rpc,
+      this.svmSigner.signer.address,
+      programAddress,
+      this.config.ataPayerFundingAmount,
+    );
+    if (fundAtaPayerIx) {
+      receipts.push(
+        await this.svmSigner.send({ instructions: [fundAtaPayerIx] }),
+      );
+    }
+
     const configReceipt = await applyPostInitConfig(
       this.svmSigner,
       programAddress,
@@ -378,6 +372,11 @@ export class SvmSyntheticTokenWriter
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);
     const current = await this.read(programId);
+
+    assert(
+      !isZeroishAddress(current.config.owner),
+      `Cannot update synthetic token ${programId}: token has no owner`,
+    );
 
     const instructions = await computeWarpTokenUpdateInstructions(
       current.config,

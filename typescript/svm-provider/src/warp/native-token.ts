@@ -11,27 +11,23 @@ import type {
   DeployedWarpAddress,
   RawNativeWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { ZERO_ADDRESS_HEX_32, assert, isNullish } from '@hyperlane-xyz/utils';
+import {
+  ZERO_ADDRESS_HEX_32,
+  assert,
+  isNullish,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import { resolveProgram } from '../deploy/resolve-program.js';
-import { SYSTEM_PROGRAM_ADDRESS } from '../constants.js';
-import { encodeTokenProgramInstruction } from '../instructions/token.js';
-import {
-  buildInstruction,
-  readonlyAccount,
-  writableAccount,
-  writableSigner,
-} from '../instructions/utils.js';
-import {
-  deriveHyperlaneTokenPda,
-  deriveMailboxDispatchAuthorityPda,
-  deriveNativeCollateralPda,
-} from '../pda.js';
+import { getTokenInitInstruction } from '../instructions/token.js';
+import { writableAccount } from '../instructions/utils.js';
+import { deriveNativeCollateralPda } from '../pda.js';
 import type { SvmSigner } from '../signer.js';
 import type { AnnotatedSvmTransaction, SvmRpc, SvmReceipt } from '../types.js';
 
 import {
   applyPostInitConfig,
+  assertLocalDecimals,
   buildBaseInitData,
   computeWarpTokenUpdateInstructions,
   remoteDecimalsToScale,
@@ -128,13 +124,11 @@ export class SvmNativeTokenWriter
     );
     receipts.push(...deployReceipts);
 
-    const { address: tokenPda } = await deriveHyperlaneTokenPda(programAddress);
-    const { address: dispatchAuthPda } =
-      await deriveMailboxDispatchAuthorityPda(programAddress);
     const { address: nativeCollateralPda } =
       await deriveNativeCollateralPda(programAddress);
 
     const localDecimals = tokenConfig.decimals ?? SOL_DECIMALS;
+    assertLocalDecimals(localDecimals);
     const initData = buildBaseInitData(
       tokenConfig,
       this.config.igpProgramId,
@@ -142,18 +136,11 @@ export class SvmNativeTokenWriter
       scaleToRemoteDecimals(localDecimals, tokenConfig.scale),
     );
 
-    // Build init instruction manually to include the native-collateral PDA
-    // and ensure payer is WRITABLE_SIGNER (funds collateral account creation).
-    const initIx = buildInstruction(
+    const initIx = await getTokenInitInstruction(
       programAddress,
-      [
-        readonlyAccount(SYSTEM_PROGRAM_ADDRESS),
-        writableAccount(tokenPda),
-        writableAccount(dispatchAuthPda),
-        writableSigner(this.svmSigner.signer),
-        writableAccount(nativeCollateralPda),
-      ],
-      encodeTokenProgramInstruction({ kind: 'init', value: initData }),
+      this.svmSigner.signer,
+      initData,
+      [writableAccount(nativeCollateralPda)],
     );
 
     receipts.push(
@@ -163,16 +150,6 @@ export class SvmNativeTokenWriter
         skipPreflight: true,
       }),
     );
-
-    // Wait for account creation to propagate.
-    await new Promise((r) => setTimeout(r, 2000));
-
-    const check = await fetchTokenAccount(this.rpc, programAddress);
-    if (!check) {
-      throw new Error(
-        `Init failed — token account not found at ${programAddress}`,
-      );
-    }
 
     const configReceipt = await applyPostInitConfig(
       this.svmSigner,
@@ -199,6 +176,11 @@ export class SvmNativeTokenWriter
   ): Promise<AnnotatedSvmTransaction[]> {
     const programId = parseAddress(artifact.deployed.address);
     const current = await this.read(programId);
+
+    assert(
+      !isZeroishAddress(current.config.owner),
+      `Cannot update native token ${programId}: token has no owner`,
+    );
 
     const instructions = await computeWarpTokenUpdateInstructions(
       current.config,
