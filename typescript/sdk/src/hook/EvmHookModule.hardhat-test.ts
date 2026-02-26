@@ -123,8 +123,9 @@ describe('EvmHookModule', async () => {
       to: account,
       value: hre.ethers.parseEther('1.0'),
     });
+    const impersonatedSigner = await hre.ethers.provider.getSigner(account);
     return MultiProvider.createTestMultiProvider({
-      signer: hre.ethers.provider.getSigner(account),
+      signer: impersonatedSigner,
     });
   }
 
