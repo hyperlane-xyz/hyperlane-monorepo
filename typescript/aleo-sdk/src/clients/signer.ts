@@ -1,5 +1,5 @@
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
+import { assert, isNullish, retryAsync, sleep } from '@hyperlane-xyz/utils';
 
 import { type AleoProgram } from '../artifacts.js';
 import {
@@ -159,6 +159,7 @@ export class AleoSigner
 
   async sendAndConfirmTransaction(
     transaction: AleoTransaction,
+    confirmations?: number,
   ): Promise<AleoReceipt> {
     const tx = this.skipProofs
       ? await this.programManager.buildDevnodeExecutionTransaction(transaction)
@@ -169,16 +170,32 @@ export class AleoSigner
       RETRY_ATTEMPTS,
       RETRY_DELAY_MS,
     );
-    const receipt = await this.aleoClient.waitForTransactionConfirmation(txId);
-
-    return {
-      ...receipt,
-      transactionHash: receipt.transaction.id,
+    const confirmation =
+      await this.aleoClient.waitForTransactionConfirmation(txId);
+    const receipt = {
+      ...confirmation,
+      transactionHash: confirmation.transaction.id,
     };
+
+    if (!confirmations) {
+      return receipt;
+    }
+
+    // currently no good way to get the block height of an aleo tx,
+    // getting the current height AFTER the tx has been confirmed
+    // to wait for the block confirmations
+    const confirmationHeight = await this.getHeight();
+    const targetHeight = confirmationHeight + confirmations;
+    while ((await this.getHeight()) < targetHeight) {
+      await sleep(2000);
+    }
+
+    return receipt;
   }
 
   async sendAndConfirmBatchTransactions(
     _transactions: AleoTransaction[],
+    _confirmations?: number,
   ): Promise<AleoReceipt> {
     throw new Error(`${AleoSigner.name} does not support transaction batching`);
   }

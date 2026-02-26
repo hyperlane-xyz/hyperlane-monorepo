@@ -4,7 +4,7 @@ import {
 } from '@radixdlt/radix-engine-toolkit';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, strip0x } from '@hyperlane-xyz/utils';
+import { assert, sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import {
   getCreateIgpTx,
@@ -139,6 +139,7 @@ export class RadixSigner
 
   async sendAndConfirmTransaction(
     transaction: RadixSDKTransaction,
+    confirmations?: number,
   ): Promise<RadixSDKReceipt> {
     assert(
       transaction.networkId === this.networkId,
@@ -156,11 +157,23 @@ export class RadixSigner
       manifest = transaction.manifest;
     }
 
-    return this.signer.signAndBroadcast(manifest);
+    const receipt = await this.signer.signAndBroadcast(manifest);
+
+    if (!confirmations) {
+      return receipt;
+    }
+
+    const targetHeight = receipt.ledger_state.state_version + confirmations;
+    while ((await this.getHeight()) < targetHeight) {
+      await sleep(2000);
+    }
+
+    return receipt;
   }
 
   async sendAndConfirmBatchTransactions(
     _transactions: RadixSDKTransaction[],
+    _confirmations?: number,
   ): Promise<RadixSDKReceipt> {
     throw new Error(`Radix does not support transaction batching`);
   }
