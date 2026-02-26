@@ -18,6 +18,7 @@ export async function resolveProgram(
   target: SvmProgramTarget,
   signer: SvmSigner,
   rpc: SvmRpc,
+  useExactDataLen?: boolean,
 ): Promise<ResolvedProgram> {
   if ('programId' in target) {
     return { programAddress: target.programId, receipts: [] };
@@ -28,6 +29,9 @@ export async function resolveProgram(
     programBytes: target.programBytes,
     getMinimumBalanceForRentExemption: (size: number) =>
       rpc.getMinimumBalanceForRentExemption(BigInt(size)).send(),
+    maxDataLen: useExactDataLen
+      ? BigInt(target.programBytes.length)
+      : undefined,
   });
 
   const executeStage = async (stage: DeployStage): Promise<SvmReceipt> =>

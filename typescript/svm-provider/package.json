@@ -28,13 +28,19 @@
   },
   "scripts": {
     "build": "rm -rf ./dist && tsc",
+    "program:build": "(cd ../../rust/sealevel/programs && bash build-programs.sh)",
+    "program:generate": "node scripts/generate-program-bytes.mjs",
     "format": "oxfmt --write ./src",
     "lint": "eslint -c ./eslint.config.mjs",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
     "test": "mocha --require tsx --timeout 300000 'src/tests/**/*.e2e-test.ts'",
     "test:ism": "mocha --require tsx --timeout 300000 'src/tests/ism.e2e-test.ts'",
-    "test:hook": "mocha --require tsx --timeout 300000 'src/tests/hook.e2e-test.ts'"
+    "test:hook": "mocha --require tsx --timeout 300000 'src/tests/hook.e2e-test.ts'",
+    "test:native-token": "mocha --require tsx --timeout 300000 'src/tests/native-token.e2e-test.ts'",
+    "test:synthetic-token": "mocha --require tsx --timeout 300000 'src/tests/synthetic-token.e2e-test.ts'",
+    "test:collateral-token": "mocha --require tsx --timeout 300000 'src/tests/collateral-token.e2e-test.ts'",
+    "test:read-token": "mocha --require tsx --timeout 300000 'src/tests/read-token.e2e-test.ts'"
   },
   "dependencies": {
     "@hyperlane-xyz/provider-sdk": "workspace:*",

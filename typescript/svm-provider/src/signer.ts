@@ -107,7 +107,7 @@ export async function createSigner(
     await rpc
       .sendTransaction(base64Tx, {
         encoding: 'base64',
-        skipPreflight: false,
+        skipPreflight: tx.skipPreflight ?? false,
       })
       .send();
 
@@ -136,6 +136,20 @@ export async function createSigner(
 
     if (!confirmed) {
       throw new Error(`Transaction not confirmed: ${signature}`);
+    }
+
+    const receipt = await rpc
+      .getTransaction(signature, {
+        commitment: 'confirmed',
+        encoding: 'json',
+        maxSupportedTransactionVersion: 0,
+      })
+      .send();
+
+    if (receipt && receipt.meta?.err) {
+      throw new Error(`Transaction with signature ${signature} failed`, {
+        cause: receipt.meta?.err,
+      });
     }
 
     return { signature, slot };
