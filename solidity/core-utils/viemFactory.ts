@@ -234,7 +234,7 @@ const TX_OVERRIDE_KEYS = new Set([
 const RECEIPT_POLL_INTERVAL_MS = 1_000;
 
 function isObject(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object';
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -409,7 +409,22 @@ function toHexQuantity(value: unknown): Hex | undefined {
     if (isHex(value)) return value as Hex;
     if (/^[0-9]+$/.test(value)) return toHex(BigInt(value));
   }
+  if (
+    isObject(value) &&
+    'toString' in value &&
+    typeof value.toString === 'function'
+  ) {
+    const stringValue = value.toString();
+    if (typeof stringValue === 'string' && stringValue !== '[object Object]') {
+      return toHexQuantity(stringValue);
+    }
+  }
   return undefined;
+}
+
+function normalizeQuantityValue(value: unknown): unknown {
+  if (value === undefined || value === null) return undefined;
+  return toHexQuantity(value) ?? value;
 }
 
 function normalizeTxRequest(
@@ -419,12 +434,12 @@ function normalizeTxRequest(
   const { gasLimit, ...rest } = request;
   const normalized: TxRequestLike = {
     ...rest,
-    value: toHexQuantity(rest.value),
-    gas: toHexQuantity(rest.gas ?? gasLimit),
-    gasPrice: toHexQuantity(rest.gasPrice),
-    maxFeePerGas: toHexQuantity(rest.maxFeePerGas),
-    maxPriorityFeePerGas: toHexQuantity(rest.maxPriorityFeePerGas),
-    nonce: toHexQuantity(rest.nonce),
+    value: normalizeQuantityValue(rest.value),
+    gas: normalizeQuantityValue(rest.gas ?? gasLimit),
+    gasPrice: normalizeQuantityValue(rest.gasPrice),
+    maxFeePerGas: normalizeQuantityValue(rest.maxFeePerGas),
+    maxPriorityFeePerGas: normalizeQuantityValue(rest.maxPriorityFeePerGas),
+    nonce: normalizeQuantityValue(rest.nonce),
   };
   if (
     options.includeAccountFromFrom &&
