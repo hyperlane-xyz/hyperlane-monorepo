@@ -445,6 +445,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Match Rust scraper address_to_bytes(): if the first 12 bytes are zero
+-- (EVM address in H256), return only the last 20 bytes; otherwise keep all 32.
+CREATE OR REPLACE FUNCTION hyperlane_shovel_address_to_bytes(
+    p_h256 BYTEA
+) RETURNS BYTEA AS $$
+BEGIN
+    IF p_h256 IS NULL OR octet_length(p_h256) != 32 THEN
+        RETURN p_h256;
+    END IF;
+
+    IF substring(p_h256 FROM 1 FOR 12) = E'\\x000000000000000000000000'::BYTEA THEN
+        RETURN substring(p_h256 FROM 13 FOR 20);
+    END IF;
+
+    RETURN p_h256;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION hyperlane_shovel_unix_to_timestamp(
     p_unix NUMERIC
 ) RETURNS TIMESTAMP AS $$
@@ -676,8 +694,12 @@ BEGIN
         p_dispatch.tx_effective_gas_price
     );
 
-    v_sender := substring(p_dispatch.message FROM 10 FOR 32);
-    v_recipient := substring(p_dispatch.message FROM 46 FOR 32);
+    v_sender := hyperlane_shovel_address_to_bytes(
+        substring(p_dispatch.message FROM 10 FOR 32)
+    );
+    v_recipient := hyperlane_shovel_address_to_bytes(
+        substring(p_dispatch.message FROM 46 FOR 32)
+    );
 
     IF octet_length(p_dispatch.message) > 77 THEN
         v_message_body := substring(p_dispatch.message FROM 78);

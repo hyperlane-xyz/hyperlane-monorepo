@@ -6,7 +6,7 @@ hyperlane:
   chains: 'basesepolia'
 
 shovel:
-  startBlock: '38167000'
+  startBlock: '37880000'
 
 externalSecrets:
   databaseUrlSecretKey: hyperlane-testnet4-indexer-db
