@@ -101,6 +101,7 @@ export const isPredicateWrapperConfig = isCompliant(
 export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.native, TokenType.nativeScaled]),
   ...BaseMovableTokenConfigSchema.shape,
+  predicateWrapper: PredicateWrapperConfigSchema.optional(),
 });
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);

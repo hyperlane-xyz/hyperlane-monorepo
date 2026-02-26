@@ -91,6 +91,9 @@ contract PredicateRouterWrapper is
     /// @notice Thrown when policy ID is empty
     error PredicateRouterWrapper__InvalidPolicy();
 
+    /// @notice Thrown when insufficient ETH sent for native token transfer
+    error PredicateRouterWrapper__InsufficientValue();
+
     // ============ Events ============
 
     /// @notice Emitted when a transfer is authorized via attestation
@@ -129,9 +132,9 @@ contract PredicateRouterWrapper is
         // Initialize PredicateClient (handles registry, policy storage and registration)
         _initPredicateClient(_registry, _policyID);
 
-        // Infinite approval to warp route for collateral routes
-        // For synthetics, warpRoute == token (self-approval not needed)
-        if (_warpRoute != _token) {
+        // Infinite approval to warp route for collateral routes only
+        // Skip for: synthetics (warpRoute == token), native (token == address(0))
+        if (_warpRoute != _token && _token != address(0)) {
             token.forceApprove(_warpRoute, type(uint256).max);
         }
     }
@@ -182,8 +185,17 @@ contract PredicateRouterWrapper is
         // 3. Set flag BEFORE calling warpRoute (checked in postDispatch)
         pendingAttestation = true;
 
-        // 4. Pull tokens from user (warp route already has infinite approval from constructor)
-        token.safeTransferFrom(msg.sender, address(this), _amount);
+        // 4. Handle token transfer based on type
+        bool isNative = address(token) == address(0);
+
+        if (isNative) {
+            // For native tokens, validate msg.value >= amount (excess is for gas)
+            if (msg.value < _amount)
+                revert PredicateRouterWrapper__InsufficientValue();
+        } else {
+            // For ERC20 tokens, pull from user (warp route has approval for collateral)
+            token.safeTransferFrom(msg.sender, address(this), _amount);
+        }
 
         // 5. Call warp route - this will trigger postDispatch via mailbox
         messageId = warpRoute.transferRemote{value: msg.value}(

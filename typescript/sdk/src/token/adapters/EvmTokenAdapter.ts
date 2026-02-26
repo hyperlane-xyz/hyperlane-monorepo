@@ -1226,6 +1226,7 @@ export class EvmHypNativeAdapter
     destination,
     recipient,
     interchainGas,
+    attestation,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     return super.populateTransferRemoteTx(
       {
@@ -1233,6 +1234,7 @@ export class EvmHypNativeAdapter
         destination,
         recipient,
         interchainGas,
+        attestation,
       },
       // Pass the amount as initial native value to the parent class
       BigInt(weiAmountOrId),

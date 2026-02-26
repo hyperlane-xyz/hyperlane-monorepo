@@ -208,10 +208,14 @@ describe('hyperlane warp deploy with Predicate e2e tests', async function () {
     });
   });
 
-  describe('native token with Predicate wrapper should fail', () => {
+  describe('native token with Predicate wrapper', () => {
     const warpDeployPath = `${TEMP_PATH}/warp-deploy-predicate-native.yaml`;
+    const warpCoreConfigPath = getCombinedWarpRoutePath('PREDNATIVE', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
 
-    it('should fail to deploy native warp route with Predicate wrapper', async function () {
+    it('should deploy native warp route with Predicate wrapper', async function () {
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.native,
@@ -231,9 +235,24 @@ describe('hyperlane warp deploy with Predicate e2e tests', async function () {
 
       writeYamlOrJson(warpDeployPath, warpConfig);
 
-      await expect(
-        hyperlaneWarpDeploy(warpDeployPath, 'PREDNATIVE/anvil2-anvil3'),
-      ).to.be.rejected;
+      await hyperlaneWarpDeploy(warpDeployPath, 'PREDNATIVE/anvil2-anvil3');
+
+      const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpCoreConfigPath);
+      const chain2Token = warpCoreConfig.tokens.find(
+        (t) => t.chainName === CHAIN_NAME_2,
+      );
+      expect(chain2Token).to.exist;
+      expect(chain2Token!.addressOrDenom).to.exist;
+      expect(ethers.utils.isAddress(chain2Token!.addressOrDenom!)).to.be.true;
+
+      const router = TokenRouter__factory.connect(
+        chain2Token!.addressOrDenom!,
+        walletChain2,
+      );
+      const hookAddress = await router.hook();
+      expect(hookAddress).to.not.equal(
+        '0x0000000000000000000000000000000000000000',
+      );
     });
   });
 });

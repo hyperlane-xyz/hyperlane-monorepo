@@ -226,6 +226,7 @@ export class WarpCore {
     interchainFee,
     tokenFeeQuote,
     attestation,
+    amount,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
@@ -234,6 +235,7 @@ export class WarpCore {
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
     attestation?: PredicateAttestation;
+    amount: bigint;
   }): Promise<TransactionFeeEstimate> {
     this.logger.debug(`Estimating local transfer gas to ${destination}`);
     const originMetadata = this.multiProvider.getChainMetadata(
@@ -259,7 +261,7 @@ export class WarpCore {
       destinationMetadata.bech32Prefix,
     );
     const txs = await this.getTransferRemoteTxs({
-      originTokenAmount: originToken.amount(2),
+      originTokenAmount: originToken.amount(amount),
       destination,
       sender,
       recipient,
@@ -324,6 +326,7 @@ export class WarpCore {
     interchainFee,
     tokenFeeQuote,
     attestation,
+    amount,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
@@ -332,6 +335,7 @@ export class WarpCore {
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
     attestation?: PredicateAttestation;
+    amount: bigint;
   }): Promise<TokenAmount> {
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
@@ -352,6 +356,7 @@ export class WarpCore {
       interchainFee,
       tokenFeeQuote,
       attestation,
+      amount,
     });
 
     // Get the local gas token. This assumes the chain's native token will pay for local gas
@@ -559,6 +564,7 @@ export class WarpCore {
       interchainFee: igpQuote,
       tokenFeeQuote,
       attestation,
+      amount: originTokenAmount.amount,
     });
 
     return {
@@ -960,6 +966,7 @@ export class WarpCore {
       interchainFee: interchainQuote,
       tokenFeeQuote,
       attestation,
+      amount,
     });
 
     const feeEstimate = { interchainQuote, localQuote };

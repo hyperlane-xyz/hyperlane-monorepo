@@ -552,20 +552,21 @@ abstract class TokenDeployer<
           return;
         }
 
-        if (
-          !isCollateralTokenConfig(config) &&
-          !isSyntheticTokenConfig(config)
-        ) {
-          throw new Error(
-            `Predicate wrapper only supported for collateral and synthetic tokens, got ${config.type} on ${chain}. ` +
-              `Native tokens are not supported because PredicateRouterWrapper requires ERC20 transfers.`,
-          );
-        }
-
         const router = this.router(deployedContractsMap[chain]);
-        const tokenAddress = isCollateralTokenConfig(config)
-          ? config.token
-          : router.address;
+
+        // Determine token address based on type:
+        // - Collateral: underlying token address
+        // - Synthetic: warp route address (token == warpRoute)
+        // - Native: address(0) (no underlying token)
+        let tokenAddress: string;
+        if (isCollateralTokenConfig(config)) {
+          tokenAddress = config.token;
+        } else if (isSyntheticTokenConfig(config)) {
+          tokenAddress = router.address;
+        } else {
+          // Native token
+          tokenAddress = '0x0000000000000000000000000000000000000000';
+        }
 
         const factoryContracts = this.options.ismFactory?.getContracts(chain);
         if (!factoryContracts?.staticAggregationHookFactory) {

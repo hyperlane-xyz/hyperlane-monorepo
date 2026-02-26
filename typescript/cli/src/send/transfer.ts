@@ -11,7 +11,6 @@ import {
   type PredicateAttestation,
   ProviderType,
   type Token,
-  TokenAmount,
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -167,6 +166,10 @@ async function executeDelivery({
   }
 
   let finalAttestation: PredicateAttestation | undefined;
+  let quote:
+    | Awaited<ReturnType<typeof warpCore.getInterchainTransferFee>>
+    | undefined;
+  let tokenAmount = token.amount(amount); // Hoist to reuse for transaction
 
   if (attestation) {
     try {
@@ -182,14 +185,13 @@ async function executeDelivery({
     const recipientBytes32 = addressToBytes32(
       addressToByteHexString(recipient),
     );
-    const tokenAmount = token.amount(amount);
 
     const calldata = TokenRouter__factory.createInterface().encodeFunctionData(
       'transferRemote(uint32,bytes32,uint256)',
       [destinationDomain, recipientBytes32, tokenAmount.amount],
     );
 
-    const quote = await warpCore.getInterchainTransferFee({
+    quote = await warpCore.getInterchainTransferFee({
       originTokenAmount: tokenAmount,
       destination,
       sender: signerAddress,
@@ -213,13 +215,24 @@ async function executeDelivery({
       }
     }
 
-    const response = await predicateClient.fetchAttestation({
+    // For native/HypNative tokens, msg_value = amount + gas fees
+    // For ERC20 tokens, msg_value = gas fees only
+    const msgValue =
+      token.isNative() || token.isHypNative()
+        ? (
+            BigInt(tokenAmount.amount.toString()) + quote.igpQuote.amount
+          ).toString()
+        : quote.igpQuote.amount.toString();
+
+    const attestationRequest = {
       to: predicateTarget,
       from: signerAddress,
       data: calldata,
-      msg_value: quote.igpQuote.amount.toString(),
+      msg_value: msgValue,
       chain: origin,
-    });
+    };
+
+    const response = await predicateClient.fetchAttestation(attestationRequest);
 
     finalAttestation = response.attestation;
     logGreen('Predicate attestation obtained successfully');
@@ -227,7 +240,7 @@ async function executeDelivery({
 
   if (!skipValidation) {
     const errors = await warpCore.validateTransfer({
-      originTokenAmount: token.amount(amount),
+      originTokenAmount: tokenAmount,
       destination,
       recipient,
       sender: signerAddress,
@@ -239,22 +252,19 @@ async function executeDelivery({
     }
   }
 
-  if (predicateApiKey || attestation) {
-    if (token.isNative()) {
-      throw new Error(
-        'Predicate compliance is not supported for native token warp routes. ' +
-          'Only ERC20-based routes (collateral and synthetic) support Predicate attestations.',
-      );
-    }
-  }
-
   // TODO: override hook address for self-relay
   const transferTxs = await warpCore.getTransferRemoteTxs({
-    originTokenAmount: new TokenAmount(amount, token),
+    originTokenAmount: tokenAmount, // Use same tokenAmount as attestation
     destination,
     sender: signerAddress,
     recipient,
     attestation: finalAttestation,
+    // Pass the same quote used for attestation to prevent signature mismatch
+    ...(finalAttestation &&
+      quote && {
+        interchainFee: quote.igpQuote,
+        tokenFeeQuote: quote.tokenFeeQuote,
+      }),
   });
 
   const txReceipts = [];
