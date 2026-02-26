@@ -1,4 +1,5 @@
 import {
+  AddressLike,
   BlockTag,
   FeeData,
   JsonRpcProvider,
@@ -7,6 +8,7 @@ import {
 import type { JsonRpcPayload, JsonRpcResult } from 'ethers';
 
 import { retryAsync } from '@hyperlane-xyz/utils';
+import { TronWeb } from 'tronweb';
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_RETRY_MS = 250;
@@ -27,18 +29,21 @@ export class TronJsonRpcProvider extends JsonRpcProvider {
   public host: string;
   private readonly maxRetries: number;
   private readonly baseRetryMs: number;
+  private readonly tronWeb: TronWeb;
 
   constructor(
-    host: string,
+    url: string,
     network?: Networkish,
     maxRetries = DEFAULT_MAX_RETRIES,
     baseRetryMs = DEFAULT_BASE_RETRY_MS,
   ) {
-    const jsonRpcUrl = host.endsWith('/jsonrpc') ? host : `${host}/jsonrpc`;
+    const fullHost = url.endsWith('/jsonrpc') ? url.slice(0, -8) : url;
+    const jsonRpcUrl = `${fullHost}/jsonrpc`;
     super(jsonRpcUrl, network);
-    this.host = host;
+    this.host = fullHost;
     this.maxRetries = maxRetries;
     this.baseRetryMs = baseRetryMs;
+    this.tronWeb = new TronWeb({ fullHost });
   }
 
   override async _send(
@@ -61,6 +66,24 @@ export class TronJsonRpcProvider extends JsonRpcProvider {
     return 0;
   }
 
+  override async getBalance(
+    address: AddressLike,
+    blockTag?: BlockTag,
+  ): Promise<bigint> {
+    // TronWeb only supports latest balance lookups.
+    if (blockTag && blockTag !== 'latest') {
+      return super.getBalance(address, blockTag);
+    }
+
+    if (typeof address !== 'string') {
+      return super.getBalance(address, blockTag);
+    }
+
+    const base58Address = this.toBase58Address(address);
+    const balance = await this.tronWeb.trx.getBalance(base58Address);
+    return BigInt(balance);
+  }
+
   /**
    * Tron doesn't support ENS - return the name as-is.
    */
@@ -77,5 +100,14 @@ export class TronJsonRpcProvider extends JsonRpcProvider {
     const gasPriceHex = await this.send('eth_gasPrice', []);
     const gasPrice = typeof gasPriceHex === 'string' ? BigInt(gasPriceHex) : 0n;
     return new FeeData(gasPrice, null, null);
+  }
+
+  private toBase58Address(address: string): string {
+    if (address.startsWith('T')) return address;
+    if (address.startsWith('41')) return this.tronWeb.address.fromHex(address);
+    if (address.startsWith('0x')) {
+      return this.tronWeb.address.fromHex(`41${address.slice(2)}`);
+    }
+    return this.tronWeb.address.fromHex(address);
   }
 }
