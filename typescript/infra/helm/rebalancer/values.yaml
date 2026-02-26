@@ -3,7 +3,7 @@ image:
   tag:
 warpRouteId: ''
 hyperlane:
-  runEnv:
+  runEnv: mainnet3
   context: hyperlane
   registryUri: ''
   rebalancerConfig: ''

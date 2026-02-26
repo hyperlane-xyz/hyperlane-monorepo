@@ -1,5 +1,48 @@
 # @hyperlane-xyz/metrics
 
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies [521d42b]
+  - @hyperlane-xyz/core@10.2.0
+  - @hyperlane-xyz/sdk@25.3.2
+  - @hyperlane-xyz/utils@25.3.2
+
+## 0.1.7
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@25.3.1
+- @hyperlane-xyz/utils@25.3.1
+- @hyperlane-xyz/core@10.1.5
+
+## 0.1.6
+
+### Patch Changes
+
+- Updated dependencies [aea767c]
+  - @hyperlane-xyz/sdk@25.3.0
+  - @hyperlane-xyz/utils@25.3.0
+  - @hyperlane-xyz/core@10.1.5
+
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [215dff0]
+- Updated dependencies [d2f75a1]
+- Updated dependencies [360db52]
+- Updated dependencies [18ec479]
+- Updated dependencies [795d93e]
+- Updated dependencies [e143956]
+- Updated dependencies [ccd638d]
+- Updated dependencies [c61d612]
+- Updated dependencies [c2affe2]
+  - @hyperlane-xyz/sdk@25.2.0
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/core@10.1.5
+
 ## 0.1.4
 
 ### Patch Changes

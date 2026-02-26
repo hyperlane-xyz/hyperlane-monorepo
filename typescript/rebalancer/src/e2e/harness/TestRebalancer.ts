@@ -5,11 +5,14 @@ import {
   HyperlaneCore,
   MultiProtocolProvider,
   type MultiProvider,
+  type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
+  DEFAULT_INTENT_TTL_MS,
+  ExternalBridgeType,
   type StrategyConfig,
   getStrategyChainNames,
 } from '../../config/types.js';
@@ -18,32 +21,35 @@ import {
   type RebalancerOrchestratorDeps,
 } from '../../core/RebalancerOrchestrator.js';
 import { RebalancerContextFactory } from '../../factories/RebalancerContextFactory.js';
+import type { ExternalBridgeRegistry } from '../../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { IStrategy } from '../../interfaces/IStrategy.js';
-import type { Monitor } from '../../monitor/Monitor.js';
-import type { IActionTracker } from '../../tracking/index.js';
+import type { InventoryMonitorConfig, Monitor } from '../../monitor/Monitor.js';
+import type { IActionTracker } from '../../tracking/IActionTracker.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
 import {
   ANVIL_TEST_PRIVATE_KEY,
   BALANCE_PRESETS,
   DOMAIN_IDS,
   type DeployedAddresses,
+  INVENTORY_SIGNER_PRESETS,
   MONITORED_ROUTE_ID,
+  NATIVE_MONITORED_ROUTE_ID,
+  type NativeDeployedAddresses,
   TEST_CHAINS,
   type TestChain,
+  buildNativeWarpRouteConfig,
   buildWarpRouteConfig,
 } from '../fixtures/routes.js';
 
 import { setupCollateralBalances } from './BridgeSetup.js';
+import { BaseLocalDeploymentManager } from './BaseLocalDeploymentManager.js';
 import { ForkIndexer } from './ForkIndexer.js';
-import {
-  type LocalDeploymentContext,
-  LocalDeploymentManager,
-} from './LocalDeploymentManager.js';
 import {
   MockExplorerClient,
   type MockExplorerConfig,
 } from './MockExplorerClient.js';
+import { MockExternalBridge } from './MockExternalBridge.js';
 
 function encodeWarpRouteMessageBody(
   recipient: string,
@@ -70,6 +76,7 @@ export interface TestRebalancerContext {
   multiProvider: MultiProvider;
   rebalancerConfig: RebalancerConfig;
   contextFactory: RebalancerContextFactory;
+  inventoryConfig?: InventoryMonitorConfig;
   createMonitor(checkFrequency: number): Monitor;
   getConfirmedBlockTags(): Promise<ConfirmedBlockTags>;
 }
@@ -77,6 +84,15 @@ export interface TestRebalancerContext {
 type BalancePreset = keyof typeof BALANCE_PRESETS;
 type BalanceConfig = BalancePreset | Record<string, BigNumber>;
 type ExecutionMode = 'propose' | 'execute';
+type InventorySignerPreset = keyof typeof INVENTORY_SIGNER_PRESETS;
+type InventorySignerBalanceConfig =
+  | InventorySignerPreset
+  | Partial<Record<string, BigNumber>>;
+
+type TestInventoryConfig = {
+  inventorySignerKey: string;
+  nativeDeployedAddresses: NativeDeployedAddresses;
+};
 
 export class TestRebalancerBuilder {
   private strategyConfig: StrategyConfig[] | undefined;
@@ -84,10 +100,17 @@ export class TestRebalancerBuilder {
   private pendingTransfers: PendingTransferParams[] = [];
   private mockTransfers: ExplorerMessage[] = [];
   private executionMode: ExecutionMode = 'propose';
+  private inventoryConfig: TestInventoryConfig | undefined;
+  private mockExternalBridge: MockExternalBridge | undefined;
   private readonly logger: Logger;
+  private inventorySignerBalanceConfig:
+    | InventorySignerBalanceConfig
+    | undefined;
 
   constructor(
-    private readonly deploymentManager: LocalDeploymentManager,
+    private readonly deploymentManager: BaseLocalDeploymentManager<
+      DeployedAddresses | NativeDeployedAddresses
+    >,
     private readonly multiProvider: MultiProvider,
   ) {
     this.logger = pino({ level: 'debug' }).child({ module: 'TestRebalancer' });
@@ -118,6 +141,24 @@ export class TestRebalancerBuilder {
     return this;
   }
 
+  withInventoryConfig(config: {
+    inventorySignerKey: string;
+    nativeDeployedAddresses: NativeDeployedAddresses;
+  }): this {
+    this.inventoryConfig = config;
+    return this;
+  }
+
+  withMockExternalBridge(bridge: MockExternalBridge): this {
+    this.mockExternalBridge = bridge;
+    return this;
+  }
+
+  withInventorySignerBalances(config: InventorySignerBalanceConfig): this {
+    this.inventorySignerBalanceConfig = config;
+    return this;
+  }
+
   private async computeConfirmedBlockTags(): Promise<ConfirmedBlockTags> {
     const blockTags: ConfirmedBlockTags = {};
     const localProviders = this.deploymentManager.getContext().providers;
@@ -130,9 +171,12 @@ export class TestRebalancerBuilder {
           { chain, blockNumber: blockTags[chain] },
           'Computed confirmed block tag',
         );
-      } catch (error) {
+      } catch (error: unknown) {
         this.logger.warn(
-          { chain, error: (error as Error).message },
+          {
+            chain,
+            error: error instanceof Error ? error.message : String(error),
+          },
           'Failed to get block number, using undefined',
         );
         blockTags[chain] = undefined;
@@ -161,17 +205,34 @@ export class TestRebalancerBuilder {
       );
     }
 
+    if (this.inventoryConfig && !this.mockExternalBridge) {
+      throw new Error(
+        'Inventory mode requires .withMockExternalBridge() to prevent hitting real external bridges in tests',
+      );
+    }
+
     await this.setupBalances();
 
+    const inventoryModeConfig = this.inventoryConfig;
+    const isInventoryMode = inventoryModeConfig !== undefined;
     const ctx = this.deploymentManager.getContext();
-    const { providers: localProviders }: LocalDeploymentContext = ctx;
-    const deployedAddresses: DeployedAddresses = ctx.deployedAddresses;
+    const { providers: localProviders } = ctx;
+    const deployedAddresses = ctx.deployedAddresses;
+    if (!isInventoryMode && !('tokens' in deployedAddresses)) {
+      throw new Error('Expected ERC20 deployed addresses with tokens field');
+    }
 
     const coreAddresses: Record<string, Record<string, string>> = {};
     for (const chain of TEST_CHAINS) {
+      const chainAddresses = isInventoryMode
+        ? inventoryModeConfig.nativeDeployedAddresses.chains[chain]
+        : deployedAddresses.chains[chain];
+      if (!chainAddresses) {
+        throw new Error(`Missing chain addresses for ${chain}`);
+      }
       coreAddresses[chain] = {
-        mailbox: deployedAddresses.chains[chain].mailbox,
-        interchainSecurityModule: deployedAddresses.chains[chain].ism,
+        mailbox: chainAddresses.mailbox,
+        interchainSecurityModule: chainAddresses.ism,
       };
     }
     const hyperlaneCore = HyperlaneCore.fromAddressesMap(
@@ -200,18 +261,45 @@ export class TestRebalancerBuilder {
       () => this.computeConfirmedBlockTags(),
     );
 
-    const rebalancerConfig = new RebalancerConfig(
-      MONITORED_ROUTE_ID,
-      this.strategyConfig,
-    );
-
     const registry = this.deploymentManager.getRegistry();
     const mpp = MultiProtocolProvider.fromMultiProvider(workingMultiProvider);
 
-    const warpCoreConfig = buildWarpRouteConfig(deployedAddresses);
+    let inventoryMultiProvider: MultiProvider | undefined;
+    let rebalancerConfig: RebalancerConfig;
+    let warpCoreConfig: WarpCoreConfig;
+    if (isInventoryMode) {
+      inventoryMultiProvider =
+        await this.getInventoryMultiProvider(localProviders);
+      const inventorySignerAddress = new ethers.Wallet(
+        inventoryModeConfig.inventorySignerKey,
+      ).address;
+      rebalancerAddresses.push(inventorySignerAddress);
+      rebalancerConfig = new RebalancerConfig(
+        NATIVE_MONITORED_ROUTE_ID,
+        this.strategyConfig,
+        DEFAULT_INTENT_TTL_MS,
+        inventorySignerAddress,
+        { lifi: { integrator: 'test' } },
+      );
+      warpCoreConfig = buildNativeWarpRouteConfig(
+        inventoryModeConfig.nativeDeployedAddresses,
+      );
+    } else {
+      if (!('tokens' in deployedAddresses)) {
+        throw new Error('Expected ERC20 deployed addresses with tokens field');
+      }
+      rebalancerConfig = new RebalancerConfig(
+        MONITORED_ROUTE_ID,
+        this.strategyConfig,
+        DEFAULT_INTENT_TTL_MS,
+      );
+      warpCoreConfig = buildWarpRouteConfig(deployedAddresses);
+    }
+
     const contextFactory = await RebalancerContextFactory.create(
       rebalancerConfig,
       workingMultiProvider,
+      inventoryMultiProvider,
       mpp,
       registry,
       this.logger,
@@ -225,19 +313,34 @@ export class TestRebalancerBuilder {
     await tracker.initialize();
     this.logger.info('ActionTracker initialized with mock explorer');
 
-    // In execute mode, create an actual Rebalancer to enable intent creation and execution
-    const rebalancer =
-      this.executionMode === 'execute'
-        ? contextFactory.createRebalancer()
+    const externalBridgeRegistryOverride =
+      isInventoryMode && this.mockExternalBridge
+        ? ({
+            [ExternalBridgeType.LiFi]: this.mockExternalBridge,
+          } as Partial<ExternalBridgeRegistry>)
         : undefined;
+    const rebalancerComponents =
+      this.executionMode === 'execute' || isInventoryMode
+        ? await contextFactory.createRebalancers(
+            tracker,
+            undefined,
+            externalBridgeRegistryOverride,
+          )
+        : undefined;
+    const rebalancers =
+      this.executionMode === 'execute'
+        ? (rebalancerComponents?.rebalancers ?? [])
+        : [];
+    const inventoryConfig = rebalancerComponents?.inventoryConfig;
+    const externalBridgeRegistry = rebalancerComponents?.externalBridgeRegistry;
 
     const orchestratorDeps: RebalancerOrchestratorDeps = {
       strategy,
-      rebalancer,
+      rebalancers,
       actionTracker: tracker,
       inflightContextAdapter: adapter,
-      multiProvider: workingMultiProvider,
       rebalancerConfig,
+      externalBridgeRegistry,
       logger: this.logger,
     };
     const orchestrator = new RebalancerOrchestrator(orchestratorDeps);
@@ -251,8 +354,9 @@ export class TestRebalancerBuilder {
       multiProvider: workingMultiProvider,
       rebalancerConfig,
       contextFactory,
+      inventoryConfig,
       createMonitor: (checkFrequency: number) =>
-        contextFactory.createMonitor(checkFrequency),
+        contextFactory.createMonitor(checkFrequency, inventoryConfig),
       getConfirmedBlockTags: () => this.computeConfirmedBlockTags(),
     };
   }
@@ -281,7 +385,50 @@ export class TestRebalancerBuilder {
     const balances = this.getBalances();
     const ctx = this.deploymentManager.getContext();
     const { providers: localProviders } = ctx;
-    const deployedAddresses: DeployedAddresses = ctx.deployedAddresses;
+
+    if (this.inventoryConfig) {
+      for (const [chain, balance] of Object.entries(balances)) {
+        const provider = localProviders.get(chain);
+        const monitoredRouteAddress =
+          this.inventoryConfig.nativeDeployedAddresses.monitoredRoute[
+            chain as TestChain
+          ];
+        if (!provider) {
+          throw new Error(
+            `Missing local provider for inventory chain ${chain}`,
+          );
+        }
+        if (!monitoredRouteAddress) {
+          throw new Error(
+            `Missing monitored route address for inventory chain ${chain}`,
+          );
+        }
+
+        await provider.send('anvil_setBalance', [
+          monitoredRouteAddress,
+          ethers.utils.hexValue(balance),
+        ]);
+      }
+
+      this.logger.info(
+        {
+          balances: Object.fromEntries(
+            Object.entries(balances).map(([chain, balance]) => [
+              chain,
+              balance.toString(),
+            ]),
+          ),
+        },
+        'Inventory balances configured on monitored routes',
+      );
+      await this.setupInventorySignerBalances(localProviders);
+      return;
+    }
+
+    const deployedAddresses = ctx.deployedAddresses;
+    if (!('tokens' in deployedAddresses)) {
+      throw new Error('Expected ERC20 deployed addresses with tokens field');
+    }
 
     await setupCollateralBalances(
       localProviders,
@@ -304,27 +451,73 @@ export class TestRebalancerBuilder {
     );
   }
 
+  private async setupInventorySignerBalances(
+    localProviders: Map<string, ethers.providers.JsonRpcProvider>,
+  ): Promise<void> {
+    if (!this.inventorySignerBalanceConfig || !this.inventoryConfig) {
+      return;
+    }
+
+    const signerAddress = new ethers.Wallet(
+      this.inventoryConfig.inventorySignerKey,
+    ).address;
+
+    let balances: Partial<Record<string, string>>;
+    if (typeof this.inventorySignerBalanceConfig === 'string') {
+      balances = INVENTORY_SIGNER_PRESETS[this.inventorySignerBalanceConfig];
+    } else {
+      balances = Object.fromEntries(
+        Object.entries(this.inventorySignerBalanceConfig)
+          .filter(
+            (entry): entry is [string, BigNumber] => entry[1] !== undefined,
+          )
+          .map(([chain, val]) => [chain, val.toString()]),
+      );
+    }
+
+    for (const [chain, balance] of Object.entries(balances)) {
+      const provider = localProviders.get(chain);
+      if (balance === undefined) {
+        continue;
+      }
+      if (!provider) {
+        throw new Error(
+          `Missing local provider for inventory signer chain ${chain}`,
+        );
+      }
+
+      await provider.send('anvil_setBalance', [
+        signerAddress,
+        ethers.utils.hexValue(BigNumber.from(balance)),
+      ]);
+    }
+
+    this.logger.info(
+      { balances, signer: signerAddress },
+      'Inventory signer balances configured',
+    );
+  }
+
   private buildMockExplorerConfig(): MockExplorerConfig {
-    const { deployedAddresses }: LocalDeploymentContext =
-      this.deploymentManager.getContext();
+    const monitoredRoute = this.getMonitoredRouteAddresses();
     const userTransfers: ExplorerMessage[] = [...this.mockTransfers];
 
     for (let i = 0; i < this.pendingTransfers.length; i++) {
       const params = this.pendingTransfers[i];
-      const warpRecipient =
-        params.warpRecipient ?? deployedAddresses.monitoredRoute[params.to];
+      const warpRecipient = params.warpRecipient ?? monitoredRoute[params.to];
 
       const mockTransfer: ExplorerMessage = {
         msg_id: `0x${(1000 + i).toString(16).padStart(64, '0')}`,
         origin_domain_id: DOMAIN_IDS[params.from],
         destination_domain_id: DOMAIN_IDS[params.to],
-        sender: deployedAddresses.monitoredRoute[params.from],
-        recipient: deployedAddresses.monitoredRoute[params.to],
+        sender: monitoredRoute[params.from],
+        recipient: monitoredRoute[params.to],
         origin_tx_hash: `0x${(2000 + i).toString(16).padStart(64, '0')}`,
         origin_tx_sender: `0x${(3000 + i).toString(16).padStart(40, '0')}`,
-        origin_tx_recipient: deployedAddresses.monitoredRoute[params.from],
+        origin_tx_recipient: monitoredRoute[params.from],
         is_delivered: false,
         message_body: encodeWarpRouteMessageBody(warpRecipient, params.amount),
+        send_occurred_at: null,
       };
 
       userTransfers.push(mockTransfer);
@@ -347,6 +540,52 @@ export class TestRebalancerBuilder {
       userTransfers,
       rebalanceActions: [],
     };
+  }
+
+  private getMonitoredRouteAddresses(): Record<TestChain, string> {
+    if (this.inventoryConfig) {
+      return this.inventoryConfig.nativeDeployedAddresses.monitoredRoute;
+    }
+
+    const deployedAddresses =
+      this.deploymentManager.getContext().deployedAddresses;
+    if (!('tokens' in deployedAddresses)) {
+      throw new Error('Expected ERC20 deployed addresses with tokens field');
+    }
+    return deployedAddresses.monitoredRoute;
+  }
+
+  private async getInventoryMultiProvider(
+    localProviders: Map<string, ethers.providers.JsonRpcProvider>,
+  ): Promise<MultiProvider> {
+    const inventoryMultiProvider = this.multiProvider.extendChainMetadata({});
+    if (!this.inventoryConfig) {
+      throw new Error(
+        'Inventory config is required to create inventory MultiProvider',
+      );
+    }
+    const inventoryWallet = new ethers.Wallet(
+      this.inventoryConfig.inventorySignerKey,
+    );
+
+    for (const chain of TEST_CHAINS) {
+      const provider = localProviders.get(chain);
+      if (!provider) {
+        throw new Error(
+          `Missing local provider for inventory chain ${chain} in getInventoryMultiProvider`,
+        );
+      }
+      inventoryMultiProvider.setSigner(
+        chain,
+        inventoryWallet.connect(provider),
+      );
+    }
+
+    this.logger.info(
+      'Created inventory MultiProvider with test inventory signer',
+    );
+
+    return inventoryMultiProvider;
   }
 
   private async getWorkingMultiProvider(): Promise<MultiProvider> {
@@ -375,7 +614,9 @@ export class TestRebalancerBuilder {
 
 export class TestRebalancer {
   static builder(
-    deploymentManager: LocalDeploymentManager,
+    deploymentManager: BaseLocalDeploymentManager<
+      DeployedAddresses | NativeDeployedAddresses
+    >,
     multiProvider: MultiProvider,
   ): TestRebalancerBuilder {
     return new TestRebalancerBuilder(deploymentManager, multiProvider);

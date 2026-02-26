@@ -1,5 +1,61 @@
 # @hyperlane-xyz/rebalancer-sim
 
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies [521d42b]
+  - @hyperlane-xyz/core@10.2.0
+  - @hyperlane-xyz/rebalancer@3.1.1
+  - @hyperlane-xyz/sdk@25.3.2
+  - @hyperlane-xyz/utils@25.3.2
+  - @hyperlane-xyz/provider-sdk@1.3.6
+
+## 0.1.6
+
+### Patch Changes
+
+- Updated dependencies [ff8c0f0]
+- Updated dependencies [aa6871b]
+  - @hyperlane-xyz/rebalancer@3.1.0
+  - @hyperlane-xyz/sdk@25.3.1
+  - @hyperlane-xyz/utils@25.3.1
+  - @hyperlane-xyz/provider-sdk@1.3.5
+  - @hyperlane-xyz/core@10.1.5
+
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [1970a32]
+- Updated dependencies [1970a32]
+- Updated dependencies [aea767c]
+  - @hyperlane-xyz/rebalancer@3.0.0
+  - @hyperlane-xyz/sdk@25.3.0
+  - @hyperlane-xyz/utils@25.3.0
+  - @hyperlane-xyz/provider-sdk@1.3.4
+  - @hyperlane-xyz/core@10.1.5
+
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [215dff0]
+- Updated dependencies [d2f75a1]
+- Updated dependencies [360db52]
+- Updated dependencies [18ec479]
+- Updated dependencies [795d93e]
+- Updated dependencies [e143956]
+- Updated dependencies [c61d612]
+- Updated dependencies [ccd638d]
+- Updated dependencies [c61d612]
+- Updated dependencies [c2affe2]
+  - @hyperlane-xyz/sdk@25.2.0
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/rebalancer@2.0.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/provider-sdk@1.3.3
+
 ## 0.1.3
 
 ### Patch Changes

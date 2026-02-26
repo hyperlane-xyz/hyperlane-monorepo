@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/ccip-server",
-  "version": "25.1.0",
+  "version": "25.3.2",
   "private": true,
   "description": "CCIP server",
   "license": "Apache-2.0",

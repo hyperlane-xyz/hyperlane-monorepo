@@ -6,9 +6,10 @@ import {TokenRouter} from "../token/libs/TokenRouter.sol";
 
 contract TestLpCollateralRouter is LpCollateralRouter {
     constructor(
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox
-    ) TokenRouter(_scale, _mailbox) initializer {
+    ) TokenRouter(_scaleNumerator, _scaleDenominator, _mailbox) initializer {
         _LpCollateralRouter_initialize();
     }
 

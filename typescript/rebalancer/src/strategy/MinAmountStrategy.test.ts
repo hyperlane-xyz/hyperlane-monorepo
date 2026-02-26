@@ -410,6 +410,7 @@ describe('MinAmountStrategy', () => {
           destination: chain1,
           amount: BigInt(70e18),
           bridge: AddressZero,
+          executionType: 'movableCollateral',
         },
       ]);
     });
@@ -467,12 +468,14 @@ describe('MinAmountStrategy', () => {
           destination: chain1,
           amount: BigInt(50e18),
           bridge: AddressZero,
+          executionType: 'movableCollateral',
         },
         {
           origin: chain3,
           destination: chain2,
           amount: BigInt(25e18),
           bridge: AddressZero,
+          executionType: 'movableCollateral',
         },
       ]);
     });
@@ -721,6 +724,7 @@ describe('MinAmountStrategy', () => {
           destination: chain1,
           amount: 100n,
           bridge: AddressZero,
+          executionType: 'movableCollateral',
         },
       ]);
     });

@@ -209,7 +209,7 @@ jobs:
   pnpm-test-run:
     runs-on: depot-ubuntu-24.04
     needs: [change-detection]
-    timeout-minutes: 10
+    timeout-minutes: 20
     if: needs.change-detection.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v6
@@ -387,7 +387,7 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: CLI ethereum e2e tests (${{ matrix.test }})
+      - name: CLI e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
@@ -468,6 +468,40 @@ jobs:
 
       - name: CLI radix e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:radix:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-tron-e2e-matrix:
+    runs-on: depot-ubuntu-latest
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-deploy
+          # Warp Commands
+          - warp-deploy-1
+          - warp-deploy-2
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI tron e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:tron:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
@@ -555,6 +589,7 @@ jobs:
         cli-cosmos-e2e-matrix,
         cli-cross-chain-e2e-matrix,
         cli-radix-e2e-matrix,
+        cli-tron-e2e-matrix,
         cli-aleo-e2e-matrix,
       ]
     if: always()
@@ -580,6 +615,11 @@ jobs:
         with:
           job_name: 'CLI Radix E2E'
           result: ${{ needs.cli-radix-e2e-matrix.result }}
+      - name: Check CLI Tron E2E status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI Tron E2E'
+          result: ${{ needs.cli-tron-e2e-matrix.result }}
       - name: Check CLI Aleo E2E status
         uses: ./.github/actions/check-job-status
         with:
@@ -685,6 +725,43 @@ jobs:
           job_name: 'Radix SDK E2E'
           result: ${{ needs.radix-sdk-e2e-run.result }}
 
+  tron-sdk-e2e-run:
+    runs-on: depot-ubuntu-latest
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Tron SDK e2e tests with coverage
+        run: pnpm -C typescript/tron-sdk coverage
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: tron-sdk
+          files: typescript/tron-sdk/coverage/lcov.info
+          fail_ci_if_error: false
+
+  tron-sdk-e2e:
+    runs-on: ubuntu-latest
+    needs: [tron-sdk-e2e-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check tron-sdk-e2e status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Tron SDK E2E'
+          result: ${{ needs.tron-sdk-e2e-run.result }}
+
   agent-configs:
     runs-on: depot-ubuntu-24.04
     strategy:
@@ -728,6 +805,7 @@ jobs:
           fetch-depth: 0
 
       - uses: actions/setup-node@v6
+        if: matrix.e2e-type == 'evm'
         with:
           node-version-file: .nvmrc
 
@@ -824,7 +902,7 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: pnpm-build
-        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        if: matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Install system dependencies
@@ -834,7 +912,7 @@ jobs:
           sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
 
       - name: Install OpenSSL 1.1 for Solana toolchain
-        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        if: matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true'
         run: |
           wget -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
           sudo dpkg -i libssl1.1.deb

@@ -20,6 +20,8 @@ export { Rebalancer } from './core/Rebalancer.js';
 // Configuration
 export { RebalancerConfig } from './config/RebalancerConfig.js';
 export {
+  DEFAULT_INTENT_TTL_MS,
+  DEFAULT_INTENT_TTL_S,
   getStrategyChainConfig,
   getStrategyChainNames,
   RebalancerBaseChainConfigSchema,
@@ -57,16 +59,23 @@ export { PriceGetter } from './metrics/PriceGetter.js';
 
 // Interfaces
 export type {
+  ExecutionResult,
+  IInventoryRebalancer,
+  IMovableCollateralRebalancer,
   IRebalancer,
+  InventoryExecutionResult,
+  MovableCollateralExecutionResult,
   PreparedTransaction,
-  RebalanceRoute,
-  RebalanceExecutionResult,
+  RebalancerType,
 } from './interfaces/IRebalancer.js';
 export type {
   IStrategy,
-  StrategyRoute,
-  RawBalances,
   InflightContext,
+  InventoryRoute,
+  MovableCollateralRoute,
+  RawBalances,
+  Route,
+  StrategyRoute,
 } from './interfaces/IStrategy.js';
 export type {
   ConfirmedBlockTag,
@@ -82,10 +91,16 @@ export {
 export type { IMetrics } from './interfaces/IMetrics.js';
 
 // Utils
-export { getBridgeConfig } from './utils/bridgeUtils.js';
+export {
+  getBridgeConfig,
+  isMovableCollateralConfig,
+  isInventoryConfig,
+} from './utils/bridgeUtils.js';
 export type {
   BridgeConfigWithOverride,
   BridgeConfig,
+  MovableCollateralBridgeConfig,
+  InventoryBridgeConfig,
 } from './utils/bridgeUtils.js';
 export { getRawBalances } from './utils/balanceUtils.js';
 export { isCollateralizedTokenEligibleForRebalancing } from './utils/tokenUtils.js';
@@ -102,6 +117,8 @@ export type {
   Transfer,
   RebalanceIntent,
   RebalanceAction,
+  ActionType,
+  PartialInventoryIntent,
 } from './tracking/types.js';
 
 // Factory

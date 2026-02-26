@@ -299,7 +299,7 @@ fn run_locally() {
         .cmd("postgres:14")
         .spawn("SQL", None);
 
-    sleep(Duration::from_secs(15));
+    crate::utils::wait_for_postgres();
 
     log!("Init postgres db...");
     Program::new(concat_path(format!("../../{AGENT_BIN_PATH}"), "init-db"))
@@ -323,7 +323,7 @@ fn run_locally() {
     let hpl_scr = launch_cosmos_scraper(path.to_owned(), chains.clone(), hpl_scr_metrics_port);
 
     // give things a chance to fully start.
-    sleep(Duration::from_secs(20));
+    sleep(Duration::from_secs(10));
 
     let starting_relayer_balance: f64 = agent_balance_sum(hpl_rly_metrics_port).unwrap();
 

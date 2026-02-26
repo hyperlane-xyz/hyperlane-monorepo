@@ -33,6 +33,7 @@ export type MonitorEvent = {
     bridgedSupply?: bigint;
   }[];
   confirmedBlockTags: ConfirmedBlockTags;
+  inventoryBalances?: ChainMap<bigint>;
 };
 
 /**

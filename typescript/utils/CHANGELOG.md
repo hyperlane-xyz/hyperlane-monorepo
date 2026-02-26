@@ -1,5 +1,21 @@
 # @hyperlane-xyz/utils
 
+## 25.3.2
+
+## 25.3.1
+
+## 25.3.0
+
+## 25.2.0
+
+### Minor Changes
+
+- ccd638d: Improved shared RPC override handling across TypeScript services.
+
+### Patch Changes
+
+- 360db52: Fixed `timeout()` to clear its internal `setTimeout` when the wrapped promise settles, preventing lingering timers from keeping the Node.js event loop alive.
+
 ## 25.1.0
 
 ### Patch Changes

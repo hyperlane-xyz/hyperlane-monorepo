@@ -31,7 +31,7 @@ contract ApproveLockbox is Script {
         assert(proxyAdmin.getProxyAdmin(proxy) == admin);
 
         vm.startBroadcast(deployerPrivateKey);
-        HypXERC20Lockbox logic = new HypXERC20Lockbox(lockbox, 1, mailbox);
+        HypXERC20Lockbox logic = new HypXERC20Lockbox(lockbox, 1, 1, mailbox);
         proxyAdmin.upgradeAndCall(
             proxy,
             address(logic),

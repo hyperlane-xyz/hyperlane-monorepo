@@ -1,5 +1,60 @@
 # @hyperlane-xyz/widgets
 
+## 25.3.2
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@25.3.2
+- @hyperlane-xyz/aleo-sdk@25.3.2
+- @hyperlane-xyz/cosmos-sdk@25.3.2
+- @hyperlane-xyz/radix-sdk@25.3.2
+- @hyperlane-xyz/utils@25.3.2
+- @hyperlane-xyz/provider-sdk@1.3.6
+
+## 25.3.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@25.3.1
+- @hyperlane-xyz/aleo-sdk@25.3.1
+- @hyperlane-xyz/cosmos-sdk@25.3.1
+- @hyperlane-xyz/radix-sdk@25.3.1
+- @hyperlane-xyz/utils@25.3.1
+- @hyperlane-xyz/provider-sdk@1.3.5
+
+## 25.3.0
+
+### Patch Changes
+
+- Updated dependencies [aea767c]
+  - @hyperlane-xyz/sdk@25.3.0
+  - @hyperlane-xyz/aleo-sdk@25.3.0
+  - @hyperlane-xyz/cosmos-sdk@25.3.0
+  - @hyperlane-xyz/radix-sdk@25.3.0
+  - @hyperlane-xyz/utils@25.3.0
+  - @hyperlane-xyz/provider-sdk@1.3.4
+
+## 25.2.0
+
+### Patch Changes
+
+- Updated dependencies [215dff0]
+- Updated dependencies [d2f75a1]
+- Updated dependencies [360db52]
+- Updated dependencies [18ec479]
+- Updated dependencies [6091a31]
+- Updated dependencies [795d93e]
+- Updated dependencies [e143956]
+- Updated dependencies [ccd638d]
+- Updated dependencies [c61d612]
+- Updated dependencies [c2affe2]
+  - @hyperlane-xyz/sdk@25.2.0
+  - @hyperlane-xyz/utils@25.2.0
+  - @hyperlane-xyz/aleo-sdk@25.2.0
+  - @hyperlane-xyz/cosmos-sdk@25.2.0
+  - @hyperlane-xyz/provider-sdk@1.3.3
+  - @hyperlane-xyz/radix-sdk@25.2.0
+
 ## 25.1.0
 
 ### Patch Changes
