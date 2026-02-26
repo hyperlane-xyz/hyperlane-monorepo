@@ -1,6 +1,7 @@
 import {
   Contract,
   JsonRpcProvider,
+  NonceManager,
   Wallet,
   ZeroAddress,
   zeroPadValue,
@@ -43,7 +44,7 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
     for (let i = 0; i < TEST_CHAIN_CONFIGS.length; i++) {
       const config = TEST_CHAIN_CONFIGS[i];
       const provider = providersByChain.get(config.name)!;
-      const deployer = deployerWallet.connect(provider);
+      const deployer = new NonceManager(deployerWallet.connect(provider));
 
       const token = await new ERC20Test__factory(deployer).deploy(
         'USDC',
@@ -151,7 +152,7 @@ export class Erc20LocalDeploymentManager extends BaseLocalDeploymentManager<Depl
     const bridgeSeedAmount = BigInt(USDC_INITIAL_SUPPLY) / 10n;
     for (const chain of TEST_CHAIN_CONFIGS) {
       const provider = providersByChain.get(chain.name)!;
-      const deployer = deployerWallet.connect(provider);
+      const deployer = new NonceManager(deployerWallet.connect(provider));
       const token = ERC20Test__factory.connect(
         await tokens[chain.name].getAddress(),
         deployer,

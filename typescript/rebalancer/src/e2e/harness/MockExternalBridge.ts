@@ -1,4 +1,10 @@
-import { BigNumber, ethers, type providers } from 'ethers';
+import {
+  Provider,
+  TransactionReceipt,
+  Wallet,
+  hexlify,
+  zeroPadValue,
+} from 'ethers';
 import { pino, type Logger } from 'pino';
 
 import {
@@ -129,12 +135,9 @@ export class MockExternalBridge implements IExternalBridge {
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
 
     const provider = this.multiProvider.getProvider(fromChainName);
-    const signer = new ethers.Wallet(privateKey, provider);
+    const signer = new Wallet(privateKey, provider);
 
-    const recipientBytes32 = ethers.utils.hexZeroPad(
-      ethers.utils.hexlify(route.toAddress),
-      32,
-    );
+    const recipientBytes32 = zeroPadValue(hexlify(route.toAddress), 32);
 
     let tx;
     if (this.tokenType === 'erc20') {
@@ -260,10 +263,7 @@ export class MockExternalBridge implements IExternalBridge {
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
     const provider = this.multiProvider.getProvider(fromChainName);
 
-    const recipientBytes32 = ethers.utils.hexZeroPad(
-      ethers.utils.hexlify(toAddress),
-      32,
-    );
+    const recipientBytes32 = zeroPadValue(hexlify(toAddress), 32);
 
     // Use 1 wei for estimation — gas usage doesn't depend on transfer amount
     const estimateAmount = 1n;
@@ -271,20 +271,18 @@ export class MockExternalBridge implements IExternalBridge {
       // ERC20 transferRemote requires token approval which isn't set up during estimation.
       // Return 0n as a mock — gas costs don't affect test logic.
       return 0n;
-    } else {
-      const bridgeRoute = HypNative__factory.connect(
-        bridgeRouteAddress,
-        provider,
-      );
-      const gasEstimate = await bridgeRoute.estimateGas.transferRemote(
-        destinationDomain,
-        recipientBytes32,
-        estimateAmount,
-        { value: estimateAmount, from: fromAddress },
-      );
-      const gasPrice = await provider.getGasPrice();
-      return gasEstimate.mul(gasPrice).toBigInt();
     }
+
+    const bridgeRoute = HypNative__factory.connect(bridgeRouteAddress, provider);
+    const gasEstimate = await bridgeRoute.transferRemote.estimateGas(
+      destinationDomain,
+      recipientBytes32,
+      estimateAmount,
+      { value: estimateAmount, from: fromAddress },
+    );
+
+    const gasPrice = (await provider.getFeeData()).gasPrice ?? 0n;
+    return gasEstimate * gasPrice;
   }
 
   private parseRoute(route: unknown): MockBridgeRoute {
@@ -330,8 +328,8 @@ export class MockExternalBridge implements IExternalBridge {
   }
 
   private async getTransferredAmount(
-    provider: providers.Provider,
-    receipt: providers.TransactionReceipt,
+    provider: Provider,
+    receipt: TransactionReceipt,
   ): Promise<bigint> {
     const tx = await provider.getTransaction(receipt.transactionHash);
     if (!tx) {
@@ -353,9 +351,6 @@ export class MockExternalBridge implements IExternalBridge {
       }
 
       const amount = parsed.args[2];
-      if (BigNumber.isBigNumber(amount)) {
-        return amount.toBigInt();
-      }
       if (typeof amount === 'bigint') {
         return amount;
       }

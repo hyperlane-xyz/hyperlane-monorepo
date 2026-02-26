@@ -1,4 +1,4 @@
-import { BigNumber, providers } from 'ethers';
+import { JsonRpcProvider } from 'ethers';
 
 import { HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
@@ -68,10 +68,10 @@ export function chainFromDomain(domain: number): string {
 }
 
 export async function getRouterBalances(
-  localProviders: Map<string, providers.JsonRpcProvider>,
+  localProviders: Map<string, JsonRpcProvider>,
   addresses: NativeDeployedAddresses,
-): Promise<Record<string, BigNumber>> {
-  const balances: Record<string, BigNumber> = {};
+): Promise<Record<string, bigint>> {
+  const balances: Record<string, bigint> = {};
   for (const chain of TEST_CHAINS) {
     const provider = localProviders.get(chain);
     assert(provider, `Missing provider for chain ${chain}`);
@@ -121,7 +121,7 @@ export function classifyChains(
 
 export async function relayInProgressInventoryDeposits(
   context: TestRebalancerContext,
-  localProviders: Map<string, providers.JsonRpcProvider>,
+  localProviders: Map<string, JsonRpcProvider>,
   multiProvider: MultiProvider,
   hyperlaneCore: HyperlaneCore,
 ): Promise<void> {

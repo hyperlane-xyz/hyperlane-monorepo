@@ -298,7 +298,7 @@ describe('EvmWarpRouteReader', async () => {
 
     // Derive config and check if scale is correctly read
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
-      warpRoute[chain].synthetic.address,
+      await warpRoute[chain].synthetic.getAddress(),
     );
 
     // Verify scale is returned as an object with bigint numerator/denominator

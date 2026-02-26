@@ -115,6 +115,14 @@ const RPC_SERVER_ERRORS = [
   EthersError.TIMEOUT,
   EthersError.UNKNOWN_ERROR,
 ];
+const RPC_CONNECTION_ERRORS = [
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENOTFOUND',
+  'EHOSTUNREACH',
+  'ETIMEDOUT',
+  'ERR_INVALID_URL',
+] as const;
 
 const RPC_BLOCKCHAIN_ERRORS = [
   EthersError.CALL_EXCEPTION,
@@ -644,8 +652,10 @@ export class HyperlaneSmartProvider
       return hasRevertData || isJsonRpcRevert || isEmptyReturnDecodeFailure;
     });
 
-    const rpcServerError = errors.find((e) =>
-      RPC_SERVER_ERRORS.includes(e.code),
+    const rpcServerError = errors.find(
+      (e) =>
+        RPC_SERVER_ERRORS.includes(e.code) ||
+        RPC_CONNECTION_ERRORS.includes(e.code),
     );
 
     const timedOutError = errors.find(
@@ -664,9 +674,12 @@ export class HyperlaneSmartProvider
     } else if (rpcServerError) {
       return class extends Error {
         constructor() {
+          const errorCode = RPC_SERVER_ERRORS.includes(rpcServerError.code)
+            ? rpcServerError.code
+            : EthersError.SERVER_ERROR;
           super(
             rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
-              getSmartProviderErrorMessage(rpcServerError.code),
+              getSmartProviderErrorMessage(errorCode),
             { cause: rpcServerError },
           );
         }

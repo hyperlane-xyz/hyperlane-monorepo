@@ -367,20 +367,13 @@ export const INVENTORY_SIGNER_PRESETS: Record<
 // Exported so tests can derive expected deficit amounts instead of hardcoding.
 export const INVENTORY_MIN_AMOUNT_MIN = '1';
 export const INVENTORY_MIN_AMOUNT_TARGET = '2';
-export const INVENTORY_MIN_AMOUNT_TARGET_WEI = BigNumber.from(
-  INVENTORY_MIN_AMOUNT_TARGET,
-).mul(BigNumber.from('1000000000000000000'));
+export const INVENTORY_MIN_AMOUNT_TARGET_WEI =
+  BigInt(INVENTORY_MIN_AMOUNT_TARGET) * 1000000000000000000n;
 
 // Weighted strategy deficit constants
-export const WEIGHTED_EXPECTED_DEFICIT_1ETH = BigNumber.from(
-  '1000000000000000000',
-);
-export const WEIGHTED_EXPECTED_DEFICIT_2ETH = BigNumber.from(
-  '2000000000000000000',
-);
-export const WEIGHTED_EXPECTED_DEFICIT_1_2ETH = BigNumber.from(
-  '1200000000000000000',
-);
+export const WEIGHTED_EXPECTED_DEFICIT_1ETH = 1000000000000000000n;
+export const WEIGHTED_EXPECTED_DEFICIT_2ETH = 2000000000000000000n;
+export const WEIGHTED_EXPECTED_DEFICIT_1_2ETH = 1200000000000000000n;
 
 // ERC20 inventory deficit constants (USDC, 6 decimals)
 export const ERC20_INVENTORY_MIN_AMOUNT_TARGET_RAW =
