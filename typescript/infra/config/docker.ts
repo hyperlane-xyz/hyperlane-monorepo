@@ -58,7 +58,7 @@ export const testnetDockerTags: BaseDockerTags = {
   relayerRC: '9771e61-20260226-172441',
   validator: '9771e61-20260226-172441',
   validatorRC: '44c5a89-20260225-130150',
-  scraper: 'cc5e978-20260217-190624',
+  scraper: '9771e61-20260226-172441',
   // standalone services
   keyFunder: '34d6708-20260223-230356',
 };

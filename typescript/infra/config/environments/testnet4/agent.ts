@@ -114,7 +114,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
-    tronshasta: false,
+    tronshasta: true,
   },
 };
 
