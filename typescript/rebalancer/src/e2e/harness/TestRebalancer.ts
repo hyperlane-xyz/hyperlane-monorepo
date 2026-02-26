@@ -541,13 +541,21 @@ export class TestRebalancerBuilder {
     private async setupInventorySignerBalances(
         localProviders: Map<string, ethers.providers.JsonRpcProvider>,
     ): Promise<void> {
-        if (!this.inventorySignerBalanceConfig || !this.inventoryConfig) {
+        if (
+            !this.inventorySignerBalanceConfig ||
+            (!this.inventoryConfig && !this.erc20InventoryConfig)
+        ) {
             return;
         }
 
-        const signerAddress = new ethers.Wallet(
-            this.inventoryConfig.inventorySignerKey,
-        ).address;
+        let signerAddress: string;
+        if (this.inventoryConfig) {
+            signerAddress = new ethers.Wallet(
+                this.inventoryConfig.inventorySignerKey,
+            ).address;
+        } else {
+            signerAddress = "";
+        }
 
         let balances: Partial<Record<string, string>>;
         if (typeof this.inventorySignerBalanceConfig === "string") {
@@ -562,6 +570,55 @@ export class TestRebalancerBuilder {
                     )
                     .map(([chain, val]) => [chain, val.toString()]),
             );
+        }
+
+        if (this.erc20InventoryConfig) {
+            const signerKey = this.erc20InventoryConfig.inventorySignerKey;
+            const signerWallet = new ethers.Wallet(signerKey);
+            signerAddress = signerWallet.address;
+            const deployerKey = ANVIL_TEST_PRIVATE_KEY;
+            const tokens =
+                this.erc20InventoryConfig.erc20DeployedAddresses.tokens;
+
+            for (const [chain, balance] of Object.entries(balances)) {
+                const provider = localProviders.get(chain);
+                if (balance === undefined || !provider) continue;
+
+                const tokenAddress = tokens[chain as TestChain];
+                if (!tokenAddress) continue;
+
+                const connectedSigner = signerWallet.connect(provider);
+                const deployerSigner = new ethers.Wallet(deployerKey, provider);
+                const tokenAsSigner = ERC20Test__factory.connect(
+                    tokenAddress,
+                    connectedSigner,
+                );
+                const tokenAsDeployer = ERC20Test__factory.connect(
+                    tokenAddress,
+                    deployerSigner,
+                );
+
+                const current = await tokenAsSigner.balanceOf(signerAddress);
+                if (current.gt(0)) {
+                    await tokenAsSigner.transfer(
+                        deployerSigner.address,
+                        current,
+                    );
+                }
+
+                if (BigNumber.from(balance).gt(0)) {
+                    await tokenAsDeployer.transfer(
+                        signerAddress,
+                        BigNumber.from(balance),
+                    );
+                }
+            }
+
+            this.logger.info(
+                {balances, signer: signerWallet.address},
+                "ERC20 inventory signer balances configured",
+            );
+            return;
         }
 
         for (const [chain, balance] of Object.entries(balances)) {

@@ -258,6 +258,21 @@ export const BALANCE_PRESETS: Record<string, Record<TestChain, string>> = {
     anvil2: '2000000000',
     anvil3: '1000000000',
   },
+  ERC20_INVENTORY_MULTI_DEFICIT: {
+    anvil1: '6000000000', // 6000 USDC - sole surplus source
+    anvil2: '0', // deficit
+    anvil3: '0', // deficit
+  },
+  ERC20_INVENTORY_WEIGHTED_ALL_ANVIL1: {
+    anvil1: '10000000000', // 10000 USDC - all on anvil1
+    anvil2: '0',
+    anvil3: '0',
+  },
+  ERC20_INVENTORY_WEIGHTED_PARTIAL_SUPPLY: {
+    anvil1: '4800000000', // 4800 USDC
+    anvil2: '1200000000', // 1200 USDC
+    anvil3: '0',
+  },
   INVENTORY_WEIGHTED_ALL_ANVIL1: {
     anvil1: '10000000000000000000',
     anvil2: '0',
@@ -314,6 +329,40 @@ export const INVENTORY_SIGNER_PRESETS: Record<
     anvil2: '600000000000000000', // 0.6 ETH
     anvil3: '300000000000000000', // 0.3 ETH
   },
+  ERC20_SIGNER_PARTIAL_ANVIL2: {
+    anvil2: '50000000', // 50 USDC — forces partial deposit on anvil2
+  },
+  ERC20_SIGNER_LOW_ALL: {
+    anvil1: '100000000', // 100 USDC
+    anvil2: '30000000', // 30 USDC
+    anvil3: '100000000', // 100 USDC
+  },
+  ERC20_SIGNER_FUNDED_ANVIL1: {
+    anvil1: '500000000', // 500 USDC — enough for bridge
+    anvil2: '0',
+    anvil3: '0',
+  },
+  ERC20_SIGNER_SPLIT_SOURCES: {
+    anvil1: '120000000', // 120 USDC
+    anvil2: '0',
+    anvil3: '120000000', // 120 USDC
+  },
+  ERC20_SIGNER_ZERO_ANVIL3: {
+    anvil3: '0',
+  },
+  ERC20_SIGNER_PARTIAL_ANVIL3: {
+    anvil3: '50000000', // 50 USDC — forces partial deposit on anvil3
+  },
+  ERC20_SIGNER_WEIGHTED_LOW_ALL: {
+    anvil1: '800000000', // 800 USDC
+    anvil2: '800000000', // 800 USDC
+    anvil3: '500000000', // 500 USDC
+  },
+  ERC20_SIGNER_WEIGHTED_BRIDGE_SOURCES: {
+    anvil1: '600000000', // 600 USDC
+    anvil2: '600000000', // 600 USDC
+    anvil3: '300000000', // 300 USDC
+  },
 };
 
 // The min/target values used by buildInventoryMinAmountStrategyConfig below.
@@ -334,6 +383,16 @@ export const WEIGHTED_EXPECTED_DEFICIT_2ETH = BigNumber.from(
 export const WEIGHTED_EXPECTED_DEFICIT_1_2ETH = BigNumber.from(
   '1200000000000000000',
 );
+
+// ERC20 inventory deficit constants (USDC, 6 decimals)
+export const ERC20_INVENTORY_MIN_AMOUNT_TARGET_RAW =
+  BigNumber.from('200000000'); // 200 USDC
+export const ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC =
+  BigNumber.from('1000000000'); // 1000 USDC
+export const ERC20_WEIGHTED_EXPECTED_DEFICIT_2000USDC =
+  BigNumber.from('2000000000'); // 2000 USDC
+export const ERC20_WEIGHTED_EXPECTED_DEFICIT_1200USDC =
+  BigNumber.from('1200000000'); // 1200 USDC
 
 export function buildInventoryMinAmountStrategyConfig(
   _addresses: NativeDeployedAddresses,
