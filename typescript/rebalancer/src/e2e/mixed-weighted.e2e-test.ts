@@ -250,8 +250,7 @@ describe('Mixed WeightedStrategy E2E', function () {
     const hasInventoryExecution = inProgressActions.some(
       (action) =>
         action.type === 'inventory_deposit' &&
-        multiProvider.getChainName(action.destination) ===
-          MIXED_INVENTORY_CHAIN,
+        multiProvider.getChainName(action.origin) === MIXED_INVENTORY_CHAIN,
     );
     const hasMovableExecution = inProgressActions.some(
       (action) =>
