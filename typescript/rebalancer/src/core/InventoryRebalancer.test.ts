@@ -49,7 +49,10 @@ describe('InventoryRebalancer E2E', () => {
   beforeEach(() => {
     // Config
     config = {
-      inventorySigner: INVENTORY_SIGNER,
+      inventorySigners: { ethereum: INVENTORY_SIGNER },
+      inventorySignerKeysByProtocol: {
+        ethereum: TEST_PRIVATE_KEY,
+      },
       inventoryChains: [ARBITRUM_CHAIN, SOLANA_CHAIN],
     };
 
@@ -587,10 +590,8 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).to.include('Gas quote failed');
     });
 
-    it('throws when signer is not a Wallet instance', async () => {
-      multiProvider.getSigner = Sinon.stub().returns({
-        getAddress: Sinon.stub().resolves(INVENTORY_SIGNER),
-      });
+    it('fails when inventory signer key is missing for external bridge execution', async () => {
+      config.inventorySignerKeysByProtocol = {};
 
       inventoryRebalancer = new InventoryRebalancer(
         config,
@@ -620,7 +621,7 @@ describe('InventoryRebalancer E2E', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
-      expect(results[0].error).to.include('Wallet');
+      expect(results[0].error).to.include('Missing inventory signer key');
       expect(bridge.execute.called).to.be.false;
     });
   });

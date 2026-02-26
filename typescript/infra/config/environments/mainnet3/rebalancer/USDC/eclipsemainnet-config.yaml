@@ -1,4 +1,10 @@
 warpRouteId: USDC/eclipsemainnet
+inventorySigners:
+  ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
+  sealevel: 'REPLACE_WITH_SOLANA_INVENTORY_SIGNER'
+externalBridges:
+  lifi:
+    integrator: rebalancer
 strategy:
   rebalanceStrategy: weighted
   chains:
@@ -9,6 +15,10 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
 
     base:
       weighted:
@@ -17,6 +27,10 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
 
     arbitrum:
       weighted:
@@ -25,6 +39,10 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
 
     optimism:
       weighted:
@@ -33,6 +51,10 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
 
     polygon:
       weighted:
@@ -41,6 +63,10 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
 
     unichain:
       weighted:
@@ -49,3 +75,33 @@ strategy:
       bridgeLockTime: 1800
       bridgeMinAcceptedAmount: 3500
       bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+      override:
+        solanamainnet:
+          executionType: inventory
+          externalBridge: lifi
+
+    solanamainnet:
+      weighted:
+        weight: 10
+        tolerance: 5
+      executionType: inventory
+      externalBridge: lifi
+      override:
+        ethereum:
+          executionType: inventory
+          externalBridge: lifi
+        base:
+          executionType: inventory
+          externalBridge: lifi
+        arbitrum:
+          executionType: inventory
+          externalBridge: lifi
+        optimism:
+          executionType: inventory
+          externalBridge: lifi
+        polygon:
+          executionType: inventory
+          externalBridge: lifi
+        unichain:
+          executionType: inventory
+          externalBridge: lifi
