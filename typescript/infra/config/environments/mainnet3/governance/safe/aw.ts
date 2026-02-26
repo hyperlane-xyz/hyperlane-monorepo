@@ -65,4 +65,5 @@ export const awSafes: ChainMap<Address> = {
   // Feb 4, 2026 - FPWR ProxyAdmin on Safes
   // ----------------------------------------------------------
   monad: '0x930f79e486B869EC7B5BF4e83121aDfcca198f42',
+  plasma: '0x45A96b92d486B671A09AAc037d7be8940038AaEb',
 };
