@@ -184,20 +184,40 @@ async function parseHookMetadataWithInsight(
   };
 }
 
-// Known ethers.js error codes for RPC/transport failures
-const RPC_ERROR_CODES = new Set([
+// Ethers.js error codes that are unambiguously transient RPC/transport failures
+const TRANSIENT_RPC_ERROR_CODES = new Set([
   'SERVER_ERROR',
   'NETWORK_ERROR',
   'TIMEOUT',
-  'CALL_EXCEPTION',
-  'UNPREDICTABLE_GAS_LIMIT',
-  'INSUFFICIENT_FUNDS',
 ]);
 
+/**
+ * Returns true only for transient RPC/transport errors that are safe to swallow.
+ * CALL_EXCEPTION with revert data or JSON-RPC code 3 indicates a real contract
+ * revert (permanent) and is NOT treated as transient — mirroring the distinction
+ * in SmartProvider.
+ */
 function isRpcOrTransportError(error: unknown): boolean {
   if (error instanceof Error) {
     const code = (error as any).code;
-    if (typeof code === 'string' && RPC_ERROR_CODES.has(code)) return true;
+    if (typeof code === 'string') {
+      if (TRANSIENT_RPC_ERROR_CODES.has(code)) return true;
+      // CALL_EXCEPTION: only transient when there's no revert data and no
+      // JSON-RPC error code 3 (which definitively indicates a contract revert)
+      if (code === 'CALL_EXCEPTION') {
+        const hasRevertData =
+          !!(error as any).data && (error as any).data !== '0x';
+        const nestedError = (error as any).error;
+        const jsonRpcErrorCode = nestedError?.error?.code ?? nestedError?.code;
+        const isJsonRpcRevert = jsonRpcErrorCode === 3;
+        const isEmptyReturnDecodeFailure = !hasRevertData && !nestedError;
+        // Real reverts (with data, JSON-RPC code 3, or decode failures) are permanent
+        if (hasRevertData || isJsonRpcRevert || isEmptyReturnDecodeFailure)
+          return false;
+        // No revert data and not a JSON-RPC revert → likely transient RPC issue
+        return true;
+      }
+    }
     // Common transport-layer patterns
     if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed/i.test(error.message))
       return true;
