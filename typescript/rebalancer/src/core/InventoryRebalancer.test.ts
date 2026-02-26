@@ -190,6 +190,7 @@ describe('InventoryRebalancer E2E', () => {
       getProvider: Sinon.stub().returns(mockProvider),
       getSigner: Sinon.stub().returns(TEST_WALLET),
       sendTransaction: Sinon.stub().resolves({
+        hash: '0xTransferRemoteTxHash',
         transactionHash: '0xTransferRemoteTxHash',
         logs: [], // Required for HyperlaneCore.getDispatchedMessages
       }),
