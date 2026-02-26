@@ -7,7 +7,8 @@ import {
   runTronNode,
   stopTronNode,
 } from '../testing/node.js';
-import TestStorageArtifact from '../abi/contracts/test/TestStorage.sol/TestStorage.json' with { type: 'json' };
+// Keep integration tests independent from generated hardhat artifact paths.
+import TestStorageArtifact from '../testing/artifacts/TestStorage.json' with { type: 'json' };
 
 import { TronContractFactory } from './TronContractFactory.js';
 import { TronWallet } from './TronWallet.js';

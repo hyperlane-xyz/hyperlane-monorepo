@@ -11,9 +11,8 @@ import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
  * Uses tron-solc compiler (via hardhat-tron-solc plugin) with
  * @nomicfoundation/hardhat-foundry for remapping support.
  *
- * Produces both (self-contained within solidity package):
- * - Raw ABI artifacts in ./artifacts-tron/ (for AltVM clients)
- * - TypeChain factories in ./artifacts-tron/typechain/ (for ethers deployers)
+ * Produces raw ABI artifacts in ./artifacts-tron/ for downstream Tron clients.
+ * TypeChain output is configured for compatibility and may be absent in viem flows.
  */
 module.exports = {
   ...rootHardhatConfig,

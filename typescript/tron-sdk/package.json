@@ -34,7 +34,7 @@
     "clean": "rm -rf ./dist ./cache ./coverage",
     "dev": "tsc --watch",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
-    "coverage": "c8 pnpm test"
+    "coverage": "c8 --exclude 'src/abi/**' --exclude 'src/typechain/**' pnpm test"
   },
   "dependencies": {
     "@ethersproject/abi": "*",
