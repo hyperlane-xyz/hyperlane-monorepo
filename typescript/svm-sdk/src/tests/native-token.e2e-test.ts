@@ -4,6 +4,7 @@ import { after, before, describe } from 'mocha';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 
 import { SvmSigner } from '../clients/signer.js';
 import {
@@ -124,7 +125,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
       () => ({
         writer,
         makeConfig: (overrides = {}) => ({
-          type: 'native' as const,
+          type: TokenType.native,
           owner: signer.getSignerAddress(),
           mailbox: mailboxAddress,
           remoteRouters: {},
