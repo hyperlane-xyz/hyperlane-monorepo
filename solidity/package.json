@@ -38,8 +38,6 @@
         "./buildArtifact.json": "./dist/buildArtifact.json",
         "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
         "./tron/abi/*": "./artifacts-tron/*",
-        "./tron/typechain": "./dist/tron/typechain/index.js",
-        "./tron/typechain/*": "./dist/tron/typechain/*",
         "./contracts": "./contracts"
     },
     "types": "./dist/index.d.ts",
