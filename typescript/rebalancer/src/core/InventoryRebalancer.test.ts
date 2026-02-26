@@ -100,6 +100,13 @@ describe('InventoryRebalancer E2E', () => {
         data: '0xTransferRemoteData',
         value: 1000000n,
       }),
+      isApproveRequired: Sinon.stub().resolves(false),
+      isRevokeApprovalRequired: Sinon.stub().resolves(false),
+      populateApproveTx: Sinon.stub().resolves({
+        to: '0xTokenAddress',
+        data: '0xApproveData',
+        value: 0n,
+      }),
     };
 
     // Mock WarpCore with tokens for both chains
