@@ -1,5 +1,5 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { mapAllSettled, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { chainsToSkip } from '../../src/config/chain.js';
@@ -39,10 +39,9 @@ async function main() {
     (chain) => isEthereumProtocolChain(chain) && !chainsToSkip.includes(chain),
   );
 
-  const results: { chain: string; proxyAdmin: string; owner: string }[] = [];
-
-  await Promise.allSettled(
-    targetChains.map(async (chain) => {
+  const { fulfilled, rejected } = await mapAllSettled(
+    targetChains,
+    async (chain) => {
       const owner = resolveGovernanceOwner(
         governanceType as GovernanceType,
         ownerType as Owner,
@@ -67,11 +66,18 @@ async function main() {
       await multiProvider.handleTx(chain, tx);
       logger.info(`Ownership transferred on ${chain}`);
 
-      results.push({ chain, proxyAdmin: address, owner });
-    }),
+      return { chain, proxyAdmin: address, owner };
+    },
+    (chain) => chain,
   );
 
-  console.table(results);
+  if (rejected.size > 0) {
+    for (const [chain, error] of rejected) {
+      logger.error(`Failed on ${chain}`, error);
+    }
+  }
+
+  console.table([...fulfilled.values()]);
 }
 
 main().catch((err) => {
