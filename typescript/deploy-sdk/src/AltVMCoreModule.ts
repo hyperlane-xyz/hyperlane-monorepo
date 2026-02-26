@@ -186,6 +186,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       testRecipient: '',
       interchainAccountRouter: '',
       domainRoutingIsmFactory: '',
+      incrementalDomainRoutingIsmFactory: '',
     };
 
     if (config.defaultIsm && typeof config.defaultIsm !== 'string') {

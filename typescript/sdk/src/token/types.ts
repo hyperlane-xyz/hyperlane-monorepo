@@ -33,14 +33,6 @@ export const contractVersionMatchesDependency = (version: string) => {
 
 export const VERSION_ERROR_MESSAGE = `Contract version must match the @hyperlane-xyz/core dependency version (${CONTRACTS_PACKAGE_VERSION})`;
 
-/**
- * Coerces a string value to bigint.  Needed because bigints are serialised
- * as strings in JSON/YAML and must be converted back on parse.
- */
-const BigIntFromString = z
-  .union([z.bigint(), z.string().transform((s) => BigInt(s))])
-  .pipe(z.bigint());
-
 export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
@@ -53,8 +45,8 @@ export const TokenMetadataSchema = z.object({
         denominator: z.number().int().gt(0),
       }),
       z.object({
-        numerator: BigIntFromString,
-        denominator: BigIntFromString,
+        numerator: z.coerce.bigint(),
+        denominator: z.coerce.bigint(),
       }),
     ])
     .optional(),
