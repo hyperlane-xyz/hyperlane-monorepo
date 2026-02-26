@@ -17,6 +17,7 @@ import { deriveOverheadIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import {
   PROGRAM_BINARIES,
+  TEST_ATA_PAYER_FUNDING_AMOUNT,
   TEST_PROGRAM_IDS,
   airdropSol,
   getPreloadedPrograms,
@@ -105,7 +106,7 @@ describe('SVM Native Warp Token E2E Tests', function () {
       {
         program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenNative },
         igpProgramId,
-        ataPayerFundingAmount: 100_000_000n,
+        ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
       },
       rpc,
       signer,

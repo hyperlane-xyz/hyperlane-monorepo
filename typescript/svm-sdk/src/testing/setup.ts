@@ -49,6 +49,8 @@ export const TEST_PROGRAM_IDS = {
   validatorAnnounce: '4ZiKsHnTUbgH97sMggds4NfV31yBB3hsJJEKk1Fj8NyL' as Address,
 } as const;
 
+export const TEST_ATA_PAYER_FUNDING_AMOUNT = 100_000_000n;
+
 export const PROGRAM_BINARIES = {
   mailbox: 'hyperlane_sealevel_mailbox.so',
   igp: 'hyperlane_sealevel_igp.so',
