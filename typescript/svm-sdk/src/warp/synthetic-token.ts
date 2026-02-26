@@ -359,12 +359,13 @@ export class SvmSyntheticTokenWriter
       );
     }
 
-    const configReceipt = await applyPostInitConfig(
-      this.svmSigner,
-      programAddress,
-      tokenConfig,
+    receipts.push(
+      ...(await applyPostInitConfig(
+        this.svmSigner,
+        programAddress,
+        tokenConfig,
+      )),
     );
-    if (configReceipt) receipts.push(configReceipt);
 
     return [
       {
@@ -390,21 +391,13 @@ export class SvmSyntheticTokenWriter
       `Cannot update synthetic token ${programId}: token has no owner`,
     );
 
-    const instructions = await computeWarpTokenUpdateInstructions(
+    return computeWarpTokenUpdateInstructions(
       current.config,
       artifact.config,
       programId,
       parseAddress(current.config.owner),
       this.config.igpProgramId,
+      `synthetic token ${programId}`,
     );
-
-    if (instructions.length === 0) return [];
-
-    return [
-      {
-        instructions,
-        annotation: `Update synthetic token ${programId}`,
-      },
-    ];
   }
 }

@@ -153,12 +153,13 @@ export class SvmNativeTokenWriter
       }),
     );
 
-    const configReceipt = await applyPostInitConfig(
-      this.svmSigner,
-      programAddress,
-      tokenConfig,
+    receipts.push(
+      ...(await applyPostInitConfig(
+        this.svmSigner,
+        programAddress,
+        tokenConfig,
+      )),
     );
-    if (configReceipt) receipts.push(configReceipt);
 
     return [
       {
@@ -184,21 +185,13 @@ export class SvmNativeTokenWriter
       `Cannot update native token ${programId}: token has no owner`,
     );
 
-    const instructions = await computeWarpTokenUpdateInstructions(
+    return computeWarpTokenUpdateInstructions(
       current.config,
       artifact.config,
       programId,
       parseAddress(current.config.owner),
       this.config.igpProgramId,
+      `native token ${programId}`,
     );
-
-    if (instructions.length === 0) return [];
-
-    return [
-      {
-        instructions,
-        annotation: `Update native token ${programId}`,
-      },
-    ];
   }
 }
