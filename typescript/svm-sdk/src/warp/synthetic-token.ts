@@ -296,13 +296,25 @@ export class SvmSyntheticTokenWriter
     );
 
     // Initialize Token 2022 metadata.
-    // Fund mint account to cover metadata account rent.
+    // Fund mint account to cover the rent increase from metadata TLV being
+    // appended to the mint account. Metadata on-chain layout (Borsh):
+    //   TLV header(4) + update_authority(32) + mint(32)
+    //   + name(4+N) + symbol(4+M) + uri(4+L) + additional_metadata(4)
+    const encoder = new TextEncoder();
+    const nameLen = encoder.encode(tokenConfig.name).length;
+    const symbolLen = encoder.encode(tokenConfig.symbol).length;
+    const uriLen = encoder.encode(tokenConfig.metadataUri).length;
+    const metadataSize =
+      4 + 32 + 32 + (4 + nameLen) + (4 + symbolLen) + (4 + uriLen) + 4;
+    const metadataRent = await this.rpc
+      .getMinimumBalanceForRentExemption(BigInt(metadataSize))
+      .send();
     const fundMintIx: SvmInstruction = buildInstruction(
       SYSTEM_PROGRAM_ADDRESS,
       [writableSigner(this.svmSigner.signer), writableAccount(mintPda)],
       concatBytes(
         u32le(2), // SystemProgram::Transfer discriminator (u32 LE)
-        new Uint8Array(new BigUint64Array([BigInt(1_000_000)]).buffer),
+        new Uint8Array(new BigUint64Array([metadataRent]).buffer),
       ),
     );
 
