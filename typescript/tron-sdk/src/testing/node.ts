@@ -145,33 +145,40 @@ async function waitForTronNodeReady(port: number): Promise<string[]> {
       // connections before internal services are ready, causing requests
       // to hang. A hung ethers provider poisons all subsequent calls.
       const provider = new TronJsonRpcProvider(tronUrl);
-      const tronweb = new TronWeb({ fullHost: tronUrl });
+      try {
+        const tronweb = new TronWeb({ fullHost: tronUrl });
 
-      const [blockNumber, block] = await withTimeout(
-        Promise.all([provider.getBlockNumber(), tronweb.trx.getCurrentBlock()]),
-        5000,
-      );
-      if (blockNumber === 0) {
-        throw new Error('Block number is 0, node not ready');
-      }
-      if (!block.blockID) {
-        throw new Error('HTTP API returned invalid block data');
-      }
+        const [blockNumber, block] = await withTimeout(
+          Promise.all([
+            provider.getBlockNumber(),
+            tronweb.trx.getCurrentBlock(),
+          ]),
+          5000,
+        );
+        if (blockNumber === 0) {
+          throw new Error('Block number is 0, node not ready');
+        }
+        if (!block.blockID) {
+          throw new Error('HTTP API returned invalid block data');
+        }
 
-      // Wait for TRE to fund accounts (happens after node starts mining)
-      const resp = await withTimeout(
-        fetch(`${tronUrl}/admin/accounts-json`),
-        5000,
-      );
-      const data = (await resp.json()) as { privateKeys: string[] };
-      if (!data.privateKeys?.length) {
-        throw new Error('No funded accounts yet');
-      }
-      privateKeys = data.privateKeys;
+        // Wait for TRE to fund accounts (happens after node starts mining)
+        const resp = await withTimeout(
+          fetch(`${tronUrl}/admin/accounts-json`),
+          5000,
+        );
+        const data = (await resp.json()) as { privateKeys: string[] };
+        if (!data.privateKeys?.length) {
+          throw new Error('No funded accounts yet');
+        }
+        privateKeys = data.privateKeys;
 
-      rootLogger.info(
-        `Tron node ready: JSON-RPC at block ${blockNumber}, HTTP API ok, ${privateKeys.length} funded accounts`,
-      );
+        rootLogger.info(
+          `Tron node ready: JSON-RPC at block ${blockNumber}, HTTP API ok, ${privateKeys.length} funded accounts`,
+        );
+      } finally {
+        provider.destroy();
+      }
     },
     1000,
     60,

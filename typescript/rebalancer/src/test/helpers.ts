@@ -246,7 +246,10 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
 
   const defaultChainMetadata: ChainMap<Partial<ChainMetadata>> = {
     ethereum: { domainId: 1, blocks: { confirmations: 32, reorgPeriod: 32 } },
-    arbitrum: { domainId: 42161, blocks: { confirmations: 0, reorgPeriod: 0 } },
+    arbitrum: {
+      domainId: 42161,
+      blocks: { confirmations: 0, reorgPeriod: 0, estimateBlockTime: 1 },
+    },
   };
 
   const mergedMetadata = { ...defaultChainMetadata, ...chainMetadata };
