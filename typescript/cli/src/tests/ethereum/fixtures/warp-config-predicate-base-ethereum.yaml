@@ -1,0 +1,20 @@
+# Base (collateral USDC) -> Ethereum (synthetic) warp route with Predicate compliance
+#
+# This configuration deploys a warp route that uses Predicate for compliance-gated transfers.
+# Users must call transferRemoteWithAttestation() on the PredicateRouterWrapper contract
+# instead of transferRemote() on the underlying warp route.
+#
+# Usage:
+#   hyperlane warp deploy --config warp-config-predicate-base-ethereum.yaml --key <private-key>
+
+base:
+  type: collateral
+  token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  mailbox: "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
+  predicateWrapper:
+    predicateRegistry: "0xe15a8Ca5BD8464283818088c1760d8f23B6a216E"
+    policyId: "x-managed-policy-157b68744498ccac3201a806ef6036ac"
+
+ethereum:
+  type: synthetic
+  mailbox: "0xc005dc82818d67AF737725bD4bf75435d065D239"

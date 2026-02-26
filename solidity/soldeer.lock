@@ -29,6 +29,12 @@ git = "https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable.git"
 rev = "3d4c0d5741b131c231e558d7a6213392ab3672a5"
 
 [[dependencies]]
+name = "@predicate-contracts"
+version = "2.2.2"
+git = "https://github.com/predicatelabs/predicate-contracts.git"
+rev = "v2.2.2"
+
+[[dependencies]]
 name = "forge-std"
 version = "1.9.2"
 url = "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_2_06-08-2024_17:31:25_forge-std-1.9.2.zip"

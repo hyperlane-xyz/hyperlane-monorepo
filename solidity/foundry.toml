@@ -56,6 +56,7 @@ forge-std = "1.9.2"
 "@arbitrum-nitro-contracts" = { version = "1.2.1", git = "https://github.com/OffchainLabs/nitro-contracts.git", tag = "v1.2.1" }
 "@chainlink-contracts-ccip" = { version = "1.5.0", git = "https://github.com/smartcontractkit/ccip.git", tag = "contracts-ccip/v1.5.0" }
 "@eth-optimism-contracts" = { version = "0.6.0", git = "https://github.com/ethereum-optimism/optimism.git", tag = "@eth-optimism/contracts@0.6.0" }
+"@predicate-contracts" = { version = "2.2.2", git = "https://github.com/predicatelabs/predicate-contracts.git", tag = "v2.2.2" }
 
 [soldeer]
 remappings_generate = false  # We'll manage remappings manually to preserve import paths

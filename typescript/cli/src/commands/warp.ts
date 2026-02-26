@@ -296,6 +296,8 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
+      predicateApiKey?: string;
+      attestation?: string;
     }
 > = {
   command: 'send',
@@ -322,6 +324,14 @@ const send: CommandModuleWithWriteContext<
       description: 'Skip transfer validation (e.g., collateral checks)',
       default: false,
     },
+    'predicate-api-key': {
+      type: 'string',
+      description: 'Predicate API key for fetching attestations automatically',
+    },
+    attestation: {
+      type: 'string',
+      description: 'Pre-obtained Predicate attestation (JSON string)',
+    },
   },
   handler: async ({
     context,
@@ -332,15 +342,19 @@ const send: CommandModuleWithWriteContext<
     relay,
     symbol,
     warp,
+    warpRouteId,
     amount,
     recipient,
     roundTrip,
     chains: chainsArg,
     skipValidation,
+    predicateApiKey,
+    attestation,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
       warp,
+      warpRouteId,
       context,
     });
     let chains = chainsArg?.length ? chainsArg : [];
@@ -388,6 +402,8 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
       skipValidation,
+      predicateApiKey,
+      attestation,
     });
     logGreen(
       `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,
