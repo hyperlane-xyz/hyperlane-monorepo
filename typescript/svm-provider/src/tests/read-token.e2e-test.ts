@@ -1,11 +1,10 @@
 import { address, type Address } from '@solana/kit';
 import { before, describe, it } from 'mocha';
 
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import { expect } from 'chai';
 import { createRpc } from '../rpc.js';
 import { SvmWarpArtifactManager } from '../warp/warp-artifact-manager.js';
-import { assert } from '@hyperlane-xyz/utils';
-import { expect } from 'chai';
-import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 
 describe('SVM Warp Token read E2E Tests', function () {
   this.timeout(300_000);
@@ -21,7 +20,17 @@ describe('SVM Warp Token read E2E Tests', function () {
     artifactManager = new SvmWarpArtifactManager(rpc, igpProgramId);
   });
 
-  for (const add of [
+  for (const testCase of [
+    {
+      tokenAddress: '8mZa4mbyu5PF5z5tFuY9d4kAEbdXPWE7PxfVx4d3AntF',
+      type: TokenType.native,
+      expectedMetadata: {
+        name: undefined,
+        symbol: undefined,
+        decimals: 9,
+        scale: undefined,
+      },
+    },
     {
       tokenAddress: '8rodtMgnpCboxNiaQozdCTGiCEkK6BDXmFuoJ9qhTxfh',
       type: TokenType.collateral,
@@ -65,18 +74,16 @@ describe('SVM Warp Token read E2E Tests', function () {
       },
     },
   ]) {
-    it(`should read the prod deployment for ${add.tokenAddress}`, async () => {
-      const read = await artifactManager.readWarpToken(add.tokenAddress);
+    it(`should read the prod deployment for ${testCase.type} token at ${testCase.tokenAddress}`, async () => {
+      const read = await artifactManager.readWarpToken(testCase.tokenAddress);
 
       const onChainConfig = read.config;
-      assert(
-        onChainConfig.type === add.type,
-        `Expected token type to be either ${TokenType.collateral} or ${TokenType.synthetic}`,
+      expect(onChainConfig.name).to.equal(testCase.expectedMetadata.name);
+      expect(onChainConfig.decimals).to.equal(
+        testCase.expectedMetadata.decimals,
       );
-      expect(onChainConfig.name).to.equal(add.expectedMetadata.name);
-      expect(onChainConfig.decimals).to.equal(add.expectedMetadata.decimals);
-      expect(onChainConfig.symbol).to.equal(add.expectedMetadata.symbol);
-      expect(onChainConfig.scale).to.equal(add.expectedMetadata.scale);
+      expect(onChainConfig.symbol).to.equal(testCase.expectedMetadata.symbol);
+      expect(onChainConfig.scale).to.equal(testCase.expectedMetadata.scale);
     });
   }
 });
