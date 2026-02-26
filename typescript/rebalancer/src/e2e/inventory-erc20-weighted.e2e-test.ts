@@ -10,6 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { ExternalBridgeType } from '../config/types.js';
+import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 
 import {
   ANVIL_TEST_PRIVATE_KEY,
@@ -88,7 +89,10 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
     }
 
     if (deposits.length > 0) {
-      await context.tracker.syncRebalanceActions();
+      const useLatestBlockTags = Object.fromEntries(
+        TEST_CHAINS.map((c) => [c, undefined]),
+      ) as ConfirmedBlockTags;
+      await context.tracker.syncRebalanceActions(useLatestBlockTags);
     }
   }
 
