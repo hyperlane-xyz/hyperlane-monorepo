@@ -6,6 +6,7 @@ use account_utils::DiscriminatorEncode;
 use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
 use hyperlane_sealevel_fee::{
     accounts::FeeData,
+    fee::compute_fee,
     fee_route_pda_seeds,
     instruction::{init_fee_instruction, set_route_instruction},
     processor::process_instruction as fee_process_instruction,
@@ -1611,15 +1612,14 @@ async fn test_transfer_remote_with_linear_fee() {
 
     let transfer_amount = 69 * ONE_SOL_IN_LAMPORTS;
 
-    // Compute expected fee: Linear = min(max_fee, amount * max_fee / (2 * half_amount))
-    let expected_fee: u64 = {
-        let a = transfer_amount as u128;
-        let m = max_fee as u128;
-        let h = half_amount as u128;
-        let linear = (a * m) / (2 * h);
-        std::cmp::min(max_fee as u128, linear) as u64
-    };
-    // 69_000_000_000 * 200_000_000 / (2 * 50_000_000_000) = 138_000_000
+    let expected_fee = compute_fee(
+        &FeeData::Linear {
+            max_fee,
+            half_amount,
+        },
+        transfer_amount,
+    )
+    .unwrap();
     assert_eq!(expected_fee, 138_000_000);
 
     let sender_balance_before = banks_client.get_balance(token_sender_pubkey).await.unwrap();
@@ -2088,12 +2088,14 @@ async fn test_transfer_remote_fee_after_beneficiary_change() {
     let token_sender_pubkey = token_sender.pubkey();
 
     let transfer_amount = 69 * ONE_SOL_IN_LAMPORTS;
-    let expected_fee: u64 = {
-        let a = transfer_amount as u128;
-        let m = max_fee as u128;
-        let h = half_amount as u128;
-        std::cmp::min(max_fee as u128, (a * m) / (2 * h)) as u64
-    };
+    let expected_fee = compute_fee(
+        &FeeData::Linear {
+            max_fee,
+            half_amount,
+        },
+        transfer_amount,
+    )
+    .unwrap();
 
     // First transfer → fees go to beneficiary A
     {
@@ -2354,12 +2356,14 @@ async fn test_transfer_remote_with_routing_fee() {
     );
 
     let transfer_amount = 69 * ONE_SOL_IN_LAMPORTS;
-    let expected_fee: u64 = {
-        let a = transfer_amount as u128;
-        let m = max_fee as u128;
-        let h = half_amount as u128;
-        std::cmp::min(max_fee as u128, (a * m) / (2 * h)) as u64
-    };
+    let expected_fee = compute_fee(
+        &FeeData::Linear {
+            max_fee,
+            half_amount,
+        },
+        transfer_amount,
+    )
+    .unwrap();
 
     let native_collateral_before = banks_client
         .get_balance(hyperlane_token_accounts.native_collateral)
