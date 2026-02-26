@@ -268,9 +268,4 @@ contract PredicateRouterWrapper is
 
         _setRegistry(_registry);
     }
-
-    // ============ Receive ============
-
-    /// @notice Allow receiving ETH for refunds
-    receive() external payable {}
 }
