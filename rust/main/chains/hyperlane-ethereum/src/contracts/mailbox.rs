@@ -744,8 +744,6 @@ mod test {
             grpc_urls: None,
             solidity_grpc_urls: None,
             energy_multiplier: None,
-            grpc_urls: None,
-            solidity_grpc_urls: None,
         };
 
         let mailbox = EthereumMailbox::new(
