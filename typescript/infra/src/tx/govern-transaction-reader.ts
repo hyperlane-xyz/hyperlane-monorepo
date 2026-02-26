@@ -184,6 +184,36 @@ async function parseHookMetadataWithInsight(
   };
 }
 
+// Known ethers.js error codes for RPC/transport failures
+const RPC_ERROR_CODES = new Set([
+  'SERVER_ERROR',
+  'NETWORK_ERROR',
+  'TIMEOUT',
+  'CALL_EXCEPTION',
+  'UNPREDICTABLE_GAS_LIMIT',
+  'INSUFFICIENT_FUNDS',
+]);
+
+function isRpcOrTransportError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const code = (error as any).code;
+    if (typeof code === 'string' && RPC_ERROR_CODES.has(code)) return true;
+    // Common transport-layer patterns
+    if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed/i.test(error.message))
+      return true;
+  }
+  return false;
+}
+
+function summarizeError(error: unknown): string {
+  if (error instanceof Error) {
+    const code = (error as any).code;
+    const prefix = typeof code === 'string' ? `[${code}] ` : '';
+    return `${prefix}${error.message.slice(0, 120)}`;
+  }
+  return 'unknown error';
+}
+
 export class GovernTransactionReader {
   errors: any[] = [];
 
@@ -1716,21 +1746,27 @@ export class GovernTransactionReader {
           eqAddress(remoteIcaAddress, expectedLegacyRemoteIcaAddress);
 
         if (!isValidIca && !isValidLegacyIca) {
+          const displayExpected =
+            expectedRemoteIcaAddress ??
+            expectedLegacyRemoteIcaAddress ??
+            '<none>';
           this.errors.push({
             chain: chain,
             remoteDomain: destination,
             remoteChain: remoteChainName,
             ica: remoteIcaAddress,
-            expected: expectedRemoteIcaAddress,
+            expected: displayExpected,
             info: 'Incorrect destination ICA in ICA call',
           });
-          remoteIcaInsight = `❌ fatal mismatch, expected ${expectedRemoteIcaAddress}`;
+          remoteIcaInsight = `❌ fatal mismatch, expected ${displayExpected}`;
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      if (!isRpcOrTransportError(error)) {
+        throw error;
+      }
       this.logger.warn(
-        `Failed to derive ICA address for ${remoteChainName}, using expected address`,
-        error,
+        `Failed to derive ICA address for ${remoteChainName}, using expected address: ${summarizeError(error)}`,
       );
       remoteIcaAddress =
         expectedRemoteIcaAddress ?? expectedLegacyRemoteIcaAddress;
@@ -1746,10 +1782,12 @@ export class GovernTransactionReader {
         };
         try {
           return await this.read(remoteChainName, icaCallAsTx);
-        } catch (error) {
+        } catch (error: unknown) {
+          if (!isRpcOrTransportError(error)) {
+            throw error;
+          }
           this.logger.warn(
-            `Failed to decode ICA call to ${icaCallAsTx.to} on ${remoteChainName}`,
-            error,
+            `Failed to decode ICA call to ${icaCallAsTx.to} on ${remoteChainName}: ${summarizeError(error)}`,
           );
           return {
             chain: remoteChainName,
@@ -1812,10 +1850,12 @@ export class GovernTransactionReader {
             operation: formatOperationType(multisend.operation),
             decoded,
           };
-        } catch (error) {
-          this.logger.error(
-            `Failed to decode multisend at index ${index}:`,
-            error,
+        } catch (error: unknown) {
+          if (!isRpcOrTransportError(error)) {
+            throw error;
+          }
+          this.logger.warn(
+            `Failed to decode multisend at index ${index}: ${summarizeError(error)}`,
           );
           return {
             chain,
@@ -1824,7 +1864,7 @@ export class GovernTransactionReader {
             operation: formatOperationType(multisend.operation),
             decoded: {
               chain,
-              insight: `⚠️ failed to decode (${error instanceof Error ? error.message.slice(0, 100) : 'unknown error'})`,
+              insight: `⚠️ failed to decode (${summarizeError(error)})`,
               to: multisend.to,
               data: multisend.data,
             },
