@@ -1,4 +1,5 @@
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
 import { type AleoProgram } from '../artifacts.js';
@@ -113,7 +114,7 @@ export class AleoSigner
   }
 
   async getWarpTokenSuffix(
-    tokenType: 'native' | 'collateral' | 'synthetic',
+    tokenType: TokenType,
     preferredSuffix?: string,
     maxAttempts = 20,
   ): Promise<string> {
