@@ -28,7 +28,7 @@ use crate::settings::{
     chains::IndexSettings,
     parser::connection_parser::{build_connection_conf, is_protocol_supported},
     trace::TracingConfig,
-    ChainConf, CoreContractAddresses, Settings, SignerConf,
+    ChainConf, ChainConnectionConf, CoreContractAddresses, Settings, SignerConf,
 };
 
 pub use super::envs::*;
@@ -281,6 +281,16 @@ fn parse_chain(
             max_submit_queue_length,
         },
     );
+
+    // Convert Ethereum → Tron when techstack indicates Tron
+    let connection = connection.map(|conn| {
+        if domain.domain_technical_stack() == HyperlaneDomainTechnicalStack::Tron {
+            if let ChainConnectionConf::Ethereum(eth_conf) = conn {
+                return ethereum_to_tron_connection_conf(eth_conf);
+            }
+        }
+        conn
+    });
 
     cfg_unwrap_all!(&chain.cwp, err: [connection, mailbox, interchain_gas_paymaster, validator_announce, merkle_tree_hook]);
 
@@ -616,4 +626,17 @@ fn parse_base_and_override_urls(
         );
     }
     combined
+}
+
+/// Convert an Ethereum connection conf to a Tron connection conf.
+/// Used when a chain has `protocol: "ethereum"` + `technicalStack: "tron"`.
+fn ethereum_to_tron_connection_conf(
+    eth_conf: hyperlane_ethereum::ConnectionConf,
+) -> ChainConnectionConf {
+    ChainConnectionConf::Tron(hyperlane_tron::ConnectionConf::new(
+        eth_conf.rpc_urls(),
+        eth_conf.grpc_urls.unwrap_or_default(),
+        eth_conf.solidity_grpc_urls.unwrap_or_default(),
+        eth_conf.energy_multiplier,
+    ))
 }

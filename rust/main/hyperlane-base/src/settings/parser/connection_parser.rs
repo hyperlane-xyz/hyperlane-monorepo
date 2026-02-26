@@ -125,11 +125,31 @@ pub fn build_ethereum_connection_conf(
         .parse_bool()
         .unwrap_or(false);
 
+    let grpc_urls =
+        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", err, true);
+    let solidity_grpc_urls = parse_base_and_override_urls(
+        chain,
+        "solidityGrpcUrls",
+        "customSolidityGrpcUrls",
+        "http",
+        err,
+        true,
+    );
+
+    let energy_multiplier = chain
+        .chain(err)
+        .get_opt_key("feeMultiplier")
+        .parse_f64()
+        .end();
+
     Some(ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
         rpc_connection: rpc_connection_conf?,
         transaction_overrides,
         op_submission_config: operation_batch,
         consider_null_transaction_receipt,
+        grpc_urls: Some(grpc_urls),
+        solidity_grpc_urls: Some(solidity_grpc_urls),
+        energy_multiplier,
     }))
 }
 

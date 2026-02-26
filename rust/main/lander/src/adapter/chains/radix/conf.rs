@@ -100,6 +100,9 @@ mod tests {
                 transaction_overrides: TransactionOverrides::default(),
                 op_submission_config: OpSubmissionConfig::default(),
                 consider_null_transaction_receipt: false,
+                grpc_urls: None,
+                solidity_grpc_urls: None,
+                energy_multiplier: None,
             }),
         );
 
