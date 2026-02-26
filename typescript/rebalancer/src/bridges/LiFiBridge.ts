@@ -1,8 +1,10 @@
 import {
   EVM,
+  KeypairWalletAdapter,
   type LiFiStep,
   type Route,
   type RouteExtended,
+  Solana,
   convertQuoteToRoute,
   createConfig,
   executeRoute,
@@ -14,7 +16,7 @@ import type { Logger } from 'pino';
 import { type Chain, createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { arbitrum, base, mainnet, optimism } from 'viem/chains';
-import { assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import type {
   BridgeQuote,
@@ -119,6 +121,16 @@ export class LiFiBridge implements IExternalBridge {
     for (const metadata of Object.values(this.config.chainMetadata)) {
       if (metadata.chainId === chainId && metadata.rpcUrls?.length) {
         return metadata.rpcUrls[0].http;
+      }
+    }
+    return undefined;
+  }
+
+  private getProtocolForChainId(chainId: number): ProtocolType | undefined {
+    if (!this.config.chainMetadata) return undefined;
+    for (const metadata of Object.values(this.config.chainMetadata)) {
+      if (metadata.chainId === chainId) {
+        return metadata.protocol;
       }
     }
     return undefined;
@@ -351,41 +363,55 @@ export class LiFiBridge implements IExternalBridge {
       'Executing LiFi bridge transfer',
     );
 
-    // Create viem account and wallet client for the source chain
-    const account = privateKeyToAccount(privateKey as `0x${string}`);
-    const rpcUrl = this.getRpcUrlForChainId(fromChain);
-    const chain = getViemChain(fromChain, rpcUrl);
+    const sourceProtocol = this.getProtocolForChainId(fromChain);
+    if (sourceProtocol === ProtocolType.Sealevel) {
+      const walletAdapter = new (KeypairWalletAdapter as any)(privateKey);
+      lifiConfig.setProviders([
+        (Solana as any)({
+          getWalletAdapter: async () => walletAdapter,
+        }),
+      ]);
+      this.logger.debug(
+        { fromChain, sourceProtocol },
+        'Configured LiFi Solana provider for execution',
+      );
+    } else {
+      // Create viem account and wallet client for the source chain
+      const account = privateKeyToAccount(privateKey as `0x${string}`);
+      const rpcUrl = this.getRpcUrlForChainId(fromChain);
+      const chain = getViemChain(fromChain, rpcUrl);
 
-    const walletClient = createWalletClient({
-      account,
-      chain,
-      transport: http(rpcUrl),
-    });
+      const walletClient = createWalletClient({
+        account,
+        chain,
+        transport: http(rpcUrl),
+      });
 
-    this.logger.debug(
-      {
-        fromChain,
-        chainName: chain.name,
-        account: account.address,
-      },
-      'Created viem WalletClient for LiFi execution',
-    );
-
-    // Configure LiFi SDK with EVM provider that has our wallet client
-    lifiConfig.setProviders([
-      EVM({
-        getWalletClient: async () => walletClient,
-        switchChain: async (requiredChainId: number) => {
-          const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
-          const requiredChain = getViemChain(requiredChainId, switchRpcUrl);
-          return createWalletClient({
-            account,
-            chain: requiredChain,
-            transport: http(switchRpcUrl),
-          });
+      this.logger.debug(
+        {
+          fromChain,
+          chainName: chain.name,
+          account: account.address,
         },
-      }),
-    ]);
+        'Created viem WalletClient for LiFi execution',
+      );
+
+      // Configure LiFi SDK with EVM provider that has our wallet client
+      lifiConfig.setProviders([
+        EVM({
+          getWalletClient: async () => walletClient,
+          switchChain: async (requiredChainId: number) => {
+            const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
+            const requiredChain = getViemChain(requiredChainId, switchRpcUrl);
+            return createWalletClient({
+              account,
+              chain: requiredChain,
+              transport: http(switchRpcUrl),
+            });
+          },
+        }),
+      ]);
+    }
 
     let txHash: string | undefined;
 

@@ -6,7 +6,7 @@ import {
   type MultiProvider,
   Token,
 } from '@hyperlane-xyz/sdk';
-import { assert, toWei } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, toWei } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
@@ -129,6 +129,9 @@ export class RebalancerService {
     private readonly registry: IRegistry,
     private readonly rebalancerConfig: RebalancerConfig,
     private readonly config: RebalancerServiceConfig,
+    private readonly inventorySignerKeysByProtocol?: Partial<
+      Record<ProtocolType, string>
+    >,
   ) {
     this.logger = config.logger;
     this.mode = config.mode;
@@ -153,6 +156,8 @@ export class RebalancerService {
       this.multiProtocolProvider,
       this.registry,
       this.logger,
+      undefined,
+      this.inventorySignerKeysByProtocol,
     );
 
     // Create metrics if enabled

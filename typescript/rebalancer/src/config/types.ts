@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum RebalancerStrategyOptions {
   Weighted = 'weighted',
@@ -131,9 +132,8 @@ export const RebalancerConfigSchema = z
   .object({
     warpRouteId: z.string(),
     strategy: RebalancerStrategySchema,
-    inventorySigner: z
-      .string()
-      .regex(/0x[a-fA-F0-9]{40}/)
+    inventorySigners: z
+      .record(z.nativeEnum(ProtocolType), z.string())
       .optional(),
     externalBridges: ExternalBridgesConfigSchema.optional(),
     intentTTL: z
@@ -261,22 +261,86 @@ export const RebalancerConfigSchema = z
             ],
           });
         }
+
+        // Validate override content by merging override onto base config.
+        if ('override' in chainConfig && chainConfig.override) {
+          for (const [destination, destinationOverride] of Object.entries(
+            chainConfig.override,
+          )) {
+            const mergedConfig = {
+              ...chainConfig,
+              ...(destinationOverride as Record<string, unknown>),
+            };
+            const mergedExecutionType =
+              (mergedConfig.executionType as ExecutionType | undefined) ??
+              ExecutionType.MovableCollateral;
+
+            if (
+              mergedExecutionType === ExecutionType.MovableCollateral &&
+              !mergedConfig.bridge
+            ) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `Chain '${chainName}' override for '${destination}' uses movableCollateral execution but has no 'bridge' address`,
+                path: [
+                  'strategy',
+                  strategyIndex,
+                  'chains',
+                  chainName,
+                  'override',
+                  destination,
+                  'bridge',
+                ],
+              });
+            }
+
+            if (
+              mergedExecutionType === ExecutionType.Inventory &&
+              !mergedConfig.externalBridge
+            ) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `Chain '${chainName}' override for '${destination}' uses inventory execution but has no 'externalBridge' configured`,
+                path: [
+                  'strategy',
+                  strategyIndex,
+                  'chains',
+                  chainName,
+                  'override',
+                  destination,
+                  'externalBridge',
+                ],
+              });
+            }
+          }
+        }
       }
     }
 
     const hasInventoryChains = config.strategy.some((strategy) =>
-      Object.values(strategy.chains).some(
-        (chainConfig) => chainConfig.executionType === ExecutionType.Inventory,
-      ),
+      Object.values(strategy.chains).some((chainConfig) => {
+        if (chainConfig.executionType === ExecutionType.Inventory) return true;
+        if (!chainConfig.override) return false;
+        return Object.values(chainConfig.override).some((overrideConfig) => {
+          const merged = {
+            ...chainConfig,
+            ...(overrideConfig as Record<string, unknown>),
+          };
+          return merged.executionType === ExecutionType.Inventory;
+        });
+      }),
     );
 
     if (hasInventoryChains) {
-      if (!config.inventorySigner) {
+      if (
+        !config.inventorySigners ||
+        !Object.keys(config.inventorySigners).length
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
-            'inventorySigner is required when any chain uses inventory execution type',
-          path: ['inventorySigner'],
+            'inventorySigners is required when any chain uses inventory execution type',
+          path: ['inventorySigners'],
         });
       }
 
@@ -290,17 +354,55 @@ export const RebalancerConfigSchema = z
       }
     }
 
-    for (const strategy of config.strategy) {
+    for (
+      let strategyIndex = 0;
+      strategyIndex < config.strategy.length;
+      strategyIndex++
+    ) {
+      const strategy = config.strategy[strategyIndex];
       for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
-        if (
-          chainConfig.externalBridge === ExternalBridgeType.LiFi &&
-          !config.externalBridges?.lifi?.integrator
-        ) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Chain '${chainName}' uses externalBridge: 'lifi' but externalBridges.lifi is not configured`,
-            path: ['externalBridges', 'lifi'],
-          });
+        const checkLifiBridge = (
+          externalBridge: ExternalBridgeType | undefined,
+          path: (string | number)[],
+        ) => {
+          if (
+            externalBridge === ExternalBridgeType.LiFi &&
+            !config.externalBridges?.lifi?.integrator
+          ) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Chain '${chainName}' uses externalBridge: 'lifi' but externalBridges.lifi is not configured`,
+              path,
+            });
+          }
+        };
+
+        checkLifiBridge(chainConfig.externalBridge, [
+          'externalBridges',
+          'lifi',
+        ]);
+
+        if (chainConfig.override) {
+          for (const [destination, overrideConfig] of Object.entries(
+            chainConfig.override,
+          )) {
+            const merged = {
+              ...chainConfig,
+              ...(overrideConfig as Record<string, unknown>),
+            };
+            checkLifiBridge(
+              merged.externalBridge as ExternalBridgeType | undefined,
+              [
+                'strategy',
+                strategyIndex,
+                'chains',
+                chainName,
+                'override',
+                destination,
+                'externalBridge',
+              ],
+            );
+          }
         }
       }
     }
@@ -393,8 +495,16 @@ export function getChainExecutionType(
  */
 export function hasInventoryChains(strategies: StrategyConfig[]): boolean {
   return strategies.some((strategy) =>
-    Object.values(strategy.chains).some(
-      (chainConfig) => chainConfig.executionType === ExecutionType.Inventory,
-    ),
+    Object.values(strategy.chains).some((chainConfig) => {
+      if (chainConfig.executionType === ExecutionType.Inventory) return true;
+      if (!chainConfig.override) return false;
+      return Object.values(chainConfig.override).some((overrideConfig) => {
+        const merged = {
+          ...chainConfig,
+          ...(overrideConfig as Record<string, unknown>),
+        };
+        return merged.executionType === ExecutionType.Inventory;
+      });
+    }),
   );
 }
