@@ -54,14 +54,20 @@ class CCTPAttestationService {
     fieldIndex: number,
     fieldOffset: number,
   ): `0x${string}` {
-    return CCTPAttestationService.sliceHexData(message, fieldIndex, fieldOffset);
+    return CCTPAttestationService.sliceHexData(
+      message,
+      fieldIndex,
+      fieldOffset,
+    );
   }
 
   // Index and offset values retrieved from CctpMessageV2.sol
   _getCCTPVersionFromMessage(message: string): bigint {
     const versionIndex = 0;
     const versionOffset = 4;
-    return BigInt(this._getFieldFromMessage(message, versionIndex, versionOffset));
+    return BigInt(
+      this._getFieldFromMessage(message, versionIndex, versionOffset),
+    );
   }
 
   // Index and offset values retrieved from CctpMessageV2.sol

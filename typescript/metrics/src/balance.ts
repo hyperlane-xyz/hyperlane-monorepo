@@ -262,7 +262,9 @@ export async function getExtraLockboxInfo(
   warpToken: Token,
   lockboxAddress: Address,
 ): Promise<XERC20Info> {
-  const currentChainProvider = multiProvider.getViemProvider(warpToken.chainName);
+  const currentChainProvider = multiProvider.getViemProvider(
+    warpToken.chainName,
+  );
   const xERC20Address = await readManagedLockBoxXERC20(
     multiProvider,
     warpToken.chainName,

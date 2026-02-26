@@ -25,10 +25,7 @@
  */
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import {
-  LocalAccountViemSigner,
-  MultiProvider,
-} from '@hyperlane-xyz/sdk';
+import { LocalAccountViemSigner, MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,

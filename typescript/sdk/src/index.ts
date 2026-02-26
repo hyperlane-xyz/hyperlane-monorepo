@@ -418,6 +418,10 @@ export {
   CosmJsWasmProvider,
   CosmJsWasmTransaction,
   CosmJsWasmTransactionReceipt,
+  EvmContract,
+  EvmProvider,
+  EvmTransaction,
+  EvmTransactionReceipt,
   EthersV5Contract,
   EthersV5Provider,
   EthersV5Transaction,
@@ -499,7 +503,7 @@ export {
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
   EvmIcaTxSubmitterProps,
   isJsonRpcSubmitterConfig,
-} from './providers/transactions/submitter/ethersV5/types.js';
+} from './providers/transactions/submitter/evm/types.js';
 
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
 export {
@@ -511,11 +515,11 @@ export {
   preprocessChainSubmissionStrategy,
 } from './providers/transactions/submitter/builder/types.js';
 
-export { EV5GnosisSafeTxBuilder } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxBuilder.js';
-export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
-export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
-export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
-export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
+export { EV5GnosisSafeTxBuilder } from './providers/transactions/submitter/evm/EV5GnosisSafeTxBuilder.js';
+export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/evm/EV5GnosisSafeTxSubmitter.js';
+export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/evm/EV5ImpersonatedAccountTxSubmitter.js';
+export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/evm/EV5JsonRpcTxSubmitter.js';
+export { EV5TxSubmitterInterface } from './providers/transactions/submitter/evm/EV5TxSubmitterInterface.js';
 export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmitter.js';
 export {
   SubmitterBuilderSettings,

@@ -1,7 +1,11 @@
 import type { Logger } from 'pino';
 
 import { HyperlaneCore, type MultiProvider } from '@hyperlane-xyz/sdk';
-import { bytes32ToAddress, messageId, parseMessage } from '@hyperlane-xyz/utils';
+import {
+  bytes32ToAddress,
+  messageId,
+  parseMessage,
+} from '@hyperlane-xyz/utils';
 
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';

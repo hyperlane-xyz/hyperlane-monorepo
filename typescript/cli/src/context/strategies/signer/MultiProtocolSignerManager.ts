@@ -234,10 +234,12 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
     switch (metadata.protocol) {
       case ProtocolType.Ethereum: {
         try {
-          const provider = this.multiProtocolProvider.getEvmProvider(
+          const provider = this.multiProtocolProvider.getViemProvider(
             params.chain,
           );
-          const balance = await provider.getBalance(params.address);
+          const balance = await provider.getBalance({
+            address: params.address as `0x${string}`,
+          });
           return balance;
         } catch (err) {
           throw new Error(

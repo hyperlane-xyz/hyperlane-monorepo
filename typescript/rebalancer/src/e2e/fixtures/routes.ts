@@ -1,5 +1,5 @@
-import {TokenStandard, type WarpCoreConfig} from "@hyperlane-xyz/sdk";
-import {ProtocolType} from "@hyperlane-xyz/utils";
+import { TokenStandard, type WarpCoreConfig } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   ExecutionType,
@@ -11,18 +11,18 @@ import {
 
 // Synthetic test chain configurations
 export const TEST_CHAIN_CONFIGS = [
-    {name: "anvil1", chainId: 31337, domainId: 31337},
-    {name: "anvil2", chainId: 31338, domainId: 31338},
-    {name: "anvil3", chainId: 31339, domainId: 31339},
+  { name: 'anvil1', chainId: 31337, domainId: 31337 },
+  { name: 'anvil2', chainId: 31338, domainId: 31338 },
+  { name: 'anvil3', chainId: 31339, domainId: 31339 },
 ] as const;
 
-export type TestChain = (typeof TEST_CHAIN_CONFIGS)[number]["name"];
+export type TestChain = (typeof TEST_CHAIN_CONFIGS)[number]['name'];
 export const TEST_CHAINS: readonly TestChain[] = TEST_CHAIN_CONFIGS.map(
-    (c) => c.name,
+  (c) => c.name,
 ) as unknown as readonly TestChain[];
 
 export const DOMAIN_IDS: Record<TestChain, number> = Object.fromEntries(
-    TEST_CHAIN_CONFIGS.map((c) => [c.name, c.domainId]),
+  TEST_CHAIN_CONFIGS.map((c) => [c.name, c.domainId]),
 ) as Record<TestChain, number>;
 
 // Warp route identifiers (used in RebalancerConfig)
@@ -38,20 +38,20 @@ export const ERC20_INVENTORY_BRIDGE_ROUTE_ID =
 
 // Deployed contract addresses (populated by LocalDeploymentManager)
 export interface ChainDeployment {
-    mailbox: string;
-    ism: string;
-    token: string;
-    monitoredRouter: string;
-    bridgeRouter1: string;
-    bridgeRouter2: string;
+  mailbox: string;
+  ism: string;
+  token: string;
+  monitoredRouter: string;
+  bridgeRouter1: string;
+  bridgeRouter2: string;
 }
 
 export interface DeployedAddresses {
-    chains: Record<TestChain, ChainDeployment>;
-    monitoredRoute: Record<TestChain, string>; // shorthand: chain -> monitored router address
-    bridgeRoute1: Record<TestChain, string>; // shorthand: chain -> bridge1 router address
-    bridgeRoute2: Record<TestChain, string>; // shorthand: chain -> bridge2 router address
-    tokens: Record<TestChain, string>; // shorthand: chain -> token address
+  chains: Record<TestChain, ChainDeployment>;
+  monitoredRoute: Record<TestChain, string>; // shorthand: chain -> monitored router address
+  bridgeRoute1: Record<TestChain, string>; // shorthand: chain -> bridge1 router address
+  bridgeRoute2: Record<TestChain, string>; // shorthand: chain -> bridge2 router address
+  tokens: Record<TestChain, string>; // shorthand: chain -> token address
 }
 
 // Native chain deployment (for ETH/native routes)
@@ -85,25 +85,25 @@ export interface Erc20InventoryDeployedAddresses {
 
 // Build WarpCoreConfig dynamically from deployed addresses
 export function buildWarpRouteConfig(
-    addresses: DeployedAddresses,
+  addresses: DeployedAddresses,
 ): WarpCoreConfig {
-    const chains = TEST_CHAIN_CONFIGS;
-    return {
-        tokens: chains.map((chain) => ({
-            chainName: chain.name,
-            standard: TokenStandard.EvmHypCollateral,
-            decimals: 6,
-            symbol: "USDC",
-            name: "USD Coin",
-            addressOrDenom: addresses.monitoredRoute[chain.name],
-            collateralAddressOrDenom: addresses.tokens[chain.name],
-            connections: chains
-                .filter((other) => other.name !== chain.name)
-                .map((other) => ({
-                    token: `${ProtocolType.Ethereum}|${other.name}|${addresses.monitoredRoute[other.name]}`,
-                })),
+  const chains = TEST_CHAIN_CONFIGS;
+  return {
+    tokens: chains.map((chain) => ({
+      chainName: chain.name,
+      standard: TokenStandard.EvmHypCollateral,
+      decimals: 6,
+      symbol: 'USDC',
+      name: 'USD Coin',
+      addressOrDenom: addresses.monitoredRoute[chain.name],
+      collateralAddressOrDenom: addresses.tokens[chain.name],
+      connections: chains
+        .filter((other) => other.name !== chain.name)
+        .map((other) => ({
+          token: `${ProtocolType.Ethereum}|${other.name}|${addresses.monitoredRoute[other.name]}`,
         })),
-    };
+    })),
+  };
 }
 
 // Build WarpCoreConfig for native ETH routes
@@ -151,10 +151,10 @@ export function buildErc20InventoryWarpRouteConfig(
 }
 
 export const ANVIL_TEST_PRIVATE_KEY =
-    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
 export const ANVIL_USER_PRIVATE_KEY =
-    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+  '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
 
 export const TEST_TIMEOUT_MS = 300000;
 

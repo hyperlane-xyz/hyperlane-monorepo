@@ -47,10 +47,7 @@ export function bigToFixed(big: BigNumber.Value): BigNumber {
  * @param ceil If true, the ceiling of fixed is used. Otherwise, the floor is used.
  * @returns A BigNumber representation of a FixedNumber.
  */
-export function fixedToBig(
-  fixed: BigNumber.Value,
-  ceil = false,
-): BigNumber {
+export function fixedToBig(fixed: BigNumber.Value, ceil = false): BigNumber {
   return BigNumber(fixed).integerValue(
     ceil ? BigNumber.ROUND_CEIL : BigNumber.ROUND_FLOOR,
   );

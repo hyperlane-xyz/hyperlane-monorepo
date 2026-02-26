@@ -59,10 +59,9 @@ export function toWei(
     return parseUnits(valueString, decimals).toString(10);
   } else if (components.length === 2) {
     const trimmedFraction = components[1].substring(0, decimals);
-    return parseUnits(
-      `${components[0]}.${trimmedFraction}`,
-      decimals,
-    ).toString(10);
+    return parseUnits(`${components[0]}.${trimmedFraction}`, decimals).toString(
+      10,
+    );
   } else {
     throw new Error(`Cannot convert ${valueString} to wei`);
   }

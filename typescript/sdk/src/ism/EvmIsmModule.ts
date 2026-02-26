@@ -161,11 +161,18 @@ export class EvmIsmModule extends HyperlaneModule<
       normalizedCurrentConfig.type === IsmType.INCREMENTAL_ROUTING &&
       normalizedTargetConfig.type === IsmType.INCREMENTAL_ROUTING
     ) {
-      const hasUpdates =
-        calculateDomainRoutingDelta(
-          normalizedCurrentConfig,
-          normalizedTargetConfig,
-        ).domainsToUpdate.length > 0;
+      const commonDomains = intersection(
+        new Set(Object.keys(normalizedCurrentConfig.domains)),
+        new Set(Object.keys(normalizedTargetConfig.domains)),
+      );
+      const domainsToUpdate = Array.from(commonDomains).filter((origin) => {
+        return !deepEquals(
+          normalizedCurrentConfig.domains[origin],
+          normalizedTargetConfig.domains[origin],
+        );
+      });
+
+      const hasUpdates = domainsToUpdate.length > 0;
       if (hasUpdates) {
         const contract = await this.deploy({
           config: normalizedTargetConfig,

@@ -58,6 +58,7 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { EvmTransactionOverrides } from '../providers/evmTypes.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
@@ -113,7 +114,7 @@ export class EvmHookModule extends HyperlaneModule<
   public readonly domainId: Domain;
 
   // Transaction overrides for the chain
-  protected readonly txOverrides: Partial<ethers.providers.TransactionRequest>;
+  protected readonly txOverrides: EvmTransactionOverrides;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
