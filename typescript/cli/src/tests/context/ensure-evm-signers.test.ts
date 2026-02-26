@@ -34,6 +34,8 @@ describe('ensureEvmSignersForChains', () => {
     );
 
     const signer = multiProvider.getSigner('test1');
-    expect(signer).to.be.instanceOf(ZKSyncWallet);
+    const signerOrWrapper = signer as { signer?: unknown };
+    const innerSigner = signerOrWrapper.signer ?? signer;
+    expect(innerSigner).to.be.instanceOf(ZKSyncWallet);
   });
 });
