@@ -6,3 +6,5 @@ artifacts-tron
 forge-cache
 out
 coverage
+src/abi
+src/typechain
