@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/utils",
-  "version": "25.3.0",
+  "version": "25.3.1",
   "description": "General utilities and types for the Hyperlane network",
   "keywords": [
     "Hyperlane",

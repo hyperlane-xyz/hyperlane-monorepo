@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/relayer",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Hyperlane Message Relayer Service",
   "keywords": [
     "blockchain",

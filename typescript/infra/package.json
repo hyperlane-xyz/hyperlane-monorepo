@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/infra",
-  "version": "25.3.0",
+  "version": "25.3.1",
   "private": true,
   "description": "Infrastructure utilities for the Hyperlane Network",
   "keywords": [
