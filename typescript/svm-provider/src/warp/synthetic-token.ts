@@ -294,33 +294,31 @@ export class SvmSyntheticTokenWriter
     );
 
     // Initialize Token 2022 metadata.
-    if (tokenConfig.name && tokenConfig.symbol) {
-      // Fund mint account to cover metadata account rent.
-      const fundMintIx: SvmInstruction = buildInstruction(
-        SYSTEM_PROGRAM_ADDRESS,
-        [writableSigner(this.svmSigner.signer), writableAccount(mintPda)],
-        concatBytes(
-          u32le(2), // SystemProgram::Transfer discriminator (u32 LE)
-          new Uint8Array(new BigUint64Array([BigInt(1_000_000)]).buffer),
-        ),
-      );
+    // Fund mint account to cover metadata account rent.
+    const fundMintIx: SvmInstruction = buildInstruction(
+      SYSTEM_PROGRAM_ADDRESS,
+      [writableSigner(this.svmSigner.signer), writableAccount(mintPda)],
+      concatBytes(
+        u32le(2), // SystemProgram::Transfer discriminator (u32 LE)
+        new Uint8Array(new BigUint64Array([BigInt(1_000_000)]).buffer),
+      ),
+    );
 
-      const initMetadataIx = createInitializeMetadataInstruction(
-        mintPda,
-        this.svmSigner.signer.address,
-        this.svmSigner.signer,
-        tokenConfig.name,
-        tokenConfig.symbol,
-        tokenConfig.metadataUri,
-      );
+    const initMetadataIx = createInitializeMetadataInstruction(
+      mintPda,
+      this.svmSigner.signer.address,
+      this.svmSigner.signer,
+      tokenConfig.name,
+      tokenConfig.symbol,
+      tokenConfig.metadataUri,
+    );
 
-      receipts.push(
-        await this.svmSigner.send({
-          instructions: [fundMintIx, initMetadataIx],
-          skipPreflight: true,
-        }),
-      );
-    }
+    receipts.push(
+      await this.svmSigner.send({
+        instructions: [fundMintIx, initMetadataIx],
+        skipPreflight: true,
+      }),
+    );
 
     // Transfer mint authority to mintPda so the program owns minting.
     const setAuthorityIx = createSetAuthorityInstruction(
