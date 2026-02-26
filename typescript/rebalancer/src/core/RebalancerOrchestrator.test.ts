@@ -36,11 +36,13 @@ function createMockRebalancerConfig(): RebalancerConfig {
         chains: {
           ethereum: {
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
             bridgeMinAcceptedAmount: 0,
             weighted: { weight: 50n, tolerance: 10n },
           },
           arbitrum: {
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
             bridgeMinAcceptedAmount: 0,
             weighted: { weight: 50n, tolerance: 10n },
           },
@@ -272,6 +274,7 @@ describe('RebalancerOrchestrator', () => {
             destination: 'arbitrum',
             amount: 1000n,
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
           success: true,
           messageId:
@@ -325,6 +328,7 @@ describe('RebalancerOrchestrator', () => {
             destination: 'arbitrum',
             amount: 1000n,
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
           success: false,
           error: 'Gas estimation failed',
@@ -371,6 +375,7 @@ describe('RebalancerOrchestrator', () => {
               },
               arbitrum: {
                 bridge: TEST_ADDRESSES.bridge,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeMinAcceptedAmount: 0,
                 weighted: { weight: 50n, tolerance: 10n },
               },
@@ -435,6 +440,7 @@ describe('RebalancerOrchestrator', () => {
             chains: {
               ethereum: {
                 bridge: TEST_ADDRESSES.bridge,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeMinAcceptedAmount: 0,
                 weighted: { weight: 33n, tolerance: 10n },
               },
@@ -446,6 +452,7 @@ describe('RebalancerOrchestrator', () => {
               },
               optimism: {
                 bridge: TEST_ADDRESSES.bridge,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeMinAcceptedAmount: 0,
                 weighted: { weight: 34n, tolerance: 10n },
               },
@@ -481,6 +488,7 @@ describe('RebalancerOrchestrator', () => {
             destination: 'optimism',
             amount: 1000n,
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
           success: true,
           messageId: '0x1111',
@@ -542,6 +550,7 @@ describe('RebalancerOrchestrator', () => {
               },
               arbitrum: {
                 bridge: TEST_ADDRESSES.bridge,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeMinAcceptedAmount: 0,
                 weighted: { weight: 50n, tolerance: 10n },
               },
@@ -593,6 +602,7 @@ describe('RebalancerOrchestrator', () => {
               },
               arbitrum: {
                 bridge: TEST_ADDRESSES.bridge,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeMinAcceptedAmount: 0,
                 weighted: { weight: 50n, tolerance: 10n },
               },
@@ -755,6 +765,7 @@ describe('RebalancerOrchestrator', () => {
             destination: 'arbitrum',
             amount: 1000n,
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
           success: true,
           messageId: '0x1111',
@@ -808,6 +819,7 @@ describe('RebalancerOrchestrator', () => {
             destination: 'arbitrum',
             amount: 1000n,
             bridge: TEST_ADDRESSES.bridge,
+            executionType: ExecutionType.MovableCollateral,
           },
           success: false,
           error: 'Gas estimation failed',

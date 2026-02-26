@@ -5,6 +5,7 @@ import { pino } from 'pino';
 import { type ChainMap, Token, TokenStandard } from '@hyperlane-xyz/sdk';
 
 import {
+  ExecutionType,
   type MinAmountStrategyConfig,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
@@ -43,6 +44,7 @@ describe('StrategyFactory', () => {
             tolerance: 0n,
           },
           bridge: ethers.constants.AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
         [chain2]: {
@@ -51,6 +53,7 @@ describe('StrategyFactory', () => {
             tolerance: 0n,
           },
           bridge: ethers.constants.AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
       };
@@ -78,6 +81,7 @@ describe('StrategyFactory', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
         [chain2]: {
@@ -87,6 +91,7 @@ describe('StrategyFactory', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: ethers.constants.AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
       };

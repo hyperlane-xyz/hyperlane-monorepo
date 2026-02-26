@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import {
+  ExecutionType,
   RebalancerStrategyOptions,
   type StrategyConfig,
 } from '../config/types.js';
@@ -63,14 +64,17 @@ describe('WeightedStrategy E2E', function () {
           anvil1: {
             weighted: { weight: 60n, tolerance: 5n },
             bridge: deployedAddresses.bridgeRoute1.anvil1,
+            executionType: ExecutionType.MovableCollateral,
           },
           anvil2: {
             weighted: { weight: 20n, tolerance: 5n },
             bridge: deployedAddresses.bridgeRoute1.anvil2,
+            executionType: ExecutionType.MovableCollateral,
           },
           anvil3: {
             weighted: { weight: 20n, tolerance: 5n },
             bridge: deployedAddresses.bridgeRoute1.anvil3,
+            executionType: ExecutionType.MovableCollateral,
           },
         },
       },

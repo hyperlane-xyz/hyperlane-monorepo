@@ -1,7 +1,15 @@
+import { readFileSync, readdirSync } from 'fs';
+import { join, resolve } from 'path';
+import { fileURLToPath } from 'url';
+
 import { expect } from 'chai';
+import { parse as parseYaml } from 'yaml';
+import { RebalancerConfigSchema } from '@hyperlane-xyz/rebalancer/config';
 
 import { environments } from '../config/environments/index.js';
 import { CCTP_CHAINS } from '../config/environments/mainnet3/warp/configGetters/getCCTPConfig.js';
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 describe('Rebalancer Configuration', () => {
   describe('Funding configuration for mainnet3', () => {
@@ -25,5 +33,35 @@ describe('Rebalancer Configuration', () => {
         ).to.be.a('number');
       }
     });
+  });
+});
+
+describe('Rebalancer YAML config schema validation', () => {
+  it('all rebalancer YAML configs should satisfy RebalancerConfigSchema', () => {
+    function getYamlFiles(dir: string): string[] {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      return entries.flatMap((entry) => {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory()) return getYamlFiles(fullPath);
+        if (entry.name.endsWith('.yaml')) return [fullPath];
+        return [];
+      });
+    }
+
+    const configDir = resolve(
+      __dirname,
+      '../config/environments/mainnet3/rebalancer',
+    );
+    const yamlFiles = getYamlFiles(configDir);
+    expect(yamlFiles.length).to.be.greaterThan(0);
+
+    for (const filePath of yamlFiles) {
+      const raw = parseYaml(readFileSync(filePath, 'utf8'));
+      const result = RebalancerConfigSchema.safeParse(raw);
+      expect(
+        result.success,
+        `Config ${filePath} failed schema validation: ${!result.success ? JSON.stringify(result.error.issues) : ''}`,
+      ).to.be.true;
+    }
   });
 });

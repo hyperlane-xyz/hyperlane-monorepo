@@ -10,6 +10,7 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 1000
       bridge: '0x0E8Bc62865F539889fe7d8537F2ed6db5aa0F677'
+      executionType: movableCollateral
 
     base:
       weighted:
@@ -18,6 +19,7 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 1000
       bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+      executionType: movableCollateral
 
     ethereum:
       weighted:
@@ -26,3 +28,4 @@ strategy:
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 1000
       bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
+      executionType: movableCollateral

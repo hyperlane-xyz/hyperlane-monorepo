@@ -9,7 +9,7 @@ import {
   TokenStandard,
 } from '@hyperlane-xyz/sdk';
 
-import { RebalancerMinAmountType } from '../config/types.js';
+import { ExecutionType, RebalancerMinAmountType } from '../config/types.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 import { extractBridgeConfigs } from '../test/helpers.js';
 
@@ -53,6 +53,7 @@ describe('MinAmountStrategy', () => {
                   type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeLockTime: 1,
               },
             },
@@ -75,6 +76,7 @@ describe('MinAmountStrategy', () => {
               type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
+            executionType: ExecutionType.MovableCollateral,
             bridgeLockTime: 1,
           },
           [chain2]: {
@@ -84,6 +86,7 @@ describe('MinAmountStrategy', () => {
               type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
+            executionType: ExecutionType.MovableCollateral,
             bridgeLockTime: 1,
           },
         },
@@ -105,6 +108,7 @@ describe('MinAmountStrategy', () => {
               type: RebalancerMinAmountType.Relative,
             },
             bridge: AddressZero,
+            executionType: ExecutionType.MovableCollateral,
             bridgeLockTime: 1,
           },
           [chain2]: {
@@ -114,6 +118,7 @@ describe('MinAmountStrategy', () => {
               type: RebalancerMinAmountType.Relative,
             },
             bridge: AddressZero,
+            executionType: ExecutionType.MovableCollateral,
             bridgeLockTime: 1,
           },
         },
@@ -136,6 +141,7 @@ describe('MinAmountStrategy', () => {
                   type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeLockTime: 1,
               },
               [chain2]: {
@@ -145,6 +151,7 @@ describe('MinAmountStrategy', () => {
                   type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeLockTime: 1,
               },
             },
@@ -168,6 +175,7 @@ describe('MinAmountStrategy', () => {
                   type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeLockTime: 1,
               },
               [chain2]: {
@@ -177,6 +185,7 @@ describe('MinAmountStrategy', () => {
                   type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeLockTime: 1,
               },
             },
@@ -202,6 +211,7 @@ describe('MinAmountStrategy', () => {
                   type: RebalancerMinAmountType.Relative,
                 },
                 bridge: AddressZero,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeLockTime: 1,
               },
               [chain2]: {
@@ -211,6 +221,7 @@ describe('MinAmountStrategy', () => {
                   type: RebalancerMinAmountType.Relative,
                 },
                 bridge: AddressZero,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeLockTime: 1,
               },
             },
@@ -235,6 +246,7 @@ describe('MinAmountStrategy', () => {
                 type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
+              executionType: ExecutionType.MovableCollateral,
               bridgeLockTime: 1,
             },
             [chain2]: {
@@ -244,6 +256,7 @@ describe('MinAmountStrategy', () => {
                 type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
+              executionType: ExecutionType.MovableCollateral,
               bridgeLockTime: 1,
             },
           },
@@ -270,6 +283,7 @@ describe('MinAmountStrategy', () => {
                 type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
+              executionType: ExecutionType.MovableCollateral,
               bridgeLockTime: 1,
             },
             [chain2]: {
@@ -279,6 +293,7 @@ describe('MinAmountStrategy', () => {
                 type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
+              executionType: ExecutionType.MovableCollateral,
               bridgeLockTime: 1,
             },
           },
@@ -304,6 +319,7 @@ describe('MinAmountStrategy', () => {
                 type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
+              executionType: ExecutionType.MovableCollateral,
               bridgeLockTime: 1,
             },
             [chain2]: {
@@ -313,6 +329,7 @@ describe('MinAmountStrategy', () => {
                 type: RebalancerMinAmountType.Absolute,
               },
               bridge: AddressZero,
+              executionType: ExecutionType.MovableCollateral,
               bridgeLockTime: 1,
             },
           },
@@ -339,6 +356,7 @@ describe('MinAmountStrategy', () => {
               type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
+            executionType: ExecutionType.MovableCollateral,
             bridgeLockTime: 1,
           },
           [chain2]: {
@@ -348,6 +366,7 @@ describe('MinAmountStrategy', () => {
               type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
+            executionType: ExecutionType.MovableCollateral,
             bridgeLockTime: 1,
           },
         },
@@ -376,6 +395,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
         [chain2]: {
@@ -385,6 +405,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
       };
@@ -424,6 +445,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
         [chain2]: {
@@ -433,6 +455,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
         [chain3]: {
@@ -442,6 +465,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
       };
@@ -492,6 +516,7 @@ describe('MinAmountStrategy', () => {
                   type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeLockTime: 1,
               },
               [chain2]: {
@@ -501,6 +526,7 @@ describe('MinAmountStrategy', () => {
                   type: RebalancerMinAmountType.Absolute,
                 },
                 bridge: AddressZero,
+                executionType: ExecutionType.MovableCollateral,
                 bridgeLockTime: 1,
               },
             },
@@ -523,6 +549,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
         [chain2]: {
@@ -532,6 +559,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
         [chain3]: {
@@ -541,6 +569,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
       };
@@ -583,6 +612,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
         [chain2]: {
@@ -592,6 +622,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
         [chain3]: {
@@ -601,6 +632,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Absolute,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
       };
@@ -653,6 +685,7 @@ describe('MinAmountStrategy', () => {
               type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
+            executionType: ExecutionType.MovableCollateral,
             bridgeLockTime: 1,
           },
           [chain2]: {
@@ -662,6 +695,7 @@ describe('MinAmountStrategy', () => {
               type: RebalancerMinAmountType.Absolute,
             },
             bridge: AddressZero,
+            executionType: ExecutionType.MovableCollateral,
             bridgeLockTime: 1,
           },
         },
@@ -690,6 +724,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Relative,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
         [chain2]: {
@@ -699,6 +734,7 @@ describe('MinAmountStrategy', () => {
             type: RebalancerMinAmountType.Relative,
           },
           bridge: AddressZero,
+          executionType: ExecutionType.MovableCollateral,
           bridgeLockTime: 1,
         },
       };

@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import {
+  ExecutionType,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
   type StrategyConfig,
@@ -68,6 +69,7 @@ describe('MinAmountStrategy E2E', function () {
               type: RebalancerMinAmountType.Absolute,
             },
             bridge: deployedAddresses.bridgeRoute1.anvil1,
+            executionType: ExecutionType.MovableCollateral,
           },
           anvil2: {
             minAmount: {
@@ -76,6 +78,7 @@ describe('MinAmountStrategy E2E', function () {
               type: RebalancerMinAmountType.Absolute,
             },
             bridge: deployedAddresses.bridgeRoute1.anvil2,
+            executionType: ExecutionType.MovableCollateral,
           },
           anvil3: {
             minAmount: {
@@ -84,6 +87,7 @@ describe('MinAmountStrategy E2E', function () {
               type: RebalancerMinAmountType.Absolute,
             },
             bridge: deployedAddresses.bridgeRoute1.anvil3,
+            executionType: ExecutionType.MovableCollateral,
           },
         },
       },
