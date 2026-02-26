@@ -1,11 +1,5 @@
-import {
-  ChainMap,
-  ChainName,
-  HookType,
-  IgpConfig,
-  StorageGasOracleConfig,
-} from '@hyperlane-xyz/sdk';
-import { Address, exclude, objFilter, objMap } from '@hyperlane-xyz/utils';
+import { ChainMap, ChainName, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
+import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
@@ -20,21 +14,8 @@ import rawTokenPrices from './tokenPrices.json' with { type: 'json' };
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
-const romeTestnetConnectedChains = [
-  'sepolia',
-  'arbitrumsepolia',
-  'basesepolia',
-  'optimismsepolia',
-  'bsctestnet',
-];
-
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote);
-
-  // Special case for rometestnet2 due to non-standard gas metering.
-  if (remote === 'rometestnet2') {
-    overhead *= 12;
-  }
 
   if (remote === 'somniatestnet') {
     overhead *= 2;
@@ -45,16 +26,6 @@ export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
 
 function getOracleConfigWithOverrides(origin: ChainName) {
   let oracleConfig = storageGasOracleConfig[origin];
-
-  // Special case for rometestnet2 due to non-standard gas metering.
-  if (origin === 'rometestnet2') {
-    oracleConfig = objFilter(
-      storageGasOracleConfig[origin],
-      (remoteChain, _): _ is StorageGasOracleConfig =>
-        romeTestnetConnectedChains.includes(remoteChain),
-    );
-  }
-
   return oracleConfig;
 }
 
@@ -78,14 +49,10 @@ export const igp: ChainMap<IgpConfig> = objMap(
       oracleConfig: getOracleConfigWithOverrides(chain),
       overhead: Object.fromEntries(
         // no need to set overhead for chain to itself
-        exclude(chain, supportedChainNames)
-          // Special case for rometestnet2 due to non-standard gas metering.
-          .filter(
-            (remote) =>
-              chain !== 'rometestnet2' ||
-              romeTestnetConnectedChains.includes(remote),
-          )
-          .map((remote) => [remote, getOverheadWithOverrides(chain, remote)]),
+        exclude(chain, supportedChainNames).map((remote) => [
+          remote,
+          getOverheadWithOverrides(chain, remote),
+        ]),
       ),
     };
   },

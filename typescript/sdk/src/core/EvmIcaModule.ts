@@ -15,8 +15,10 @@ import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
-import { DerivedIcaRouterConfig } from '../ica/types.js';
-import { InterchainAccountConfig } from '../index.js';
+import type {
+  DerivedIcaRouterConfig,
+  IcaRouterConfig as InterchainAccountConfig,
+} from '../ica/types.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';

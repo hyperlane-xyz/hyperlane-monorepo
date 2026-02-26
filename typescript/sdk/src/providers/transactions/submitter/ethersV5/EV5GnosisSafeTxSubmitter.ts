@@ -6,9 +6,11 @@ import {
 } from '@safe-global/safe-core-sdk-types';
 import { Logger } from 'pino';
 
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
+  SAFE_API_BASE_RETRY_MS,
+  SAFE_API_RETRIES,
   canProposeSafeTransactions,
   getSafe,
   getSafeService,
@@ -31,15 +33,16 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly props: EV5GnosisSafeTxSubmitterProps,
-    private safe: Safe.default,
-    private safeService: SafeApiKit.default,
+    protected safe: Safe.default,
+    protected safeService: SafeApiKit.default,
   ) {}
 
-  static async create(
+  protected static async initSafeAndService(
+    chain: string,
     multiProvider: MultiProvider,
-    props: EV5GnosisSafeTxSubmitterProps,
-  ): Promise<EV5GnosisSafeTxSubmitter> {
-    const { chain, safeAddress } = props;
+    safeAddress: Address,
+    signerKey?: string,
+  ): Promise<{ safe: Safe.default; safeService: SafeApiKit.default }> {
     const { gnosisSafeTransactionServiceUrl } =
       multiProvider.getChainMetadata(chain);
     assert(
@@ -47,7 +50,19 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Must set gnosisSafeTransactionServiceUrl in the Registry metadata for ${chain}`,
     );
 
-    const signerAddress = await multiProvider.getSigner(chain).getAddress();
+    const safe = await getSafe(chain, multiProvider, safeAddress, signerKey);
+    const safeService = await getSafeService(chain, multiProvider);
+    return { safe, safeService };
+  }
+
+  static async create(
+    multiProvider: MultiProvider,
+    props: EV5GnosisSafeTxSubmitterProps,
+  ): Promise<EV5GnosisSafeTxSubmitter> {
+    const { chain, safeAddress } = props;
+
+    const signer = multiProvider.getSigner(chain);
+    const signerAddress = await signer.getAddress();
     const authorized = await canProposeSafeTransactions(
       signerAddress,
       chain,
@@ -59,8 +74,21 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Signer ${signerAddress} is not an authorized Safe Proposer for ${safeAddress}`,
     );
 
-    const safe = await getSafe(chain, multiProvider, safeAddress);
-    const safeService = await getSafeService(chain, multiProvider);
+    const safeSignerKey =
+      'privateKey' in signer
+        ? (signer as { privateKey: string }).privateKey
+        : undefined;
+    assert(
+      safeSignerKey,
+      'Signer must have a private key to propose Safe transactions',
+    );
+    const { safe, safeService } =
+      await EV5GnosisSafeTxSubmitter.initSafeAndService(
+        chain,
+        multiProvider,
+        safeAddress,
+        safeSignerKey,
+      );
 
     return new EV5GnosisSafeTxSubmitter(
       multiProvider,
@@ -71,8 +99,10 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   }
 
   protected async getNextNonce(): Promise<number> {
-    const nextNonce = await this.safeService.getNextNonce(
-      this.props.safeAddress,
+    const nextNonce = await retryAsync(
+      () => this.safeService.getNextNonce(this.props.safeAddress),
+      SAFE_API_RETRIES,
+      SAFE_API_BASE_RETRY_MS,
     );
 
     return parseInt(nextNonce);
@@ -135,12 +165,17 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Submitting transaction proposal to ${this.props.safeAddress} on ${this.props.chain}: ${safeTxHash}`,
     );
 
-    return this.safeService.proposeTransaction({
-      safeAddress: this.props.safeAddress,
-      safeTransactionData: safeTransaction.data,
-      safeTxHash,
-      senderAddress,
-      senderSignature,
-    });
+    return retryAsync(
+      () =>
+        this.safeService.proposeTransaction({
+          safeAddress: this.props.safeAddress,
+          safeTransactionData: safeTransaction.data,
+          safeTxHash,
+          senderAddress,
+          senderSignature,
+        }),
+      SAFE_API_RETRIES,
+      SAFE_API_BASE_RETRY_MS,
+    );
   }
 }

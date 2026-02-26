@@ -1,8 +1,8 @@
-import { $, ProcessPromise } from 'zx';
+import { $, type ProcessPromise } from 'zx';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { DerivedCoreConfig } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
+import { type DerivedCoreConfig } from '@hyperlane-xyz/sdk';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson } from '../../../utils/files.js';
@@ -35,12 +35,13 @@ export function hyperlaneCoreDeployRaw(
 export async function hyperlaneCoreDeploy(
   chain: string,
   coreInputPath: string,
+  key: string = ANVIL_KEY,
 ) {
   return $`${localTestRunCmdPrefix()} hyperlane core deploy \
         --registry ${REGISTRY_PATH} \
         --config ${coreInputPath} \
         --chain ${chain} \
-        --key ${ANVIL_KEY} \
+        --key ${key} \
         --verbosity debug \
         --yes`;
 }
@@ -134,7 +135,7 @@ export async function deployOrUseExistingCore(
   const addresses = (await registry.getChainAddresses(chain)) as ChainAddresses;
 
   if (!addresses) {
-    await hyperlaneCoreDeploy(chain, coreInputPath);
+    await hyperlaneCoreDeploy(chain, coreInputPath, key);
     return deployOrUseExistingCore(chain, coreInputPath, key);
   }
 

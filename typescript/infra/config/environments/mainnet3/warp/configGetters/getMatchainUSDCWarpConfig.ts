@@ -7,6 +7,7 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
+import { WarpRouteIds } from '../warpIds.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
@@ -51,7 +52,9 @@ function tokenConfig(decimals: number) {
   };
 }
 
-const rebalancing = getUSDCRebalancingBridgesConfigFor(Object.keys(owners));
+const rebalancing = getUSDCRebalancingBridgesConfigFor(Object.keys(owners), [
+  WarpRouteIds.MainnetCCTPV1,
+]);
 
 export async function getMatchainUSDCWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -63,7 +66,7 @@ export async function getMatchainUSDCWarpConfig(
       type: TokenType.collateralFiat,
       token: '0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7', // Not in common tokens yet
       ...tokenConfig(decimals.matchain),
-      ...(rebalancing.matchain || {}),
+      ...rebalancing.matchain,
     },
     base: {
       ...routerConfig.base,
@@ -71,7 +74,7 @@ export async function getMatchainUSDCWarpConfig(
       type: TokenType.collateral,
       token: tokens.base.USDC,
       ...tokenConfig(decimals.base),
-      ...(rebalancing.base || {}),
+      ...rebalancing.base,
     },
     bsc: {
       ...routerConfig.bsc,
@@ -79,7 +82,7 @@ export async function getMatchainUSDCWarpConfig(
       type: TokenType.collateral,
       token: tokens.bsc.USDC,
       ...tokenConfig(decimals.bsc),
-      ...(rebalancing.bsc || {}),
+      ...rebalancing.bsc,
     },
     ethereum: {
       ...routerConfig.ethereum,
@@ -87,7 +90,7 @@ export async function getMatchainUSDCWarpConfig(
       type: TokenType.collateral,
       token: tokens.ethereum.USDC,
       ...tokenConfig(decimals.ethereum),
-      ...(rebalancing.ethereum || {}),
+      ...rebalancing.ethereum,
     },
   };
   return config as Record<RouteChains, HypTokenRouterConfig>;

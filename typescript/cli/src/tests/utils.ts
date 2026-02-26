@@ -1,12 +1,12 @@
 import * as chai from 'chai';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  ChainName,
+  type ChainMap,
+  type ChainName,
   TokenStandard,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import { isObjEmpty } from '@hyperlane-xyz/utils';

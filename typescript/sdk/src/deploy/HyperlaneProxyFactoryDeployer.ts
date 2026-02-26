@@ -44,22 +44,30 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
       return attachContracts(addresses, this.factories);
     }
 
+    const hasExplorer = !!this.multiProvider.tryGetExplorerApi(chain);
+
     for (const factoryName of Object.keys(
       this.factories,
     ) as (keyof ProxyFactoryFactories)[]) {
       const factory = await this.deployContract(chain, factoryName, []);
-      try {
-        const artifact = {
-          name: proxyFactoryImplementations[factoryName],
-          address: await factory.implementation(),
-          constructorArguments: '',
-          isProxy: true,
-        };
-        await this.verifyContract(chain, artifact);
-        this.addVerificationArtifacts(chain, [artifact]);
-      } catch (error) {
-        this.logger.warn(`Failed to verify ${factoryName} on ${chain}:`, error);
-        // Continue deployment even if verification fails
+      // Only attempt verification if there's an explorer API configured
+      if (hasExplorer) {
+        try {
+          const artifact = {
+            name: proxyFactoryImplementations[factoryName],
+            address: await factory.implementation(),
+            constructorArguments: '',
+            isProxy: true,
+          };
+          await this.verifyContract(chain, artifact);
+          this.addVerificationArtifacts(chain, [artifact]);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to verify ${factoryName} on ${chain}:`,
+            error,
+          );
+          // Continue deployment even if verification fails
+        }
       }
       contracts[factoryName] = factory;
     }

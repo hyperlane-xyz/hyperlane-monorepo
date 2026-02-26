@@ -247,6 +247,10 @@ export function getTypicalHandleGasAmount(
     return 30_000_000;
   }
 
+  if (remoteProtocolType === ProtocolType.Sealevel) {
+    return 300_000;
+  }
+
   // A fairly arbitrary amount of gas used in a message's handle function,
   // generally fits most VMs.
   return 50_000;
@@ -288,13 +292,8 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     scroll: 1.5,
     taiko: 0.5,
     // For Solana, special min cost
-    solanamainnet: 1.2,
+    solanamainnet: 0.8,
   };
-
-  if (local === 'ethereum' && remote === 'solanamainnet') {
-    minUsdCost = 0.5;
-    remoteMinCostOverrides['solanamainnet'] = 0.9;
-  }
 
   const override = remoteMinCostOverrides[remote];
   if (override !== undefined) {
@@ -384,31 +383,20 @@ export function getAllStorageGasOracleConfigs(
     }
   });
 
-  return chainNames
-    .filter((chain) => {
-      // For now, only support Ethereum and Sealevel chains.
-      // Cosmos chains should be supported in the future, but at the moment
-      // are more subject to loss of precision issues in the exchange rate,
-      // where we'd need to scale the gas price accordingly.
-      const protocol = getChain(chain).protocol;
-      return (
-        protocol === ProtocolType.Ethereum || protocol === ProtocolType.Sealevel
-      );
-    })
-    .reduce((agg, local) => {
-      const remotes = chainNames.filter((chain) => local !== chain);
-      return {
-        ...agg,
-        [local]: getLocalStorageGasOracleConfigOverride(
-          local,
-          remotes,
-          tokenPrices,
-          gasPrices,
-          getOverhead,
-          applyMinUsdCost,
-        ),
-      };
-    }, {}) as AllStorageGasOracleConfigs;
+  return chainNames.reduce((agg, local) => {
+    const remotes = chainNames.filter((chain) => local !== chain);
+    return {
+      ...agg,
+      [local]: getLocalStorageGasOracleConfigOverride(
+        local,
+        remotes,
+        tokenPrices,
+        gasPrices,
+        getOverhead,
+        applyMinUsdCost,
+      ),
+    };
+  }, {}) as AllStorageGasOracleConfigs;
 }
 
 // 5% threshold, adjust as needed

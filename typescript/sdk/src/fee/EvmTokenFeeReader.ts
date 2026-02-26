@@ -2,11 +2,10 @@ import { constants } from 'ethers';
 
 import {
   BaseFee__factory,
-  ERC20__factory,
   LinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
+import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -18,9 +17,12 @@ import {
   RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeType,
-  onChainTypeToTokenFeeTypeMap,
 } from './types.js';
-import { MAX_BPS, convertToBps } from './utils.js';
+import {
+  ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY,
+  MAX_BPS,
+  convertToBps,
+} from './utils.js';
 
 export type DerivedTokenFeeConfig = WithAddress<TokenFeeConfig>;
 
@@ -30,7 +32,7 @@ export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
 
 export type TokenFeeReaderParams = {
   address: Address;
-  routingDestinations?: number[]; // Required for RoutingFee.feeContracts() interface
+  routingDestinations?: number[]; // Optional: when provided, derives feeContracts
 };
 
 export class EvmTokenFeeReader extends HyperlaneReader {
@@ -60,10 +62,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         derivedConfig = await this.deriveRegressiveFeeConfig(address);
         break;
       case OnchainTokenFeeType.RoutingFee:
-        assert(
-          routingDestinations,
-          `routingDestinations required for ${onChainTypeToTokenFeeTypeMap[onchainFeeType]}`,
-        );
         derivedConfig = await this.deriveRoutingFeeConfig({
           address,
           routingDestinations,
@@ -156,16 +154,16 @@ export class EvmTokenFeeReader extends HyperlaneReader {
     };
   }
 
-  async convertFromBps(
-    bps: bigint,
-    tokenAddress: Address,
-  ): Promise<FeeParameters> {
-    // Assume maxFee is uint256.max / token.totalSupply
-    const token = ERC20__factory.connect(tokenAddress, this.provider);
-    const totalSupplyBn = await token.totalSupply();
-    const maxFee = BigInt(constants.MaxUint256.div(totalSupplyBn).toString());
+  convertFromBps(bps: bigint): FeeParameters {
+    if (bps === 0n) {
+      throw new Error('bps must be > 0 to prevent division by zero');
+    }
 
+    const maxFee =
+      BigInt(constants.MaxUint256.toString()) /
+      ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
     const halfAmount = ((maxFee / 2n) * MAX_BPS) / bps;
+
     return {
       maxFee,
       halfAmount,

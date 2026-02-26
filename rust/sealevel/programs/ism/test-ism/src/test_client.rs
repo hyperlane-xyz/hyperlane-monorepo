@@ -1,13 +1,12 @@
 //! Test client for the Test ISM program.
 
-use borsh::BorshSerialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    system_program,
 };
 use solana_program_test::*;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair};
+use solana_system_interface::program as system_program;
 
 use hyperlane_test_transaction_utils::process_instruction;
 
@@ -36,12 +35,12 @@ impl TestIsmTestClient {
 
         let instruction = Instruction {
             program_id,
-            data: TestIsmInstruction::Init.try_to_vec().unwrap(),
+            data: borsh::to_vec(&TestIsmInstruction::Init).unwrap(),
             accounts: vec![
                 // 0. `[executable]` System program.
                 // 1. `[signer]` Payer.
                 // 2. `[writeable]` Storage PDA.
-                AccountMeta::new_readonly(system_program::id(), false),
+                AccountMeta::new_readonly(system_program::ID, false),
                 AccountMeta::new(payer_pubkey, true),
                 AccountMeta::new(Self::get_storage_pda_key(), false),
             ],
@@ -64,7 +63,7 @@ impl TestIsmTestClient {
 
         let instruction = Instruction {
             program_id,
-            data: TestIsmInstruction::SetAccept(accept).try_to_vec().unwrap(),
+            data: borsh::to_vec(&TestIsmInstruction::SetAccept(accept)).unwrap(),
             accounts: vec![
                 // 0. `[writeable]` Storage PDA.
                 AccountMeta::new(Self::get_storage_pda_key(), false),

@@ -1,5 +1,8 @@
 import { IProvider, ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import {
+  ChainLookup,
+  ChainMetadataForAltVM,
+} from '@hyperlane-xyz/provider-sdk/chain';
 import {
   AnnotatedTx,
   HypModule,
@@ -19,7 +22,7 @@ import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 class WarpModuleProvider implements ModuleProvider<TokenRouterModuleType> {
   constructor(
     private chainLookup: ChainLookup,
-    private chainName: string,
+    private chainMetadata: ChainMetadataForAltVM,
   ) {}
 
   async createModule(
@@ -28,7 +31,7 @@ class WarpModuleProvider implements ModuleProvider<TokenRouterModuleType> {
   ): Promise<HypModule<TokenRouterModuleType>> {
     return await AltVMWarpModule.create({
       chainLookup: this.chainLookup,
-      chain: this.chainName,
+      chain: this.chainMetadata.name,
       signer,
       config,
     });
@@ -42,13 +45,17 @@ class WarpModuleProvider implements ModuleProvider<TokenRouterModuleType> {
   }
 
   connectReader(provider: IProvider<any>): HypReader<TokenRouterModuleType> {
-    return new AltVMWarpRouteReader(this.chainLookup, provider);
+    return new AltVMWarpRouteReader(
+      this.chainMetadata,
+      this.chainLookup,
+      provider,
+    );
   }
 }
 
 export function warpModuleProvider(
   chainLookup: ChainLookup,
-  chainName: string,
+  chainMetadata: ChainMetadataForAltVM,
 ): ModuleProvider<TokenRouterModuleType> {
-  return new WarpModuleProvider(chainLookup, chainName);
+  return new WarpModuleProvider(chainLookup, chainMetadata);
 }

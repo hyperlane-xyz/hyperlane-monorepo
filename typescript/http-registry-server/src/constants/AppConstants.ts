@@ -7,6 +7,8 @@ export const AppConstants = Object.freeze({
   HTTP_STATUS_BAD_REQUEST: 400,
   // 404 Not Found
   HTTP_STATUS_NOT_FOUND: 404,
+  // 405 Method Not Allowed
+  HTTP_STATUS_METHOD_NOT_ALLOWED: 405,
   // 500 Internal Server Error
   HTTP_STATUS_INTERNAL_SERVER_ERROR: 500,
 

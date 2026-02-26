@@ -8,18 +8,18 @@ import {
 import { AltVMWarpRouteReader } from '@hyperlane-xyz/deploy-sdk';
 import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import {
-  ChainMap,
-  ChainName,
-  DerivedWarpRouteDeployConfig,
-  EvmERC20WarpRouteReader,
-  HypTokenRouterConfig,
-  MultiProvider,
+  type ChainMap,
+  type ChainName,
+  type DerivedWarpRouteDeployConfig,
+  EvmWarpRouteReader,
+  type HypTokenRouterConfig,
+  type MultiProvider,
   TokenStandard,
-  WarpCoreConfig,
+  type WarpCoreConfig,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type Address,
   ProtocolType,
   mustGet,
   objFilter,
@@ -27,7 +27,7 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable } from '../logger.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
@@ -117,7 +117,7 @@ async function deriveWarpRouteConfigs(
 
   // Get XERC20 limits if warpCoreConfig is available
   if (warpCoreConfig) {
-    await logXerc20Limits(warpCoreConfig, multiProvider);
+    await logXERC20Limits(warpCoreConfig, multiProvider);
   }
 
   // Derive and return warp route config
@@ -126,15 +126,18 @@ async function deriveWarpRouteConfigs(
       const protocol = context.multiProvider.getProtocol(chain);
       switch (protocol) {
         case ProtocolType.Ethereum: {
-          return new EvmERC20WarpRouteReader(
+          return new EvmWarpRouteReader(
             multiProvider,
             chain,
           ).deriveWarpRouteConfig(address);
         }
         default: {
           const provider = mustGet(context.altVmProviders, chain);
+          const chainLookup = altVmChainLookup(multiProvider);
+          const metadata = chainLookup.getChainMetadata(chain);
           return new AltVMWarpRouteReader(
-            altVmChainLookup(multiProvider),
+            metadata,
+            chainLookup,
             provider,
           ).deriveWarpRouteConfig(address);
         }
@@ -171,7 +174,7 @@ function validateCompatibility(
 /**
  * Logs XERC20 token limits for the given warp core config
  */
-export async function logXerc20Limits(
+export async function logXERC20Limits(
   warpCoreConfig: WarpCoreConfig,
   multiProvider: MultiProvider,
 ): Promise<void> {

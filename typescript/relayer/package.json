@@ -1,0 +1,98 @@
+{
+  "name": "@hyperlane-xyz/relayer",
+  "version": "1.1.2",
+  "description": "Hyperlane Message Relayer Service",
+  "keywords": [
+    "blockchain",
+    "hyperlane",
+    "interchain",
+    "message",
+    "relayer"
+  ],
+  "license": "Apache-2.0",
+  "author": "Abacus Works, Inc.",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "bin": {
+    "hyperlane-relayer": "./dist/fs/service.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "fs": [
+        "./dist/fs/index.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./fs": {
+      "types": "./dist/fs/index.d.ts",
+      "default": "./dist/fs/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/fs/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
+    "clean": "rm -rf dist cache bundle",
+    "dev": "tsc --watch",
+    "lint": "eslint -c ./eslint.config.mjs ./src",
+    "format": "oxfmt --write ./src",
+    "test": "pnpm test:unit && pnpm test:hardhat",
+    "test:ci": "pnpm test",
+    "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test:hardhat": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
+    "start": "node dist/fs/service.js",
+    "start:dev": "tsx src/fs/service.ts"
+  },
+  "dependencies": {
+    "@arbitrum/sdk": "catalog:",
+    "@google-cloud/pino-logging-gcp-config": "catalog:",
+    "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/metrics": "workspace:*",
+    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "ethers": "catalog:",
+    "pino": "catalog:",
+    "pino-pretty": "catalog:",
+    "prom-client": "catalog:",
+    "yaml": "catalog:",
+    "zod": "catalog:",
+    "zod-validation-error": "catalog:"
+  },
+  "devDependencies": {
+    "@ethersproject/providers": "*",
+    "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@nomiclabs/hardhat-ethers": "catalog:",
+    "@nomiclabs/hardhat-waffle": "catalog:",
+    "@types/chai": "catalog:",
+    "@types/chai-as-promised": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@types/sinon": "catalog:",
+    "@vercel/ncc": "catalog:",
+    "chai": "catalog:",
+    "chai-as-promised": "catalog:",
+    "eslint": "catalog:",
+    "ethereum-waffle": "catalog:",
+    "hardhat": "catalog:",
+    "mocha": "catalog:",
+    "oxfmt": "catalog:",
+    "sinon": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -17,6 +17,7 @@ import type { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import { MultiProvider, MultiProviderOptions } from './MultiProvider.js';
 import {
+  AleoProvider,
   CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
@@ -131,6 +132,8 @@ export class MultiProtocolProvider<
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
     const { protocol, name, chainId, rpcUrls } = metadata;
+    // Cannot build provider for unknown protocol types (forward compatibility)
+    if (protocol === ProtocolType.Unknown) return null;
     type = type || PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol];
     if (!type) return null;
 
@@ -230,6 +233,13 @@ export class MultiProtocolProvider<
     return this.getSpecificProvider<RadixProvider['provider']>(
       chainNameOrId,
       ProviderType.Radix,
+    );
+  }
+
+  getAleoProvider(chainNameOrId: ChainNameOrId): AleoProvider['provider'] {
+    return this.getSpecificProvider<AleoProvider['provider']>(
+      chainNameOrId,
+      ProviderType.Aleo,
     );
   }
 

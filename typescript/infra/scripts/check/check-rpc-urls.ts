@@ -24,9 +24,9 @@ async function main() {
     );
     try {
       await provider.getBlockNumber();
-    } catch (e) {
+    } catch (error) {
       rootLogger.error(
-        `Provider failed for ${chain}: ${provider.connection.url}`,
+        `Provider failed for ${chain}: ${provider.connection.url} (${String(error)})`,
       );
     }
   }

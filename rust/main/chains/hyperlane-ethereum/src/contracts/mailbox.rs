@@ -757,7 +757,7 @@ mod test {
 
     #[tokio::test]
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
-        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::PlumeTestnet);
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Plume);
         // An Arbitrum Nitro chain
         let (mailbox, mock_provider) = get_test_mailbox(domain.clone());
 

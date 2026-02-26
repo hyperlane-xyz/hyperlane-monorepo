@@ -115,7 +115,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { GasAction, MinimumRequiredGasByAction } from '@hyperlane-xyz/utils';
 
 // After
-import { GasAction, MinimumRequiredGasByAction } from '@hyperlane-xyz/provider-sdk';
+import {
+  GasAction,
+  MinimumRequiredGasByAction,
+} from '@hyperlane-xyz/provider-sdk';
 ```
 
 #### Protocol Type Imports (No Change Needed)

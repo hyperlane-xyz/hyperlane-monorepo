@@ -4,6 +4,7 @@ import typescriptEslint from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 import importPlugin from 'eslint-plugin-import';
 import jest from 'eslint-plugin-jest';
+import oxlint from 'eslint-plugin-oxlint';
 import globals from 'globals';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +22,7 @@ export default [
     ignores: [
       '**/node_modules',
       '**/dist',
-      '**/cli-bundle',
+      '**/bundle',
       '**/coverage',
       '**/*.cjs',
       '**/*.cts',
@@ -203,4 +204,6 @@ export default [
       ],
     },
   },
+  // Disable ESLint rules that oxlint handles
+  ...oxlint.configs['flat/recommended'],
 ];

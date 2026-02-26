@@ -1,12 +1,12 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
-import { DeliverTxResponse } from '@cosmjs/stargate';
+import { type EncodeObject } from '@cosmjs/proto-signing';
+import { type DeliverTxResponse } from '@cosmjs/stargate';
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { bytes32ToAddress, isValidAddressEvm } from '@hyperlane-xyz/utils';
 
-import { createSigner } from './utils.js';
+import { createSigner } from '../testing/utils.js';
 
 describe('3. cosmos sdk post dispatch e2e tests', async function () {
   this.timeout(100_000);
@@ -41,7 +41,7 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
     expect(isValidAddressEvm(bytes32ToAddress(txResponse.hookAddress))).to.be
       .true;
 
-    let igp = await signer.getInterchainGasPaymasterHook({
+    const igp = await signer.getInterchainGasPaymasterHook({
       hookAddress: txResponse.hookAddress,
     });
 
@@ -70,7 +70,7 @@ describe('3. cosmos sdk post dispatch e2e tests', async function () {
     expect(isValidAddressEvm(bytes32ToAddress(txResponse.hookAddress))).to.be
       .true;
 
-    let merkle_tree_hook = await signer.getMerkleTreeHook({
+    const merkle_tree_hook = await signer.getMerkleTreeHook({
       hookAddress: txResponse.hookAddress,
     });
 

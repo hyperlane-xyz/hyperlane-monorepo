@@ -8,19 +8,19 @@
  * requirements and provide clear error messages for unsupported features.
  */
 import { validateIsmConfig } from '@hyperlane-xyz/deploy-sdk';
-import { CoreConfig as ProviderCoreConfig } from '@hyperlane-xyz/provider-sdk/core';
-import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import { type CoreConfig as ProviderCoreConfig } from '@hyperlane-xyz/provider-sdk/core';
+import { type IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
-  CollateralWarpConfig,
-  NativeWarpConfig,
+  type CollateralWarpConfig,
+  type NativeWarpConfig,
   TokenType as ProviderTokenType,
-  WarpConfig as ProviderWarpConfig,
-  SyntheticWarpConfig,
+  type WarpConfig as ProviderWarpConfig,
+  type SyntheticWarpConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
-  CoreConfig,
+  type CoreConfig,
   TokenType,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 
 /**

@@ -4,7 +4,7 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, ops::Add, path::PathBuf};
+use std::{collections::HashSet, ops::Add, path::PathBuf, sync::Arc};
 
 use convert_case::Case;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
@@ -63,7 +63,7 @@ pub struct RelayerSettings {
     /// Not intended for production use.
     pub allow_local_checkpoint_syncers: bool,
     /// App contexts used for metrics.
-    pub metric_app_contexts: Vec<(MatchingList, String)>,
+    pub metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     /// Whether to allow contract call caching at all.
     pub allow_contract_call_caching: bool,
     /// The ISM cache policies to use
@@ -338,6 +338,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 .collect_vec()
             })
             .unwrap_or_default();
+        let metric_app_contexts: Arc<Vec<(MatchingList, String)>> = Arc::new(metric_app_contexts);
 
         let allow_contract_call_caching = p
             .chain(&mut err)

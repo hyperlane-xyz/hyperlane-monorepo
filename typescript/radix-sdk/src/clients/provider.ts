@@ -54,7 +54,7 @@ import { RadixWarpQuery } from '../warp/query.js';
 
 const DEFAULT_GAS_MULTIPLIER = 1.2;
 
-const NETWORKS = {
+export const NETWORKS = {
   [NetworkId.Stokenet]: {
     applicationName: 'hyperlane',
     packageAddress:
@@ -578,6 +578,18 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
         req.mailboxAddress,
       ),
     };
+  }
+
+  async getCreateProxyAdminTransaction(
+    _req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error('ProxyAdmin is not supported on Radix');
+  }
+
+  async getSetProxyAdminOwnerTransaction(
+    _req: AltVM.ReqSetProxyAdminOwner,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error('ProxyAdmin is not supported on Radix');
   }
 
   // ### GET WARP TXS ###

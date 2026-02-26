@@ -62,7 +62,7 @@ export const SealevelMailboxSetDefaultIsmInstructionSchema = new Map<any, any>([
     {
       kind: 'struct',
       fields: [
-        ['instruction', 'u32'], // Borsh enum discriminator (4 bytes)
+        ['instruction', 'u8'], // Borsh enum discriminator (1 byte)
         ['data', SealevelMailboxSetDefaultIsmInstruction],
       ],
     },
@@ -103,7 +103,7 @@ export const SealevelMailboxTransferOwnershipInstructionSchema = new Map<
     {
       kind: 'struct',
       fields: [
-        ['instruction', 'u32'],
+        ['instruction', 'u8'], // Borsh enum discriminator (1 byte)
         ['data', SealevelMailboxTransferOwnershipInstruction],
       ],
     },

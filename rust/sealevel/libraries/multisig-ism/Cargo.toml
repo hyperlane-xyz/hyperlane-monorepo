@@ -12,7 +12,7 @@ test-data = ["dep:hex"]
 borsh.workspace = true
 hex = { workspace = true, optional = true }
 solana-program.workspace = true
-spl-type-length-value.workspace = true
+spl-discriminator.workspace = true
 thiserror.workspace = true
 
 hyperlane-core = { path = "../../../main/hyperlane-core" }

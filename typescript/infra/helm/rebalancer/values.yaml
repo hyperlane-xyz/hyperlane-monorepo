@@ -1,12 +1,15 @@
 image:
-  repository: gcr.io/abacus-labs-dev/hyperlane-monorepo
+  repository: gcr.io/abacus-labs-dev/hyperlane-rebalancer
   tag:
+warpRouteId: ''
 hyperlane:
-  runEnv:
+  runEnv: mainnet3
   context: hyperlane
-  registryCommit: ''
-  rebalancerConfigFile: ''
+  registryUri: ''
+  rebalancerConfig: ''
   withMetrics: true
+  # Used for fetching private RPC secrets
+  chains: []
 nameOverride: ''
 fullnameOverride: ''
 externalSecrets:

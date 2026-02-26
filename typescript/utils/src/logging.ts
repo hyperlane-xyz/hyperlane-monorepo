@@ -182,6 +182,9 @@ export async function createServiceLogger(options: {
 
   const gcpLogger = await tryInitializeGcpLogger({ service, version });
   if (gcpLogger) {
+    // Also update rootLogger so SDK components (like SmartProvider) that use
+    // rootLogger.child() will inherit the GCP logging configuration
+    setRootLogger(gcpLogger);
     return gcpLogger;
   }
 

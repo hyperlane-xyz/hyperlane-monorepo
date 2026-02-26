@@ -1,15 +1,19 @@
 import { confirm, input } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { ChainMap, MultisigIsmConfig, ZHash } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type ChainMap,
+  type MultisigIsmConfig,
+  ZHash,
+} from '@hyperlane-xyz/sdk';
+import {
+  type Address,
   isValidAddress,
   normalizeAddressEvm,
   objMap,
 } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import { mergeYamlOrJson, readYamlOrJson } from '../utils/files.js';

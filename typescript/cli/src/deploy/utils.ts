@@ -2,23 +2,26 @@ import { confirm } from '@inquirer/prompts';
 import { BigNumber, ethers } from 'ethers';
 import path from 'path';
 
-import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { type GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
-  CoreConfig,
-  IsmConfig,
-  IsmType,
-  MultisigConfig,
-  WarpRouteDeployConfig,
+  type ChainMap,
+  type ChainMetadata,
+  type ChainName,
+  type CoreConfig,
+  type IsmConfig,
+  type IsmType,
+  type MultisigConfig,
+  type WarpRouteDeployConfig,
   isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, mustGet } from '@hyperlane-xyz/utils';
+import { type Address, assert, mustGet } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
-import { CommandContext, WriteCommandContext } from '../context/types.js';
+import {
+  type CommandContext,
+  type WriteCommandContext,
+} from '../context/types.js';
 import {
   log,
   logBlue,

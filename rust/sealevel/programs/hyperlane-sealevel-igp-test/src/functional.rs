@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    system_program,
     sysvar::rent::Rent,
 };
 use solana_program_test::*;
@@ -13,6 +12,7 @@ use solana_sdk::{
     instruction::InstructionError, signature::Signature, signature::Signer,
     signer::keypair::Keypair, transaction::TransactionError,
 };
+use solana_system_interface::program as system_program;
 
 use hyperlane_test_utils::{
     assert_transaction_error, igp_program_id, new_funded_keypair, process_instruction,

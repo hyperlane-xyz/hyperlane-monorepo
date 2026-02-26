@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
 import { TokenRouter__factory } from '@hyperlane-xyz/core';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { getContext } from '../../../context/context.js';

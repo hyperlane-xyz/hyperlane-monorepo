@@ -7,6 +7,7 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
 };
+use solana_system_interface::program as system_program;
 
 use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds, protocol_fee::ProtocolFee};
 
@@ -50,8 +51,7 @@ impl Instruction {
 
     /// Serializes an instruction into a vector of bytes.
     pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
-        self.try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))
+        borsh::to_vec(&self).map_err(|_| ProgramError::BorshIoError)
     }
 }
 
@@ -120,7 +120,7 @@ pub fn init_instruction(
         })
         .into_instruction_data()?,
         accounts: vec![
-            AccountMeta::new(solana_program::system_program::id(), false),
+            AccountMeta::new(system_program::ID, false),
             AccountMeta::new(payer, true),
             AccountMeta::new(inbox_account, false),
             AccountMeta::new(outbox_account, false),

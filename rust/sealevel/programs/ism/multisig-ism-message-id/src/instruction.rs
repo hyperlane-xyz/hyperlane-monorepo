@@ -5,8 +5,8 @@ use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     program_error::ProgramError,
     pubkey::Pubkey,
-    system_program,
 };
+use solana_system_interface::program as system_program;
 
 use std::collections::HashSet;
 
@@ -109,7 +109,7 @@ pub fn init_instruction(
     let accounts = vec![
         AccountMeta::new(payer, true),
         AccountMeta::new(access_control_pda_key, false),
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
     ];
 
     let instruction = SolanaInstruction {

@@ -1,0 +1,243 @@
+{
+  "name": "extreme-drain-chain1",
+  "description": "Tests rebalancer response when one chain is rapidly drained by incoming transfers.",
+  "expectedBehavior": "95% of transfers go TO chain1, draining its collateral as recipients withdraw.\nChain1 drops from 100 to potentially negative without rebalancer.\nRebalancer should detect chain1 < 85 threshold and send tokens FROM chain2/chain3.\nCompletion rate should stay >90% due to rebalancing replenishing liquidity.",
+  "duration": 10000,
+  "chains": ["chain1", "chain2", "chain3"],
+  "transfers": [
+    {
+      "id": "imb-000000",
+      "timestamp": 0,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "8308892583413928677",
+      "user": "0x8b563f19033b6111597f5ae37a91b88591fa17d6"
+    },
+    {
+      "id": "imb-000001",
+      "timestamp": 500,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "6610389539917844183",
+      "user": "0x53e81e13db7f8a7f1ff614b699d36b22ba85761f"
+    },
+    {
+      "id": "imb-000002",
+      "timestamp": 1000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "5381552686213219913",
+      "user": "0xe6aa46c39443ae5c696524b2ec1b39f82942cdd8"
+    },
+    {
+      "id": "imb-000003",
+      "timestamp": 1500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "8391490348843196628",
+      "user": "0x80507c3a61c9e6eede5dca9ee05d906455618ddf"
+    },
+    {
+      "id": "imb-000004",
+      "timestamp": 2000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "7820125081027415679",
+      "user": "0x3d8d6bb644bb6977ed12949c603941ceb5d403f8"
+    },
+    {
+      "id": "imb-000005",
+      "timestamp": 2500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "6637915543305014158",
+      "user": "0xde17d16540a911039920412167f61143457e7ec9"
+    },
+    {
+      "id": "imb-000006",
+      "timestamp": 3000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "5972675884716996338",
+      "user": "0x55d4d12eedc237332be4d1da439c09f0bdf040c0"
+    },
+    {
+      "id": "imb-000007",
+      "timestamp": 3500,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "8751590282605359139",
+      "user": "0xd63c2a0496ade53c6aa1df0643d265ff2ab0b70c"
+    },
+    {
+      "id": "imb-000008",
+      "timestamp": 4000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "6944266955662390377",
+      "user": "0xb2f599e4bcb7ef74e1d668fbc3ba8ac3bf65b48d"
+    },
+    {
+      "id": "imb-000009",
+      "timestamp": 4500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "9681362420282795947",
+      "user": "0x6e744848f95d2c507b83ead1329debd10fd3a6cb"
+    },
+    {
+      "id": "imb-000010",
+      "timestamp": 5000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "6599436486229110254",
+      "user": "0xa9b0dc7a02417b7d7db534b4fdeec62f999cfb51"
+    },
+    {
+      "id": "imb-000011",
+      "timestamp": 5500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "9575602746645324541",
+      "user": "0x15b520940409a509fbb4fea7984120882a5c473c"
+    },
+    {
+      "id": "imb-000012",
+      "timestamp": 6000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "8861006917451413035",
+      "user": "0x3450bca5b1c2445875477bb4d60e2235d5c9f2f1"
+    },
+    {
+      "id": "imb-000013",
+      "timestamp": 6500,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "7866123866673201326",
+      "user": "0x0bdeffbfe344255f71d181b9fdf01db5a999b60d"
+    },
+    {
+      "id": "imb-000014",
+      "timestamp": 7000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "8359968790629018367",
+      "user": "0x6d415c57f76dac33b497b4d96813faf9bdc13f07"
+    },
+    {
+      "id": "imb-000015",
+      "timestamp": 7500,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "7489296443325547012",
+      "user": "0xb119e7563c7e18ee79e1001b831933e4a04fcca4"
+    },
+    {
+      "id": "imb-000016",
+      "timestamp": 8000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "6891837687725727000",
+      "user": "0x9d100d8ca4c5ca0789b963476cecad26a66c2d83"
+    },
+    {
+      "id": "imb-000017",
+      "timestamp": 8500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "6352162511843063893",
+      "user": "0x8232e1eb3bb3a284a66c975e257115779ce2b2ef"
+    },
+    {
+      "id": "imb-000018",
+      "timestamp": 9000,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "7057824233556104640",
+      "user": "0x168b1e7696d837eadbf26eee773d5053721bfc9a"
+    },
+    {
+      "id": "imb-000019",
+      "timestamp": 9500,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "8644271482861345182",
+      "user": "0xd75f7a423ba03664e3377de89d0b81c7ad16009d"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain3": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "chains": {
+      "chain1": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      },
+      "chain2": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      },
+      "chain3": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "minCompletionRate": 0.9,
+    "shouldTriggerRebalancing": true
+  }
+}

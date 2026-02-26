@@ -13,21 +13,26 @@ import {
   useState,
 } from '@inquirer/core';
 import figures from '@inquirer/figures';
-import { KeypressEvent, confirm, input, isSpaceKey } from '@inquirer/prompts';
+import {
+  type KeypressEvent,
+  confirm,
+  input,
+  isSpaceKey,
+} from '@inquirer/prompts';
 import type { PartialDeep, Prompt } from '@inquirer/type';
 import ansiEscapes from 'ansi-escapes';
 import chalk from 'chalk';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { BaseRegistry, IRegistry } from '@hyperlane-xyz/registry';
+import { BaseRegistry, type IRegistry } from '@hyperlane-xyz/registry';
 import {
-  ChainName,
-  DeployedOwnableConfig,
-  WarpRouteDeployConfig,
+  type ChainName,
+  type DeployedOwnableConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { isAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { logGray } from '../logger.js';
 
 import { indentYamlOrJson } from './files.js';
@@ -97,12 +102,10 @@ export async function setProxyAdminConfig(
   context: CommandContext,
   chain: ChainName,
 ): Promise<DeployedOwnableConfig | undefined> {
-  let defaultAdminConfig: DeployedOwnableConfig | undefined;
-
   // default to deploying a new ProxyAdmin with `warpRouteOwner` as the owner
   // if the user supplied the --yes flag
   if (context.skipConfirmation) {
-    return defaultAdminConfig;
+    return undefined;
   }
 
   const useExistingProxy = await confirm({
@@ -110,7 +113,7 @@ export async function setProxyAdminConfig(
   });
 
   if (!useExistingProxy) {
-    return defaultAdminConfig;
+    return undefined;
   }
 
   const proxyAdminAddress = await input({
@@ -358,11 +361,10 @@ interface BuildViewOptions<Value> {
   instructions?: string;
 }
 
-interface GetErrorMessageOptions
-  extends Pick<
-    BuildViewOptions<any>,
-    'theme' | 'errorMsg' | 'status' | 'searchTerm'
-  > {
+interface GetErrorMessageOptions extends Pick<
+  BuildViewOptions<any>,
+  'theme' | 'errorMsg' | 'status' | 'searchTerm'
+> {
   currentItemCount: number;
 }
 
@@ -382,11 +384,10 @@ function getErrorMessage({
   return '';
 }
 
-interface GetHelpTipsOptions
-  extends Pick<
-    BuildViewOptions<any>,
-    'theme' | 'pageSize' | 'firstRender' | 'instructions'
-  > {
+interface GetHelpTipsOptions extends Pick<
+  BuildViewOptions<any>,
+  'theme' | 'pageSize' | 'firstRender' | 'instructions'
+> {
   currentItemCount: number;
 }
 

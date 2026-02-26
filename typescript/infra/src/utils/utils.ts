@@ -146,7 +146,7 @@ export function writeJsonAtPath(filepath: string, obj: any) {
 
 export async function writeAndFormatJsonAtPath(filepath: string, obj: any) {
   writeJsonAtPath(filepath, obj);
-  await formatFileWithPrettier(filepath);
+  await formatFile(filepath);
 }
 
 /**
@@ -176,21 +176,19 @@ export function getMonorepoRoot(): string {
 }
 
 /**
- * Formats a file using prettier
+ * Formats a file using oxfmt
  * @param filepath - The path to the file to format
  */
-export async function formatFileWithPrettier(filepath: string): Promise<void> {
+export async function formatFile(filepath: string): Promise<void> {
   try {
     const monorepoRoot = getMonorepoRoot();
-    await execCmd(`npx prettier --write "${filepath}"`, {
+    await execCmd(`npx oxfmt --write "${filepath}"`, {
       cwd: monorepoRoot,
       stdio: 'pipe',
     });
   } catch (error) {
-    // Silently fail if prettier is not available or fails
-    // This ensures the deployment process continues even if formatting fails
     console.warn(
-      `Warning: Failed to format file with prettier: ${filepath}`,
+      `Warning: Failed to format file with oxfmt: ${filepath}`,
       error instanceof Error ? error.message : error,
     );
   }
@@ -206,11 +204,7 @@ export function assertRole(roleStr: string) {
 
 export function assertFundableRole(roleStr: string): FundableRole {
   const role = roleStr as Role;
-  if (
-    role !== Role.Relayer &&
-    role !== Role.Kathy &&
-    role !== Role.Rebalancer
-  ) {
+  if (role !== Role.Relayer && role !== Role.Rebalancer) {
     throw Error(`Invalid fundable role ${role}`);
   }
   return role;

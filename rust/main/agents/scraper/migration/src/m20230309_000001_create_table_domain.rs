@@ -482,6 +482,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "sealeveltest3",
+        token: "SOL",
+        domain: 13377,
+        chain_id: 13377,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "cosmostestnative1",
         token: "KYVE",
         domain: 75898670,
@@ -552,7 +560,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Domain::TimeCreated)
                             .timestamp()
                             .not_null()
-                            .default("NOW()"),
+                            .default(SimpleExpr::Custom("NOW()".to_owned())),
                     )
                     .col(ColumnDef::new(Domain::TimeUpdated).timestamp().not_null())
                     .col(ColumnDef::new(Domain::Name).text().not_null())

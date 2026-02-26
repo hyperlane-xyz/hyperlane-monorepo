@@ -55,17 +55,19 @@ export const messageTransmitterV2Addresses = {
 } as const;
 
 // https://developers.circle.com/cctp/technical-guide#cctp-v2-fees
+// Note: Contract uses integer bps precision. Values are rounded up from Circle's
+// actual fees (e.g., 1.3 bps -> 2 bps) since fractional bps aren't supported.
 export const FAST_TRANSFER_FEE_BPS: Partial<
   Record<keyof typeof tokenMessengerV2Addresses, number>
 > = {
-  arbitrum: 1,
-  base: 1,
+  arbitrum: 2,
+  base: 2,
   ethereum: 1,
   ink: 2,
-  linea: 14,
-  optimism: 1,
+  linea: 11,
+  optimism: 2,
   plume: 2,
-  unichain: 1,
+  unichain: 2,
   worldchain: 1,
 };
 
@@ -87,6 +89,7 @@ export const usdcTokenAddresses = {
   ink: '0x2D270e6886d130D724215A266106e6832161EAEd',
   linea: '0x176211869cA2b568f2A7D4EE941E073a821EE1ff',
   near: '17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1',
+  monad: '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
   noble: 'uusdc',
   optimism: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
   polkadotassethub: '1337',

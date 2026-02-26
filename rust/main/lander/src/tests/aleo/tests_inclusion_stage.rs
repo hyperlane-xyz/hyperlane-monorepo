@@ -112,7 +112,7 @@ impl AleoProviderForLander for ConfigurableMockProvider {
         }
     }
 
-    async fn get_confirmed_transaction(
+    async fn request_confirmed_transaction(
         &self,
         _transaction_id: H512,
     ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
@@ -132,7 +132,7 @@ impl AleoProviderForLander for ConfigurableMockProvider {
         }
     }
 
-    async fn get_unconfirmed_transaction(
+    async fn request_unconfirmed_transaction(
         &self,
         _transaction_id: H512,
     ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {
@@ -213,7 +213,7 @@ impl AleoProviderForLander for AleoErrorMockProvider {
         }
     }
 
-    async fn get_confirmed_transaction(
+    async fn request_confirmed_transaction(
         &self,
         _transaction_id: H512,
     ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
@@ -222,7 +222,7 @@ impl AleoProviderForLander for AleoErrorMockProvider {
         ))
     }
 
-    async fn get_unconfirmed_transaction(
+    async fn request_unconfirmed_transaction(
         &self,
         _transaction_id: H512,
     ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {
@@ -380,7 +380,7 @@ async fn test_aleo_tx_ready_for_resubmission_block_time() {
     );
 
     // Simulate sufficient time passing
-    tokio::time::sleep(block_time * 2).await;
+    tokio::time::sleep(block_time * 21).await;
 
     // Ensure the transaction is now ready for resubmission
     assert!(

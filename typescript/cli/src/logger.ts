@@ -1,5 +1,5 @@
-import chalk, { ChalkInstance } from 'chalk';
-import { pino } from 'pino';
+import chalk, { type ChalkInstance } from 'chalk';
+import { type pino } from 'pino';
 
 import {
   LogFormat,

@@ -28,13 +28,13 @@ env:
 
 jobs:
   pnpm-install:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
@@ -49,8 +49,10 @@ jobs:
       - name: check-package-json
         run: ./scripts/check-package-json.sh
 
-  lint-prettier:
+  lint-prettier-run:
     runs-on: depot-ubuntu-24.04-8
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust != 'true'
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
@@ -76,22 +78,44 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Run prettier (changed files)
+      - name: Run oxfmt (changed files)
         if: github.event_name == 'pull_request'
-        run: >-
-          cat changed_files.txt |
-          xargs -r pnpm exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern
+        run: |
+          cat changed_files.txt | grep -E '\.(js|ts|jsx|tsx|json|md)$' | \
+          xargs -r pnpm exec oxfmt --check --no-error-on-unmatched-pattern
 
-      - name: Run prettier (all files)
+      - name: Run prettier for Solidity (changed files)
+        if: github.event_name == 'pull_request'
+        run: |
+          cat changed_files.txt | grep -E '\.sol$' | \
+          xargs -r pnpm exec prettier --check --no-error-on-unmatched-pattern
+
+      - name: Run oxfmt (all files)
         if: github.event_name != 'pull_request'
-        run: >-
-          pnpm exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern .
+        run: pnpm exec oxfmt --check .
+        continue-on-error: true
+
+      - name: Run prettier for Solidity (all files)
+        if: github.event_name != 'pull_request'
+        run: pnpm exec prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol'
         continue-on-error: true
 
       - name: Clean up
         if: always()
         run: |
           rm -f changed_files.txt
+
+  lint-prettier:
+    runs-on: ubuntu-latest
+    needs: [lint-prettier-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check lint-prettier status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Lint Prettier'
+          result: ${{ needs.lint-prettier-run.result }}
 
   set-base-sha:
     runs-on: ubuntu-latest
@@ -103,15 +127,18 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Full history needed to compute merge-base for PRs
+          fetch-depth: 0
 
       - name: Determine BASE_SHA
         id: determine-sha
         uses: ./.github/actions/determine-base-sha
 
-  rust-only:
+  change-detection:
     needs: [set-base-sha]
     outputs:
-      only_rust: ${{ steps.override-main.outputs.only_rust || steps.check-rust.outputs.only_changes }}
+      only_rust: ${{ steps.decide.outputs.only_rust }}
+      skip_cli_e2e: ${{ steps.decide.outputs.skip_cli_e2e }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -119,7 +146,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      # Check if changes are ONLY rust
+      - name: Check CI context
+        id: context
+        uses: ./.github/actions/ci-context-check
+
       - name: Check if changes are ONLY rust
         id: check-rust
         uses: ./.github/actions/check-path-changes
@@ -129,25 +159,64 @@ jobs:
           path_pattern: 'rust/'
           path_pattern_only: 'true'
 
-      # If the push event is to main, fallback to rust_only as false.
-      - name: Override for push to main
-        id: override-main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Check if CLI e2e can be skipped
+        id: check-skip-cli
         run: |
-          echo "only_rust=false" >> $GITHUB_OUTPUT
-          echo "Push event to main detected. Setting only_rust to false."
+          BASE_SHA="${{ needs.set-base-sha.outputs.base_sha }}"
+          HEAD_SHA="${{ needs.set-base-sha.outputs.current_sha }}"
+
+          if ! CHANGED_FILES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" 2>/dev/null); then
+            echo "skip_cli=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [[ -z "$CHANGED_FILES" ]]; then
+            echo "skip_cli=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # CLI e2e can be skipped if ALL changes are in rust/ OR typescript/infra/
+          # CLI doesn't depend on either of these
+          RELEVANT_CHANGES=$(echo "$CHANGED_FILES" | grep -vE '^(rust/|typescript/infra/)' || true)
+
+          if [[ -z "$RELEVANT_CHANGES" ]]; then
+            echo "skip_cli=true" >> $GITHUB_OUTPUT
+            echo "Changes only in rust/ and/or typescript/infra/, CLI e2e can be skipped"
+          else
+            echo "skip_cli=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Decide whether to skip TS jobs
+        id: decide
+        run: |
+          echo "Context: ${{ steps.context.outputs.reason }}"
+
+          if [[ "${{ steps.context.outputs.should_skip }}" == "true" ]]; then
+            echo "only_rust=true" >> $GITHUB_OUTPUT
+            echo "skip_cli_e2e=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [[ "${{ steps.context.outputs.must_run }}" == "true" ]]; then
+            echo "only_rust=false" >> $GITHUB_OUTPUT
+            echo "skip_cli_e2e=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "only_rust=${{ steps.check-rust.outputs.only_changes }}" >> $GITHUB_OUTPUT
+          echo "skip_cli_e2e=${{ steps.check-skip-cli.outputs.skip_cli }}" >> $GITHUB_OUTPUT
 
   pnpm-test-run:
-    runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    timeout-minutes: 10
-    if: needs.rust-only.outputs.only_rust == 'false'
+    runs-on: depot-ubuntu-24.04
+    needs: [change-detection]
+    timeout-minutes: 20
+    if: needs.change-detection.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -170,7 +239,7 @@ jobs:
           result: ${{ needs.pnpm-test-run.result }}
 
   infra-test:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     needs: [set-base-sha]
     env:
       GRAFANA_SERVICE_ACCOUNT_TOKEN: ${{ secrets.GRAFANA_SERVICE_ACCOUNT_TOKEN }}
@@ -181,11 +250,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Install gitleaks
         id: gitleaks-install
-        if: github.event_name != 'merge_group'
+        # Skip for merge_group and external PRs (forks don't have access to GITLEAKS_LICENSE secret)
+        if: github.event_name != 'merge_group' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -193,10 +264,10 @@ jobs:
 
       - name: Check for balance/config changes
         run: |
-          if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
+          if git diff ${{ needs.set-base-sha.outputs.base_sha }}...${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/config/environments/mainnet3/balances|^.registryrc$'; then
             echo "BALANCE_CHANGES=true" >> $GITHUB_ENV
           fi
-          if git diff ${{ needs.set-base-sha.outputs.base_sha }}..${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
+          if git diff ${{ needs.set-base-sha.outputs.base_sha }}...${{ needs.set-base-sha.outputs.current_sha }} --name-only | grep -qE '^typescript/infra/|^.registryrc$'; then
             echo "WARP_CONFIG_CHANGES=true" >> $GITHUB_ENV
           fi
 
@@ -220,8 +291,8 @@ jobs:
 
   cli-install-test-run:
     runs-on: depot-ubuntu-24.04
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -249,9 +320,9 @@ jobs:
           result: ${{ needs.cli-install-test-run.result }}
 
   cli-evm-e2e-matrix:
-    runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    runs-on: depot-ubuntu-24.04
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -263,9 +334,14 @@ jobs:
           - core-deploy
           - core-init
           - core-read
+          # ISM Commands
+          - ism
           # Other commands
           - relay
           - status
+          - submit
+          # ICA
+          - ica-deploy
           # Warp Apply Commands
           - warp-apply-hook-updates
           - warp-apply-ism-updates
@@ -276,6 +352,7 @@ jobs:
           - warp-extend-basic
           - warp-extend-config
           - warp-extend-recovery
+          - warp-extend-resumable
           # deploy
           - warp-bridge-1
           - warp-bridge-2
@@ -287,17 +364,20 @@ jobs:
           - warp-check-3
           - warp-check-4
           - warp-check-5
+          - warp-check-ica
           # other
           - warp-init
           - warp-read
           - warp-rebalancer
           - warp-send
+          # xerc20
+          - xerc20
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -307,15 +387,15 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: CLI ethereum e2e tests (${{ matrix.test }})
+      - name: CLI e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:ethereum:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-cosmos-e2e-matrix:
-    runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    runs-on: depot-ubuntu-24.04
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -326,7 +406,10 @@ jobs:
           - core-check
           - core-deploy
           - core-read
+          # ISM Commands
+          - ism
           # Warp Commands
+          - warp-apply-ism-updates
           - warp-deploy
           - warp-read
     steps:
@@ -334,7 +417,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -350,9 +433,9 @@ jobs:
           CLI_E2E_TEST: ${{ matrix.test }}
 
   cli-radix-e2e-matrix:
-    runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    runs-on: depot-ubuntu-24.04
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -361,8 +444,11 @@ jobs:
           # Core Commands
           - core-deploy
           - core-apply
+          # ISM Commands
+          - ism
           # Warp Commands
           - warp-deploy
+          - warp-apply-ism-updates
           - warp-apply-ownership-updates
           - warp-apply-route-extension
     steps:
@@ -370,7 +456,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: install-hyperlane-cli
         id: install-hyperlane-cli
         uses: ./.github/actions/install-cli
@@ -385,18 +471,20 @@ jobs:
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
-  cli-cross-chain-e2e-matrix:
+  cli-tron-e2e-matrix:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         test:
+          # Core Commands
+          - core-deploy
           # Warp Commands
-          - warp-apply
-          - warp-deploy
+          - warp-deploy-1
+          - warp-deploy-2
     steps:
       - uses: actions/checkout@v6
         with:
@@ -412,8 +500,84 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
+      - name: CLI tron e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:tron:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-cross-chain-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Warp Commands
+          - warp-apply
+          - warp-deploy
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
       - name: CLI cross chain e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/cli test:cross-chain:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-aleo-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-apply-hooks
+          - core-apply-ism
+          - core-apply-mailbox
+          - core-deploy
+          - core-read
+          # ISM Commands
+          - ism
+          # Warp Commands
+          - warp-apply-hook-updates
+          - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-apply-route-extension
+          - warp-deploy
+          - warp-read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI aleo e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:aleo:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
@@ -425,6 +589,8 @@ jobs:
         cli-cosmos-e2e-matrix,
         cli-cross-chain-e2e-matrix,
         cli-radix-e2e-matrix,
+        cli-tron-e2e-matrix,
+        cli-aleo-e2e-matrix,
       ]
     if: always()
     steps:
@@ -449,18 +615,28 @@ jobs:
         with:
           job_name: 'CLI Radix E2E'
           result: ${{ needs.cli-radix-e2e-matrix.result }}
+      - name: Check CLI Tron E2E status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI Tron E2E'
+          result: ${{ needs.cli-tron-e2e-matrix.result }}
+      - name: Check CLI Aleo E2E status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI Aleo E2E'
+          result: ${{ needs.cli-aleo-e2e-matrix.result }}
 
   cosmos-sdk-e2e-run:
-    runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    runs-on: depot-ubuntu-24.04
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-
+          persist-credentials: false
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
@@ -479,10 +655,80 @@ jobs:
           job_name: 'Cosmos SDK E2E'
           result: ${{ needs.cosmos-sdk-e2e-run.result }}
 
-  aleo-sdk-e2e-run:
+  aleo-sdk-e2e-matrix:
+    runs-on: depot-ubuntu-24.04
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - 1_interchain_security
+          - 2_core
+          - 3_post_dispatch
+          - 4_warp
+          - 5_ism_artifacts
+          - 6_hook_artifacts
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Aleo SDK e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/aleo-sdk test:e2e
+        env:
+          ALEO_SDK_E2E_TEST: ${{ matrix.test }}
+
+  aleo-sdk-e2e:
+    runs-on: ubuntu-latest
+    needs: [aleo-sdk-e2e-matrix]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check aleo-sdk-e2e status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Aleo SDK E2E'
+          result: ${{ needs.aleo-sdk-e2e-matrix.result }}
+
+  radix-sdk-e2e-run:
+    runs-on: depot-ubuntu-24.04
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Radix SDK e2e tests
+        run: pnpm -C typescript/radix-sdk test:e2e
+
+  radix-sdk-e2e:
+    runs-on: ubuntu-latest
+    needs: [radix-sdk-e2e-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check radix-sdk-e2e status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Radix SDK E2E'
+          result: ${{ needs.radix-sdk-e2e-run.result }}
+
+  tron-sdk-e2e-run:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -493,23 +739,31 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
-      - name: Aleo SDK e2e tests
-        run: pnpm -C typescript/aleo-sdk test:e2e
+      - name: Tron SDK e2e tests with coverage
+        run: pnpm -C typescript/tron-sdk coverage
 
-  aleo-sdk-e2e:
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: tron-sdk
+          files: typescript/tron-sdk/coverage/lcov.info
+          fail_ci_if_error: false
+
+  tron-sdk-e2e:
     runs-on: ubuntu-latest
-    needs: [aleo-sdk-e2e-run]
+    needs: [tron-sdk-e2e-run]
     if: always()
     steps:
       - uses: actions/checkout@v6
-      - name: Check aleo-sdk-e2e status
+      - name: Check tron-sdk-e2e status
         uses: ./.github/actions/check-job-status
         with:
-          job_name: 'Aleo SDK E2E'
-          result: ${{ needs.aleo-sdk-e2e-run.result }}
+          job_name: 'Tron SDK E2E'
+          result: ${{ needs.tron-sdk-e2e-run.result }}
 
   agent-configs:
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -547,25 +801,29 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+          persist-credentials: false
           fetch-depth: 0
 
       - uses: actions/setup-node@v6
+        if: matrix.e2e-type == 'evm'
         with:
           node-version-file: .nvmrc
 
-      # Set rust_changes to true if:
-      # - on the main branch
-      # - PR with changes to ./rust
-      # - PR with changes to this workflow
       - name: Check for Rust file changes
         id: check-rust-changes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Skip for merge queue push to main - already tested in merge_group
+          if [[ "${{ github.ref }}" == "refs/heads/main" && "${{ github.actor }}" == "github-merge-queue[bot]" ]]; then
+            echo "rust_changes=false" >> $GITHUB_OUTPUT
+            echo "Push from merge queue - CI already passed in merge_group"
+            exit 0
+          fi
+
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            # For main branch, check changes in the current commit
             PARENT_SHA=$(git rev-parse HEAD^)
-            CHANGES=$(git diff --name-only $PARENT_SHA HEAD -- ./rust ./.github/workflows/test.yml)
+            CHANGES=$(git diff --name-only $PARENT_SHA HEAD -- ./rust ./.github/workflows/test.yml ./.github/actions/)
 
             if [[ -n "$CHANGES" ]]; then
               echo "rust_changes=true" >> $GITHUB_OUTPUT
@@ -577,7 +835,7 @@ jobs:
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             # For PRs, use GitHub CLI to check changes
             PR_NUMBER=${{ github.event.pull_request.number }}
-            CHANGES=$(gh pr view $PR_NUMBER --json files -q '.files[].path | select(startswith("rust/") or . == ".github/workflows/test.yml")')
+            CHANGES=$(gh pr view $PR_NUMBER --json files -q '.files[].path | select(startswith("rust/") or startswith(".github/workflows/") or startswith(".github/actions/"))')
 
             if [[ -n "$CHANGES" ]]; then
               echo "rust_changes=true" >> $GITHUB_OUTPUT
@@ -586,18 +844,30 @@ jobs:
             else
               echo "rust_changes=false" >> $GITHUB_OUTPUT
             fi
+          elif [[ "${{ github.event_name }}" == "merge_group" ]]; then
+            # For merge queue, check changes between base and head
+            BASE_SHA="${{ github.event.merge_group.base_sha }}"
+            HEAD_SHA="${{ github.event.merge_group.head_sha }}"
+            CHANGES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" -- ./rust ./.github/workflows/test.yml ./.github/actions/)
+
+            if [[ -n "$CHANGES" ]]; then
+              echo "rust_changes=true" >> $GITHUB_OUTPUT
+              echo "Changes detected in Rust files or workflow in merge_group:"
+              echo "$CHANGES"
+            else
+              echo "rust_changes=false" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "rust_changes=false" >> $GITHUB_OUTPUT
+            # workflow_dispatch or unknown - run to be safe
+            echo "rust_changes=true" >> $GITHUB_OUTPUT
           fi
 
-      # If there are no rust changes and the e2e-type is not evm,
-      # then we want to skip this e2e test to save billing time.
       - name: Check rust and e2e conditions
         id: check-conditions
         run: |
-          if [[ "${{ steps.check-rust-changes.outputs.rust_changes }}" == "false" && "${{ matrix.e2e-type }}" != "evm" ]]; then
+          if [[ "${{ steps.check-rust-changes.outputs.rust_changes }}" == "false" ]]; then
             echo "skip-e2e=true" >> $GITHUB_OUTPUT
-            echo "No rust changes detected and e2e-type is not evm. Will skip remaining steps."
+            echo "No rust changes detected. Skipping e2e tests."
           else
             echo "skip-e2e=false" >> $GITHUB_OUTPUT
           fi
@@ -632,7 +902,7 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: pnpm-build
-        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        if: matrix.e2e-type == 'evm' && steps.check-conditions.outputs.skip-e2e != 'true'
         uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Install system dependencies
@@ -642,7 +912,7 @@ jobs:
           sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
 
       - name: Install OpenSSL 1.1 for Solana toolchain
-        if: steps.check-conditions.outputs.skip-e2e != 'true'
+        if: matrix.e2e-type == 'sealevel' && steps.check-conditions.outputs.skip-e2e != 'true'
         run: |
           wget -O libssl1.1.deb https://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
           sudo dpkg -i libssl1.1.deb
@@ -709,16 +979,17 @@ jobs:
     needs: e2e-matrix
     if: always()
     steps:
+      - uses: actions/checkout@v6
       - name: Check e2e matrix status
-        if: ${{ needs.e2e-matrix.result != 'success' }}
-        run: |
-          echo "E2E tests failed"
-          exit 1
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'E2E'
+          result: ${{ needs.e2e-matrix.result }}
 
   env-test-matrix:
-    runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    runs-on: depot-ubuntu-24.04
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
     env:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}

@@ -22,7 +22,7 @@ import {
   TokenBridgeCctpV2__factory,
 } from '@hyperlane-xyz/core';
 
-import { TokenType } from './config.js';
+import { DeployableTokenType, TokenType } from './config.js';
 
 export const hypERC20contracts = {
   [TokenType.synthetic]: 'HypERC20',
@@ -43,11 +43,11 @@ export const hypERC20contracts = {
   [TokenType.nativeScaled]: 'HypNative',
   [TokenType.ethEverclear]: 'EverclearEthBridge',
   [TokenType.collateralEverclear]: 'EverclearTokenBridge',
-} as const satisfies Record<TokenType, string>;
+} as const satisfies Record<DeployableTokenType, string>;
 export type HypERC20contracts = typeof hypERC20contracts;
 
 type HypERC20TokenType = Exclude<
-  TokenType,
+  DeployableTokenType,
   typeof TokenType.syntheticUri | typeof TokenType.collateralUri
 >;
 

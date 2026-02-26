@@ -2,27 +2,33 @@ import { confirm, input, select } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
-  ChainMap,
+  type ChainMap,
   ChainTechnicalStack,
-  DeployedOwnableConfig,
+  type DeployableTokenType,
+  type DeployedOwnableConfig,
   HypERC20Deployer,
-  HypTokenRouterConfig,
-  IsmConfig,
+  type HypTokenRouterConfig,
+  type IsmConfig,
   IsmType,
-  MailboxClientConfig,
+  type MailboxClientConfig,
   TokenType,
-  WarpCoreConfig,
+  type WarpCoreConfig,
   WarpCoreConfigSchema,
-  WarpRouteDeployConfig,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpRouteDeployConfig,
+  type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigMailboxRequiredSchema,
   WarpRouteDeployConfigSchema,
   isMovableCollateralTokenConfig,
   resolveRouterMapConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  assert,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
@@ -40,7 +46,7 @@ import { useProvidedWarpRouteIdOrPrompt } from '../utils/warp.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
-const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
+const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
   [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
@@ -71,11 +77,13 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.nativeScaled]: '',
 };
 
-const TYPE_CHOICES = Object.values(TokenType).map((type) => ({
-  name: type,
-  value: type,
-  description: TYPE_DESCRIPTIONS[type],
-}));
+const TYPE_CHOICES = Object.values(TokenType)
+  .filter((type): type is DeployableTokenType => type !== TokenType.unknown)
+  .map((type) => ({
+    name: type,
+    value: type,
+    description: TYPE_DESCRIPTIONS[type],
+  }));
 
 export async function fillDefaults(
   context: CommandContext,

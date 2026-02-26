@@ -16,7 +16,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { EthersLikeProvider } from '../deploy/proxy.js';
+import type { EthersLikeProvider } from '../deploy/proxy.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -199,6 +199,9 @@ export function attachContractsMapAndGetForeignDeployments<
         case ProtocolType.CosmosNative:
         case ProtocolType.Starknet:
           return router;
+
+        case ProtocolType.Aleo:
+          return addressToByteHexString(router, ProtocolType.Aleo);
 
         case ProtocolType.Radix:
           return addressToByteHexString(router, ProtocolType.Radix);

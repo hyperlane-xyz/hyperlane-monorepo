@@ -1,14 +1,14 @@
-import { CommandModule, Options } from 'yargs';
+import { type CommandModule, type Options } from 'yargs';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { type ChainName } from '@hyperlane-xyz/sdk';
+import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { checkValidatorAvsSetup } from '../avs/check.js';
 import {
   deregisterOperator,
   registerOperatorWithSignature,
 } from '../avs/stakeRegistry.js';
-import { CommandModuleWithWriteContext } from '../context/types.js';
+import { type CommandModuleWithWriteContext } from '../context/types.js';
 import { errorRed, log } from '../logger.js';
 
 import {

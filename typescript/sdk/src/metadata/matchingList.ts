@@ -20,6 +20,7 @@ const MatchingListElementSchema = z.object({
   senderAddress: AddressSchema.optional(),
   destinationDomain: DomainSchema.optional(),
   recipientAddress: AddressSchema.optional(),
+  bodyRegex: z.string().optional(),
 });
 
 export const MatchingListSchema = z.array(MatchingListElementSchema);

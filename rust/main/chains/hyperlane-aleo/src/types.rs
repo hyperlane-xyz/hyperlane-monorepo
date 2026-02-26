@@ -1,6 +1,8 @@
+use std::io::{self, Write};
+
 use serde::{Deserialize, Serialize};
-use snarkvm::prelude::{MainnetV0, Network, Plaintext};
-use snarkvm_console_account::{Address, Itertools};
+use snarkvm::prelude::{Authorization, MainnetV0, Network, Plaintext};
+use snarkvm_console_account::{Address, Itertools, ToBytes};
 
 use aleo_serialize_macro::aleo_serialize;
 use hyperlane_core::{
@@ -233,14 +235,45 @@ pub struct RouteKey<N: Network = CurrentNetwork> {
 }
 
 /// Proving Request
-#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ProvingRequest {
+#[derive(Clone, Eq, PartialEq)]
+pub struct ProvingRequest<N: Network = CurrentNetwork> {
     /// The function that needs to be executed
-    pub authorization: serde_json::Value, // Some type of Authorization::<Network>
+    pub authorization: Authorization<N>,
     /// Fee for the TX
-    pub fee_authorization: Option<serde_json::Value>,
+    pub fee_authorization: Option<Authorization<N>>,
     /// Whether or not the service will broadcast the transaction
     pub broadcast: bool,
+}
+
+/// Implement ToBytes for ProvingRequest to serialize it into bytes
+impl<N: Network> ToBytes for ProvingRequest<N> {
+    fn write_le<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        // Write required authorization.
+        self.authorization.write_le(&mut writer)?;
+
+        // Write the optional fee_authorization.
+        match &self.fee_authorization {
+            Some(auth) => {
+                true.write_le(&mut writer)?; // flag for Some
+                auth.write_le(&mut writer)?;
+            }
+            None => {
+                false.write_le(&mut writer)?; // flag for None
+            }
+        }
+
+        // Write broadcast flag.
+        self.broadcast.write_le(&mut writer)?;
+
+        Ok(())
+    }
+}
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EncryptedProvingRequest {
+    /// Key ID of the public key used for encryption
+    pub key_id: String,
+    /// Encrypted Proving Request
+    pub ciphertext: String,
 }
 
 /// Proving Response
@@ -338,6 +371,15 @@ pub struct AleoGetMappingValue {
     pub mapping_name: String,
     /// Mapping key
     pub mapping_key: Plaintext<CurrentNetwork>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+/// Public key used for TEE encryption in the proving service
+pub struct X25519PublicKey {
+    /// Key ID associated with the public key
+    pub key_id: String,
+    /// RFC 4648 base64 encoded X25519 pubkey, 32 bytes
+    pub public_key: String,
 }
 
 #[cfg(test)]

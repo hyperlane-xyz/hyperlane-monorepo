@@ -2,6 +2,7 @@
 //! a checkpoint the message ID that matches the message being verified.
 //! No merkle proofs.
 
+#![allow(unexpected_cfgs)]
 #![deny(warnings)]
 #![deny(unsafe_code)]
 

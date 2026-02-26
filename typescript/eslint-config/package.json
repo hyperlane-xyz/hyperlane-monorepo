@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/eslint-config",
-  "version": "20.1.0",
-  "description": "Hyperlane ESLint config",
+  "version": "25.3.1",
   "private": true,
-  "type": "module",
+  "description": "Hyperlane ESLint config",
   "license": "Apache-2.0",
+  "type": "module",
   "exports": {
     ".": "./index.js"
   },
@@ -14,6 +14,7 @@
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
+    "eslint-plugin-jest": "^28.2.0",
     "globals": "catalog:",
     "typescript-eslint": "catalog:"
   }

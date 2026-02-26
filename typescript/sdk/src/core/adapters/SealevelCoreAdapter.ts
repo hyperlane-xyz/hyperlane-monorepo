@@ -91,6 +91,20 @@ export class SealevelCoreAdapter
     return true;
   }
 
+  async isDelivered(
+    messageId: HexString,
+    _blockTag?: string | number,
+  ): Promise<boolean> {
+    const pda = SealevelCoreAdapter.deriveMailboxMessageProcessedPda(
+      this.addresses.mailbox,
+      messageId,
+    );
+    const connection = this.multiProvider.getSolanaWeb3Provider(this.chainName);
+    // If the PDA exists, then the message has been processed
+    const accountInfo = await connection.getAccountInfo(pda);
+    return (accountInfo?.data?.length ?? 0) > 0;
+  }
+
   static parseMessageDispatchLogs(
     logs: string[],
   ): Array<{ destination: string; messageId: string }> {

@@ -2,18 +2,18 @@ import { input, select } from '@inquirer/prompts';
 import { z } from 'zod';
 
 import {
-  AggregationIsmConfig,
-  ChainMap,
-  IsmConfig,
+  type AggregationIsmConfig,
+  type ChainMap,
+  type IsmConfig,
   IsmConfigSchema,
   IsmType,
-  MultisigIsmConfig,
+  type MultisigIsmConfig,
   MultisigIsmConfigSchema,
-  TrustedRelayerIsmConfig,
+  type TrustedRelayerIsmConfig,
   isStaticIsm,
 } from '@hyperlane-xyz/sdk';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import {
   errorRed,
   log,

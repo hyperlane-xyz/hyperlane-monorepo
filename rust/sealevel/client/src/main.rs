@@ -9,15 +9,15 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
 use solana_client::rpc_client::RpcClient;
+use solana_commitment_config::CommitmentConfig;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_program::pubkey;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::{read_keypair_file, Keypair, Signer as _},
-    system_program,
 };
+use solana_system_interface::program as system_program;
 
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::{H160, H256};
@@ -35,7 +35,6 @@ use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_processed_message_pda_seeds,
     protocol_fee::ProtocolFee,
-    spl_noop,
 };
 
 use hyperlane_sealevel_token::{
@@ -66,6 +65,7 @@ use hyperlane_sealevel_validator_announce::{
 use squads::{process_squads_cmd, SquadsCmd};
 use warp_route::parse_token_account_data;
 
+mod alt;
 mod artifacts;
 mod cmd_utils;
 mod context;
@@ -115,6 +115,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum HyperlaneSealevelCmd {
+    Alt(AltCmd),
     Core(CoreCmd),
     Mailbox(MailboxCmd),
     Token(TokenCmd),
@@ -132,6 +133,34 @@ pub struct EnvironmentArgs {
     environment: String,
     #[arg(long)]
     environments_dir: PathBuf,
+}
+
+#[derive(Args)]
+pub(crate) struct AltCmd {
+    #[command(subcommand)]
+    cmd: AltSubCmd,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum AltSubCmd {
+    /// Create an Address Lookup Table for Hyperlane
+    Create(AltCreateCmd),
+}
+
+#[derive(Args)]
+pub(crate) struct AltCreateCmd {
+    /// Mailbox program ID (inbox PDA derived from this)
+    #[arg(long)]
+    pub mailbox: Pubkey,
+    /// Output format (text or json)
+    #[arg(long, default_value = "text")]
+    pub output_format: AltOutputFormat,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+pub enum AltOutputFormat {
+    Text,
+    Json,
 }
 
 #[derive(Args)]
@@ -215,6 +244,8 @@ enum MailboxSubCmd {
     Delivered(Delivered),
     TransferOwnership(TransferOwnership),
     SetDefaultIsm(SetDefaultIsm),
+    /// Simulate processing a message to debug delivery failures
+    Simulate(Simulate),
 }
 
 const MAILBOX_PROG_ID: Pubkey = pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
@@ -291,6 +322,13 @@ struct Delivered {
     program_id: Pubkey,
     #[arg(long, short)]
     message_id: H256,
+}
+
+#[derive(Args)]
+struct Simulate {
+    /// Base58-encoded transaction to simulate
+    #[arg(long)]
+    transaction: String,
 }
 
 #[derive(Args)]
@@ -788,6 +826,7 @@ fn main() {
         cli.write_instructions,
     );
     match cli.cmd {
+        HyperlaneSealevelCmd::Alt(cmd) => alt::process_alt_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Token(cmd) => process_token_cmd(ctx, cmd),
         HyperlaneSealevelCmd::ValidatorAnnounce(cmd) => process_validator_announce_cmd(ctx, cmd),
@@ -875,7 +914,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 accounts: vec![
                     AccountMeta::new(outbox_account, false),
                     AccountMeta::new_readonly(ctx.payer_pubkey, true),
-                    AccountMeta::new_readonly(spl_noop::id(), false),
+                    AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                 ],
             };
             ctx.new_txn().add(outbox_instruction).send_with_payer();
@@ -925,6 +964,42 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                     format!("Setting default ISM to {}", set_default_ism.default_ism),
                 )
                 .send_with_payer();
+        }
+        MailboxSubCmd::Simulate(simulate) => {
+            // Decode the base58 transaction
+            let tx_bytes = bs58::decode(&simulate.transaction)
+                .into_vec()
+                .expect("Failed to decode base58 transaction");
+            let transaction: solana_sdk::transaction::Transaction =
+                bincode::deserialize(&tx_bytes).expect("Failed to deserialize transaction");
+
+            println!("Simulating transaction...");
+            println!("Transaction signatures: {:?}", transaction.signatures);
+
+            // Simulate the transaction
+            let result = ctx
+                .client
+                .simulate_transaction(&transaction)
+                .expect("Failed to simulate transaction");
+
+            println!("\n=== Simulation Result ===");
+            if let Some(err) = result.value.err {
+                println!("❌ Transaction would FAIL");
+                println!("Error: {:?}", err);
+            } else {
+                println!("✅ Transaction would SUCCEED");
+            }
+
+            if let Some(logs) = result.value.logs {
+                println!("\n=== Program Logs ===");
+                for log in logs {
+                    println!("{}", log);
+                }
+            }
+
+            if let Some(units) = result.value.units_consumed {
+                println!("\nCompute units consumed: {}", units);
+            }
         }
     };
 }
@@ -1125,7 +1200,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             // 14..N [??..??] Plugin-specific accounts.
             let mut accounts = vec![
                 AccountMeta::new_readonly(system_program::id(), false),
-                AccountMeta::new_readonly(spl_noop::id(), false),
+                AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
                 AccountMeta::new_readonly(token_account, false),
                 AccountMeta::new_readonly(token.mailbox, false),
                 AccountMeta::new(mailbox_outbox_account, false),

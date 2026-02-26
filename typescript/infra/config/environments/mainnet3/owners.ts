@@ -23,9 +23,9 @@ export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => {
     const owner =
+      regularSafes[local] ??
       regularIcas[local] ??
       regularIcasLegacy[local] ??
-      regularSafes[local] ??
       awIcasLegacy[local] ??
       awSafes[local] ??
       DEPLOYER;
@@ -54,6 +54,10 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   eclipsemainnet: {
     // Squads multisig
     owner: 'E4TncCw3WMqQZbkACVcomX3HqcSzLfNyhTnqKN1DimGr',
+  },
+  neutron: {
+    // Da0Da0 multisig
+    owner: 'neutron1fqf5mprg3f5hytvzp3t7spmsum6rjrw80mq8zgkc0h6rxga0dtzqws3uu7',
   },
   // We intentionally cause issues if these were to be used, but satisfy the types
   // and ensure there's an entry for each supported chain.

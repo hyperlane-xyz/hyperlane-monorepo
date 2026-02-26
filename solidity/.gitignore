@@ -22,6 +22,9 @@ dependencies/
 # ZKSync
 artifacts-zk
 cache-zk
+# Tron
+artifacts-tron
+cache-tron
 core-utils/zksync/artifacts/output
 .zksolc-libraries-cache/
 typechain-types/

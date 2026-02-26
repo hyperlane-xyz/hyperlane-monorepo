@@ -16,10 +16,11 @@ import { assert } from './validation.js';
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
 const COSMOS_NATIVE_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
-const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
+const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{63,64}$/;
 const RADIX_ADDRESS_REGEX =
   /^(account|component)_(rdx|loc|sim|tdx_[\d]_)[a-z0-9]{55}$/;
-const ALEO_ADDRESS_REGEX = /^[A-Za-z0-9_]+\.aleo\/aleo1[a-z0-9]{58}$/;
+const ALEO_ADDRESS_REGEX =
+  /^([a-z0-9_]+\.aleo\/aleo1[a-z0-9]{58}|aleo1[a-z0-9]{58})$/;
 
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
@@ -46,8 +47,12 @@ const COSMOS_ZEROISH_ADDRESS_REGEX = /^[a-z]{1,10}?1[0]+$/;
 const COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const STARKNET_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const RADIX_ZEROISH_ADDRESS_REGEX = /^0*$/;
+
+// It matches both addresses with and without the program id prefix
+// - token.aleo/aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc
+// - aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc
 const ALEO_ZEROISH_ADDRESS_REGEX =
-  /^[A-Za-z0-9_]+\.aleo\/aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
+  /^(?:[a-z0-9_]+\.aleo\/)?aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
 
 export const ZERO_ADDRESS_HEX_32 =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -77,11 +82,10 @@ export function isCosmosIbcDenomAddress(address: Address): boolean {
 }
 
 export function isAddressStarknet(address: Address) {
-  // Starknet addresses may not have leading zeros, so we need to validate
-  // using the starknet library rather than just a regex
   try {
-    const parsedAddress = validateAndParseAddress(address);
-    return STARKNET_ADDRESS_REGEX.test(parsedAddress);
+    return (
+      STARKNET_ADDRESS_REGEX.test(address) && !!validateAndParseAddress(address)
+    );
   } catch {
     return false;
   }
@@ -99,6 +103,8 @@ export function getAddressProtocolType(address: Address) {
   if (!address) return undefined;
   if (isAddressEvm(address)) {
     return ProtocolType.Ethereum;
+  } else if (isAddressAleo(address)) {
+    return ProtocolType.Aleo;
   } else if (isAddressCosmos(address)) {
     return ProtocolType.Cosmos;
   } else if (isAddressCosmosNative(address)) {
@@ -109,8 +115,6 @@ export function getAddressProtocolType(address: Address) {
     return ProtocolType.Starknet;
   } else if (isAddressRadix(address)) {
     return ProtocolType.Radix;
-  } else if (isAddressAleo(address)) {
-    return ProtocolType.Aleo;
   } else {
     return undefined;
   }
@@ -169,8 +173,11 @@ export function isValidAddressCosmos(address: Address) {
 
 export function isValidAddressStarknet(address: Address) {
   try {
-    const isValid = address && validateAndParseAddress(address);
-    return !!isValid;
+    return (
+      !!address &&
+      STARKNET_ADDRESS_REGEX.test(address) &&
+      !!validateAndParseAddress(address)
+    );
   } catch {
     return false;
   }
@@ -438,7 +445,11 @@ export function addressToBytesRadix(address: Address): Uint8Array {
 }
 
 export function addressToBytesAleo(address: Address): Uint8Array {
-  const [_, aleoAddress] = address.split('/');
+  let aleoAddress = address;
+
+  if (address.includes('/')) {
+    aleoAddress = address.split('/')[1];
+  }
   return new Uint8Array(bech32m.fromWords(bech32m.decode(aleoAddress).words));
 }
 
@@ -629,15 +640,19 @@ export function isPrivateKeyEvm(privateKey: string): boolean {
   }
 }
 
+export function hexToBech32mPrefix(hex: string, prefix: string, length = 32) {
+  let bytes = addressToBytes(hex);
+  bytes = bytes.slice(bytes.length - length);
+  return bech32m.encode(prefix, bech32m.toWords(bytes));
+}
+
 export function hexToRadixCustomPrefix(
   hex: string,
   module: string,
   prefix?: string,
   length = 32,
 ) {
-  let bytes = addressToBytes(hex);
-  bytes = bytes.slice(bytes.length - length);
   prefix = prefix || 'account_rdx';
   prefix = prefix.replace('account', module);
-  return bech32m.encode(prefix, bech32m.toWords(bytes));
+  return hexToBech32mPrefix(hex, prefix, length);
 }

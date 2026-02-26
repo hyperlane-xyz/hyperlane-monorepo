@@ -1,12 +1,12 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
-import { DeliverTxResponse } from '@cosmjs/stargate';
+import { type EncodeObject } from '@cosmjs/proto-signing';
+import { type DeliverTxResponse } from '@cosmjs/stargate';
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { bytes32ToAddress, isValidAddressEvm } from '@hyperlane-xyz/utils';
 
-import { createSigner } from './utils.js';
+import { createSigner } from '../testing/utils.js';
 
 describe('1. cosmos sdk interchain security e2e tests', async function () {
   this.timeout(100_000);
@@ -29,7 +29,7 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
       .true;
 
-    let ism = await signer.getNoopIsm({
+    const ism = await signer.getNoopIsm({
       ismAddress: txResponse.ismAddress,
     });
     expect(ism.address).to.equal(txResponse.ismAddress);
@@ -58,7 +58,7 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
       .true;
 
-    let ism = await signer.getMessageIdMultisigIsm({
+    const ism = await signer.getMessageIdMultisigIsm({
       ismAddress: txResponse.ismAddress,
     });
 
@@ -90,7 +90,7 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
       .true;
 
-    let ism = await signer.getMerkleRootMultisigIsm({
+    const ism = await signer.getMerkleRootMultisigIsm({
       ismAddress: txResponse.ismAddress,
     });
 
@@ -112,7 +112,7 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     expect(isValidAddressEvm(bytes32ToAddress(txResponse.ismAddress))).to.be
       .true;
 
-    let ism = await signer.getRoutingIsm({
+    const ism = await signer.getRoutingIsm({
       ismAddress: txResponse.ismAddress,
     });
 
@@ -140,7 +140,7 @@ describe('1. cosmos sdk interchain security e2e tests', async function () {
     });
 
     // ASSERT
-    let ism = await signer.getRoutingIsm({
+    const ism = await signer.getRoutingIsm({
       ismAddress: routing_ism_id,
     });
 

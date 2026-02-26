@@ -1,3 +1,7 @@
+## [2.0.0] - 2026-01-06
+
+* feat: always log metadata bytes as hex (#7566)
+
 ## [1.6.0] - 2025-11-06
 
 * chore: add new starknet SOL route to SVM relayer application verifier (#6670)

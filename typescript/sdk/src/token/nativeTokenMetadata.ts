@@ -1,9 +1,10 @@
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { NativeToken } from '../metadata/chainMetadataTypes.js';
+import { KnownProtocolType } from '../providers/ProviderType.js';
 
 export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
-  ProtocolType,
+  KnownProtocolType,
   NativeToken
 > = {
   [ProtocolType.Ethereum]: {

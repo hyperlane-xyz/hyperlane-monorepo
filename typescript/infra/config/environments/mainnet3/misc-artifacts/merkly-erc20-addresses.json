@@ -8,7 +8,7 @@
   "avalanche": {
     "router": "0x904550e0D182cd4aEe0D305891c666a212EC8F01"
   },
-  "fuse": {
+  "fusemainnet": {
     "router": "0xCd8EAE908E27b9046ca7845DA22f6d3cdf367588"
   },
   "kaia": {

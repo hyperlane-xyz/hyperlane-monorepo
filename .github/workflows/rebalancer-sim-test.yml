@@ -1,0 +1,50 @@
+name: rebalancer-sim-test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'typescript/rebalancer/**'
+      - 'typescript/rebalancer-sim/**'
+      - 'solidity/contracts/mock/MockValueTransferBridge.sol'
+      - '.github/workflows/rebalancer-sim-test.yml'
+  pull_request:
+    paths:
+      - 'typescript/rebalancer/**'
+      - 'typescript/rebalancer-sim/**'
+      - 'solidity/contracts/mock/MockValueTransferBridge.sol'
+      - '.github/workflows/rebalancer-sim-test.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: rebalancer-sim-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rebalancer-sim-test:
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Run all rebalancer-sim tests
+        working-directory: typescript/rebalancer-sim
+        run: pnpm test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: rebalancer-sim-results
+          path: typescript/rebalancer-sim/results/*.html
+          if-no-files-found: ignore
+          retention-days: 7

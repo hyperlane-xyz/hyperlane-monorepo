@@ -1,21 +1,24 @@
 import { password } from '@inquirer/prompts';
 
 import {
-  AltVM,
-  ProtocolType,
+  type AltVM,
+  type ProtocolType,
   getProtocolProvider,
   hasProtocol,
 } from '@hyperlane-xyz/provider-sdk';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
-  ChainMap,
-  ChainMetadataManager,
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type ChainMap,
+  type ChainMetadataManager,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 
-import { ExtendedChainSubmissionStrategy } from '../submitters/types.js';
+import { type ExtendedChainSubmissionStrategy } from '../submitters/types.js';
 
-import { SignerKeyProtocolMap } from './types.js';
+import { type SignerKeyProtocolMap } from './types.js';
 
 async function loadPrivateKey(
   keyByProtocol: SignerKeyProtocolMap,

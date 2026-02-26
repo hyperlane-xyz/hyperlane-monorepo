@@ -70,9 +70,8 @@ impl EcdsaSignature {
         let public_key = secp256k1_recover(hash, self.recovery_id, self.serialized_rs.as_slice())?;
 
         let public_key_hash = {
-            let mut hasher = keccak::Hasher::default();
-            hasher.hash(&public_key.to_bytes()[..]);
-            &hasher.result().to_bytes()[12..]
+            let hash = keccak::hash(&public_key.to_bytes()[..]);
+            &hash.to_bytes()[12..]
         };
 
         Ok(H160::from_slice(public_key_hash))

@@ -1,7 +1,46 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "20.1.0",
+  "version": "25.3.1",
   "description": "A command-line utility for common Hyperlane operations",
+  "keywords": [
+    "CLI",
+    "Deployment",
+    "Hyperlane",
+    "Permissionless",
+    "Typescript"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "bin": {
+    "hyperlane": "./bundle/index.js"
+  },
+  "files": [
+    "./bundle",
+    "./examples",
+    "package.json"
+  ],
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "scripts": {
+    "hyperlane": "node ./dist/cli.js",
+    "build": "pnpm version:update && tsc",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/cli.js -o bundle && node ../../scripts/ncc.post-bundle.mjs",
+    "dev": "pnpm version:update && tsc --watch",
+    "clean": "rm -rf ./dist && rm -rf ./bundle",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "format": "oxfmt --write ./src ./examples",
+    "test:ci": "mocha --config .mocharc.json",
+    "test:ethereum:e2e": "./src/tests/ethereum/run-e2e-test.sh",
+    "test:cross-chain:e2e": "./src/tests/cross-chain/run-e2e-test.sh",
+    "test:cosmosnative:e2e": "./src/tests/cosmosnative/run-e2e-test.sh",
+    "test:radix:e2e": "./src/tests/radix/run-e2e-test.sh",
+    "test:aleo:e2e": "./src/tests/aleo/run-e2e-test.sh",
+    "test:tron:e2e": "./src/tests/ethereum/run-tron-e2e-test.sh",
+    "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts",
+    "prepack": "pnpm bundle"
+  },
   "devDependencies": {
     "@aws-sdk/client-kms": "catalog:",
     "@aws-sdk/client-s3": "catalog:",
@@ -11,6 +50,7 @@
     "@ethersproject/abi": "*",
     "@ethersproject/constants": "*",
     "@ethersproject/providers": "*",
+    "@hyperlane-xyz/aleo-sdk": "workspace:*",
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
     "@hyperlane-xyz/deploy-sdk": "workspace:*",
@@ -19,7 +59,9 @@
     "@hyperlane-xyz/radix-sdk": "workspace:*",
     "@hyperlane-xyz/rebalancer": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/tron-sdk": "workspace:*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@hyperlane-xyz/utils": "workspace:*",
     "@inquirer/core": "9.0.10",
@@ -36,7 +78,7 @@
     "@types/yargs": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
-    "@vercel/ncc": "^0.38.3",
+    "@vercel/ncc": "catalog:",
     "ansi-escapes": "^7.0.0",
     "asn1.js": "catalog:",
     "bignumber.js": "catalog:",
@@ -52,8 +94,8 @@
     "latest-version": "^8.0.0",
     "lodash-es": "catalog:",
     "mocha": "catalog:",
+    "oxfmt": "catalog:",
     "pino": "catalog:",
-    "prettier": "catalog:",
     "prom-client": "catalog:",
     "sinon": "catalog:",
     "terminal-link": "^3.0.0",
@@ -68,44 +110,7 @@
     "zod-validation-error": "catalog:",
     "zx": "^8.1.4"
   },
-  "scripts": {
-    "hyperlane": "node ./dist/cli.js",
-    "build": "pnpm version:update && tsc",
-    "bundle": "rm -rf ./cli-bundle && ncc build ./dist/cli.js -o cli-bundle && node ./scripts/ncc.post-bundle.mjs",
-    "dev": "pnpm version:update && tsc --watch",
-    "clean": "rm -rf ./dist && rm -rf ./cli-bundle",
-    "lint": "eslint -c ./eslint.config.mjs",
-    "prettier": "prettier --write ./src ./examples",
-    "test:ci": "mocha --config .mocharc.json",
-    "test:ethereum:e2e": "./src/tests/ethereum/run-e2e-test.sh",
-    "test:cross-chain:e2e": "./src/tests/cross-chain/run-e2e-test.sh",
-    "test:cosmosnative:e2e": "./src/tests/cosmosnative/run-e2e-test.sh",
-    "test:radix:e2e": "./src/tests/radix/run-e2e-test.sh",
-    "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts",
-    "prepack": "pnpm bundle"
-  },
-  "files": [
-    "./cli-bundle",
-    "./examples",
-    "package.json"
-  ],
-  "main": "./dist/src/index.js",
-  "types": "./dist/src/index.d.ts",
-  "type": "module",
   "engines": {
     "node": ">=16"
-  },
-  "bin": {
-    "hyperlane": "./cli-bundle/index.js"
-  },
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "license": "Apache-2.0",
-  "homepage": "https://www.hyperlane.xyz",
-  "keywords": [
-    "Hyperlane",
-    "CLI",
-    "Permissionless",
-    "Deployment",
-    "Typescript"
-  ]
+  }
 }

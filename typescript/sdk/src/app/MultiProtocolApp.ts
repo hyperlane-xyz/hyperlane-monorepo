@@ -12,6 +12,7 @@ import {
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
+  AleoProvider,
   CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
@@ -133,6 +134,14 @@ export class BaseRadixAdapter extends BaseAppAdapter {
 
   public getProvider(): RadixProvider['provider'] {
     return this.multiProvider.getRadixProvider(this.chainName);
+  }
+}
+
+export class BaseAleoAdapter extends BaseAppAdapter {
+  public readonly protocol: ProtocolType = ProtocolType.Aleo;
+
+  public getProvider(): AleoProvider['provider'] {
+    return this.multiProvider.getAleoProvider(this.chainName);
   }
 }
 

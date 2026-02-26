@@ -5,10 +5,14 @@ import {
   TransactionManifest,
 } from '@radixdlt/radix-engine-toolkit';
 
+import { Annotated } from '@hyperlane-xyz/utils';
+
 export interface RadixSDKTransaction {
   networkId: number;
   manifest: TransactionManifest | string;
 }
+
+export type AnnotatedRadixTransaction = Annotated<RadixSDKTransaction>;
 
 export interface RadixSDKReceipt extends TransactionCommittedDetailsResponse {
   transactionHash: string;

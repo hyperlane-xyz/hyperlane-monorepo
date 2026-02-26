@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hyperlane.fullname" . }}-config
+  labels:
+    {{- include "hyperlane.labels" . | nindent 4 }}
+data:
+  rebalancer-config.yaml: |
+{{ .Values.hyperlane.rebalancerConfig | indent 4 }}

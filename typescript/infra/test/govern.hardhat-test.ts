@@ -37,8 +37,10 @@ import {
   HyperlaneAppGovernor,
 } from '../src/govern/HyperlaneAppGovernor.js';
 
+// eslint-disable-next-line jest/no-export -- test fixture class
 export class TestApp extends HyperlaneApp<{}> {}
 
+// eslint-disable-next-line jest/no-export -- test fixture class
 export class TestChecker extends HyperlaneAppChecker<TestApp, OwnableConfig> {
   async checkChain(_: string): Promise<void> {
     this.addViolation({
@@ -50,6 +52,7 @@ export class TestChecker extends HyperlaneAppChecker<TestApp, OwnableConfig> {
   }
 }
 
+// eslint-disable-next-line jest/no-export -- test fixture class
 export class HyperlaneTestGovernor extends HyperlaneAppGovernor<
   TestApp,
   OwnableConfig

@@ -16,9 +16,9 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction,
     sysvar::Sysvar,
 };
+use solana_system_interface::{instruction as system_instruction, program as system_program};
 
 /// Seeds relating to the PDA account that holds native collateral.
 #[macro_export]
@@ -101,7 +101,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
             payer_account,
             &Rent::get()?,
             0,
-            &solana_program::system_program::id(),
+            &system_program::ID,
             system_program,
             native_collateral_account,
             hyperlane_token_native_collateral_pda_seeds!(native_collateral_bump),
@@ -127,7 +127,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     ) -> Result<(), ProgramError> {
         // Account 0: System program.
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
+        if system_program.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -158,7 +158,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     ) -> Result<(), ProgramError> {
         // Account 0: System program.
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
+        if system_program.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -197,7 +197,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
 
         Ok((
             vec![
-                AccountMeta::new_readonly(solana_program::system_program::id(), false).into(),
+                AccountMeta::new_readonly(system_program::ID, false).into(),
                 AccountMeta::new(native_collateral_key, false).into(),
             ],
             // Recipient wallet must be writeable to send lamports to it.

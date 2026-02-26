@@ -19,6 +19,7 @@ borsh.workspace = true
 solana-program-test = { workspace = true, optional = true }
 solana-program.workspace = true
 solana-sdk = { workspace = true, optional = true }
+solana-system-interface.workspace = true
 spl-noop = { workspace = true, optional = true }
 
 access-control = { path = "../../libraries/access-control" }

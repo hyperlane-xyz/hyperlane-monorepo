@@ -1,15 +1,4 @@
-import express from 'express';
 import { Counter, Registry } from 'prom-client';
-
-// Global register for offchain lookup metrics
-const register = new Registry();
-
-const requestCounter = new Counter({
-  name: 'hyperlane_offchain_lookup_server_http_requests',
-  help: 'Total number of HTTP offchain lookup requests',
-  labelNames: ['service', 'status_code'],
-  registers: [register],
-});
 
 /**
  * Error reasons for unhandled errors
@@ -37,35 +26,43 @@ export enum UnhandledErrorReason {
   UNKNOWN = 'unknown',
 }
 
-const unhandledErrorCounter = new Counter({
-  name: 'hyperlane_offchain_lookup_server_unhandled_errors',
-  help: 'Total number of unhandled errors',
-  labelNames: ['service', 'error_reason'],
-  registers: [register],
-});
+let requestCounter: Counter<string> | undefined;
+let unhandledErrorCounter: Counter<string> | undefined;
+
+/**
+ * Initializes Prometheus metrics with the given registry.
+ * Must be called before using PrometheusMetrics.
+ */
+export function initializeMetrics(register: Registry): void {
+  requestCounter = new Counter({
+    name: 'hyperlane_offchain_lookup_server_http_requests',
+    help: 'Total number of HTTP offchain lookup requests',
+    labelNames: ['service', 'status_code'],
+    registers: [register],
+  });
+
+  unhandledErrorCounter = new Counter({
+    name: 'hyperlane_offchain_lookup_server_unhandled_errors',
+    help: 'Total number of unhandled errors',
+    labelNames: ['service', 'error_reason'],
+    registers: [register],
+  });
+}
 
 export const PrometheusMetrics = {
   logLookupRequest(service: string, statusCode: number) {
+    if (!requestCounter) {
+      throw new Error('Metrics not initialized. Call initializeMetrics first.');
+    }
     requestCounter.inc({ service, status_code: statusCode });
   },
   logUnhandledError(service: string, errorReason: UnhandledErrorReason) {
+    if (!unhandledErrorCounter) {
+      throw new Error('Metrics not initialized. Call initializeMetrics first.');
+    }
     unhandledErrorCounter.inc({
       service,
       error_reason: errorReason,
     });
   },
 };
-
-export async function startPrometheusServer() {
-  const app = express();
-
-  app.get('/metrics', async (req, res) => {
-    res.set('Content-Type', register.contentType);
-    res.end(await register.metrics());
-  });
-
-  const port = parseInt(process.env.PROMETHEUS_PORT ?? '9090');
-  app.listen(port, () =>
-    console.log(`Prometheus server started on port ${port}`),
-  );
-}

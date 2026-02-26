@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import {
-  SubmitterMetadata,
+  type SubmitterMetadata,
   SubmitterMetadataSchema,
   TxSubmitterType,
   ZChainName,

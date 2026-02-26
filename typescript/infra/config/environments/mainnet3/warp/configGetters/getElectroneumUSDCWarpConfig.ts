@@ -1,7 +1,8 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import { ChainMap, HypTokenRouterConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { WarpRouteIds } from '../warpIds.js';
 
 import {
   getRebalancingUSDCConfigForChain,
@@ -26,6 +27,7 @@ const ownersByChain: DeploymentChains<Address> = {
 
 const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
   Object.keys(ownersByChain),
+  [WarpRouteIds.MainnetCCTPV1],
 );
 
 export const getElectroneumUSDCWarpConfig = async (

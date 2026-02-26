@@ -13,8 +13,9 @@ export enum WarpRouteIds {
   CarrChainCARR = 'CARR/carrchain',
   ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP = 'TRUMP/arbitrum-avalanche-base-flowmainnet-form-optimism-solanamainnet-worldchain',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
-  EclipseEthereumSolanaUSDC = 'USDC/eclipsemainnet-ethereum-solanamainnet',
+  EclipseUSDC = 'USDC/eclipsemainnet',
   EclipseUSDCSTAGE = 'USDCSTAGE/eclipsemainnet',
+  ETHSTAGEStage = 'ETHSTAGE/stage',
   EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
   EclipseEthereumTETH = 'tETH/eclipsemainnet-ethereum',
   EclipseEthereumWBTC = 'WBTC/eclipsemainnet-ethereum',
@@ -34,7 +35,7 @@ export enum WarpRouteIds {
   EthereumSeiPumpBTC = 'pumpBTCsei/ethereum-sei',
   EthereumVanaETH = 'ETH/ethereum-vana',
   EthereumVanaVANA = 'VANA/ethereum-vana',
-  EthereumVictionETH = 'ETH/ethereum-viction',
+  VictionETH = 'ETH/viction',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
   BerachainEthereumSwellUnichainZircuitPZETH = 'PZETH/berachain-ethereum-swell-unichain-zircuit',
@@ -51,7 +52,7 @@ export enum WarpRouteIds {
   AppchainBaseUSDC = 'USDC/appchain-base',
   BsquaredUBTC = 'UBTC/bsquared',
   BaseEthereumSuperseedCBBTC = 'CBBTC/base-ethereum-superseed',
-  EthereumSuperseedUSDC = 'USDC/arbitrum-base-ethereum-ink-optimism-solanamainnet-superseed',
+  SuperseedUSDC = 'USDC/superseed',
   EthereumSuperseedUSDT = 'USDT/ethereum-superseed',
   OptimismSuperseedOP = 'OP/optimism-superseed',
   EthereumZircuitRstETH = 'rstETH/ethereum-zircuit',
@@ -125,4 +126,12 @@ export enum WarpRouteIds {
   CarrChainUSDC = 'USDC/carrchain',
   CarrChainUSDT = 'USDT/carrchain',
   CarrChainWBTC = 'WBTC/carrchain',
+
+  // ENI routes
+  EniETH = 'ETH/eni',
+  EniWBTC = 'WBTC/eni',
+  EniUSDC = 'USDC/eni',
+  EniUSDT = 'USDT/eni',
+
+  ModeUSDTSTAGE = 'USDTSTAGE/mode',
 }

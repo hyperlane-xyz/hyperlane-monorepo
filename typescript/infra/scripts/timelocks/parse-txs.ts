@@ -7,7 +7,6 @@ import {
   LogLevel,
   configureRootLogger,
   rootLogger,
-  stringifyObject,
 } from '@hyperlane-xyz/utils';
 
 import { getGovernanceTimelocks } from '../../config/environments/mainnet3/governance/utils.js';

@@ -30,6 +30,7 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
+use solana_system_interface::program as system_program;
 use std::collections::HashMap;
 
 use crate::{
@@ -138,16 +139,16 @@ where
     /// Initializes the program.
     ///
     /// Accounts:
-    /// 0.   `[executable]` The system program.
-    /// 1.   `[writable]` The token PDA account.
-    /// 2.   `[writable]` The dispatch authority PDA account.
-    /// 3.   `[signer]` The payer and access control owner.
-    /// 4..N `[??..??]` Plugin-specific accounts.
+    /// - 0: `[executable]` The system program.
+    /// - 1: `[writable]` The token PDA account.
+    /// - 2: `[writable]` The dispatch authority PDA account.
+    /// - 3: `[signer]` The payer and access control owner.
+    /// - 4..N: `[??..??]` Plugin-specific accounts.
     pub fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program
-        let system_program_id = solana_program::system_program::id();
+        let system_program_id = system_program::ID;
         let system_program = next_account_info(accounts_iter)?;
         if system_program.key != &system_program_id {
             return Err(ProgramError::IncorrectProgramId);
@@ -255,23 +256,23 @@ where
     /// then dispatches a message to the remote recipient.
     ///
     /// Accounts:
-    /// 0.    `[executable]` The system program.
-    /// 1.    `[executable]` The spl_noop program.
-    /// 2.    `[]` The token PDA account.
-    /// 3.    `[executable]` The mailbox program.
-    /// 4.    `[writeable]` The mailbox outbox account.
-    /// 5.    `[]` Message dispatch authority.
-    /// 6.    `[signer]` The token sender and mailbox payer.
-    /// 7.    `[signer]` Unique message / gas payment account.
-    /// 8.    `[writeable]` Message storage PDA.
-    ///       ---- If using an IGP ----
-    /// 9.    `[executable]` The IGP program.
-    /// 10.   `[writeable]` The IGP program data.
-    /// 11.   `[writeable]` Gas payment PDA.
-    /// 12.   `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-    /// 13.   `[writeable]` The IGP account.
-    ///      ---- End if ----
-    /// 14..N `[??..??]` Plugin-specific accounts.
+    /// - 0: `[executable]` The system program.
+    /// - 1: `[executable]` The spl_noop program.
+    /// - 2: `[]` The token PDA account.
+    /// - 3: `[executable]` The mailbox program.
+    /// - 4: `[writeable]` The mailbox outbox account.
+    /// - 5: `[]` Message dispatch authority.
+    /// - 6: `[signer]` The token sender and mailbox payer.
+    /// - 7: `[signer]` Unique message / gas payment account.
+    /// - 8: `[writeable]` Message storage PDA.
+    ///   ---- If using an IGP ----
+    /// - 9: `[executable]` The IGP program.
+    /// - 10: `[writeable]` The IGP program data.
+    /// - 11: `[writeable]` Gas payment PDA.
+    /// - 12: `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+    /// - 13: `[writeable]` The IGP account.
+    ///   ---- End if ----
+    /// - 14..N: `[??..??]` Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -281,13 +282,13 @@ where
 
         // Account 0: System program.
         let system_program_account = next_account_info(accounts_iter)?;
-        if system_program_account.key != &solana_program::system_program::id() {
+        if system_program_account.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 
         // Account 1: SPL Noop.
         let spl_noop = next_account_info(accounts_iter)?;
-        if spl_noop.key != &spl_noop::id() {
+        if spl_noop.key != &account_utils::SPL_NOOP_PROGRAM_ID {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -371,7 +372,7 @@ where
                 // 6. `[]` Overhead IGP account (optional).
 
                 let mut igp_payment_account_metas = vec![
-                    AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                    AccountMeta::new_readonly(system_program::ID, false),
                     AccountMeta::new(*sender_wallet.key, true),
                     AccountMeta::new(*igp_program_data_account.key, false),
                     AccountMeta::new_readonly(*unique_message_account.key, true),
@@ -435,8 +436,8 @@ where
         let dispatch_account_metas = vec![
             AccountMeta::new(*mailbox_outbox_account.key, false),
             AccountMeta::new_readonly(*dispatch_authority_account.key, true),
-            AccountMeta::new_readonly(solana_program::system_program::id(), false),
-            AccountMeta::new_readonly(spl_noop::id(), false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(account_utils::SPL_NOOP_PROGRAM_ID, false),
             AccountMeta::new(*sender_wallet.key, true),
             AccountMeta::new_readonly(*unique_message_account.key, true),
             AccountMeta::new(*dispatched_message_pda.key, false),
@@ -491,11 +492,11 @@ where
     }
 
     /// Accounts:
-    /// 0.   `[signer]` Mailbox processor authority specific to this program.
-    /// 1.   `[executable]` system_program
-    /// 2.   `[]` hyperlane_token storage
-    /// 3.   [depends on plugin] recipient wallet address
-    /// 4..N `[??..??]` Plugin-specific accounts.
+    /// - 0: `[signer]` Mailbox processor authority specific to this program.
+    /// - 1: `[executable]` system_program
+    /// - 2: `[]` hyperlane_token storage
+    /// - 3: `[depends on plugin]` recipient wallet address
+    /// - 4..N: `[??..??]` Plugin-specific accounts.
     pub fn transfer_from_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -513,7 +514,7 @@ where
 
         // Account 1: System program
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
+        if system_program.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -595,7 +596,7 @@ where
             T::transfer_out_account_metas(program_id, &token, &message)?;
 
         let mut accounts: Vec<SerializableAccountMeta> = vec![
-            AccountMeta::new_readonly(solana_program::system_program::id(), false).into(),
+            AccountMeta::new_readonly(system_program::ID, false).into(),
             AccountMeta::new_readonly(*token_account_info.key, false).into(),
             AccountMeta {
                 pubkey: Pubkey::new_from_array(message.recipient().into()),
@@ -610,9 +611,8 @@ where
         // may end with zero byte(s), which are incorrectly truncated as
         // simulated transaction return data.
         // See `SimulationReturnData` for details.
-        let bytes = SimulationReturnData::new(accounts)
-            .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        let bytes = borsh::to_vec(&SimulationReturnData::new(accounts))
+            .map_err(|_| ProgramError::BorshIoError)?;
         set_return_data(&bytes[..]);
 
         Ok(())
@@ -633,7 +633,7 @@ where
 
         // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
+        if system_program.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -682,7 +682,7 @@ where
 
         // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
+        if system_program.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -781,9 +781,8 @@ where
         // may end with zero byte(s), which are incorrectly truncated as
         // simulated transaction return data.
         // See `SimulationReturnData` for details.
-        let bytes = SimulationReturnData::new(account_metas)
-            .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        let bytes = borsh::to_vec(&SimulationReturnData::new(account_metas))
+            .map_err(|_| ProgramError::BorshIoError)?;
         set_return_data(&bytes[..]);
 
         Ok(())
@@ -832,7 +831,7 @@ where
 
         // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
+        if system_program.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 

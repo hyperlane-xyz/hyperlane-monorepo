@@ -2,8 +2,8 @@ import search from '@inquirer/search';
 
 import { filterWarpRoutesIds } from '@hyperlane-xyz/registry';
 import {
-  WarpCoreConfig,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
@@ -16,7 +16,10 @@ import {
   readWarpCoreConfig,
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
-import { CommandContext, WriteCommandContext } from '../context/types.js';
+import {
+  type CommandContext,
+  type WriteCommandContext,
+} from '../context/types.js';
 import { logRed } from '../logger.js';
 
 import { selectRegistryWarpRoute } from './tokens.js';

@@ -1,22 +1,43 @@
 import { StartedDockerComposeEnvironment } from 'testcontainers';
 
+import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { deepCopy } from '@hyperlane-xyz/utils';
+
 import {
   DEFAULT_E2E_TEST_TIMEOUT,
   TEST_RADIX_CHAIN_METADATA,
 } from '../testing/constants.js';
 import { runRadixNode } from '../testing/node.js';
-import { downloadRadixContracts } from '../testing/setup.js';
+import {
+  deployHyperlaneRadixPackage,
+  downloadRadixContracts,
+} from '../testing/setup.js';
 
 let radixNodeInstance: StartedDockerComposeEnvironment;
 
+// Global chain metadata with deployed package address
+export let DEPLOYED_TEST_CHAIN_METADATA: TestChainMetadata;
+
 before(async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  // Use 3x timeout for setup since Docker container startup can be slow in CI
+  // (image pulling, postgres init, fullnode sync, gateway sync)
+  this.timeout(3 * DEFAULT_E2E_TEST_TIMEOUT);
 
   // Download Radix contracts
   const artifacts = await downloadRadixContracts();
 
-  // Start node and deploy Hyperlane package
+  // Start node
   radixNodeInstance = await runRadixNode(TEST_RADIX_CHAIN_METADATA, artifacts);
+
+  // Deploy Hyperlane package and get address
+  const packageAddress = await deployHyperlaneRadixPackage(
+    TEST_RADIX_CHAIN_METADATA,
+    artifacts,
+  );
+
+  // Store metadata with package address for tests to use
+  DEPLOYED_TEST_CHAIN_METADATA = deepCopy(TEST_RADIX_CHAIN_METADATA);
+  DEPLOYED_TEST_CHAIN_METADATA.packageAddress = packageAddress;
 });
 
 after(async function () {

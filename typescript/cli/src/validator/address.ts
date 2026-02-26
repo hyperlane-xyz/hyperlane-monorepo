@@ -7,7 +7,7 @@ import { ethers } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { log, logBlue } from '../logger.js';
 
 export async function getValidatorAddress({

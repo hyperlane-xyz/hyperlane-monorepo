@@ -1,13 +1,13 @@
 {
   "name": "@hyperlane-xyz/deploy-sdk",
-  "version": "0.7.0",
+  "version": "1.3.5",
   "description": "Deployer SDK for the Hyperlane Protocol",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "license": "Apache-2.0",
-  "type": "module",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "files": [
     "dist"
   ],
+  "type": "module",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": "./dist/index.js",
@@ -19,13 +19,15 @@
     "dev": "tsc --watch",
     "lint": "eslint",
     "clean": "rm -rf ./dist",
-    "prettier": "prettier --write .",
+    "format": "oxfmt --write .",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit"
   },
   "dependencies": {
+    "@hyperlane-xyz/aleo-sdk": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/radix-sdk": "workspace:*",
+    "@hyperlane-xyz/tron-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "zod": "catalog:"
   },

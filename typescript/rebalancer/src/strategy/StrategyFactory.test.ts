@@ -2,16 +2,15 @@ import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { pino } from 'pino';
 
+import { type ChainMap, Token, TokenStandard } from '@hyperlane-xyz/sdk';
+
 import {
-  type ChainMap,
-  MinAmountStrategyConfig,
+  type MinAmountStrategyConfig,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
-  StrategyConfig,
-  Token,
-  TokenStandard,
-  WeightedStrategyConfig,
-} from '@hyperlane-xyz/sdk';
+  type StrategyConfig,
+  type WeightedStrategyConfig,
+} from '../config/types.js';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { StrategyFactory } from './StrategyFactory.js';
@@ -62,7 +61,7 @@ describe('StrategyFactory', () => {
       };
 
       const strategy = StrategyFactory.createStrategy(
-        strategyConfig,
+        [strategyConfig],
         tokensByChainName,
         totalCollateral,
         testLogger,
@@ -98,7 +97,7 @@ describe('StrategyFactory', () => {
       };
 
       const strategy = StrategyFactory.createStrategy(
-        strategyConfig,
+        [strategyConfig],
         tokensByChainName,
         totalCollateral,
         testLogger,

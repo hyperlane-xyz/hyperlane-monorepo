@@ -5,6 +5,8 @@ import {
   AbstractRoutingIsm__factory,
   CCIPIsm,
   CCIPIsm__factory,
+  DefaultFallbackRoutingIsm,
+  DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule,
   IInterchainSecurityModule__factory,
   IMultisigIsm,
@@ -173,6 +175,15 @@ describe('EvmIsmReader', () => {
       owner: sandbox.stub().resolves(mockOwner),
       CCIP_READ_ISM: sandbox.stub().resolves(mockccipIsm),
     };
+    // Mock DefaultFallbackRoutingIsm to have owner() succeed but domains() fail
+    // This triggers the ICA path in the optimized deriveRoutingConfig
+    const mockDefaultFallbackContract = {
+      moduleType: sandbox.stub().resolves(ModuleType.ROUTING),
+      owner: sandbox.stub().resolves(mockOwner),
+      domains: sandbox
+        .stub()
+        .rejects(new Error('Not a DefaultFallbackRoutingIsm')),
+    };
     sandbox
       .stub(AbstractRoutingIsm__factory, 'connect')
       .returns(mockContract as unknown as InterchainAccountRouter);
@@ -185,6 +196,11 @@ describe('EvmIsmReader', () => {
     sandbox
       .stub(IInterchainSecurityModule__factory, 'connect')
       .returns(mockContract as unknown as IInterchainSecurityModule);
+    sandbox
+      .stub(DefaultFallbackRoutingIsm__factory, 'connect')
+      .returns(
+        mockDefaultFallbackContract as unknown as DefaultFallbackRoutingIsm,
+      );
 
     const expectedConfig: WithAddress<InterchainAccountRouterIsm> = {
       address: mockAddress,

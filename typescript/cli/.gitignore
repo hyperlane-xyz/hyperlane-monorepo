@@ -1,6 +1,6 @@
 .env*
 /dist
-/cli-bundle
+/bundle
 /cache
 
 # Deployment artifacts and local registry configs

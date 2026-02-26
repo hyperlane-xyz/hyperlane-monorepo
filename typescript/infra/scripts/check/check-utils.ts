@@ -1,6 +1,5 @@
 import { Registry } from 'prom-client';
 
-import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
   CheckerViolation,
   HypERC20App,
@@ -34,7 +33,6 @@ import { HyperlaneHaasGovernor } from '../../src/govern/HyperlaneHaasGovernor.js
 import { HyperlaneICAChecker } from '../../src/govern/HyperlaneICAChecker.js';
 import { HyperlaneIgpGovernor } from '../../src/govern/HyperlaneIgpGovernor.js';
 import { ProxiedRouterGovernor } from '../../src/govern/ProxiedRouterGovernor.js';
-import { Role } from '../../src/roles.js';
 import { impersonateAccount, useLocalProvider } from '../../src/utils/fork.js';
 import { logViolationDetails } from '../../src/utils/violation.js';
 import {
@@ -52,7 +50,6 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 import { withRegistryUris } from '../github-utils.js';
-import { getHelloWorldApp } from '../helloworld/utils.js';
 
 export function getCheckBaseArgs() {
   return withAsDeployer(
@@ -65,7 +62,13 @@ export function getCheckWarpDeployArgs() {
 }
 
 export function getCheckDeployArgs() {
-  return withRegistryUris(withWarpRouteId(withModule(getCheckBaseArgs())));
+  return withRegistryUris(withWarpRouteId(withModule(getCheckBaseArgs())))
+    .describe(
+      'forceRegistryConfig',
+      'Force using registry YAML config instead of config getter',
+    )
+    .boolean('forceRegistryConfig')
+    .default('forceRegistryConfig', false);
 }
 
 const ICA_ENABLED_MODULES = [
@@ -85,6 +88,7 @@ export async function getGovernor(
   govern?: boolean,
   multiProvider: MultiProvider | undefined = undefined,
   registryUris?: string[],
+  forceRegistryConfig?: boolean,
 ) {
   const envConfig = getEnvironmentConfig(environment);
   // If the multiProvider is not passed in, get it from the environment
@@ -219,24 +223,6 @@ export async function getGovernor(
       routerConfig,
     );
     governor = new ProxiedRouterGovernor(checker);
-  } else if (module === Modules.HELLO_WORLD) {
-    const app = await getHelloWorldApp(
-      envConfig,
-      context,
-      Role.Deployer,
-      Contexts.Hyperlane, // Owner should always be from the hyperlane context
-    );
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      chainAddresses,
-      multiProvider,
-    );
-    const checker = new HelloWorldChecker(
-      multiProvider,
-      app,
-      routerConfig,
-      ismFactory,
-    );
-    governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
     if (!warpRouteId) {
       warpRouteId = await getWarpRouteIdInteractive(environment);
@@ -247,6 +233,7 @@ export async function getGovernor(
       envConfig,
       warpRouteId,
       registryUris,
+      forceRegistryConfig,
     ).catch((error) => {
       console.log(
         `Fetching warp route deploy config failed for ${warpRouteId}. Exiting with error: ${error}`,

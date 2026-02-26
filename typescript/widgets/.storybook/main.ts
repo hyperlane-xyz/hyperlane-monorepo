@@ -22,7 +22,7 @@ const config: StorybookConfig = {
   docs: {
     autodocs: true,
   },
-  async viteFinal(config, { configType }) {
+  async viteFinal(config, { configType: _configType }) {
     return mergeConfig(config, {
       define: { 'process.env': {} },
       optimizeDeps: {

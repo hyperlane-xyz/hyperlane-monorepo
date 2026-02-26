@@ -1,9 +1,10 @@
-import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { TEST_ALEO_PRIVATE_KEY } from '@hyperlane-xyz/aleo-sdk/testing';
+import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  ChainAddresses,
+  type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
-import { ChainMetadata, ProtocolMap } from '@hyperlane-xyz/sdk';
+import { type ChainMetadata, type ProtocolMap } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../utils/files.js';
@@ -40,6 +41,10 @@ export const TEST_CHAIN_NAMES_BY_PROTOCOL = {
     CHAIN_NAME_1: 'radix1',
     CHAIN_NAME_2: 'radix2',
   },
+  [ProtocolType.Aleo]: {
+    CHAIN_NAME_1: 'aleo1',
+    CHAIN_NAME_2: 'aleo2',
+  },
 } as const satisfies ProtocolMap<Record<string, string>>;
 
 type TestProtocolType = keyof typeof TEST_CHAIN_NAMES_BY_PROTOCOL;
@@ -62,6 +67,7 @@ export const CORE_CONFIG_PATH_BY_PROTOCOL = {
   [ProtocolType.Ethereum]: `./examples/core-config.yaml`,
   [ProtocolType.CosmosNative]: './examples/cosmosnative/core-config.yaml',
   [ProtocolType.Radix]: './examples/radix/core-config.yaml',
+  [ProtocolType.Aleo]: './examples/aleo/core-config.yaml',
 } as const satisfies ProtocolMap<string>;
 
 export const HYP_KEY_BY_PROTOCOL = {
@@ -71,6 +77,7 @@ export const HYP_KEY_BY_PROTOCOL = {
     '33913dd43a5d5764f7a23da212a8664fc4f5eedc68db35f3eb4a5c4f046b5b51',
   [ProtocolType.Radix]:
     '0x8ef41fc20bf963ce18494c0f13e9303f70abc4c1d1ecfdb0a329d7fd468865b8',
+  [ProtocolType.Aleo]: TEST_ALEO_PRIVATE_KEY,
 } as const satisfies ProtocolMap<string>;
 
 type ProtocolChainMap<
@@ -87,6 +94,8 @@ export const HYP_DEPLOYER_ADDRESS_BY_PROTOCOL = {
   [ProtocolType.CosmosNative]: 'hyp1jq304cthpx0lwhpqzrdjrcza559ukyy3sc4dw5',
   [ProtocolType.Radix]:
     'account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3',
+  [ProtocolType.Aleo]:
+    'aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px',
 } as const satisfies ProtocolMap<string>;
 
 export const BURN_ADDRESS_BY_PROTOCOL = {
@@ -109,6 +118,8 @@ export const BURN_ADDRESS_BY_PROTOCOL = {
   // );
   [ProtocolType.Radix]:
     'account_loc1294g56ga4ckdzhksx6vnrns2jj0v47ju87flsyscxdjxu9wrkjp5vt',
+  [ProtocolType.Aleo]:
+    'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc',
 } as const satisfies ProtocolMap<string>;
 
 type CoreDeploymentPath<TChainName extends string> =

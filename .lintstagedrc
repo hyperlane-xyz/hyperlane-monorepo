@@ -1,6 +1,7 @@
 {
-  "*.js": "prettier --write",
-  "*.ts": "prettier --write",
-  "*.md": "prettier --write",
-  "*.sol": "prettier --write"
+  "*.js": ["oxlint", "oxfmt --write"],
+  "*.ts": ["oxlint", "oxfmt --write"],
+  "*.md": "oxfmt --no-error-on-unmatched-pattern --write",
+  "*.sol": "prettier --write",
+  "*.json": "oxfmt --no-error-on-unmatched-pattern --write"
 }

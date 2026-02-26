@@ -2,16 +2,16 @@ import { JsonRpcProvider } from '@ethersproject/providers';
 import { expect } from 'chai';
 
 import {
-  ERC20Test,
+  type ERC20Test,
   EverclearTokenBridge__factory,
-  MockEverclearAdapter,
+  type MockEverclearAdapter,
 } from '@hyperlane-xyz/core';
 import {
-  EverclearCollateralTokenConfig,
+  type EverclearCollateralTokenConfig,
   HypTokenRouterConfigMailboxOptionalSchema,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {

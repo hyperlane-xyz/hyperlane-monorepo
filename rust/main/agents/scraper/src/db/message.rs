@@ -327,8 +327,8 @@ impl ScraperDb {
                         Insert::many(chunk.to_vec())
                             .on_conflict(
                                 OnConflict::columns([
-                                    message::Column::OriginMailbox,
                                     message::Column::Origin,
+                                    message::Column::OriginMailbox,
                                     message::Column::Nonce,
                                 ])
                                 .update_columns([

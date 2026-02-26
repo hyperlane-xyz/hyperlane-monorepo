@@ -1,48 +1,25 @@
 {
   "name": "@hyperlane-xyz/ccip-server",
-  "version": "20.1.0",
-  "description": "CCIP server",
-  "typings": "dist/index.d.ts",
-  "typedocMain": "src/index.ts",
+  "version": "25.3.1",
   "private": true,
+  "description": "CCIP server",
+  "license": "Apache-2.0",
+  "author": "brolee",
   "files": [
     "src",
     "dist"
   ],
-  "engines": {
-    "node": ">=16"
-  },
   "type": "module",
-  "moduleResolution": "nodenext",
+  "typings": "dist/index.d.ts",
   "scripts": {
     "postinstall": "prisma generate",
     "build": "prisma generate && tsc -p tsconfig.json",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/server.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "start": "tsx src/server.ts",
     "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/server.ts",
     "test": "jest",
     "lint": "eslint -c ./eslint.config.mjs",
-    "prettier": "prettier --write ./src/* ./tests/"
-  },
-  "author": "brolee",
-  "license": "Apache-2.0",
-  "devDependencies": {
-    "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@jest/globals": "^29.7.0",
-    "@types/cors": "^2",
-    "@types/express": "^4.17.1",
-    "@types/node": "catalog:",
-    "@types/pino-http": "^5.8.4",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
-    "eslint": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "jest": "^29.7.0",
-    "nodemon": "^3.0.3",
-    "pino-pretty": "catalog:",
-    "prettier": "catalog:",
-    "ts-jest": "^29.1.2",
-    "tsx": "catalog:",
-    "typescript": "catalog:"
+    "format": "oxfmt --write ./src ./tests"
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.13.2",
@@ -51,18 +28,46 @@
     "@ethersproject/providers": "*",
     "@google-cloud/pino-logging-gcp-config": "catalog:",
     "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/metrics": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "pino": "catalog:",
-    "@prisma/client": "^6.8.2",
+    "@prisma/adapter-pg": "^7.3.0",
+    "@prisma/client": "^7.3.0",
     "cors": "^2.8.5",
     "dotenv-flow": "^4.1.0",
     "ethers": "catalog:",
     "express": "^4.17.1",
+    "pg": "^8.17.2",
+    "pino": "catalog:",
     "pino-http": "^8.6.1",
-    "prisma": "^6.8.2",
+    "prisma": "^7.3.0",
     "prom-client": "catalog:",
     "zod": "catalog:"
-  }
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@jest/globals": "^29.7.0",
+    "@types/cors": "^2",
+    "@types/express": "^4.17.1",
+    "@types/node": "catalog:",
+    "@types/pg": "^8.16.0",
+    "@types/pino-http": "^5.8.4",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "@vercel/ncc": "catalog:",
+    "eslint": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.3",
+    "pino-pretty": "catalog:",
+    "ts-jest": "^29.1.2",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "moduleResolution": "nodenext",
+  "typedocMain": "src/index.ts"
 }

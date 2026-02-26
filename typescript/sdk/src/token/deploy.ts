@@ -2,12 +2,9 @@ import { constants } from 'ethers';
 
 import {
   ERC20__factory,
-  ERC721Enumerable__factory,
   EverclearTokenBridge__factory,
   GasRouter,
-  IERC4626__factory,
   IMessageTransmitter__factory,
-  IXERC20Lockbox__factory,
   MovableCollateralRouter__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
@@ -39,7 +36,8 @@ import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenMetadataMap } from './TokenMetadataMap.js';
-import { TokenType, gasOverhead } from './config.js';
+import { DeployableTokenType, gasOverhead } from './config.js';
+import { resolveTokenFeeAddress } from './configUtils.js';
 import {
   HypERC20Factories,
   HypERC20contracts,
@@ -51,11 +49,11 @@ import {
   hypERC721contracts,
   hypERC721factories,
 } from './contracts.js';
+import { deriveTokenMetadata } from './tokenMetadataUtils.js';
 import {
   CctpTokenConfig,
   HypTokenConfig,
   HypTokenRouterConfig,
-  TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
   isCctpTokenConfig,
@@ -69,7 +67,6 @@ import {
   isOpL2TokenConfig,
   isSyntheticRebaseTokenConfig,
   isSyntheticTokenConfig,
-  isTokenMetadata,
   isXERC20TokenConfig,
 } from './types.js';
 
@@ -84,7 +81,7 @@ const EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE =
   'initialize(address,address)';
 
 export const TOKEN_INITIALIZE_SIGNATURE = (
-  contractName: HypERC20contracts[TokenType],
+  contractName: HypERC20contracts[DeployableTokenType],
 ) => {
   switch (contractName) {
     case 'OPL2TokenBridgeNative':
@@ -190,9 +187,12 @@ abstract class TokenDeployer<
             config.tokenMessenger,
           ];
         case 'V2':
-          assert(config.maxFeeBps, 'maxFeeBps is undefined for CCTP V2 config');
           assert(
-            config.minFinalityThreshold,
+            config.maxFeeBps !== undefined,
+            'maxFeeBps is undefined for CCTP V2 config',
+          );
+          assert(
+            config.minFinalityThreshold !== undefined,
             'minFinalityThreshold is undefined for CCTP V2 config',
           );
           return [
@@ -261,109 +261,7 @@ abstract class TokenDeployer<
     multiProvider: MultiProvider,
     configMap: WarpRouteDeployConfig,
   ): Promise<TokenMetadataMap> {
-    const metadataMap = new TokenMetadataMap();
-
-    const priorityGetter = (type: string) => {
-      return ['collateral', 'native'].indexOf(type);
-    };
-
-    const sortedEntries = Object.entries(configMap).sort(
-      ([, a], [, b]) => priorityGetter(b.type) - priorityGetter(a.type),
-    );
-
-    for (const [chain, config] of sortedEntries) {
-      if (isTokenMetadata(config)) {
-        metadataMap.set(chain, TokenMetadataSchema.parse(config));
-      }
-
-      if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-        // If the config didn't specify the token metadata, we can only now
-        // derive it for Ethereum chains. So here we skip non-Ethereum chains.
-        continue;
-      }
-
-      if (
-        isNativeTokenConfig(config) ||
-        isEverclearEthBridgeTokenConfig(config)
-      ) {
-        const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
-        if (nativeToken) {
-          metadataMap.update(
-            chain,
-            TokenMetadataSchema.parse({
-              ...nativeToken,
-            }),
-          );
-          continue;
-        }
-      }
-
-      if (
-        isCollateralTokenConfig(config) ||
-        isXERC20TokenConfig(config) ||
-        isCctpTokenConfig(config) ||
-        isEverclearCollateralTokenConfig(config)
-      ) {
-        const provider = multiProvider.getProvider(chain);
-
-        if (config.isNft) {
-          const erc721 = ERC721Enumerable__factory.connect(
-            config.token,
-            provider,
-          );
-          const [name, symbol] = await Promise.all([
-            erc721.name(),
-            erc721.symbol(),
-          ]);
-          metadataMap.update(
-            chain,
-            TokenMetadataSchema.parse({
-              name,
-              symbol,
-            }),
-          );
-          continue;
-        }
-
-        let token: string;
-        switch (config.type) {
-          case TokenType.XERC20Lockbox:
-            token = await IXERC20Lockbox__factory.connect(
-              config.token,
-              provider,
-            ).callStatic.ERC20();
-            break;
-          case TokenType.collateralVault:
-            token = await IERC4626__factory.connect(
-              config.token,
-              provider,
-            ).callStatic.asset();
-            break;
-          default:
-            token = config.token;
-            break;
-        }
-
-        const erc20 = ERC20__factory.connect(token, provider);
-        const [name, symbol, decimals] = await Promise.all([
-          erc20.name(),
-          erc20.symbol(),
-          erc20.decimals(),
-        ]);
-
-        metadataMap.update(
-          chain,
-          TokenMetadataSchema.parse({
-            name,
-            symbol,
-            decimals,
-          }),
-        );
-      }
-    }
-
-    metadataMap.finalize();
-    return metadataMap;
+    return deriveTokenMetadata(multiProvider, configMap);
   }
 
   protected async configureCctpDomains(
@@ -770,9 +668,16 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
           return;
         }
 
+        const router = this.router(deployedContractsMap[chain]);
+        const resolvedFeeInput = resolveTokenFeeAddress(
+          tokenFeeInput,
+          router.address,
+          config,
+        );
+
         this.logger.debug(`Deploying token fee on ${chain}...`);
         const processedTokenFee = await EvmTokenFeeModule.expandConfig({
-          config: tokenFeeInput,
+          config: resolvedFeeInput,
           multiProvider: this.multiProvider,
           chainName: chain,
         });
@@ -782,7 +687,6 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
           config: processedTokenFee,
         });
 
-        const router = this.router(deployedContractsMap[chain]);
         const { deployedFee } = module.serialize();
         const tx = await router.setFeeRecipient(deployedFee);
         await this.multiProvider.handleTx(chain, tx);

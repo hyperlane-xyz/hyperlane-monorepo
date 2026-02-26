@@ -9,8 +9,6 @@ use hyperlane_sealevel_token_lib::{
 };
 use hyperlane_warp_route::TokenMessage;
 use serializable_account_meta::SerializableAccountMeta;
-#[cfg(not(target_arch = "sbf"))]
-use solana_program::program_pack::Pack as _;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     instruction::AccountMeta,
@@ -20,6 +18,7 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
+use solana_system_interface::program as system_program;
 use spl_associated_token_account::{
     get_associated_token_address_with_program_id,
     instruction::create_associated_token_account_idempotent,
@@ -77,13 +76,9 @@ impl SizedData for SyntheticPlugin {
 
 impl SyntheticPlugin {
     /// The size of the mint account.
-    // Need to hardcode this value because our `spl_token_2022` version doesn't include it.
+    // Hardcoded because Pack trait version conflicts between solana-program-pack 3.0 and spl-token-2022's internal 2.2.
     // It was calculated by calling `ExtensionType::try_calculate_account_len::<Mint>(vec![ExtensionType::MetadataPointer]).unwrap()`
-    #[cfg(target_arch = "sbf")]
     const MINT_ACCOUNT_SIZE: usize = 234;
-    /// The size of the mint account.
-    #[cfg(not(target_arch = "sbf"))]
-    const MINT_ACCOUNT_SIZE: usize = spl_token_2022::state::Mint::LEN;
 
     /// Returns Ok(()) if the mint account info is valid.
     /// Errors if the key or owner is incorrect.
@@ -179,7 +174,7 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
             // Grant ownership to the system program so that the ATA program
             // can call into the system program with the ATA payer as the
             // payer.
-            &solana_program::system_program::id(),
+            &system_program::ID,
             system_program,
             ata_payer_account,
             hyperlane_token_ata_payer_pda_seeds!(ata_payer_bump),

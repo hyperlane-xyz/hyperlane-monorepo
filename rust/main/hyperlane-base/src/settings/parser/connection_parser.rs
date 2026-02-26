@@ -1,9 +1,10 @@
-use std::ops::Add;
+use std::{ops::Add, str::FromStr};
 
 use eyre::eyre;
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
 };
+use solana_sdk::pubkey::Pubkey;
 use url::Url;
 
 use h_eth::TransactionOverrides;
@@ -289,6 +290,7 @@ fn build_sealevel_connection_conf(
     let native_token = parse_native_token(chain, err, 9);
     let priority_fee_oracle = parse_sealevel_priority_fee_oracle_config(chain, &mut local_err);
     let transaction_submitter = parse_transaction_submitter_config(chain, &mut local_err);
+    let mailbox_process_alt = parse_sealevel_mailbox_process_alt(chain, &mut local_err);
 
     if !local_err.is_ok() {
         err.merge(local_err);
@@ -303,7 +305,34 @@ fn build_sealevel_connection_conf(
         native_token,
         priority_fee_oracle,
         transaction_submitter,
+        mailbox_process_alt,
     }))
+}
+
+fn parse_sealevel_mailbox_process_alt(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<Pubkey> {
+    let alt_str = chain
+        .chain(err)
+        .get_opt_key("mailboxProcessAlt")
+        .parse_string()
+        .end();
+
+    if let Some(alt_str) = alt_str {
+        match Pubkey::from_str(alt_str) {
+            Ok(pubkey) => Some(pubkey),
+            Err(e) => {
+                err.push(
+                    (&chain.cwp).add("mailboxProcessAlt"),
+                    eyre!("Invalid mailboxProcessAlt pubkey: {e}"),
+                );
+                None
+            }
+        }
+    } else {
+        None
+    }
 }
 
 fn parse_native_token(
@@ -469,6 +498,52 @@ fn parse_transaction_submitter_config(
     } else {
         // If not specified at all, use default
         Some(h_sealevel::config::TransactionSubmitterConfig::default())
+    }
+}
+
+pub fn build_tron_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    _operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+    let grpc_urls = parse_base_and_override_urls(
+        chain,
+        "grpcUrls",
+        "customGrpcUrls",
+        "http",
+        &mut local_err,
+        false,
+    );
+
+    let solidity_grpc_urls = parse_base_and_override_urls(
+        chain,
+        "solidityGrpcUrls",
+        "customSolidityGrpcUrls",
+        "http",
+        &mut local_err,
+        false,
+    );
+
+    let fee_multiplier = chain
+        .chain(err)
+        .get_opt_key("feeMultiplier")
+        .parse_f64()
+        .end();
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        Some(ChainConnectionConf::Tron(
+            hyperlane_tron::ConnectionConf::new(
+                rpcs.to_vec(),
+                grpc_urls,
+                solidity_grpc_urls,
+                fee_multiplier,
+            ),
+        ))
     }
 }
 
@@ -666,6 +741,9 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Radix => {
             build_radix_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Tron => {
+            build_tron_connection_conf(rpcs, chain, err, operation_batch)
+        }
         #[cfg(feature = "aleo")]
         HyperlaneDomainProtocol::Aleo => {
             build_aleo_connection_conf(rpcs, chain, err, operation_batch)
@@ -680,7 +758,7 @@ pub fn build_connection_conf(
 pub fn is_protocol_supported(protocol: HyperlaneDomainProtocol) -> bool {
     use HyperlaneDomainProtocol::*;
     match protocol {
-        Ethereum | Fuel | Sealevel | Cosmos | CosmosNative | Starknet | Radix => true,
+        Ethereum | Fuel | Sealevel | Cosmos | CosmosNative | Starknet | Radix | Tron => true,
         // Aleo is feature-gated - only supported when the "aleo" feature is enabled
         Aleo => cfg!(feature = "aleo"),
     }

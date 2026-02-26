@@ -68,6 +68,22 @@ impl<C: AleoClient> MetricHttpClient<C> {
     }
 }
 
+impl<C: AleoClient> MetricHttpClient<C> {
+    /// Helper function to track metrics for RPC calls
+    async fn track_request<T, F, Fut>(&self, path: &str, operation: F) -> ChainResult<T>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = ChainResult<T>>,
+    {
+        let start = Instant::now();
+        let res = operation().await;
+        let method = path.split('/').next().unwrap_or_default();
+        self.metrics
+            .increment_metrics(&self.metrics_config, method, start, res.is_ok());
+        res
+    }
+}
+
 #[async_trait]
 impl<C: AleoClient> HttpClient for MetricHttpClient<C> {
     /// Makes a GET request to the API
@@ -76,11 +92,8 @@ impl<C: AleoClient> HttpClient for MetricHttpClient<C> {
         path: &str,
         query: impl Into<Option<serde_json::Value>> + Send,
     ) -> ChainResult<T> {
-        let start = Instant::now();
-        let res = self.inner.request(path, query).await;
-        self.metrics
-            .increment_metrics(&self.metrics_config, path, start, res.is_ok());
-        res
+        self.track_request(path, || self.inner.request(path, query))
+            .await
     }
 
     /// Makes a POST request to the API
@@ -89,10 +102,7 @@ impl<C: AleoClient> HttpClient for MetricHttpClient<C> {
         path: &str,
         body: &serde_json::Value,
     ) -> ChainResult<T> {
-        let start = Instant::now();
-        let res = self.inner.request_post(path, body).await;
-        self.metrics
-            .increment_metrics(&self.metrics_config, path, start, res.is_ok());
-        res
+        self.track_request(path, || self.inner.request_post(path, body))
+            .await
     }
 }

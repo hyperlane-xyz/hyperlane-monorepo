@@ -1,0 +1,22 @@
+{
+  "solanamainnet": {
+    "hex": "0x6757b182c660f93690f02377b1b5806d51b47e9558411862611bf53ec3f80e93",
+    "base58": "7xQYs3RZvycfk3nwDPGZhbkA9318xx324xhWDcENVfjg"
+  },
+  "arbitrum": {
+    "hex": "0x00000000000000000000000022ef52c822329e96c3be0bbb165805603777296c",
+    "base58": "111111111111VEGG2QJdDuL4q7ejSSu2FfV2wAb"
+  },
+  "plasma": {
+    "hex": "0x000000000000000000000000a7e4dc4078bac6e97eec52a4f7642ff51cbb17c1",
+    "base58": "1111111111113LfYq5LBr9evqvLDj4ZDxFMtwGC8"
+  },
+  "mode": {
+    "hex": "0x00000000000000000000000001419427c18cc14d66817e90d2e550760230cf3d",
+    "base58": "11111111111121sZXUUD3xLh1tZCPUH6sKuQLLk"
+  },
+  "ethereum": {
+    "hex": "0x0000000000000000000000004f7635a2f9795c10df260c2fc0a23e0f60b4829c",
+    "base58": "11111111111127D4yQKcubVU6AG4Jo7N1fqohhiK"
+  }
+}

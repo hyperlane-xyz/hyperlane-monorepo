@@ -36,6 +36,7 @@ import {
   getChains,
   getEnvChains,
   getRegistry,
+  warpRouteExistsInRegistry,
 } from '../config/registry.js';
 import { getCurrentKubernetesContext } from '../src/agents/index.js';
 import { getCloudAgentKey } from '../src/agents/key-utils.js';
@@ -69,7 +70,6 @@ export enum Modules {
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
-  HELLO_WORLD = 'helloworld',
   WARP = 'warp',
   HAAS = 'haas',
   CCIP = 'ccip',
@@ -144,13 +144,6 @@ export function withChainRequired<T>(args: Argv<T>) {
   return withChain(args).demandOption('chain');
 }
 
-export function withSafeHomeUrlRequired<T>(args: Argv<T>) {
-  return args
-    .string('safeHomeUrl')
-    .describe('safeHomeUrl', 'Custom safe home url')
-    .demandOption('safeHomeUrl');
-}
-
 export function withThreshold<T>(args: Argv<T>) {
   return args
     .describe('threshold', 'threshold for multisig')
@@ -219,6 +212,25 @@ export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
 
+export function withRegistryCommit<T>(args: Argv<T>) {
+  return args
+    .describe(
+      'registryCommit',
+      'Registry version (commit, branch, or tag). If not provided, will prompt interactively.',
+    )
+    .string('registryCommit');
+}
+
+export function withWarpRouteIds<T>(args: Argv<T>) {
+  return args
+    .describe('warpRouteIds', 'warp route ids')
+    .array('warpRouteIds')
+    .coerce('warpRouteIds', (ids: string[] | undefined) =>
+      Array.isArray(ids) ? ids.map(String) : [],
+    )
+    .alias('w', 'warpRouteIds');
+}
+
 export function withMetrics<T>(args: Argv<T>) {
   return args
     .describe('metrics', 'metrics')
@@ -235,6 +247,14 @@ export function withDryRun<T>(args: Argv<T>) {
     .describe('dryRun', 'Dry run')
     .boolean('dryRun')
     .default('dryRun', false);
+}
+
+export function withYes<T>(args: Argv<T>) {
+  return args
+    .describe('yes', 'Skip confirmations and use defaults')
+    .boolean('yes')
+    .alias('y', 'yes')
+    .default('yes', false);
 }
 
 export function withKnownWarpRouteIdRequired<T>(args: Argv<T>) {
@@ -334,6 +354,13 @@ export function withConcurrentDeploy<T>(args: Argv<T>) {
     .default('concurrentDeploy', false);
 }
 
+export function withWritePlan<T>(args: Argv<T>) {
+  return args
+    .describe('writePlan', 'Write deployment plan YAML files to disk')
+    .boolean('writePlan')
+    .default('writePlan', false);
+}
+
 export function withConcurrency<T>(args: Argv<T>) {
   return args
     .describe('concurrency', 'Number of concurrent deploys')
@@ -420,6 +447,24 @@ export async function getWarpRouteIdsInteractive(
   }
 
   return selection;
+}
+
+export function filterOrphanedWarpRouteIds(warpRouteIds: string[]): {
+  validIds: string[];
+  orphanedIds: string[];
+} {
+  const validIds: string[] = [];
+  const orphanedIds: string[] = [];
+
+  for (const id of warpRouteIds) {
+    if (warpRouteExistsInRegistry(id)) {
+      validIds.push(id);
+    } else {
+      orphanedIds.push(id);
+    }
+  }
+
+  return { validIds, orphanedIds };
 }
 
 // not requiring to build coreConfig to get agentConfig
@@ -593,7 +638,7 @@ export async function getMultiProviderForRole(
   await promiseObjAll(
     objMap(
       supportedChainNames.reduce((acc, chain) => {
-        if (chainMetadata[chain]) {
+        if (chainMetadata[chain] && chain !== 'zeronetwork') {
           acc[chain] = chainMetadata[chain];
         }
         return acc;
@@ -643,7 +688,7 @@ export function getEnvironmentDirectory(environment: DeployEnvironment) {
 export function getModuleDirectory(
   environment: DeployEnvironment,
   module: Modules,
-  context?: Contexts,
+  _context?: Contexts,
 ) {
   // for backwards compatibility with existing paths
   const suffixFn = () => {
@@ -652,8 +697,6 @@ export function getModuleDirectory(
         return 'middleware/accounts';
       case Modules.INTERCHAIN_QUERY_SYSTEM:
         return 'middleware/queries';
-      case Modules.HELLO_WORLD:
-        return `helloworld/${context}`;
       default:
         return module;
     }

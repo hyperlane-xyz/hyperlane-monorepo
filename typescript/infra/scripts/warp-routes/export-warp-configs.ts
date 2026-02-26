@@ -7,19 +7,20 @@ import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
-import { getArgs, withWarpRouteId } from '../agent-utils.js';
+import { getArgs, withWarpRouteIds } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 // Writes the warp configs into the Registry
 async function main() {
-  const { environment, warpRouteId } = await withWarpRouteId(getArgs()).argv;
+  const { environment, warpRouteIds } = await withWarpRouteIds(getArgs()).argv;
   const { multiProvider } = await getHyperlaneCore(environment);
   const envConfig = getEnvironmentConfig(environment);
   const registry = getRegistry();
 
-  const warpIdsToCheck = warpRouteId
-    ? [warpRouteId]
-    : Object.keys(warpConfigGetterMap);
+  const warpIdsToCheck =
+    !warpRouteIds || warpRouteIds.length === 0
+      ? Object.keys(warpConfigGetterMap)
+      : warpRouteIds;
   const eslint = new ESLint({
     fix: true,
   });
@@ -43,23 +44,19 @@ async function main() {
 
     console.log(`Linting Warp config for ${warpRouteId}`);
     // Convert the object to a YAML string for linting
-    const configString = yamlStringify(registryConfig);
+    const configString = yamlStringify(registryConfig, (_key, value) =>
+      typeof value === 'bigint' ? value.toString() : value,
+    );
     const results = await eslint.lintText(configString, {
       // The `filePath` is required for ESLint to work with in-memory text
       // This filepath does not need to exist. It simply matches one of the filepaths pattern in the eslint config
       filePath: `chains/${warpRouteId}-nonexistent-file.yaml`,
     });
 
-    try {
-      assert(results[0].output, 'No output from ESLint');
-      registry.addWarpRouteConfig(yamlParse(results[0].output), {
-        warpRouteId,
-      });
-    } catch (error) {
-      console.error(
-        chalk.red(`Failed to add warp route config for ${warpRouteId}:`, error),
-      );
-    }
+    const lintedConfig = results[0].output ?? configString;
+    registry.addWarpRouteConfig(yamlParse(lintedConfig), {
+      warpRouteId,
+    });
 
     // TODO: Use registry.getWarpRoutesPath() to dynamically generate path by removing "protected"
     console.log(

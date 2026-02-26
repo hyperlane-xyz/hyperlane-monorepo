@@ -7,6 +7,7 @@ import {
   SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
   STARKNET_WARP_ROUTE_HANDLER_GAS_AMOUNT,
 } from '../consts.js';
+import { WarpRouteIds } from '../warpIds.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
@@ -14,6 +15,7 @@ const deploymentChains = [
   'arbitrum',
   'base',
   'ethereum',
+  'hyperevm',
   'mode',
   'paradex',
   'solanamainnet',
@@ -50,6 +52,7 @@ const ownersByChain: Record<DeploymentChain, string> = {
   arbitrum: '0xFF57A3bB6465501c993acF8f3b29125a862661C0',
   base: '0xFF57A3bB6465501c993acF8f3b29125a862661C0',
   ethereum: '0xFF57A3bB6465501c993acF8f3b29125a862661C0',
+  hyperevm: '0xF74FC89eC0fB0b8f4158353Ef6F0c8D249639EE5',
   mode: '0xFF57A3bB6465501c993acF8f3b29125a862661C0',
   paradex: '0x00395a1eebf43d06be83684da623c4c2ab8e1ea4a89dfa71ee04677b6e19a428',
   solanamainnet: 'HBPwc1dSuaJCEwWkJvfeWUqJguFqPTVaggfDGssc3LVt',
@@ -60,8 +63,10 @@ const ownersByChain: Record<DeploymentChain, string> = {
 export const getParadexUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const rebalancingConfigByChain =
-    getUSDCRebalancingBridgesConfigFor(deploymentChains);
+  const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
+    deploymentChains,
+    [WarpRouteIds.MainnetCCTPV2Standard],
+  );
 
   return Object.fromEntries(
     deploymentChains.map(
@@ -109,7 +114,6 @@ export const getParadexUSDCWarpConfig = async (
               owner,
               allowedRebalancers,
               allowedRebalancingBridges,
-              contractVersion: '8.1.1',
             },
           ];
         }

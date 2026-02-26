@@ -3,10 +3,10 @@ use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey,
     pubkey::Pubkey,
-    system_program,
 };
 use solana_program_test::*;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair};
+use solana_system_interface::program as system_program;
 
 use hyperlane_sealevel_igp::{
     accounts::{GasOracle, RemoteGasData, SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE},

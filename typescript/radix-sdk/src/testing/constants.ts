@@ -1,3 +1,4 @@
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 
 /**
@@ -36,6 +37,7 @@ export const TEST_RADIX_BURN_ADDRESS =
  */
 export const TEST_RADIX_CHAIN_METADATA: TestChainMetadata = {
   name: 'radixtest',
+  protocol: ProtocolType.Radix,
   chainId: 240,
   domainId: 1421493353,
   nativeToken: {

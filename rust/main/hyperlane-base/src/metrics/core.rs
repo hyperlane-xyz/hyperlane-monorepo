@@ -135,7 +135,7 @@ impl CoreMetrics {
                 "Last known message nonce",
                 const_labels_ref
             ),
-            &["phase", "origin", "remote"],
+            &["phase", "origin"],
             registry
         )?;
 
@@ -477,22 +477,15 @@ impl CoreMetrics {
     /// stage, such as being fully processed, even if the reported nonce is
     /// higher than that message's nonce.
     ///
-    /// Some phases are not able to report the remote chain, but origin chain is
-    /// always reported.
-    ///
     /// Labels:
     /// - `phase`: The phase the nonce is being tracked at, see below.
-    /// - `origin`: Origin chain the message comes from. Can be "any"
-    /// - `remote`: Remote chain for the message. This will skip values because
-    ///   the nonces are contiguous by origin not remote. Can be "any"
+    /// - `origin`: Origin chain the message comes from.
     ///
     /// The following phases are implemented:
-    /// - `dispatch`: Highest nonce which has been indexed on the mailbox
-    ///   contract syncer and stored in the relayer DB.
-    /// - `processor_loop`: Highest nonce which the MessageProcessor loop has
+    /// - `db_loader_loop`: Highest nonce, which the db loader loop has
     ///   gotten to but not attempted to send it.
-    /// - `message_processed`: When a nonce was processed as part of the
-    ///   MessageProcessor loop.
+    /// - `message_processed`: When nonce was processed as part of the
+    ///   message submission flow.
     pub fn last_known_message_nonce(&self) -> IntGaugeVec {
         self.last_known_message_nonce.clone()
     }

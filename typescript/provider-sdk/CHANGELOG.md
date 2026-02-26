@@ -1,11 +1,102 @@
 # @hyperlane-xyz/provider-sdk
 
+## 1.3.5
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@25.3.1
+
+## 1.3.4
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@25.3.0
+
+## 1.3.3
+
+### Patch Changes
+
+- Updated dependencies [360db52]
+- Updated dependencies [ccd638d]
+  - @hyperlane-xyz/utils@25.2.0
+
+## 1.3.2
+
+### Patch Changes
+
+- Updated dependencies [b930534]
+  - @hyperlane-xyz/utils@25.1.0
+
+## 1.3.1
+
+### Patch Changes
+
+- Updated dependencies [52ce778]
+  - @hyperlane-xyz/utils@25.0.0
+
+## 1.3.0
+
+### Minor Changes
+
+- 9dc71fe: Added forward-compatible enum validation to prevent SDK failures when the registry contains new enum values. Added `Unknown` variants to `ProtocolType`, `TokenType`, `IsmType`, `HookType`, `ExplorerFamily`, and `ChainTechnicalStack` enums. Exported `KnownProtocolType` and `DeployableTokenType` for type-safe mappings.
+
+### Patch Changes
+
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+  - @hyperlane-xyz/utils@24.0.0
+
+## 1.2.1
+
+### Patch Changes
+
+- 0b8c4ea: Fixed hook update logic for warp routes. The warp route reader now properly reads hook addresses from deployed contracts instead of hardcoding zero address. Hook update idempotency check fixed to use deepEquals with config normalization instead of reference equality, preventing unnecessary redeployments when applying identical configs. Aleo provider updated to handle null/zero hook addresses correctly. Protocol capability check added to restrict hook updates to Aleo only. Comprehensive test suite added covering hook type transitions (none→MerkleTree, MerkleTree→IGP, MerkleTree→none), IGP config updates (gas configs, beneficiary), and idempotency validation.
+- Updated dependencies [52fd0f8]
+- Updated dependencies [a10cfc8]
+  - @hyperlane-xyz/utils@23.0.0
+
+## 1.2.0
+
+### Minor Changes
+
+- 7f31d77: Migrated deploy-sdk to use Hook Artifact API, replacing AltVMHookReader and AltVMHookModule with unified reader/writer pattern. The migration adds deployment context support (mailbox address, nativeTokenDenom) for hook creation, following the same pattern as the ISM artifact migration. Key changes include new factory functions (createHookReader, createHookWriter), config conversion utilities (hookConfigToArtifact, shouldDeployNewHook), and removal of deprecated hook module classes.
+
+### Patch Changes
+
+- Updated dependencies [66ef635]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [b892d63]
+  - @hyperlane-xyz/utils@22.0.0
+
+## 1.1.0
+
+### Minor Changes
+
+- 57a2053: Added optional gasPrice field to `TestChainMetadata` type
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@21.1.0
+
+## 1.0.0
+
+### Minor Changes
+
+- 239e1a1: Migrate AltVm JsonSubmittor and FileSubmittor to deploy-sdk (from provider-sdk and cli, respectively)
+- ed10fc1: Introduced the Artifact API for ISM operations on AltVMs. The new API provides a unified interface for reading and writing ISM configurations across different blockchain protocols. Radix ISM readers and writers fully implemented; Cosmos ISM readers implemented. The generic `IsmReader` in deploy-sdk replaces the legacy `AltVMIsmReader` and supports recursive expansion of routing ISM configurations.
+
+### Patch Changes
+
+- Updated dependencies [0bce4e7]
+  - @hyperlane-xyz/utils@21.0.0
+
 ## 0.7.0
 
 ### Minor Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility

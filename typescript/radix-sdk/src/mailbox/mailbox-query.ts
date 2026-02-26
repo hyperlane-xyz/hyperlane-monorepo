@@ -9,7 +9,10 @@ import {
   getFieldValueFromEntityState,
   getRadixComponentDetails,
 } from '../utils/base-query.js';
-import { READ_ACCOUNT_HEX_PUBLIC_KEY } from '../utils/constants.js';
+import {
+  EPOCH_VALIDITY_RANGE,
+  READ_ACCOUNT_HEX_PUBLIC_KEY,
+} from '../utils/constants.js';
 import { Receipt } from '../utils/types.js';
 
 export async function getMailboxConfig(
@@ -98,7 +101,8 @@ export async function isMessageDelivered(
         use_free_credit: true,
       },
       start_epoch_inclusive: constructionMetadata.ledger_state.epoch,
-      end_epoch_exclusive: constructionMetadata.ledger_state.epoch + 2,
+      end_epoch_exclusive:
+        constructionMetadata.ledger_state.epoch + EPOCH_VALIDITY_RANGE,
     },
   });
 

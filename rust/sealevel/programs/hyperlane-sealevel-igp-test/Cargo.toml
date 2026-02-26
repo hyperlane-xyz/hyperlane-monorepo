@@ -16,4 +16,5 @@ hyperlane-sealevel-igp = { path = "../hyperlane-sealevel-igp" }
 
 solana-program-test.workspace = true
 solana-sdk.workspace = true
+solana-system-interface.workspace = true
 hyperlane-test-utils = { path = "../../libraries/test-utils" }

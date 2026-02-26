@@ -27,7 +27,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(GasPayment::TimeCreated)
                             .timestamp()
                             .not_null()
-                            .default("NOW()"),
+                            .default(SimpleExpr::Custom("NOW()".to_owned())),
                     )
                     .col(ColumnDef::new(GasPayment::Domain).unsigned().not_null())
                     .col(ColumnDef::new_with_type(GasPayment::MsgId, Hash).not_null())

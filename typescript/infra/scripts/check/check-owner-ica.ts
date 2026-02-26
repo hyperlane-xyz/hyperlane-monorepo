@@ -6,6 +6,7 @@ import {
   configureRootLogger,
   eqAddress,
   isZeroishAddress,
+  mapAllSettled,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -77,12 +78,13 @@ async function main() {
     string,
     { Expected: Address; Actual: Address }
   > = {};
-  const settledResults = await Promise.allSettled(
-    checkOwnerIcaChains.map(async (chain) => {
+  const { fulfilled, rejected } = await mapAllSettled(
+    checkOwnerIcaChains,
+    async (chain) => {
       const expectedAddress = icas[chain];
       if (!expectedAddress) {
         rootLogger.error(`No expected address found for ${chain}`);
-        return { chain, error: 'No expected address found' };
+        return { chain, error: 'No expected address found' as const };
       }
 
       const icaRouter = legacyIcaChains.includes(chain)
@@ -108,21 +110,21 @@ async function main() {
         rootLogger.error(`Error processing chain ${chain}:`, error);
         return { chain, error };
       }
-    }),
+    },
+    (chain) => chain,
   );
 
-  settledResults.forEach((settledResult) => {
-    if (settledResult.status === 'fulfilled') {
-      const { chain, result, error } = settledResult.value;
-      if (error) {
-        rootLogger.error(`Failed to process ${chain}:`, error);
-      } else if (result) {
-        mismatchedResults[chain] = result;
-      }
-    } else {
-      rootLogger.error(`Promise rejected:`, settledResult.reason);
+  for (const [chain, value] of fulfilled) {
+    if ('error' in value && value.error) {
+      rootLogger.error(`Failed to process ${chain}:`, value.error);
+    } else if (value.result) {
+      mismatchedResults[chain] = value.result;
     }
-  });
+  }
+
+  for (const [chain, error] of rejected) {
+    rootLogger.error(`Promise rejected for ${chain}:`, error);
+  }
 
   if (Object.keys(mismatchedResults).length > 0) {
     rootLogger.error('\nMismatched ICAs found:');

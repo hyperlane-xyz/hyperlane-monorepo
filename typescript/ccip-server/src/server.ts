@@ -1,10 +1,10 @@
 import cors from 'cors';
 import express from 'express';
 import { pinoHttp } from 'pino-http';
+import { Registry } from 'prom-client';
 
+import { startMetricsServer } from '@hyperlane-xyz/metrics';
 import { createServiceLogger } from '@hyperlane-xyz/utils';
-
-import packageJson from '../package.json' with { type: 'json' };
 
 import { getEnabledModules } from './config.js';
 import { ServiceFactory } from './services/BaseService.js';
@@ -15,7 +15,7 @@ import { OPStackService } from './services/OPStackService.js';
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
-  startPrometheusServer,
+  initializeMetrics,
 } from './utils/prometheus.js';
 
 export const moduleRegistry: Record<string, ServiceFactory> = {
@@ -25,11 +25,17 @@ export const moduleRegistry: Record<string, ServiceFactory> = {
 };
 
 async function startServer() {
+  const VERSION = process.env.SERVICE_VERSION || 'dev';
+
   // Initialize logger first thing in startup
   const logger = await createServiceLogger({
     service: 'ccip-server',
-    version: packageJson.version,
+    version: VERSION,
   });
+
+  // Create metrics registry and initialize metrics
+  const register = new Registry();
+  initializeMetrics(register);
 
   const app = express();
   app.use(cors());
@@ -108,20 +114,20 @@ async function startServer() {
   const port = parseInt(process.env.SERVER_PORT ?? '3000');
   app.listen(port, () => logger.info(`Server listening on port ${port}`));
 
-  return logger; // Return logger for error handlers
+  return { logger, register };
 }
 
 // Start the server and handle startup logging
 startServer()
-  .then((logger) => logger.info('Server startup completed'))
+  .then(({ logger, register }) => {
+    logger.info('Server startup completed');
+    startMetricsServer(register, logger);
+    logger.info('Prometheus metrics server started');
+  })
   .catch((err) => {
     console.error('Server startup failed:', err); // Fallback to console if logger failed
     process.exit(1);
   });
-
-startPrometheusServer()
-  .then(() => console.log('Prometheus server started'))
-  .catch((err) => console.error('Prometheus server startup failed:', err));
 
 /*
  * TODO: if PRISMA throws an error the entire express application crashes.

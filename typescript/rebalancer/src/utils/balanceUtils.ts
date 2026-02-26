@@ -1,9 +1,9 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
-import { ChainName, Token } from '@hyperlane-xyz/sdk';
+import { type ChainName } from '@hyperlane-xyz/sdk';
 
-import { MonitorEvent } from '../interfaces/IMonitor.js';
-import { RawBalances } from '../interfaces/IStrategy.js';
+import { type MonitorEvent } from '../interfaces/IMonitor.js';
+import { type RawBalances } from '../interfaces/IStrategy.js';
 
 import { isCollateralizedTokenEligibleForRebalancing } from './tokenUtils.js';
 
@@ -26,7 +26,7 @@ export function getRawBalances(
 
     // Ignore tokens that are not in the provided chains list
     if (!chainSet.has(token.chainName)) {
-      logger.info(
+      logger.debug(
         {
           context: getRawBalances.name,
           chain: token.chainName,
@@ -40,7 +40,7 @@ export function getRawBalances(
 
     // Ignore tokens that are not collateralized or are otherwise ineligible
     if (!isCollateralizedTokenEligibleForRebalancing(token)) {
-      logger.info(
+      logger.debug(
         {
           context: getRawBalances.name,
           chain: token.chainName,
@@ -62,8 +62,4 @@ export function getRawBalances(
   }
 
   return balances;
-}
-
-export function formatBigInt(warpToken: Token, num: bigint): number {
-  return warpToken.amount(num).getDecimalFormattedAmount();
 }

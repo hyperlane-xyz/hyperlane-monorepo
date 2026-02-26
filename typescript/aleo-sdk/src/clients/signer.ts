@@ -1,17 +1,21 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
-import { AleoProgram } from '../artifacts.js';
+import { type AleoProgram } from '../artifacts.js';
 import {
+  RETRY_ATTEMPTS,
+  RETRY_DELAY_MS,
+  SUFFIX_LENGTH_LONG,
+  SUFFIX_LENGTH_SHORT,
   fromAleoAddress,
   getProgramSuffix,
   loadProgramsInDeployOrder,
   programIdToPlaintext,
   toAleoAddress,
 } from '../utils/helper.js';
-import { AleoReceipt, AleoTransaction } from '../utils/types.js';
+import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
-import { AnyProgramManager } from './base.js';
+import { type AnyProgramManager } from './base.js';
 import { AleoProvider } from './provider.js';
 
 export class AleoSigner
@@ -29,9 +33,12 @@ export class AleoSigner
 
     const metadata = extraParams.metadata as Record<string, unknown>;
     assert(metadata, `metadata not defined in extra params`);
-    assert(metadata.chainId, `chainId not defined in metadata extra params`);
+    assert(
+      !isNullish(metadata.chainId),
+      `chainId not defined in metadata extra params`,
+    );
 
-    const chainId = parseInt(metadata.chainId.toString());
+    const chainId = parseInt(metadata.chainId!.toString());
 
     return new AleoSigner(rpcUrls, chainId, privateKey);
   }
@@ -45,12 +52,37 @@ export class AleoSigner
     this.programManager = this.getProgramManager(privateKey);
   }
 
+  async getIsmManager(): Promise<string> {
+    // Use the configured ISM manager program ID (from env or default)
+    const ismManagerProgramId = this.ismManager;
+
+    // Check if it's already deployed
+    const isDeployed = await this.isProgramDeployed(ismManagerProgramId);
+
+    if (!isDeployed) {
+      const suffix = getProgramSuffix(ismManagerProgramId);
+      await this.deployProgram('ism_manager', suffix);
+    }
+
+    return ismManagerProgramId;
+  }
+
+  private async isProgramDeployed(programId: string): Promise<boolean> {
+    try {
+      await this.aleoClient.getProgram(programId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async deployProgram(
     programName: AleoProgram,
     coreSuffix: string,
     warpSuffix?: string,
   ): Promise<Partial<Record<AleoProgram, string>>> {
     const programs = loadProgramsInDeployOrder(
+      this.prefix,
       programName,
       coreSuffix,
       warpSuffix,
@@ -97,6 +129,24 @@ export class AleoSigner
     return this.programManager.account!.address().to_string();
   }
 
+  getNetworkPrefix(): string {
+    return this.prefix;
+  }
+
+  /**
+   * Get the hook manager program ID for a given mailbox suffix.
+   * Deploys the hook_manager program if it's not already deployed.
+   *
+   * @param suffix - The mailbox suffix
+   * @returns The hook manager program ID
+   */
+  async getHookManager(suffix: string): Promise<string> {
+    const programs = await this.deployProgram('hook_manager', suffix);
+    const hookManagerProgramId = programs['hook_manager'];
+    assert(hookManagerProgramId, `hook_manager program not deployed`);
+    return hookManagerProgramId;
+  }
+
   supportsTransactionBatching(): boolean {
     return false;
   }
@@ -114,7 +164,11 @@ export class AleoSigner
       ? await this.programManager.buildDevnodeExecutionTransaction(transaction)
       : await this.programManager.buildExecutionTransaction(transaction);
 
-    const txId = await this.programManager.networkClient.submitTransaction(tx);
+    const txId = await retryAsync(
+      () => this.programManager.networkClient.submitTransaction(tx),
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
+    );
     const receipt = await this.aleoClient.waitForTransactionConfirmation(txId);
 
     return {
@@ -134,7 +188,13 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const mailboxSuffix = this.generateSuffix(12);
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
+    const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('dispatch_proxy', mailboxSuffix);
 
     const tx = await this.getCreateMailboxTransaction({
@@ -233,16 +293,21 @@ export class AleoSigner
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
-    const mailboxSuffix = this.generateSuffix(12);
+    const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
     assert(ismManagerProgramId, `ism manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      ismManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          ismManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -256,7 +321,7 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const ismAddress = await this.aleoClient.getProgramMappingValue(
+    const ismAddress = await this.queryMappingString(
       ismManagerProgramId,
       'ism_addresses',
       nonce,
@@ -276,16 +341,21 @@ export class AleoSigner
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
   ): Promise<AltVM.ResCreateRoutingIsm> {
-    const mailboxSuffix = this.generateSuffix(12);
+    const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
     assert(ismManagerProgramId, `ism manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      ismManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          ismManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -299,7 +369,7 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const ismAddress = await this.aleoClient.getProgramMappingValue(
+    const ismAddress = await this.queryMappingString(
       ismManagerProgramId,
       'ism_addresses',
       nonce,
@@ -374,16 +444,21 @@ export class AleoSigner
   async createNoopIsm(
     req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
   ): Promise<AltVM.ResCreateNoopIsm> {
-    const mailboxSuffix = this.generateSuffix(12);
+    const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
     const ismManagerProgramId = programs['ism_manager'];
     assert(ismManagerProgramId, `ism manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      ismManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          ismManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -397,7 +472,7 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const ismAddress = await this.aleoClient.getProgramMappingValue(
+    const ismAddress = await this.queryMappingString(
       ismManagerProgramId,
       'ism_addresses',
       nonce,
@@ -425,10 +500,15 @@ export class AleoSigner
     const hookManagerProgramId = programs['hook_manager'];
     assert(hookManagerProgramId, `hook manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      hookManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          hookManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -442,7 +522,7 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const hookAddress = await this.aleoClient.getProgramMappingValue(
+    const hookAddress = await this.queryMappingString(
       hookManagerProgramId,
       'hook_addresses',
       nonce,
@@ -470,10 +550,15 @@ export class AleoSigner
     const hookManagerProgramId = programs['hook_manager'];
     assert(hookManagerProgramId, `hook manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      hookManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          hookManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -487,7 +572,7 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const hookAddress = await this.aleoClient.getProgramMappingValue(
+    const hookAddress = await this.queryMappingString(
       hookManagerProgramId,
       'hook_addresses',
       nonce,
@@ -560,10 +645,15 @@ export class AleoSigner
     const hookManagerProgramId = programs['hook_manager'];
     assert(hookManagerProgramId, `hook manager program not deployed`);
 
-    let nonce = await this.aleoClient.getProgramMappingValue(
-      hookManagerProgramId,
-      'nonce',
-      'true',
+    let nonce = await retryAsync(
+      () =>
+        this.aleoClient.getProgramMappingValue(
+          hookManagerProgramId,
+          'nonce',
+          'true',
+        ),
+      RETRY_ATTEMPTS,
+      RETRY_DELAY_MS,
     );
 
     if (nonce === null) {
@@ -577,7 +667,7 @@ export class AleoSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const hookAddress = await this.aleoClient.getProgramMappingValue(
+    const hookAddress = await this.queryMappingString(
       hookManagerProgramId,
       'hook_addresses',
       nonce,
@@ -597,9 +687,7 @@ export class AleoSigner
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<AltVM.ResCreateValidatorAnnounce> {
-    const validatorAnnounceSuffix = getProgramSuffix(
-      fromAleoAddress(req.mailboxAddress).programId,
-    );
+    const validatorAnnounceSuffix = this.generateSuffix(SUFFIX_LENGTH_SHORT);
     const programs = await this.deployProgram(
       'validator_announce',
       validatorAnnounceSuffix,
@@ -622,12 +710,43 @@ export class AleoSigner
     };
   }
 
+  async createProxyAdmin(
+    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
   // ### TX WARP ###
 
   async createNativeToken(
     req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
   ): Promise<AltVM.ResCreateNativeToken> {
-    const tokenSuffix = this.generateSuffix(12);
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
+    const suffix = req.warpSuffix || this.warpSuffix;
+
+    if (suffix) {
+      const isAlreadyDeployed = await this.isProgramDeployed(
+        `${this.prefix}_native_${suffix}.aleo`,
+      );
+      if (isAlreadyDeployed) {
+        throw new Error(
+          `Warp route with suffix ${suffix} already deployed, please choose another suffix`,
+        );
+      }
+    }
+
+    const tokenSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -660,9 +779,26 @@ export class AleoSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
-    const { symbol } = await this.getTokenMetadata(req.collateralDenom);
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
 
-    const tokenSuffix = `${symbol}_${this.generateSuffix(6)}`;
+    const suffix = req.warpSuffix || this.warpSuffix;
+
+    if (suffix) {
+      const isAlreadyDeployed = await this.isProgramDeployed(
+        `${this.prefix}_collateral_${suffix}.aleo`,
+      );
+      if (isAlreadyDeployed) {
+        throw new Error(
+          `Warp route with suffix ${suffix} already deployed, please choose another suffix`,
+        );
+      }
+    }
+
+    const tokenSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -695,7 +831,26 @@ export class AleoSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
-    const tokenSuffix = `${req.denom.toLowerCase()}_${this.generateSuffix(6)}`;
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
+    const suffix = req.warpSuffix || this.warpSuffix;
+
+    if (suffix) {
+      const isAlreadyDeployed = await this.isProgramDeployed(
+        `${this.prefix}_synthetic_${suffix}.aleo`,
+      );
+      if (isAlreadyDeployed) {
+        throw new Error(
+          `Warp route with suffix ${suffix} already deployed, please choose another suffix`,
+        );
+      }
+    }
+
+    const tokenSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -751,7 +906,8 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      ismAddress: req.ismAddress,
+      ismAddress:
+        req.ismAddress ?? '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -766,7 +922,8 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      hookAddress: req.hookAddress,
+      hookAddress:
+        req.hookAddress ?? '0x0000000000000000000000000000000000000000',
     };
   }
 

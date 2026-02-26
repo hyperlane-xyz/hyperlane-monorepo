@@ -1,5 +1,4 @@
 import { spawn } from 'child_process';
-import yargs from 'yargs';
 
 import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
@@ -64,7 +63,6 @@ async function retryMessage(options: RetryOptions) {
     ns,
   ]);
 
-  let isConnected = false;
   let retries = 0;
   const maxRetries = 30; // 30 seconds max wait
 
@@ -75,10 +73,9 @@ async function retryMessage(options: RetryOptions) {
         await fetch(`http://localhost:${port}/health`, {
           signal: AbortSignal.timeout(1000),
         });
-        isConnected = true;
         console.log(`✅ Port-forward established on port ${port}`);
         resolve();
-      } catch (error) {
+      } catch {
         retries++;
         if (retries >= maxRetries) {
           reject(

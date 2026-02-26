@@ -182,10 +182,14 @@ export async function getPendingProposalsForChains(
 
             if (!proposalData) continue;
 
-            const { proposal, proposalPda } = proposalData;
+            const { proposal } = proposalData;
 
-            // Only include non-executed proposals
-            if (proposal.status.__kind === SquadsProposalStatus.Executed) {
+            // Only include active proposals (skip executed, rejected, cancelled)
+            if (
+              proposal.status.__kind === SquadsProposalStatus.Executed ||
+              proposal.status.__kind === SquadsProposalStatus.Rejected ||
+              proposal.status.__kind === SquadsProposalStatus.Cancelled
+            ) {
               continue;
             }
 
@@ -195,6 +199,9 @@ export async function getPendingProposalsForChains(
             const approvals = proposal.approved.length;
             const rejections = proposal.rejected.length;
             const cancellations = proposal.cancelled.length;
+
+            // Skip proposals with any rejections (treat as rejected even if not at threshold)
+            if (rejections > 0) continue;
 
             const status = getSquadTxStatus(
               proposal.status.__kind,
@@ -238,6 +245,9 @@ export async function getPendingProposalsForChains(
             });
           } catch (error) {
             // Skip if proposal doesn't exist or other error
+            rootLogger.debug(
+              `Skipping proposal due to error: ${String(error)}`,
+            );
             continue;
           }
         }

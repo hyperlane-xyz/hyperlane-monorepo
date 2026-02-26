@@ -3,9 +3,9 @@ import { ethers } from 'ethers';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  IsmConfig,
+  type IsmConfig,
   IsmType,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';

@@ -26,7 +26,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(DeliveredMessage::TimeCreated)
                             .timestamp()
                             .not_null()
-                            .default("NOW()"),
+                            .default(SimpleExpr::Custom("NOW()".to_owned())),
                     )
                     .col(
                         ColumnDef::new_with_type(DeliveredMessage::MsgId, Hash)

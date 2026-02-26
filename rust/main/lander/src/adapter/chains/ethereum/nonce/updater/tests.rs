@@ -20,6 +20,22 @@ fn make_updater(
     state: Arc<NonceManagerState>,
     address: Address,
 ) -> NonceUpdater {
+    make_updater_with_block_time(
+        next_nonce,
+        should_fail,
+        state,
+        address,
+        Duration::from_millis(1),
+    )
+}
+
+fn make_updater_with_block_time(
+    next_nonce: Option<U256>,
+    should_fail: bool,
+    state: Arc<NonceManagerState>,
+    address: Address,
+    block_time: Duration,
+) -> NonceUpdater {
     let mut mock = MockEvmProvider::new();
 
     mock.expect_get_next_nonce_on_finalized_block()
@@ -35,7 +51,6 @@ fn make_updater(
 
     let provider = Arc::new(mock);
     let reorg_period = EthereumReorgPeriod::Blocks(1);
-    let block_time = Duration::from_millis(1);
     NonceUpdater::new(address, reorg_period, block_time, provider, state)
 }
 
@@ -92,7 +107,15 @@ async fn test_update_boundaries_waits_for_block_time() {
     let metrics = EthereumAdapterMetrics::dummy_instance();
     let state = Arc::new(NonceManagerState::new(nonce_db, tx_db, address, metrics));
 
-    let updater = make_updater(Some(U256::from(3)), false, state.clone(), address);
+    // Use a longer block_time to avoid flakiness on slow CI machines
+    let block_time = Duration::from_millis(500);
+    let updater = make_updater_with_block_time(
+        Some(U256::from(3)),
+        false,
+        state.clone(),
+        address,
+        block_time,
+    );
 
     // First call should update immediately
     updater.update_boundaries().await.unwrap();
@@ -110,7 +133,7 @@ async fn test_update_boundaries_waits_for_block_time() {
     assert_eq!(finalized, Some(U256::from(100)));
 
     // Wait for block_time and try again
-    tokio::time::sleep(Duration::from_millis(2)).await;
+    tokio::time::sleep(block_time + Duration::from_millis(50)).await;
     updater.update_boundaries().await.unwrap();
     // Should now be updated to 2 again
     let finalized = state.get_finalized_nonce_test().await.unwrap();

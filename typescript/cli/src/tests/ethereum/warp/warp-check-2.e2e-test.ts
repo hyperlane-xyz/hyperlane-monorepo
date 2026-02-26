@@ -1,21 +1,24 @@
 import { expect } from 'chai';
-import { Signer, Wallet, ethers } from 'ethers';
+import { type Signer, Wallet, ethers } from 'ethers';
 import { zeroAddress } from 'viem';
 
-import { ERC20Test, HypERC20Collateral__factory } from '@hyperlane-xyz/core';
 import {
-  ChainAddresses,
+  type ERC20Test,
+  HypERC20Collateral__factory,
+} from '@hyperlane-xyz/core';
+import {
+  type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
+  type ChainMetadata,
   TokenStandard,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert } from '@hyperlane-xyz/utils';
+import { type Address, assert } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
@@ -288,6 +291,39 @@ describe('hyperlane warp check e2e tests', async function () {
       [chain3DomainId]: [{ bridge: randomAddress() }],
     };
     await deployAndExportWarpRoute();
+
+    const output = await hyperlaneWarpCheckRaw({
+      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      warpCoreConfigPath: combinedWarpCoreConfigPath,
+    })
+      .stdio('pipe')
+      .nothrow();
+
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
+  });
+
+  it('should pass warp check when allowed rebalancing bridges are in different order', async () => {
+    assert(
+      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
+      'Expected config to be for a collateral token',
+    );
+
+    // Deploy with bridges in ascending order
+    const bridge1 = randomAddress();
+    const bridge2 = randomAddress();
+    const [sortedBridge1, sortedBridge2] = [bridge1, bridge2].sort();
+
+    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
+      [chain3DomainId]: [{ bridge: sortedBridge1 }, { bridge: sortedBridge2 }],
+    };
+    await deployAndExportWarpRoute();
+
+    // Check with bridges in descending order (opposite of deployed)
+    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
+      [chain3DomainId]: [{ bridge: sortedBridge2 }, { bridge: sortedBridge1 }],
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
 
     const output = await hyperlaneWarpCheckRaw({
       warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,

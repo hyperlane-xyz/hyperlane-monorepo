@@ -10,10 +10,10 @@ import {
   isPrivateKeyEvm,
 } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
-  ExtendedChainSubmissionStrategy,
+  type ExtendedChainSubmissionStrategy,
   ExtendedChainSubmissionStrategySchema,
 } from '../submitters/types.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';

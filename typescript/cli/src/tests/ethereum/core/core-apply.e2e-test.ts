@@ -1,17 +1,17 @@
 import { expect } from 'chai';
-import { Signer, Wallet, ethers } from 'ethers';
+import { type Signer, Wallet, ethers } from 'ethers';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
-  ChainMetadata,
-  CoreConfig,
-  DerivedCoreConfig,
-  ProtocolFeeHookConfig,
+  type ChainMetadata,
+  type CoreConfig,
+  type DerivedCoreConfig,
+  type ProtocolFeeHookConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
-  Domain,
+  type Address,
+  type Domain,
   ProtocolType,
   addressToBytes32,
 } from '@hyperlane-xyz/utils';

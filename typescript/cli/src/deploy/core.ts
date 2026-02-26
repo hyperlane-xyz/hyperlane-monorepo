@@ -3,20 +3,20 @@ import { stringify as yamlStringify } from 'yaml';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { AltVMCoreModule } from '@hyperlane-xyz/deploy-sdk';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainName,
+  type ChainName,
   ContractVerifier,
-  CoreConfig,
-  DeployedCoreAddresses,
+  type CoreConfig,
+  type DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
 import { mustGet } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
-import { WriteCommandContext } from '../context/types.js';
+import { type MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
+import { type WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
 

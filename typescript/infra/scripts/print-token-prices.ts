@@ -6,10 +6,16 @@ import { objMap, pick } from '@hyperlane-xyz/utils';
 
 // Intentionally circumvent `{mainnet3,testnet4}/index.ts` and `getEnvironmentConfig({'mainnet3','testnet4'})`
 // to avoid circular dependencies.
-import { getRegistry as getMainnet3Registry } from '../config/environments/mainnet3/chains.js';
+import {
+  getRegistry as getMainnet3Registry,
+  tokenPriceOverrides as mainnet3TokenPriceOverrides,
+} from '../config/environments/mainnet3/chains.js';
 import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
 import mainnet3TokenPrices from '../config/environments/mainnet3/tokenPrices.json' with { type: 'json' };
-import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
+import {
+  getRegistry as getTestnet4Registry,
+  tokenPriceOverrides as testnet4TokenPriceOverrides,
+} from '../config/environments/testnet4/chains.js';
 import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
 import testnet4TokenPrices from '../config/environments/testnet4/tokenPrices.json' with { type: 'json' };
 import { DeployEnvironment } from '../src/config/environment.js';
@@ -57,15 +63,17 @@ async function main() {
   const { environment, write, append } = await withAppend(withWrite(getArgs()))
     .argv;
 
-  const { registry, supportedChainNames } =
+  const { registry, supportedChainNames, tokenPriceOverrides } =
     environment === 'mainnet3'
       ? {
           registry: await getMainnet3Registry(),
           supportedChainNames: mainnet3SupportedChainNames,
+          tokenPriceOverrides: mainnet3TokenPriceOverrides,
         }
       : {
           registry: await getTestnet4Registry(),
           supportedChainNames: testnet4SupportedChainNames,
+          tokenPriceOverrides: testnet4TokenPriceOverrides,
         };
 
   const chainMetadata = await registry.getMetadata();
@@ -96,6 +104,15 @@ async function main() {
     environment === 'mainnet3' ? mainnet3TokenPrices : testnet4TokenPrices;
 
   const prices = objMap(ids, (chain, id) => {
+    if (tokenPriceOverrides[chain]) {
+      console.log(
+        chalk.blue(
+          `Using override price for ${chain}: ${tokenPriceOverrides[chain]}`,
+        ),
+      );
+      return tokenPriceOverrides[chain];
+    }
+
     const idData = idPrices[id];
     const prevPrice = getSafeNumericValue(
       prevTokenPrices[chain],

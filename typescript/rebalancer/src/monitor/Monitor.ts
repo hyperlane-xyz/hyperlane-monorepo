@@ -1,22 +1,40 @@
-import EventEmitter from 'events';
-import { Logger } from 'pino';
-
-import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
-import { sleep } from '@hyperlane-xyz/utils';
+import { type Logger } from 'pino';
 
 import {
+  type ChainMap,
+  type ChainName,
+  type Token,
+  type WarpCore,
+} from '@hyperlane-xyz/sdk';
+import { Address, sleep } from '@hyperlane-xyz/utils';
+
+import {
+  type ConfirmedBlockTag,
+  type ConfirmedBlockTags,
   type IMonitor,
   type MonitorEvent,
   MonitorEventType,
   MonitorPollingError,
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
+import { getConfirmedBlockTag } from '../utils/blockTag.js';
+
+/**
+ * Configuration for the Monitor's inventory tracking.
+ */
+export interface InventoryMonitorConfig {
+  inventoryAddress: Address;
+  chains: ChainName[];
+}
 
 /**
  * Simple monitor implementation that polls warp route collateral balances and emits them as MonitorEvent.
+ * Awaits the TokenInfo handler before starting the next cycle to prevent race conditions.
  */
 export class Monitor implements IMonitor {
-  private readonly emitter = new EventEmitter();
+  private tokenInfoHandler?: (event: MonitorEvent) => void | Promise<void>;
+  private errorHandler?: (event: Error) => void;
+  private startHandler?: () => void;
   private isMonitorRunning = false;
   private resolveStop: (() => void) | null = null;
   private stopPromise: Promise<void> | null = null;
@@ -28,27 +46,52 @@ export class Monitor implements IMonitor {
     private readonly checkFrequency: number,
     private readonly warpCore: WarpCore,
     private readonly logger: Logger,
+    private readonly inventoryConfig?: InventoryMonitorConfig,
   ) {}
+
+  private async computeConfirmedBlockTags(): Promise<ConfirmedBlockTags> {
+    const blockTags: ConfirmedBlockTags = {};
+    const chains = new Set(this.warpCore.tokens.map((t) => t.chainName));
+
+    for (const chain of chains) {
+      blockTags[chain] = await getConfirmedBlockTag(
+        this.warpCore.multiProvider,
+        chain,
+        this.logger,
+      );
+    }
+
+    return blockTags;
+  }
 
   // overloads from IMonitor
   on(
     eventName: MonitorEventType.TokenInfo,
-    fn: (event: MonitorEvent) => void,
+    fn: (event: MonitorEvent) => void | Promise<void>,
   ): this;
   on(eventName: MonitorEventType.Error, fn: (event: Error) => void): this;
   on(eventName: MonitorEventType.Start, fn: () => void): this;
-  on(eventName: string, fn: (...args: any[]) => void): this {
-    this.emitter.on(eventName, fn);
+  on(eventName: string, fn: (...args: any[]) => void | Promise<void>): this {
+    switch (eventName) {
+      case MonitorEventType.TokenInfo:
+        this.tokenInfoHandler = fn as (
+          event: MonitorEvent,
+        ) => void | Promise<void>;
+        break;
+      case MonitorEventType.Error:
+        this.errorHandler = fn as (event: Error) => void;
+        break;
+      case MonitorEventType.Start:
+        this.startHandler = fn as () => void;
+        break;
+    }
     return this;
   }
 
   async start() {
     if (this.isMonitorRunning) {
       // Cannot start the same monitor multiple times
-      this.emitter.emit(
-        MonitorEventType.Error,
-        new MonitorStartError('Monitor already running'),
-      );
+      this.errorHandler?.(new MonitorStartError('Monitor already running'));
       return;
     }
 
@@ -58,13 +101,19 @@ export class Monitor implements IMonitor {
         { checkFrequency: this.checkFrequency },
         'Monitor started',
       );
-      this.emitter.emit(MonitorEventType.Start);
+      this.startHandler?.();
 
       while (this.isMonitorRunning) {
+        const cycleStart = Date.now();
+
         try {
           this.logger.debug('Polling cycle started');
+
+          const confirmedBlockTags = await this.computeConfirmedBlockTags();
+
           const event: MonitorEvent = {
             tokensInfo: [],
+            confirmedBlockTags,
           };
 
           for (const token of this.warpCore.tokens) {
@@ -76,7 +125,11 @@ export class Monitor implements IMonitor {
               },
               'Checking token',
             );
-            const bridgedSupply = await this.getTokenBridgedSupply(token);
+            const blockTag = confirmedBlockTags[token.chainName];
+            const bridgedSupply = await this.getTokenBridgedSupply(
+              token,
+              blockTag,
+            );
 
             event.tokensInfo.push({
               token,
@@ -84,12 +137,30 @@ export class Monitor implements IMonitor {
             });
           }
 
-          // Emit the event warp routes info
-          this.emitter.emit(MonitorEventType.TokenInfo, event);
+          const inventoryBalances = await this.fetchInventoryBalances();
+          if (Object.keys(inventoryBalances).length > 0) {
+            event.inventoryBalances = inventoryBalances;
+            this.logger.info(
+              {
+                chainsMonitored: Object.keys(inventoryBalances).length,
+                balances: Object.entries(inventoryBalances).map(
+                  ([chain, balance]) => ({
+                    chain,
+                    balance: balance.toString(),
+                    balanceEth: (Number(balance) / 1e18).toFixed(6),
+                  }),
+                ),
+              },
+              'Inventory balances fetched',
+            );
+          }
+
+          if (this.tokenInfoHandler) {
+            await this.tokenInfoHandler(event);
+          }
           this.logger.debug('Polling cycle completed');
         } catch (error) {
-          this.emitter.emit(
-            MonitorEventType.Error,
+          this.errorHandler?.(
             new MonitorPollingError(
               `Error during monitor execution cycle: ${(error as Error).message}`,
               error as Error,
@@ -97,12 +168,16 @@ export class Monitor implements IMonitor {
           );
         }
 
-        // Wait for the specified check frequency before the next iteration
-        await sleep(this.checkFrequency);
+        // Smart sleep: only wait for remaining time after cycle completes
+        const elapsed = Date.now() - cycleStart;
+        const remaining = this.checkFrequency - elapsed;
+        if (remaining > 0) {
+          await sleep(remaining);
+        }
+        // If elapsed >= checkFrequency, start next cycle immediately
       }
     } catch (error) {
-      this.emitter.emit(
-        MonitorEventType.Error,
+      this.errorHandler?.(
         new MonitorStartError(
           `Error starting monitor: ${(error as Error).message}`,
           error as Error,
@@ -111,7 +186,9 @@ export class Monitor implements IMonitor {
     }
 
     // After the loop has been gracefully terminated, we can clean up.
-    this.emitter.removeAllListeners();
+    this.tokenInfoHandler = undefined;
+    this.errorHandler = undefined;
+    this.startHandler = undefined;
     this.logger.info('Monitor stopped');
 
     // If stop() was called, resolve the promise to signal that we're done.
@@ -124,6 +201,7 @@ export class Monitor implements IMonitor {
 
   private async getTokenBridgedSupply(
     token: Token,
+    blockTag?: ConfirmedBlockTag,
   ): Promise<bigint | undefined> {
     if (!token.isHypToken()) {
       this.logger.warn(
@@ -138,7 +216,25 @@ export class Monitor implements IMonitor {
     }
 
     const adapter = token.getHypAdapter(this.warpCore.multiProvider);
-    const bridgedSupply = await adapter.getBridgedSupply();
+    let bridgedSupply: bigint | undefined;
+
+    try {
+      bridgedSupply = await adapter.getBridgedSupply({ blockTag });
+      this.logger.debug(
+        { chain: token.chainName, blockTag },
+        'Queried confirmed balance',
+      );
+    } catch (error) {
+      this.logger.warn(
+        {
+          chain: token.chainName,
+          blockTag,
+          error: (error as Error).message,
+        },
+        'Historical block query failed, falling back to latest',
+      );
+      bridgedSupply = await adapter.getBridgedSupply();
+    }
 
     if (bridgedSupply === undefined) {
       this.logger.warn(
@@ -152,6 +248,53 @@ export class Monitor implements IMonitor {
     }
 
     return bridgedSupply;
+  }
+
+  private async fetchInventoryBalances(): Promise<ChainMap<bigint>> {
+    if (!this.inventoryConfig) return {};
+
+    const balances: ChainMap<bigint> = {};
+
+    const readPromises = this.inventoryConfig.chains.map(async (chainName) => {
+      const token = this.warpCore.tokens.find((t) => t.chainName === chainName);
+      if (!token) {
+        this.logger.warn(
+          { chain: chainName },
+          'No token found for inventory chain',
+        );
+        return { chainName, balance: 0n };
+      }
+
+      try {
+        const adapter = token.getAdapter(this.warpCore.multiProvider);
+        const balance = await adapter.getBalance(
+          this.inventoryConfig!.inventoryAddress,
+        );
+        this.logger.debug(
+          {
+            chain: chainName,
+            token: token.addressOrDenom,
+            balance: balance.toString(),
+          },
+          'Read inventory balance',
+        );
+        return { chainName, balance };
+      } catch (error) {
+        this.logger.error(
+          { chain: chainName, error: (error as Error).message },
+          'Failed to read inventory balance',
+        );
+        return { chainName, balance: 0n };
+      }
+    });
+
+    const results = await Promise.all(readPromises);
+
+    for (const { chainName, balance } of results) {
+      balances[chainName] = balance;
+    }
+
+    return balances;
   }
 
   stop(): Promise<void> {

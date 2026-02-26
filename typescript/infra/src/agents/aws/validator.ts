@@ -62,7 +62,9 @@ export class InfraS3Validator extends S3Validator {
     let otherCheckpointIndex = otherLatestCheckpointIndex.data;
 
     const maxIndex = Math.max(checkpointIndex, otherCheckpointIndex);
-    const checkpointMetrics: CheckpointMetric[] = new Array(maxIndex + 1);
+    const checkpointMetrics: CheckpointMetric[] = Array.from({
+      length: maxIndex + 1,
+    });
 
     // scan extra checkpoints
     for (; checkpointIndex > otherCheckpointIndex; checkpointIndex--) {

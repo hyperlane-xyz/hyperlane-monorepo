@@ -3,29 +3,29 @@ import { BigNumber as BigNumberJs } from 'bignumber.js';
 import { ethers } from 'ethers';
 
 import {
-  ChainGasOracleParams,
-  ChainMap,
-  ChainMetadata,
-  ChainName,
+  type ChainGasOracleParams,
+  type ChainMap,
+  type ChainMetadata,
+  type ChainName,
   CoinGeckoTokenPriceGetter,
-  HookConfig,
+  type HookConfig,
   HookType,
-  HooksConfig,
+  type HooksConfig,
   HooksConfigMapSchema,
-  IgpHookConfig,
+  type IgpHookConfig,
   MultiProtocolProvider,
   getGasPrice,
   getLocalStorageGasOracleConfig,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type Address,
   normalizeAddressEvm,
   objFilter,
   objMap,
   toWei,
 } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, logRed } from '../logger.js';
 import {
   runMultiChainSelectionStep,

@@ -3,10 +3,10 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { step } from 'mocha-steps';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 
 import { AleoSigner } from '../clients/signer.js';
-import { AleoReceipt, AleoTransaction } from '../utils/types.js';
+import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
 chai.use(chaiAsPromised);
 const { expect } = chai;
@@ -41,7 +41,7 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
     // ASSERT
     expect(txResponse.ismAddress).not.to.be.empty;
 
-    let ism = await signer.getNoopIsm({
+    const ism = await signer.getNoopIsm({
       ismAddress: txResponse.ismAddress,
     });
     expect(ism.address).to.equal(txResponse.ismAddress);
@@ -70,7 +70,7 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
     // ASSERT
     expect(txResponse.ismAddress).to.be.not.empty;
 
-    let ism = await signer.getMessageIdMultisigIsm({
+    const ism = await signer.getMessageIdMultisigIsm({
       ismAddress: txResponse.ismAddress,
     });
 
@@ -119,7 +119,7 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
     // ASSERT
     expect(txResponse.ismAddress).to.be.not.empty;
 
-    let ism = await signer.getRoutingIsm({
+    const ism = await signer.getRoutingIsm({
       ismAddress: txResponse.ismAddress,
     });
 
@@ -148,7 +148,7 @@ describe('1. aleo sdk interchain security e2e tests', async function () {
     });
 
     // ASSERT
-    let ism = await signer.getRoutingIsm({
+    const ism = await signer.getRoutingIsm({
       ismAddress: routing_ism,
     });
 

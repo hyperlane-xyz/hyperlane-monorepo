@@ -1,28 +1,28 @@
-import { BigNumber, Signer } from 'ethers';
-import { Logger } from 'pino';
+import { type BigNumber, type Signer } from 'ethers';
+import { type Logger } from 'pino';
 
 import {
-  ChainName,
-  IMultiProtocolSignerManager,
-  MultiProtocolProvider,
-  MultiProvider,
-  ProtocolMap,
+  type ChainName,
+  type IMultiProtocolSignerManager,
+  type MultiProtocolProvider,
+  type MultiProvider,
+  type ProtocolMap,
   isJsonRpcSubmitterConfig,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type Address,
   ProtocolType,
   assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
-import { SignerKeyProtocolMap } from '../../types.js';
+import { type ExtendedChainSubmissionStrategy } from '../../../submitters/types.js';
+import { type SignerKeyProtocolMap } from '../../types.js';
 
 import {
-  IMultiProtocolSigner,
-  SignerConfig,
-  TypedSigner,
+  type IMultiProtocolSigner,
+  type SignerConfig,
+  type TypedSigner,
 } from './BaseMultiProtocolSigner.js';
 import { MultiProtocolSignerFactory } from './MultiProtocolSignerFactory.js';
 

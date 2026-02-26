@@ -31,7 +31,10 @@ export async function getHyperlaneCore(
   multiProvider?: MultiProvider,
 ) {
   const config = getEnvironmentConfig(env);
-  multiProvider = multiProvider || (await config.getMultiProvider());
+  if (!multiProvider) {
+    multiProvider = await config.getMultiProvider();
+  }
+
   const chainAddresses = getEnvAddresses(env);
   // on mainnet3, we need to add the legacy ICA routers to the chain addresses
   if (env === 'mainnet3') {

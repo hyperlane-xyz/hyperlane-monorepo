@@ -1,54 +1,40 @@
 {
   "name": "@hyperlane-xyz/cosmos-sdk",
-  "version": "20.1.0",
+  "version": "25.3.1",
   "description": "Hyperlane TypeScript SDK for the Cosmos Hyperlane SDK module",
-  "type": "module",
-  "exports": {
-    ".": "./dist/index.js"
-  },
-  "types": "dist/index.d.ts",
+  "keywords": [
+    "blockchain",
+    "cosmos",
+    "hyperlane",
+    "sdk"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "files": [
     "/dist"
   ],
-  "homepage": "https://www.hyperlane.xyz",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "keywords": [
-    "hyperlane",
-    "cosmos",
-    "blockchain",
-    "sdk"
-  ],
-  "license": "Apache-2.0",
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
   "scripts": {
     "build": "rm -rf ./dist && tsc",
-    "format": "prettier --write .",
+    "format": "oxfmt --write ./src",
     "lint": "eslint -c ./eslint.config.mjs",
-    "prettier": "prettier --write ./src",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
     "test": "echo \"no tests in cosmos-sdk\"",
     "test:ci": "echo \"no tests in cosmos-sdk\"",
-    "test:e2e": "./scripts/run-e2e-test.sh"
-  },
-  "devDependencies": {
-    "@eslint/js": "catalog:",
-    "@hyperlane-xyz/eslint-config": "workspace:^",
-    "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/chai": "catalog:",
-    "@types/mocha": "catalog:",
-    "chai": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
-    "mocha": "catalog:",
-    "mocha-steps": "catalog:",
-    "prettier": "catalog:",
-    "ts-node": "catalog:",
-    "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
+    "test:e2e": "mocha --config .mocharc-e2e.json"
   },
   "dependencies": {
     "@cosmjs/amino": "catalog:",
@@ -59,5 +45,28 @@
     "@hyperlane-xyz/cosmos-types": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/chai-as-promised": "catalog:",
+    "@types/mocha": "catalog:",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "chai": "catalog:",
+    "chai-as-promised": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "mocha": "catalog:",
+    "mocha-steps": "catalog:",
+    "oxfmt": "catalog:",
+    "testcontainers": "catalog:",
+    "ts-node": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
   }
 }

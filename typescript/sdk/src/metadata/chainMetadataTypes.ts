@@ -6,9 +6,14 @@ import { SafeParseReturnType, z } from 'zod';
 
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
-import { ChainMap } from '../types.js';
+import type { ChainMap } from '../types.js';
 
-import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
+import {
+  ZChainName,
+  ZNzUint,
+  ZUint,
+  forwardCompatibleEnum,
+} from './customZodTypes.js';
 
 export enum EthJsonRpcBlockParameterTag {
   Earliest = 'earliest',
@@ -26,6 +31,7 @@ export enum ExplorerFamily {
   ZkSync = 'zksync',
   RadixDashboard = 'radixdashboard',
   Other = 'other',
+  Unknown = 'unknown',
 }
 
 export enum ChainTechnicalStack {
@@ -33,8 +39,10 @@ export enum ChainTechnicalStack {
   OpStack = 'opstack',
   PolygonCDK = 'polygoncdk',
   PolkadotSubstrate = 'polkadotsubstrate',
+  Tron = 'tron',
   ZkSync = 'zksync',
   Other = 'other',
+  Unknown = 'unknown',
 }
 
 export enum ChainStatus {
@@ -118,8 +126,7 @@ export const BlockExplorerSchema = z.object({
     .describe(
       'An API key for the explorer (recommended for better reliability).',
     ),
-  family: z
-    .nativeEnum(ExplorerFamily)
+  family: forwardCompatibleEnum(ExplorerFamily, ExplorerFamily.Unknown)
     .optional()
     .describe(
       'The type of the block explorer. See ExplorerFamily for valid values.',
@@ -302,11 +309,9 @@ export const ChainMetadataSchemaObject = z.object({
     'The metadata of the native token of the chain (e.g. ETH for Ethereum).',
   ),
 
-  protocol: z
-    .nativeEnum(ProtocolType)
-    .describe(
-      'The type of protocol used by this chain. See ProtocolType for valid values.',
-    ),
+  protocol: forwardCompatibleEnum(ProtocolType, ProtocolType.Unknown).describe(
+    'The type of protocol used by this chain. See ProtocolType for valid values.',
+  ),
 
   restUrls: z
     .array(RpcUrlSchema)
@@ -320,8 +325,10 @@ export const ChainMetadataSchemaObject = z.object({
 
   slip44: z.number().optional().describe('The SLIP-0044 coin type.'),
 
-  technicalStack: z
-    .nativeEnum(ChainTechnicalStack)
+  technicalStack: forwardCompatibleEnum(
+    ChainTechnicalStack,
+    ChainTechnicalStack.Unknown,
+  )
     .optional()
     .describe(
       'The technical stack of the chain. See ChainTechnicalStack for valid values.',

@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import prettierConfig from 'eslint-config-prettier/flat';
 import importPlugin from 'eslint-plugin-import';
+import jest from 'eslint-plugin-jest';
 import { globalIgnores } from 'eslint/config';
 import ts from 'typescript-eslint';
 
@@ -65,6 +66,20 @@ export const typescriptRules = ts.config({
     'import/resolver': 'typescript',
   },
 });
+
+export const jestRules = [
+  {
+    name: 'hyperlane-jest-rules',
+    files: ['**/*.test.ts', '**/*.hardhat-test.ts', '**/*.foundry-test.ts'],
+    plugins: { jest },
+    rules: {
+      'jest/no-disabled-tests': 'warn',
+      'jest/no-focused-tests': 'error',
+      'jest/no-identical-title': 'error',
+      'jest/valid-expect': 'error',
+    },
+  },
+];
 
 export const restrictedSdkAndUtilsImportRules = [
   {

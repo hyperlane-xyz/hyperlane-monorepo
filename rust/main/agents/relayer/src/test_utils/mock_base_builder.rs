@@ -278,7 +278,8 @@ pub fn build_mock_base_builder(
                 None,
             )])),
             "test-app-context".to_string(),
-        )],
+        )]
+        .into(),
     );
     base_builder.responses.app_context_classifier = Some(app_context_classifier);
     base_builder.responses.ism_cache_policy_classifier = Some(IsmCachePolicyClassifier::new(

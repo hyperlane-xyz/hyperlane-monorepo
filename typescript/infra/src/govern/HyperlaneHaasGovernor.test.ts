@@ -7,7 +7,7 @@ import {
   InterchainAccount,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, formatStandardHookMetadata } from '@hyperlane-xyz/utils';
 
 import { AnnotatedCallData } from './HyperlaneAppGovernor.js';
 import { HyperlaneHaasGovernor } from './HyperlaneHaasGovernor.js';
@@ -268,6 +268,86 @@ describe('HyperlaneHaasGovernor', () => {
       });
     });
 
+    it('should apply 2x buffer when hookMetadata includes refund address', async () => {
+      const callRemoteArgs = {
+        chain: TestChainName.test1,
+        destination: TestChainName.test2,
+        config: {
+          origin: TestChainName.test1,
+          owner: '0x1234567890123456789012345678901234567890' as Address,
+        },
+        innerCalls: [],
+        hookMetadata: formatStandardHookMetadata({
+          refundAddress:
+            '0x1111111111111111111111111111111111111111' as Address,
+        }),
+      };
+
+      const call: AnnotatedCallData = {
+        to: '0x1111111111111111111111111111111111111111' as Address,
+        data: '0x1111',
+        value: BigNumber.from(100),
+        description: 'ICA call',
+        callRemoteArgs,
+      };
+
+      (governor as any).calls = {
+        [TestChainName.test1]: [call],
+      };
+
+      const mockCallRemoteResponse = {
+        to: '0x9999999999999999999999999999999999999999',
+        data: '0xcombined',
+        value: BigNumber.from(100),
+      };
+      mockGetCallRemote.resolves(mockCallRemoteResponse);
+
+      await governor.batchIcaCalls();
+
+      const combinedCall = (governor as any).calls[TestChainName.test1][0];
+      expect(combinedCall.value?.toString()).to.equal('200');
+    });
+
+    it('should not buffer when hookMetadata refund address is zero', async () => {
+      const callRemoteArgs = {
+        chain: TestChainName.test1,
+        destination: TestChainName.test2,
+        config: {
+          origin: TestChainName.test1,
+          owner: '0x1234567890123456789012345678901234567890' as Address,
+        },
+        innerCalls: [],
+        hookMetadata: formatStandardHookMetadata({
+          refundAddress:
+            '0x0000000000000000000000000000000000000000' as Address,
+        }),
+      };
+
+      const call: AnnotatedCallData = {
+        to: '0x1111111111111111111111111111111111111111' as Address,
+        data: '0x1111',
+        value: BigNumber.from(100),
+        description: 'ICA call',
+        callRemoteArgs,
+      };
+
+      (governor as any).calls = {
+        [TestChainName.test1]: [call],
+      };
+
+      const mockCallRemoteResponse = {
+        to: '0x9999999999999999999999999999999999999999',
+        data: '0xcombined',
+        value: BigNumber.from(100),
+      };
+      mockGetCallRemote.resolves(mockCallRemoteResponse);
+
+      await governor.batchIcaCalls();
+
+      const combinedCall = (governor as any).calls[TestChainName.test1][0];
+      expect(combinedCall.value?.toString()).to.equal('100');
+    });
+
     it('should test the value conversion logic with different value types', async () => {
       const callRemoteArgs = {
         chain: TestChainName.test1,
@@ -384,7 +464,9 @@ describe('HyperlaneHaasGovernor', () => {
       expect(combinedCall).to.exist;
       expect(combinedCall?.to).to.equal(mockCallRemoteResponse.to);
       expect(combinedCall?.data).to.equal(mockCallRemoteResponse.data);
-      expect(combinedCall?.value).to.equal(mockCallRemoteResponse.value);
+      expect(combinedCall?.value?.toString()).to.equal(
+        mockCallRemoteResponse.value.toString(),
+      );
       expect(combinedCall?.submissionType).to.equal('MANUAL');
       expect(combinedCall?.governanceType).to.equal('MULTISIG');
 
@@ -395,7 +477,9 @@ describe('HyperlaneHaasGovernor', () => {
       expect(preservedNonIcaCall).to.exist;
       expect(preservedNonIcaCall?.to).to.equal(nonIcaCall.to);
       expect(preservedNonIcaCall?.data).to.equal(nonIcaCall.data);
-      expect(preservedNonIcaCall?.value).to.equal(nonIcaCall.value);
+      expect(preservedNonIcaCall?.value?.toString()).to.equal(
+        nonIcaCall.value?.toString(),
+      );
     });
 
     it('should use innerCalls from callRemoteArgs if present, otherwise fallback to call fields', async () => {

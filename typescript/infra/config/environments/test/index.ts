@@ -2,7 +2,7 @@ import { JsonRpcProvider } from '@ethersproject/providers';
 
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 
-import { EnvironmentConfig } from '../../../src/config/environment.js';
+import type { EnvironmentConfig } from '../../../src/config/environment.js';
 
 import { agents } from './agent.js';
 import { testChainNames } from './chains.js';
@@ -14,7 +14,7 @@ import { owners } from './owners.js';
 export const environment: EnvironmentConfig = {
   environment: 'test',
   supportedChainNames: testChainNames,
-  getRegistry: () => {
+  getRegistry: (_useSecrets?: boolean, _chains?: string[]) => {
     throw new Error('Not implemented');
   },
   getMultiProtocolProvider: () => {

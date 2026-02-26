@@ -17,25 +17,18 @@ import {
 import {
   BaseRelayerConfig,
   MetricAppContext,
-  routerMatchingList,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 import { getDomainId } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
-import { helloWorld } from './helloworld.js';
 import {
   supportedChainNames,
   testnet4SupportedChainNames,
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
-
-const releaseCandidateHelloworldMatchingList = routerMatchingList(
-  helloWorld[Contexts.ReleaseCandidate].addresses,
-);
-
-const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -48,110 +41,77 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     aleotestnet: true,
     arbitrumsepolia: true,
-    arcadiatestnet2: true,
-    auroratestnet: true,
-    basecamptestnet: true,
+    arcadiatestnet2: false,
     basesepolia: true,
     bsctestnet: true,
-    carrchaintestnet: true,
     celestiatestnet: true,
     celosepolia: true,
-    citreatestnet: true,
     cotitestnet: true,
     eclipsetestnet: false,
     fuji: true,
-    giwasepolia: true,
     hyperliquidevmtestnet: true,
     incentivtestnet: false,
     kyvetestnet: false,
-    megaethtestnet: false,
     modetestnet: true,
-    monadtestnet: true,
-    neuratestnet: true,
-    nobletestnet: false,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,
     radixtestnet: true,
-    scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
-    subtensortestnet: false,
   },
   [Role.Relayer]: {
     aleotestnet: true,
     arbitrumsepolia: true,
-    arcadiatestnet2: true,
-    auroratestnet: true,
-    basecamptestnet: true,
+    arcadiatestnet2: false,
     basesepolia: true,
     bsctestnet: true,
-    carrchaintestnet: true,
     celestiatestnet: true,
     celosepolia: true,
-    citreatestnet: true,
     cotitestnet: true,
     eclipsetestnet: false,
     fuji: true,
-    giwasepolia: true,
     hyperliquidevmtestnet: true,
     incentivtestnet: false,
     kyvetestnet: false,
-    megaethtestnet: false,
     modetestnet: true,
-    monadtestnet: true,
-    neuratestnet: true,
-    nobletestnet: false,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,
     radixtestnet: true,
-    scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
-    subtensortestnet: false,
   },
   [Role.Scraper]: {
     aleotestnet: true,
     arbitrumsepolia: true,
-    arcadiatestnet2: true,
-    auroratestnet: true,
-    basecamptestnet: true,
+    arcadiatestnet2: false,
     basesepolia: true,
     bsctestnet: true,
-    carrchaintestnet: true,
     celestiatestnet: true,
     celosepolia: true,
-    citreatestnet: true,
     cotitestnet: true,
     eclipsetestnet: false,
     fuji: true,
-    giwasepolia: true,
     hyperliquidevmtestnet: true,
     incentivtestnet: false,
     kyvetestnet: false,
-    megaethtestnet: false,
     modetestnet: true,
-    monadtestnet: true,
-    neuratestnet: true,
-    nobletestnet: false,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,
     radixtestnet: true,
-    scrollsepolia: true,
     sepolia: true,
     solanatestnet: true,
     somniatestnet: true,
     sonicsvmtestnet: false,
     starknetsepolia: true,
-    subtensortestnet: false,
   },
 };
 
@@ -173,16 +133,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
     matchingList: [
-      // For testing nobletestnet<>auroratestnet until we control the IGP
-      {
-        originDomain: getDomainId('nobletestnet'),
-        destinationDomain: getDomainId('auroratestnet'),
-      },
-      // For testing nobletestnet<>hyperliquidevmtestnet until we control the IGP
-      {
-        originDomain: getDomainId('nobletestnet'),
-        destinationDomain: getDomainId('hyperliquidevmtestnet'),
-      },
       // Temporary workaround due to IGP not being implemented on starknet chain.
       // starknetsepolia
       { originDomain: getDomainId('starknetsepolia') },
@@ -265,10 +215,6 @@ const kesselAppContext = 'kessel';
 
 const metricAppContextsGetter = (): MetricAppContext[] => [
   {
-    name: 'helloworld',
-    matchingList: routerMatchingList(helloWorld[Contexts.Hyperlane].addresses),
-  },
-  {
     name: kesselAppContext,
     matchingList: kesselMatchingList,
   },
@@ -345,53 +291,8 @@ const hyperlane: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
-    },
-    blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
-    gasPaymentEnforcement,
-    metricAppContextsGetter,
-    ismCacheConfigs,
-    batch: {
-      batchSizeOverrides: {
-        starknetsepolia: 16,
-        paradexsepolia: 16,
-      },
-    },
-    cache: {
-      enabled: true,
-    },
-    resources: relayerResources,
-  },
-  validators: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
-    },
-    chains: validatorChainConfig(Contexts.Hyperlane),
-    resources: validatorResources,
-  },
-  scraper: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    docker: {
-      repo,
-      tag: 'f50feaa-20251219-084739',
-    },
-    resources: scraperResources,
-  },
-};
-
-const releaseCandidate: RootAgentConfig = {
-  ...contextBase,
-  context: Contexts.ReleaseCandidate,
-  contextChainNames: hyperlaneContextAgentChainNames,
-  rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
-  relayer: {
-    rpcConsensusType: RpcConsensusType.Fallback,
-    docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.relayer,
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -411,8 +312,53 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.validator,
+    },
+    chains: validatorChainConfig(Contexts.Hyperlane),
+    resources: validatorResources,
+  },
+  scraper: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.scraper,
+    },
+    resources: scraperResources,
+  },
+};
+
+const releaseCandidate: RootAgentConfig = {
+  ...contextBase,
+  context: Contexts.ReleaseCandidate,
+  contextChainNames: hyperlaneContextAgentChainNames,
+  rolesWithKeys: [Role.Relayer, Role.Validator],
+  relayer: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.relayerRC,
+    },
+    blacklist: relayBlacklist,
+    gasPaymentEnforcement,
+    metricAppContextsGetter,
+    ismCacheConfigs,
+    batch: {
+      batchSizeOverrides: {
+        starknetsepolia: 16,
+        paradexsepolia: 16,
+      },
+    },
+    cache: {
+      enabled: true,
+    },
+    resources: relayerResources,
+  },
+  validators: {
+    rpcConsensusType: RpcConsensusType.Fallback,
+    docker: {
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.validatorRC,
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
@@ -438,8 +384,8 @@ const neutron: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.relayerRC,
     },
     blacklist: relayBlacklist,
     gasPaymentEnforcement,
@@ -459,8 +405,8 @@ const neutron: RootAgentConfig = {
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
+      repo: DockerImageRepos.AGENT,
+      tag: testnetDockerTags.validatorRC,
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,

@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
-  ChainMetadata,
+  type ChainMetadata,
   ChainMetadataSchema,
   ChainTechnicalStack,
   EthJsonRpcBlockParameterTag,
@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { indentYamlOrJson, readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';

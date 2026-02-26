@@ -3,6 +3,7 @@ import { MsgTransferEncodeObject } from '@cosmjs/stargate';
 
 import {
   Address,
+  KnownProtocolType,
   Numberish,
   ProtocolType,
   assert,
@@ -28,6 +29,12 @@ import {
   TokenStandard,
   XERC20_STANDARDS,
 } from './TokenStandard.js';
+import {
+  AleoHypCollateralAdapter,
+  AleoHypNativeAdapter,
+  AleoHypSyntheticAdapter,
+  AleoNativeTokenAdapter,
+} from './adapters/AleoTokenAdapter.js';
 import {
   CwHypCollateralAdapter,
   CwHypNativeAdapter,
@@ -101,18 +108,30 @@ export class Token implements IToken {
    * nothing specific is set in the ChainMetadata.
    */
   static FromChainMetadataNativeToken(chainMetadata: ChainMetadata): Token {
-    const { protocol, name: chainName, logoURI } = chainMetadata;
+    const {
+      protocol,
+      name: chainName,
+      logoURI,
+      gasCurrencyCoinGeckoId,
+    } = chainMetadata;
+    assert(
+      protocol !== ProtocolType.Unknown,
+      'Cannot create native token for unknown protocol',
+    );
+    const knownProtocol = protocol as KnownProtocolType;
     const nativeToken =
-      chainMetadata.nativeToken || PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[protocol];
+      chainMetadata.nativeToken ||
+      PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[knownProtocol];
 
     return new Token({
       chainName,
-      standard: PROTOCOL_TO_NATIVE_STANDARD[protocol],
+      standard: PROTOCOL_TO_NATIVE_STANDARD[knownProtocol],
       addressOrDenom: nativeToken.denom ?? '',
       decimals: nativeToken.decimals,
       symbol: nativeToken.symbol,
       name: nativeToken.name,
       logoURI,
+      coinGeckoId: gasCurrencyCoinGeckoId,
     });
   }
 
@@ -171,6 +190,10 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.RadixNative) {
       return new RadixNativeTokenAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.AleoNative) {
+      return new AleoNativeTokenAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (this.isHypToken()) {
@@ -342,6 +365,18 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.RadixHypSynthetic) {
       return new RadixHypSyntheticAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.AleoHypNative) {
+      return new AleoHypNativeAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.AleoHypCollateral) {
+      return new AleoHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.AleoHypSynthetic) {
+      return new AleoHypSyntheticAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmM0PortalLite) {

@@ -1,9 +1,9 @@
-import { $, ProcessPromise } from 'zx';
+import { $, type ProcessPromise } from 'zx';
 
 import {
-  WarpCoreConfig,
+  type WarpCoreConfig,
   WarpCoreConfigSchema,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpRouteDeployConfigMailboxRequired,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 

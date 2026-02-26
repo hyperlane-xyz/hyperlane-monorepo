@@ -12,6 +12,7 @@ import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  BaseFee__factory,
   ERC20__factory,
   HypXERC20Lockbox__factory,
   IXERC20VS__factory,
@@ -19,7 +20,9 @@ import {
   MovableCollateralRouter__factory,
   Ownable__factory,
   ProxyAdmin__factory,
+  RoutingFee__factory,
   TimelockController__factory,
+  TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
@@ -27,22 +30,30 @@ import {
   ChainName,
   CoreConfig,
   DerivedIsmConfig,
+  DerivedTokenFeeConfig,
   EvmIsmReader,
+  EvmTokenFeeReader,
   InterchainAccount,
   MultiProvider,
+  TokenFeeType,
   TokenStandard,
   WarpCoreConfig,
   coreFactories,
+  OnchainTokenFeeType,
   interchainAccountFactories,
   isProxyAdminFromBytecode,
   normalizeConfig,
+  onChainTypeToTokenFeeTypeMap,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  StandardHookMetadataParams,
   addressToBytes32,
   bytes32ToAddress,
   deepEquals,
   eqAddress,
+  isZeroishAddress,
+  parseStandardHookMetadata,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -94,6 +105,11 @@ interface SetDefaultIsmInsight {
   insight: string;
 }
 
+interface HookMetadataInsight extends StandardHookMetadataParams {
+  raw: string;
+  insight: string;
+}
+
 interface IcaRemoteCallInsight {
   destination: {
     domain: number;
@@ -111,6 +127,7 @@ interface IcaRemoteCallInsight {
     address: string;
     insight: string;
   };
+  hookMetadata?: HookMetadataInsight;
   calls: GovernTransaction[];
 }
 
@@ -126,12 +143,46 @@ const ownableFunctionSelectors = [
   'transferOwnership(address)',
 ].map((func) => ethers.utils.id(func).substring(0, 10));
 
-// Legacy ETH ICA router interface - has different callRemoteWithOverrides signature
-// Legacy: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
-// Current: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])
-const legacyIcaInterface = new ethers.utils.Interface([
+// ICA router interface with hookMetadata parameter
+// This overload is used by the SDK when building ICA calls with custom hook metadata
+const icaInterfaceWithHookMetadata = new ethers.utils.Interface([
   'function callRemoteWithOverrides(uint32 _destination, bytes32 _router, bytes32 _ism, tuple(bytes32,uint256,bytes)[] _calls, bytes _hookMetadata) payable returns (bytes32)',
 ]);
+
+// Function selector for callRemoteWithOverrides with hookMetadata (5 params)
+const CALL_REMOTE_WITH_HOOK_METADATA_SELECTOR =
+  icaInterfaceWithHookMetadata.getSighash('callRemoteWithOverrides');
+
+async function parseHookMetadataWithInsight(
+  chain: ChainName,
+  metadata: string,
+): Promise<HookMetadataInsight> {
+  const parsed = parseStandardHookMetadata(metadata);
+  if (!parsed) {
+    return {
+      raw: metadata,
+      insight: '❌ failed to parse hookMetadata',
+    };
+  }
+
+  const { msgValue, gasLimit, refundAddress } = parsed;
+
+  let insight: string;
+  if (isZeroishAddress(refundAddress)) {
+    insight = '⚠️ refund to zero address (excess goes to msg.sender)';
+  } else {
+    const ownerInsight = await getOwnerInsight(chain, refundAddress);
+    insight = `✅ refund to ${ownerInsight}`;
+  }
+
+  return {
+    raw: metadata,
+    msgValue,
+    gasLimit,
+    refundAddress,
+    insight,
+  };
+}
 
 export class GovernTransactionReader {
   errors: any[] = [];
@@ -167,10 +218,18 @@ export class GovernTransactionReader {
     const legacyIcas = getLegacyGovernanceIcas(governanceType);
     const timelocks = getGovernanceTimelocks(governanceType);
 
+    const enrichedChainAddresses = {
+      ...chainAddresses,
+      ethereum: {
+        ...chainAddresses.ethereum,
+        legacyInterchainAccountRouter: legacyEthIcaRouter,
+      },
+    };
+
     const txReaderInstance = new GovernTransactionReader(
       environment,
       multiProvider,
-      chainAddresses,
+      enrichedChainAddresses,
       config.core,
       warpRoutes,
       safes,
@@ -332,6 +391,11 @@ export class GovernTransactionReader {
       return this.readXERC20Transaction(chain, tx, xerc20Type);
     }
 
+    // If it's a fee contract transaction
+    if (await this.isFeeTransaction(chain, tx)) {
+      return this.readFeeTransaction(chain, tx);
+    }
+
     // If it's to a Proxy Admin
     if (await this.isProxyAdminTransaction(chain, tx)) {
       return this.readProxyAdminTransaction(chain, tx);
@@ -365,6 +429,142 @@ export class GovernTransactionReader {
     '0x39509351', // increaseAllowance(address,uint256)
     '0xa457c2d7', // decreaseAllowance(address,uint256)
   ]);
+
+  // Fee contract function selectors
+  private static readonly FEE_SELECTORS = new Set([
+    '0x16068373', // setFeeContract(uint32,address) - RoutingFee
+    '0x1e83409a', // claim(address) - BaseFee
+  ]);
+
+  private async isFeeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<boolean> {
+    if (!tx.to || !tx.data) return false;
+    const selector = tx.data.slice(0, 10).toLowerCase();
+    if (!GovernTransactionReader.FEE_SELECTORS.has(selector)) return false;
+
+    // Verify the target is actually a fee contract by checking for feeType() in bytecode
+    const provider = this.multiProvider.getProvider(chain);
+    const code = await provider.getCode(tx.to);
+    if (code === '0x') return false;
+    return code.includes('fb8dc179'); // feeType() selector
+  }
+
+  private async readFeeTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    assert(tx.data, 'No data in fee transaction');
+    assert(tx.to, 'No to address in fee transaction');
+
+    const provider = this.multiProvider.getProvider(chain);
+    const baseFee = BaseFee__factory.connect(tx.to, provider);
+
+    const onChainFeeType: OnchainTokenFeeType = await baseFee.feeType();
+    const feeTypeName = onChainTypeToTokenFeeTypeMap[onChainFeeType];
+    assert(feeTypeName, `Unknown Fee Type ${onChainFeeType}`);
+
+    const { insight, feeDetails, decoded } = await this.parseFeeTransactionData(
+      chain,
+      feeTypeName,
+      tx,
+    );
+
+    const ownableTx = insight
+      ? {}
+      : await this.readOwnableTransaction(chain, tx);
+
+    return {
+      ...ownableTx,
+      chain,
+      to: `${feeTypeName} Contract (${chain} ${tx.to})`,
+      ...(insight ? { insight } : {}),
+      ...(feeDetails ? { feeDetails } : {}),
+      signature: decoded.signature,
+    };
+  }
+
+  private async parseFeeTransactionData(
+    chain: ChainName,
+    feeTypeName: TokenFeeType,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<{
+    decoded: ethers.utils.TransactionDescription;
+    insight?: string;
+    feeDetails?: Record<string, any>;
+  }> {
+    assert(tx.data, 'No data in fee transaction');
+
+    // RoutingFee extends BaseFee, so its interface includes both
+    // claim(address) and setFeeContract(uint32,address)
+    const iface =
+      feeTypeName === TokenFeeType.RoutingFee
+        ? RoutingFee__factory.createInterface()
+        : BaseFee__factory.createInterface();
+
+    const decoded = iface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    if (decoded.functionFragment.name === 'claim') {
+      const [beneficiary] = decoded.args;
+      return { decoded, insight: `Claim fees to ${beneficiary}` };
+    }
+
+    if (feeTypeName === TokenFeeType.RoutingFee) {
+      return this.parseRoutingFeeTransaction(chain, decoded);
+    }
+
+    return { decoded };
+  }
+
+  private async parseRoutingFeeTransaction(
+    chain: ChainName,
+    decoded: ethers.utils.TransactionDescription,
+  ): Promise<{
+    decoded: ethers.utils.TransactionDescription;
+    insight?: string;
+    feeDetails?: Record<string, any>;
+  }> {
+    if (decoded.functionFragment.name !== 'setFeeContract') {
+      return { decoded };
+    }
+
+    const [destination, feeContract] = decoded.args;
+    const chainName =
+      this.multiProvider.tryGetChainName(destination) ??
+      `unknown (${destination})`;
+
+    if (isZeroishAddress(feeContract)) {
+      return {
+        decoded,
+        insight: `Remove fee contract for domain ${destination} (${chainName})`,
+      };
+    }
+
+    try {
+      const feeReader = new EvmTokenFeeReader(this.multiProvider, chain);
+      const feeConfig = await feeReader.deriveTokenFeeConfig({
+        address: feeContract,
+      });
+      const formatted = await this.formatFeeConfig(chain, feeConfig);
+      return {
+        decoded,
+        insight: `Set fee contract for domain ${destination} (${chainName}) to ${formatted.description}`,
+        feeDetails: formatted.feeDetails,
+      };
+    } catch (error) {
+      this.logger.debug(
+        `Could not read fee config for ${feeContract}: ${error}`,
+      );
+      return {
+        decoded,
+        insight: `Set fee contract for domain ${destination} (${chainName}) to ${feeContract} (Warning: could not read fee config)`,
+      };
+    }
+  }
 
   private isErc20Transaction(
     chain: ChainName,
@@ -651,7 +851,7 @@ export class GovernTransactionReader {
         value: tx.value,
       });
     } catch (error) {
-      throw new Error('Failed to decode Managed Lockbox transaction');
+      throw new Error(`Failed to decode Managed Lockbox transaction: ${error}`);
     }
 
     const roleMap: Record<string, string> = {
@@ -822,7 +1022,8 @@ export class GovernTransactionReader {
       value: tx.value,
     });
 
-    let insight;
+    let insight: string | undefined;
+    let feeDetails: Record<string, any> | undefined;
     if (
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['setHook(address)'].name
@@ -836,7 +1037,16 @@ export class GovernTransactionReader {
       tokenRouterInterface.functions['addBridge(uint32,address)'].name
     ) {
       const [domain, bridgeAddress] = decoded.args;
-      insight = `Set bridge for origin domain ${domain}to ${bridgeAddress}`;
+      insight = `Set bridge for origin domain ${domain} to ${bridgeAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['removeBridge(uint32,address)'].name
+    ) {
+      const [domain, bridgeAddress] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      insight = `Remove bridge ${bridgeAddress} from domain ${domain}${chainName ? ` (${chainName})` : ''}`;
     }
 
     if (
@@ -907,6 +1117,65 @@ export class GovernTransactionReader {
       insight = `Unenroll remote routers for ${insights.join(', ')}`;
     }
 
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['setFeeRecipient(address)'].name
+    ) {
+      const [recipient] = decoded.args;
+      // Read fee contract details (handles address(0), non-fee contracts gracefully)
+      const feeInfo = await this.readFeeContractDetails(
+        chain,
+        tx.to!,
+        recipient,
+      );
+      insight = feeInfo.insight;
+      feeDetails = feeInfo.feeDetails;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['removeRebalancer(address)'].name
+    ) {
+      const [rebalancer] = decoded.args;
+      insight = `Remove rebalancer ${rebalancer}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['setRecipient(uint32,bytes32)'].name
+    ) {
+      const [domain, recipient] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      insight = `Set rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${recipient}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['removeRecipient(uint32)'].name
+    ) {
+      const [domain] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      insight = `Remove rebalance recipient for domain ${domain}${chainName ? ` (${chainName})` : ''}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['approveTokenForBridge(address,address)']
+        .name
+    ) {
+      const [token, bridge] = decoded.args;
+      insight = `Approve token ${token} for bridge ${bridge}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
+    ) {
+      const [domain, router] = decoded.args;
+      const chainName = this.multiProvider.tryGetChainName(domain);
+      insight = `Enroll remote router for domain ${domain}${chainName ? ` (${chainName})` : ''} to ${router}`;
+    }
+
     let ownableTx = {};
     if (!insight) {
       ownableTx = await this.readOwnableTransaction(chain, tx);
@@ -923,6 +1192,147 @@ export class GovernTransactionReader {
       insight,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
+      ...(feeDetails && { feeDetails }),
+    };
+  }
+
+  /**
+   * Reads fee contract details for a setFeeRecipient transaction.
+   * Returns enhanced insight and feeDetails if the recipient is a fee contract.
+   */
+  private async readFeeContractDetails(
+    chain: ChainName,
+    tokenRouterAddress: Address,
+    feeRecipientAddress: Address,
+  ): Promise<{
+    insight: string;
+    description?: string;
+    feeDetails?: Record<string, any>;
+  }> {
+    // Handle address(0) case - fee is being removed
+    if (isZeroishAddress(feeRecipientAddress)) {
+      return { insight: `Remove fee recipient (setting to address(0))` };
+    }
+
+    try {
+      const provider = this.multiProvider.getProvider(chain);
+
+      // Check if it's a fee contract by calling feeType()
+      const baseFee = BaseFee__factory.connect(feeRecipientAddress, provider);
+      await baseFee.feeType(); // Will throw if not a fee contract
+
+      // Get routing destinations from the token router
+      const tokenRouter = TokenRouter__factory.connect(
+        tokenRouterAddress,
+        provider,
+      );
+      const domains = await tokenRouter.domains();
+
+      // Use EvmTokenFeeReader to derive full config
+      const feeReader = new EvmTokenFeeReader(this.multiProvider, chain);
+      const feeConfig = await feeReader.deriveTokenFeeConfig({
+        address: feeRecipientAddress,
+        routingDestinations: domains,
+      });
+
+      return await this.formatFeeConfig(chain, feeConfig);
+    } catch (error) {
+      // Not a fee contract or failed to read - return basic insight
+      this.logger.debug(
+        `Could not read fee contract details for ${feeRecipientAddress}: ${error}`,
+      );
+      return { insight: `Set fee recipient to ${feeRecipientAddress}` };
+    }
+  }
+
+  /**
+   * Formats a DerivedTokenFeeConfig into a human-readable insight and feeDetails object.
+   */
+  private async formatFeeConfig(
+    chain: ChainName,
+    feeConfig: DerivedTokenFeeConfig,
+  ): Promise<{
+    insight: string;
+    description: string;
+    feeDetails: Record<string, any>;
+  }> {
+    const ownerInsight = await getOwnerInsight(chain, feeConfig.owner);
+
+    if (feeConfig.type === TokenFeeType.LinearFee) {
+      // bps is in basis points (1 bps = 0.01%), convert to percentage
+      const bps = feeConfig.bps ? Number(feeConfig.bps) : 0;
+      const percentFormatted = (bps / 100).toFixed(2);
+
+      const description = `LinearFee contract (${percentFormatted}% fee, owner: ${ownerInsight})`;
+      return {
+        insight: `Set fee recipient to ${description}`,
+        description,
+        feeDetails: {
+          type: 'LinearFee',
+          address: feeConfig.address,
+          token: feeConfig.token,
+          owner: feeConfig.owner,
+          bps,
+          percent: `${percentFormatted}%`,
+        },
+      };
+    }
+
+    if (feeConfig.type === TokenFeeType.RoutingFee) {
+      const routes: Record<string, any> = {};
+      const routeInsights: string[] = [];
+
+      for (const [chainName, subConfig] of Object.entries(
+        feeConfig.feeContracts || {},
+      )) {
+        const bps = subConfig.bps ? Number(subConfig.bps) : 0;
+        const percent = (bps / 100).toFixed(2);
+
+        routes[chainName] = {
+          type: subConfig.type,
+          address: subConfig.address,
+          bps,
+          percent: `${percent}%`,
+        };
+
+        if (subConfig.type === TokenFeeType.LinearFee) {
+          routeInsights.push(`${chainName}: ${percent}%`);
+        } else {
+          routeInsights.push(`${chainName}: ${subConfig.type}`);
+        }
+      }
+
+      const routeCount = Object.keys(routes).length;
+      const routeSummary =
+        routeCount <= 3
+          ? routeInsights.join(', ')
+          : `${routeCount} routes configured`;
+
+      const description = `RoutingFee contract (${routeSummary}, owner: ${ownerInsight})`;
+      return {
+        insight: `Set fee recipient to ${description}`,
+        description,
+        feeDetails: {
+          type: 'RoutingFee',
+          address: feeConfig.address,
+          token: feeConfig.token,
+          owner: feeConfig.owner,
+          routes,
+        },
+      };
+    }
+
+    // Fallback for other fee types (Progressive, Regressive)
+    const description = `${feeConfig.type} contract (owner: ${ownerInsight})`;
+    return {
+      insight: `Set fee recipient to ${description}`,
+      description,
+      feeDetails: {
+        type: feeConfig.type,
+        address: feeConfig.address,
+        token: feeConfig.token,
+        owner: feeConfig.owner,
+      },
     };
   }
 
@@ -930,18 +1340,21 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
-    // Route to legacy handler if using legacy ETH ICA router
-    if (this.isLegacyEthIcaRouter(tx)) {
-      return this.readLegacyEthIcaTransaction(chain, tx);
-    }
-
     if (!tx.data) {
       throw new Error('No data in ICA transaction');
     }
     const { symbol } = await this.multiProvider.getNativeToken(chain);
     const icaInterface =
       interchainAccountFactories.interchainAccountRouter.interface;
-    const decoded = icaInterface.parseTransaction({
+
+    // Check selector to determine which interface to use
+    const hasHookMetadata = tx.data.startsWith(
+      CALL_REMOTE_WITH_HOOK_METADATA_SELECTOR,
+    );
+    const parseInterface = hasHookMetadata
+      ? icaInterfaceWithHookMetadata
+      : icaInterface;
+    const decoded = parseInterface.parseTransaction({
       data: tx.data,
       value: tx.value,
     });
@@ -970,15 +1383,9 @@ export class GovernTransactionReader {
         'interchainAccountRouter',
         args,
       );
-    } else if (
-      decoded.functionFragment.name ===
-      icaInterface.functions[
-        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])'
-      ].name
-    ) {
+    } else if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
       prettyArgs = await this.readIcaRemoteCall(chain, args);
     } else if (decoded.signature === 'transferOwnership(address)') {
-      // Fallback to ownable transaction handling for unknown functions
       const ownableTx = await this.readOwnableTransaction(chain, tx);
       return {
         ...ownableTx,
@@ -987,47 +1394,13 @@ export class GovernTransactionReader {
       };
     }
 
-    return {
-      to: `ICA Router (${chain} ${this.chainAddresses[chain].interchainAccountRouter})`,
-      value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
-      signature: decoded.signature,
-      args: prettyArgs,
-      chain,
-    };
-  }
-
-  /**
-   * Reads a legacy ETH ICA router transaction.
-   * The legacy router uses a different function signature:
-   * callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
-   * vs the current router's:
-   * callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])
-   */
-  private async readLegacyEthIcaTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction> {
-    if (!tx.data) {
-      throw new Error('No data in legacy ICA transaction');
-    }
-    const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const decoded = legacyIcaInterface.parseTransaction({
-      data: tx.data,
-      value: tx.value,
-    });
-
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
-    let prettyArgs = args;
-
-    if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
-      prettyArgs = await this.readIcaRemoteCall(chain, args);
-    }
+    const isLegacy = this.isLegacyEthIcaRouter(tx);
+    const routerAddress = isLegacy
+      ? this.chainAddresses.ethereum.legacyInterchainAccountRouter
+      : this.chainAddresses[chain].interchainAccountRouter;
 
     return {
-      to: `ICA Router (Legacy) (${chain} ${legacyEthIcaRouter})`,
+      to: `ICA Router${isLegacy ? ' (Legacy)' : ''} (${chain} ${routerAddress})`,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
       args: prettyArgs,
@@ -1161,7 +1534,7 @@ export class GovernTransactionReader {
       case proxyAdminInterface.functions[
         'upgradeAndCall(address,address,bytes)'
       ].name: {
-        const [proxy, implementation, data] = decoded.args;
+        const [proxy, implementation, _data] = decoded.args;
         insight = `Upgrade proxy ${proxy} to implementation ${implementation} with initialization data`;
         break;
       }
@@ -1281,6 +1654,7 @@ export class GovernTransactionReader {
       _router: router,
       _ism: ism,
       _calls: calls,
+      _hookMetadata: hookMetadataRaw,
     } = args;
     const remoteChainName = this.multiProvider.getChainName(destination);
 
@@ -1332,7 +1706,7 @@ export class GovernTransactionReader {
       expectedRemoteIcaAddress &&
       eqAddress(remoteIcaAddress, expectedRemoteIcaAddress);
     const isValidLegacyIca =
-      expectedRemoteIcaAddress &&
+      expectedLegacyRemoteIcaAddress &&
       eqAddress(remoteIcaAddress, expectedLegacyRemoteIcaAddress);
 
     if (!isValidIca && !isValidLegacyIca) {
@@ -1358,6 +1732,10 @@ export class GovernTransactionReader {
       }),
     );
 
+    const hookMetadataInsight = hookMetadataRaw
+      ? await parseHookMetadataWithInsight(chain, hookMetadataRaw)
+      : undefined;
+
     return {
       destination: {
         domain: destination,
@@ -1375,6 +1753,7 @@ export class GovernTransactionReader {
         address: remoteIcaAddress,
         insight: remoteIcaInsight,
       },
+      ...(hookMetadataInsight && { hookMetadata: hookMetadataInsight }),
       calls: decodedCalls,
     };
   }
@@ -1473,13 +1852,22 @@ export class GovernTransactionReader {
       this.chainAddresses[chain].interchainAccountRouter,
     );
     // Check for legacy ETH ICA router (used for legacy ICA chains like arcadia)
-    const isLegacyEthRouter = eqAddress(tx.to, legacyEthIcaRouter);
+    const isLegacyEthRouter = eqAddress(
+      tx.to,
+      this.chainAddresses.ethereum.legacyInterchainAccountRouter,
+    );
 
     return isCurrentRouter || isLegacyEthRouter;
   }
 
   isLegacyEthIcaRouter(tx: AnnotatedEV5Transaction): boolean {
-    return tx.to !== undefined && eqAddress(tx.to, legacyEthIcaRouter);
+    return (
+      tx.to !== undefined &&
+      eqAddress(
+        tx.to,
+        this.chainAddresses.ethereum.legacyInterchainAccountRouter,
+      )
+    );
   }
 
   isMailboxTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {

@@ -1,3 +1,9 @@
+## [2.0.0] - 2026-01-06
+
+* chore: deprecate form, inevm, injective, mint, neutron, osmosis, svmbnb (#7646)
+* feat(rust): feature-gate Aleo chain support to reduce CI build times (#7569)
+* feat: rotate provider if eth_getTransactionReceipt returns JSON null (#7489)
+
 ## [1.6.0] - 2025-11-06
 
 * chore: deprecate cheesechain (#7307)

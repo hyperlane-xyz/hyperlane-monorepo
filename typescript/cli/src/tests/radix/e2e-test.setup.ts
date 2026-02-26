@@ -21,7 +21,9 @@ let orginalRadixTestMentadata:
   | undefined;
 
 before(async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  // Use 3x timeout for setup since Docker container startup can be slow in CI
+  // (image pulling, postgres init, fullnode sync, gateway sync)
+  this.timeout(3 * DEFAULT_E2E_TEST_TIMEOUT);
 
   // Clean up existing chain addresses
   Object.entries(TEST_CHAIN_NAMES_BY_PROTOCOL).forEach(

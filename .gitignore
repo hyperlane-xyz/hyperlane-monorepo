@@ -44,3 +44,13 @@ yalc.lock
 
 # .yarn as we use pnpm now
 .yarn
+
+.opencode
+.sisyphus
+
+# codespell venv
+.codespell/.venv/
+
+# Forge build artifacts
+cache/
+out/

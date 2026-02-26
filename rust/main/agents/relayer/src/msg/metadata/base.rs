@@ -144,7 +144,7 @@ pub struct IsmAwareAppContextClassifier {
 impl IsmAwareAppContextClassifier {
     pub fn new(
         default_ism_getter: DefaultIsmCache,
-        app_matching_lists: Vec<(MatchingList, String)>,
+        app_matching_lists: Arc<Vec<(MatchingList, String)>>,
     ) -> Self {
         Self {
             default_ism_getter,
@@ -172,7 +172,7 @@ impl IsmAwareAppContextClassifier {
 /// Classifies messages into an app context if they have one.
 #[derive(Debug, new)]
 pub struct AppContextClassifier {
-    app_matching_lists: Vec<(MatchingList, String)>,
+    app_matching_lists: Arc<Vec<(MatchingList, String)>>,
 }
 
 impl AppContextClassifier {
