@@ -162,22 +162,22 @@ Available constants: `INVENTORY_MIN_AMOUNT_MIN` (`'1'`), `INVENTORY_MIN_AMOUNT_T
 
 ## 8. Use balance presets for router balances
 
-Don't inline `BigNumber.from(...)` objects in `.withInventoryBalances()` when a preset in `BALANCE_PRESETS` matches your scenario. Add a new preset if the scenario is reusable.
+Don't inline `BigNumber.from(...)` objects in `.withBalances()` when a preset in `BALANCE_PRESETS` matches your scenario. Add a new preset if the scenario is reusable.
 
 ```ts
 // Good — named preset
-.withInventoryBalances('INVENTORY_EMPTY_DEST')
-.withInventoryBalances('INVENTORY_MULTI_DEFICIT')
+.withBalances('INVENTORY_EMPTY_DEST')
+.withBalances('INVENTORY_MULTI_DEFICIT')
 
 // Acceptable — inline for truly one-off scenarios
-.withInventoryBalances({
+.withBalances({
   anvil1: BigNumber.from('9000000000000000000'),
   anvil2: BigNumber.from(0),
   anvil3: BigNumber.from(0),
 })
 
 // Bad — duplicating values that already exist as a preset
-.withInventoryBalances({
+.withBalances({
   anvil1: BigNumber.from('5000000000000000000'),
   anvil2: BigNumber.from('0'),
   anvil3: BigNumber.from('5000000000000000000'),

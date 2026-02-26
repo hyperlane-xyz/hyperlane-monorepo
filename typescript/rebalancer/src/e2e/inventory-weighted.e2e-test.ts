@@ -124,7 +124,7 @@ describe('Inventory WeightedStrategy E2E', function () {
         nativeDeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('INVENTORY_WEIGHTED_IMBALANCED')
+      .withBalances('INVENTORY_WEIGHTED_IMBALANCED')
       .build();
 
     const initialBalances = await getRouterBalances(
@@ -202,7 +202,7 @@ describe('Inventory WeightedStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventorySignerBalances('SIGNER_PARTIAL_ANVIL3')
-      .withInventoryBalances('INVENTORY_WEIGHTED_IMBALANCED')
+      .withBalances('INVENTORY_WEIGHTED_IMBALANCED')
       .build();
 
     await executeCycle(context);
@@ -299,7 +299,7 @@ describe('Inventory WeightedStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventorySignerBalances('SIGNER_WEIGHTED_LOW_ALL')
-      .withInventoryBalances('INVENTORY_WEIGHTED_ALL_ANVIL1')
+      .withBalances('INVENTORY_WEIGHTED_ALL_ANVIL1')
       .build();
 
     await executeCycle(context);
@@ -412,7 +412,7 @@ describe('Inventory WeightedStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventorySignerBalances('SIGNER_ZERO_ANVIL3')
-      .withInventoryBalances('INVENTORY_WEIGHTED_IMBALANCED')
+      .withBalances('INVENTORY_WEIGHTED_IMBALANCED')
       .build();
 
     const initialBalances = await getRouterBalances(
@@ -533,7 +533,7 @@ describe('Inventory WeightedStrategy E2E', function () {
         nativeDeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('INVENTORY_WEIGHTED_ALL_ANVIL1')
+      .withBalances('INVENTORY_WEIGHTED_ALL_ANVIL1')
       .build();
 
     const initialBalances = await getRouterBalances(
@@ -634,7 +634,7 @@ describe('Inventory WeightedStrategy E2E', function () {
       })
       .withMockExternalBridge(mockBridge)
       .withInventorySignerBalances('SIGNER_WEIGHTED_BRIDGE_SOURCES')
-      .withInventoryBalances('INVENTORY_WEIGHTED_PARTIAL_SUPPLY')
+      .withBalances('INVENTORY_WEIGHTED_PARTIAL_SUPPLY')
       .build();
 
     await executeCycle(context);

@@ -83,7 +83,6 @@ export interface TestRebalancerContext {
 
 type BalancePreset = keyof typeof BALANCE_PRESETS;
 type BalanceConfig = BalancePreset | Record<string, BigNumber>;
-type InventoryBalancePreset = keyof typeof BALANCE_PRESETS;
 type ExecutionMode = 'propose' | 'execute';
 type InventorySignerPreset = keyof typeof INVENTORY_SIGNER_PRESETS;
 type InventorySignerBalanceConfig =
@@ -150,13 +149,6 @@ export class TestRebalancerBuilder {
 
   withMockExternalBridge(bridge: MockExternalBridge): this {
     this.mockExternalBridge = bridge;
-    return this;
-  }
-
-  withInventoryBalances(
-    preset: InventoryBalancePreset | Record<string, BigNumber>,
-  ): this {
-    this.balanceConfig = preset;
     return this;
   }
 

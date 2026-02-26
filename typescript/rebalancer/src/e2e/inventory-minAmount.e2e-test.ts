@@ -118,7 +118,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
         nativeDeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withBalances('INVENTORY_EMPTY_DEST')
       .withExecutionMode('execute')
       .build();
 
@@ -197,7 +197,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
         nativeDeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withBalances('INVENTORY_EMPTY_DEST')
       .withInventorySignerBalances('SIGNER_PARTIAL_ANVIL2')
       .withExecutionMode('execute')
       .build();
@@ -337,7 +337,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
         nativeDeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withBalances('INVENTORY_EMPTY_DEST')
       .withInventorySignerBalances('SIGNER_LOW_ALL')
       .withExecutionMode('execute')
       .build();
@@ -458,7 +458,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
         nativeDeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withBalances('INVENTORY_EMPTY_DEST')
       .withInventorySignerBalances('SIGNER_FUNDED_ANVIL1')
       .withExecutionMode('execute')
       .build();
@@ -580,7 +580,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
         nativeDeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('INVENTORY_MULTI_DEFICIT')
+      .withBalances('INVENTORY_MULTI_DEFICIT')
       .withExecutionMode('execute')
       .build();
 
@@ -670,7 +670,7 @@ describe('InventoryMinAmountStrategy E2E', function () {
         nativeDeployedAddresses,
       })
       .withMockExternalBridge(mockBridge)
-      .withInventoryBalances('INVENTORY_EMPTY_DEST')
+      .withBalances('INVENTORY_EMPTY_DEST')
       .withInventorySignerBalances('SIGNER_SPLIT_SOURCES')
       .withExecutionMode('execute')
       .build();
