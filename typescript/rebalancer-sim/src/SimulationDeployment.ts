@@ -132,6 +132,7 @@ export async function deployMultiDomainSimulation(
     const warpToken = await new HypERC20Collateral__factory(deployer).deploy(
       collateralTokens[chain.domainId].address,
       scale,
+      1n,
       mailboxes[chain.domainId].address,
     );
     await warpToken.deployed?.();
