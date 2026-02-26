@@ -9,6 +9,7 @@ import {
   EvmMovableCollateralAdapter,
   HyperlaneCore,
   type InterchainGasQuote,
+  isNonceDriftError,
   type MultiProvider,
   type Token,
   type WarpCore,
@@ -584,6 +585,14 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       | { transaction: PreparedTransaction; error: string }
     > = [];
 
+    const signer = this.multiProvider.getSigner(origin);
+    const signerAddress = await signer.getAddress();
+    const provider = this.multiProvider.getProvider(origin);
+    let nextNonce = await provider.getTransactionCount(
+      signerAddress,
+      'pending',
+    );
+
     // Send sequentially to avoid nonce contention
     for (const transaction of transactions) {
       try {
@@ -604,15 +613,51 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           'Sending rebalance transaction and waiting for reorgPeriod confirmations.',
         );
 
-        const receipt = await this.multiProvider.sendTransaction(
-          origin,
-          transaction.populatedTx,
-          {
-            waitConfirmations: reorgPeriod as
-              | number
-              | EthJsonRpcBlockParameterTag,
-          },
-        );
+        let receipt: TransactionReceipt | undefined;
+        let nonceToUse = nextNonce;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            receipt = await this.multiProvider.sendTransaction(
+              origin,
+              {
+                ...transaction.populatedTx,
+                nonce: nonceToUse,
+              },
+              {
+                waitConfirmations: reorgPeriod as
+                  | number
+                  | EthJsonRpcBlockParameterTag,
+              },
+            );
+            nextNonce = nonceToUse + 1;
+            break;
+          } catch (error) {
+            if (attempt === 0 && isNonceDriftError(error)) {
+              const refreshedNonce = await provider.getTransactionCount(
+                signerAddress,
+                'pending',
+              );
+              this.logger.warn(
+                {
+                  origin,
+                  signerAddress,
+                  attemptedNonce: nonceToUse,
+                  refreshedNonce,
+                },
+                'Nonce drift detected, refreshing pending nonce and retrying route once.',
+              );
+              nonceToUse = refreshedNonce;
+              continue;
+            }
+            throw error;
+          }
+        }
+
+        if (!receipt) {
+          throw new Error(
+            'Transaction send failed: missing receipt after retries',
+          );
+        }
 
         this.logger.info(
           {
@@ -625,7 +670,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           'Rebalance transaction confirmed at reorgPeriod depth.',
         );
 
-        results.push({ transaction, receipt: receipt as TransactionReceipt });
+        results.push({ transaction, receipt });
       } catch (error) {
         this.logger.error(
           {

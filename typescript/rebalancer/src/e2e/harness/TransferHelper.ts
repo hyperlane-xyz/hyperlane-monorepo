@@ -3,6 +3,7 @@ import {
   JsonRpcSigner,
   MaxUint256,
   TransactionReceipt,
+  Wallet,
   parseEther,
   toBeHex,
 } from 'ethers';
@@ -20,6 +21,8 @@ import {
   setBalance,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32, retryAsync } from '@hyperlane-xyz/utils';
+
+import { ANVIL_TEST_PRIVATE_KEY } from '../fixtures/routes.js';
 
 export interface WarpTransferParams {
   originChain: string;
@@ -118,15 +121,28 @@ export async function relayMessage(
   core: HyperlaneCore,
   transferResult: WarpTransferResult,
 ): Promise<TransactionReceipt> {
-  const relayCore =
-    core.multiProvider === multiProvider
-      ? core
-      : HyperlaneCore.fromAddressesMap(
-          Object.fromEntries(
-            core.chains().map((chain) => [chain, core.getAddresses(chain)]),
-          ),
-          multiProvider,
-        );
+  const relayChains = core.chains();
+  const coreAddresses = Object.fromEntries(
+    relayChains.map((chain) => [chain, core.getAddresses(chain)]),
+  );
+
+  // Use an isolated MultiProvider + dedicated relay signer so relay nonce state
+  // cannot be affected by prior rebalancer submissions in the same test.
+  const { result: relayMultiProvider } = multiProvider.intersect(relayChains);
+  for (const chain of relayChains) {
+    const provider = relayMultiProvider.getProvider(chain) as JsonRpcProvider;
+    const relaySigner = new Wallet(ANVIL_TEST_PRIVATE_KEY, provider);
+    await provider.send('anvil_setBalance', [
+      relaySigner.address,
+      toBeHex(parseEther('100')),
+    ]);
+    relayMultiProvider.setSigner(chain, relaySigner);
+  }
+
+  const relayCore = HyperlaneCore.fromAddressesMap(
+    coreAddresses,
+    relayMultiProvider,
+  );
 
   return retryAsync(
     async () => {
