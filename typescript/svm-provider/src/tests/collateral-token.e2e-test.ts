@@ -1,4 +1,4 @@
-import type { Address } from '@solana/kit';
+import { address, type Address } from '@solana/kit';
 import { after, before, describe, it } from 'mocha';
 import { expect } from 'chai';
 
@@ -13,11 +13,12 @@ import {
   type SvmIgpHookConfig,
 } from '../hook/igp-hook.js';
 import { SvmTestIsmWriter, type SvmTestIsmConfig } from '../ism/test-ism.js';
-import { deriveOverheadIgpAccountPda } from '../pda.js';
+import { deriveAtaPayerPda, deriveOverheadIgpAccountPda } from '../pda.js';
 import { createRpc } from '../rpc.js';
 import { type SvmSigner, createSigner } from '../signer.js';
 import {
   PROGRAM_BINARIES,
+  TEST_ATA_PAYER_FUNDING_AMOUNT,
   TEST_PROGRAM_IDS,
   airdropSol,
   createSplMint,
@@ -108,7 +109,7 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
       {
         program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral },
         igpProgramId,
-        ataPayerFundingAmount: 100_000_000n,
+        ataPayerFundingAmount: TEST_ATA_PAYER_FUNDING_AMOUNT,
       },
       rpc,
       signer,
@@ -145,6 +146,14 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
         deployedProgramId = id;
       },
     );
+
+    it('should fund ATA payer PDA after deploy', async () => {
+      const { address: ataPayerPda } = await deriveAtaPayerPda(
+        address(deployedProgramId),
+      );
+      const balance = await rpc.getBalance(ataPayerPda).send();
+      expect(BigInt(balance.value) >= TEST_ATA_PAYER_FUNDING_AMOUNT).to.be.true;
+    });
 
     it('should have correct collateral token address after deploy', async () => {
       const token = await writer.read(deployedProgramId);

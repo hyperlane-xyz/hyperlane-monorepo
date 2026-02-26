@@ -238,6 +238,7 @@ export function defineWarpTokenTests(
     const updated = await writer.read(deployedProgramId);
     expect(updated.config.remoteRouters[1]).to.exist;
     expect(updated.config.remoteRouters[2]).to.be.undefined;
+    expect(updated.config.destinationGas[2]).to.be.undefined;
   });
 
   it('should transfer ownership and allow new owner to update', async () => {
