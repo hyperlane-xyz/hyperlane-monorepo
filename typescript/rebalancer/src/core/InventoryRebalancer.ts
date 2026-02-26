@@ -8,8 +8,11 @@ import {
   HyperlaneCore,
   type InterchainGasQuote,
   type MultiProvider,
+  ProviderType,
   TOKEN_COLLATERALIZED_STANDARDS,
+  TokenAmount,
   type WarpCore,
+  WarpTxCategory,
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -819,9 +822,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     const destinationDomain = this.multiProvider.getDomainId(destination);
 
-    // Get the hyperlane adapter for the token
-    const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
-
     // Use inventoryMultiProvider if available, otherwise fall back to multiProvider
     const signingProvider =
       this.config.inventoryMultiProvider ?? this.multiProvider;
@@ -843,124 +843,76 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Using pre-calculated gas quote for transferRemote',
     );
 
-    if (!isNativeTokenStandard(originToken.standard)) {
-      const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
-        adapter.isApproveRequired(
-          this.config.inventorySigner,
-          originToken.addressOrDenom,
-          amount,
-        ),
-        adapter.isRevokeApprovalRequired(
-          this.config.inventorySigner,
-          originToken.addressOrDenom,
-        ),
-      ]);
-
-      this.logger.debug(
-        {
-          origin,
-          destination,
-          amount: amount.toString(),
-          isApproveRequired,
-          isRevokeApprovalRequired,
-          spender: originToken.addressOrDenom,
-        },
-        'Checked transferRemote approval requirements',
-      );
-
-      if (isApproveRequired && isRevokeApprovalRequired) {
-        this.logger.debug(
-          {
-            origin,
-            destination,
-            amount: '0',
-            spender: originToken.addressOrDenom,
-          },
-          'Sending revoke approval transaction before transferRemote',
-        );
-
-        const revokeTx = await adapter.populateApproveTx({
-          weiAmountOrId: 0,
-          recipient: originToken.addressOrDenom,
-        });
-
-        await signingProvider.sendTransaction(
-          origin,
-          revokeTx as AnnotatedEV5Transaction,
-          {
-            waitConfirmations: reorgPeriod as
-              | number
-              | EthJsonRpcBlockParameterTag,
-          },
-        );
-      }
-
-      if (isApproveRequired) {
-        this.logger.debug(
-          {
-            origin,
-            destination,
-            amount: amount.toString(),
-            spender: originToken.addressOrDenom,
-          },
-          'Sending approval transaction before transferRemote',
-        );
-
-        const approveTx = await adapter.populateApproveTx({
-          weiAmountOrId: amount,
-          recipient: originToken.addressOrDenom,
-        });
-
-        await signingProvider.sendTransaction(
-          origin,
-          approveTx as AnnotatedEV5Transaction,
-          {
-            waitConfirmations: reorgPeriod as
-              | number
-              | EthJsonRpcBlockParameterTag,
-          },
-        );
-      }
-    }
-
-    // Populate the transferRemote transaction
-    const populatedTx = await adapter.populateTransferRemoteTx({
-      destination: destinationDomain,
+    const transferTxs = await this.warpCore.getTransferRemoteTxs({
+      originTokenAmount: new TokenAmount(amount, originToken),
+      destination,
+      sender: this.config.inventorySigner,
       recipient: this.config.inventorySigner,
-      weiAmountOrId: amount,
-      interchainGas: gasQuote,
+      interchainFee: new TokenAmount(gasQuote.igpQuote.amount, originToken),
+      tokenFeeQuote: gasQuote.tokenFeeQuote
+        ? new TokenAmount(gasQuote.tokenFeeQuote.amount, originToken)
+        : undefined,
     });
 
-    // Send the transaction using inventory MultiProvider if available
     this.logger.info(
       {
         origin,
         destination,
         amount: amount.toString(),
+        transactionCount: transferTxs.length,
         intentId: intent.id,
       },
-      'Sending transferRemote transaction',
+      'Sending transferRemote transactions',
     );
 
-    // Wait for reorgPeriod confirmations via SDK to ensure Monitor sees balance changes
-    const receipt = await signingProvider.sendTransaction(
-      origin,
-      populatedTx as AnnotatedEV5Transaction,
-      {
-        waitConfirmations: reorgPeriod as number | EthJsonRpcBlockParameterTag,
-      },
-    );
+    let transferTxHash: string | undefined;
+    let transferReceipt:
+      | Awaited<ReturnType<MultiProvider['sendTransaction']>>
+      | undefined;
 
-    // Extract messageId from the transaction receipt logs
-    const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
-    const messageId = dispatchedMessages[0]?.id;
+    for (const tx of transferTxs) {
+      if (tx.type === ProviderType.EthersV5) {
+        const receipt = await signingProvider.sendTransaction(
+          origin,
+          tx.transaction as AnnotatedEV5Transaction,
+          {
+            waitConfirmations: reorgPeriod as
+              | number
+              | EthJsonRpcBlockParameterTag,
+          },
+        );
+        if (tx.category === WarpTxCategory.Transfer) {
+          transferTxHash = receipt.transactionHash;
+          transferReceipt = receipt;
+        }
+      } else {
+        const protocolSigner = signingProvider.getSigner(origin) as unknown as {
+          sendAndConfirmTransaction: (tx: unknown) => Promise<string>;
+        };
+        assert(
+          typeof protocolSigner.sendAndConfirmTransaction === 'function',
+          `Signer for ${origin} does not implement IMultiProtocolSigner.sendAndConfirmTransaction`,
+        );
+
+        const txHash = await protocolSigner.sendAndConfirmTransaction(tx);
+        if (tx.category === WarpTxCategory.Transfer) {
+          transferTxHash = txHash;
+        }
+      }
+    }
+
+    const messageId = transferReceipt
+      ? HyperlaneCore.getDispatchedMessages(transferReceipt)[0]?.id
+      : undefined;
+
+    assert(transferTxHash, 'No transfer transaction hash found');
 
     if (!messageId) {
       this.logger.warn(
         {
           origin,
           destination,
-          txHash: receipt.transactionHash,
+          txHash: transferTxHash,
           intentId: intent.id,
         },
         'TransferRemote transaction sent but no messageId found in logs',
@@ -971,7 +923,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       {
         origin,
         destination,
-        txHash: receipt.transactionHash,
+        txHash: transferTxHash,
         messageId,
         intentId: intent.id,
       },
@@ -985,7 +937,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination: destinationDomain,
       amount,
       type: 'inventory_deposit',
-      txHash: receipt.transactionHash,
+      txHash: transferTxHash,
       messageId,
     });
 

@@ -31,6 +31,7 @@ import { MultiProvider } from '@hyperlane-xyz/sdk';
 import {
   applyRpcUrlOverridesFromEnv,
   createServiceLogger,
+  ProtocolType,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -55,8 +56,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Optional: inventory key for inventory-based operations (LiFi bridges, transferRemote)
+  // Optional: inventory keys for inventory-based operations (LiFi bridges, transferRemote)
   const inventoryPrivateKey = process.env.HYP_INVENTORY_KEY;
+  const inventoryPrivateKeySolana = process.env.HYP_INVENTORY_KEY_SOLANA;
 
   // Parse optional environment variables
   let checkFrequency = 60_000;
@@ -134,15 +136,17 @@ async function main(): Promise<void> {
       const inventorySigner = new Wallet(inventoryPrivateKey);
       inventoryMultiProvider.setSharedSigner(inventorySigner);
 
-      // Validate against config.inventorySigner if present
+      // Validate against config.inventorySigners.ethereum if present
       const inventoryAddress = inventorySigner.address;
+      const configuredEthereumInventorySigner =
+        rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum];
       if (
-        rebalancerConfig.inventorySigner &&
-        rebalancerConfig.inventorySigner.toLowerCase() !==
+        configuredEthereumInventorySigner &&
+        configuredEthereumInventorySigner.toLowerCase() !==
           inventoryAddress.toLowerCase()
       ) {
         throw new Error(
-          `inventorySigner mismatch: config has ${rebalancerConfig.inventorySigner} but HYP_INVENTORY_KEY derives to ${inventoryAddress}`,
+          `inventorySigners.ethereum mismatch: config has ${configuredEthereumInventorySigner} but HYP_INVENTORY_KEY derives to ${inventoryAddress}`,
         );
       }
       logger.info(
@@ -151,12 +155,32 @@ async function main(): Promise<void> {
       );
     }
 
-    // Fail fast if config references inventorySigner but no HYP_INVENTORY_KEY is provided
+    // Fail fast if config references inventorySigners.ethereum but no HYP_INVENTORY_KEY is provided
     // Without the matching key, inventory operations would silently use the wrong signer
-    if (rebalancerConfig.inventorySigner && !inventoryPrivateKey) {
+    if (
+      rebalancerConfig.inventorySigners?.[ProtocolType.Ethereum] &&
+      !inventoryPrivateKey
+    ) {
       logger.error(
-        { inventorySigner: rebalancerConfig.inventorySigner },
-        'Config specifies inventorySigner but HYP_INVENTORY_KEY is not set. Provide the key or remove inventorySigner from config.',
+        {
+          inventorySigner:
+            rebalancerConfig.inventorySigners[ProtocolType.Ethereum],
+        },
+        'Config specifies inventorySigners.ethereum but HYP_INVENTORY_KEY is not set. Provide the key or remove inventorySigners.ethereum from config.',
+      );
+      process.exit(1);
+    }
+
+    if (
+      rebalancerConfig.inventorySigners?.[ProtocolType.Sealevel] &&
+      !inventoryPrivateKeySolana
+    ) {
+      logger.error(
+        {
+          inventorySigner:
+            rebalancerConfig.inventorySigners[ProtocolType.Sealevel],
+        },
+        'Config specifies inventorySigners.sealevel but HYP_INVENTORY_KEY_SOLANA is not set. Provide the key or remove inventorySigners.sealevel from config.',
       );
       process.exit(1);
     }

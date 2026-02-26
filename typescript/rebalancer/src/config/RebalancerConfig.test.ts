@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import type { z } from 'zod';
 
+import { ProtocolType } from '@hyperlane-xyz/utils';
 import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import { RebalancerConfig } from './RebalancerConfig.js';
@@ -102,7 +103,7 @@ describe('RebalancerConfig', () => {
         },
       ],
       intentTTL: DEFAULT_INTENT_TTL_MS,
-      inventorySigner: undefined,
+      inventorySigners: undefined,
       externalBridges: undefined,
     });
   });
@@ -357,6 +358,48 @@ describe('RebalancerConfig', () => {
       );
     });
 
+    it('should throw when inventory override has no externalBridge in override or chain config', () => {
+      data = {
+        warpRouteId: 'warpRouteId',
+        strategy: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
+            chains: {
+              chain1: {
+                minAmount: {
+                  min: 1000,
+                  target: 1100,
+                  type: RebalancerMinAmountType.Absolute,
+                },
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+                override: {
+                  chain2: {
+                    executionType: ExecutionType.Inventory,
+                  },
+                },
+              },
+              chain2: {
+                minAmount: {
+                  min: 2000,
+                  target: 2200,
+                  type: RebalancerMinAmountType.Absolute,
+                },
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+              },
+            },
+          },
+        ],
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
+
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+        /chain1.*override for 'chain2'.*inventory execution.*externalBridge/i,
+      );
+    });
+
     it('should allow multiple chain overrides', () => {
       getStrategyArray(data)[0].chains.chain1 = {
         bridge: ethers.constants.AddressZero,
@@ -533,7 +576,9 @@ describe('per-chain bridge configuration', () => {
           },
         },
       ],
-      inventorySigner: '0x1234567890123456789012345678901234567890',
+      inventorySigners: {
+        [ProtocolType.Ethereum]: '0x1234567890123456789012345678901234567890',
+      },
       externalBridges: {
         lifi: {
           integrator: 'test-app',
@@ -565,7 +610,9 @@ describe('per-chain bridge configuration', () => {
           },
         },
       ],
-      inventorySigner: '0x1234567890123456789012345678901234567890',
+      inventorySigners: {
+        [ProtocolType.Ethereum]: '0x1234567890123456789012345678901234567890',
+      },
       externalBridges: {
         lifi: {
           integrator: 'my-app',
@@ -597,7 +644,9 @@ describe('per-chain bridge configuration', () => {
           },
         },
       ],
-      inventorySigner: '0x1234567890123456789012345678901234567890',
+      inventorySigners: {
+        [ProtocolType.Ethereum]: '0x1234567890123456789012345678901234567890',
+      },
     };
 
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
@@ -622,7 +671,9 @@ describe('per-chain bridge configuration', () => {
           },
         },
       ],
-      inventorySigner: '0x1234567890123456789012345678901234567890',
+      inventorySigners: {
+        [ProtocolType.Ethereum]: '0x1234567890123456789012345678901234567890',
+      },
     };
 
     writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
@@ -646,7 +697,9 @@ describe('per-chain bridge configuration', () => {
           },
         },
       ],
-      inventorySigner: '0x1234567890123456789012345678901234567890',
+      inventorySigners: {
+        [ProtocolType.Ethereum]: '0x1234567890123456789012345678901234567890',
+      },
       externalBridges: {
         lifi: {
           integrator: 'test-app',

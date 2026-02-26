@@ -1,5 +1,7 @@
 import {
   EVM,
+  KeypairWalletAdapter,
+  Solana,
   type LiFiStep,
   type Route,
   type RouteExtended,
@@ -10,6 +12,7 @@ import {
   getStatus,
   config as lifiConfig,
 } from '@lifi/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 import type { Logger } from 'pino';
 import { type Chain, createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -118,6 +121,16 @@ export class LiFiBridge implements IExternalBridge {
     for (const metadata of Object.values(this.config.chainMetadata)) {
       if (metadata.chainId === chainId && metadata.rpcUrls?.length) {
         return metadata.rpcUrls[0].http;
+      }
+    }
+    return undefined;
+  }
+
+  private getProtocolTypeForChainId(chainId: number): ProtocolType | undefined {
+    if (!this.config.chainMetadata) return undefined;
+    for (const metadata of Object.values(this.config.chainMetadata)) {
+      if (metadata.chainId === chainId) {
+        return metadata.protocol;
       }
     }
     return undefined;
@@ -329,6 +342,7 @@ export class LiFiBridge implements IExternalBridge {
 
     const fromChain = route.fromChainId;
     const toChain = route.toChainId;
+    const fromProtocol = this.getProtocolTypeForChainId(fromChain);
 
     this.logger.info(
       {
@@ -341,41 +355,58 @@ export class LiFiBridge implements IExternalBridge {
       'Executing LiFi bridge transfer',
     );
 
-    // Create viem account and wallet client for the source chain
-    const account = privateKeyToAccount(privateKey as `0x${string}`);
-    const rpcUrl = this.getRpcUrlForChainId(fromChain);
-    const chain = getViemChain(fromChain, rpcUrl);
+    if (fromProtocol === ProtocolType.Sealevel) {
+      lifiConfig.setProviders([
+        Solana({
+          getWalletAdapter: async () => new KeypairWalletAdapter(privateKey),
+        }),
+      ]);
 
-    const walletClient = createWalletClient({
-      account,
-      chain,
-      transport: http(rpcUrl),
-    });
-
-    this.logger.debug(
-      {
-        fromChain,
-        chainName: chain.name,
-        account: account.address,
-      },
-      'Created viem WalletClient for LiFi execution',
-    );
-
-    // Configure LiFi SDK with EVM provider that has our wallet client
-    lifiConfig.setProviders([
-      EVM({
-        getWalletClient: async () => walletClient,
-        switchChain: async (requiredChainId: number) => {
-          const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
-          const requiredChain = getViemChain(requiredChainId, switchRpcUrl);
-          return createWalletClient({
-            account,
-            chain: requiredChain,
-            transport: http(switchRpcUrl),
-          });
+      this.logger.debug(
+        {
+          fromChain,
+          protocol: fromProtocol,
         },
-      }),
-    ]);
+        'Configured LiFi Solana provider for route execution',
+      );
+    } else {
+      // Create viem account and wallet client for the source chain
+      const account = privateKeyToAccount(privateKey as `0x${string}`);
+      const rpcUrl = this.getRpcUrlForChainId(fromChain);
+      const chain = getViemChain(fromChain, rpcUrl);
+
+      const walletClient = createWalletClient({
+        account,
+        chain,
+        transport: http(rpcUrl),
+      });
+
+      this.logger.debug(
+        {
+          fromChain,
+          protocol: fromProtocol ?? ProtocolType.Ethereum,
+          chainName: chain.name,
+          account: account.address,
+        },
+        'Created viem WalletClient for LiFi execution',
+      );
+
+      // Configure LiFi SDK with EVM provider that has our wallet client
+      lifiConfig.setProviders([
+        EVM({
+          getWalletClient: async () => walletClient,
+          switchChain: async (requiredChainId: number) => {
+            const switchRpcUrl = this.getRpcUrlForChainId(requiredChainId);
+            const requiredChain = getViemChain(requiredChainId, switchRpcUrl);
+            return createWalletClient({
+              account,
+              chain: requiredChain,
+              transport: http(switchRpcUrl),
+            });
+          },
+        }),
+      ]);
+    }
 
     let txHash: string | undefined;
 
