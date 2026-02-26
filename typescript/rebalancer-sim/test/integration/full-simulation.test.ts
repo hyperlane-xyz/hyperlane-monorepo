@@ -233,8 +233,6 @@ describe('Rebalancer Simulation', function () {
    * significantly reduces redundant rebalances (typically 60-80% fewer)
    */
   it('inflight-guard: ProductionRebalancer uses fewer rebalances with inflight tracking', async function () {
-    this.timeout(120000);
-
     const { results } = await runScenarioWithRebalancers('inflight-guard', {
       anvilRpc: anvil.rpc,
     });
@@ -312,8 +310,6 @@ describe('Rebalancer Simulation', function () {
    * reserves collateral for it, detects deficit → rebalances → transfer succeeds
    */
   it('blocked-user-transfer: ProductionRebalancer proactively adds collateral for pending transfers', async function () {
-    this.timeout(120000);
-
     const { results } = await runScenarioWithRebalancers(
       'blocked-user-transfer',
       {
@@ -357,6 +353,19 @@ describe('Rebalancer Simulation', function () {
       expect(productionResult.kpis.totalRebalances).to.be.greaterThan(
         0,
         'ProductionRebalancer should rebalance (sees pending transfer deficit)',
+      );
+    }
+
+    // LLMRebalancer should also detect and resolve blocked transfers
+    const llmResult = results.find((r) => r.rebalancerName === 'LLMRebalancer');
+    if (llmResult) {
+      expect(llmResult.kpis.completionRate).to.equal(
+        1.0,
+        'LLMRebalancer should have 100% completion (proactive collateral)',
+      );
+      expect(llmResult.kpis.totalRebalances).to.be.greaterThan(
+        0,
+        'LLMRebalancer should rebalance (sees pending transfer deficit)',
       );
     }
   });
