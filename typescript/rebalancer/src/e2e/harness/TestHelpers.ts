@@ -25,32 +25,34 @@ export async function getFirstMonitorEvent(
   return new Promise((resolve, reject) => {
     let settled = false;
 
-    async function finalize(
-      cb: (v: any) => void, // eslint-disable-line @typescript-eslint/no-explicit-any -- accepts both resolve and reject
-      value: unknown,
-      timer: ReturnType<typeof setTimeout>,
-    ) {
+    const finalize = async (event?: MonitorEvent, error?: Error) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
-      cb(value);
+      clearTimeout(timeout);
+
       try {
         await monitor.stop();
-      } catch {
-        // stop errors are non-fatal — the event/error has already been delivered
+      } catch (stopError) {
+        error ??= stopError as Error;
       }
-    }
+
+      if (error) {
+        reject(error);
+      } else {
+        resolve(event!);
+      }
+    };
 
     const timeout = setTimeout(() => {
-      void finalize(reject, new Error('Monitor event timeout'), timeout);
+      void finalize(undefined, new Error('Monitor event timeout'));
     }, 60_000);
 
     monitor.on(MonitorEventType.TokenInfo, (event: MonitorEvent) => {
-      void finalize(resolve, event, timeout);
+      void finalize(event);
     });
 
     monitor.on(MonitorEventType.Error, (error: Error) => {
-      void finalize(reject, error, timeout);
+      void finalize(undefined, error);
     });
 
     void monitor.start();
