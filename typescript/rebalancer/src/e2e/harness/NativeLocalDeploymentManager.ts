@@ -1,6 +1,7 @@
 import {
   Contract,
   JsonRpcProvider,
+  NonceManager,
   Wallet,
   ZeroAddress,
   toBeHex,
@@ -47,7 +48,7 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
         toBeHex(BigInt(INVENTORY_INITIAL_BALANCE)),
       ]);
 
-      const deployer = deployerWallet.connect(provider);
+      const deployer = new NonceManager(deployerWallet.connect(provider));
 
       const monitoredRoute = await new HypNative__factory(deployer).deploy(
         TOKEN_SCALE,
@@ -120,7 +121,7 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
     const bridgeSeedAmount = BigInt(INVENTORY_BRIDGE_SEED);
     for (const chain of TEST_CHAIN_CONFIGS) {
       const provider = providersByChain.get(chain.name)!;
-      const deployer = deployerWallet.connect(provider);
+      const deployer = new NonceManager(deployerWallet.connect(provider));
       await deployer.sendTransaction({
         to: await bridgeRouters[chain.name].getAddress(),
         value: bridgeSeedAmount,
