@@ -10,7 +10,6 @@ use tracing::info;
 use hyperlane_core::TxCostEstimate;
 
 use crate::{
-    adapter::GasLimit,
     error::LanderError,
     payload::{FullPayload, PayloadStatus, PayloadUuid},
 };
@@ -26,6 +25,12 @@ pub trait Entrypoint {
         &self,
         payload: &FullPayload,
     ) -> Result<TxCostEstimate, LanderError>;
+    async fn estimate_gas_limit_for_preparation(
+        &self,
+        payload: &FullPayload,
+    ) -> Result<TxCostEstimate, LanderError> {
+        self.estimate_gas_limit(payload).await
+    }
 }
 
 #[derive(Clone)]
@@ -77,6 +82,16 @@ impl Entrypoint for DispatcherEntrypoint {
         payload: &FullPayload,
     ) -> Result<TxCostEstimate, LanderError> {
         self.inner.adapter.estimate_gas_limit(payload).await
+    }
+
+    async fn estimate_gas_limit_for_preparation(
+        &self,
+        payload: &FullPayload,
+    ) -> Result<TxCostEstimate, LanderError> {
+        self.inner
+            .adapter
+            .estimate_gas_limit_for_preparation(payload)
+            .await
     }
 }
 

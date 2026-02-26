@@ -144,6 +144,48 @@ async fn test_estimate_gas_limit_basic() {
 }
 
 #[tokio::test]
+async fn test_estimate_gas_limit_for_preparation_is_unbuffered() {
+    let mut provider = MockEvmProvider::new();
+
+    provider
+        .expect_estimate_gas_limit()
+        .returning(|_, _| Ok(U256::from(21_000)));
+
+    provider.expect_get_block().returning(|_| {
+        Ok(Some(Block {
+            gas_limit: EthersU256::from(30_000_000),
+            base_fee_per_gas: Some(EthersU256::from(100)),
+            ..Default::default()
+        }))
+    });
+
+    provider.expect_fee_history().returning(|_, _, _| {
+        Ok(ethers::types::FeeHistory {
+            oldest_block: 0.into(),
+            reward: vec![vec![10.into()]],
+            base_fee_per_gas: vec![100.into()],
+            gas_used_ratio: vec![0.5],
+        })
+    });
+
+    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+    let adapter = create_test_adapter(provider, domain, TransactionOverrides::default());
+    let payload = create_test_payload();
+
+    let result = adapter.estimate_gas_limit_for_preparation(&payload).await;
+
+    assert!(
+        result.is_ok(),
+        "Preparation gas limit estimation should succeed"
+    );
+    let estimate = result.unwrap();
+
+    assert_eq!(estimate.gas_limit, U256::from(21_000));
+    assert!(estimate.gas_price > FixedPointNumber::zero());
+    assert!(estimate.l2_gas_limit.is_none());
+}
+
+#[tokio::test]
 async fn test_estimate_gas_limit_arbitrum_with_multiplier() {
     let mut provider = MockEvmProvider::new();
 

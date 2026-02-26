@@ -178,7 +178,7 @@ pub async fn estimate_gas_costs(
         Some(entrypoint) => {
             let payload = create_payload(message_context, message, metadata).await?;
             let gas_estimate = entrypoint
-                .estimate_gas_limit(&payload)
+                .estimate_gas_limit_for_preparation(&payload)
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
             tracing::debug!(?gas_estimate, "Estimated gas with Lander");

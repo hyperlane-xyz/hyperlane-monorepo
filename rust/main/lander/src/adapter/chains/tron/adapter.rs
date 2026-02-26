@@ -11,7 +11,7 @@ use crate::adapter::chains::tron::{
     conf::create_signer, precursor::Precursor, submit::submit_transaction,
 };
 use crate::{
-    adapter::{chains::tron::TronTxPrecursor, AdaptsChain, GasLimit, TxBuildingResult},
+    adapter::{chains::tron::TronTxPrecursor, AdaptsChain, TxBuildingResult},
     payload::PayloadDetails,
     transaction::Transaction,
     DispatcherMetrics, FullPayload, LanderError, TransactionStatus,
@@ -60,7 +60,7 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
     async fn estimate_gas_limit(
         &self,
         _payload: &FullPayload,
-    ) -> Result<Option<GasLimit>, LanderError> {
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
         todo!()
     }
 

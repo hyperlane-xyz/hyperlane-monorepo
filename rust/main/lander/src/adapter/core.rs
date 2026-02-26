@@ -46,6 +46,15 @@ pub trait AdaptsChain: Send + Sync {
         payload: &FullPayload,
     ) -> Result<TxCostEstimate, LanderError>;
 
+    /// Simulates Payload and returns its gas cost estimate for relayer preparation-time validation.
+    /// Default behavior matches `estimate_gas_limit`.
+    async fn estimate_gas_limit_for_preparation(
+        &self,
+        payload: &FullPayload,
+    ) -> Result<TxCostEstimate, LanderError> {
+        self.estimate_gas_limit(payload).await
+    }
+
     /// Performs batching if available. Internally estimates gas limit for batch as well. Called in the Building Stage (PayloadDispatcher)
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult>;
 

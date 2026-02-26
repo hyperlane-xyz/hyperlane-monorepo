@@ -375,27 +375,21 @@ impl EthereumAdapter {
         Ok(vec![tx_building_result])
     }
 
-    pub fn metrics(&self) -> &EthereumAdapterMetrics {
-        &self.metrics
-    }
-}
-
-#[async_trait]
-impl AdaptsChain for EthereumAdapter {
-    async fn estimate_gas_limit(
+    async fn estimate_tx_cost(
         &self,
         payload: &FullPayload,
+        with_gas_limit_overrides: bool,
     ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
         // Decode payload to transaction precursor
         let mut precursor = EthereumTxPrecursor::from_payload(payload, self.signer);
 
-        // Estimate gas limit using existing estimator logic
+        // Estimate gas limit
         gas_limit_estimator::estimate_gas_limit(
             self.provider.clone(),
             &mut precursor,
             &self.transaction_overrides,
             &self.domain,
-            true, // with_gas_limit_overrides
+            with_gas_limit_overrides,
         )
         .await?;
 
@@ -446,6 +440,27 @@ impl AdaptsChain for EthereumAdapter {
             gas_price,
             l2_gas_limit,
         })
+    }
+
+    pub fn metrics(&self) -> &EthereumAdapterMetrics {
+        &self.metrics
+    }
+}
+
+#[async_trait]
+impl AdaptsChain for EthereumAdapter {
+    async fn estimate_gas_limit(
+        &self,
+        payload: &FullPayload,
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
+        self.estimate_tx_cost(payload, true).await
+    }
+
+    async fn estimate_gas_limit_for_preparation(
+        &self,
+        payload: &FullPayload,
+    ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
+        self.estimate_tx_cost(payload, false).await
     }
 
     async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
