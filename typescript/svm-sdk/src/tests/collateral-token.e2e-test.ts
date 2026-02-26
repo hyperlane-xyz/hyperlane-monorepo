@@ -5,6 +5,7 @@ import { after, before, describe, it } from 'mocha';
 import { HYPERLANE_SVM_PROGRAM_BYTES } from '../hyperlane/program-bytes.js';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 
 import { SvmSigner } from '../clients/signer.js';
 import {
@@ -132,7 +133,7 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
       () => ({
         writer,
         makeConfig: (overrides = {}) => ({
-          type: 'collateral' as const,
+          type: TokenType.collateral,
           owner: signer.getSignerAddress(),
           mailbox: mailboxAddress,
           token: collateralMint,
