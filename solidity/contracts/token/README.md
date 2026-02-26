@@ -59,11 +59,11 @@ To initiate a remote transfer, users call the `TokenRouter.transferRemote` funct
 
 ```solidity
 interface TokenRouter {
-  function transferRemote(
-    uint32 destination,
-    bytes32 recipient,
-    uint256 amount
-  ) public returns (bytes32 messageId);
+    function transferRemote(
+        uint32 destination,
+        bytes32 recipient,
+        uint256 amount
+    ) public returns (bytes32 messageId);
 }
 ```
 
@@ -228,16 +228,16 @@ To quote the fees charged by a warp route, users call the `TokenRouter.quoteTran
 
 ```solidity
 struct Quote {
-  address token; // address(0) for the native token
-  uint256 amount;
+    address token; // address(0) for the native token
+    uint256 amount;
 }
 
 interface TokenRouter {
-  function quoteTransferRemote(
-    uint32 destination,
-    bytes32 recipient,
-    uint256 amount
-  ) public returns (Quote[] quotes);
+    function quoteTransferRemote(
+        uint32 destination,
+        bytes32 recipient,
+        uint256 amount
+    ) public returns (Quote[] quotes);
 }
 ```
 
@@ -263,7 +263,7 @@ Warp routes have configurable fees/fee recipients which are a function of the `t
 
 ```solidity
 interface TokenRouter {
-  function feeRecipient() public view returns (address);
+    function feeRecipient() public view returns (address);
 }
 ```
 

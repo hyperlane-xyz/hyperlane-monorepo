@@ -1,12 +1,12 @@
-import type { Wallet } from 'ethers';
-import hre from 'hardhat';
+import type {Wallet} from "ethers";
+import hre from "hardhat";
 
 export async function getSigners(): Promise<Wallet[]> {
-  // @ts-ignore Hardhat type overrides from hardhat ethers plugin don't work
-  return hre.ethers.getSigners();
+    // @ts-ignore Hardhat type overrides from hardhat ethers plugin don't work
+    return hre.ethers.getSigners();
 }
 
 export async function getSigner(): Promise<Wallet> {
-  const [signer] = await getSigners();
-  return signer;
+    const [signer] = await getSigners();
+    return signer;
 }

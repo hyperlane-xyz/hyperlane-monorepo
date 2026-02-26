@@ -1,4 +1,4 @@
-import { ZeroHash } from 'ethers';
+import { MaxUint256, ZeroHash } from 'ethers';
 
 import {
   IERC20__factory,
@@ -97,12 +97,12 @@ export class EvmIcaModule extends HyperlaneModule<
    */
   private async getFeeTokenApprovalTxs(
     feeTokenApprovals: FeeTokenApproval[] = [],
-  ): Promise<AnnotatedEV5Transaction[]> {
+  ): Promise<AnnotatedEvmTransaction[]> {
     if (feeTokenApprovals.length === 0) {
       return [];
     }
 
-    const transactions: AnnotatedEV5Transaction[] = [];
+    const transactions: AnnotatedEvmTransaction[] = [];
     const routerAddress = this.args.addresses.interchainAccountRouter;
     const provider = this.multiProvider.getProvider(this.args.chain);
 
@@ -114,9 +114,7 @@ export class EvmIcaModule extends HyperlaneModule<
         approval.hook,
       );
 
-      if (
-        currentAllowance.toBigInt() !== ethers.constants.MaxUint256.toBigInt()
-      ) {
+      if (currentAllowance !== MaxUint256) {
         this.logger.debug(
           `Generating approval tx for fee token ${approval.feeToken} to hook ${approval.hook}`,
         );

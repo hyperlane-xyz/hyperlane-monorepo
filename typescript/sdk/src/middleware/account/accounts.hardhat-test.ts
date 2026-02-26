@@ -165,7 +165,10 @@ describe('InterchainAccounts', async () => {
         contractsWithApprovals[localChain].interchainAccountRouter;
 
       const provider = multiProvider.getProvider(localChain);
-      const token = IERC20__factory.connect(await feeToken.getAddress(), provider);
+      const token = IERC20__factory.connect(
+        await feeToken.getAddress(),
+        provider,
+      );
       const allowance = await token.allowance(
         await localRouter.getAddress(),
         mockHookAddress,

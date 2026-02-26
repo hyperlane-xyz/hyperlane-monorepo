@@ -17,7 +17,6 @@ import {
   IMultisigIsm__factory,
   IRoutingIsm,
   IStaticWeightedMultisigIsm,
-  IncrementalDomainRoutingIsm,
   IncrementalDomainRoutingIsm__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
@@ -460,10 +459,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       config.type === IsmType.INCREMENTAL_ROUTING
         ? contracts.incrementalDomainRoutingIsmFactory
         : contracts.domainRoutingIsmFactory;
-    let routingIsm:
-      | DomainRoutingIsm
-      | IncrementalDomainRoutingIsm
-      | DefaultFallbackRoutingIsm;
+    let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
     // filtering out domains which are not part of the multiprovider
     config.domains = objFilter(config.domains, (domain, _): _ is IsmConfig => {
       const domainId = this.multiProvider.tryGetDomainId(domain);
@@ -572,9 +568,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         // TODO: Should verify contract here
         logger.debug('Initialising fallback routing ISM ...');
+        const fallbackRoutingIsm = DefaultFallbackRoutingIsm__factory.connect(
+          this.getContractAddress(routingIsm),
+          this.multiProvider.getSigner(destination),
+        );
         receipt = await this.multiProvider.handleTx(
           destination,
-          routingIsm['initialize(address,uint32[],address[])'](
+          fallbackRoutingIsm['initialize(address,uint32[],address[])'](
             config.owner,
             safeConfigDomains,
             submoduleAddresses,
