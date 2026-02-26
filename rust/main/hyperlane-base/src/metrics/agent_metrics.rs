@@ -333,9 +333,9 @@ impl ChainSpecificMetricsUpdater {
         agent_name: String,
     ) -> Result<Self> {
         let agent_metrics_conf = chain_conf.agent_metrics_conf(agent_name).await?;
-        let provider = chain_conf.build_provider(&core_metrics).await?;
 
-        // Set static chain configuration metrics once on initialization
+        // Set static chain configuration metrics before provider bootstrapping
+        // so config visibility is preserved even if the provider fails to start.
         chain_metrics.set_chain_config(
             &agent_metrics_conf.domain,
             &agent_metrics_conf.reorg_period,
@@ -344,6 +344,8 @@ impl ChainSpecificMetricsUpdater {
             &agent_metrics_conf.chain_id,
             &agent_metrics_conf.native_token,
         );
+
+        let provider = chain_conf.build_provider(&core_metrics).await?;
 
         Ok(Self {
             agent_metrics,
