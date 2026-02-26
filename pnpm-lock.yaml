@@ -2401,6 +2401,9 @@ importers:
       '@ethersproject/providers':
         specifier: '*'
         version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@hyperlane-xyz/core':
+        specifier: workspace:*
+        version: link:../../solidity
       '@hyperlane-xyz/provider-sdk':
         specifier: workspace:*
         version: link:../provider-sdk
@@ -2423,9 +2426,6 @@ importers:
       '@eslint/js':
         specifier: 'catalog:'
         version: 9.39.2
-      '@hyperlane-xyz/core':
-        specifier: workspace:*
-        version: link:../../solidity
       '@hyperlane-xyz/eslint-config':
         specifier: workspace:^
         version: link:../eslint-config
