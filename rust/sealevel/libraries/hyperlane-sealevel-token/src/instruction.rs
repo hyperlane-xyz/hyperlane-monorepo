@@ -58,6 +58,8 @@ pub struct Init {
     pub decimals: u8,
     /// The remote decimals.
     pub remote_decimals: u8,
+    /// Optional fee configuration.
+    pub fee_config: Option<FeeConfig>,
 }
 
 /// Instruction data for transferring `amount_or_id` token to `recipient` on `destination` domain.

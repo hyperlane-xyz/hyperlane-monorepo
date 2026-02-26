@@ -191,6 +191,7 @@ async fn initialize_hyperlane_token(
                     }),
                     decimals: LOCAL_DECIMALS,
                     remote_decimals: REMOTE_DECIMALS,
+                    fee_config: None,
                 })
                 .encode()
                 .unwrap(),
