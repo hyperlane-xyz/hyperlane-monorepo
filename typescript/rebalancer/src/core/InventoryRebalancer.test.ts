@@ -7,7 +7,9 @@ import Sinon, { type SinonStubbedInstance } from 'sinon';
 import {
   type ChainName,
   type MultiProvider,
+  ProviderType,
   TokenStandard,
+  WarpTxCategory,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -187,6 +189,10 @@ describe('InventoryRebalancer E2E', () => {
         protocol: ProtocolType.Ethereum,
         blocks: { reorgPeriod: 1 }, // Quick confirmations for tests
       })),
+      getProtocol: Sinon.stub().callsFake((_: ChainName) => {
+        // Return Ethereum protocol for all chains in tests
+        return 'ethereum';
+      }),
       getProvider: Sinon.stub().returns(mockProvider),
       getSigner: Sinon.stub().returns(TEST_WALLET),
       sendTransaction: Sinon.stub().resolves({
@@ -318,6 +324,41 @@ describe('InventoryRebalancer E2E', () => {
       expect(txParams.sender).to.equal(INVENTORY_SIGNER);
       expect(txParams.recipient).to.equal(INVENTORY_SIGNER);
       expect(txParams.originTokenAmount.amount).to.equal(5000000000n);
+    });
+
+    it('uses IMultiProtocolSigner path for solana transfer txs', async () => {
+      const route = createTestRoute({ amount: 5000000000n });
+      createTestIntent({ amount: 5000000000n });
+
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 5000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
+
+      const protocolSigner = {
+        sendAndConfirmTransaction: Sinon.stub().resolves(
+          'solana-transfer-hash',
+        ),
+      };
+      multiProvider.getSigner.returns(protocolSigner as any);
+      multiProvider.sendTransaction.resetHistory();
+      warpCore.getTransferRemoteTxs.resolves([
+        {
+          category: WarpTxCategory.Transfer,
+          type: ProviderType.SolanaWeb3,
+          transaction: { transaction: {} },
+        },
+      ]);
+
+      const results = await inventoryRebalancer.rebalance([route]);
+
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(protocolSigner.sendAndConfirmTransaction.calledOnce).to.be.true;
+      expect(multiProvider.sendTransaction.called).to.be.false;
+
+      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
+      expect(actionParams.txHash).to.equal('solana-transfer-hash');
     });
   });
 

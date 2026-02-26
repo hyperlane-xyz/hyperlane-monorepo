@@ -9,7 +9,11 @@ import {
   type Token,
   TokenStandard,
 } from '@hyperlane-xyz/sdk';
-import { addBufferToGasLimit, isZeroishAddress } from '@hyperlane-xyz/utils';
+import {
+  addBufferToGasLimit,
+  isZeroishAddress,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 /**
  * Fallback gas limit for transferRemote when eth_estimateGas fails.
@@ -206,6 +210,25 @@ export async function calculateTransferCosts(
     isZeroishAddress(gasQuote.tokenFeeQuote.addressOrDenom)
       ? (gasQuote.tokenFeeQuote?.amount ?? 0n)
       : 0n;
+
+  // Skip gas estimation for non-EVM chains (e.g., Solana)
+  // EVM chains use getFeeData() to calculate gas costs; non-EVM chains
+  // don't have equivalent gas pricing models, so we return 0 for gasCost.
+  const originProtocol = multiProvider.getProtocol(originChain);
+  if (originProtocol !== ProtocolType.Ethereum) {
+    return {
+      igpCost,
+      gasCost: 0n,
+      tokenFeeCost,
+      totalCost: igpCost + tokenFeeCost,
+      maxTransferable:
+        availableInventory < requestedAmount
+          ? availableInventory
+          : requestedAmount,
+      minViableTransfer: 0n,
+      gasQuote,
+    };
+  }
 
   // Estimate gas with buffer
   const estimatedGasLimit = await estimateTransferRemoteGas(

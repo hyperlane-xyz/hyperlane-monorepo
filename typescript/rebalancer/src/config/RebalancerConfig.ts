@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
 
+import type { ProtocolType } from '@hyperlane-xyz/utils';
 import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import {
@@ -18,7 +19,7 @@ export class RebalancerConfig {
     public readonly warpRouteId: string,
     public readonly strategyConfig: StrategyConfig[],
     public readonly intentTTL: number,
-    public readonly inventorySigner?: string,
+    public readonly inventorySigners?: Partial<Record<ProtocolType, string>>,
     public readonly externalBridges?: ExternalBridgesConfig,
   ) {}
 
@@ -39,7 +40,7 @@ export class RebalancerConfig {
       warpRouteId,
       strategy,
       intentTTL,
-      inventorySigner,
+      inventorySigners,
       externalBridges,
     } = validationResult.data;
 
@@ -52,7 +53,7 @@ export class RebalancerConfig {
       warpRouteId,
       strategy,
       intentTTL,
-      inventorySigner,
+      inventorySigners,
       externalBridges,
     );
   }
