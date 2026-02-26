@@ -3,7 +3,7 @@
 mod message_context;
 mod prepare;
 
-pub use message_context::*;
+pub use message_context::MessageContext;
 
 use std::{
     fmt::{Debug, Formatter},
@@ -218,19 +218,19 @@ impl PendingOperation for PendingMessage {
             .expect("Pending message must be prepared before it can be submitted");
 
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
-        if let Some(metadata) = self.metadata.as_ref() {
-            let is_valid = prepare::estimate_gas_costs(&self.ctx, &self.message, metadata)
-                .await
-                .is_ok();
+        // Prefer latest cached metadata if present, otherwise validate the metadata we will submit.
+        let metadata = self.metadata.as_ref().unwrap_or(&state.metadata);
+        let is_valid = prepare::estimate_gas_costs(&self.ctx, &self.message, metadata)
+            .await
+            .is_ok();
 
-            if !is_valid {
-                let reason = self
-                    .clarify_reason(ReprepareReason::ErrorEstimatingGas)
-                    .await
-                    .unwrap_or(ReprepareReason::ErrorEstimatingGas);
-                self.clear_metadata();
-                return self.on_reprepare::<String>(None, reason);
-            }
+        if !is_valid {
+            let reason = self
+                .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                .await
+                .unwrap_or(ReprepareReason::ErrorEstimatingGas);
+            self.clear_metadata();
+            return self.on_reprepare::<String>(None, reason);
         }
 
         // We use the estimated gas limit from the prior call to

@@ -25,6 +25,9 @@ pub trait Entrypoint {
         &self,
         payload: &FullPayload,
     ) -> Result<TxCostEstimate, LanderError>;
+    /// Estimates gas for relayer preparation-time validation.
+    /// The default delegates to `estimate_gas_limit`; override when preparation
+    /// requires unbuffered estimation semantics.
     async fn estimate_gas_limit_for_preparation(
         &self,
         payload: &FullPayload,

@@ -310,8 +310,13 @@ impl RadixAdapter {
 impl AdaptsChain for RadixAdapter {
     async fn estimate_gas_limit(
         &self,
-        _payload: &FullPayload,
+        payload: &FullPayload,
     ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
+        tracing::warn!(
+            network = ?self.network,
+            payload_uuid = ?payload.uuid(),
+            "RadixAdapter::estimate_gas_limit is not implemented"
+        );
         Err(LanderError::EstimationFailed)
     }
 

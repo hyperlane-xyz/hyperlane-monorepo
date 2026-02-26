@@ -58,8 +58,12 @@ impl AleoAdapter<AleoProvider> {
 impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
     async fn estimate_gas_limit(
         &self,
-        _payload: &FullPayload,
+        payload: &FullPayload,
     ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
+        tracing::warn!(
+            payload_uuid = ?payload.uuid(),
+            "AleoAdapter::estimate_gas_limit is not implemented"
+        );
         Err(LanderError::EstimationFailed)
     }
 

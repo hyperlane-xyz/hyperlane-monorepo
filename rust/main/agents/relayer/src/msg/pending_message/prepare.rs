@@ -185,7 +185,10 @@ pub async fn estimate_gas_costs(
             let gas_estimate = entrypoint
                 .estimate_gas_limit_for_preparation(&payload)
                 .await
-                .map_err(ChainCommunicationError::from_other)?;
+                .map_err(|err| {
+                    tracing::warn!(error = ?err, "Lander preparation gas estimation failed");
+                    ChainCommunicationError::from_other(err)
+                })?;
             tracing::debug!(?gas_estimate, "Estimated gas with Lander");
 
             Ok(gas_estimate)
@@ -195,6 +198,8 @@ pub async fn estimate_gas_costs(
 
 fn payload_uuid_from_message_id(message_id: H256) -> PayloadUuid {
     let message_id_bytes = message_id.to_fixed_bytes();
+    // UUID is 128-bit. We use the first 16 bytes of the 256-bit message id for
+    // deterministic retry identity; collision risk is negligible in practice.
     let mut uuid_bytes = [0u8; 16];
     uuid_bytes.copy_from_slice(&message_id_bytes[..16]);
     PayloadUuid::new(Uuid::from_bytes(uuid_bytes))

@@ -30,8 +30,13 @@ impl CosmosAdapter {
 impl AdaptsChain for CosmosAdapter {
     async fn estimate_gas_limit(
         &self,
-        _payload: &FullPayload,
+        payload: &FullPayload,
     ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
+        tracing::warn!(
+            domain = %self._conf.domain,
+            payload_uuid = ?payload.uuid(),
+            "CosmosAdapter::estimate_gas_limit is not implemented"
+        );
         Err(LanderError::EstimationFailed)
     }
 

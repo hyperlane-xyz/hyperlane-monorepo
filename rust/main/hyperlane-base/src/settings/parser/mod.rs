@@ -341,7 +341,7 @@ fn parse_chain(
         .get_opt_key("submitter")
         .parse_from_str::<SubmitterType>("Invalid Submitter type")
         .end();
-    // for EVM-like chains, default to `SubmitterType::Lander` if not specified
+    // Default submitter by protocol when `submitter` is not specified.
     let submitter =
         submitter.unwrap_or_else(|| default_submitter_for_protocol(connection.protocol()));
 
@@ -350,7 +350,7 @@ fn parse_chain(
         .get_opt_key("gasEstimator")
         .parse_from_str::<SubmitterType>("Invalid GasEstimator type")
         .end();
-    // for EVM-like chains, default to `SubmitterType::Classic` if not specified
+    // Default gas estimator by protocol when `gas_estimator` is not specified.
     let gas_estimator =
         gas_estimator.unwrap_or_else(|| default_gas_estimator_for_protocol(connection.protocol()));
 
@@ -399,8 +399,10 @@ fn default_submitter_for_protocol(protocol: HyperlaneDomainProtocol) -> Submitte
 fn default_gas_estimator_for_protocol(protocol: HyperlaneDomainProtocol) -> SubmitterType {
     match protocol {
         HyperlaneDomainProtocol::Ethereum
+        | HyperlaneDomainProtocol::Aleo
         | HyperlaneDomainProtocol::Radix
-        | HyperlaneDomainProtocol::Sealevel => SubmitterType::Classic,
+        | HyperlaneDomainProtocol::Sealevel
+        | HyperlaneDomainProtocol::Tron => SubmitterType::Classic,
         _ => Default::default(),
     }
 }
@@ -735,9 +737,13 @@ mod tests {
     }
 
     #[test]
-    fn parse_gas_estimator_defaults_for_evm_like_protocols() {
+    fn parse_gas_estimator_defaults_for_supported_protocols() {
         assert_eq!(
             default_gas_estimator_for_protocol(HyperlaneDomainProtocol::Ethereum),
+            SubmitterType::Classic
+        );
+        assert_eq!(
+            default_gas_estimator_for_protocol(HyperlaneDomainProtocol::Aleo),
             SubmitterType::Classic
         );
         assert_eq!(
@@ -746,6 +752,10 @@ mod tests {
         );
         assert_eq!(
             default_gas_estimator_for_protocol(HyperlaneDomainProtocol::Sealevel),
+            SubmitterType::Classic
+        );
+        assert_eq!(
+            default_gas_estimator_for_protocol(HyperlaneDomainProtocol::Tron),
             SubmitterType::Classic
         );
     }

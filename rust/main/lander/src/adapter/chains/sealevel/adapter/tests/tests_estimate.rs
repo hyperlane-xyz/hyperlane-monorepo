@@ -1,4 +1,4 @@
-use hyperlane_core::U256;
+use hyperlane_core::{FixedPointNumber, U256};
 
 use crate::adapter::AdaptsChain;
 use crate::payload::FullPayload;
@@ -20,5 +20,6 @@ async fn test_estimate_gas_limit() {
     assert!(result.is_ok());
     let estimate = result.unwrap();
     assert_eq!(expected_gas_limit, estimate.gas_limit);
+    assert_eq!(FixedPointNumber::zero(), estimate.gas_price);
     assert_eq!(None, estimate.l2_gas_limit);
 }
