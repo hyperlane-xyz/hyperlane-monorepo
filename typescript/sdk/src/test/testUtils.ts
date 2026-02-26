@@ -3,7 +3,13 @@ import { Keypair } from '@solana/web3.js';
 import { ZeroAddress, hexlify, parseUnits, randomBytes } from 'ethers';
 import { bytesToHex } from 'viem';
 
-import { Address, exclude, objMap, randomElement } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  exclude,
+  objMap,
+  randomElement,
+} from '@hyperlane-xyz/utils';
 
 import { testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -48,8 +54,24 @@ export async function randomCosmosAddress(prefix: string): Promise<Address> {
   return accounts[0].address;
 }
 
-function getContractAddress(contract: { target: unknown }): Address {
-  return String(contract.target) as Address;
+function getContractTargetAddress(contract: { target: unknown }): Address {
+  assert(typeof contract.target === 'string', 'Missing contract target');
+  return contract.target;
+}
+
+export async function getContractAddress(contract: {
+  target?: unknown;
+  address?: unknown;
+  getAddress?: () => Promise<string>;
+}): Promise<Address> {
+  if (typeof contract.target === 'string') return contract.target;
+  if (typeof contract.address === 'string') return contract.address;
+  if (typeof contract.getAddress === 'function') {
+    const address = await contract.getAddress();
+    assert(typeof address === 'string', 'Missing contract address');
+    return address;
+  }
+  throw new Error('Missing contract address');
 }
 
 export function createRouterConfigMap(
@@ -60,8 +82,8 @@ export function createRouterConfigMap(
   return objMap(coreContracts, (chain, contracts) => {
     return {
       owner,
-      mailbox: getContractAddress(contracts.mailbox),
-      interchainGasPaymaster: getContractAddress(
+      mailbox: getContractTargetAddress(contracts.mailbox),
+      interchainGasPaymaster: getContractTargetAddress(
         igpContracts[chain].interchainGasPaymaster,
       ),
     };
