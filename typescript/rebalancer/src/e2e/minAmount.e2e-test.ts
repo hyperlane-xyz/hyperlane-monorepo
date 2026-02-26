@@ -26,6 +26,29 @@ import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import { tryRelayMessage } from './harness/TransferHelper.js';
 
+async function waitForActionCompletion(
+  context: {
+    tracker: {
+      syncRebalanceActions: () => Promise<void>;
+      getRebalanceAction: (
+        id: string,
+      ) => Promise<{ status: string } | null | undefined>;
+    };
+  },
+  actionId: string,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const pollIntervalMs = 250;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    await context.tracker.syncRebalanceActions();
+    const action = await context.tracker.getRebalanceAction(actionId);
+    if (action?.status === 'complete') return;
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+}
+
 describe('MinAmountStrategy E2E', function () {
   this.timeout(300_000);
 
@@ -221,8 +244,8 @@ describe('MinAmountStrategy E2E', function () {
       `Rebalance relay should succeed: ${rebalanceRelayResult.error}`,
     ).to.be.true;
 
-    // Sync actions to detect delivery and mark complete
-    await context.tracker.syncRebalanceActions();
+    // Delivery can lag behind relay tx inclusion by a few blocks in local e2e.
+    await waitForActionCompletion(context, actionToArbitrum.id);
 
     // Assert: Action is now complete
     const completedAction = await context.tracker.getRebalanceAction(

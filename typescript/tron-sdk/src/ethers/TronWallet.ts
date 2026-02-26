@@ -123,18 +123,35 @@ export class TronWallet extends Wallet {
   ): Promise<TransactionResponse> {
     // Populate transaction (estimates gas and gas price if not set)
     const tx = await this.populateTransaction(transaction);
-    assert(tx.gasLimit, 'gasLimit is required');
-    assert(tx.gasPrice, 'gasPrice is required');
+    const provider = this.provider;
+    assert(provider, 'TronWallet provider is not configured');
+    const normalizedData = tx.data ? hexlify(tx.data) : '0x';
+    const hasNoCalldata = normalizedData === '0x' || normalizedData === '0x00';
+    const isSimpleTransfer = !!tx.to && hasNoCalldata;
+    const rawGasLimit =
+      tx.gasLimit ??
+      (isSimpleTransfer
+        ? 21_000n
+        : await provider.estimateGas(tx as TransactionRequest));
+    const gasLimit =
+      isSimpleTransfer && toBigInt(rawGasLimit || 0n) === 0n
+        ? 21_000n
+        : rawGasLimit;
+    const feeData = tx.gasPrice ? null : await provider.getFeeData();
+    const gasPrice = tx.gasPrice ?? feeData?.gasPrice;
+    assert(gasLimit, 'gasLimit is required');
+    assert(gasPrice, 'gasPrice is required');
 
     // Convert gasLimit to feeLimit in SUN (1 TRX = 1,000,000 SUN)
-    const gasPrice = toBigInt(tx.gasPrice);
-    const gasLimit = toBigInt(tx.gasLimit);
-    let feeLimit = (gasLimit * gasPrice * 15n) / 10n; // Add 50% buffer to avoid "Out of energy"
+    const gasPriceBigInt = toBigInt(gasPrice);
+    const gasLimitBigInt = toBigInt(gasLimit);
+    let feeLimit = (gasLimitBigInt * gasPriceBigInt * 15n) / 10n; // Add 50% buffer to avoid "Out of energy"
     feeLimit = feeLimit > 1_000_000_000n ? 1_000_000_000n : feeLimit; // Tron max fee is 1000 TRX
     feeLimit = feeLimit <= 0n ? 1_000_000_000n : feeLimit;
-    const callValue = tx.value ? toSafeNumber(toBigInt(tx.value), 'value') : 0;
+    const rawValue = tx.value ?? transaction.value ?? 0n;
+    const callValue = toSafeNumber(toBigInt(rawValue), 'value');
     const feeLimitNumber = toSafeNumber(feeLimit, 'feeLimit');
-    const gasLimitNumber = toSafeNumber(gasLimit, 'gasLimit');
+    const gasLimitNumber = toSafeNumber(gasLimitBigInt, 'gasLimit');
 
     let tronTx: TronTransaction;
 
@@ -174,8 +191,9 @@ export class TronWallet extends Wallet {
     } else {
       // Simple TRX transfer
       assert(typeof tx.to === 'string', 'Transfer target must be a string');
+      const recipient = this.tronWeb.address.fromHex(this.toTronHex(tx.to));
       tronTx = await this.tronWeb.transactionBuilder.sendTrx(
-        this.toTronHex(tx.to),
+        recipient,
         callValue,
         this.tronAddress,
       );
@@ -209,9 +227,6 @@ export class TronWallet extends Wallet {
 
     const txHash = ensure0x(tronTx.txID);
     this.tronTransactions.set(txHash.toLowerCase(), tronTx);
-
-    const provider = this.provider;
-    assert(provider, 'TronWallet provider is not configured');
 
     return pollAsync(
       async () => {

@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 
 import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
-import { Address, randomInt } from '@hyperlane-xyz/utils';
+import { Address, assert, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -27,6 +27,21 @@ import {
 } from './types.js';
 import { moduleMatchesConfig } from './utils.js';
 
+async function getContractAddress(contract: {
+  target?: unknown;
+  address?: unknown;
+  getAddress?: () => Promise<string>;
+}): Promise<Address> {
+  if (typeof contract.target === 'string') return contract.target;
+  if (typeof contract.address === 'string') return contract.address;
+  if (typeof contract.getAddress === 'function') {
+    const address = await contract.getAddress();
+    assert(typeof address === 'string', 'Missing contract address');
+    return address;
+  }
+  throw new Error('Missing contract address');
+}
+
 describe('HyperlaneIsmFactory', async () => {
   let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
   let ismFactory: HyperlaneIsmFactory;
@@ -48,13 +63,17 @@ describe('HyperlaneIsmFactory', async () => {
     );
     ismFactory = new HyperlaneIsmFactory(contractsMap, multiProvider);
 
-    mailboxAddress = (
-      await new TestCoreDeployer(multiProvider, ismFactory).deployApp()
-    ).getContracts(chain).mailbox.address;
+    mailboxAddress = await getContractAddress(
+      (
+        await new TestCoreDeployer(multiProvider, ismFactory).deployApp()
+      ).getContracts(chain).mailbox,
+    );
 
-    newMailboxAddress = (
-      await new TestCoreDeployer(multiProvider, ismFactory).deployApp()
-    ).getContracts(chain).mailbox.address;
+    newMailboxAddress = await getContractAddress(
+      (
+        await new TestCoreDeployer(multiProvider, ismFactory).deployApp()
+      ).getContracts(chain).mailbox,
+    );
   });
 
   beforeEach(async () => {
@@ -80,7 +99,7 @@ describe('HyperlaneIsmFactory', async () => {
     const ism = await ismFactory.deploy({ destination: chain, config });
     const matches = await moduleMatchesConfig(
       chain,
-      ism.address,
+      await getContractAddress(ism),
       config,
       ismFactory.multiProvider,
       ismFactory.getContracts(chain),
@@ -101,7 +120,7 @@ describe('HyperlaneIsmFactory', async () => {
     })) as TrustedRelayerIsm;
     const matches = await moduleMatchesConfig(
       chain,
-      ism.address,
+      await getContractAddress(ism),
       config,
       ismFactory.multiProvider,
       ismFactory.getContracts(chain),
@@ -119,7 +138,7 @@ describe('HyperlaneIsmFactory', async () => {
           config,
           mailbox: mailboxAddress,
         });
-        ismAddress = ism.address;
+        ismAddress = await getContractAddress(ism);
       } catch (e) {
         console.error('Failed to deploy random ism config', e);
         console.error(JSON.stringify(config, null, 2));
@@ -153,7 +172,7 @@ describe('HyperlaneIsmFactory', async () => {
       });
       const matches = await moduleMatchesConfig(
         chain,
-        ism.address,
+        await getContractAddress(ism),
         exampleRoutingConfig,
         ismFactory.multiProvider,
         ismFactory.getContracts(chain),
@@ -170,22 +189,22 @@ describe('HyperlaneIsmFactory', async () => {
         config: exampleRoutingConfig,
         mailbox: mailboxAddress,
       });
-      const existingIsm = ism.address;
+      const existingIsm = await getContractAddress(ism);
       // changing the type of a domain should enroll the domain
       (exampleRoutingConfig.domains['test2'] as MultisigIsmConfig).type =
         IsmType.MESSAGE_ID_MULTISIG;
       ism = await ismFactory.deploy({
         destination: chain,
         config: exampleRoutingConfig,
-        existingIsmAddress: ism.address,
+        existingIsmAddress: await getContractAddress(ism),
         mailbox: mailboxAddress,
       });
       matches =
         matches &&
-        existingIsm === ism.address &&
+        existingIsm === (await getContractAddress(ism)) &&
         (await moduleMatchesConfig(
           chain,
-          ism.address,
+          await getContractAddress(ism),
           exampleRoutingConfig,
           ismFactory.multiProvider,
           ismFactory.getContracts(chain),
@@ -207,13 +226,13 @@ describe('HyperlaneIsmFactory', async () => {
         config: exampleRoutingConfig,
         mailbox: mailboxAddress,
       });
-      const existingIsm = ism.address;
+      const existingIsm = await getContractAddress(ism);
       matches =
         matches &&
-        existingIsm === ism.address &&
+        existingIsm === (await getContractAddress(ism)) &&
         (await moduleMatchesConfig(
           chain,
-          ism.address,
+          await getContractAddress(ism),
           exampleRoutingConfig,
           ismFactory.multiProvider,
           ismFactory.getContracts(chain),
@@ -228,15 +247,15 @@ describe('HyperlaneIsmFactory', async () => {
       ism = await ismFactory.deploy({
         destination: chain,
         config: exampleRoutingConfig,
-        existingIsmAddress: ism.address,
+        existingIsmAddress: await getContractAddress(ism),
         mailbox: mailboxAddress,
       });
       matches =
         matches &&
-        existingIsm === ism.address &&
+        existingIsm === (await getContractAddress(ism)) &&
         (await moduleMatchesConfig(
           chain,
-          ism.address,
+          await getContractAddress(ism),
           exampleRoutingConfig,
           ismFactory.multiProvider,
           ismFactory.getContracts(chain),
@@ -253,21 +272,21 @@ describe('HyperlaneIsmFactory', async () => {
         config: exampleRoutingConfig,
         mailbox: mailboxAddress,
       });
-      const existingIsm = ism.address;
+      const existingIsm = await getContractAddress(ism);
       // deleting the domain should unenroll the domain
       delete exampleRoutingConfig.domains['test3'];
       ism = await ismFactory.deploy({
         destination: chain,
         config: exampleRoutingConfig,
-        existingIsmAddress: ism.address,
+        existingIsmAddress: await getContractAddress(ism),
         mailbox: mailboxAddress,
       });
       matches =
         matches &&
-        existingIsm == ism.address &&
+        existingIsm == (await getContractAddress(ism)) &&
         (await moduleMatchesConfig(
           chain,
-          ism.address,
+          await getContractAddress(ism),
           exampleRoutingConfig,
           ismFactory.multiProvider,
           ismFactory.getContracts(chain),
@@ -284,7 +303,7 @@ describe('HyperlaneIsmFactory', async () => {
         config: exampleRoutingConfig,
         mailbox: mailboxAddress,
       });
-      const existingIsm = ism.address;
+      const existingIsm = await getContractAddress(ism);
       const domainsBefore = await (ism as DomainRoutingIsm).domains();
       // deleting the domain and removing from multiprovider should unenroll the domain
       // NB: we'll deploy new multisigIsms for the domains bc of new factories but the routingIsm address should be the same because of existingIsmAddress
@@ -305,17 +324,17 @@ describe('HyperlaneIsmFactory', async () => {
       ism = await ismFactory.deploy({
         destination: chain,
         config: exampleRoutingConfig,
-        existingIsmAddress: ism.address,
+        existingIsmAddress: await getContractAddress(ism),
         mailbox: mailboxAddress,
       });
       const domainsAfter = await (ism as DomainRoutingIsm).domains();
 
       matches =
         matches &&
-        existingIsm == ism.address &&
+        existingIsm == (await getContractAddress(ism)) &&
         (await moduleMatchesConfig(
           chain,
-          ism.address,
+          await getContractAddress(ism),
           exampleRoutingConfig,
           ismFactory.multiProvider,
           ismFactory.getContracts(chain),
@@ -333,21 +352,21 @@ describe('HyperlaneIsmFactory', async () => {
         config: exampleRoutingConfig,
         mailbox: mailboxAddress,
       });
-      const existingIsm = ism.address;
+      const existingIsm = await getContractAddress(ism);
       // change the owner
       exampleRoutingConfig.owner = randomAddress();
       ism = await ismFactory.deploy({
         destination: chain,
         config: exampleRoutingConfig,
-        existingIsmAddress: ism.address,
+        existingIsmAddress: await getContractAddress(ism),
         mailbox: mailboxAddress,
       });
       matches =
         matches &&
-        existingIsm == ism.address &&
+        existingIsm == (await getContractAddress(ism)) &&
         (await moduleMatchesConfig(
           chain,
-          ism.address,
+          await getContractAddress(ism),
           exampleRoutingConfig,
           ismFactory.multiProvider,
           ismFactory.getContracts(chain),
@@ -364,20 +383,20 @@ describe('HyperlaneIsmFactory', async () => {
         config: exampleRoutingConfig,
         mailbox: mailboxAddress,
       });
-      const existingIsm = ism.address;
+      const existingIsm = await getContractAddress(ism);
       // using the same config should not change anything
       ism = await ismFactory.deploy({
         destination: chain,
         config: exampleRoutingConfig,
-        existingIsmAddress: ism.address,
+        existingIsmAddress: await getContractAddress(ism),
         mailbox: mailboxAddress,
       });
       matches =
         matches &&
-        existingIsm === ism.address &&
+        existingIsm === (await getContractAddress(ism)) &&
         (await moduleMatchesConfig(
           chain,
-          ism.address,
+          await getContractAddress(ism),
           exampleRoutingConfig,
           ismFactory.multiProvider,
           ismFactory.getContracts(chain),
@@ -395,19 +414,19 @@ describe('HyperlaneIsmFactory', async () => {
         config: exampleRoutingConfig,
         mailbox: mailboxAddress,
       });
-      const existingIsm = ism.address;
+      const existingIsm = await getContractAddress(ism);
       ism = await ismFactory.deploy({
         destination: chain,
         config: exampleRoutingConfig,
-        existingIsmAddress: ism.address,
+        existingIsmAddress: await getContractAddress(ism),
         mailbox: mailboxAddress,
       });
       matches =
         matches &&
-        existingIsm !== ism.address &&
+        existingIsm !== (await getContractAddress(ism)) &&
         (await moduleMatchesConfig(
           chain,
-          ism.address,
+          await getContractAddress(ism),
           exampleRoutingConfig,
           ismFactory.multiProvider,
           ismFactory.getContracts(chain),
@@ -433,7 +452,7 @@ describe('HyperlaneIsmFactory', async () => {
 
     const matches = await moduleMatchesConfig(
       chain,
-      ism.address,
+      await getContractAddress(ism),
       config,
       ismFactory.multiProvider,
       ismFactory.getContracts(chain),
@@ -450,19 +469,19 @@ describe('HyperlaneIsmFactory', async () => {
       config: exampleRoutingConfig,
       mailbox: mailboxAddress,
     });
-    const existingIsm = ism.address;
+    const existingIsm = await getContractAddress(ism);
     ism = await ismFactory.deploy({
       destination: chain,
       config: exampleRoutingConfig,
-      existingIsmAddress: ism.address,
+      existingIsmAddress: await getContractAddress(ism),
       mailbox: newMailboxAddress,
     });
     matches =
       matches &&
-      existingIsm !== ism.address &&
+      existingIsm !== (await getContractAddress(ism)) &&
       (await moduleMatchesConfig(
         chain,
-        ism.address,
+        await getContractAddress(ism),
         exampleRoutingConfig,
         ismFactory.multiProvider,
         ismFactory.getContracts(chain),

@@ -51,6 +51,18 @@ type TransactionResponseLike = {
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
 
+function isNonceDriftError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as { code?: unknown; message?: unknown };
+  if (err.code === 'NONCE_EXPIRED') return true;
+  if (typeof err.message !== 'string') return false;
+  const message = err.message.toLowerCase();
+  return (
+    message.includes('nonce too low') ||
+    message.includes('nonce has already been used')
+  );
+}
+
 class ResilientNonceManager extends NonceManager {
   override async sendTransaction(tx: TransactionRequest) {
     try {
@@ -58,6 +70,9 @@ class ResilientNonceManager extends NonceManager {
     } catch (error) {
       // Failed sends can desync nonce cache from chain state; reset before retrying.
       this.reset();
+      if (isNonceDriftError(error)) {
+        return super.sendTransaction(tx);
+      }
       throw error;
     }
   }
@@ -229,13 +244,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const metadata = this.getChainMetadata(chainName);
     const signerConstructorName = connectedSigner.constructor?.name;
     const isHardhatSigner = signerConstructorName === 'HardhatEthersSigner';
-    const skipNonceManagerForLocalTesting =
-      metadata.blocks?.confirmations === 0 &&
-      metadata.blocks?.reorgPeriod === 0;
     const useNonceManager =
       metadata.protocol === ProtocolType.Ethereum &&
       metadata.technicalStack !== ChainTechnicalStack.Tron &&
-      !skipNonceManagerForLocalTesting &&
       !isHardhatSigner;
 
     if (
