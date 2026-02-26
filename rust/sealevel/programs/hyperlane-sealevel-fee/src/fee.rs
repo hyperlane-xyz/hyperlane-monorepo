@@ -61,33 +61,108 @@ pub fn compute_fee(fee_data: &FeeData, amount: u64) -> Result<u64, ProgramError>
 mod tests {
     use super::*;
 
+    use serde::Deserialize;
+
+    fn de_str_u64<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u64, D::Error> {
+        let v = serde_json::Value::deserialize(d)?;
+        match v {
+            serde_json::Value::Number(n) => n
+                .as_u64()
+                .ok_or_else(|| serde::de::Error::custom("not a u64")),
+            serde_json::Value::String(s) => s.parse().map_err(serde::de::Error::custom),
+            _ => Err(serde::de::Error::custom("expected number or string")),
+        }
+    }
+
+    #[derive(Deserialize)]
+    struct FeeVector {
+        #[serde(deserialize_with = "de_str_u64")]
+        max_fee: u64,
+        #[serde(deserialize_with = "de_str_u64")]
+        half_amount: u64,
+        #[serde(deserialize_with = "de_str_u64")]
+        amount: u64,
+        #[serde(deserialize_with = "de_str_u64")]
+        expected_fee: u64,
+        description: String,
+    }
+
+    #[derive(Deserialize)]
+    struct FeeGroup {
+        vectors: Vec<FeeVector>,
+    }
+
+    #[derive(Deserialize)]
+    struct FeeFixtures {
+        linear: FeeGroup,
+        progressive: FeeGroup,
+        regressive: FeeGroup,
+    }
+
+    fn load_fixtures() -> FeeFixtures {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../../vectors/fees.json");
+        let data = std::fs::read_to_string(path).expect("failed to read fees.json");
+        serde_json::from_str(&data).expect("failed to parse fees.json")
+    }
+
+    // ---- Shared fixture tests ----
+
     #[test]
-    fn test_linear_fee_basic() {
-        let fee_data = FeeData::Linear {
-            max_fee: 1000,
-            half_amount: 5000,
-        };
-        // fee = min(1000, 5000 * 1000 / (2 * 5000)) = min(1000, 500) = 500
-        assert_eq!(compute_fee(&fee_data, 5000).unwrap(), 500);
+    fn test_linear_fee_fixtures() {
+        let fixtures = load_fixtures();
+        for v in &fixtures.linear.vectors {
+            let fee_data = FeeData::Linear {
+                max_fee: v.max_fee,
+                half_amount: v.half_amount,
+            };
+            assert_eq!(
+                compute_fee(&fee_data, v.amount).unwrap(),
+                v.expected_fee,
+                "linear: {}",
+                v.description
+            );
+        }
     }
 
     #[test]
-    fn test_linear_fee_capped() {
-        let fee_data = FeeData::Linear {
-            max_fee: 1000,
-            half_amount: 5000,
-        };
-        // fee = min(1000, 20000 * 1000 / 10000) = min(1000, 2000) = 1000
-        assert_eq!(compute_fee(&fee_data, 20000).unwrap(), 1000);
+    fn test_progressive_fee_fixtures() {
+        let fixtures = load_fixtures();
+        for v in &fixtures.progressive.vectors {
+            let fee_data = FeeData::Progressive {
+                max_fee: v.max_fee,
+                half_amount: v.half_amount,
+            };
+            assert_eq!(
+                compute_fee(&fee_data, v.amount).unwrap(),
+                v.expected_fee,
+                "progressive: {}",
+                v.description
+            );
+        }
     }
 
     #[test]
-    fn test_linear_fee_zero_amount() {
-        let fee_data = FeeData::Linear {
-            max_fee: 1000,
-            half_amount: 5000,
-        };
-        assert_eq!(compute_fee(&fee_data, 0).unwrap(), 0);
+    fn test_regressive_fee_fixtures() {
+        let fixtures = load_fixtures();
+        for v in &fixtures.regressive.vectors {
+            let fee_data = FeeData::Regressive {
+                max_fee: v.max_fee,
+                half_amount: v.half_amount,
+            };
+            assert_eq!(
+                compute_fee(&fee_data, v.amount).unwrap(),
+                v.expected_fee,
+                "regressive: {}",
+                v.description
+            );
+        }
+    }
+
+    // ---- Rust-only edge case tests (zero params, u64::MAX, overflow) ----
+
+    #[test]
+    fn test_routing_returns_error() {
+        assert!(compute_fee(&FeeData::Routing, 1000).is_err());
     }
 
     #[test]
@@ -100,61 +175,13 @@ mod tests {
     }
 
     #[test]
-    fn test_regressive_fee_basic() {
-        let fee_data = FeeData::Regressive {
-            max_fee: 1000,
-            half_amount: 5000,
-        };
-        // fee = 1000 * 5000 / (5000 + 5000) = 500
-        assert_eq!(compute_fee(&fee_data, 5000).unwrap(), 500);
-    }
-
-    #[test]
-    fn test_regressive_fee_approaches_max() {
-        let fee_data = FeeData::Regressive {
-            max_fee: 1000,
-            half_amount: 5000,
-        };
-        // fee = 1000 * 1000000 / (5000 + 1000000) = ~995
-        assert_eq!(compute_fee(&fee_data, 1_000_000).unwrap(), 995);
-    }
-
-    #[test]
-    fn test_progressive_fee_basic() {
-        let fee_data = FeeData::Progressive {
-            max_fee: 1000,
-            half_amount: 5000,
-        };
-        // fee = 1000 * 5000^2 / (5000^2 + 5000^2) = 500
-        assert_eq!(compute_fee(&fee_data, 5000).unwrap(), 500);
-    }
-
-    #[test]
-    fn test_progressive_fee_small_amount() {
-        let fee_data = FeeData::Progressive {
-            max_fee: 1000,
-            half_amount: 5000,
-        };
-        // fee = 1000 * 100^2 / (5000^2 + 100^2) = 1000 * 10000 / 25010000 ≈ 0
-        assert_eq!(compute_fee(&fee_data, 100).unwrap(), 0);
-    }
-
-    #[test]
-    fn test_routing_returns_error() {
-        assert!(compute_fee(&FeeData::Routing, 1000).is_err());
-    }
-
-    #[test]
     fn test_large_amounts_no_overflow() {
         let fee_data = FeeData::Linear {
             max_fee: u64::MAX,
             half_amount: u64::MAX,
         };
-        // fee = min(MAX, MAX * MAX / (2 * MAX)) = min(MAX, MAX/2)
         assert_eq!(compute_fee(&fee_data, u64::MAX).unwrap(), u64::MAX / 2);
     }
-
-    // ---- Overflow / edge case tests ----
 
     #[test]
     fn test_linear_max_u64_amount() {
@@ -162,7 +189,6 @@ mod tests {
             max_fee: 1_000_000,
             half_amount: 500_000,
         };
-        // amount=u64::MAX >> 2*half_amount, so fee is capped at max_fee
         assert_eq!(compute_fee(&fee_data, u64::MAX).unwrap(), 1_000_000);
     }
 
@@ -172,8 +198,6 @@ mod tests {
             max_fee: u64::MAX,
             half_amount: 1000,
         };
-        // Large max_fee, moderate amount: fee = amount * MAX / 2000
-        // amount=1000 -> fee = 1000 * MAX / 2000 = MAX/2
         assert_eq!(compute_fee(&fee_data, 1000).unwrap(), u64::MAX / 2);
     }
 
@@ -183,10 +207,7 @@ mod tests {
             max_fee: 1_000_000,
             half_amount: 500_000,
         };
-        // fee = 1_000_000 * u64::MAX / (500_000 + u64::MAX) ≈ 999_999
-        // (approaches max_fee but never reaches it)
-        let fee = compute_fee(&fee_data, u64::MAX).unwrap();
-        assert_eq!(fee, 999_999);
+        assert_eq!(compute_fee(&fee_data, u64::MAX).unwrap(), 999_999);
     }
 
     #[test]
@@ -195,7 +216,6 @@ mod tests {
             max_fee: u64::MAX,
             half_amount: u64::MAX,
         };
-        // fee = MAX * MAX / (MAX + MAX) = MAX/2
         assert_eq!(compute_fee(&fee_data, u64::MAX).unwrap(), u64::MAX / 2);
     }
 
@@ -205,7 +225,6 @@ mod tests {
             max_fee: 1_000_000,
             half_amount: 500_000,
         };
-        // fee approaches max_fee for large amounts; U256 gives exact truncation
         assert_eq!(compute_fee(&fee_data, u64::MAX).unwrap(), 999_999);
     }
 
@@ -215,7 +234,6 @@ mod tests {
             max_fee: u64::MAX,
             half_amount: u64::MAX,
         };
-        // fee = MAX * MAX^2 / (MAX^2 + MAX^2) = MAX/2
         assert_eq!(compute_fee(&fee_data, u64::MAX).unwrap(), u64::MAX / 2);
     }
 
@@ -237,26 +255,12 @@ mod tests {
         assert_eq!(compute_fee(&fee_data, 5000).unwrap(), 0);
     }
 
-    // ---- Rounding / edge behavior tests ----
-
-    #[test]
-    fn test_linear_tiny_amount_rounds_to_zero() {
-        let fee_data = FeeData::Linear {
-            max_fee: 1000,
-            half_amount: 5000,
-        };
-        // fee = 1 * 1000 / 10000 = 0 (integer division rounds down)
-        assert_eq!(compute_fee(&fee_data, 1).unwrap(), 0);
-    }
-
     #[test]
     fn test_progressive_large_ratio_approaches_max() {
         let fee_data = FeeData::Progressive {
             max_fee: 1000,
             half_amount: 100,
         };
-        // amount=10_000 >> half_amount=100, so fee should be very close to max_fee
-        // fee = 1000 * 10000^2 / (100^2 + 10000^2) = 1000 * 1e8 / (1e4 + 1e8) ≈ 999
         let fee = compute_fee(&fee_data, 10_000).unwrap();
         assert!((999..=1000).contains(&fee));
     }
@@ -281,8 +285,6 @@ mod tests {
 
     #[test]
     fn test_progressive_former_double_overflow() {
-        // Previously overflowed u128; U256 handles it correctly.
-        // amount == half_amount, so fee = max_fee * a^2 / (a^2 + a^2) = max_fee / 2
         let fee_data = FeeData::Progressive {
             max_fee: u64::MAX,
             half_amount: 1u64 << 33,

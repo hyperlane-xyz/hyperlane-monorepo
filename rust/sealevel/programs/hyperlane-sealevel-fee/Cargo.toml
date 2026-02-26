@@ -22,6 +22,8 @@ account-utils = { path = "../../libraries/account-utils" }
 hyperlane-core = { path = "../../../main/hyperlane-core" }
 
 [dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
 solana-program-test.workspace = true
 solana-sdk.workspace = true
 

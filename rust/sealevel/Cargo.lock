@@ -3472,6 +3472,8 @@ dependencies = [
  "hyperlane-test-utils",
  "num-derive",
  "num-traits",
+ "serde",
+ "serde_json",
  "solana-program 3.0.0",
  "solana-program-test",
  "solana-sdk",
