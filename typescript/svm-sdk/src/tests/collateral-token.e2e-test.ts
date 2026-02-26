@@ -111,6 +111,7 @@ describe('SVM Collateral Warp Token E2E Tests', function () {
       {
         program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.tokenCollateral },
         igpProgramId,
+        ataPayerFundingAmount: 100_000_000n,
       },
       rpc,
       signer,

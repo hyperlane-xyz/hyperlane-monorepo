@@ -34,6 +34,17 @@ export function readonlySignerAddress(
   return { address, role: AccountRole.READONLY_SIGNER };
 }
 
+/**
+ * Marks an address as a required writable signer without embedding a keypair.
+ * Use this when the account must both sign and be mutated, but the keypair is
+ * managed by the caller (e.g. the transaction payer for a SOL transfer).
+ */
+export function writableSignerAddress(
+  address: Address,
+): InstructionAccountMeta {
+  return { address, role: AccountRole.WRITABLE_SIGNER };
+}
+
 export function writableSigner(
   signer: TransactionSigner,
 ): InstructionAccountMeta {
