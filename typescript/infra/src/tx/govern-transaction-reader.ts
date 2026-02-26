@@ -1689,48 +1689,78 @@ export class GovernTransactionReader {
       ismInsight = `❌ fatal mismatch, expected zero hash`;
     }
 
-    const remoteIcaAddress = await InterchainAccount.fromAddressesMap(
-      this.chainAddresses,
-      this.multiProvider,
-    ).getAccount(remoteChainName, {
-      owner: this.safes[icaOwnerChain],
-      origin: icaOwnerChain,
-      routerOverride: router,
-      ismOverride: ism,
-    });
     const expectedRemoteIcaAddress = this.icas[remoteChainName];
     const expectedLegacyRemoteIcaAddress = this.legacyIcas[remoteChainName];
+    let remoteIcaAddress: string | undefined;
     let remoteIcaInsight = '✅ matches expected ICA';
 
-    const isValidIca =
-      expectedRemoteIcaAddress &&
-      eqAddress(remoteIcaAddress, expectedRemoteIcaAddress);
-    const isValidLegacyIca =
-      expectedLegacyRemoteIcaAddress &&
-      eqAddress(remoteIcaAddress, expectedLegacyRemoteIcaAddress);
-
-    if (!isValidIca && !isValidLegacyIca) {
-      this.errors.push({
-        chain: chain,
-        remoteDomain: destination,
-        remoteChain: remoteChainName,
-        ica: remoteIcaAddress,
-        expected: expectedRemoteIcaAddress,
-        info: 'Incorrect destination ICA in ICA call',
+    try {
+      remoteIcaAddress = await InterchainAccount.fromAddressesMap(
+        this.chainAddresses,
+        this.multiProvider,
+      ).getAccount(remoteChainName, {
+        owner: this.safes[icaOwnerChain],
+        origin: icaOwnerChain,
+        routerOverride: router,
+        ismOverride: ism,
       });
-      remoteIcaInsight = `❌ fatal mismatch, expected ${expectedRemoteIcaAddress}`;
+
+      if (!expectedRemoteIcaAddress && !expectedLegacyRemoteIcaAddress) {
+        remoteIcaInsight = `⚠️ no expected ICA configured for ${remoteChainName}, derived: ${remoteIcaAddress}`;
+      } else {
+        const isValidIca =
+          expectedRemoteIcaAddress &&
+          eqAddress(remoteIcaAddress, expectedRemoteIcaAddress);
+        const isValidLegacyIca =
+          expectedLegacyRemoteIcaAddress &&
+          eqAddress(remoteIcaAddress, expectedLegacyRemoteIcaAddress);
+
+        if (!isValidIca && !isValidLegacyIca) {
+          this.errors.push({
+            chain: chain,
+            remoteDomain: destination,
+            remoteChain: remoteChainName,
+            ica: remoteIcaAddress,
+            expected: expectedRemoteIcaAddress,
+            info: 'Incorrect destination ICA in ICA call',
+          });
+          remoteIcaInsight = `❌ fatal mismatch, expected ${expectedRemoteIcaAddress}`;
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to derive ICA address for ${remoteChainName}, using expected address`,
+        error,
+      );
+      remoteIcaAddress =
+        expectedRemoteIcaAddress ?? expectedLegacyRemoteIcaAddress;
+      remoteIcaInsight = `⚠️ could not verify ICA (RPC error on ${remoteChainName})`;
     }
 
-    const decodedCalls = await Promise.all(
-      calls.map((call: any) => {
-        const icaCallAsTx = {
-          to: bytes32ToAddress(call[0]),
-          value: BigNumber.from(call[1]),
-          data: call[2],
-        };
-        return this.read(remoteChainName, icaCallAsTx);
-      }),
-    );
+    let decodedCalls: GovernTransaction[];
+    try {
+      decodedCalls = await Promise.all(
+        calls.map((call: any) => {
+          const icaCallAsTx = {
+            to: bytes32ToAddress(call[0]),
+            value: BigNumber.from(call[1]),
+            data: call[2],
+          };
+          return this.read(remoteChainName, icaCallAsTx);
+        }),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to decode ICA calls for ${remoteChainName}`,
+        error,
+      );
+      decodedCalls = calls.map((call: any) => ({
+        chain: remoteChainName,
+        insight: `⚠️ could not decode call (RPC error on ${remoteChainName})`,
+        to: bytes32ToAddress(call[0]),
+        data: call[2],
+      }));
+    }
 
     const hookMetadataInsight = hookMetadataRaw
       ? await parseHookMetadataWithInsight(chain, hookMetadataRaw)
@@ -1750,7 +1780,7 @@ export class GovernTransactionReader {
         insight: ismInsight,
       },
       destinationIca: {
-        address: remoteIcaAddress,
+        address: remoteIcaAddress ?? 'unknown',
         insight: remoteIcaInsight,
       },
       ...(hookMetadataInsight && { hookMetadata: hookMetadataInsight }),
@@ -1787,9 +1817,19 @@ export class GovernTransactionReader {
           this.logger.error(
             `Failed to decode multisend at index ${index}:`,
             error,
-            multisend,
           );
-          throw error;
+          return {
+            chain,
+            index,
+            value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
+            operation: formatOperationType(multisend.operation),
+            decoded: {
+              chain,
+              insight: `⚠️ failed to decode (${error instanceof Error ? error.message.slice(0, 100) : 'unknown error'})`,
+              to: multisend.to,
+              data: multisend.data,
+            },
+          };
         }
       }),
     );
