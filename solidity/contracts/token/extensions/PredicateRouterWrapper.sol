@@ -197,12 +197,20 @@ contract PredicateRouterWrapper is
             token.safeTransferFrom(msg.sender, address(this), _amount);
         }
 
-        // 5. Call warp route - this will trigger postDispatch via mailbox
-        messageId = warpRoute.transferRemote{value: msg.value}(
-            _destination,
-            _recipient,
-            _amount
-        );
+        // 5. Call warp route using already-encoded calldata (avoids re-encoding)
+        // This reuses the same calldata that was validated in the attestation
+        (bool success, bytes memory returnData) = address(warpRoute).call{
+            value: msg.value
+        }(encodedSigAndArgs);
+
+        if (!success) {
+            // Bubble up revert reason from warpRoute
+            assembly {
+                revert(add(returnData, 32), mload(returnData))
+            }
+        }
+
+        messageId = abi.decode(returnData, (bytes32));
 
         // Note: pendingAttestation is cleared in _postDispatch()
         // If we reach here, the transfer succeeded
