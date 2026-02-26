@@ -75,7 +75,10 @@ async fn fetch_fee_account(banks_client: &mut BanksClient, fee_key: &Pubkey) -> 
         .unwrap()
         .unwrap()
         .data;
-    *FeeAccountData::fetch(&mut &data[..]).unwrap().into_inner()
+    FeeAccountData::fetch(&mut &data[..])
+        .unwrap()
+        .into_inner()
+        .data
 }
 
 // ---- Init tests ----

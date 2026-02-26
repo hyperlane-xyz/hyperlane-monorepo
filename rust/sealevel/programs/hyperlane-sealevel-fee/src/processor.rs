@@ -1,5 +1,5 @@
 use access_control::AccessControl;
-use account_utils::{create_pda_account, DiscriminatorDecode, SizedData};
+use account_utils::{create_pda_account, DiscriminatorDecode, DiscriminatorPrefixed, SizedData};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -111,7 +111,7 @@ fn process_init_fee(program_id: &Pubkey, accounts: &[AccountInfo], init: InitFee
         },
         fee_data: init.fee_data,
     };
-    let fee_account_data = FeeAccountData::from(fee_account);
+    let fee_account_data = FeeAccountData::from(DiscriminatorPrefixed::new(fee_account));
 
     let rent = Rent::get()?;
     create_pda_account(
@@ -179,7 +179,7 @@ fn process_set_route(
         bump: route_bump,
         fee_data: route.fee_data,
     };
-    let route_domain_data = RouteDomainData::from(route_domain);
+    let route_domain_data = RouteDomainData::from(DiscriminatorPrefixed::new(route_domain));
 
     let rent = Rent::get()?;
 

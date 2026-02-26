@@ -1,14 +1,15 @@
-use account_utils::{AccountData, SizedData};
+use account_utils::{AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::pubkey::Pubkey;
 
-/// Top-level fee account, wrapped in AccountData for (de)serialization.
-pub type FeeAccountData = AccountData<FeeAccount>;
+/// Top-level fee account, wrapped in AccountData with discriminator prefix.
+pub type FeeAccountData = AccountData<DiscriminatorPrefixed<FeeAccount>>;
 
-/// Partial fee account header, wrapped in AccountData for cross-program reads.
+/// Partial fee account header, wrapped in AccountData with discriminator prefix.
 /// Borsh deserialization reads only the header fields and ignores trailing
 /// bytes (fee_data), so this can be fetched from a full FeeAccount's raw data.
-pub type FeeAccountHeaderData = AccountData<FeeAccountHeader>;
+/// Uses the same discriminator as FeeAccount so partial reads work correctly.
+pub type FeeAccountHeaderData = AccountData<DiscriminatorPrefixed<FeeAccountHeader>>;
 
 /// Header fields shared between the full FeeAccount and partial cross-program reads.
 ///
@@ -39,6 +40,18 @@ pub struct FeeAccount {
     pub fee_data: FeeData,
 }
 
+/// FeeAccount and FeeAccountHeader share the same discriminator so that
+/// partial header reads from a full FeeAccount's raw data work correctly.
+const FEE_ACCOUNT_DISCRIMINATOR: [u8; 8] = *b"FEE_ACCT";
+
+impl DiscriminatorData for FeeAccount {
+    const DISCRIMINATOR: [u8; 8] = FEE_ACCOUNT_DISCRIMINATOR;
+}
+
+impl DiscriminatorData for FeeAccountHeader {
+    const DISCRIMINATOR: [u8; 8] = FEE_ACCOUNT_DISCRIMINATOR;
+}
+
 impl SizedData for FeeAccount {
     fn size(&self) -> usize {
         // bump
@@ -52,8 +65,12 @@ impl SizedData for FeeAccount {
     }
 }
 
-/// Per-domain route PDA for RoutingFee, wrapped in AccountData.
-pub type RouteDomainData = AccountData<RouteDomain>;
+/// Per-domain route PDA for RoutingFee, wrapped in AccountData with discriminator prefix.
+pub type RouteDomainData = AccountData<DiscriminatorPrefixed<RouteDomain>>;
+
+impl DiscriminatorData for RouteDomain {
+    const DISCRIMINATOR: [u8; 8] = *b"ROUTEDOM";
+}
 
 /// A per-domain route with inlined fee parameters.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
