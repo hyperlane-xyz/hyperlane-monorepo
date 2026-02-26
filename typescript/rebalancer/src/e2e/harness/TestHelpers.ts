@@ -1,6 +1,7 @@
 import { BigNumber, providers } from 'ethers';
 
 import { HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 import { expect } from 'chai';
 
 import type { RebalanceAction } from '../../tracking/types.js';
@@ -54,7 +55,8 @@ export async function getRouterBalances(
 ): Promise<Record<string, BigNumber>> {
   const balances: Record<string, BigNumber> = {};
   for (const chain of TEST_CHAINS) {
-    const provider = localProviders.get(chain)!;
+    const provider = localProviders.get(chain);
+    assert(provider, `Missing provider for chain ${chain}`);
     balances[chain] = await provider.getBalance(
       addresses.monitoredRoute[chain],
     );
@@ -99,12 +101,21 @@ export async function relayInProgressInventoryDeposits(
   for (const action of depositActions) {
     const origin = chainFromDomain(action.origin);
     const destination = chainFromDomain(action.destination);
-    const provider = localProviders.get(origin)!;
-    const dispatchTx = await provider.getTransactionReceipt(action.txHash!);
+    const provider = localProviders.get(origin);
+    assert(provider, `Missing provider for chain ${origin}`);
+    assert(
+      action.txHash,
+      `Missing txHash for action ${action.origin}->${action.destination}`,
+    );
+    const dispatchTx = await provider.getTransactionReceipt(action.txHash);
 
+    assert(
+      action.messageId,
+      `Missing messageId for action ${action.origin}->${action.destination}`,
+    );
     const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
       dispatchTx,
-      messageId: action.messageId!,
+      messageId: action.messageId,
       origin,
       destination,
     });
@@ -119,7 +130,8 @@ export async function relayInProgressInventoryDeposits(
   // which refuses to return lower block numbers after evm_revert.
   const tags: Record<string, number> = {};
   for (const chain of TEST_CHAINS) {
-    const p = localProviders.get(chain)!;
+    const p = localProviders.get(chain);
+    assert(p, `Missing provider for chain ${chain}`);
     const hex = await p.send('eth_blockNumber', []);
     tags[chain] = parseInt(hex, 16);
   }
