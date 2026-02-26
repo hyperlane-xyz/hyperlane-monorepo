@@ -48,7 +48,6 @@ type AnyFunctionNames<TAbi extends Abi> = ContractFunctionName<
 
 export type TxRequestLike = Record<string, unknown>;
 
-type UnknownAsyncMethod = (...args: readonly unknown[]) => Promise<never>;
 export type ContractWriteResult = {
   hash: string;
   transactionHash?: string;
@@ -96,8 +95,6 @@ export type ContractMethodMap<TAbi extends Abi> = {
   [TName in WriteFunctionNames<TAbi>]: (
     ...args: ContractMethodArgs<TAbi, WriteFunctionMutability, TName>
   ) => Promise<ContractWriteResult>;
-} & {
-  [key: string]: UnknownAsyncMethod;
 };
 
 export type ContractEstimateGasMap<TAbi extends Abi> = {
@@ -200,7 +197,6 @@ export interface ViemContractLike<TAbi extends Abi = Abi> {
   interface: ViemInterface;
   estimateGas: ContractEstimateGasMap<TAbi>;
   functions: ContractMethodMap<TAbi>;
-  [key: string]: unknown;
   queryFilter: <T = Record<string, unknown>>(
     filter: Record<string, unknown>,
     fromBlock?: unknown,
