@@ -19,7 +19,7 @@ import { DEFAULT_WRITE_CHUNK_SIZE } from '../tx.js';
 import type { SvmReceipt } from '../types.js';
 
 const ADDRESS_CODEC = getAddressCodec();
-const PROGRAM_DATA_HEADER_SIZE = 45;
+const BUFFER_METADATA_SIZE = 37;
 const PROGRAM_ACCOUNT_SIZE = 36;
 
 export interface DeployProgramPlan {
@@ -70,7 +70,7 @@ export async function createDeployProgramPlan(
   const chunkSize = args.writeChunkSize ?? DEFAULT_WRITE_CHUNK_SIZE;
   const maxDataLen = args.maxDataLen ?? BigInt(args.programBytes.length * 2);
 
-  const bufferSize = PROGRAM_DATA_HEADER_SIZE + args.programBytes.length;
+  const bufferSize = BUFFER_METADATA_SIZE + args.programBytes.length;
   const bufferRent = await args.getMinimumBalanceForRentExemption(bufferSize);
   const programRent =
     await args.getMinimumBalanceForRentExemption(PROGRAM_ACCOUNT_SIZE);
@@ -151,7 +151,7 @@ export async function createUpgradeProgramPlan(
   const bufferSigner = args.bufferSigner ?? (await generateKeyPairSigner());
   const chunkSize = args.writeChunkSize ?? DEFAULT_WRITE_CHUNK_SIZE;
 
-  const bufferSize = PROGRAM_DATA_HEADER_SIZE + args.newProgramBytes.length;
+  const bufferSize = BUFFER_METADATA_SIZE + args.newProgramBytes.length;
   const bufferRent = await args.getMinimumBalanceForRentExemption(bufferSize);
   const programDataAddress = await deriveProgramDataAddress(
     args.programAddress,

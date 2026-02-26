@@ -122,6 +122,7 @@ export class SvmNativeTokenWriter
       this.config.program,
       this.svmSigner,
       this.rpc,
+      true,
     );
     receipts.push(...deployReceipts);
 
