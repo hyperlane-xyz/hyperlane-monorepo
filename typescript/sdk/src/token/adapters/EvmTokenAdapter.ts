@@ -113,7 +113,6 @@ type Erc20LikeContract = EncodableContract & {
   name(): Promise<string>;
   allowance(owner: Address, spender: Address): Promise<unknown>;
   totalSupply(overrides?: Record<string, unknown>): Promise<unknown>;
-  [key: string]: unknown;
 };
 
 type BalanceProvider = {

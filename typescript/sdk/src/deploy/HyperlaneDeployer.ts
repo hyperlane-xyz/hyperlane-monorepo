@@ -3,7 +3,6 @@ import { zeroAddress } from 'viem';
 
 import {
   ITransparentUpgradeableProxy,
-  MailboxClient,
   Ownable,
   ProxyAdmin,
   ProxyAdmin__factory,
@@ -88,6 +87,26 @@ type ContractInitializeArgs<TContract> = TContract extends {
   ? TArgs
   : readonly unknown[];
 
+type FunctionDataEncoderLike = {
+  address: Address;
+  interface: {
+    encodeFunctionData(
+      functionName: string,
+      values?: readonly unknown[],
+    ): string;
+  };
+};
+
+type OwnableLike = {
+  owner(): Promise<Address>;
+};
+
+type MailboxClientLike = FunctionDataEncoderLike &
+  OwnableLike & {
+    hook(): Promise<Address>;
+    interchainSecurityModule(): Promise<Address>;
+  };
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && (typeof value === 'object' || typeof value === 'function')
     ? (value as Record<string, unknown>)
@@ -111,7 +130,7 @@ function getFactoryBytecode(factory: HyperlaneContractFactory): string {
 }
 
 function buildContractTransaction(
-  contract: ContractLike,
+  contract: FunctionDataEncoderLike,
   functionName: string,
   values: readonly unknown[] = [],
   overrides: Record<string, unknown> = {},
@@ -307,7 +326,7 @@ export abstract class HyperlaneDeployer<
 
   protected async runIfOwner<T>(
     chain: ChainName,
-    ownable: Ownable,
+    ownable: OwnableLike,
     fn: () => Promise<T>,
   ): Promise<T | undefined> {
     return this.runIf(chain, await ownable.owner(), fn, 'owner');
@@ -338,7 +357,7 @@ export abstract class HyperlaneDeployer<
     }
   }
 
-  protected async configureIsm<C extends Ownable>(
+  protected async configureIsm<C extends OwnableLike>(
     chain: ChainName,
     contract: C,
     config: IsmConfig,
@@ -388,7 +407,7 @@ export abstract class HyperlaneDeployer<
     }
   }
 
-  protected async configureHook<C extends Ownable>(
+  protected async configureHook<C extends OwnableLike>(
     chain: ChainName,
     contract: C,
     config: HookConfig,
@@ -421,7 +440,7 @@ export abstract class HyperlaneDeployer<
 
   protected async configureClient(
     local: ChainName,
-    client: MailboxClient,
+    client: MailboxClientLike,
     config: MailboxClientConfig,
   ): Promise<void> {
     this.logger.debug(
@@ -434,7 +453,7 @@ export abstract class HyperlaneDeployer<
         config.hook,
         (_client) => _client.hook(),
         async (_client, _hook) =>
-          buildContractTransaction(_client as ContractLike, 'setHook', [_hook]),
+          buildContractTransaction(_client, 'setHook', [_hook]),
       );
     }
 
@@ -445,11 +464,9 @@ export abstract class HyperlaneDeployer<
         config.interchainSecurityModule,
         (_client) => _client.interchainSecurityModule(),
         async (_client, _module) =>
-          buildContractTransaction(
-            _client as ContractLike,
-            'setInterchainSecurityModule',
-            [_module],
-          ),
+          buildContractTransaction(_client, 'setInterchainSecurityModule', [
+            _module,
+          ]),
       );
     }
 

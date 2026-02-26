@@ -42,7 +42,7 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
       config.mailbox,
       zeroAddress,
     ]);
-    await super.configureClient(chain, router as unknown as Router, config);
+    await super.configureClient(chain, router as Router, config);
     return {
       router,
     };
