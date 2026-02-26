@@ -63,10 +63,8 @@ export const formatGasOracleConfig = (
   gasPrice: formatUnits(config.gasPrice, 'gwei'),
 });
 
-const percentDifference = (
-  actual: bigint,
-  expected: bigint,
-): bigint => ((expected - actual) * 100n) / actual;
+const percentDifference = (actual: bigint, expected: bigint): bigint =>
+  ((expected - actual) * 100n) / actual;
 
 const serializePercentDifference = (
   actual: bigint,

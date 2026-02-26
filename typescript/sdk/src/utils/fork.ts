@@ -179,9 +179,7 @@ export async function increaseTime(
   await provider.send(ANVIL_RPC_METHODS.INCREASE_TIME, [seconds]);
 }
 
-export async function snapshot(
-  provider: JsonRpcProvider,
-): Promise<string> {
+export async function snapshot(provider: JsonRpcProvider): Promise<string> {
   return provider.send(ANVIL_RPC_METHODS.SNAPSHOT, []);
 }
 

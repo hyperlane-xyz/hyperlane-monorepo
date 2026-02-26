@@ -16,12 +16,12 @@ import { proxyAdmin, proxyImplementation } from '../proxy.js';
 
 import { ContractVerificationInput } from './types.js';
 
-export function formatFunctionArguments(
-  fragment: Fragment,
-  args: any[],
-): any {
+export function formatFunctionArguments(fragment: Fragment, args: any[]): any {
   const params = Object.fromEntries(
-    fragment.inputs.map((input: any, index: number) => [input.name, args[index]]),
+    fragment.inputs.map((input: any, index: number) => [
+      input.name,
+      args[index],
+    ]),
   );
   return JSON.stringify(params, null, 2);
 }

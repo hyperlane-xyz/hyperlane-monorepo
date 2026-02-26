@@ -396,6 +396,7 @@ export {
   MultiProvider,
   MultiProviderOptions,
   SendTransactionOptions,
+  isNonceDriftError,
 } from './providers/MultiProvider.js';
 export {
   defaultEthersV6ProviderBuilder,
