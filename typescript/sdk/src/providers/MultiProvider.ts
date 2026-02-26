@@ -47,7 +47,8 @@ type DeployFactory<TContract = unknown> = {
 };
 
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
-const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
+const MIN_CONFIRMATION_TIMEOUT_MS = 180_000;
+const CONFIRMATION_TIMEOUT_MULTIPLIER = 4;
 
 function isEvmProviderLike(value: unknown): value is EvmProviderLike {
   return (
@@ -73,7 +74,7 @@ export interface SendTransactionOptions {
   waitConfirmations?: number | EthJsonRpcBlockParameterTag;
   /**
    * Timeout in ms when waiting for confirmations.
-   * Default: max(2 × confirmations × estimateBlockTime, 30s) when available, otherwise 300000 (5 min).
+   * Default: max(4 × confirmations × estimateBlockTime, 180s) when available, otherwise 300000 (5 min).
    */
   timeoutMs?: number;
 }
@@ -489,7 +490,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const dynamicTimeout =
       typeof confirmations === 'number' && estimateBlockTime
         ? Math.max(
-            confirmations * estimateBlockTime * 1000 * 2,
+            confirmations *
+              estimateBlockTime *
+              1000 *
+              CONFIRMATION_TIMEOUT_MULTIPLIER,
             MIN_CONFIRMATION_TIMEOUT_MS,
           )
         : DEFAULT_CONFIRMATION_TIMEOUT_MS;
