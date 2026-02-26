@@ -212,14 +212,17 @@ export interface MockMultiProviderConfig {
 }
 
 export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
+  const defaultTxHash =
+    '0x1111111111111111111111111111111111111111111111111111111111111111';
   const {
     chainMetadata = {},
     signerAddress = TEST_ADDRESSES.signer,
     sendTransactionReceipt = {
-      transactionHash:
-        '0x1111111111111111111111111111111111111111111111111111111111111111',
+      hash: defaultTxHash,
+      transactionHash: defaultTxHash,
       blockNumber: 100,
       status: 1,
+      logs: [],
     } as TransactionReceipt,
     throwOnSendTransaction,
     throwOnEstimateGas,
@@ -232,6 +235,7 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
     waitForTransaction: Sinon.stub().resolves(providerWaitForTransaction),
     getBlock: Sinon.stub().resolves(providerGetBlock),
     getTransactionReceipt: Sinon.stub().resolves(providerGetTransactionReceipt),
+    getTransactionCount: Sinon.stub().resolves(0),
   };
 
   const mockSigner = {
@@ -239,7 +243,7 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
     sendTransaction: throwOnSendTransaction
       ? Sinon.stub().rejects(throwOnSendTransaction)
       : Sinon.stub().resolves({
-          hash: sendTransactionReceipt.transactionHash,
+          hash: sendTransactionReceipt.hash,
           wait: Sinon.stub().resolves(sendTransactionReceipt),
         }),
   };
