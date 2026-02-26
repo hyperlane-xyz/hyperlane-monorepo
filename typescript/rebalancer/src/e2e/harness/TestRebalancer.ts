@@ -276,6 +276,7 @@ export class TestRebalancerBuilder {
       const inventorySignerAddress = new ethers.Wallet(
         inventoryModeConfig.inventorySignerKey,
       ).address;
+      rebalancerAddresses.push(inventorySignerAddress);
       rebalancerConfig = new RebalancerConfig(
         NATIVE_MONITORED_ROUTE_ID,
         this.strategyConfig,
