@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 
 import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
-import { Address, assert, randomInt } from '@hyperlane-xyz/utils';
+import { Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneContractsMap } from '../contracts/types.js';
@@ -12,6 +12,7 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
+  getContractAddress,
   randomAddress,
   randomDeployableIsmConfig,
   randomMultisigIsmConfig,
@@ -26,21 +27,6 @@ import {
   TrustedRelayerIsmConfig,
 } from './types.js';
 import { moduleMatchesConfig } from './utils.js';
-
-async function getContractAddress(contract: {
-  target?: unknown;
-  address?: unknown;
-  getAddress?: () => Promise<string>;
-}): Promise<Address> {
-  if (typeof contract.target === 'string') return contract.target;
-  if (typeof contract.address === 'string') return contract.address;
-  if (typeof contract.getAddress === 'function') {
-    const address = await contract.getAddress();
-    assert(typeof address === 'string', 'Missing contract address');
-    return address;
-  }
-  throw new Error('Missing contract address');
-}
 
 describe('HyperlaneIsmFactory', async () => {
   let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
