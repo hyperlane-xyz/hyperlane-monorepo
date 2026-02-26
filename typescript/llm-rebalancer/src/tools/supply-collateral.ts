@@ -1,15 +1,11 @@
 /**
- * supply_collateral — increase router collateral from rebalancer wallet inventory.
+ * supply_collateral — inventory reverse rebalance via transferRemote.
  *
- * Two execution modes:
+ * Calls transferRemote FROM the deficit chain (source), depositing collateral there.
+ * Tokens are released to the rebalancer on the surplus chain (destination).
+ * Net effect: source collateral ↑, destination collateral ↓, rebalancer inventory preserved.
  *
- * 1. **Reverse rebalance** (destination provided, cross-chain):
- *    Calls transferRemote FROM the deficit chain. Tokens are locked as collateral on source,
- *    released to rebalancer on the surplus destination. Net inventory preserved.
- *
- * 2. **Direct deposit** (no destination, or asset is globally depleted):
- *    Transfers tokens directly to the source router contract. Increases collateral on source.
- *    Rebalancer wallet inventory decreases — use only when the asset is depleted system-wide.
+ * NEVER donates inventory. The rebalancer's total token holdings must remain constant.
  *
  * For multi-collateral with multiple assets on the destination, uses transferRemoteTo
  * with an explicit target router.
@@ -25,7 +21,6 @@ const ERC20_ABI = [
   'function balanceOf(address) view returns (uint256)',
   'function allowance(address, address) view returns (uint256)',
   'function approve(address, uint256)',
-  'function transfer(address, uint256) returns (bool)',
 ];
 
 const WARP_TOKEN_ABI = [
@@ -39,16 +34,17 @@ export function buildSupplyCollateralTool(
 ): any {
   return {
     name: 'supply_collateral',
-    label: 'Supply Collateral',
+    label: 'Supply Collateral (Inventory Reverse Rebalance)',
     description:
-      'Increase collateral on the source (deficit) chain using rebalancer wallet inventory. ' +
-      'Two modes: (1) With destination — reverse rebalance via transferRemote (inventory preserved, ' +
-      'collateral moves from destination to source). (2) Without destination — direct deposit to ' +
-      'source router (inventory decreases, use for globally depleted assets). ' +
+      'Increase collateral on the source (deficit) chain by calling transferRemote FROM it. ' +
+      'Rebalancer tokens are deposited as collateral on source, then released to rebalancer on destination (surplus). ' +
+      'Rebalancer inventory is preserved — tokens just move chains. NEVER donates inventory. ' +
+      'Amount is capped to min(requested, sourceInventory, destRouterCollateral). ' +
+      'Source and destination must be different chains. ' +
       'Node IDs: "USDC|chain1" (multi-asset) or "chain1" (single-asset).',
     parameters: {
       type: 'object',
-      required: ['source', 'amount'],
+      required: ['source', 'destination', 'amount'],
       properties: {
         source: {
           type: 'string',
@@ -59,23 +55,32 @@ export function buildSupplyCollateralTool(
         destination: {
           type: 'string',
           description:
-            'Optional surplus node ID — chain where collateral will DECREASE and rebalancer receives tokens. ' +
-            'Omit for direct deposit (globally depleted assets).',
+            'Surplus node ID — chain where collateral will DECREASE. ' +
+            'Rebalancer receives tokens here.',
         },
         amount: { type: 'string', description: 'Amount in smallest unit' },
       },
     },
     async execute(
       _toolCallId: string,
-      params: { source: string; destination?: string; amount: string },
+      params: { source: string; destination: string; amount: string },
     ) {
       try {
         const src = resolveNode(agentConfig, params.source);
+        const dst = resolveNode(agentConfig, params.destination);
+
+        if (src.chain === dst.chain) {
+          return textResult(
+            'supply_collateral requires different chains. ' +
+              'Cannot reverse-rebalance within the same chain.',
+          );
+        }
+
         const provider = new ethers.providers.JsonRpcProvider(src.rpcUrl);
         const wallet = new ethers.Wallet(agentConfig.rebalancerKey, provider);
         const requested = ethers.BigNumber.from(params.amount);
 
-        // Check rebalancer inventory on source chain
+        // Check rebalancer inventory on source (deficit) chain
         const token = new ethers.Contract(
           src.collateralToken,
           ERC20_ABI,
@@ -90,47 +95,6 @@ export function buildSupplyCollateralTool(
           );
         }
 
-        // Cap to available inventory
-        let effective = requested.gt(sourceInventory)
-          ? sourceInventory
-          : requested;
-
-        // --- Mode 1: Direct deposit (no destination) ---
-        if (!params.destination) {
-          const tx = await token.transfer(src.warpToken, effective);
-          const receipt = await tx.wait();
-          return textResult(
-            JSON.stringify({
-              status: 'ok',
-              action: 'supply_collateral',
-              path: 'direct_deposit',
-              source: params.source,
-              effective: effective.toString(),
-              capped: effective.lt(requested),
-              txHash: receipt.transactionHash,
-            }),
-          );
-        }
-
-        // --- Mode 2: Reverse rebalance (with destination) ---
-        const dst = resolveNode(agentConfig, params.destination);
-        if (src.chain === dst.chain) {
-          // Same chain with destination = treat as direct deposit
-          const tx = await token.transfer(src.warpToken, effective);
-          const receipt = await tx.wait();
-          return textResult(
-            JSON.stringify({
-              status: 'ok',
-              action: 'supply_collateral',
-              path: 'direct_deposit',
-              source: params.source,
-              effective: effective.toString(),
-              capped: effective.lt(requested),
-              txHash: receipt.transactionHash,
-            }),
-          );
-        }
-
         // Check destination router collateral (can't withdraw more than exists)
         const dstProvider = new ethers.providers.JsonRpcProvider(dst.rpcUrl);
         const dstCollateralToken = new ethers.Contract(
@@ -141,27 +105,27 @@ export function buildSupplyCollateralTool(
         const destRouterCollateral: ethers.BigNumber =
           await dstCollateralToken.balanceOf(dst.warpToken);
 
-        // If destination has no collateral, fall back to direct deposit
         if (destRouterCollateral.isZero()) {
-          const tx = await token.transfer(src.warpToken, effective);
-          const receipt = await tx.wait();
           return textResult(
             JSON.stringify({
-              status: 'ok',
-              action: 'supply_collateral',
-              path: 'direct_deposit_fallback',
+              status: 'error',
+              error: 'destination_depleted',
               source: params.source,
               destination: params.destination,
-              reason: 'destination router has 0 collateral',
-              effective: effective.toString(),
-              capped: effective.lt(requested),
-              txHash: receipt.transactionHash,
+              reason:
+                'Destination router has 0 collateral — nothing to release to rebalancer. ' +
+                'Use rebalance_collateral or inventory bridge instead.',
             }),
           );
         }
 
-        // Cap to destination router collateral
-        let capped = effective.lt(requested);
+        // Cap to min(requested, sourceInventory, destRouterCollateral)
+        let effective = requested;
+        let capped = false;
+        if (effective.gt(sourceInventory)) {
+          effective = sourceInventory;
+          capped = true;
+        }
         if (effective.gt(destRouterCollateral)) {
           effective = destRouterCollateral;
           capped = true;

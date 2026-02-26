@@ -1,7 +1,7 @@
 {
   "name": "mc-wallet-swap",
-  "description": "Cross-asset transfers deplete ALL USDT (router + wallet=0). Wallet has only USDC. Rebalancer must mock_lifi_swap USDC→USDT, then supply_collateral.",
-  "expectedBehavior": "3 cross-asset transfers (USDC→USDT) of 50 each = 150 USDT demand.\nSystem has 100 USDT total (50/chain routers). Wallet has 0 USDT.\nFirst 2 transfers exhaust all router USDT. 3rd is BLOCKED.\nRebalancer must: (1) mock_lifi_swap USDC→USDT in wallet, (2) supply_collateral USDT to router.\nTests inventory bridge → supply flow.",
+  "description": "Cross-asset transfers drain USDT on chain2. Wallet has only USDC. Rebalancer must mock_lifi_swap USDC→USDT, then supply_collateral to redistribute.",
+  "expectedBehavior": "3 cross-asset transfers: 2 USDC→USDT (50 each to chain2) drain chain2 USDT.\n1 same-asset USDC (50, chain2→chain1) creates USDC imbalance.\nRebalancer must: (1) rebalance_collateral USDT chain1→chain2, (2) rebalance_collateral USDC chain1→chain2.\nIf rebalance_collateral fails, swap USDC→USDT via mock_lifi_swap then supply_collateral.\nTests multi-tool composition.",
   "duration": 30000,
   "chains": ["chain1", "chain2"],
   "assets": [
@@ -31,7 +31,7 @@
       "amount": "50000000000000000000",
       "user": "0x53e81e13db7f8a7f1ff614b699d36b22ba85761f",
       "sourceAsset": "USDC",
-      "destinationAsset": "USDT"
+      "destinationAsset": "USDC"
     },
     {
       "id": "mcw-002",
@@ -68,8 +68,8 @@
   },
   "defaultStrategyConfig": {
     "type": "weighted",
-    "routeHints": "Available paths:\n- rebalance_collateral tool: same-asset cross-chain (USDC chain1↔chain2, USDT chain1↔chain2)\n- supply_collateral tool: deposit wallet inventory into any router (same-asset, same-chain instant, cross-chain via bridge)\n- mock_lifi_swap tool: swap between assets in your wallet (same-chain, e.g. USDC→USDT)",
-    "policyProse": "User traffic is cross-asset (USDC in, USDT out), globally depleting USDT.\nYour wallet has USDC but NO USDT (check get_inventory).\nWhen USDT is DEPLETED and wallet has 0 USDT:\n1. Use mock_lifi_swap to convert USDC→USDT in your wallet\n2. Then supply_collateral to deposit USDT into the deficit router\nThis two-step flow is required — supply_collateral cannot help if you have no USDT inventory.",
+    "routeHints": "Available paths:\n- rebalance_collateral tool: same-asset cross-chain (USDC chain1↔chain2, USDT chain1↔chain2)\n- supply_collateral tool: reverse rebalance via transferRemote (inventory preserved, cross-chain)\n- mock_lifi_swap tool: swap between assets in your wallet (same-chain, e.g. USDC→USDT)",
+    "policyProse": "User traffic is cross-asset (USDC in, USDT out) and same-asset.\nUse rebalance_collateral for same-asset distribution imbalances (USDT chain1→chain2).\nIf you need USDT inventory for supply_collateral, use mock_lifi_swap to convert USDC→USDT first.\nNEVER donate inventory — supply_collateral always preserves total inventory.",
     "chains": {
       "USDC|chain1": {
         "weighted": { "weight": "0.500", "tolerance": "0.15" },

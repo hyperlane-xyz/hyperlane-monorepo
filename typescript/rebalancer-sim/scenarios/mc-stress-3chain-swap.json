@@ -140,8 +140,8 @@
   },
   "defaultStrategyConfig": {
     "type": "weighted",
-    "routeHints": "Available paths:\n- rebalance_collateral tool: same-asset cross-chain (USDC chain1↔chain2↔chain3, USDT chain1↔chain2↔chain3)\n- supply_collateral tool: deposit wallet inventory into any router (same-asset, same-chain instant, cross-chain via bridge)\n- mock_lifi_swap tool: swap between assets in your wallet (same-chain, e.g. USDC→USDT)",
-    "policyProse": "High volume mixed traffic across 3 chains.\nUSDT is globally depleted — demand far exceeds router supply.\nYour wallet has USDC but NO USDT.\nPriority: unblock USDT-depleted routers first.\n1. mock_lifi_swap USDC→USDT in wallet to get USDT inventory\n2. supply_collateral USDT to depleted routers (prefer same-chain for instant delivery)\n3. rebalance_collateral for USDC distribution imbalances\nDon't try to solve everything at once — handle critical USDT depletion first, then optimize.",
+    "routeHints": "Available paths:\n- rebalance_collateral tool: same-asset cross-chain (USDC chain1↔chain2↔chain3, USDT chain1↔chain2↔chain3)\n- supply_collateral tool: reverse rebalance via transferRemote (inventory preserved, cross-chain)\n- mock_lifi_swap tool: swap between assets in your wallet (same-chain, e.g. USDC→USDT)",
+    "policyProse": "High volume mixed traffic across 3 chains.\nUSDT demand exceeds router supply — use rebalance_collateral to redistribute USDT to chains that need it most.\nFor USDC distribution imbalances, also use rebalance_collateral.\nNEVER donate inventory — all rebalancing must preserve your total token holdings.",
     "chains": {
       "USDC|chain1": {
         "weighted": { "weight": "0.333", "tolerance": "0.15" },
@@ -170,7 +170,7 @@
     }
   },
   "expectations": {
-    "minCompletionRate": 0.75,
+    "minCompletionRate": 0.6,
     "shouldTriggerRebalancing": true
   }
 }

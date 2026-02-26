@@ -145,26 +145,23 @@ Three execution paths for collateral rebalancing:
 ### 1. \`rebalance_collateral\` — On-chain bridge rebalance
 Move router collateral directly between chains via configured on-chain bridges (MovableCollateralRouter). Same-asset only. Preferred when bridges are configured. Fastest path.
 
-### 2. \`supply_collateral\` — Use wallet inventory to increase router collateral
-Two modes:
-- **With destination** (cross-chain reverse rebalance): Calls \`transferRemote\` FROM the deficit chain. Tokens locked as collateral on source, released to your wallet on destination. **Inventory preserved.** Amount capped to min(requested, sourceInventory, destRouterCollateral).
-- **Without destination** (direct deposit): Transfers tokens from your wallet directly to the source router. **Inventory decreases.** Use ONLY when the asset is globally depleted (totalBalance=0 system-wide) and there's no surplus chain to reverse-rebalance against.
+### 2. \`supply_collateral\` — Reverse rebalance via warp transfer
+Calls \`transferRemote\` FROM the deficit chain (source). Tokens are locked as collateral on source (collateral ↑), then released to your wallet on destination/surplus (collateral ↓). **Your total inventory is preserved — tokens just move chains.** Requires both source and destination. Amount capped to min(requested, sourceInventory, destRouterCollateral).
 
 ### 3. Inventory bridge skills — Move wallet tokens between chains
 Skills in \`.pi/skills/\` (e.g., LiFi, CCTP). Only moves wallet inventory — does NOT affect router collateral directly. Use when your inventory is on the wrong chain or in the wrong asset, then follow with \`supply_collateral\`.
 
 ### Decision Tree
-1. **Distribution imbalance (one chain surplus, another deficit)?** → Try \`rebalance_collateral\` first (if bridge configured). If no bridge or it fails, use \`supply_collateral(source=deficit, destination=surplus)\` — inventory preserved.
-2. **Asset globally depleted (totalBalance=0)?** → Use \`supply_collateral(source=deficit)\` WITHOUT destination — direct deposit from wallet. Check \`get_inventory\` first.
-3. **Need inventory on a specific chain?** → Use inventory bridge skill to move it, then \`supply_collateral\`.
-4. **Need a different asset?** → Use inventory bridge skill to convert (e.g., USDC→USDT), then \`supply_collateral\`.
+1. **Distribution imbalance (one chain surplus, another deficit)?** → Try \`rebalance_collateral\` first (if bridge configured). If no bridge or it fails, use \`supply_collateral(source=deficit, destination=surplus)\`.
+2. **Need inventory on a specific chain for supply_collateral?** → Use inventory bridge skill to move it first.
+3. **Need a different asset?** → Use inventory bridge skill to convert (e.g., USDC→USDT), then \`supply_collateral\`.
 
 ## Loop
 
 1. Check previous context for pending actions. If pending, use \`check_hyperlane_delivery\` to verify.
 2. \`get_balances\` and \`get_pending_transfers\` (call in parallel). Check:
    a. For each pending transfer: the DESTINATION ASSET's collateral on the destination chain must be >= the pending amount. Match by asset (e.g., USDC→USDT transfer needs USDT collateral). If insufficient, BLOCKED — act on that specific asset.
-   b. If any asset is DEPLETED (totalBalance=0), NOT balanced — supply collateral from inventory.
+   b. If any asset is DEPLETED (totalBalance=0), NOT balanced.
    c. Weights within tolerance for all assets.
    Only if ALL pass → \`save_context\` with status=balanced.
 3. If blocked transfer or imbalanced:
@@ -178,7 +175,8 @@ Skills in \`.pi/skills/\` (e.g., LiFi, CCTP). Only moves wallet inventory — do
 - MUST call \`save_context\` at end of every cycle.
 - Never rebalance more than surplus. Account for inflight amounts.
 - If action fails, note in context, don't retry immediately.
-- \`supply_collateral\` with destination: preserves inventory (source collateral ↑, destination collateral ↓). Without destination: direct deposit (inventory decreases, collateral ↑). Only omit destination when asset is globally depleted.
+- **NEVER donate inventory.** Do NOT transfer tokens directly to a router contract. \`supply_collateral\` always requires both source AND destination and preserves your total inventory.
+- \`supply_collateral\`: source=deficit (collateral ↑), destination=surplus (collateral ↓, tokens released to your wallet). Both are required.
 - \`save_context\` summary format: FULL messageIds (66 hex chars) for pending. status=balanced or status=pending. Keep under 500 chars. No prose — just facts.
 - All amounts are in the token's smallest unit. Check \`get_chain_metadata\` for decimals (e.g., 6 for USDC/USDT, 18 for ETH).
 `;

@@ -1,7 +1,7 @@
 {
   "name": "mc-bidirectional-cross-asset",
   "description": "Bidirectional cross-asset transfers: some USDC→USDT, some USDT→USDC. Net effect depletes USDT on chain2. Rebalancer must identify net deficit, not over-react to both directions.",
-  "expectedBehavior": "4 transfers: 3 USDC→USDT (150 USDT demand) + 1 USDT→USDC (50 USDC demand).\nUSDT: 150 withdrawn, 0 deposited → net -150 vs 100 supply → depleted.\nUSDC: 50 withdrawn by USDT→USDC, but 150 USDC deposited by USDC→USDT → net surplus.\nRebalancer must supply USDT from inventory (depleted globally) and bridge USDC (distribution imbalance).",
+  "expectedBehavior": "4 transfers: 3 USDC→USDT + 1 USDT→USDC.\nThe USDT→USDC transfer at t=500 replenishes USDT on chain2, making the flows self-balancing.\nAll transfers complete without rebalancing. Tests that the rebalancer does NOT over-react to bidirectional flows.",
   "duration": 30000,
   "chains": ["chain1", "chain2"],
   "assets": [
@@ -74,8 +74,8 @@
   },
   "defaultStrategyConfig": {
     "type": "weighted",
-    "routeHints": "Available paths:\n- rebalance_collateral tool: same-asset cross-chain (USDC chain1↔chain2, USDT chain1↔chain2)\n- supply_collateral tool: deposit wallet inventory into any router (same-asset, same-chain instant, cross-chain via bridge)\n- mock_lifi_swap tool: swap between assets in your wallet (same-chain, e.g. USDC→USDT)",
-    "policyProse": "User traffic is BIDIRECTIONAL cross-asset: both USDC→USDT and USDT→USDC transfers.\nDon't over-react to both directions — compute NET imbalance per asset.\nUSDT is net depleted (more outflow than inflow). USDC has surplus from cross-asset deposits.\nWhen USDT is depleted, use supply_collateral from wallet inventory.\nFor USDC distribution imbalance, use rebalance_collateral.\nCheck get_inventory and get_balances to assess the situation.",
+    "routeHints": "Available paths:\n- rebalance_collateral tool: same-asset cross-chain (USDC chain1↔chain2, USDT chain1↔chain2)\n- supply_collateral tool: reverse rebalance via transferRemote (inventory preserved, cross-chain)\n- mock_lifi_swap tool: swap between assets in your wallet (same-chain, e.g. USDC→USDT)",
+    "policyProse": "User traffic is BIDIRECTIONAL cross-asset: both USDC→USDT and USDT→USDC transfers.\nDon't over-react to both directions — compute NET imbalance per asset.\nUse rebalance_collateral for same-asset distribution imbalances.\nNEVER donate inventory — all rebalancing must preserve your total token holdings.",
     "chains": {
       "USDC|chain1": {
         "weighted": { "weight": "0.500", "tolerance": "0.15" },
@@ -97,6 +97,6 @@
   },
   "expectations": {
     "minCompletionRate": 0.75,
-    "shouldTriggerRebalancing": true
+    "shouldTriggerRebalancing": false
   }
 }

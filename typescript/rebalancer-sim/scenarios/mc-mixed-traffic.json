@@ -106,8 +106,8 @@
   },
   "defaultStrategyConfig": {
     "type": "weighted",
-    "routeHints": "Available paths:\n- rebalance_collateral tool: same-asset cross-chain (USDC chain1↔chain2↔chain3, USDT chain1↔chain2↔chain3)\n- supply_collateral tool: deposit wallet inventory into any router (same-asset, same-chain instant, cross-chain via bridge)\n- mock_lifi_swap tool: swap between assets in your wallet (same-chain, e.g. USDC→USDT)",
-    "policyProse": "User traffic is mostly cross-asset (USDC in, USDT out), globally depleting USDT.\nWhen USDT is DEPLETED, use supply_collateral to deposit USDT from wallet inventory to deficit routers.\nFor same-asset distribution imbalances, use rebalance_collateral.\nCheck get_inventory to see your wallet balances. You have ample USDT inventory.",
+    "routeHints": "Available paths:\n- rebalance_collateral tool: same-asset cross-chain (USDC chain1↔chain2↔chain3, USDT chain1↔chain2↔chain3)\n- supply_collateral tool: reverse rebalance via transferRemote (inventory preserved, cross-chain)\n- mock_lifi_swap tool: swap between assets in your wallet (same-chain, e.g. USDC→USDT)",
+    "policyProse": "User traffic is mostly cross-asset (USDC in, USDT out), depleting USDT on destination chains.\nUse rebalance_collateral to redistribute USDT from surplus chains to deficit chains.\nFor cross-chain inventory repositioning, use supply_collateral (reverse rebalance, preserves inventory).\nNEVER donate inventory — all rebalancing must preserve your total token holdings.",
     "chains": {
       "USDC|chain1": {
         "weighted": { "weight": "0.333", "tolerance": "0.10" },
