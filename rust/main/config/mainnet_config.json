@@ -9553,7 +9553,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://eden-rpc.celestia.org"
+          "http": "https://rpc.eden.gateway.fm"
         }
       ],
       "technicalStack": "other",

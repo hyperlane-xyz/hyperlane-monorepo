@@ -1493,6 +1493,9 @@ importers:
       '@hyperlane-xyz/sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@hyperlane-xyz/tron-sdk':
+        specifier: workspace:*
+        version: link:../tron-sdk
       '@hyperlane-xyz/utils':
         specifier: workspace:*
         version: link:../utils

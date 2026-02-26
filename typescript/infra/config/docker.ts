@@ -56,8 +56,8 @@ export const testnetDockerTags: BaseDockerTags = {
   // rust agents
   relayer: '4aabed7-20260226-151632',
   relayerRC: '4aabed7-20260226-151632',
-  validator: 'cc5e978-20260217-190624',
-  validatorRC: 'cc5e978-20260217-190624',
+  validator: 'fcf6a24-20260225-131451',
+  validatorRC: '44c5a89-20260225-130150',
   scraper: 'cc5e978-20260217-190624',
   // standalone services
   keyFunder: '34d6708-20260223-230356',
