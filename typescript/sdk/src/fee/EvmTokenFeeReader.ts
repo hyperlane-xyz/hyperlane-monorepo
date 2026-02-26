@@ -161,8 +161,7 @@ export class EvmTokenFeeReader extends HyperlaneReader {
       throw new Error('bps must be > 0 to prevent division by zero');
     }
 
-    const maxFee =
-      MaxUint256 / ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
+    const maxFee = MaxUint256 / ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
     const halfAmount = ((maxFee / 2n) * MAX_BPS) / bps;
 
     return {

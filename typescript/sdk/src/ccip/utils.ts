@@ -126,11 +126,7 @@ export async function isSupportedCCIPLane({
     return false;
   }
   const signer = multiProvider.getSigner(origin);
-  const ccipRouter = new Contract(
-    originRouter,
-    CCIP_ROUTER_CLIENT_ABI,
-    signer,
-  );
+  const ccipRouter = new Contract(originRouter, CCIP_ROUTER_CLIENT_ABI, signer);
 
   return ccipRouter.isChainSupported(destinationSelector);
 }

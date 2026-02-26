@@ -70,7 +70,10 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
       const currentGasConfig = await igp.destinationGasConfigs(remoteId);
       if (
-        !eqAddress(currentGasConfig.gasOracle, storageGasOracle.target as string) ||
+        !eqAddress(
+          currentGasConfig.gasOracle,
+          storageGasOracle.target as string,
+        ) ||
         currentGasConfig.gasOverhead !== BigInt(newGasOverhead)
       ) {
         this.logger.debug(
@@ -88,9 +91,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     if (gasParamsToSet.length > 0) {
       await this.runIfOwner(chain, igp, async () => {
-        const estimatedGas = await igp.setDestinationGasConfigs.estimateGas(
-          gasParamsToSet,
-        );
+        const estimatedGas =
+          await igp.setDestinationGasConfigs.estimateGas(gasParamsToSet);
         return this.multiProvider.handleTx(
           chain,
           igp.setDestinationGasConfigs(gasParamsToSet, {
@@ -152,10 +154,11 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       }
 
       const exampleRemoteGas = (config.overhead[remote] ?? 200_000) + 50_000;
-      const exampleRemoteGasCost = desiredData.tokenExchangeRate
-        * desiredData.gasPrice
-        * BigInt(exampleRemoteGas)
-        / TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM;
+      const exampleRemoteGasCost =
+        (desiredData.tokenExchangeRate *
+          desiredData.gasPrice *
+          BigInt(exampleRemoteGas)) /
+        TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM;
       this.logger.info(
         `${chain} -> ${remote}: ${exampleRemoteGas} remote gas cost: ${formatEther(
           exampleRemoteGasCost,
@@ -165,9 +168,8 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
     if (configsToSet.length > 0) {
       await this.runIfOwner(chain, gasOracle, async () => {
-        const estimatedGas = await gasOracle.setRemoteGasDataConfigs.estimateGas(
-          configsToSet,
-        );
+        const estimatedGas =
+          await gasOracle.setRemoteGasDataConfigs.estimateGas(configsToSet);
         return this.multiProvider.handleTx(
           chain,
           gasOracle.setRemoteGasDataConfigs(configsToSet, {

@@ -51,7 +51,7 @@ type TransactionResponseLike = {
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 300_000;
 const MIN_CONFIRMATION_TIMEOUT_MS = 30_000;
 
-function isNonceDriftError(error: unknown): boolean {
+export function isNonceDriftError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const err = error as { code?: unknown; message?: unknown };
   if (err.code === 'NONCE_EXPIRED') return true;

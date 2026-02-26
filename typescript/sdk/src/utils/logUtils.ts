@@ -14,7 +14,5 @@ export function findMatchingLogEvents(
         return undefined;
       }
     })
-    .filter(
-      (log): log is LogDescription => !!log && log.name === eventName,
-    );
+    .filter((log): log is LogDescription => !!log && log.name === eventName);
 }

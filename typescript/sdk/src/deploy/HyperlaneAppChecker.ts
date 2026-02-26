@@ -102,8 +102,8 @@ export abstract class HyperlaneAppChecker<
     ownableOverrides?: Record<string, Address>,
   ): Promise<void> {
     // expectedProxyAdminAddress may be undefined, this means that proxyAdmin is not set in the config/not known at deployment time
-    const expectedProxyAdminAddress =
-      this.app.getContracts(chain).proxyAdmin?.target as Address | undefined;
+    const expectedProxyAdminAddress = this.app.getContracts(chain).proxyAdmin
+      ?.target as Address | undefined;
     const provider = this.multiProvider.getProvider(chain);
 
     const contracts = objFilter(
