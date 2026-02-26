@@ -41,7 +41,8 @@ export interface LocalDeploymentContext {
 const ANVIL_DEPLOYER_BALANCE_HEX = '0x56BC75E2D63100000';
 const USDC_INITIAL_SUPPLY = '100000000000000';
 const USDC_DECIMALS = 6;
-const TOKEN_SCALE = 1n;
+const TOKEN_SCALE_NUMERATOR = 1n;
+const TOKEN_SCALE_DENOMINATOR = 1n;
 
 export class LocalDeploymentManager {
   private context?: LocalDeploymentContext;
@@ -144,7 +145,12 @@ export class LocalDeploymentManager {
 
         const monitoredRoute = await new HypERC20Collateral__factory(
           deployer,
-        ).deploy(token.address, TOKEN_SCALE, mailbox.address);
+        ).deploy(
+          token.address,
+          TOKEN_SCALE_NUMERATOR,
+          TOKEN_SCALE_DENOMINATOR,
+          mailbox.address,
+        );
         await monitoredRoute.deployed();
         await monitoredRoute.initialize(
           zeroAddress,
@@ -154,7 +160,12 @@ export class LocalDeploymentManager {
 
         const bridgeRoute1 = await new HypERC20Collateral__factory(
           deployer,
-        ).deploy(token.address, TOKEN_SCALE, mailbox.address);
+        ).deploy(
+          token.address,
+          TOKEN_SCALE_NUMERATOR,
+          TOKEN_SCALE_DENOMINATOR,
+          mailbox.address,
+        );
         await bridgeRoute1.deployed();
         await bridgeRoute1.initialize(
           zeroAddress,
@@ -164,7 +175,12 @@ export class LocalDeploymentManager {
 
         const bridgeRoute2 = await new HypERC20Collateral__factory(
           deployer,
-        ).deploy(token.address, TOKEN_SCALE, mailbox.address);
+        ).deploy(
+          token.address,
+          TOKEN_SCALE_NUMERATOR,
+          TOKEN_SCALE_DENOMINATOR,
+          mailbox.address,
+        );
         await bridgeRoute2.deployed();
         await bridgeRoute2.initialize(
           zeroAddress,
