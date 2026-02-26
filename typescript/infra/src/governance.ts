@@ -1,7 +1,7 @@
 import { Argv } from 'yargs';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { Address, eqAddressEvm } from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddressEvm } from '@hyperlane-xyz/utils';
 
 import {
   getGovernanceIcas,
@@ -41,6 +41,21 @@ export function withGovernanceType<T>(args: Argv<T>) {
     choices: Object.values(GovernanceType),
     default: GovernanceType.Regular,
   });
+}
+
+export function resolveGovernanceOwner(
+  governanceType: GovernanceType,
+  ownerType: Owner,
+  chain: ChainName,
+): Address | undefined {
+  const lookup: Partial<Record<Owner, () => Record<string, Address>>> = {
+    [Owner.ICA]: () => getGovernanceIcas(governanceType),
+    [Owner.SAFE]: () => getGovernanceSafes(governanceType),
+    [Owner.TIMELOCK]: () => getGovernanceTimelocks(governanceType),
+  };
+  const resolver = lookup[ownerType];
+  assert(resolver, `Cannot resolve owner for type: ${ownerType}`);
+  return resolver()[chain];
 }
 
 export async function determineGovernanceType(
