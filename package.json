@@ -44,9 +44,9 @@
     "prettier": "catalog:",
     "prettier-plugin-solidity": "catalog:",
     "tsx": "catalog:",
-    "turbo": "^2.5.3"
+    "turbo": "^2.8.11"
   },
-  "packageManager": "pnpm@10.25.0",
+  "packageManager": "pnpm@10.30.2",
   "pnpm": {
     "overrides": {
       "async": "^2.6.4",

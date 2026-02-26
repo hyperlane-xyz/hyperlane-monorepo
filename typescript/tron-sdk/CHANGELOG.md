@@ -1,5 +1,23 @@
 # @hyperlane-xyz/tron-sdk
 
+## 21.1.2
+
+### Patch Changes
+
+- Updated dependencies [521d42b]
+  - @hyperlane-xyz/core@10.2.0
+  - @hyperlane-xyz/utils@25.3.2
+  - @hyperlane-xyz/provider-sdk@1.3.6
+
+## 21.1.1
+
+### Patch Changes
+
+- 7636bb4: fix: assert import
+  - @hyperlane-xyz/utils@25.3.1
+  - @hyperlane-xyz/provider-sdk@1.3.5
+  - @hyperlane-xyz/core@10.1.5
+
 ## 21.1.0
 
 ### Minor Changes

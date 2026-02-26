@@ -1,5 +1,31 @@
 # @hyperlane-xyz/rebalancer
 
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [521d42b]
+  - @hyperlane-xyz/core@10.2.0
+  - @hyperlane-xyz/metrics@0.1.8
+  - @hyperlane-xyz/sdk@25.3.2
+  - @hyperlane-xyz/utils@25.3.2
+  - @hyperlane-xyz/provider-sdk@1.3.6
+
+## 3.1.0
+
+### Minor Changes
+
+- aa6871b: Added configurable intent TTL to expire stale in-progress rebalance intents. Defaults to 7 days. Uses `send_occurred_at` from the explorer API for accurate TTL calculation.
+
+### Patch Changes
+
+- ff8c0f0: Fixed inventory rebalancer oscillation edge case where an intent with its final deposit fully in-flight (remaining === 0) was invisible to the rebalancer, potentially allowing contradictory intent creation.
+  - @hyperlane-xyz/sdk@25.3.1
+  - @hyperlane-xyz/metrics@0.1.7
+  - @hyperlane-xyz/utils@25.3.1
+  - @hyperlane-xyz/provider-sdk@1.3.5
+  - @hyperlane-xyz/core@10.1.5
+
 ## 3.0.0
 
 ### Major Changes
