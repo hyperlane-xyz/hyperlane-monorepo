@@ -5,6 +5,7 @@ import {
   HyperlaneCore,
   MultiProtocolProvider,
   type MultiProvider,
+  type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
@@ -262,7 +263,7 @@ export class TestRebalancerBuilder {
 
     let inventoryMultiProvider: MultiProvider | undefined;
     let rebalancerConfig: RebalancerConfig;
-    let warpCoreConfig;
+    let warpCoreConfig: WarpCoreConfig;
     if (isInventoryMode) {
       inventoryMultiProvider =
         await this.getInventoryMultiProvider(localProviders);
