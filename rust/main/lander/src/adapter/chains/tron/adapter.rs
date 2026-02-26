@@ -23,13 +23,13 @@ pub struct TronAdapter<P: TronProviderForLander> {
 }
 
 impl TronAdapter<TronProvider> {
-    pub fn from_conf(
+    pub async fn from_conf(
         conf: &ChainConf,
         metrics: &CoreMetrics,
         connection_conf: &hyperlane_tron::ConnectionConf,
     ) -> Result<Self, LanderError> {
         // We must have a signer if we want to land transactions.
-        let signer = create_signer(conf)?;
+        let signer = create_signer(conf).await?;
 
         let locator = ContractLocator {
             domain: &conf.domain,

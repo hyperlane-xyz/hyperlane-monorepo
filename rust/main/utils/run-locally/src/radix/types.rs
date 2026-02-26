@@ -121,7 +121,8 @@ impl AgentConfig {
             }],
             native_token: NativeToken {
                 decimals: 18,
-                denom: "XRD".to_owned(),
+                symbol: "XRD".to_owned(),
+                denom: String::new(),
             },
             network_name: NETWORK.logical_name.to_string(),
         }

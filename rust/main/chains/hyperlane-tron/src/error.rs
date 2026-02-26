@@ -42,6 +42,9 @@ pub enum HyperlaneTronError {
     /// Reqwest error
     #[error("Reqwest error: {0}")]
     ReqwestError(#[from] reqwest::Error),
+    /// Signing error
+    #[error("Signing error: {0}")]
+    SigningError(#[from] crate::signer::TronSignersError),
 }
 
 impl From<tonic::Status> for HyperlaneTronError {

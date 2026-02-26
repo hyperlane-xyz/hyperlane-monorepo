@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/aleo-sdk",
-  "version": "25.3.1",
+  "version": "25.3.2",
   "description": "Hyperlane TypeScript SDK for the Aleo Hyperlane SDK module",
   "keywords": [
     "aleo",

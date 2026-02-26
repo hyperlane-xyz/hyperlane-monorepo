@@ -17,7 +17,7 @@ contract MockMovableCollateralRouter is MovableCollateralRouter {
     uint256 public chargedToRebalancer;
     address _token;
 
-    constructor(address _mailbox, address __token) TokenRouter(1, _mailbox) {
+    constructor(address _mailbox, address __token) TokenRouter(1, 1, _mailbox) {
         _token = __token;
     }
 
@@ -128,9 +128,11 @@ contract MovableCollateralRouterTest is Test {
         vm.expectCall(
             address(vtb),
             nativeFee,
-            abi.encodeCall(
-                ITokenBridge.transferRemote,
-                (destinationDomain, remote.addressToBytes32(), collateralAmount)
+            abi.encodeWithSelector(
+                bytes4(keccak256("transferRemote(uint32,bytes32,uint256)")),
+                destinationDomain,
+                remote.addressToBytes32(),
+                collateralAmount
             )
         );
         router.rebalance{value: nativeFee}(

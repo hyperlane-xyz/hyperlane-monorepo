@@ -131,12 +131,23 @@ impl ChainSigner for hyperlane_ethereum::Signers {
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::HexKey { key } = conf {
-            let key = ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())?;
-            let wallet = ethers::core::k256::ecdsa::SigningKey::from(key);
-            Ok(hyperlane_tron::TronSigner::from(wallet))
-        } else {
-            bail!(format!("{conf:?} key is not supported by tron"));
+        match conf {
+            SignerConf::HexKey { key } => {
+                let key = ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())?;
+                let wallet = ethers::core::k256::ecdsa::SigningKey::from(key);
+                Ok(hyperlane_tron::TronSigner::from(wallet))
+            }
+            SignerConf::Aws { id, region } => {
+                let http_client = utils::http_client_with_timeout()
+                    .map_err(|err| eyre::eyre!(err.to_string()))?;
+                let client = KmsClient::new_with_client(
+                    rusoto_core::Client::new_with(AwsChainCredentialsProvider::new(), http_client),
+                    region.clone(),
+                );
+                let signer = AwsSigner::new(client, id, 0, Some(AWS_SIGNER_TIMEOUT)).await?;
+                Ok(hyperlane_tron::TronSigner::Aws(signer))
+            }
+            _ => bail!(format!("{conf:?} key is not supported by tron")),
         }
     }
 }
@@ -158,7 +169,7 @@ impl ChainSigner for hyperlane_tron::TronSigner {
         bs58::encode(final_bytes).into_string()
     }
     fn address_h256(&self) -> H256 {
-        ethers::types::H256::from(ethers::signers::Signer::address(self)).into()
+        ethers::types::H256::from(self.address()).into()
     }
 }
 
