@@ -33,12 +33,7 @@ import {
   TestRecipientDeployer,
   testChains,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  WithAddress,
-  bytes32ToAddress,
-  objMap,
-} from '@hyperlane-xyz/utils';
+import { WithAddress, bytes32ToAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
 import {
@@ -129,9 +124,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
     for (const key of Object.keys(factoryContracts) as Array<
       keyof ProxyFactoryFactories
     >) {
-      proxyFactoryAddresses[key] = (await contractsMap[origin][
-        key
-      ].getAddress()) as Address;
+      proxyFactoryAddresses[key] = await contractsMap[origin][key].getAddress();
     }
     arbBridge = await multiProvider.handleDeploy(
       origin,
