@@ -306,16 +306,19 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
             ],
         )?;
 
-        // Transfer fee to recipient (if any)
+        // Transfer fee to beneficiary (if any).
+        // The fee_beneficiary_account's legitimacy (matching the fee account's
+        // stored beneficiary) was verified by verify_and_quote_fee in the
+        // hyperlane-sealevel-token lib.
         if fee_amount > 0 {
-            let recipient_ata = fee_beneficiary_account.ok_or(ProgramError::from(
+            let fee_beneficiary_ata = fee_beneficiary_account.ok_or(ProgramError::from(
                 hyperlane_sealevel_token_lib::error::Error::FeeBeneficiaryRequired,
             ))?;
             let fee_transfer_instruction = transfer_checked(
                 spl_token_account_info.key,
                 sender_ata_account_info.key,
                 mint_account_info.key,
-                recipient_ata.key,
+                fee_beneficiary_ata.key,
                 sender_wallet_account_info.key,
                 &[],
                 fee_amount,
@@ -326,7 +329,7 @@ impl HyperlaneSealevelTokenPlugin for CollateralPlugin {
                 &[
                     sender_ata_account_info.clone(),
                     mint_account_info.clone(),
-                    recipient_ata.clone(),
+                    fee_beneficiary_ata.clone(),
                     sender_wallet_account_info.clone(),
                 ],
             )?;
