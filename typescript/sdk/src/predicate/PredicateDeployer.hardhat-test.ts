@@ -104,7 +104,6 @@ describe('PredicateWrapperDeployer', async () => {
       const wrapperAddress = await deployer.deployPredicateWrapper(
         chain,
         warpRouteAddress,
-        testTokenAddress,
         {
           predicateRegistry: mockPredicateRegistry.address,
           policyId: MOCK_POLICY_ID,
@@ -130,7 +129,6 @@ describe('PredicateWrapperDeployer', async () => {
       const wrapperAddress = await deployer.deployPredicateWrapper(
         chain,
         warpRouteAddress,
-        testTokenAddress,
         {
           predicateRegistry: mockPredicateRegistry.address,
           policyId: MOCK_POLICY_ID,
@@ -174,7 +172,6 @@ describe('PredicateWrapperDeployer', async () => {
       const result = await deployer.deployAndConfigure(
         chain,
         newCollateral.address,
-        testTokenAddress,
         {
           predicateRegistry: mockPredicateRegistry.address,
           policyId: MOCK_POLICY_ID,
@@ -222,7 +219,6 @@ describe('PredicateWrapperDeployer', async () => {
       const result = await deployer.deployAndConfigure(
         chain,
         newCollateral.address,
-        testTokenAddress,
         {
           predicateRegistry: mockPredicateRegistry.address,
           policyId: MOCK_POLICY_ID,
@@ -266,7 +262,6 @@ describe('PredicateWrapperDeployer', async () => {
       const result = await deployer.deployAndConfigure(
         chain,
         collateralWithWrapper.address,
-        testTokenAddress,
         {
           predicateRegistry: mockPredicateRegistry.address,
           policyId: MOCK_POLICY_ID,

@@ -554,20 +554,6 @@ abstract class TokenDeployer<
 
         const router = this.router(deployedContractsMap[chain]);
 
-        // Determine token address based on type:
-        // - Collateral: underlying token address
-        // - Synthetic: warp route address (token == warpRoute)
-        // - Native: address(0) (no underlying token)
-        let tokenAddress: string;
-        if (isCollateralTokenConfig(config)) {
-          tokenAddress = config.token;
-        } else if (isSyntheticTokenConfig(config)) {
-          tokenAddress = router.address;
-        } else {
-          // Native token
-          tokenAddress = '0x0000000000000000000000000000000000000000';
-        }
-
         const factoryContracts = this.options.ismFactory?.getContracts(chain);
         if (!factoryContracts?.staticAggregationHookFactory) {
           throw new Error(
@@ -581,10 +567,10 @@ abstract class TokenDeployer<
           this.logger,
         );
 
+        // Token address is fetched from router.token() in PredicateRouterWrapper constructor
         await predicateDeployer.deployAndConfigure(
           chain,
           router.address,
-          tokenAddress,
           config.predicateWrapper,
         );
       }),

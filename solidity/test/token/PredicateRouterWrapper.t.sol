@@ -141,9 +141,9 @@ contract PredicateRouterWrapperTest is Test {
         registry.registerAttester(ATTESTER);
 
         // Deploy predicate wrapper (deployer becomes owner)
+        // Token address is fetched from warpRoute.token()
         predicateWrapper = new PredicateRouterWrapper(
             address(collateralRouter),
-            address(primaryToken),
             address(registry),
             POLICY_ID
         );
@@ -225,7 +225,6 @@ contract PredicateRouterWrapperTest is Test {
         );
         new PredicateRouterWrapper(
             address(collateralRouter),
-            address(primaryToken),
             address(0),
             POLICY_ID
         );
@@ -239,7 +238,6 @@ contract PredicateRouterWrapperTest is Test {
         );
         new PredicateRouterWrapper(
             address(collateralRouter),
-            address(primaryToken),
             address(registry),
             ""
         );

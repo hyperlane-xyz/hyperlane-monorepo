@@ -111,13 +111,11 @@ contract PredicateRouterWrapper is
      * @notice Initializes the PredicateRouterWrapper
      * @dev Deployer becomes owner. Use transferOwnership() to change owner after deployment.
      * @param _warpRoute The underlying TokenRouter to wrap
-     * @param _token The ERC20 token address (use warpRoute.token() for collateral routes)
      * @param _registry The Predicate registry address
      * @param _policyID The policy ID for attestation validation
      */
     constructor(
         address _warpRoute,
-        address _token,
         address _registry,
         string memory _policyID
     ) {
@@ -127,14 +125,15 @@ contract PredicateRouterWrapper is
             revert PredicateRouterWrapper__InvalidPolicy();
 
         warpRoute = TokenRouter(_warpRoute);
-        token = IERC20(_token);
+        address tokenAddress = warpRoute.token();
+        token = IERC20(tokenAddress);
 
         // Initialize PredicateClient (handles registry, policy storage and registration)
         _initPredicateClient(_registry, _policyID);
 
         // Infinite approval to warp route for collateral routes only
-        // Skip for: synthetics (warpRoute == token), native (token == address(0))
-        if (_warpRoute != _token && _token != address(0)) {
+        // Skip for: synthetics (token address == warpRoute), native (token address == address(0))
+        if (tokenAddress != _warpRoute && tokenAddress != address(0)) {
             token.forceApprove(_warpRoute, type(uint256).max);
         }
     }

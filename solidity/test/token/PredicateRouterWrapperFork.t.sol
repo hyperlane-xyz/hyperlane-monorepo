@@ -167,10 +167,10 @@ contract PredicateRouterWrapperForkTest is Test {
         );
 
         // Deploy predicate wrapper with REAL registry address
+        // Token address is fetched from warpRoute.token()
         // Note: No need to mock setPolicyID - the real registry allows any client to set their policy
         predicateWrapper = new PredicateRouterWrapper(
             address(collateralRouter),
-            address(primaryToken),
             PREDICATE_REGISTRY,
             POLICY_ID
         );

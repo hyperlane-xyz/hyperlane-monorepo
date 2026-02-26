@@ -33,7 +33,6 @@ export class PredicateWrapperDeployer {
   async deployPredicateWrapper(
     chain: ChainName,
     warpRouteAddress: Address,
-    tokenAddress: Address,
     config: PredicateWrapperConfig,
   ): Promise<Address> {
     const signer = this.multiProvider.getSigner(chain);
@@ -47,9 +46,9 @@ export class PredicateWrapperDeployer {
       'Deploying PredicateRouterWrapper',
     );
 
+    // Token address is fetched from warpRoute.token() in constructor
     const wrapper = await new PredicateRouterWrapper__factory(signer).deploy(
       warpRouteAddress,
-      tokenAddress,
       config.predicateRegistry,
       config.policyId,
     );
@@ -119,7 +118,6 @@ export class PredicateWrapperDeployer {
   async deployAndConfigure(
     chain: ChainName,
     warpRouteAddress: Address,
-    tokenAddress: Address,
     config: PredicateWrapperConfig,
   ): Promise<PredicateWrapperDeploymentResult> {
     const signer = this.multiProvider.getSigner(chain);
@@ -130,7 +128,6 @@ export class PredicateWrapperDeployer {
     const wrapperAddress = await this.deployPredicateWrapper(
       chain,
       warpRouteAddress,
-      tokenAddress,
       config,
     );
 
