@@ -141,7 +141,6 @@ type ${name}EstimateGasSignatureMethods = ${renderSignatureAliasType(
   )};
 
 export type ${name} = ViemContractLike<typeof ${abiIdentifier}> &
-  Record<string, unknown> &
   ${name}Methods &
   ${name}SignatureMethods & {
   estimateGas: ViemContractLike<typeof ${abiIdentifier}>['estimateGas'] &
