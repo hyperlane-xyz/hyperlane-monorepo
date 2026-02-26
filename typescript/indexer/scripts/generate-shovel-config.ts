@@ -57,7 +57,7 @@ interface ShovelEvent {
 interface ShovelIntegration {
   name: string;
   enabled: true;
-  sources: Array<{ name: string; start: number }>;
+  sources: Array<{ name: string; start: number; stop?: number }>;
   table: ShovelTable;
   block: ShovelBlockBinding[];
   event: ShovelEvent;
@@ -217,6 +217,27 @@ function getWsUrl(chainName: string): string | undefined {
   return process.env[`HYP_WS_${envName}`];
 }
 
+async function fetchLatestBlock(rpcUrl: string): Promise<number> {
+  const response = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'eth_blockNumber',
+      params: [],
+      id: 1,
+    }),
+  });
+  const json = (await response.json()) as {
+    result?: string;
+    error?: { message: string };
+  };
+  assert(json.result, `eth_blockNumber failed: ${json.error?.message}`);
+  return parseInt(json.result, 16);
+}
+
+type SourceRef = { name: string; start: number; stop?: number };
+
 async function loadRegistryRpcUrls(
   chainNames: string[],
 ): Promise<Record<string, string[]>> {
@@ -319,10 +340,9 @@ function commonBlockBindings(
 
 function mailboxIntegrations(
   chainName: string,
-  startBlock: number,
+  sources: SourceRef[],
   addresses: ContractAddresses,
 ): ShovelIntegration[] {
-  const sources = [{ name: chainName, start: startBlock }];
   const mailbox = addresses.mailbox;
 
   return [
@@ -382,13 +402,13 @@ function mailboxIntegrations(
 
 function igpIntegration(
   chainName: string,
-  startBlock: number,
+  sources: SourceRef[],
   igpAddress: `0x${string}`,
 ): ShovelIntegration {
   return {
     name: `${chainName}_igp_gas_payment`,
     enabled: true,
-    sources: [{ name: chainName, start: startBlock }],
+    sources,
     table: {
       name: 'hl_igp_gas_payment',
       columns: [
@@ -416,13 +436,13 @@ function igpIntegration(
 
 function merkleIntegration(
   chainName: string,
-  startBlock: number,
+  sources: SourceRef[],
   merkleAddress: `0x${string}`,
 ): ShovelIntegration {
   return {
     name: `${chainName}_merkle_insert`,
     enabled: true,
-    sources: [{ name: chainName, start: startBlock }],
+    sources,
     table: {
       name: 'hl_merkle_insert',
       columns: [
@@ -487,23 +507,33 @@ async function main(): Promise<void> {
       poll_duration: args.pollDuration,
     });
 
-    integrations.push(
-      ...mailboxIntegrations(chain.name, startBlock, addresses),
-    );
+    // Build source references: if startBlock > 0, create dual sources
+    // (backfill + tip) so historical indexing and tip tracking run concurrently.
+    let sources: SourceRef[];
+    if (startBlock > 0) {
+      const latestBlock = await fetchLatestBlock(rpcUrls[0]);
+      console.log(
+        `${chain.name}: latest block ${latestBlock}, backfill from ${startBlock}`,
+      );
+      sources = [
+        { name: chain.name, start: startBlock, stop: latestBlock },
+        { name: chain.name, start: latestBlock },
+      ];
+    } else {
+      sources = [{ name: chain.name, start: 0 }];
+    }
+
+    integrations.push(...mailboxIntegrations(chain.name, sources, addresses));
 
     if (addresses.interchainGasPaymaster) {
       integrations.push(
-        igpIntegration(
-          chain.name,
-          startBlock,
-          addresses.interchainGasPaymaster,
-        ),
+        igpIntegration(chain.name, sources, addresses.interchainGasPaymaster),
       );
     }
 
     if (addresses.merkleTreeHook) {
       integrations.push(
-        merkleIntegration(chain.name, startBlock, addresses.merkleTreeHook),
+        merkleIntegration(chain.name, sources, addresses.merkleTreeHook),
       );
     }
   }
