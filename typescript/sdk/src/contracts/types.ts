@@ -18,7 +18,6 @@ export type HyperlaneContractLike = {
   attach(address: Address): HyperlaneContractLike;
   connect(connection: unknown): HyperlaneContractLike;
   initialize?: (...args: readonly never[]) => unknown;
-  [key: string]: unknown;
 };
 
 export type HyperlaneContractFactory<
