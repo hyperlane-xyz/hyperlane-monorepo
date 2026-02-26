@@ -992,7 +992,7 @@ describe('EvmWarpRouteReader', async () => {
     // For old contracts (< 11.0.0), scale would default to 1
     const fetchScaleStub = sinon
       .stub(evmERC20WarpRouteReader, 'fetchScale')
-      .resolves({ numerator: 1n, denominator: 1n });
+      .resolves(undefined);
 
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
@@ -1127,7 +1127,7 @@ describe('EvmWarpRouteReader', async () => {
         // For old contracts (< 11.0.0), scale would default to 1
         const fetchScaleStub = sinon
           .stub(evmERC20WarpRouteReader, 'fetchScale')
-          .resolves({ numerator: 1n, denominator: 1n });
+          .resolves(undefined);
 
         const derivedConfig =
           await evmERC20WarpRouteReader.deriveWarpRouteConfig(warpAddress);

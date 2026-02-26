@@ -33,6 +33,8 @@ export const DerivedCoreConfigSchema = CoreConfigSchema.merge(
 );
 
 export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
+  // Override to optional: non-EVM chains don't deploy this factory
+  incrementalDomainRoutingIsmFactory: z.string().optional(),
   mailbox: z.string(),
   validatorAnnounce: z.string(),
   proxyAdmin: z.string(),

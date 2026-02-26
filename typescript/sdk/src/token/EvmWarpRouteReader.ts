@@ -1129,9 +1129,11 @@ export class EvmWarpRouteReader extends EvmRouterReader {
    * for contracts >= 11.0.0, otherwise reads legacy scale value.
    *
    * @param tokenRouterAddress - The address of the TokenRouter contract.
-   * @returns The scale as a NormalizedScale (bigint numerator/denominator) for lossless precision.
+   * @returns The scale as a NormalizedScale, or undefined when the scale is the identity (1/1).
    */
-  async fetchScale(tokenRouterAddress: Address): Promise<NormalizedScale> {
+  async fetchScale(
+    tokenRouterAddress: Address,
+  ): Promise<NormalizedScale | undefined> {
     const packageVersion = await this.fetchPackageVersion(tokenRouterAddress);
     const hasScaleFractionInterface =
       compareVersions(packageVersion, SCALE_FRACTION_VERSION) >= 0;
@@ -1141,6 +1143,8 @@ export class EvmWarpRouteReader extends EvmRouterReader {
       this.provider,
     );
 
+    let result: NormalizedScale;
+
     if (hasScaleFractionInterface) {
       // Read new format (scaleNumerator and scaleDenominator)
       const [numerator, denominator] = await Promise.all([
@@ -1148,7 +1152,7 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         tokenRouter.scaleDenominator(),
       ]);
 
-      return {
+      result = {
         numerator: numerator.toBigInt(),
         denominator: denominator.toBigInt(),
       };
@@ -1163,8 +1167,15 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.provider,
       );
       const scale: BigNumber = await legacyContract.scale();
-      return { numerator: scale.toBigInt(), denominator: 1n };
+      result = { numerator: scale.toBigInt(), denominator: 1n };
     }
+
+    // Omit identity scale so derived config matches deploy configs that
+    // don't specify scale (i.e. uniform-decimal routes).
+    if (result.numerator === 1n && result.denominator === 1n) {
+      return undefined;
+    }
+    return result;
   }
 
   async fetchPackageVersion(address: Address) {
