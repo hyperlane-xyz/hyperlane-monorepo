@@ -285,7 +285,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         if (domainIds.length > 0) {
           await icaRouter.isms(domainIds[0]);
         } else {
-          await icaRouter.owner();
+          // Ownable isn't specific enough to identify ICA routing.
+          return false;
         }
         return true;
       } catch {

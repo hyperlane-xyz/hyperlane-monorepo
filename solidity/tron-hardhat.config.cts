@@ -19,11 +19,11 @@ module.exports = {
   ...rootHardhatConfig,
   paths: {
     sources: './contracts',
-    artifacts: '../typescript/tron-sdk/src/abi',
+    artifacts: './artifacts-tron',
     cache: './cache-tron',
   },
   typechain: {
-    outDir: '../typescript/tron-sdk/src/typechain',
+    outDir: './artifacts-tron/typechain',
     target: 'ethers-v6',
     node16Modules: true,
   },
