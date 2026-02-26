@@ -48,8 +48,21 @@ node patch-isContract.mjs $ISCONTRACT_FILES
 # Compile with tron-solc
 NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts compile
 
-# Compile generated tron typechain TS into JS for package consumers.
-pnpm exec tsc --project tsconfig.tron-typechain.json
+# Compile generated tron typechain TS into JS when present.
+# Newer viem-based flows may not emit typechain sources.
+TYPECHAIN_TS_COUNT=$(find ./artifacts-tron/typechain -type f -name '*.ts' 2>/dev/null | wc -l | tr -d ' ')
+if [ "$TYPECHAIN_TS_COUNT" -gt 0 ]; then
+  pnpm exec tsc --project tsconfig.tron-typechain.json
+else
+  # Keep package export target valid without requiring generated sources.
+  mkdir -p ./dist/tron/typechain
+  cat > ./dist/tron/typechain/index.js <<'EOF'
+export {};
+EOF
+  cat > ./dist/tron/typechain/index.d.ts <<'EOF'
+export {};
+EOF
+fi
 
 # trap will restore files
 trap - EXIT
