@@ -142,7 +142,7 @@ const signer = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
 await provider.send('anvil_setBalance', [signer.address, '0x...']);
 ```
 
-Available presets: `SIGNER_PARTIAL_ANVIL2`, `SIGNER_LOW_ALL`, `SIGNER_ONLY_ANVIL1`, `SIGNER_SPLIT_SOURCES`.
+Available presets: `SIGNER_PARTIAL_ANVIL2`, `SIGNER_LOW_ALL`, `SIGNER_ONLY_ANVIL1`, `SIGNER_SPLIT_SOURCES`, `SIGNER_FUNDED_ANVIL1`, `SIGNER_PARTIAL_ANVIL3`, `SIGNER_ZERO_ANVIL3`, `SIGNER_WEIGHTED_LOW_ALL`, `SIGNER_WEIGHTED_BRIDGE_SOURCES`.
 
 ## 7. Use named constants for strategy-derived values
 
