@@ -436,7 +436,7 @@ mod test {
 
     use ethers::utils::hex;
     use ethers_prometheus::middleware::PrometheusMiddlewareConf;
-    use prometheus::{opts, GaugeVec, IntGaugeVec, Registry};
+    use prometheus::Registry;
     use reqwest::Url;
     use sea_orm::{DatabaseBackend, MockDatabase};
 
@@ -444,11 +444,7 @@ mod test {
         settings::{
             ChainConf, ChainConnectionConf, CoreContractAddresses, Settings, TracingConfig,
         },
-        BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS, CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_HELP,
-        CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_LABELS, CHAIN_CONFIG_INFO_HELP, CHAIN_CONFIG_INFO_LABELS,
-        CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_HELP, CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_LABELS,
-        CHAIN_CONFIG_REORG_PERIOD_HELP, CHAIN_CONFIG_REORG_PERIOD_LABELS, CRITICAL_ERROR_HELP,
-        CRITICAL_ERROR_LABELS,
+        ChainMetrics,
     };
     use hyperlane_core::{
         config::OpSubmissionConfig, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
@@ -523,6 +519,8 @@ mod test {
                     chunk_size: 1,
                     mode: IndexMode::Block,
                 },
+                confirmations: Default::default(),
+                chain_id: Default::default(),
                 ignore_reorg_reports: false,
                 native_token: Default::default(),
             },
@@ -558,45 +556,7 @@ mod test {
         let registry = Registry::new();
         let core_metrics = Arc::new(CoreMetrics::new("scraper", 4000, registry).unwrap());
         let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&core_metrics));
-        let chain_metrics = ChainMetrics {
-            block_height: IntGaugeVec::new(
-                opts!("block_height", BLOCK_HEIGHT_HELP),
-                BLOCK_HEIGHT_LABELS,
-            )
-            .unwrap(),
-            gas_price: None,
-            critical_error: IntGaugeVec::new(
-                opts!("critical_error", CRITICAL_ERROR_HELP),
-                CRITICAL_ERROR_LABELS,
-            )
-            .unwrap(),
-            reorg_period: IntGaugeVec::new(
-                opts!("chain_config_reorg_period", CHAIN_CONFIG_REORG_PERIOD_HELP),
-                CHAIN_CONFIG_REORG_PERIOD_LABELS,
-            )
-            .unwrap(),
-            estimated_block_time: GaugeVec::new(
-                opts!(
-                    "chain_config_estimated_block_time",
-                    CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_HELP
-                ),
-                CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_LABELS,
-            )
-            .unwrap(),
-            chain_config_info: IntGaugeVec::new(
-                opts!("chain_config_info", CHAIN_CONFIG_INFO_HELP),
-                CHAIN_CONFIG_INFO_LABELS,
-            )
-            .unwrap(),
-            native_token_decimals: IntGaugeVec::new(
-                opts!(
-                    "chain_config_native_token_decimals",
-                    CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_HELP
-                ),
-                CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_LABELS,
-            )
-            .unwrap(),
-        };
+        let chain_metrics = ChainMetrics::test_default();
 
         // set the chains we want to scrape
         settings.chains_to_scrape = vec![

@@ -91,6 +91,10 @@ pub struct ChainConf {
     pub metrics_conf: PrometheusMiddlewareConf,
     /// Settings for event indexing
     pub index: IndexSettings,
+    /// Number of blocks to wait before considering a transaction confirmed
+    pub confirmations: u32,
+    /// The chain ID (may differ from domain ID, e.g. Cosmos string chain IDs)
+    pub chain_id: String,
     /// Whether to ignore reorg reports from this chain
     /// when it is the origin of a message.
     pub ignore_reorg_reports: bool,
@@ -1390,6 +1394,8 @@ impl ChainConf {
             name: agent_name,
             reorg_period: self.reorg_period.clone(),
             estimated_block_time: self.estimated_block_time,
+            confirmations: self.confirmations,
+            chain_id: self.chain_id.clone(),
             native_token: self.native_token.clone(),
         })
     }

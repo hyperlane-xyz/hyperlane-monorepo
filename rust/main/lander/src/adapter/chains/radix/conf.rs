@@ -52,6 +52,8 @@ mod tests {
                 chain: None,
             },
             index: IndexSettings::default(),
+            confirmations: Default::default(),
+            chain_id: Default::default(),
             ignore_reorg_reports: false,
             native_token: Default::default(),
         }

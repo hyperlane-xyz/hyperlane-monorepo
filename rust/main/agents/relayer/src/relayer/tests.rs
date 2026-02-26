@@ -6,7 +6,7 @@ use std::time::Duration;
 use ethers::utils::hex;
 use ethers_prometheus::middleware::PrometheusMiddlewareConf;
 use eyre::eyre;
-use prometheus::{opts, GaugeVec, IntGaugeVec, Registry};
+use prometheus::Registry;
 use reqwest::Url;
 use tokio::time::error::Elapsed;
 
@@ -17,11 +17,6 @@ use hyperlane_base::settings::{
 };
 use hyperlane_base::{
     AgentMetadata, AgentMetrics, BaseAgent, ChainMetrics, CoreMetrics, RuntimeMetrics,
-    BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS, CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_HELP,
-    CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_LABELS, CHAIN_CONFIG_INFO_HELP, CHAIN_CONFIG_INFO_LABELS,
-    CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_HELP, CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_LABELS,
-    CHAIN_CONFIG_REORG_PERIOD_HELP, CHAIN_CONFIG_REORG_PERIOD_LABELS, CRITICAL_ERROR_HELP,
-    CRITICAL_ERROR_LABELS,
 };
 use hyperlane_core::{
     config::OpSubmissionConfig, HyperlaneDomain, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
@@ -97,51 +92,15 @@ fn generate_test_chain_conf(
             chunk_size: 1,
             mode: IndexMode::Block,
         },
+        confirmations: Default::default(),
+        chain_id: Default::default(),
         ignore_reorg_reports: false,
         native_token: Default::default(),
     }
 }
 
 fn generate_test_chain_metrics() -> ChainMetrics {
-    ChainMetrics {
-        block_height: IntGaugeVec::new(
-            opts!("block_height", BLOCK_HEIGHT_HELP),
-            BLOCK_HEIGHT_LABELS,
-        )
-        .unwrap(),
-        gas_price: None,
-        critical_error: IntGaugeVec::new(
-            opts!("critical_error", CRITICAL_ERROR_HELP),
-            CRITICAL_ERROR_LABELS,
-        )
-        .unwrap(),
-        reorg_period: IntGaugeVec::new(
-            opts!("chain_config_reorg_period", CHAIN_CONFIG_REORG_PERIOD_HELP),
-            CHAIN_CONFIG_REORG_PERIOD_LABELS,
-        )
-        .unwrap(),
-        estimated_block_time: GaugeVec::new(
-            opts!(
-                "chain_config_estimated_block_time",
-                CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_HELP
-            ),
-            CHAIN_CONFIG_ESTIMATED_BLOCK_TIME_LABELS,
-        )
-        .unwrap(),
-        chain_config_info: IntGaugeVec::new(
-            opts!("chain_config_info", CHAIN_CONFIG_INFO_HELP),
-            CHAIN_CONFIG_INFO_LABELS,
-        )
-        .unwrap(),
-        native_token_decimals: IntGaugeVec::new(
-            opts!(
-                "chain_config_native_token_decimals",
-                CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_HELP
-            ),
-            CHAIN_CONFIG_NATIVE_TOKEN_DECIMALS_LABELS,
-        )
-        .unwrap(),
-    }
+    ChainMetrics::test_default()
 }
 
 /// Builds a test RelayerSetting
