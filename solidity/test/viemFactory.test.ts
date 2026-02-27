@@ -1,6 +1,6 @@
 import {expect} from "chai";
 import type {Abi} from "viem";
-import {encodeFunctionData} from "viem";
+import {encodeFunctionData, encodeFunctionResult} from "viem";
 
 import {createContractProxy} from "../core-utils/viemFactory.js";
 
@@ -55,6 +55,16 @@ const SET_VALUE_ABI = [
         stateMutability: "nonpayable",
         inputs: [{name: "value", type: "uint256"}],
         outputs: [],
+    },
+] as const satisfies Abi;
+
+const GET_VALUE_ABI = [
+    {
+        type: "function",
+        name: "getValue",
+        stateMutability: "view",
+        inputs: [],
+        outputs: [{name: "", type: "uint256"}],
     },
 ] as const satisfies Abi;
 
@@ -189,5 +199,89 @@ describe("viemFactory", () => {
         expect(attempts).to.equal(2);
         expect("account" in seenRequests[0]).to.equal(false);
         expect(seenRequests[1].account).to.equal(TEST_SENDER);
+    });
+
+    it("preserves ethers-v5 wrapping for contract.functions reads", async () => {
+        const runner = {
+            request: async ({
+                method,
+            }: {
+                method: string;
+                params?: readonly unknown[];
+            }) => {
+                if (method === "eth_call") {
+                    return encodeFunctionResult({
+                        abi: [GET_VALUE_ABI[0]],
+                        functionName: "getValue",
+                        result: 42n,
+                    });
+                }
+                throw new Error(`Unexpected rpc method ${method}`);
+            },
+        };
+
+        const contract = createContractProxy(
+            TEST_CONTRACT_ADDRESS,
+            GET_VALUE_ABI,
+            runner,
+        ) as unknown as {
+            getValue: () => Promise<bigint>;
+            functions: {
+                getValue: () => Promise<readonly [bigint]>;
+            };
+        };
+
+        const directRead = await contract.getValue();
+        const wrappedRead = await contract.functions.getValue();
+
+        expect(directRead).to.equal(42n);
+        expect(wrappedRead).to.deep.equal([42n]);
+    });
+
+    it("times out receipt polling fallback when no receipt appears", async () => {
+        const runner = {
+            receiptTimeoutMs: 1,
+            request: async ({
+                method,
+            }: {
+                method: string;
+                params?: readonly unknown[];
+            }) => {
+                if (method === "eth_sendTransaction") {
+                    return TEST_TX_HASH;
+                }
+                if (method === "eth_getTransactionReceipt") {
+                    return null;
+                }
+                throw new Error(`Unexpected rpc method ${method}`);
+            },
+        };
+
+        const contract = createContractProxy(
+            TEST_CONTRACT_ADDRESS,
+            SET_VALUE_ABI,
+            runner,
+        ) as unknown as {
+            setValue: (...args: readonly unknown[]) => Promise<{
+                hash: string;
+                wait: (confirmations?: number) => Promise<unknown>;
+            }>;
+        };
+
+        const response = await contract.setValue(1n);
+
+        let didTimeout = false;
+        try {
+            await response.wait(1);
+        } catch (error) {
+            didTimeout = true;
+            expect(String(error)).to.contain("Timeout (1ms)");
+            expect(String(error)).to.contain(TEST_TX_HASH);
+        }
+
+        expect(
+            didTimeout,
+            "expected receipt polling fallback to timeout",
+        ).to.eq(true);
     });
 });
