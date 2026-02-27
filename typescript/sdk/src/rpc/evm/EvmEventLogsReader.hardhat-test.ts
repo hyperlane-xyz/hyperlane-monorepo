@@ -281,9 +281,7 @@ describe('EvmEventLogsReader', () => {
       const eventBlocks: number[] = [];
 
       for (let i = 0; i < numberOfEventsToEmit; i++) {
-        const tx = await testContract.mint(
-          parseEther(`${(i + 1) * 50}`),
-        );
+        const tx = await testContract.mint(parseEther(`${(i + 1) * 50}`));
         await tx.wait();
         eventBlocks.push(await providerChainTest1.getBlockNumber());
 
@@ -320,9 +318,7 @@ describe('EvmEventLogsReader', () => {
 
       const numberOfEventsToEmit = 5;
       for (let i = 0; i < numberOfEventsToEmit; i++) {
-        const tx = await testContract.mint(
-          parseEther(`${(i + 1) * 100}`),
-        );
+        const tx = await testContract.mint(parseEther(`${(i + 1) * 100}`));
         await tx.wait();
       }
 
@@ -499,9 +495,7 @@ describe('EvmEventLogsReader', () => {
         contractAddress: testContract.address,
       });
       await reader.getLogsByTopic({
-        eventTopic: keccak256(
-          stringToHex('Approval(address,address,uint256)'),
-        ),
+        eventTopic: keccak256(stringToHex('Approval(address,address,uint256)')),
         contractAddress: testContract.address,
       });
 
