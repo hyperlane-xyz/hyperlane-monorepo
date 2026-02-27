@@ -99,6 +99,23 @@ async fn test_estimate_tx() {
 }
 
 #[tokio::test]
+async fn test_estimate_gas_limit() {
+    let adapter = create_test_adapter();
+    let payload = create_test_payload();
+
+    let result = adapter.estimate_gas_limit(&payload).await;
+    assert!(result.is_ok());
+
+    let estimate = result.unwrap();
+    assert_eq!(estimate.gas_limit, 1_000u64.into());
+    assert_eq!(
+        estimate.gas_price,
+        hyperlane_core::FixedPointNumber::from(1u64)
+    );
+    assert_eq!(estimate.l2_gas_limit, None);
+}
+
+#[tokio::test]
 async fn test_max_batch_size() {
     let adapter = create_test_adapter();
     assert_eq!(adapter.max_batch_size(), 1); // Aleo doesn't support batching

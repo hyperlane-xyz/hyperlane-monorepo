@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use hyperlane_aleo::{AleoProvider, AleoProviderForLander, AleoSigner};
 use hyperlane_base::settings::ChainConf;
 use hyperlane_base::CoreMetrics;
-use hyperlane_core::{ContractLocator, H256, H512};
+use hyperlane_core::{ContractLocator, FixedPointNumber, H256, H512};
 
 use crate::adapter::{AdaptsChain, TxBuildingResult};
 use crate::payload::PayloadDetails;
@@ -60,11 +60,26 @@ impl<P: AleoProviderForLander> AdaptsChain for AleoAdapter<P> {
         &self,
         payload: &FullPayload,
     ) -> Result<hyperlane_core::TxCostEstimate, LanderError> {
-        tracing::warn!(
-            payload_uuid = ?payload.uuid(),
-            "AleoAdapter::estimate_gas_limit is not implemented"
-        );
-        Err(LanderError::EstimationFailed)
+        let operation_payload = serde_json::from_slice::<hyperlane_aleo::AleoTxData>(&payload.data)
+            .map_err(|err| {
+                tracing::error!(?err, payload_uuid = ?payload.uuid(), "Failed to deserialize AleoTxData");
+                LanderError::PayloadNotFound
+            })?;
+        let estimate = self
+            .provider
+            .estimate_tx(
+                &operation_payload.program_id,
+                &operation_payload.function_name,
+                operation_payload.inputs,
+            )
+            .await
+            .map_err(LanderError::ChainCommunicationError)?;
+
+        Ok(hyperlane_core::TxCostEstimate {
+            gas_limit: estimate.total_fee.into(),
+            gas_price: FixedPointNumber::from(1u64),
+            l2_gas_limit: None,
+        })
     }
 
     async fn build_transactions(&self, payloads: &[FullPayload]) -> Vec<TxBuildingResult> {
