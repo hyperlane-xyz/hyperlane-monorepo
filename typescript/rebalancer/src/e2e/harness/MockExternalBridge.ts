@@ -305,7 +305,10 @@ export class MockExternalBridge implements IExternalBridge {
       return 0n;
     }
 
-    const bridgeRoute = HypNative__factory.connect(bridgeRouteAddress, provider);
+    const bridgeRoute = HypNative__factory.connect(
+      bridgeRouteAddress,
+      provider,
+    );
     const gasEstimate = await bridgeRoute.transferRemote.estimateGas(
       destinationDomain,
       recipientBytes32,

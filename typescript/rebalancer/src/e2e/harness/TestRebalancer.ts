@@ -482,10 +482,7 @@ export class TestRebalancerBuilder {
           `setupBalances: missing monitored route address for chain ${chain}`,
         );
 
-        const deployerSigner = new Wallet(
-          ANVIL_TEST_PRIVATE_KEY,
-          provider,
-        );
+        const deployerSigner = new Wallet(ANVIL_TEST_PRIVATE_KEY, provider);
         const token = ERC20Test__factory.connect(tokenAddress, deployerSigner);
         await token.transfer(monitoredRouteAddress, balance);
       }
