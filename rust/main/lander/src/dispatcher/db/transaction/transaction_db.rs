@@ -89,6 +89,9 @@ pub trait TransactionDb: Send + Sync {
                     count = count.saturating_add(1);
                 }
             }
+            // This recount loop can iterate over many records when recovering legacy
+            // state; yield so startup work does not monopolize runtime threads.
+            tokio::task::yield_now().await;
         }
         Ok(count)
     }
