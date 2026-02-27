@@ -1,7 +1,11 @@
 import { pad } from 'viem';
 import { pino, type Logger } from 'pino';
 
-import { HypNative__factory } from '@hyperlane-xyz/core';
+import {
+  ERC20Test__factory,
+  HypERC20Collateral__factory,
+  HypNative__factory,
+} from '@hyperlane-xyz/core';
 import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import {
   HyperlaneCore,
@@ -17,14 +21,18 @@ import type {
   BridgeTransferStatus,
   IExternalBridge,
 } from '../../interfaces/IExternalBridge.js';
-import type { NativeDeployedAddresses, TestChain } from '../fixtures/routes.js';
+import type {
+  Erc20InventoryDeployedAddresses,
+  NativeDeployedAddresses,
+  TestChain,
+} from '../fixtures/routes.js';
 
 type MockBridgeRoute = {
   fromChain: number;
   toChain: number;
   fromAddress: string;
   toAddress: string;
-  tokenType: 'native';
+  tokenType: 'native' | 'erc20';
 };
 
 type EvmProvider = ReturnType<MultiProvider['getProvider']>;
@@ -40,9 +48,12 @@ export class MockExternalBridge implements IExternalBridge {
   private _failNextExecute = false;
 
   constructor(
-    private readonly nativeDeployedAddresses: NativeDeployedAddresses,
+    private readonly deployedAddresses:
+      | NativeDeployedAddresses
+      | Erc20InventoryDeployedAddresses,
     private readonly multiProvider: MultiProvider,
     private readonly core: HyperlaneCore,
+    private readonly tokenType: 'native' | 'erc20' = 'native',
     logger?: Logger,
   ) {
     this.logger =
@@ -81,7 +92,7 @@ export class MockExternalBridge implements IExternalBridge {
       toChain: params.toChain,
       fromAddress: params.fromAddress,
       toAddress,
-      tokenType: 'native',
+      tokenType: this.tokenType,
     };
 
     return {
@@ -114,25 +125,49 @@ export class MockExternalBridge implements IExternalBridge {
     const toChainName = this.resolveChainName(toChain);
 
     const bridgeRouteAddress =
-      this.nativeDeployedAddresses.bridgeRoute[fromChainName];
+      this.deployedAddresses.bridgeRoute[fromChainName];
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
 
     const provider = this.multiProvider.getProvider(fromChainName);
     const signer = new LocalAccountViemSigner(ensure0x(privateKey)).connect(
       provider,
     );
-    const bridgeRoute = HypNative__factory.connect(bridgeRouteAddress, signer);
 
     const recipientBytes32 = pad(route.toAddress as `0x${string}`, {
       size: 32,
     });
 
-    const tx = await bridgeRoute.transferRemote(
-      destinationDomain,
-      recipientBytes32,
-      quote.fromAmount,
-      { value: quote.fromAmount },
-    );
+    let tx;
+    if (route.tokenType === 'erc20') {
+      if (!('tokens' in this.deployedAddresses)) {
+        throw new Error('Expected ERC20 deployed addresses');
+      }
+
+      const tokenAddress = this.deployedAddresses.tokens[fromChainName];
+      const token = ERC20Test__factory.connect(tokenAddress, signer);
+      await token.approve(bridgeRouteAddress, quote.fromAmount);
+
+      const bridgeRoute = HypERC20Collateral__factory.connect(
+        bridgeRouteAddress,
+        signer,
+      );
+      tx = await bridgeRoute.transferRemote(
+        destinationDomain,
+        recipientBytes32,
+        quote.fromAmount,
+      );
+    } else {
+      const bridgeRoute = HypNative__factory.connect(
+        bridgeRouteAddress,
+        signer,
+      );
+      tx = await bridgeRoute.transferRemote(
+        destinationDomain,
+        recipientBytes32,
+        quote.fromAmount,
+        { value: quote.fromAmount },
+      );
+    }
 
     return {
       txHash: tx.hash,
@@ -220,19 +255,23 @@ export class MockExternalBridge implements IExternalBridge {
     const toChainName = this.resolveChainName(toChain);
 
     const bridgeRouteAddress =
-      this.nativeDeployedAddresses.bridgeRoute[fromChainName];
+      this.deployedAddresses.bridgeRoute[fromChainName];
     const destinationDomain = this.multiProvider.getDomainId(toChainName);
     const provider = this.multiProvider.getProvider(fromChainName);
-
-    const bridgeRoute = HypNative__factory.connect(
-      bridgeRouteAddress,
-      provider,
-    );
 
     const recipientBytes32 = pad(toAddress as `0x${string}`, { size: 32 });
 
     // Use 1 wei for estimation — gas usage doesn't depend on transfer amount
     const estimateAmount = 1n;
+    if (this.tokenType === 'erc20') {
+      // ERC20 path requires setup/allowance; mock out gas for test invariants.
+      return 0n;
+    }
+
+    const bridgeRoute = HypNative__factory.connect(
+      bridgeRouteAddress,
+      provider,
+    );
     const gasEstimate = await bridgeRoute.estimateGas.transferRemote(
       destinationDomain,
       recipientBytes32,
@@ -265,13 +304,16 @@ export class MockExternalBridge implements IExternalBridge {
       toChain: parsed.toChain,
       fromAddress: parsed.fromAddress,
       toAddress: parsed.toAddress,
-      tokenType: 'native',
+      tokenType:
+        parsed.tokenType === 'erc20' || parsed.tokenType === 'native'
+          ? parsed.tokenType
+          : 'native',
     };
   }
 
   private resolveChainName(chainRef: number): TestChain {
     const chainNames = Object.keys(
-      this.nativeDeployedAddresses.chains,
+      this.deployedAddresses.chains,
     ) as TestChain[];
 
     for (const chainName of chainNames) {

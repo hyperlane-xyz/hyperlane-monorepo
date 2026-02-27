@@ -2,6 +2,7 @@ import { pad, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { type Logger, pino } from 'pino';
 
+import { ERC20Test__factory } from '@hyperlane-xyz/core';
 import {
   HyperlaneCore,
   LocalAccountViemSigner,
@@ -34,12 +35,15 @@ import {
   BALANCE_PRESETS,
   DOMAIN_IDS,
   type DeployedAddresses,
+  ERC20_INVENTORY_MONITORED_ROUTE_ID,
+  type Erc20InventoryDeployedAddresses,
   INVENTORY_SIGNER_PRESETS,
   MONITORED_ROUTE_ID,
   NATIVE_MONITORED_ROUTE_ID,
   type NativeDeployedAddresses,
   TEST_CHAINS,
   type TestChain,
+  buildErc20InventoryWarpRouteConfig,
   buildNativeWarpRouteConfig,
   buildWarpRouteConfig,
 } from '../fixtures/routes.js';
@@ -93,6 +97,11 @@ type TestInventoryConfig = {
   nativeDeployedAddresses: NativeDeployedAddresses;
 };
 
+type TestErc20InventoryConfig = {
+  inventorySignerKey: string;
+  erc20DeployedAddresses: Erc20InventoryDeployedAddresses;
+};
+
 export class TestRebalancerBuilder {
   private strategyConfig: StrategyConfig[] | undefined;
   private balanceConfig: BalanceConfig = 'BALANCED';
@@ -100,6 +109,7 @@ export class TestRebalancerBuilder {
   private mockTransfers: ExplorerMessage[] = [];
   private executionMode: ExecutionMode = 'propose';
   private inventoryConfig: TestInventoryConfig | undefined;
+  private erc20InventoryConfig: TestErc20InventoryConfig | undefined;
   private mockExternalBridge: MockExternalBridge | undefined;
   private readonly logger: Logger;
   private inventorySignerBalanceConfig:
@@ -108,7 +118,9 @@ export class TestRebalancerBuilder {
 
   constructor(
     private readonly deploymentManager: BaseLocalDeploymentManager<
-      DeployedAddresses | NativeDeployedAddresses
+      | DeployedAddresses
+      | NativeDeployedAddresses
+      | Erc20InventoryDeployedAddresses
     >,
     private readonly multiProvider: MultiProvider,
   ) {
@@ -145,6 +157,11 @@ export class TestRebalancerBuilder {
     nativeDeployedAddresses: NativeDeployedAddresses;
   }): this {
     this.inventoryConfig = config;
+    return this;
+  }
+
+  withErc20InventoryConfig(config: TestErc20InventoryConfig): this {
+    this.erc20InventoryConfig = config;
     return this;
   }
 
@@ -209,11 +226,23 @@ export class TestRebalancerBuilder {
         'Inventory mode requires .withMockExternalBridge() to prevent hitting real external bridges in tests',
       );
     }
+    if (this.erc20InventoryConfig && !this.mockExternalBridge) {
+      throw new Error(
+        'Inventory mode requires .withMockExternalBridge() to prevent hitting real external bridges in tests',
+      );
+    }
+    if (this.inventoryConfig && this.erc20InventoryConfig) {
+      throw new Error(
+        'Cannot set both inventoryConfig and erc20InventoryConfig — use one or the other',
+      );
+    }
 
     await this.setupBalances();
 
     const inventoryModeConfig = this.inventoryConfig;
+    const erc20InventoryModeConfig = this.erc20InventoryConfig;
     const isInventoryMode = inventoryModeConfig !== undefined;
+    const isErc20InventoryMode = erc20InventoryModeConfig !== undefined;
     const ctx = this.deploymentManager.getContext();
     const { providers: localProviders } = ctx;
     const deployedAddresses = ctx.deployedAddresses;
@@ -223,9 +252,11 @@ export class TestRebalancerBuilder {
 
     const coreAddresses: Record<string, Record<string, string>> = {};
     for (const chain of TEST_CHAINS) {
-      const chainAddresses = isInventoryMode
-        ? inventoryModeConfig.nativeDeployedAddresses.chains[chain]
-        : deployedAddresses.chains[chain];
+      const chainAddresses = isErc20InventoryMode
+        ? erc20InventoryModeConfig.erc20DeployedAddresses.chains[chain]
+        : isInventoryMode
+          ? inventoryModeConfig.nativeDeployedAddresses.chains[chain]
+          : deployedAddresses.chains[chain];
       if (!chainAddresses) {
         throw new Error(`Missing chain addresses for ${chain}`);
       }
@@ -268,7 +299,24 @@ export class TestRebalancerBuilder {
     let inventoryMultiProvider: MultiProvider | undefined;
     let rebalancerConfig: RebalancerConfig;
     let warpCoreConfig: WarpCoreConfig;
-    if (isInventoryMode) {
+    if (isErc20InventoryMode) {
+      inventoryMultiProvider =
+        await this.getInventoryMultiProvider(localProviders);
+      const inventorySignerAddress = privateKeyToAccount(
+        ensure0x(erc20InventoryModeConfig.inventorySignerKey),
+      ).address;
+      rebalancerAddresses.push(inventorySignerAddress);
+      rebalancerConfig = new RebalancerConfig(
+        ERC20_INVENTORY_MONITORED_ROUTE_ID,
+        this.strategyConfig,
+        DEFAULT_INTENT_TTL_MS,
+        inventorySignerAddress,
+        { lifi: { integrator: 'test' } },
+      );
+      warpCoreConfig = buildErc20InventoryWarpRouteConfig(
+        erc20InventoryModeConfig.erc20DeployedAddresses,
+      );
+    } else if (isInventoryMode) {
       inventoryMultiProvider =
         await this.getInventoryMultiProvider(localProviders);
       const inventorySignerAddress = privateKeyToAccount(
@@ -315,13 +363,15 @@ export class TestRebalancerBuilder {
     this.logger.info('ActionTracker initialized with mock explorer');
 
     const externalBridgeRegistryOverride =
-      isInventoryMode && this.mockExternalBridge
+      (isInventoryMode || isErc20InventoryMode) && this.mockExternalBridge
         ? ({
             [ExternalBridgeType.LiFi]: this.mockExternalBridge,
           } as Partial<ExternalBridgeRegistry>)
         : undefined;
     const rebalancerComponents =
-      this.executionMode === 'execute' || isInventoryMode
+      this.executionMode === 'execute' ||
+      isInventoryMode ||
+      isErc20InventoryMode
         ? await contextFactory.createRebalancers(
             tracker,
             undefined,
@@ -422,6 +472,29 @@ export class TestRebalancerBuilder {
       await this.setupInventorySignerBalances(localProviders);
       return;
     }
+    if (this.erc20InventoryConfig) {
+      await setupCollateralBalances(
+        localProviders,
+        balances,
+        this.erc20InventoryConfig.erc20DeployedAddresses.monitoredRoute,
+        this.erc20InventoryConfig.erc20DeployedAddresses.tokens,
+        ANVIL_TEST_PRIVATE_KEY,
+      );
+
+      this.logger.info(
+        {
+          balances: Object.fromEntries(
+            Object.entries(balances).map(([chain, balance]) => [
+              chain,
+              balance.toString(),
+            ]),
+          ),
+        },
+        'ERC20 inventory balances configured on monitored routes',
+      );
+      await this.setupInventorySignerBalances(localProviders);
+      return;
+    }
 
     const deployedAddresses = ctx.deployedAddresses;
     if (!('tokens' in deployedAddresses)) {
@@ -452,13 +525,13 @@ export class TestRebalancerBuilder {
   private async setupInventorySignerBalances(
     localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>,
   ): Promise<void> {
-    if (!this.inventorySignerBalanceConfig || !this.inventoryConfig) {
+    if (
+      !this.inventorySignerBalanceConfig ||
+      (!this.inventoryConfig && !this.erc20InventoryConfig)
+    ) {
       return;
     }
-
-    const signerAddress = privateKeyToAccount(
-      ensure0x(this.inventoryConfig.inventorySignerKey),
-    ).address;
+    const signerAddress = this.getInventorySignerAddress();
 
     let balances: Partial<Record<string, string>>;
     if (typeof this.inventorySignerBalanceConfig === 'string') {
@@ -471,17 +544,72 @@ export class TestRebalancerBuilder {
       );
     }
 
+    if (this.erc20InventoryConfig) {
+      const signerWallet = new LocalAccountViemSigner(
+        ensure0x(this.erc20InventoryConfig.inventorySignerKey),
+      );
+      const deployerWallet = new LocalAccountViemSigner(
+        ensure0x(ANVIL_TEST_PRIVATE_KEY),
+      );
+
+      for (const [chain, balance] of Object.entries(balances)) {
+        if (balance === undefined) continue;
+        const provider = localProviders.get(chain);
+        if (!provider) {
+          throw new Error(
+            `Missing local provider for inventory signer chain ${chain}`,
+          );
+        }
+        const tokenAddress =
+          this.erc20InventoryConfig.erc20DeployedAddresses.tokens[
+            chain as TestChain
+          ];
+        if (!tokenAddress) {
+          throw new Error(
+            `Missing token address for inventory signer chain ${chain}`,
+          );
+        }
+
+        const tokenAsSigner = ERC20Test__factory.connect(
+          tokenAddress,
+          signerWallet.connect(provider),
+        );
+        const currentSignerBalance =
+          await tokenAsSigner.balanceOf(signerAddress);
+        const targetBalance = BigInt(balance);
+
+        if (currentSignerBalance > targetBalance) {
+          await tokenAsSigner.transfer(
+            await deployerWallet.getAddress(),
+            currentSignerBalance - targetBalance,
+          );
+        } else if (currentSignerBalance < targetBalance) {
+          const tokenAsDeployer = ERC20Test__factory.connect(
+            tokenAddress,
+            deployerWallet.connect(provider),
+          );
+          await tokenAsDeployer.transfer(
+            signerAddress,
+            targetBalance - currentSignerBalance,
+          );
+        }
+      }
+
+      this.logger.info(
+        { balances, signer: signerAddress },
+        'ERC20 inventory signer balances configured',
+      );
+      return;
+    }
+
     for (const [chain, balance] of Object.entries(balances)) {
       const provider = localProviders.get(chain);
-      if (balance === undefined) {
-        continue;
-      }
+      if (balance === undefined) continue;
       if (!provider) {
         throw new Error(
           `Missing local provider for inventory signer chain ${chain}`,
         );
       }
-
       await provider.send('anvil_setBalance', [
         signerAddress,
         toHex(BigInt(balance)),
@@ -542,6 +670,9 @@ export class TestRebalancerBuilder {
     if (this.inventoryConfig) {
       return this.inventoryConfig.nativeDeployedAddresses.monitoredRoute;
     }
+    if (this.erc20InventoryConfig) {
+      return this.erc20InventoryConfig.erc20DeployedAddresses.monitoredRoute;
+    }
 
     const deployedAddresses =
       this.deploymentManager.getContext().deployedAddresses;
@@ -555,13 +686,14 @@ export class TestRebalancerBuilder {
     localProviders: Map<string, ReturnType<MultiProvider['getProvider']>>,
   ): Promise<MultiProvider> {
     const inventoryMultiProvider = this.multiProvider.extendChainMetadata({});
-    if (!this.inventoryConfig) {
+    const config = this.inventoryConfig ?? this.erc20InventoryConfig;
+    if (!config) {
       throw new Error(
         'Inventory config is required to create inventory MultiProvider',
       );
     }
     const inventoryWallet = new LocalAccountViemSigner(
-      ensure0x(this.inventoryConfig.inventorySignerKey),
+      ensure0x(config.inventorySignerKey),
     );
 
     for (const chain of TEST_CHAINS) {
@@ -606,12 +738,24 @@ export class TestRebalancerBuilder {
 
     return rebalancerMultiProvider;
   }
+
+  private getInventorySignerAddress(): string {
+    const config = this.inventoryConfig ?? this.erc20InventoryConfig;
+    if (!config) {
+      throw new Error(
+        'Inventory config is required to derive inventory signer address',
+      );
+    }
+    return privateKeyToAccount(ensure0x(config.inventorySignerKey)).address;
+  }
 }
 
 export class TestRebalancer {
   static builder(
     deploymentManager: BaseLocalDeploymentManager<
-      DeployedAddresses | NativeDeployedAddresses
+      | DeployedAddresses
+      | NativeDeployedAddresses
+      | Erc20InventoryDeployedAddresses
     >,
     multiProvider: MultiProvider,
   ): TestRebalancerBuilder {

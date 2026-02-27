@@ -10,7 +10,7 @@ import {
   TokenStandard,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ensure0x, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ExternalBridgeType } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
@@ -44,9 +44,7 @@ describe('InventoryRebalancer E2E', () => {
   const SOLANA_DOMAIN = 1399811149;
   const TEST_PRIVATE_KEY =
     '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-  const TEST_WALLET = new LocalAccountViemSigner(
-    TEST_PRIVATE_KEY as `0x${string}`,
-  );
+  const TEST_WALLET = new LocalAccountViemSigner(ensure0x(TEST_PRIVATE_KEY));
   const INVENTORY_SIGNER = TEST_WALLET.address;
 
   beforeEach(() => {
@@ -610,7 +608,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).to.include('Gas quote failed');
     });
 
-    it('throws when signer has no private key access', async () => {
+    it('throws when signer is not a Wallet instance', async () => {
       multiProvider.getSigner = Sinon.stub().returns({
         getAddress: Sinon.stub().resolves(INVENTORY_SIGNER),
       });
