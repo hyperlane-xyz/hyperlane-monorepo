@@ -1,5 +1,6 @@
 import {
   JsonRpcProvider,
+  NonceManager,
   ZeroAddress,
   Wallet,
   toBeHex,
@@ -59,7 +60,7 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
         toBeHex(BigInt(INVENTORY_INITIAL_ETH_BALANCE)),
       ]);
 
-      const deployer = deployerWallet.connect(provider);
+      const deployer = new NonceManager(deployerWallet.connect(provider));
 
       const token = await new ERC20Test__factory(deployer).deploy(
         'USDC',
@@ -79,11 +80,12 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
         chainInfra[config.name].mailbox,
       );
       await monitoredRoute.waitForDeployment();
-      await monitoredRoute.initialize(
+      const initializeMonitoredTx = await monitoredRoute.initialize(
         ZeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
+      await initializeMonitoredTx.wait();
       const monitoredRouterAddress = await monitoredRoute.getAddress();
 
       const bridgeRoute = await new HypERC20Collateral__factory(
@@ -95,11 +97,12 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
         chainInfra[config.name].mailbox,
       );
       await bridgeRoute.waitForDeployment();
-      await bridgeRoute.initialize(
+      const initializeBridgeTx = await bridgeRoute.initialize(
         ZeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
+      await initializeBridgeTx.wait();
       const bridgeRouterAddress = await bridgeRoute.getAddress();
 
       chainDeployments[config.name] = {
@@ -130,21 +133,31 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
           );
         }
 
-        await localRoute.enrollRemoteRouters(remoteDomains, remoteRouters);
+        const enrollTx = await localRoute.enrollRemoteRouters(
+          remoteDomains,
+          remoteRouters,
+        );
+        await enrollTx.wait();
       }
     }
 
     for (const chain of TEST_CHAIN_CONFIGS) {
       const monitoredRoute = monitoredRouters[chain.name];
-      await monitoredRoute.addRebalancer(deployerAddress);
-      await monitoredRoute.addRebalancer(this.inventorySignerAddress);
+      const addDeployerRebalancerTx =
+        await monitoredRoute.addRebalancer(deployerAddress);
+      await addDeployerRebalancerTx.wait();
+      const addSignerRebalancerTx = await monitoredRoute.addRebalancer(
+        this.inventorySignerAddress,
+      );
+      await addSignerRebalancerTx.wait();
 
       for (const destination of TEST_CHAIN_CONFIGS) {
         if (destination.name === chain.name) continue;
-        await monitoredRoute.addBridge(
+        const addBridgeTx = await monitoredRoute.addBridge(
           destination.domainId,
           await bridgeRouters[chain.name].getAddress(),
         );
+        await addBridgeTx.wait();
       }
     }
 
@@ -152,16 +165,21 @@ export class Erc20InventoryLocalDeploymentManager extends BaseLocalDeploymentMan
     const signerErc20Amount = BigInt(INVENTORY_INITIAL_ERC20_BALANCE);
     for (const chain of TEST_CHAIN_CONFIGS) {
       const provider = providersByChain.get(chain.name)!;
-      const deployer = deployerWallet.connect(provider);
+      const deployer = new NonceManager(deployerWallet.connect(provider));
       const token = ERC20Test__factory.connect(
         await tokens[chain.name].getAddress(),
         deployer,
       );
-      await token.transfer(
+      const seedBridgeTx = await token.transfer(
         await bridgeRouters[chain.name].getAddress(),
         bridgeSeedAmount,
       );
-      await token.transfer(this.inventorySignerAddress, signerErc20Amount);
+      await seedBridgeTx.wait();
+      const seedSignerTx = await token.transfer(
+        this.inventorySignerAddress,
+        signerErc20Amount,
+      );
+      await seedSignerTx.wait();
     }
 
     return {

@@ -56,11 +56,12 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
         chainInfra[config.name].mailbox,
       );
       await monitoredRoute.waitForDeployment();
-      await monitoredRoute.initialize(
+      const initializeMonitoredTx = await monitoredRoute.initialize(
         ZeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
+      await initializeMonitoredTx.wait();
 
       const bridgeRoute = await new HypNative__factory(deployer).deploy(
         TOKEN_SCALE,
@@ -68,11 +69,12 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
         chainInfra[config.name].mailbox,
       );
       await bridgeRoute.waitForDeployment();
-      await bridgeRoute.initialize(
+      const initializeBridgeTx = await bridgeRoute.initialize(
         ZeroAddress,
         chainInfra[config.name].ism,
         deployerAddress,
       );
+      await initializeBridgeTx.wait();
 
       chainDeployments[config.name] = {
         mailbox: chainInfra[config.name].mailbox,
@@ -100,21 +102,31 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
           );
         }
 
-        await localRoute.enrollRemoteRouters(remoteDomains, remoteRouters);
+        const enrollTx = await localRoute.enrollRemoteRouters(
+          remoteDomains,
+          remoteRouters,
+        );
+        await enrollTx.wait();
       }
     }
 
     for (const chain of TEST_CHAIN_CONFIGS) {
       const monitoredRoute = monitoredRouters[chain.name];
-      await monitoredRoute.addRebalancer(deployerAddress);
-      await monitoredRoute.addRebalancer(this.inventorySignerAddress);
+      const addDeployerRebalancerTx =
+        await monitoredRoute.addRebalancer(deployerAddress);
+      await addDeployerRebalancerTx.wait();
+      const addSignerRebalancerTx = await monitoredRoute.addRebalancer(
+        this.inventorySignerAddress,
+      );
+      await addSignerRebalancerTx.wait();
 
       for (const destination of TEST_CHAIN_CONFIGS) {
         if (destination.name === chain.name) continue;
-        await monitoredRoute.addBridge(
+        const addBridgeTx = await monitoredRoute.addBridge(
           destination.domainId,
           await bridgeRouters[chain.name].getAddress(),
         );
+        await addBridgeTx.wait();
       }
     }
 
@@ -122,10 +134,11 @@ export class NativeLocalDeploymentManager extends BaseLocalDeploymentManager<Nat
     for (const chain of TEST_CHAIN_CONFIGS) {
       const provider = providersByChain.get(chain.name)!;
       const deployer = new NonceManager(deployerWallet.connect(provider));
-      await deployer.sendTransaction({
+      const seedBridgeTx = await deployer.sendTransaction({
         to: await bridgeRouters[chain.name].getAddress(),
         value: bridgeSeedAmount,
       });
+      await seedBridgeTx.wait();
     }
 
     return {
