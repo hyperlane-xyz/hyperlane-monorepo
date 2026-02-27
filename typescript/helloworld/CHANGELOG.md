@@ -1,5 +1,20 @@
 # @hyperlane-xyz/helloworld
 
+## 25.4.0
+
+### Patch Changes
+
+- Updated dependencies [1f021bf]
+- Updated dependencies [d4a5026]
+- Updated dependencies [934d857]
+- Updated dependencies [1f3a0e6]
+- Updated dependencies [942bbfb]
+- Updated dependencies [a3f7fd3]
+- Updated dependencies [2a6bd61]
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/sdk@25.4.0
+  - @hyperlane-xyz/core@11.0.0
+
 ## 25.3.2
 
 ### Patch Changes

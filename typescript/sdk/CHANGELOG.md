@@ -1,5 +1,35 @@
 # @hyperlane-xyz/sdk
 
+## 25.4.0
+
+### Minor Changes
+
+- d4a5026: SDK handles both old (`maxFeeBps()`) and new (`maxFeePpm()`) contract interfaces via version-gated calls.
+- 934d857: SDK converts bps config to ppm for deployment and ppm back to bps when reading.
+- 942bbfb: SDK support for `approveFeeTokenForHook`:
+  - Added `feeTokenApprovals` config field to `IcaRouterConfigSchema` for specifying fee token approvals at deploy time
+  - `InterchainAccountDeployer` now calls `approveFeeTokenForHook` for each configured approval after deployment
+  - `EvmIcaModule.update()` generates approval transactions for any missing fee token approvals
+
+- a3f7fd3: SDK integration for IncrementalDomainRoutingIsm: factory support, reader implementation, and proper delta handling in routingModuleDelta.
+
+### Patch Changes
+
+- 1f3a0e6: Added retry with exponential backoff in EvmEventLogsReader before falling back to paginated RPC, and cached deployment block lookups to avoid redundant explorer/RPC calls.
+- 2a6bd61: Added RadixHypCollateral, StarknetHypCollateral, and StarknetHypNative to TOKEN_COLLATERALIZED_STANDARDS, fixing missing collateral value metrics for Radix and Starknet warp routes.
+- Updated dependencies [1f021bf]
+- Updated dependencies [1f021bf]
+- Updated dependencies [1f021bf]
+  - @hyperlane-xyz/aleo-sdk@25.4.0
+  - @hyperlane-xyz/utils@25.4.0
+  - @hyperlane-xyz/cosmos-sdk@25.4.0
+  - @hyperlane-xyz/provider-sdk@1.4.0
+  - @hyperlane-xyz/radix-sdk@25.4.0
+  - @hyperlane-xyz/deploy-sdk@1.4.0
+  - @hyperlane-xyz/core@11.0.0
+  - @hyperlane-xyz/tron-sdk@21.1.3
+  - @hyperlane-xyz/starknet-core@25.4.0
+
 ## 25.3.2
 
 ### Patch Changes
