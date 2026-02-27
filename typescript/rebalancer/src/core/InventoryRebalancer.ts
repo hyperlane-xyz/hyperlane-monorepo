@@ -65,7 +65,7 @@ const MAX_GAS_PERCENT_THRESHOLD = 10n;
 export interface InventoryRebalancerConfig {
   /** EOA address of the inventory signer */
   inventorySigner: string;
-  /** Optional MultiProvider with inventory signer for signing transactions */
+  /** MultiProvider with inventory signer for signing transactions */
   inventoryMultiProvider: MultiProvider;
   /** Chains configured for inventory-based rebalancing (for validation) */
   inventoryChains: ChainName[];
