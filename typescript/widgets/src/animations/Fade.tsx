@@ -1,12 +1,15 @@
-import React, { PropsWithChildren, useEffect, useState } from 'react';
+import React, { PropsWithChildren, useRef, useState } from 'react';
 
 export function Fade(props: PropsWithChildren<{ show: boolean }>) {
   const { show, children } = props;
   const [render, setRender] = useState(show);
 
-  useEffect(() => {
-    if (show) setRender(true);
-  }, [show]);
+  // Derive render state during render: when show becomes true, render immediately
+  const prevShow = useRef(show);
+  if (show && !prevShow.current) {
+    setRender(true);
+  }
+  prevShow.current = show;
 
   const onAnimationEnd = () => {
     if (!show) setRender(false);

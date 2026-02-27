@@ -33,7 +33,7 @@ export function SegmentedControl<O extends string>({
     <div className="htw-inline-flex htw-rounded htw-border htw-border-gray-200 htw-divide-x">
       {options.map((option, index) => (
         <button
-          key={index}
+          key={option}
           onClick={() => handleSelect(index)}
           className={`htw-px-2 sm:htw-px-3 htw-py-1 htw-text-sm htw-transition-all htw-duration-200 htw-ease-in-out htw-focus:outline-none first:htw-rounded-l last:htw-rounded-r
             ${

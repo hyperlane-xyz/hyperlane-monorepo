@@ -36,6 +36,7 @@ export function DropdownMenu({
         )}
         {...menuProps}
       >
+        {/* Index key is acceptable: menuItems are opaque ReactNode children with no stable id */}
         {menuItems.map((mi, i) => (
           <MenuItem key={`menu-item-${i}`}>{mi}</MenuItem>
         ))}
