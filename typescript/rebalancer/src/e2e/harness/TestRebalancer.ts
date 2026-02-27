@@ -1,13 +1,14 @@
 import { BigNumber, ethers } from 'ethers';
 import { type Logger, pino } from 'pino';
 
+import { ERC20Test__factory } from '@hyperlane-xyz/core';
 import {
   HyperlaneCore,
   MultiProtocolProvider,
   type MultiProvider,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
+import { addressToBytes32, assert } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
@@ -32,12 +33,15 @@ import {
   BALANCE_PRESETS,
   DOMAIN_IDS,
   type DeployedAddresses,
+  ERC20_INVENTORY_MONITORED_ROUTE_ID,
+  type Erc20InventoryDeployedAddresses,
   INVENTORY_SIGNER_PRESETS,
   MONITORED_ROUTE_ID,
   NATIVE_MONITORED_ROUTE_ID,
   type NativeDeployedAddresses,
   TEST_CHAINS,
   type TestChain,
+  buildErc20InventoryWarpRouteConfig,
   buildNativeWarpRouteConfig,
   buildWarpRouteConfig,
 } from '../fixtures/routes.js';
@@ -94,6 +98,11 @@ type TestInventoryConfig = {
   nativeDeployedAddresses: NativeDeployedAddresses;
 };
 
+type TestErc20InventoryConfig = {
+  inventorySignerKey: string;
+  erc20DeployedAddresses: Erc20InventoryDeployedAddresses;
+};
+
 export class TestRebalancerBuilder {
   private strategyConfig: StrategyConfig[] | undefined;
   private balanceConfig: BalanceConfig = 'BALANCED';
@@ -101,6 +110,7 @@ export class TestRebalancerBuilder {
   private mockTransfers: ExplorerMessage[] = [];
   private executionMode: ExecutionMode = 'propose';
   private inventoryConfig: TestInventoryConfig | undefined;
+  private erc20InventoryConfig: TestErc20InventoryConfig | undefined;
   private mockExternalBridge: MockExternalBridge | undefined;
   private readonly logger: Logger;
   private inventorySignerBalanceConfig:
@@ -146,6 +156,11 @@ export class TestRebalancerBuilder {
     nativeDeployedAddresses: NativeDeployedAddresses;
   }): this {
     this.inventoryConfig = config;
+    return this;
+  }
+
+  withErc20InventoryConfig(config: TestErc20InventoryConfig): this {
+    this.erc20InventoryConfig = config;
     return this;
   }
 
@@ -205,6 +220,11 @@ export class TestRebalancerBuilder {
       );
     }
 
+    assert(
+      !(this.inventoryConfig && this.erc20InventoryConfig),
+      'Cannot set both inventoryConfig and erc20InventoryConfig — use one or the other',
+    );
+
     if (this.inventoryConfig && !this.mockExternalBridge) {
       throw new Error(
         'Inventory mode requires .withMockExternalBridge() to prevent hitting real external bridges in tests',
@@ -214,7 +234,9 @@ export class TestRebalancerBuilder {
     await this.setupBalances();
 
     const inventoryModeConfig = this.inventoryConfig;
+    const erc20InventoryModeConfig = this.erc20InventoryConfig;
     const isInventoryMode = inventoryModeConfig !== undefined;
+    const isErc20InventoryMode = erc20InventoryModeConfig !== undefined;
     const ctx = this.deploymentManager.getContext();
     const { providers: localProviders } = ctx;
     const deployedAddresses = ctx.deployedAddresses;
@@ -224,9 +246,11 @@ export class TestRebalancerBuilder {
 
     const coreAddresses: Record<string, Record<string, string>> = {};
     for (const chain of TEST_CHAINS) {
-      const chainAddresses = isInventoryMode
-        ? inventoryModeConfig.nativeDeployedAddresses.chains[chain]
-        : deployedAddresses.chains[chain];
+      const chainAddresses = isErc20InventoryMode
+        ? erc20InventoryModeConfig.erc20DeployedAddresses.chains[chain]
+        : isInventoryMode
+          ? inventoryModeConfig.nativeDeployedAddresses.chains[chain]
+          : deployedAddresses.chains[chain];
       if (!chainAddresses) {
         throw new Error(`Missing chain addresses for ${chain}`);
       }
@@ -267,7 +291,24 @@ export class TestRebalancerBuilder {
     let inventoryMultiProvider: MultiProvider | undefined;
     let rebalancerConfig: RebalancerConfig;
     let warpCoreConfig: WarpCoreConfig;
-    if (isInventoryMode) {
+    if (isErc20InventoryMode) {
+      inventoryMultiProvider =
+        await this.getInventoryMultiProvider(localProviders);
+      const inventorySignerAddress = new ethers.Wallet(
+        erc20InventoryModeConfig.inventorySignerKey,
+      ).address;
+      rebalancerAddresses.push(inventorySignerAddress);
+      rebalancerConfig = new RebalancerConfig(
+        ERC20_INVENTORY_MONITORED_ROUTE_ID,
+        this.strategyConfig,
+        DEFAULT_INTENT_TTL_MS,
+        inventorySignerAddress,
+        { lifi: { integrator: 'test' } },
+      );
+      warpCoreConfig = buildErc20InventoryWarpRouteConfig(
+        erc20InventoryModeConfig.erc20DeployedAddresses,
+      );
+    } else if (isInventoryMode) {
       inventoryMultiProvider =
         await this.getInventoryMultiProvider(localProviders);
       const inventorySignerAddress = new ethers.Wallet(
@@ -313,14 +354,15 @@ export class TestRebalancerBuilder {
     await tracker.initialize();
     this.logger.info('ActionTracker initialized with mock explorer');
 
+    const isAnyInventoryMode = isInventoryMode || isErc20InventoryMode;
     const externalBridgeRegistryOverride =
-      isInventoryMode && this.mockExternalBridge
+      isAnyInventoryMode && this.mockExternalBridge
         ? ({
             [ExternalBridgeType.LiFi]: this.mockExternalBridge,
           } as Partial<ExternalBridgeRegistry>)
         : undefined;
     const rebalancerComponents =
-      this.executionMode === 'execute' || isInventoryMode
+      this.executionMode === 'execute' || isAnyInventoryMode
         ? await contextFactory.createRebalancers(
             tracker,
             undefined,
@@ -425,6 +467,50 @@ export class TestRebalancerBuilder {
       return;
     }
 
+    if (this.erc20InventoryConfig) {
+      for (const [chain, balance] of Object.entries(balances)) {
+        const provider = localProviders.get(chain);
+        const tokenAddress: string | undefined =
+          this.erc20InventoryConfig.erc20DeployedAddresses.tokens[
+            chain as TestChain
+          ];
+        const monitoredRouteAddress: string | undefined =
+          this.erc20InventoryConfig.erc20DeployedAddresses.monitoredRoute[
+            chain as TestChain
+          ];
+        assert(provider, `setupBalances: missing provider for chain ${chain}`);
+        assert(
+          tokenAddress,
+          `setupBalances: missing token address for chain ${chain}`,
+        );
+        assert(
+          monitoredRouteAddress,
+          `setupBalances: missing monitored route address for chain ${chain}`,
+        );
+
+        const deployerSigner = new ethers.Wallet(
+          ANVIL_TEST_PRIVATE_KEY,
+          provider,
+        );
+        const token = ERC20Test__factory.connect(tokenAddress, deployerSigner);
+        await token.transfer(monitoredRouteAddress, balance);
+      }
+
+      this.logger.info(
+        {
+          balances: Object.fromEntries(
+            Object.entries(balances).map(([chain, balance]) => [
+              chain,
+              balance.toString(),
+            ]),
+          ),
+        },
+        'ERC20 inventory balances configured on monitored routes',
+      );
+      await this.setupInventorySignerBalances(localProviders);
+      return;
+    }
+
     const deployedAddresses = ctx.deployedAddresses;
     if (!('tokens' in deployedAddresses)) {
       throw new Error('Expected ERC20 deployed addresses with tokens field');
@@ -451,16 +537,23 @@ export class TestRebalancerBuilder {
     );
   }
 
+  private getInventorySignerAddress(): string {
+    const config = this.inventoryConfig ?? this.erc20InventoryConfig;
+    assert(config, 'Expected inventoryConfig or erc20InventoryConfig');
+    return new ethers.Wallet(config.inventorySignerKey).address;
+  }
+
   private async setupInventorySignerBalances(
     localProviders: Map<string, ethers.providers.JsonRpcProvider>,
   ): Promise<void> {
-    if (!this.inventorySignerBalanceConfig || !this.inventoryConfig) {
+    if (
+      !this.inventorySignerBalanceConfig ||
+      (!this.inventoryConfig && !this.erc20InventoryConfig)
+    ) {
       return;
     }
 
-    const signerAddress = new ethers.Wallet(
-      this.inventoryConfig.inventorySignerKey,
-    ).address;
+    const signerAddress = this.getInventorySignerAddress();
 
     let balances: Partial<Record<string, string>>;
     if (typeof this.inventorySignerBalanceConfig === 'string') {
@@ -473,6 +566,61 @@ export class TestRebalancerBuilder {
           )
           .map(([chain, val]) => [chain, val.toString()]),
       );
+    }
+
+    if (this.erc20InventoryConfig) {
+      const signerWallet = new ethers.Wallet(
+        this.erc20InventoryConfig.inventorySignerKey,
+      );
+      const deployerKey = ANVIL_TEST_PRIVATE_KEY;
+      const tokens = this.erc20InventoryConfig.erc20DeployedAddresses.tokens;
+
+      for (const [chain, balance] of Object.entries(balances)) {
+        const provider = localProviders.get(chain);
+        assert(
+          balance !== undefined,
+          `setupInventorySignerBalances: missing balance for chain ${chain}`,
+        );
+        assert(
+          provider,
+          `setupInventorySignerBalances: missing provider for chain ${chain}`,
+        );
+
+        const tokenAddress = tokens[chain as TestChain];
+        assert(
+          tokenAddress,
+          `setupInventorySignerBalances: missing token address for chain ${chain}`,
+        );
+
+        const connectedSigner = signerWallet.connect(provider);
+        const deployerSigner = new ethers.Wallet(deployerKey, provider);
+        const tokenAsSigner = ERC20Test__factory.connect(
+          tokenAddress,
+          connectedSigner,
+        );
+        const tokenAsDeployer = ERC20Test__factory.connect(
+          tokenAddress,
+          deployerSigner,
+        );
+
+        const current = await tokenAsSigner.balanceOf(signerAddress);
+        if (current.gt(0)) {
+          await tokenAsSigner.transfer(deployerSigner.address, current);
+        }
+
+        if (BigNumber.from(balance).gt(0)) {
+          await tokenAsDeployer.transfer(
+            signerAddress,
+            BigNumber.from(balance),
+          );
+        }
+      }
+
+      this.logger.info(
+        { balances, signer: signerWallet.address },
+        'ERC20 inventory signer balances configured',
+      );
+      return;
     }
 
     for (const [chain, balance] of Object.entries(balances)) {
@@ -543,6 +691,10 @@ export class TestRebalancerBuilder {
   }
 
   private getMonitoredRouteAddresses(): Record<TestChain, string> {
+    if (this.erc20InventoryConfig) {
+      return this.erc20InventoryConfig.erc20DeployedAddresses.monitoredRoute;
+    }
+
     if (this.inventoryConfig) {
       return this.inventoryConfig.nativeDeployedAddresses.monitoredRoute;
     }
@@ -559,14 +711,12 @@ export class TestRebalancerBuilder {
     localProviders: Map<string, ethers.providers.JsonRpcProvider>,
   ): Promise<MultiProvider> {
     const inventoryMultiProvider = this.multiProvider.extendChainMetadata({});
-    if (!this.inventoryConfig) {
-      throw new Error(
-        'Inventory config is required to create inventory MultiProvider',
-      );
-    }
-    const inventoryWallet = new ethers.Wallet(
-      this.inventoryConfig.inventorySignerKey,
+    const config = this.inventoryConfig ?? this.erc20InventoryConfig;
+    assert(
+      config,
+      'getInventoryMultiProvider requires inventoryConfig or erc20InventoryConfig',
     );
+    const inventoryWallet = new ethers.Wallet(config.inventorySignerKey);
 
     for (const chain of TEST_CHAINS) {
       const provider = localProviders.get(chain);
