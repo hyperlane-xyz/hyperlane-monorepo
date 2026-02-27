@@ -1,7 +1,7 @@
 {
     "name": "@hyperlane-xyz/core",
     "description": "Core solidity contracts for Hyperlane",
-    "version": "10.1.5",
+    "version": "11.0.0",
     "devDependencies": {
         "@ethersproject/abi": "*",
         "@hyperlane-xyz/utils": "workspace:*",
@@ -47,12 +47,16 @@
         "./buildArtifact.js": "./dist/buildArtifact.js",
         "./buildArtifact.json": "./dist/buildArtifact.json",
         "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
+        "./tron/abi/*": "./artifacts-tron/*",
+        "./tron/typechain": "./dist/tron/typechain/index.js",
+        "./tron/typechain/*": "./dist/tron/typechain/*",
         "./contracts": "./contracts"
     },
     "types": "./dist/index.d.ts",
     "files": [
         "/dist",
         "/contracts",
+        "/artifacts-tron",
         "/dependencies"
     ],
     "engines": {
@@ -66,13 +70,14 @@
     ],
     "license": "Apache-2.0",
     "scripts": {
-        "deps:soldeer": "forge soldeer install --quiet",
+        "deps:soldeer": "forge soldeer install --quiet || echo 'Warning: soldeer install failed, assuming dependencies are already present'",
         "build": "pnpm version:update && pnpm hardhat-esm compile && tsc && ./exportBuildArtifact.sh",
-        "build:tron": "./build-tron.sh",
         "build:zk": "pnpm hardhat-zk compile && tsc && node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
-        "prepublishOnly": "pnpm build && pnpm build:zk",
+        "build:tron": "./build-tron.sh",
+        "test:tron": "FOUNDRY_PROFILE=tron forge test --match-contract TronCreate2Test -vvv",
+        "prepublishOnly": "pnpm build && pnpm build:zk && pnpm build:tron",
         "lint": "solhint contracts/**/*.sol && eslint -c ./eslint.config.mjs",
-        "clean": "pnpm hardhat-esm clean && pnpm hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./cache-tron ./types ./coverage ./out ./forge-cache ./fixtures",
+        "clean": "pnpm hardhat-esm clean && pnpm hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./cache-tron ./artifacts-tron ./types ./coverage ./out ./forge-cache ./fixtures",
         "coverage": "pnpm fixtures && ./coverage.sh",
         "docs": "forge doc",
         "fixtures": "mkdir -p ./fixtures/aggregation ./fixtures/multisig",
@@ -82,7 +87,7 @@
         "format": "prettier --write ./contracts ./test",
         "test": "pnpm version:exhaustive && pnpm hardhat-esm test && pnpm test:forge",
         "test:hardhat": "pnpm hardhat-esm test",
-        "test:forge": "pnpm fixtures && forge test -vvv --decode-internal --no-match-contract Everclear",
+        "test:forge": "pnpm fixtures && forge test -vvv --decode-internal --no-match-contract 'Everclear|Tron'",
         "test:ci": "pnpm version:changed && pnpm test:hardhat && pnpm test:forge --no-match-test testFork",
         "test:fork": "sh -c '. ./.env.default && forge test --match-test testFork && forge test --match-contract ForkTest'",
         "gas": "forge snapshot",

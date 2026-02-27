@@ -1,0 +1,9 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["@hyperlane-xyz/core#build:tron", "^build"],
+      "outputs": ["dist/**"]
+    }
+  }
+}

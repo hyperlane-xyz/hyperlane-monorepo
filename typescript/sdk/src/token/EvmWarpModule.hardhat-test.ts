@@ -815,6 +815,10 @@ describe('EvmWarpModule', async () => {
       const existingConfig = await evmERC20WarpModule.read();
       for (let i = 0; i < numOfRouters; i++) {
         delete existingConfig.remoteRouters?.[i.toString()];
+        // Also remove corresponding destinationGas entry to stay consistent
+        if (existingConfig.destinationGas) {
+          delete existingConfig.destinationGas[i.toString()];
+        }
         await sendTxs(await evmERC20WarpModule.update(existingConfig));
 
         const updatedConfig = await evmERC20WarpModule.read();
@@ -1675,6 +1679,12 @@ describe('EvmWarpModule', async () => {
         .stub(evmERC20WarpModule.reader, 'fetchPackageVersion')
         .resolves('6.0.0');
 
+      // Also stub fetchScale to avoid version mismatch when reading scale
+      // For old contracts (< 11.0.0), scale would default to 1
+      const scaleStub = sinon
+        .stub(evmERC20WarpModule.reader, 'fetchScale')
+        .resolves(undefined);
+
       // In update, we do a check see if the package version is old
       // If it is, we deploy a new implementation and run upgradeTo
       await sendTxs(
@@ -1685,6 +1695,7 @@ describe('EvmWarpModule', async () => {
       );
 
       versionStub.restore();
+      scaleStub.restore();
       const updatedConfig = await evmERC20WarpModule.read();
 
       // Assert

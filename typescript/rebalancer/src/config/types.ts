@@ -115,6 +115,9 @@ export const RebalancerStrategySchema = z
   .union([StrategyConfigSchema, z.array(StrategyConfigSchema).min(1)])
   .transform((val) => (Array.isArray(val) ? val : [val]));
 
+export const DEFAULT_INTENT_TTL_S = 604800; // 7 days
+export const DEFAULT_INTENT_TTL_MS = DEFAULT_INTENT_TTL_S * 1_000;
+
 export const LiFiBridgeConfigSchema = z.object({
   integrator: z.string(),
   defaultSlippage: z.number().optional(),
@@ -133,6 +136,14 @@ export const RebalancerConfigSchema = z
       .regex(/0x[a-fA-F0-9]{40}/)
       .optional(),
     externalBridges: ExternalBridgesConfigSchema.optional(),
+    intentTTL: z
+      .number()
+      .positive()
+      .default(DEFAULT_INTENT_TTL_S)
+      .describe(
+        'Max age in seconds before in-progress intent is expired. Default 7 days.',
+      )
+      .transform((val) => val * 1_000),
   })
   .superRefine((config, ctx) => {
     // CollateralDeficitStrategy must be first in composite if it is used

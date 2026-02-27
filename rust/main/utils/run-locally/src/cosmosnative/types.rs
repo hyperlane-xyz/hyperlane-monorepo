@@ -108,6 +108,7 @@ impl AgentConfig {
             index: AgentConfigIndex { from: 1, chunk: 5 },
             native_token: NativeToken {
                 decimals: 6,
+                symbol: String::new(),
                 denom: DENOM.to_string(),
             },
             canonical_asset: DENOM.to_owned(),

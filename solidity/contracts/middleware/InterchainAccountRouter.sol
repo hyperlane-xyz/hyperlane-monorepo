@@ -27,16 +27,19 @@ import {CommitmentReadIsm} from "../isms/ccip-read/CommitmentReadIsm.sol";
 import {Mailbox} from "../Mailbox.sol";
 import {Message} from "../libs/Message.sol";
 import {AbstractRoutingIsm} from "../isms/routing/AbstractRoutingIsm.sol";
-import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /*
  * @title A contract that allows accounts on chain A to call contracts via a
  * proxy contract on chain B.
+ * @dev ISMs enrolled alongside routers via _enrollRemoteRouterAndIsm, domains always match router table
  */
+// solhint-disable-next-line hyperlane/enumerable-domain-mapping
 contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     // ============ Libraries ============
 
@@ -45,6 +48,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     using InterchainAccountMessage for bytes;
     using Message for bytes;
     using StandardHookMetadata for bytes;
+    using SafeERC20 for IERC20;
 
     // ============ Constants ============
 
@@ -175,6 +179,32 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     }
 
     // ============ External Functions ============
+
+    /**
+     * @notice Approves a hook to spend a fee token on behalf of this router.
+     * @dev Use this to pre-approve hooks that will call transferFrom for ERC-20 fees,
+     * such as the IGP when it is a child of a StaticAggregationHook. The per-dispatch
+     * approval in _dispatchMessageWithValue only approves the top-level hook, so child
+     * hooks that call transferFrom (like the IGP inside an aggregation) need to be
+     * pre-approved via this function.
+     *
+     * Security: Infinite approvals are safe from the ICA router because:
+     * 1. The router never holds user funds - tokens are pulled from the caller
+     *    and immediately forwarded to hooks during dispatch in a single transaction
+     * 2. Any tokens remaining in the router after a dispatch are not user funds -
+     *    they would only exist due to a bug or unexpected hook behavior
+     * 3. This is distinct from warp routes which hold collateral and therefore
+     *    must NOT grant infinite approvals to arbitrary addresses
+     * 4. The function is permissionless because restricting it provides no
+     *    additional security - the router's token balance is always ~0
+     *
+     * @param _feeToken The ERC-20 fee token address.
+     * @param _hook The hook address to approve for spending the fee token.
+     */
+    function approveFeeTokenForHook(address _feeToken, address _hook) external {
+        IERC20(_feeToken).forceApprove(_hook, type(uint256).max);
+    }
+
     /**
      * @notice Dispatches a sequence of remote calls to be made by an owner's
      * interchain account on the destination domain
@@ -989,6 +1019,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
 
     /**
      * @notice Dispatches an InterchainAccountMessage to the remote router using a `value` parameter for msg.value
+     * @dev If hookMetadata contains a non-zero feeToken, pulls ERC20 from caller and approves hook
      * @param _value The amount to pass as `msg.value` to the mailbox.dispatch()
      */
     function _dispatchMessageWithValue(
@@ -1000,6 +1031,24 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint _value
     ) private returns (bytes32) {
         require(_router != bytes32(0), "no router specified for destination");
+
+        // Check if ERC20 fee payment is requested via hookMetadata
+        address _feeToken = _hookMetadata.feeToken();
+        if (_feeToken != address(0)) {
+            uint256 _fee = _Router_quoteDispatch(
+                _destination,
+                bytes(""),
+                _hookMetadata,
+                address(_hook)
+            );
+
+            // Pull fee tokens from caller and approve hook
+            // Use max approval to avoid overwriting pre-approved child hook allowances
+            // (e.g., when using StaticAggregationHook with IGP as a child)
+            IERC20(_feeToken).safeTransferFrom(msg.sender, address(this), _fee);
+            IERC20(_feeToken).forceApprove(address(_hook), type(uint256).max);
+        }
+
         return
             mailbox.dispatch{value: _value}(
                 _destination,
@@ -1075,6 +1124,32 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
                 _destination,
                 bytes(""),
                 bytes(""),
+                address(hook)
+            );
+    }
+
+    /**
+     * @notice Returns the ERC20 token payment required to dispatch a message.
+     * @param _feeToken The ERC20 token to pay gas fees in.
+     * @param _destination The domain of the destination router.
+     * @param _gasLimit The gas limit that the calls will use.
+     * @return _gasPayment Payment amount in the specified token.
+     */
+    function quoteGasPayment(
+        address _feeToken,
+        uint32 _destination,
+        uint256 _gasLimit
+    ) public view returns (uint256 _gasPayment) {
+        return
+            _Router_quoteDispatch(
+                _destination,
+                new bytes(0),
+                StandardHookMetadata.formatWithFeeToken(
+                    0,
+                    _gasLimit,
+                    msg.sender,
+                    _feeToken
+                ),
                 address(hook)
             );
     }

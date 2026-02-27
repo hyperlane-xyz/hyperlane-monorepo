@@ -66,7 +66,7 @@ impl AdapterFactory {
                 Arc::new(adapter)
             }
             ChainConnectionConf::Tron(connection_conf) => {
-                let adapter = TronAdapter::from_conf(conf, core_metrics, &connection_conf)?;
+                let adapter = TronAdapter::from_conf(conf, core_metrics, &connection_conf).await?;
                 Arc::new(adapter)
             }
         };

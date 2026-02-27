@@ -119,8 +119,9 @@ export interface IActionTracker {
   ): Promise<RebalanceIntent[]>;
 
   /**
-   * Get inventory intents that are in_progress but not fully fulfilled,
-   * and have no in-flight actions (safe to continue).
+   * Returns inventory intents that have remaining work.
+   * Intents with in-flight deposits are included but marked via hasInflightDeposit —
+   * callers must check before continuing.
    * Returns enriched data with computed values derived from action states.
    */
   getPartiallyFulfilledInventoryIntents(): Promise<PartialInventoryIntent[]>;

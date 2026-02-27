@@ -441,6 +441,7 @@ export async function enrollCrossChainRouters(
         case ProtocolType.Ethereum: {
           const {
             domainRoutingIsmFactory,
+            incrementalDomainRoutingIsmFactory,
             staticMerkleRootMultisigIsmFactory,
             staticMessageIdMultisigIsmFactory,
             staticAggregationIsmFactory,
@@ -455,6 +456,7 @@ export async function enrollCrossChainRouters(
             addresses: {
               deployedTokenRoute: deployedContracts[currentChain],
               domainRoutingIsmFactory,
+              incrementalDomainRoutingIsmFactory,
               staticMerkleRootMultisigIsmFactory,
               staticMessageIdMultisigIsmFactory,
               staticAggregationIsmFactory,

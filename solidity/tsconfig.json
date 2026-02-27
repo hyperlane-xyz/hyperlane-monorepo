@@ -12,6 +12,7 @@
     "tron-hardhat.config.cts",
     "rootHardhatConfig.cts",
     "./plugins",
-    "./dependencies"
+    "./dependencies",
+    "./artifacts-tron"
   ]
 }

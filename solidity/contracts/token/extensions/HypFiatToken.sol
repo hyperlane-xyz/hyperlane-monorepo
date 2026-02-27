@@ -18,9 +18,10 @@ contract HypFiatToken is TokenRouter {
 
     constructor(
         address _fiatToken,
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox
-    ) TokenRouter(_scale, _mailbox) {
+    ) TokenRouter(_scaleNumerator, _scaleDenominator, _mailbox) {
         wrappedToken = IFiatToken(_fiatToken);
         _disableInitializers();
     }

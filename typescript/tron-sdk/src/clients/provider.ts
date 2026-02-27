@@ -3,16 +3,16 @@ import { TronWeb } from 'tronweb';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, ensure0x, sleep, strip0x } from '@hyperlane-xyz/utils';
 
-import ERC20Abi from '../abi/@openzeppelin/contracts/token/ERC20/ERC20.sol/ERC20.json' with { type: 'json' };
-import HypERC20Abi from '../abi/contracts/token/HypERC20.sol/HypERC20.json' with { type: 'json' };
-import HypERC20CollateralAbi from '../abi/contracts/token/HypERC20Collateral.sol/HypERC20Collateral.json' with { type: 'json' };
-import HypNativeAbi from '../abi/contracts/token/HypNative.sol/HypNative.json' with { type: 'json' };
-import IERC20Abi from '../abi/@openzeppelin/contracts/token/ERC20/IERC20.sol/IERC20.json' with { type: 'json' };
-import MailboxAbi from '../abi/contracts/Mailbox.sol/Mailbox.json' with { type: 'json' };
-import MerkleTreeHookAbi from '../abi/contracts/hooks/MerkleTreeHook.sol/MerkleTreeHook.json' with { type: 'json' };
-import PausableHookAbi from '../abi/contracts/hooks/PausableHook.sol/PausableHook.json' with { type: 'json' };
-import ProxyAdminAbi from '../abi/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol/ProxyAdmin.json' with { type: 'json' };
-import ValidatorAnnounceAbi from '../abi/contracts/isms/multisig/ValidatorAnnounce.sol/ValidatorAnnounce.json' with { type: 'json' };
+import ERC20Abi from '@hyperlane-xyz/core/tron/abi/@openzeppelin/contracts/token/ERC20/ERC20.sol/ERC20.json' with { type: 'json' };
+import HypERC20Abi from '@hyperlane-xyz/core/tron/abi/contracts/token/HypERC20.sol/HypERC20.json' with { type: 'json' };
+import HypERC20CollateralAbi from '@hyperlane-xyz/core/tron/abi/contracts/token/HypERC20Collateral.sol/HypERC20Collateral.json' with { type: 'json' };
+import HypNativeAbi from '@hyperlane-xyz/core/tron/abi/contracts/token/HypNative.sol/HypNative.json' with { type: 'json' };
+import IERC20Abi from '@hyperlane-xyz/core/tron/abi/@openzeppelin/contracts/token/ERC20/IERC20.sol/IERC20.json' with { type: 'json' };
+import MailboxAbi from '@hyperlane-xyz/core/tron/abi/contracts/Mailbox.sol/Mailbox.json' with { type: 'json' };
+import MerkleTreeHookAbi from '@hyperlane-xyz/core/tron/abi/contracts/hooks/MerkleTreeHook.sol/MerkleTreeHook.json' with { type: 'json' };
+import PausableHookAbi from '@hyperlane-xyz/core/tron/abi/contracts/hooks/PausableHook.sol/PausableHook.json' with { type: 'json' };
+import ProxyAdminAbi from '@hyperlane-xyz/core/tron/abi/@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol/ProxyAdmin.json' with { type: 'json' };
+import ValidatorAnnounceAbi from '@hyperlane-xyz/core/tron/abi/contracts/isms/multisig/ValidatorAnnounce.sol/ValidatorAnnounce.json' with { type: 'json' };
 import {
   getHookType,
   getIgpHookConfig,

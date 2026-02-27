@@ -193,6 +193,36 @@ pub fn get_ts_infra_path() -> PathBuf {
     concat_path(git_workspace_path, "typescript/infra")
 }
 
+/// Poll postgres container until pg_isready succeeds.
+#[allow(dead_code)]
+pub fn wait_for_postgres() {
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    const MAX_ATTEMPTS: u32 = 30;
+    for attempt in 1..=MAX_ATTEMPTS {
+        let status = Command::new("docker")
+            .args([
+                "exec",
+                "scraper-testnet-postgres",
+                "pg_isready",
+                "-U",
+                "postgres",
+            ])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        if let Ok(s) = status {
+            if s.success() {
+                log!("Postgres ready after {} attempts", attempt);
+                return;
+            }
+        }
+        sleep(Duration::from_secs(1));
+    }
+    panic!("Postgres not ready after {MAX_ATTEMPTS} attempts");
+}
+
 #[allow(dead_code)]
 pub(crate) fn download(output: &str, uri: &str, dir: &str) {
     Program::new("curl")
