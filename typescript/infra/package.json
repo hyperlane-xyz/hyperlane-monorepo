@@ -58,6 +58,7 @@
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/tron-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@inquirer/input": "^1.0.0",
     "@inquirer/prompts": "catalog:",

@@ -3,6 +3,7 @@ import { Keypair } from '@solana/web3.js';
 import { Wallet, ethers } from 'ethers';
 import { Logger } from 'pino';
 import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
+import { TronJsonRpcProvider, TronWallet } from '@hyperlane-xyz/tron-sdk';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 import {
@@ -283,7 +284,7 @@ export class AgentGCPKey extends CloudAgentKey {
   }
 
   async getSigner(
-    provider: ethers.providers.Provider | ZkProvider,
+    provider: ethers.providers.Provider | ZkProvider | TronJsonRpcProvider,
   ): Promise<ethers.Signer | ZkWallet> {
     this.logger.debug('Getting signer');
     if (!this.remoteKey.fetched) {
@@ -293,6 +294,10 @@ export class AgentGCPKey extends CloudAgentKey {
 
     if (provider instanceof ZkProvider) {
       return new ZkWallet(this.privateKey, provider);
+    }
+
+    if (provider instanceof TronJsonRpcProvider) {
+      return new TronWallet(this.privateKey, provider.url);
     }
     return new Wallet(this.privateKey, provider);
   }

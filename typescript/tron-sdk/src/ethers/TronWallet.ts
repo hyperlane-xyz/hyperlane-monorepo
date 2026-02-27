@@ -48,6 +48,7 @@ export class TronWallet extends Wallet {
   private tronAddressHex: string;
 
   constructor(privateKey: string, tronUrl: string) {
+    tronUrl = tronUrl.endsWith('/jsonrpc') ? tronUrl.slice(0, -8) : tronUrl;
     super(privateKey, new TronJsonRpcProvider(tronUrl));
     this.tronUrl = tronUrl;
 

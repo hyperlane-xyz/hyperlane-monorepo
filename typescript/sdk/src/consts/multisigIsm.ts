@@ -2271,6 +2271,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  tronshasta: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x189ea37efb3764ab638cbaecbe764a8e814e7583',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   unichain: {
     threshold: 4,
     validators: [
